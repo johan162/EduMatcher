@@ -54,7 +54,15 @@ class TestDataDirResolution:
         tmp_path: Path,
         request: pytest.FixtureRequest,
     ) -> None:
-        custom = str(tmp_path / "custom_data")
+        # _resolve_data_dir only honours EDUMATCHER_DATA_DIR when it points
+        # at a directory that actually exists — that's the documented
+        # host/container fallback (tier 4: ./data under cwd) kicking in when
+        # it doesn't, not a bug. tmp_path itself always exists, so create
+        # the target dir to test "the env var wins" rather than "the env
+        # var is silently overridden because nothing created its target".
+        custom_path = tmp_path / "custom_data"
+        custom_path.mkdir()
+        custom = str(custom_path)
         cfg = _reload_config(monkeypatch, {"EDUMATCHER_DATA_DIR": custom}, request)
         assert cfg.DATA_DIR == Path(custom).resolve()
         # All derived paths share the same root
@@ -134,11 +142,19 @@ class TestEngineConfigResolution:
         tmp_path: Path,
         request: pytest.FixtureRequest,
     ) -> None:
+        # Both candidate dirs must actually exist, or EDUMATCHER_DATA_DIR is
+        # correctly ignored in favour of the ./data fallback (tier 4) — see
+        # test_env_var_wins — and both reloads would resolve to the same
+        # ./data, defeating the point of this test.
+        dir_a = tmp_path / "a"
+        dir_b = tmp_path / "b"
+        dir_a.mkdir()
+        dir_b.mkdir()
         first = _reload_config(
-            monkeypatch, {"EDUMATCHER_DATA_DIR": str(tmp_path / "a")}, request
+            monkeypatch, {"EDUMATCHER_DATA_DIR": str(dir_a)}, request
         ).ENGINE_CONFIG_FILE
         second = _reload_config(
-            monkeypatch, {"EDUMATCHER_DATA_DIR": str(tmp_path / "b")}, request
+            monkeypatch, {"EDUMATCHER_DATA_DIR": str(dir_b)}, request
         ).ENGINE_CONFIG_FILE
 
         assert first != second

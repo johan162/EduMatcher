@@ -34,42 +34,52 @@ class TestBoardHelpers:
         assert _colour_change(0.0) == "white"
 
     def test_fmt_price_none(self) -> None:
-        from edumatcher.board.main import _fmt_price
+        from edumatcher.board.main import _format_price
 
-        assert _fmt_price(None) == "—"
+        assert _format_price(None, "AAPL") == "—"
 
     def test_fmt_price_value(self) -> None:
-        from edumatcher.board.main import _fmt_price
+        from edumatcher.board.main import _format_price
 
-        assert _fmt_price(150.0) == "150.0000"
+        # _format_price renders at the symbol's own tick precision — with
+        # no engine config loaded in the test sandbox, that falls back to
+        # _DEFAULT_TICK_DECIMALS (2), same as pm-orders' identical helper.
+        assert _format_price(150.0, "AAPL") == "150.00"
 
     def test_build_table_empty(self) -> None:
-        from edumatcher.board.main import _build_table
+        from edumatcher.board.main import _build_rows_table
         from rich.table import Table
 
-        t = _build_table({}, page=0, rows_per_page=8, interval=10)
+        # Pagination now happens in the caller (MarketBoard.run slices
+        # sorted_syms before calling _build_rows_table) rather than inside
+        # the table builder itself — page_symbols is already the one page
+        # of (symbol, data) tuples to render.
+        t = _build_rows_table([])
         assert isinstance(t, Table)
 
     def test_build_table_single_symbol(self) -> None:
-        from edumatcher.board.main import _build_table
+        from edumatcher.board.main import _build_rows_table
 
-        symbols = {
-            "AAPL": {
-                "last_price": 150.0,
-                "first_price": 145.0,
-                "last_buy_price": 149.9,
-                "last_sell_price": 150.1,
-                "best_bid": 149.5,
-                "best_ask": 150.5,
-                "volume": 10000,
-                "updated": datetime.now(),
-            }
-        }
-        t = _build_table(symbols, page=0, rows_per_page=8, interval=10)
+        page_symbols = [
+            (
+                "AAPL",
+                {
+                    "last_price": 150.0,
+                    "first_price": 145.0,
+                    "last_buy_price": 149.9,
+                    "last_sell_price": 150.1,
+                    "best_bid": 149.5,
+                    "best_ask": 150.5,
+                    "volume": 10000,
+                    "updated": datetime.now(),
+                },
+            )
+        ]
+        t = _build_rows_table(page_symbols)
         assert t.row_count >= 1
 
     def test_build_table_paging(self) -> None:
-        from edumatcher.board.main import _build_table
+        from edumatcher.board.main import _build_rows_table
 
         symbols = {
             f"SYM{i:02d}": {
@@ -80,41 +90,51 @@ class TestBoardHelpers:
             }
             for i in range(20)
         }
-        t1 = _build_table(symbols, page=0, rows_per_page=8, interval=10)
-        t2 = _build_table(symbols, page=1, rows_per_page=8, interval=10)
+        sorted_syms = sorted(symbols.items())
+        rows_per_page = 8
+        page0 = sorted_syms[0:rows_per_page]
+        page1 = sorted_syms[rows_per_page : rows_per_page * 2]
+        t1 = _build_rows_table(page0)
+        t2 = _build_rows_table(page1)
         assert t1.row_count == 8
         assert t2.row_count == 8
 
     def test_build_table_no_prices(self) -> None:
-        from edumatcher.board.main import _build_table
+        from edumatcher.board.main import _build_rows_table
 
-        symbols = {
-            "AAPL": {
-                "last_price": None,
-                "first_price": None,
-                "volume": 0,
-                "updated": None,
-            }
-        }
-        t = _build_table(symbols, page=0, rows_per_page=8, interval=10)
+        page_symbols = [
+            (
+                "AAPL",
+                {
+                    "last_price": None,
+                    "first_price": None,
+                    "volume": 0,
+                    "updated": None,
+                },
+            )
+        ]
+        t = _build_rows_table(page_symbols)
         assert t.row_count >= 1
 
     def test_build_table_with_spread(self) -> None:
-        from edumatcher.board.main import _build_table
+        from edumatcher.board.main import _build_rows_table
 
-        symbols = {
-            "MSFT": {
-                "last_price": 400.0,
-                "first_price": 398.0,
-                "best_bid": 399.5,
-                "best_ask": 400.5,
-                "last_buy_price": 400.0,
-                "last_sell_price": 399.0,
-                "volume": 500,
-                "updated": datetime.now(),
-            }
-        }
-        t = _build_table(symbols, page=0, rows_per_page=8, interval=10)
+        page_symbols = [
+            (
+                "MSFT",
+                {
+                    "last_price": 400.0,
+                    "first_price": 398.0,
+                    "best_bid": 399.5,
+                    "best_ask": 400.5,
+                    "last_buy_price": 400.0,
+                    "last_sell_price": 399.0,
+                    "volume": 500,
+                    "updated": datetime.now(),
+                },
+            )
+        ]
+        t = _build_rows_table(page_symbols)
         assert t.row_count >= 1
 
 

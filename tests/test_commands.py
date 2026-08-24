@@ -36,6 +36,7 @@ from edumatcher.models.message import (
     make_gateways_msg,
     make_kill_switch_ack_msg,
     make_orders_msg,
+    make_price_level_orders_msg,
     make_quote_ack_msg,
     make_quote_bootstrap_msg,
     make_index_error_msg,
@@ -370,6 +371,91 @@ class TestDataQueries:
         assert payload["gateway_id"] == "GW_ADMIN"
 
         assert result == ["AAPL", "MSFT", "TSLA"]
+
+    def test_price_level_orders_sends_request_with_price_filter(self) -> None:
+        orders = [
+            {
+                "id": "66d5940c",
+                "gateway_id": "MM01",
+                "symbol": "AAPL",
+                "side": "BUY",
+                "order_type": "LIMIT",
+                "tif": "GTC",
+                "quantity": 200,
+                "remaining_qty": 200,
+                "price": 149.50,
+                "timestamp": 1.0,
+                "status": "NEW",
+                "arrival_seq": 1,
+            },
+            {
+                "id": "9a2b1c04",
+                "gateway_id": "TRADER01",
+                "symbol": "AAPL",
+                "side": "BUY",
+                "order_type": "LIMIT",
+                "tif": "DAY",
+                "quantity": 100,
+                "remaining_qty": 100,
+                "price": 149.50,
+                "timestamp": 2.0,
+                "status": "NEW",
+                "arrival_seq": 2,
+            },
+        ]
+        client, push = _client(
+            recv_queue=_q(
+                make_price_level_orders_msg("GW_ADMIN", "AAPL", orders, price=149.50)
+            )
+        )
+        result = client.price_level_orders("aapl", price=149.50)  # lowercase input
+
+        topic, payload = _last_sent(push)
+        assert topic == "order.price_level_orders_request"
+        assert payload["gateway_id"] == "GW_ADMIN"
+        assert payload["symbol"] == "AAPL"  # uppercased
+        assert payload["price"] == 149.50
+
+        assert result["rejected"] is False
+        assert len(result["orders"]) == 2
+        assert result["orders"][0]["gateway_id"] == "MM01"
+
+    def test_price_level_orders_without_price_omits_filter(self) -> None:
+        client, push = _client(
+            recv_queue=_q(make_price_level_orders_msg("GW_ADMIN", "AAPL", []))
+        )
+        client.price_level_orders("AAPL")
+
+        _, payload = _last_sent(push)
+        assert "price" not in payload
+
+    def test_price_level_orders_rejected_for_non_admin(self) -> None:
+        client, push = _client(
+            "TRADER01",
+            recv_queue=_q(
+                make_price_level_orders_msg(
+                    "TRADER01",
+                    "AAPL",
+                    [],
+                    rejected=True,
+                    reason="Price-level order composition is only allowed "
+                    "for ADMIN participants",
+                )
+            ),
+        )
+        result = client.price_level_orders("AAPL")
+
+        assert result["rejected"] is True
+        assert "ADMIN" in result["reason"]
+        assert result["orders"] == []
+
+    def test_price_level_orders_empty_result_not_rejected(self) -> None:
+        client, push = _client(
+            recv_queue=_q(make_price_level_orders_msg("GW_ADMIN", "AAPL", []))
+        )
+        result = client.price_level_orders("AAPL", price=55.00)
+        assert result["rejected"] is False
+        assert result["orders"] == []
 
     def test_quote_bootstrap_returns_quotes(self) -> None:
         quotes = [

@@ -132,7 +132,6 @@ from edumatcher.config import (
     BOOK_STATS_FILE,
     LOG_DB_FILE,
     LOG_FALLBACK_DIR,
-    REF_DATA_DIR,
     STATS_DB_FILE,
     resolve_data_path,
 )

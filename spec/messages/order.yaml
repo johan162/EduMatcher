@@ -155,6 +155,83 @@ types:
         default: 0
         doc: "Engine-assigned monotonic arrival sequence; 0 = unassigned."
 
+  PriceLevelOrder:
+    doc: >
+      One resting order as reported by order.price_level_orders — the same
+      projection as OrderDisplay (order_to_display_dict), with one field
+      added: gateway_id. OrderDisplay can leave gateway_id topic-only
+      because an order.orders reply is always about a single, already-known
+      gateway; a price_level_orders reply spans every gateway resting at a
+      symbol/price, so each record must say whose order it is. The
+      generator has no type-extension mechanism, so this duplicates
+      OrderDisplay's field list rather than referencing it — keep the two
+      in sync by hand if OrderDisplay's fields change.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 },
+          doc: "Owning gateway — the one piece of information OrderDisplay
+                omits because its own topic already says it." }
+      - { name: id, type: string, validate: { max_len: 64 },
+          doc: "Engine order id; a UUID string." }
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: side, type: enum, values: [BUY, SELL] }
+      - { name: order_type, type: enum,
+          values: [MARKET, LIMIT, STOP, STOP_LIMIT, FOK, ICEBERG, IOC,
+                   TRAILING_STOP] }
+      - { name: tif, type: enum, values: [DAY, GTC, ATO, ATC] }
+      - { name: quantity, type: int, unit: shares,
+          doc: "Total original quantity.", validate: { gt: 0 } }
+      - { name: remaining_qty, type: int, unit: shares,
+          doc: "Quantity yet to be filled.", validate: { ge: 0 } }
+      - { name: trail_offset, type: float, unit: display_price,
+          required: false, nullable: true,
+          doc: "TRAILING_STOP: trail distance, in display money." }
+      - { name: oco_group_id, type: string, required: false, nullable: true,
+          validate: { max_len: 64 } }
+      - name: timestamp
+        type: float
+        unit: epoch_seconds
+        validate: { ge: 0 }
+        doc: >
+          Client-supplied submission time, in seconds. NOT the book's time
+          priority key - see arrival_seq.
+      - { name: status, type: enum,
+          values: [NEW, PARTIAL, FILLED, CANCELLED, REJECTED, EXPIRED] }
+      - { name: price, type: float, unit: display_price, required: false,
+          nullable: true,
+          doc: "Limit price in display money. Null for MARKET, which has none." }
+      - { name: stop_price, type: float, unit: display_price, required: false,
+          nullable: true, doc: "STOP / STOP_LIMIT / TRAILING_STOP trigger." }
+      - { name: visible_qty, type: int, unit: shares, required: false,
+          nullable: true, doc: "ICEBERG: fixed peak size." }
+      - { name: displayed_qty, type: int, unit: shares, required: false,
+          nullable: true, doc: "ICEBERG: current visible slice on the book." }
+      - name: smp_action
+        type: enum
+        values: [NONE, CANCEL_AGGRESSOR, CANCEL_RESTING, CANCEL_BOTH]
+        required: false
+        nullable: true
+        doc: >
+          Self-match prevention. Null means the client did not specify SMP at
+          all, distinct from an explicit NONE. See SmpAction's docstring.
+      - { name: combo_parent_id, type: string, required: false, nullable: true,
+          validate: { max_len: 64 } }
+      - { name: leg_index, type: int, unit: dimensionless, required: false,
+          nullable: true, doc: "Position in the parent combo's legs, 0-based." }
+      - { name: origin, type: enum, values: [ORDER, QUOTE, IMPLIED],
+          required: false, default: "ORDER",
+          doc: "Defaulted rather than nullable: to_dict always supplies ORDER." }
+      - { name: quote_id, type: string, required: false, nullable: true,
+          validate: { max_len: 64 } }
+      - { name: client_tag, type: string, required: false, nullable: true,
+          validate: { max_len: 64 },
+          doc: "Client correlation tag, echoed on every lifecycle event." }
+      - name: arrival_seq
+        type: int
+        unit: dimensionless
+        required: false
+        default: 0
+        doc: "Engine-assigned monotonic arrival sequence; 0 = unassigned."
+
 messages:
   - name: execution_report
     # BALF-only: a private per-order fill sent to the owning gateway session.
@@ -783,5 +860,81 @@ messages:
           doc: "Topic-only; dropped from the body by the default projection." }
       - { name: orders, type: list, ref: OrderDisplay,
           doc: "Resting orders, as the engine iterates its books." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  # --------------------------------------------------------------------------
+  # Price-level composition query: an ADMIN participant asks "who makes up
+  # this price level" for a symbol — every resting order across every
+  # gateway, not just their own. order.orders_request/order.orders above are
+  # deliberately single-gateway (a normal participant may only ever see its
+  # own resting orders); this pair is the admin-only, all-gateway analogue,
+  # used by pm-admin's LEVEL command (see docs-design/EduMatcher-
+  # engine-price-ticks.md's sibling investigation and
+  # docs/user-guide/*-app-admin-console.md for the operational motivation:
+  # book.* and order.orders_request only ever show aggregate {price, qty,
+  # count} per level, never which orders and which gateways make it up).
+  # --------------------------------------------------------------------------
+  - name: price_level_orders_request
+    topic: "order.price_level_orders_request"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        ADMIN to engine: every resting order for one symbol, across every
+        gateway, optionally narrowed to a single price level. Rejected for
+        any non-ADMIN participant (see order.price_level_orders' rejection
+        note) since it exposes other participants' resting order detail
+        that order.orders_request deliberately withholds.
+      published_by: [admin]
+      since: "1.0"
+      see_also: ["order.price_level_orders.{GW_ID}", "order.orders_request",
+                 "book.{symbol}"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 },
+          doc: "The ADMIN participant asking, and the reply's correlation
+                key — not a filter on whose orders come back." }
+      - { name: symbol, type: string, validate: { max_len: 16 },
+          doc: "Instrument to inspect." }
+      - { name: price, type: float, unit: display_price, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "Narrow to orders resting at exactly this price. Omitted or
+                null returns every resting order for the symbol, across all
+                price levels." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: price_level_orders
+    topic: "order.price_level_orders.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to ADMIN caller: per-order detail (not just the aggregate
+        {price, qty, count} book.* already carries) for every resting order
+        matching the request — every gateway, ordered by price then by
+        arrival_seq within a price level so time priority is visible.
+        Empty, with rejected=true and a reason, when the requester is not
+        an ADMIN participant or the symbol is unknown.
+      published_by: [engine]
+      since: "1.0"
+      see_also: ["order.price_level_orders_request"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 },
+          doc: "Topic-only; dropped from the body by the default
+                projection." }
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: price, type: float, unit: display_price, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "Echoed from the request when it filtered to one level;
+                omitted when the request asked for the whole symbol." }
+      - { name: rejected, type: bool,
+          doc: "True when the requester was not ADMIN or the symbol is
+                unknown; orders is then always empty." }
+      - { name: reason, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 256 },
+          doc: "Set only when rejected is true." }
+      - { name: orders, type: list, ref: PriceLevelOrder,
+          doc: "Matching resting orders, ordered by price then
+                arrival_seq — empty when rejected, or when nothing rests
+                at the requested level." }
     encoding:
       engine_pub: { frames: [topic, json_payload] }

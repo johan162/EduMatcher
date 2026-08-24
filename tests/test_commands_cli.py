@@ -53,6 +53,15 @@ def test_build_parser_enforces_required_fields_and_state_upper() -> None:
     args2 = parser.parse_args(["--id", "GW_ADMIN", "session", "--state", "continuous"])
     assert args2.state == "CONTINUOUS"
 
+    args3 = parser.parse_args(["--id", "GW_ADMIN", "level", "--sym", "AAPL"])
+    assert args3.sym == "AAPL"
+    assert args3.price == ""
+
+    args4 = parser.parse_args(
+        ["--id", "GW_ADMIN", "level", "--sym", "AAPL", "--price", "149.50"]
+    )
+    assert args4.price == "149.50"
+
 
 def test_args_to_fields_maps_only_present_keys() -> None:
     class _Args:
@@ -60,6 +69,7 @@ def test_args_to_fields_maps_only_present_keys() -> None:
         sym = "AAPL"
         reason = "Compliance"
         state = "CONTINUOUS"
+        price = "149.50"
 
     fields = cli_mod._args_to_fields(_Args)
     assert fields == {
@@ -67,6 +77,7 @@ def test_args_to_fields_maps_only_present_keys() -> None:
         "SYM": "AAPL",
         "REASON": "Compliance",
         "STATE": "CONTINUOUS",
+        "PRICE": "149.50",
     }
 
     class _Args2:
@@ -74,6 +85,7 @@ def test_args_to_fields_maps_only_present_keys() -> None:
         sym = ""
         reason = None
         state = None
+        price = ""
 
     assert cli_mod._args_to_fields(_Args2) == {}
 

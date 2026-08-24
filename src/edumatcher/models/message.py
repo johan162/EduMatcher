@@ -328,6 +328,43 @@ def make_orders_msg(gateway_id: str, orders: list[dict[str, Any]]) -> list[bytes
     return _gen_order.make_orders(gateway_id=gateway_id, orders=orders)
 
 
+def make_price_level_orders_request_msg(
+    gateway_id: str, symbol: str, price: float | None = None
+) -> list[bytes]:
+    """ADMIN -> engine: every resting order for *symbol* across every
+    gateway, optionally narrowed to one *price* level. See
+    spec/messages/order.yaml's price_level_orders_request for the
+    rejection semantics (non-ADMIN callers get an empty, rejected=True
+    reply rather than this request failing to build)."""
+    kwargs: dict[str, Any] = {"gateway_id": gateway_id, "symbol": symbol.upper()}
+    if price is not None:
+        kwargs["price"] = price
+    return _gen_order.make_price_level_orders_request(**kwargs)
+
+
+def make_price_level_orders_msg(
+    gateway_id: str,
+    symbol: str,
+    orders: list[dict[str, Any]],
+    *,
+    price: float | None = None,
+    rejected: bool = False,
+    reason: str = "",
+) -> list[bytes]:
+    """Engine -> ADMIN caller: reply to price_level_orders_request."""
+    kwargs: dict[str, Any] = {
+        "gateway_id": gateway_id,
+        "symbol": symbol.upper(),
+        "rejected": rejected,
+        "orders": orders,
+    }
+    if price is not None:
+        kwargs["price"] = price
+    if reason:
+        kwargs["reason"] = reason
+    return _gen_order.make_price_level_orders(**kwargs)
+
+
 def make_book_snapshot_request_msg(symbol: str) -> list[bytes]:
     return _gen_book.make_book_snapshot_request(symbol=symbol)
 

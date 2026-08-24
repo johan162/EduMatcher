@@ -356,7 +356,12 @@ class TestViewerMain:
         monkeypatch.setattr(
             "edumatcher.viewer.main.argparse.ArgumentParser.parse_args",
             lambda _self: argparse.Namespace(
-                symbol="aapl", depth=3, db="data/stats.db"
+                symbol="aapl",
+                depth=3,
+                db="data/stats.db",
+                text_color="white",
+                zebra_lines=False,
+                zebra_lines_color="grey19",
             ),
         )
         monkeypatch.setattr(viewer_main, "make_subscriber", lambda *_args: sub)
@@ -425,7 +430,12 @@ class TestViewerMain:
         monkeypatch.setattr(
             "edumatcher.viewer.main.argparse.ArgumentParser.parse_args",
             lambda _self: argparse.Namespace(
-                symbol="MSFT", depth=2, db="data/stats.db"
+                symbol="MSFT",
+                depth=2,
+                db="data/stats.db",
+                text_color="white",
+                zebra_lines=False,
+                zebra_lines_color="grey19",
             ),
         )
         monkeypatch.setattr(viewer_main, "make_subscriber", lambda *_args: sub)

@@ -456,6 +456,245 @@ class OrderDisplay:
         }
 
 
+_PRICE_LEVEL_ORDER_SIDE_VALUES = ("BUY", "SELL")
+PriceLevelOrderSide = Literal["BUY", "SELL"]
+_PRICE_LEVEL_ORDER_ORDER_TYPE_VALUES = (
+    "MARKET",
+    "LIMIT",
+    "STOP",
+    "STOP_LIMIT",
+    "FOK",
+    "ICEBERG",
+    "IOC",
+    "TRAILING_STOP",
+)
+PriceLevelOrderOrderType = Literal[
+    "MARKET",
+    "LIMIT",
+    "STOP",
+    "STOP_LIMIT",
+    "FOK",
+    "ICEBERG",
+    "IOC",
+    "TRAILING_STOP",
+]
+_PRICE_LEVEL_ORDER_TIF_VALUES = ("DAY", "GTC", "ATO", "ATC")
+PriceLevelOrderTif = Literal["DAY", "GTC", "ATO", "ATC"]
+_PRICE_LEVEL_ORDER_STATUS_VALUES = (
+    "NEW",
+    "PARTIAL",
+    "FILLED",
+    "CANCELLED",
+    "REJECTED",
+    "EXPIRED",
+)
+PriceLevelOrderStatus = Literal[
+    "NEW",
+    "PARTIAL",
+    "FILLED",
+    "CANCELLED",
+    "REJECTED",
+    "EXPIRED",
+]
+_PRICE_LEVEL_ORDER_SMP_ACTION_VALUES = (
+    "NONE",
+    "CANCEL_AGGRESSOR",
+    "CANCEL_RESTING",
+    "CANCEL_BOTH",
+)
+PriceLevelOrderSmpAction = Literal[
+    "NONE",
+    "CANCEL_AGGRESSOR",
+    "CANCEL_RESTING",
+    "CANCEL_BOTH",
+]
+_PRICE_LEVEL_ORDER_ORIGIN_VALUES = ("ORDER", "QUOTE", "IMPLIED")
+PriceLevelOrderOrigin = Literal["ORDER", "QUOTE", "IMPLIED"]
+
+
+@dataclass(frozen=True, slots=True)
+class PriceLevelOrder:
+    """One resting order as reported by order.price_level_orders — the same
+    projection as OrderDisplay (order_to_display_dict), with one field added:
+    gateway_id. OrderDisplay can leave gateway_id topic-only because an
+    order.orders reply is always about a single, already-known gateway; a
+    price_level_orders reply spans every gateway resting at a symbol/price, so
+    each record must say whose order it is. The generator has no type-extension
+    mechanism, so this duplicates OrderDisplay's field list rather than
+    referencing it — keep the two in sync by hand if OrderDisplay's fields change.
+    """
+
+    gateway_id: str
+    id: str
+    symbol: str
+    side: PriceLevelOrderSide
+    order_type: PriceLevelOrderOrderType
+    tif: PriceLevelOrderTif
+    quantity: int  # unit: shares
+    remaining_qty: int  # unit: shares
+    timestamp: float  # unit: epoch_seconds
+    status: PriceLevelOrderStatus
+    trail_offset: float | None = None  # unit: display_price
+    oco_group_id: str | None = None
+    price: float | None = None  # unit: display_price
+    stop_price: float | None = None  # unit: display_price
+    visible_qty: int | None = None  # unit: shares
+    displayed_qty: int | None = None  # unit: shares
+    smp_action: PriceLevelOrderSmpAction | None = None
+    combo_parent_id: str | None = None
+    leg_index: int | None = None  # unit: dimensionless
+    origin: PriceLevelOrderOrigin = "ORDER"
+    quote_id: str | None = None
+    client_tag: str | None = None
+    arrival_seq: int = 0  # unit: dimensionless
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+        if len(self.id) > 64:
+            raise MessageValidationError(
+                f"id: length {len(self.id)} exceeds max_len 64"
+            )
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
+            )
+        if self.side not in _PRICE_LEVEL_ORDER_SIDE_VALUES:
+            raise MessageValidationError(
+                f"side: {self.side!r} is not one of {_PRICE_LEVEL_ORDER_SIDE_VALUES!r}"
+            )
+        if self.order_type not in _PRICE_LEVEL_ORDER_ORDER_TYPE_VALUES:
+            raise MessageValidationError(
+                f"order_type: {self.order_type!r} is not one of {_PRICE_LEVEL_ORDER_ORDER_TYPE_VALUES!r}"
+            )
+        if self.tif not in _PRICE_LEVEL_ORDER_TIF_VALUES:
+            raise MessageValidationError(
+                f"tif: {self.tif!r} is not one of {_PRICE_LEVEL_ORDER_TIF_VALUES!r}"
+            )
+        if self.quantity <= 0:
+            raise MessageValidationError(f"quantity: {self.quantity!r} must be > 0")
+        if self.remaining_qty < 0:
+            raise MessageValidationError(
+                f"remaining_qty: {self.remaining_qty!r} must be >= 0"
+            )
+        if self.oco_group_id is not None:
+            if len(self.oco_group_id) > 64:
+                raise MessageValidationError(
+                    f"oco_group_id: length {len(self.oco_group_id)} exceeds max_len 64"
+                )
+        if self.timestamp < 0:
+            raise MessageValidationError(f"timestamp: {self.timestamp!r} must be >= 0")
+        if self.status not in _PRICE_LEVEL_ORDER_STATUS_VALUES:
+            raise MessageValidationError(
+                f"status: {self.status!r} is not one of {_PRICE_LEVEL_ORDER_STATUS_VALUES!r}"
+            )
+        if self.smp_action is not None:
+            if self.smp_action not in _PRICE_LEVEL_ORDER_SMP_ACTION_VALUES:
+                raise MessageValidationError(
+                    f"smp_action: {self.smp_action!r} is not one of {_PRICE_LEVEL_ORDER_SMP_ACTION_VALUES!r}"
+                )
+        if self.combo_parent_id is not None:
+            if len(self.combo_parent_id) > 64:
+                raise MessageValidationError(
+                    f"combo_parent_id: length {len(self.combo_parent_id)} exceeds max_len 64"
+                )
+        if self.origin not in _PRICE_LEVEL_ORDER_ORIGIN_VALUES:
+            raise MessageValidationError(
+                f"origin: {self.origin!r} is not one of {_PRICE_LEVEL_ORDER_ORIGIN_VALUES!r}"
+            )
+        if self.quote_id is not None:
+            if len(self.quote_id) > 64:
+                raise MessageValidationError(
+                    f"quote_id: length {len(self.quote_id)} exceeds max_len 64"
+                )
+        if self.client_tag is not None:
+            if len(self.client_tag) > 64:
+                raise MessageValidationError(
+                    f"client_tag: length {len(self.client_tag)} exceeds max_len 64"
+                )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "PriceLevelOrder":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            gateway_id=str(p["gateway_id"]),
+            id=str(p["id"]),
+            symbol=str(p["symbol"]),
+            side=cast(PriceLevelOrderSide, str(p["side"])),
+            order_type=cast(PriceLevelOrderOrderType, str(p["order_type"])),
+            tif=cast(PriceLevelOrderTif, str(p["tif"])),
+            quantity=int(p["quantity"]),
+            remaining_qty=int(p["remaining_qty"]),
+            trail_offset=(
+                None if p.get("trail_offset") is None else float(p["trail_offset"])
+            ),
+            oco_group_id=(
+                None if p.get("oco_group_id") is None else str(p["oco_group_id"])
+            ),
+            timestamp=float(p["timestamp"]),
+            status=cast(PriceLevelOrderStatus, str(p["status"])),
+            price=None if p.get("price") is None else float(p["price"]),
+            stop_price=None if p.get("stop_price") is None else float(p["stop_price"]),
+            visible_qty=None if p.get("visible_qty") is None else int(p["visible_qty"]),
+            displayed_qty=(
+                None if p.get("displayed_qty") is None else int(p["displayed_qty"])
+            ),
+            smp_action=cast(
+                PriceLevelOrderSmpAction | None,
+                None if p.get("smp_action") is None else str(p["smp_action"]),
+            ),
+            combo_parent_id=(
+                None if p.get("combo_parent_id") is None else str(p["combo_parent_id"])
+            ),
+            leg_index=None if p.get("leg_index") is None else int(p["leg_index"]),
+            origin=cast(PriceLevelOrderOrigin, str(p.get("origin", "ORDER"))),
+            quote_id=None if p.get("quote_id") is None else str(p["quote_id"]),
+            client_tag=None if p.get("client_tag") is None else str(p["client_tag"]),
+            arrival_seq=int(p.get("arrival_seq", 0)),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "gateway_id": self.gateway_id,
+            "id": self.id,
+            "symbol": self.symbol,
+            "side": self.side,
+            "order_type": self.order_type,
+            "tif": self.tif,
+            "quantity": self.quantity,
+            "remaining_qty": self.remaining_qty,
+            "trail_offset": self.trail_offset,
+            "oco_group_id": self.oco_group_id,
+            "timestamp": self.timestamp,
+            "status": self.status,
+            "price": self.price,
+            "stop_price": self.stop_price,
+            "visible_qty": self.visible_qty,
+            "displayed_qty": self.displayed_qty,
+            "smp_action": self.smp_action,
+            "combo_parent_id": self.combo_parent_id,
+            "leg_index": self.leg_index,
+            "origin": self.origin,
+            "quote_id": self.quote_id,
+            "client_tag": self.client_tag,
+            "arrival_seq": self.arrival_seq,
+        }
+
+
 _EXECUTION_REPORT_SYMBOL_RE = re.compile("^[A-Z0-9._]+$")
 _EXECUTION_REPORT_SIDE_VALUES = ("BUY", "SELL")
 ExecutionReportSide = Literal["BUY", "SELL"]
@@ -3836,6 +4075,332 @@ def describe_orders() -> tuple[dict[str, Any], ...]:
     return _ORDERS_FIELDS
 
 
+TOPIC_PRICE_LEVEL_ORDERS_REQUEST = "order.price_level_orders_request"
+_TOPIC_PRICE_LEVEL_ORDERS_REQUEST_BYTES = "order.price_level_orders_request".encode()
+
+
+_PRICE_LEVEL_ORDERS_REQUEST_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "The ADMIN participant asking, and the reply's correlation key — not a filter on whose orders come back.",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "symbol",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "Instrument to inspect.",
+        "constraints": {"max_len": 16},
+    },
+    {
+        "name": "price",
+        "type": "float",
+        "unit": "display_price",
+        "required": False,
+        "doc": "Narrow to orders resting at exactly this price. Omitted or null returns every resting order for the symbol, across all price levels.",
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class PriceLevelOrdersRequest:
+    """ADMIN to engine: every resting order for one symbol, across every gateway,
+    optionally narrowed to a single price level. Rejected for any non-ADMIN
+    participant (see order.price_level_orders' rejection note) since it exposes
+    other participants' resting order detail that order.orders_request
+    deliberately withholds.
+    """
+
+    gateway_id: str
+    symbol: str
+    price: float | None = None  # unit: display_price
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "PriceLevelOrdersRequest":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            gateway_id=str(p["gateway_id"]),
+            symbol=str(p["symbol"]),
+            price=None if p.get("price") is None else float(p["price"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        payload: dict[str, Any] = {
+            "gateway_id": self.gateway_id,
+            "symbol": self.symbol,
+        }
+        if self.price is not None:
+            payload["price"] = self.price
+        return payload
+
+
+def is_price_level_orders_request(topic: str) -> bool:
+    """True when ``topic`` is this message's topic."""
+    return topic == TOPIC_PRICE_LEVEL_ORDERS_REQUEST
+
+
+def make_price_level_orders_request(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = PriceLevelOrdersRequest.from_dict(kw)
+    obj.validate()
+    return _msg.encode(TOPIC_PRICE_LEVEL_ORDERS_REQUEST, obj.to_dict())
+
+
+def make_price_level_orders_request_unchecked(
+    *,
+    gateway_id: str,
+    symbol: str,
+    price: float | None = None,
+) -> list[bytes]:
+    """Identical frames to ``make_price_level_orders_request``, without
+    ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    payload: dict[str, Any] = {
+        "gateway_id": str(gateway_id),
+        "symbol": str(symbol),
+    }
+    if price is not None:
+        payload["price"] = float(price)
+    return [
+        _TOPIC_PRICE_LEVEL_ORDERS_REQUEST_BYTES,
+        _msg.dumps(payload),
+    ]
+
+
+def parse_price_level_orders_request(frames: list[bytes]) -> "PriceLevelOrdersRequest":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    _topic, payload = _msg.decode(frames)
+    obj = PriceLevelOrdersRequest.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_price_level_orders_request() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _PRICE_LEVEL_ORDERS_REQUEST_FIELDS
+
+
+TOPIC_PRICE_LEVEL_ORDERS = "order.price_level_orders.{gateway_id}"
+PREFIX_PRICE_LEVEL_ORDERS = "order.price_level_orders."
+_PRICE_LEVEL_ORDERS_RE = re.compile(
+    "order\\.price_level_orders\\.(?P<gateway_id>[^.]+)"
+)
+
+
+_PRICE_LEVEL_ORDERS_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "Topic-only; dropped from the body by the default projection.",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "symbol",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 16},
+    },
+    {
+        "name": "price",
+        "type": "float",
+        "unit": "display_price",
+        "required": False,
+        "doc": "Echoed from the request when it filtered to one level; omitted when the request asked for the whole symbol.",
+    },
+    {
+        "name": "rejected",
+        "type": "bool",
+        "unit": None,
+        "required": True,
+        "doc": "True when the requester was not ADMIN or the symbol is unknown; orders is then always empty.",
+    },
+    {
+        "name": "reason",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Set only when rejected is true.",
+        "constraints": {"max_len": 256},
+    },
+    {
+        "name": "orders",
+        "type": "list",
+        "unit": None,
+        "required": True,
+        "doc": "Matching resting orders, ordered by price then arrival_seq — empty when rejected, or when nothing rests at the requested level.",
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class PriceLevelOrders:
+    """Engine to ADMIN caller: per-order detail (not just the aggregate {price, qty,
+    count} book.* already carries) for every resting order matching the request —
+    every gateway, ordered by price then by arrival_seq within a price level so
+    time priority is visible. Empty, with rejected=true and a reason, when the
+    requester is not an ADMIN participant or the symbol is unknown.
+    """
+
+    gateway_id: str
+    symbol: str
+    rejected: bool
+    orders: list[PriceLevelOrder]
+    price: float | None = None  # unit: display_price
+    reason: str | None = None
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
+            )
+        if self.reason is not None:
+            if len(self.reason) > 256:
+                raise MessageValidationError(
+                    f"reason: length {len(self.reason)} exceeds max_len 256"
+                )
+        for orders_item in self.orders:
+            orders_item.validate()
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "PriceLevelOrders":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            gateway_id=str(p.get("gateway_id", "")),
+            symbol=str(p["symbol"]),
+            price=None if p.get("price") is None else float(p["price"]),
+            rejected=bool(p["rejected"]),
+            reason=None if p.get("reason") is None else str(p["reason"]),
+            orders=[PriceLevelOrder.from_dict(item) for item in p["orders"]],
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        payload: dict[str, Any] = {
+            "symbol": self.symbol,
+            "rejected": self.rejected,
+            "orders": [item.to_dict() for item in self.orders],
+        }
+        if self.price is not None:
+            payload["price"] = self.price
+        if self.reason is not None:
+            payload["reason"] = self.reason
+        return payload
+
+
+def topic_price_level_orders(gateway_id: str) -> str:
+    """Build this message's topic without a string literal."""
+    return f"order.price_level_orders.{gateway_id}"
+
+
+def match_price_level_orders(topic: str) -> str | None:
+    """Return ``gateway_id`` when ``topic`` matches, else None."""
+    m = _PRICE_LEVEL_ORDERS_RE.fullmatch(topic)
+    return m.group("gateway_id") if m else None
+
+
+def make_price_level_orders(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = PriceLevelOrders.from_dict(kw)
+    obj.validate()
+    return _msg.encode(topic_price_level_orders(obj.gateway_id), obj.to_dict())
+
+
+def parse_price_level_orders(frames: list[bytes]) -> "PriceLevelOrders":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    topic, payload = _msg.decode(frames)
+    matched = match_price_level_orders(topic)
+    if matched is None:
+        raise MessageValidationError(
+            f"topic {topic!r} is not {TOPIC_PRICE_LEVEL_ORDERS!r}"
+        )
+    payload = {**payload, "gateway_id": matched}
+    obj = PriceLevelOrders.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_price_level_orders() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _PRICE_LEVEL_ORDERS_FIELDS
+
+
 FAMILY_TOPICS: tuple[str, ...] = (
     TOPIC_ORDER_ACK,
     TOPIC_ORDER_FILL,
@@ -3851,4 +4416,6 @@ FAMILY_TOPICS: tuple[str, ...] = (
     TOPIC_ORDER_OCO_CANCEL,
     TOPIC_ORDERS_REQUEST,
     TOPIC_ORDERS,
+    TOPIC_PRICE_LEVEL_ORDERS_REQUEST,
+    TOPIC_PRICE_LEVEL_ORDERS,
 )

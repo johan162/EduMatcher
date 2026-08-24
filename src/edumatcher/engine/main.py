@@ -79,6 +79,7 @@ from edumatcher.models.generated.order import (
     TOPIC_ORDER_OCO,
     TOPIC_ORDER_OCO_CANCEL,
     TOPIC_ORDERS_REQUEST,
+    TOPIC_PRICE_LEVEL_ORDERS_REQUEST,
     topic_order_ack,
     topic_order_cancelled,
     topic_order_fill,
@@ -108,6 +109,7 @@ from edumatcher.models.message import (
     make_kill_switch_gateway_ack_msg,
     make_kill_switch_global_ack_msg,
     make_orders_msg,
+    make_price_level_orders_msg,
     make_quote_ack_msg,
     make_quote_bootstrap_msg,
     make_quote_legs_msg,
@@ -814,6 +816,47 @@ class Engine:
                         bid_order_id=bid.id,
                         ask_order_id=ask.id,
                     )
+                )
+
+                # Seeded quote legs are the one order-creation path in the
+                # engine that previously published no "this order now
+                # exists" event at all — _handle_new_order, _handle_quote_new,
+                # OCO, and combo all ack immediately on acceptance (see the
+                # ACK-before-match note below and its counterpart in
+                # _handle_new_order); this loop instead went straight to
+                # book.process() and only ever spoke up later, if the leg
+                # filled or was rejected on entry. A subscriber that starts
+                # after seeding (or, as here, simply never sees a fill for a
+                # long-resting leg) has no way to learn the leg's symbol,
+                # side, price, or qty until it is cancelled — by which point
+                # order.cancelled's deliberately minimal shape (id, gateway,
+                # client_tag, group ids only; see spec/messages/order.yaml)
+                # can no longer supply them either, producing a display row
+                # with every economic field blank. Publish the same ACK
+                # shape every other acceptance path uses, before matching,
+                # so both legs are on record from the moment they're seeded.
+                # order_to_display_dict() supplies the display-money price
+                # (not order.price's raw ticks) so this ack, unlike the raw
+                # payload echo _handle_new_order's ack uses, is correct for
+                # any symbol regardless of tick_decimals.
+                for leg in (bid, ask):
+                    self.pub_sock.send_multipart(
+                        make_ack_msg(
+                            gateway_id,
+                            leg.id,
+                            accepted=True,
+                            order=order_to_display_dict(leg),
+                        )
+                    )
+                # _handle_quote_new (the runtime PUSH-driven equivalent of
+                # this seed loop) always follows its own pair of order acks
+                # with quote.status: ACTIVE — this loop was the one quote-
+                # creation path that skipped it, so a symbol seeded only at
+                # startup (no live quote submissions during the session)
+                # never had a quote.status event at all, leaving pm-orders'
+                # quote lane empty even after the two-order-ack fix above.
+                self.pub_sock.send_multipart(
+                    make_quote_status_msg(gateway_id, quote_id, "ACTIVE")
                 )
 
                 now = now_ns()
@@ -2028,6 +2071,85 @@ class Engine:
                 if order.gateway_id == gateway_id:
                     orders.append(order_to_display_dict(order))
         self.pub_sock.send_multipart(make_orders_msg(gateway_id, orders))
+
+    def _handle_price_level_orders_request(self, payload: dict[str, Any]) -> None:
+        """ADMIN -> engine: every resting order for one symbol, across every
+        gateway, optionally narrowed to a single price level.
+
+        book.* and order.orders_request only ever expose the aggregate
+        {price, qty, count} per level — never which orders, from which
+        gateways, make it up. This is the admin-only, all-gateway analogue
+        of order.orders_request (which is deliberately single-gateway, so
+        an ordinary participant never sees another's resting orders); it
+        exists for pm-admin's LEVEL command. See spec/messages/order.yaml's
+        price_level_orders_request/price_level_orders for the wire
+        contract this implements.
+
+        Ordered by price (best-to-worst for the side isn't meaningful
+        across a mixed bid/ask result, so this sorts plain ascending by
+        price) then by arrival_seq within a price level, so time priority
+        — which order would fill first if this level traded — is visible
+        without the caller having to re-sort.
+        """
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
+        symbol = _clamp_wire_id(payload.get("symbol", ""), 16)
+
+        def _reject(reason: str) -> None:
+            self.pub_sock.send_multipart(
+                make_price_level_orders_msg(
+                    gateway_id,
+                    symbol,
+                    [],
+                    price=payload.get("price"),
+                    rejected=True,
+                    reason=reason,
+                )
+            )
+
+        ok, reason = self._gateway_status(gateway_id)
+        if not ok:
+            _reject(reason)
+            return
+
+        session = self._session_for_gateway(gateway_id)
+        if session.role != ParticipantRole.ADMIN:
+            _reject(
+                "Price-level order composition is only allowed for ADMIN "
+                "participants"
+            )
+            return
+
+        book = self.books.get(symbol)
+        if book is None:
+            _reject(f"Unknown symbol: {symbol}")
+            return
+
+        price_filter = payload.get("price")
+        price_ticks: int | None = None
+        if price_filter is not None:
+            price_ticks = to_ticks(float(price_filter), symbol)
+
+        matching = [
+            order
+            for order in book.resting_orders()
+            if price_ticks is None or order.price == price_ticks
+        ]
+        matching.sort(
+            key=lambda o: (
+                o.price if o.price is not None else 0,
+                o.arrival_seq,
+            )
+        )
+
+        orders = []
+        for order in matching:
+            display = order_to_display_dict(order)
+            display["gateway_id"] = order.gateway_id
+            orders.append(display)
+
+        self.pub_sock.send_multipart(
+            make_price_level_orders_msg(gateway_id, symbol, orders, price=price_filter)
+        )
 
     def _handle_quote_bootstrap_request(self, payload: dict[str, Any]) -> None:
         gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
@@ -5136,6 +5258,8 @@ class Engine:
                 self._handle_book_snapshot_request(payload)
             elif topic == TOPIC_ORDERS_REQUEST:
                 self._handle_orders_request(payload)
+            elif topic == TOPIC_PRICE_LEVEL_ORDERS_REQUEST:
+                self._handle_price_level_orders_request(payload)
             elif topic == TOPIC_QUOTE_BOOTSTRAP_REQUEST:
                 self._handle_quote_bootstrap_request(payload)
             elif topic == TOPIC_QUOTE_LEGS_REQUEST:

@@ -283,8 +283,14 @@ def _completion_key_bindings() -> KeyBindings:
     """
     bindings = KeyBindings()
 
+    # pyright can't see that @bindings.add registers this handler by side
+    # effect (the KeyBindings registry, not the name _accept_completion_not_line,
+    # is what's read afterward) — it's genuinely wired up at runtime, so this
+    # is a false positive rather than actually-dead code.
     @bindings.add("enter", filter=completion_is_selected)
-    def _accept_completion_not_line(event: Any) -> None:
+    def _accept_completion_not_line(  # pyright: ignore[reportUnusedFunction]
+        event: Any,
+    ) -> None:
         buf = event.current_buffer
         state = buf.complete_state
         if state is not None and state.current_completion is not None:

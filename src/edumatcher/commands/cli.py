@@ -42,6 +42,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "  pm-admin-cli --id GW_ADMIN qcancel --gw MM01 --sym AAPL\n"
             "  pm-admin-cli --id GW_ADMIN book --sym AAPL\n"
             "  pm-admin-cli --id GW_ADMIN orders --gw TRADER01\n"
+            "  pm-admin-cli --id GW_ADMIN level --sym AAPL\n"
+            "  pm-admin-cli --id GW_ADMIN level --sym AAPL --price 189.50\n"
             "  pm-admin-cli --id GW_ADMIN symbols\n"
             "  pm-admin-cli --id GW_ADMIN session --state CONTINUOUS\n"
             "  pm-admin-cli --id GW_ADMIN session-status\n"
@@ -155,6 +157,21 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--gw", required=True, metavar="GW_ID", help="Target gateway ID")
 
+    p = sub.add_parser(
+        "level",
+        help=(
+            "Show every resting order making up a symbol (or one price "
+            "level), across all gateways (ADMIN role required)"
+        ),
+    )
+    p.add_argument("--sym", required=True, metavar="SYMBOL", help="Symbol to query")
+    p.add_argument(
+        "--price",
+        default="",
+        metavar="PRICE",
+        help="Narrow to orders resting at exactly this price (omit for the whole symbol)",
+    )
+
     sub.add_parser(
         "symbols",
         help="List all instruments configured in the engine",
@@ -209,6 +226,8 @@ def _args_to_fields(args: Any) -> dict[str, str]:
         fields["REASON"] = args.reason
     if getattr(args, "state", None):
         fields["STATE"] = args.state
+    if getattr(args, "price", None):
+        fields["PRICE"] = args.price
     return fields
 
 

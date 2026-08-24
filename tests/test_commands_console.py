@@ -63,6 +63,25 @@ class _FakeClient:
             }
         ]
 
+    def price_level_orders(
+        self, sym: str, price: float | None = None
+    ) -> dict[str, Any]:
+        self.calls.append(("price_level_orders", (sym,), {"price": price}))
+        return {
+            "symbol": sym.upper(),
+            "rejected": False,
+            "orders": [
+                {
+                    "id": "66d5940c",
+                    "gateway_id": "MM01",
+                    "side": "BUY",
+                    "order_type": "LIMIT",
+                    "remaining_qty": 200,
+                    "price": 149.50,
+                }
+            ],
+        }
+
     def symbol_list(self) -> list[str]:
         self.calls.append(("symbol_list", (), {}))
         return ["AAPL", "MSFT"]
@@ -171,6 +190,25 @@ def test_display_helpers_smoke(monkeypatch: pytest.MonkeyPatch) -> None:
         ],
         "GW1",
     )
+    console_mod._print_level({"rejected": False, "orders": []}, "AAPL", "")
+    console_mod._print_level(
+        {
+            "rejected": False,
+            "orders": [
+                {
+                    "id": "66d5940c",
+                    "gateway_id": "MM01",
+                    "side": "BUY",
+                    "order_type": "LIMIT",
+                    "remaining_qty": 200,
+                    "price": 149.5,
+                }
+            ],
+        },
+        "AAPL",
+        "149.50",
+    )
+    console_mod._print_level({"rejected": True, "reason": "ADMIN only"}, "AAPL", "")
     console_mod._print_symbols([])
     console_mod._print_symbols(["AAPL"])
     console_mod._print_session_status({"state": "CLOSED", "sessions_enabled": False})
@@ -211,6 +249,7 @@ def test_display_helpers_smoke(monkeypatch: pytest.MonkeyPatch) -> None:
         "RESUME",
         "BOOK",
         "ORDERS",
+        "LEVEL",
         "SESSION_STATUS",
         "SCHEDULE",
         "GATEWAYS",
@@ -226,6 +265,7 @@ def test_execute_command_success_paths(
     fields = {
         "BOOK": {"SYM": "AAPL"},
         "ORDERS": {"GW": "TRADER01"},
+        "LEVEL": {"SYM": "AAPL"},
     }.get(cmd, {})
 
     assert console_mod.execute_command(client, cmd, fields) is True
@@ -249,8 +289,42 @@ def test_execute_command_usage_and_unknown(monkeypatch: pytest.MonkeyPatch) -> N
     assert console_mod.execute_command(client, "QCANCEL", {"GW": "G"}) is False
     assert console_mod.execute_command(client, "BOOK", {}) is False
     assert console_mod.execute_command(client, "ORDERS", {}) is False
+    assert console_mod.execute_command(client, "LEVEL", {}) is False
+    assert (
+        console_mod.execute_command(client, "LEVEL", {"SYM": "AAPL", "PRICE": "abc"})
+        is False
+    )
     assert console_mod.execute_command(client, "SESSION", {}) is False
     assert console_mod.execute_command(client, "NOPE", {}) is False
+
+
+def test_execute_command_level_reports_rejection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_print(monkeypatch)
+
+    class _RejectingLevel(_FakeClient):
+        def price_level_orders(
+            self, sym: str, price: float | None = None
+        ) -> dict[str, Any]:
+            return {"rejected": True, "reason": "ADMIN only", "orders": []}
+
+    client = cast(ExchangeCommandClient, _RejectingLevel())
+    assert console_mod.execute_command(client, "LEVEL", {"SYM": "AAPL"}) is False
+
+
+def test_execute_command_level_passes_price_filter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_print(monkeypatch)
+    client = _FakeClient()
+    console_mod.execute_command(
+        cast(ExchangeCommandClient, client), "LEVEL", {"SYM": "AAPL", "PRICE": "149.5"}
+    )
+    name, args, kwargs = client.calls[-1]
+    assert name == "price_level_orders"
+    assert args == ("AAPL",)
+    assert kwargs == {"price": 149.5}
 
 
 def test_execute_command_rejections(monkeypatch: pytest.MonkeyPatch) -> None:

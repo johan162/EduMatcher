@@ -218,8 +218,10 @@ def _format_price(value: Any, symbol: str | None) -> str:
         return "—"
     if not isinstance(value, (int, float)):
         return str(value)
-    decimals = _TICK_DECIMALS.get(
-        symbol.upper() if symbol else None, _DEFAULT_TICK_DECIMALS
+    decimals = (
+        _TICK_DECIMALS.get(symbol.upper(), _DEFAULT_TICK_DECIMALS)
+        if symbol
+        else _DEFAULT_TICK_DECIMALS
     )
     return f"{value:.{decimals}f}"
 
@@ -315,9 +317,7 @@ def _build_rows_table(page_symbols: list[tuple[str, dict[str, Any]]]) -> Table:
         if best_bid is not None and best_ask is not None:
             spread = best_ask - best_bid
 
-        updated_str = (
-            updated.strftime("%H:%M:%S.%f")[:-3] if updated else "—"
-        )
+        updated_str = updated.strftime("%H:%M:%S.%f")[:-3] if updated else "—"
 
         t.add_row(
             sym,
