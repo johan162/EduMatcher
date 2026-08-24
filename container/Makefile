@@ -20,8 +20,8 @@ CONTAINER_ENGINE ?= $(shell \
 
 COMPOSE ?= $(shell \
 	if [ "$(CONTAINER_ENGINE)" = "podman" ]; then \
-		if podman compose version >/dev/null 2>&1; then echo "podman compose"; \
-		elif command -v podman-compose >/dev/null 2>&1; then echo "podman-compose"; fi; \
+		if command -v podman-compose >/dev/null 2>&1; then echo "podman-compose"; \
+		elif podman compose version >/dev/null 2>&1; then echo "podman compose"; fi; \
 	elif [ "$(CONTAINER_ENGINE)" = "docker" ]; then \
 		if docker compose version >/dev/null 2>&1; then echo "docker compose"; \
 		elif command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; fi; \
@@ -103,6 +103,10 @@ info: check
 .env:
 	@cp .env.example .env
 	@echo "Created .env from .env.example"
+
+init: .env
+	@echo "Initialized the container control surface. Edit .env to customize."
+
 
 # --- Build -----------------------------------------------------------------
 build: check .env

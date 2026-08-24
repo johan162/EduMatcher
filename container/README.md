@@ -54,7 +54,7 @@ is deliberate — see [Design notes](#design-notes).
 ## Requirements
 
 - Podman **or** Docker, with a compose implementation:
-  - Podman 4.7+ (`podman compose`) or `podman-compose`
+  - Podman, with `podman-compose` (preferred) or the `podman compose` subcommand
   - Docker with Compose v2 (`docker compose`) or `docker-compose`
 - GNU make
 - ~1.5 GB of disk for the build, ~300 MB for the finished image
@@ -472,7 +472,25 @@ The entrypoint redeploys only when the name differs from the one recorded in
 
 **`podman-compose` chokes on the overlay files.**
 Older versions merge multi-file setups poorly. Put the settings straight into
-`compose.yaml`, or upgrade to `podman compose` (Podman 4.7+).
+`compose.yaml`, or update `podman-compose` to a current release.
+
+**Build fails trying to reach `docker.io`, even though `podman build` works.**
+`podman compose` — the built-in subcommand, not the standalone `podman-compose`
+tool — is only a thin wrapper: it searches for an external compose provider on
+`PATH` and silently delegates to whatever it finds, which is commonly the
+standalone `docker-compose` binary if one happens to be installed. That tool
+then pulls the base image through Docker's own registry/auth stack, not
+Podman's, so it can fail with a `docker.io` authentication error on a machine
+where Podman itself is set up correctly. Confirm it with:
+
+```bash
+podman compose version
+```
+
+If the output starts with `Executing external compose provider "..."` before
+the version banner, that is the cause. This Makefile prefers the standalone
+`podman-compose` over the `podman compose` subcommand for exactly this reason
+— `make info` shows which one it picked.
 
 **Everything is wedged.**
 `make down && make up` recreates the container in seconds; `./data` is kept.
