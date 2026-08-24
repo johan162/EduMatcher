@@ -24,6 +24,9 @@ VM_MEMORY="4G"
 VM_DISK="6G"
 CREATE_SNAPSHOT="true"
 SNAPSHOT_NAME="clean"
+VM_USER="ubuntu"
+SSH_KEY_PATH="${HOME}/.ssh/${VM_NAME}_ed25519"
+SSH_KEY_PATH_SET="false"
 
 DEFAULT_VERSION="dev"
 EDUMATCHER_VERSION="$DEFAULT_VERSION"
@@ -44,10 +47,13 @@ Options:
   --dev                        Install the local wheel file from /tmp/*.whl instead of downloading from PyPI.
   --snapshot                   Create a snapshot after provisioning (default: $CREATE_SNAPSHOT)
   --snapshot-name <name>       Snapshot name (default: $SNAPSHOT_NAME)
+  --ssh-key <path>             Private key whose public half is installed for passwordless
+                                login (default: \$HOME/.ssh/<vm-name>_ed25519)
   --help                       Show this help text
 
 Example:
   $0 --name ems --version 0.20.1 --snapshot
+  $0 --name ems --ssh-key ~/.ssh/id_ed25519
 EOF
 }
 
@@ -96,6 +102,11 @@ while [[ $# -gt 0 ]]; do
       SNAPSHOT_NAME="${2:-}"
       shift 2
       ;;
+    --ssh-key)
+      SSH_KEY_PATH="${2:-}"
+      SSH_KEY_PATH_SET="true"
+      shift 2
+      ;;
     --help)
       usage
       exit 0
@@ -108,6 +119,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ "$SSH_KEY_PATH_SET" != "true" ]]; then
+  SSH_KEY_PATH="${HOME}/.ssh/${VM_NAME}_ed25519"
+fi
+
 if ! command -v multipass >/dev/null 2>&1; then
   echo "multipass is required but not installed" >&2
   exit 1
@@ -116,6 +131,11 @@ fi
 if multipass info "$VM_NAME" >/dev/null 2>&1; then
   echo "A VM named '$VM_NAME' already exists. Delete or use another --name." >&2
   exit 1
+fi
+
+if [[ ! -f "${SSH_KEY_PATH}.pub" ]]; then
+  echo -e "${YELLOW}SSH public key not found: ${SSH_KEY_PATH}.pub${NC}. Will create it now." >&2
+  ssh-keygen -t ed25519 -f "${SSH_KEY_PATH}" -N "" || exit 1
 fi
 
 echo -e "${BLUE}Launching VM '$VM_NAME' from image '$VM_IMAGE'...${NC}"
@@ -143,6 +163,24 @@ if ! multipass launch "$VM_IMAGE" \
   --disk "$VM_DISK"; then
   echo -e "${RED}Failed to launch image '$VM_IMAGE'.${NC}" >&2
   echo -e "${RED}Run 'multipass find' to list valid image names on your host.${NC}" >&2
+  exit 1
+fi
+
+echo -e "${BLUE}Installing the host SSH public key for passwordless login for user '$VM_USER'...${NC}"
+multipass transfer "${SSH_KEY_PATH}.pub" "$VM_NAME:/tmp/${VM_NAME}.pub"
+multipass exec "$VM_NAME" -- bash -c "
+  set -euo pipefail
+  sudo install -d -m 700 -o '$VM_USER' -g '$VM_USER' '/home/$VM_USER/.ssh'
+  sudo touch '/home/$VM_USER/.ssh/authorized_keys'
+  sudo chown '$VM_USER:$VM_USER' '/home/$VM_USER/.ssh/authorized_keys'
+  sudo chmod 600 '/home/$VM_USER/.ssh/authorized_keys'
+  cat '/tmp/${VM_NAME}.pub' | sudo tee -a '/home/$VM_USER/.ssh/authorized_keys' >/dev/null
+  sudo chown '$VM_USER:$VM_USER' '/home/$VM_USER/.ssh/authorized_keys'
+  rm -f '/tmp/${VM_NAME}.pub'
+"
+if [[ $? -ne 0 ]]; then
+  echo -e "${RED}Failed to install the host SSH public key in the VM.${NC}" >&2
+  multipass delete --purge "$VM_NAME"
   exit 1
 fi
 
@@ -229,7 +267,7 @@ echo -e ""
 echo -e "${DARK_GRAY}The VM is running as non-root user: \t${YELLOW}ubuntu${NC}"
 echo -e "${DARK_GRAY}VM IP address: \t\t\t\t${YELLOW}$VM_IP${NC}"
 echo ""
-echo -e "${DARK_GRAY}To connect to the VM via SSH:${NC}" "\t\t${WHITE}ssh ubuntu@$VM_IP${NC}"
+echo -e "${DARK_GRAY}To connect to the VM via SSH:${NC}" "\t\t${WHITE}ssh -i $SSH_KEY_PATH ubuntu@$VM_IP${NC}"
 echo ""
 echo -e "${DARK_GRAY}Admin API Key: \t\t\t\t${YELLOW}$ADMIN_API_KEY${NC}"
 echo -e "${DARK_GRAY}Trader01 API Key: \t\t\t${YELLOW}$TRADER01_API_KEY${NC}"

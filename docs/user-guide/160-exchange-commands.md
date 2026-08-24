@@ -98,6 +98,7 @@ Single-word commands (no arguments) need no pipes.
 | `QCANCEL` | `QCANCEL\|GW=MM01\|SYM=AAPL` | Cancel an MM's active quote on one symbol |
 | `BOOK` | `BOOK\|SYM=AAPL` | Print L1/L2 order-book snapshot |
 | `ORDERS` | `ORDERS\|GW=TRADER01` | List resting orders for a gateway |
+| `LEVEL` | `LEVEL\|SYM=AAPL` or `LEVEL\|SYM=AAPL\|PRICE=189.50` | Show every resting order making up a symbol, or one price level, across every gateway — requires ADMIN |
 | `SYMBOLS` | `SYMBOLS` | List all instruments configured in the engine |
 | `SESSION` | `SESSION\|STATE=CONTINUOUS` | Advance session phase |
 | `SESSION_STATUS` | `SESSION_STATUS` | Show the current session state (read-only) |
@@ -141,6 +142,16 @@ KILL OK  TRADER01  orders=4  quotes=0
 [GW_ADMIN|ADMIN]> ORDERS|GW=TRADER01
 No resting orders for TRADER01
 
+[GW_ADMIN|ADMIN]> LEVEL|SYM=AAPL|PRICE=149.50
+┌─────────────────────────────────────────────────────────────────────┐
+│              Price-level composition — AAPL @ 149.50                │
+├──────────────┬────────────┬──────┬──────────────┬───────────┬───────┤
+│ ID           │ Gateway    │ Side │ Type         │ Remaining │ Price │
+├──────────────┼────────────┼──────┼──────────────┼───────────┼───────┤
+│ 66d5940c-f1a7│ MM01       │ BUY  │ LIMIT        │       200 │149.50 │
+│ 9a2b1c04-88de│ TRADER01   │ BUY  │ LIMIT        │       100 │149.50 │
+└──────────────┴────────────┴──────┴──────────────┴───────────┴───────┘
+
 [GW_ADMIN|ADMIN]> RESUME
 RESUMED  3 symbol(s)
 
@@ -179,6 +190,7 @@ same `execute_command()` function.  Every command maps 1-to-1:
 | `QCANCEL\|GW=X\|SYM=Y` | `qcancel --gw X --sym Y` | `client.quote_cancel("X", "Y")`        |
 | `BOOK\|SYM=X`          | `book --sym X`           | `client.book_depth("X")`               |
 | `ORDERS\|GW=X`         | `orders --gw X`          | `client.order_list("X")`               |
+| `LEVEL\|SYM=X[\|PRICE=Y]` | `level --sym X [--price Y]` | `client.price_level_orders("X", price=Y)` |
 | `SYMBOLS`              | `symbols`                | `client.symbol_list()`                 |
 | `SESSION\|STATE=X`     | `session --state X`      | `client.session_advance("X")`          |
 | `SESSION_STATUS`       | `session-status`         | `client.session_status()`              |
@@ -375,6 +387,40 @@ Useful to confirm a `kill` or `kick` took effect:
 pm-admin-cli --id GW_ADMIN kill --gw TRADER01
 pm-admin-cli --id GW_ADMIN orders --gw TRADER01   # should print 'No resting orders'
 ```
+
+
+
+#### `level` — Show per-order price-level composition
+
+```bash
+# Every resting order for the symbol, across every gateway
+pm-admin-cli --id GW_ADMIN level --sym AAPL
+
+# Narrowed to a single price level
+pm-admin-cli --id GW_ADMIN level --sym AAPL --price 149.50
+```
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│              Price-level composition — AAPL @ 149.50                │
+├──────────────┬────────────┬──────┬──────────────┬───────────┬───────┤
+│ ID           │ Gateway    │ Side │ Type         │ Remaining │ Price │
+├──────────────┼────────────┼──────┼──────────────┼───────────┼───────┤
+│ 66d5940c-f1a7│ MM01       │ BUY  │ LIMIT        │       200 │149.50 │
+│ 9a2b1c04-88de│ TRADER01   │ BUY  │ LIMIT        │       100 │149.50 │
+└──────────────┴────────────┴──────┴──────────────┴───────────┴───────┘
+```
+
+Unlike `book`, which only ever reports the aggregate `{price, qty, count}`
+per level, `level` lists every order that makes up the level — its id,
+owning gateway, side, and remaining quantity — ordered by price and then by
+arrival sequence within a price level, so time priority is visible directly.
+Requires `role: ADMIN`; any other caller gets a `REJECTED` line instead of a
+table.
+
+| Flag            | Required | Description                                              |
+|------------------|----------|------------------------------------------------------------|
+| `--sym SYMBOL`   | yes      | Symbol to inspect                                          |
+| `--price PRICE`  | no       | Narrow to orders resting at exactly this price (omit for the whole symbol) |
 
 
 
@@ -827,6 +873,7 @@ with ExchangeCommandClient("GW_ADMIN") as client:
 | `gateway_kick(target, reason?)` | target GW ID, optional reason | Any connected GW | `system.gateway_disconnect`       | *(none)*                                   |
 | `book_depth(symbol)`            | symbol                        | Any connected GW | `book.snapshot_request`           | `book.{SYMBOL}`                            |
 | `order_list(target)`            | target GW ID                  | Any connected GW | `order.orders_request`            | `order.orders.{target}`                    |
+| `price_level_orders(sym, price?)` | symbol, optional price      | **ADMIN**         | `order.price_level_orders_request` | `order.price_level_orders.{GW}`           |
 | `symbol_list()`                 | —                             | Any connected GW | `system.symbols_request`          | `system.symbols.{GW}`                      |
 | `session_advance(state)`        | target state string           | Any connected GW | `session.transition`              | `session.state`                            |
 | `session_status()`              | —                             | Any connected GW | `system.session_state_request`    | `system.session_status.{GW}`               |
@@ -1040,6 +1087,62 @@ for o in orders:
 Returns all resting (unfilled, non-cancelled) orders across all symbols for the
 target gateway.  Useful for confirming that a `kill_switch` or `mass_cancel`
 took effect.
+
+
+
+### `price_level_orders` — Per-order price-level composition
+
+```
+Frame 0:  b"order.price_level_orders_request"
+Frame 1:  {"gateway_id": "GW_ADMIN", "symbol": "AAPL", "price": 149.50}
+```
+
+```python
+result = client.price_level_orders("AAPL", price=149.50)
+# result = {
+#   "symbol": "AAPL",
+#   "price": 149.50,
+#   "rejected": False,
+#   "orders": [
+#     {"id": "66d5940c-...", "gateway_id": "MM01", "symbol": "AAPL",
+#      "side": "BUY", "order_type": "LIMIT", "remaining_qty": 200,
+#      "price": 149.50, "arrival_seq": 4021, ...},
+#     {"id": "9a2b1c04-...", "gateway_id": "TRADER01", "symbol": "AAPL",
+#      "side": "BUY", "order_type": "LIMIT", "remaining_qty": 100,
+#      "price": 149.50, "arrival_seq": 4088, ...},
+#   ]
+# }
+for o in result["orders"]:
+    print(f"  {o['id'][:8]}  {o['gateway_id']}  {o['side']}  qty={o['remaining_qty']}")
+```
+
+`book_depth` aggregates every order at a price into one `{price, qty,
+count}` row — it cannot say *whose* orders make up that quantity, or in what
+order they would fill. `price_level_orders` answers exactly that: it returns
+one record per resting order, across every gateway (not just the caller's
+own — this is the one query in the table above that is ADMIN-restricted for
+that reason), sorted by price and then by `arrival_seq` within a price level
+so time priority reads directly off the list.
+
+Omit `price` to return every resting order for the symbol, across all price
+levels, in the same price-then-arrival order. A `price` that matches no
+resting order returns `{"rejected": False, "orders": []}` — an empty result
+is not the same as a rejection.
+
+For a non-ADMIN caller or an unknown symbol, the engine replies with
+`rejected: True`, a `reason` string, and an empty `orders` list rather than
+timing out or raising:
+
+```python
+result = client.price_level_orders("AAPL")   # called as a non-ADMIN gateway
+# result = {"rejected": True, "reason": "...ADMIN...", "orders": []}
+```
+
+!!! tip "Where this comes from"
+    This command exists to answer "what actually makes up this price level"
+    when the aggregate `book.{SYMBOL}` view isn't enough to diagnose an
+    anomaly — e.g. distinguishing a market maker's seeded quote leg from an
+    ordinary trader's resting limit order sitting at the same price.
 
 
 

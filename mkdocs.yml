@@ -175,5 +175,6 @@ nav:
     - Verification: developer/04-verification.md
     - VM Runtime Image: developer/05-vm-runtime-image.md
     - Message Generator: developer/06-msgen.md
+    - Container and Network Setup: developer/07-container-and-networks.md
   - Glossary: glossary.md
   - FAQ: faq.md

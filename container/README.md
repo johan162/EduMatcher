@@ -7,7 +7,7 @@ bus. Unlike the VM it survives a laptop suspend and comes with the correct
 clock.
 
 ```bash
-make build     # build the image (EduMatcher from PyPI)
+make build     # build the image (from a freshly built local wheel)
 make up        # start the exchange
 make shell     # log in and look around
 make down      # stop it
@@ -54,7 +54,7 @@ is deliberate — see [Design notes](#design-notes).
 ## Requirements
 
 - Podman **or** Docker, with a compose implementation:
-  - Podman 4.7+ (`podman compose`) or `podman-compose`
+  - Podman, with `podman-compose` (preferred) or the `podman compose` subcommand
   - Docker with Compose v2 (`docker compose`) or `docker-compose`
 - GNU make
 - ~1.5 GB of disk for the build, ~300 MB for the finished image
@@ -124,7 +124,7 @@ Interactive helpers (`pm-alf-console`, `pm-viewer`, `pm-board`,
 |---|---|
 | Base | `python:3.13-slim-bookworm` |
 | EduMatcher | installed with `pip` into `/opt/edumatcher/.venv`, on `PATH` |
-| OS extras | `procps` (pm-opctl-cli uses `pgrep`/`ps`), `socat` (ZeroMQ relays), `tini` (PID 1), `tzdata`, `curl`, `openssh-server` |
+| OS extras | `procps` (pm-opctl-cli uses `pgrep`/`ps`), `tini` (PID 1), `tzdata`, `curl`, `openssh-server` |
 | Data | `/data`, bind-mounted from `./data` |
 | PID 1 | `entrypoint.sh` under `tini` |
 
@@ -136,9 +136,8 @@ On start, `entrypoint.sh`:
 1. creates `/data` and runs `pm-setup --config <EM_CONFIG>` (idempotent —
    an already-deployed configuration is kept unless `EM_CONFIG` changed)
 2. starts `sshd`, if `SSH=1`
-3. starts the ZeroMQ relays, if `ZMQ=1`
-4. runs `pm-opctl-cli start <EM_PROFILE>`
-5. waits, and on `SIGTERM` runs `pm-opctl-cli stop` before exiting
+3. runs `pm-opctl-cli start <EM_PROFILE>`
+4. waits, and on `SIGTERM` runs `pm-opctl-cli stop` before exiting
 
 ## Ports
 
@@ -177,21 +176,11 @@ in `.env` to reach the exchange from other machines on your network.
 ## Exposing the ZeroMQ bus
 
 The gateways bind `0.0.0.0` and need nothing special. The engine's three bus
-sockets are different: `edumatcher.config` hardcodes them to
-`tcp://127.0.0.1:5555-5557` with no override, so a published port would map to
-an address nothing listens on.
-
-`ZMQ=1` solves this without touching EduMatcher: the entrypoint starts three
-`socat` forwarders that listen on the *container's own* address and forward
-each connection to loopback. ZMTP is a plain TCP byte stream, so a
-per-connection relay is completely transparent to it — the handshake and every
-frame pass through unchanged. Binding the container IP rather than `0.0.0.0`
-is what lets the relay and the engine's own loopback listener share a port
-number.
-
-`pm-index` and `pm-log-srv` need no relay: the index honours
-`EDUMATCHER_INDEX_BIND_HOST` (set to `0.0.0.0` by the overlay) and the log
-server already binds `0.0.0.0`.
+sockets and `pm-index`'s two default to `127.0.0.1` and need to be told
+otherwise: `ZMQ=1` sets `EDUMATCHER_ENGINE_BIND_HOST` and
+`EDUMATCHER_INDEX_BIND_HOST` to `0.0.0.0`, which is honoured directly by
+`edumatcher.config` — no relay process involved. `pm-log-srv` needs no
+override; it already binds `0.0.0.0` unconditionally.
 
 ```bash
 make up ZMQ=1
@@ -200,7 +189,7 @@ make up ZMQ=1
 pm-dc-spy --host 127.0.0.1 --port 5557        # engine drop-copy feed
 ```
 
-Keep it off unless you need it — every relayed port is one more way into a
+Keep it off unless you need it — every published port is one more way into a
 running exchange.
 
 ## SSH access
@@ -313,7 +302,7 @@ make restart
 
 | Target | Does |
 |---|---|
-| `make build` | Build the image. `VERSION=0.20.2` pins a PyPI release, `DEV=1` uses a local wheel |
+| `make build` | Build the image from a freshly built local wheel. `PYPI=1` installs latest PyPI instead; `VERSION=0.20.2` pins a PyPI release |
 | `make up` | Start the exchange. `CONFIG=`, `PROFILE=`, `ZMQ=1`, `SSH=1` |
 | `make down` | Stop and remove the container; `./data` is kept |
 | `make restart` | Restart the container (re-runs the entrypoint) |
@@ -355,24 +344,34 @@ is git-ignored, so it is the right place for host-specific choices.
 Leaving `TZ=UTC` is fine and predictable; setting `TZ=Europe/Stockholm` makes
 the container agree with your wall clock.
 
-## Building from a development wheel
+## Building from PyPI instead of local source
 
-To containerize an unreleased build instead of a PyPI release:
+`make build` (no flags) is the default and builds from your local source
+checkout: it runs `poetry build --format wheel` in the repository root,
+copies the freshest `dist/*.whl` into `container/.wheel/`, and the
+Dockerfile installs it. Every plain rebuild picks up whatever you've
+changed locally, including uncommitted changes — there's no flag to
+remember for that to happen.
 
-```bash
-make build DEV=1
-```
-
-That runs `poetry build --format wheel` in the repository root, copies the
-freshest `dist/*.whl` into `container/.wheel/`, and the Dockerfile installs it
-in preference to PyPI. A plain `make build` clears the drop-box, so the next
-build goes back to PyPI without any flag to remember.
-
-Pin a release instead:
+To containerize a released build instead:
 
 ```bash
-make build VERSION=0.20.2
+make build PYPI=1        # latest PyPI release
+make build VERSION=0.20.2  # a specific pinned release
 ```
+
+Either form clears `container/.wheel/` first, so a stale local wheel never
+shadows the PyPI install. `VERSION=` alone (without `PYPI=1`) also goes to
+PyPI — pinning a version only makes sense against a release, so it implies
+`PYPI=1`.
+
+`DEV=1` is still accepted for anyone's existing muscle memory or scripts,
+but it's a no-op now — building from local source is already the default.
+
+**If a rebuilt container doesn't seem to reflect a source change**, this
+build-source selection is the first thing to check — confirm you didn't
+pass `PYPI=1`/`VERSION=` by accident (e.g. left over in your shell history)
+when you meant to build from local source.
 
 ## Useful Docker / Podman commands
 
@@ -471,6 +470,24 @@ Those ports only exist with `make up ZMQ=1`. Confirm with `make ports`.
 Processes read the compiled artifact at start. After editing
 `data/ref_data/engine_config.yaml`, run `make config-deploy && make restart`.
 
+**A source code change does not take effect after `make build`.**
+Confirm the build actually used local source and not a PyPI release —
+`PYPI=1` or `VERSION=` (even one left over from a previous invocation in
+your shell history) makes `make build` skip your local checkout entirely.
+The build log's first line says which path was taken
+(`building wheel from the repository checkout` vs. `building from PyPI`).
+A quick way to confirm the *installed* package matches your source: `make
+shell`, then `python3 -c "import edumatcher; print(edumatcher.__file__)"`
+and check whichever module you changed for the expected content, or look
+for an `ImportError` on a name you just added — that means the running
+container is still on an old release.
+
+**`make build` fails because `poetry` is not installed.**
+The default build path runs `poetry build --format wheel` in the repo
+root. If you don't have Poetry set up and just want a released version,
+use `make build PYPI=1` (or `VERSION=x.y.z`) instead — those don't need
+Poetry at all.
+
 **Changing `EM_CONFIG` did nothing.**
 The entrypoint redeploys only when the name differs from the one recorded in
 `data/.container-config`. To force a clean slate: `make down && make clean-data
@@ -483,7 +500,25 @@ The entrypoint redeploys only when the name differs from the one recorded in
 
 **`podman-compose` chokes on the overlay files.**
 Older versions merge multi-file setups poorly. Put the settings straight into
-`compose.yaml`, or upgrade to `podman compose` (Podman 4.7+).
+`compose.yaml`, or update `podman-compose` to a current release.
+
+**Build fails trying to reach `docker.io`, even though `podman build` works.**
+`podman compose` — the built-in subcommand, not the standalone `podman-compose`
+tool — is only a thin wrapper: it searches for an external compose provider on
+`PATH` and silently delegates to whatever it finds, which is commonly the
+standalone `docker-compose` binary if one happens to be installed. That tool
+then pulls the base image through Docker's own registry/auth stack, not
+Podman's, so it can fail with a `docker.io` authentication error on a machine
+where Podman itself is set up correctly. Confirm it with:
+
+```bash
+podman compose version
+```
+
+If the output starts with `Executing external compose provider "..."` before
+the version banner, that is the cause. This Makefile prefers the standalone
+`podman-compose` over the `podman compose` subcommand for exactly this reason
+— `make info` shows which one it picked.
 
 **Everything is wedged.**
 `make down && make up` recreates the container in seconds; `./data` is kept.
@@ -492,12 +527,14 @@ Older versions merge multi-file setups poorly. Put the settings straight into
 ## Design notes
 
 **One container, many processes.** EduMatcher's engine binds its ZeroMQ bus
-sockets to `127.0.0.1`, so every `pm-*` process has to live in one network
-namespace. Splitting them into one container per process would mean patching
-those bind addresses and turning a teaching system into a distributed
-deployment exercise. One container that behaves like a machine is both simpler
-and closer to how the system is meant to be operated — with `pm-opctl-cli` as
-the process manager, exactly as in the VM.
+sockets to `127.0.0.1` by default (overridable via `EDUMATCHER_ENGINE_BIND_HOST`,
+see [Exposing the ZeroMQ bus](#exposing-the-zeromq-bus)), so nothing forces
+every `pm-*` process into one network namespace anymore. This deployment still
+keeps them together: one container that behaves like a machine is simpler and
+closer to how the system is meant to be operated — with `pm-opctl-cli` as the
+process manager, exactly as in the VM — and splitting it up would turn a
+teaching system into a distributed deployment exercise for no benefit this
+setup needs.
 
 **Running as root.** The container runs as root, like a VM you `sudo` in. It
 keeps the bind-mounted `./data` free of UID-mapping puzzles across macOS,

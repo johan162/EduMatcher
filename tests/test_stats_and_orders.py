@@ -722,23 +722,28 @@ class TestAccumFor:
 
 
 # ---------------------------------------------------------------------------
-# orders/main._build_table (orders monitor helper)
+# orders/main._build_rows_table (orders monitor helper)
 # ---------------------------------------------------------------------------
 
 
 class TestOrdersBuildTable:
     def test_build_table_empty(self) -> None:
-        from edumatcher.orders.main import _build_table
+        from edumatcher.orders.main import _build_rows_table
         from rich.table import Table
 
-        t = _build_table({}, None)
+        t = _build_rows_table([])
         assert isinstance(t, Table)
 
     def test_build_table_with_filter(self) -> None:
-        from edumatcher.orders.main import _build_table
+        from edumatcher.orders.main import _build_rows_table
 
-        orders = {
-            "O1": {
+        # Gateway filtering is now applied earlier, in OrderMonitor._handle
+        # (self.gw_filter), before a row is ever appended to _history —
+        # _build_rows_table itself renders whatever rows it's handed, with
+        # no filtering of its own. So "with filter" here means: pass only
+        # the one row that survived filtering upstream.
+        rows = [
+            {
                 "order_id": "O1",
                 "gateway_id": "GW01",
                 "symbol": "AAPL",
@@ -749,30 +754,17 @@ class TestOrdersBuildTable:
                 "remaining": 100,
                 "price": 100.0,
                 "status": "NEW",
-                "updated": "09:30:00",
-            },
-            "O2": {
-                "order_id": "O2",
-                "gateway_id": "GW02",
-                "symbol": "MSFT",
-                "side": "SELL",
-                "order_type": "LIMIT",
-                "tif": "DAY",
-                "qty": 50,
-                "remaining": 50,
-                "price": 200.0,
-                "status": "FILLED",
-                "updated": "09:31:00",
-            },
-        }
-        t = _build_table(orders, "GW01")
+                "time": "09:30:00",
+            }
+        ]
+        t = _build_rows_table(rows)
         assert t.row_count == 1
 
     def test_build_table_all_status_styles(self) -> None:
-        from edumatcher.orders.main import _build_table
+        from edumatcher.orders.main import _build_rows_table
 
-        orders = {
-            f"O{i}": {
+        rows = [
+            {
                 "order_id": f"O{i}",
                 "gateway_id": "GW01",
                 "symbol": "AAPL",
@@ -783,13 +775,13 @@ class TestOrdersBuildTable:
                 "remaining": 10,
                 "price": 100.0,
                 "status": st,
-                "updated": "09:30:00",
+                "time": "09:30:00",
             }
             for i, st in enumerate(
                 ["NEW", "PARTIAL", "FILLED", "CANCELLED", "REJECTED", "EXPIRED"]
             )
-        }
-        t = _build_table(orders, None)
+        ]
+        t = _build_rows_table(rows)
         assert t.row_count == 6
 
 

@@ -415,14 +415,16 @@ class TestVerboseRejectedOrder:
 
 
 # ---------------------------------------------------------------------------
-# board/main.py — _build_table with board orders
+# board/main.py — _build_rows_table with board orders
 # ---------------------------------------------------------------------------
 
 
 class TestBoardBuildTable:
     def test_build_table_called_via_board_helper(self) -> None:
-        """_colour_change and _fmt_price (already tested) — check _build_table."""
-        from edumatcher.board.main import _build_table as board_build_table
+        """_colour_change and _format_price (already tested) — check
+        _build_rows_table (renamed from _build_table, same convention as
+        pm-orders' own table builder)."""
+        from edumatcher.board.main import _build_rows_table as board_build_table
 
         # Just verify the function exists and is callable
         assert callable(board_build_table)

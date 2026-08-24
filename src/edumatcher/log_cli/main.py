@@ -21,6 +21,7 @@ Commands
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 import time
 from typing import Any
@@ -58,6 +59,42 @@ _LEVEL_COLOR = {
     "WARNING": "\033[33m",
 }
 _RESET = "\033[0m"
+
+# Matches the `tail`-only `-<nnn>` shorthand (1-999, e.g. -50) for "show this
+# many old lines before switching to live". Rejects -0 and anything with a
+# leading zero (e.g. -007) so the shorthand stays unambiguous; --before N
+# always works as the explicit, unrestricted spelling.
+_BEFORE_SHORTHAND_RE = re.compile(r"^-([1-9][0-9]{0,2})$")
+
+
+def _rewrite_before_shorthand(argv: list[str]) -> list[str]:
+    """Rewrite ``tail -<nnn>`` into ``tail --before <nnn>``.
+
+    argparse has no clean way to accept a bare ``-<number>`` token (it looks
+    like a negative-number positional/unknown option), so this is handled as
+    a pre-processing pass over sys.argv before the real parser ever sees it.
+    Only tokens that appear after a literal "tail" subcommand token are
+    rewritten, so "-123" elsewhere (e.g. a --db path, or before the
+    subcommand) is left alone.
+    """
+    try:
+        tail_idx = argv.index("tail")
+    except ValueError:
+        return argv
+
+    rewritten = list(argv)
+    i = tail_idx + 1
+    while i < len(rewritten):
+        token = rewritten[i]
+        if token == "--":
+            break
+        match = _BEFORE_SHORTHAND_RE.match(token)
+        if match:
+            rewritten[i : i + 1] = ["--before", match.group(1)]
+            i += 2
+            continue
+        i += 1
+    return rewritten
 
 
 # ---------------------------------------------------------------------------
@@ -121,6 +158,17 @@ def _build_parser() -> argparse.ArgumentParser:
         default=1.0,
         metavar="SEC",
         help="Polling interval in seconds (default: 1.0)",
+    )
+    tl.add_argument(
+        "--before",
+        dest="before",
+        type=int,
+        default=None,
+        metavar="NNN",
+        help=(
+            "Show this many existing rows before switching to live tail "
+            "(1-999). Shorthand: -NNN, e.g. -50."
+        ),
     )
     _add_format(tl)
 
@@ -289,8 +337,28 @@ def _handle_query(args: argparse.Namespace, conn: Any) -> list[dict[str, Any]]:
 
 
 def _handle_tail(args: argparse.Namespace, conn: Any, fmt: str) -> None:
-    last_seq = queries.max_seq(conn)
     levels = _parse_levels(args.level)
+    before = getattr(args, "before", None)
+
+    if before is not None:
+        backfill = queries.query_events(
+            conn,
+            process=args.process,
+            levels=levels,
+            logger_pattern=args.logger,
+            limit=before,
+        )
+        if backfill:
+            if fmt == "json":
+                _print_json_rows(backfill)
+            else:
+                _print_table(backfill, _QUERY_COLS)
+            last_seq = max(r["seq"] for r in backfill)
+        else:
+            last_seq = queries.max_seq(conn)
+    else:
+        last_seq = queries.max_seq(conn)
+
     try:
         while True:
             rows = queries.query_events(
@@ -323,8 +391,18 @@ def _handle_diagnose(args: argparse.Namespace, conn: Any) -> list[Finding]:
 
 def main() -> None:
     parser = _build_parser()
-    args = parser.parse_args()
+    argv = _rewrite_before_shorthand(sys.argv[1:])
+    args = parser.parse_args(argv)
     fmt = _resolve_format(args)
+
+    if args.command == "tail":
+        before = getattr(args, "before", None)
+        if before is not None and not (1 <= before <= 999):
+            print(
+                "[ERROR] --before/-NNN must be between 1 and 999 " f"(got {before}).",
+                file=sys.stderr,
+            )
+            raise SystemExit(2)
 
     db_path = resolve_data_path(args.db)
 

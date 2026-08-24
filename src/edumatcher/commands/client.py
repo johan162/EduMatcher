@@ -44,6 +44,7 @@ from edumatcher.models.message import (
     make_gateways_request_msg,
     make_kill_switch_msg,
     make_orders_request_msg,
+    make_price_level_orders_request_msg,
     make_quote_bootstrap_request_msg,
     make_quote_cancel_msg,
     make_session_state_request_msg,
@@ -60,7 +61,9 @@ from edumatcher.models.message import (
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 from edumatcher.models.generated.order import (
     PREFIX_ORDERS,
+    PREFIX_PRICE_LEVEL_ORDERS,
     topic_orders,
+    topic_price_level_orders,
 )
 from edumatcher.models.generated.book import (
     PREFIX_BOOK_SNAPSHOT,
@@ -126,6 +129,7 @@ _ACK_SUB_PREFIXES: tuple[str, ...] = (
     TOPIC_SESSION_STATE,
     PREFIX_SYMBOLS,
     PREFIX_ORDERS,
+    PREFIX_PRICE_LEVEL_ORDERS,
     PREFIX_QUOTE_BOOTSTRAP,
     PREFIX_SESSION_STATUS,
     PREFIX_SESSION_SCHEDULE,
@@ -460,6 +464,29 @@ class ExchangeCommandClient:
         self._send(make_orders_request_msg(target_gw.upper()))
         result = self._recv(topic_orders(target_gw.upper()))
         return list(result.get("orders", []))
+
+    def price_level_orders(
+        self, symbol: str, price: float | None = None
+    ) -> dict[str, Any]:
+        """
+        Return every resting order for *symbol* across every gateway,
+        optionally narrowed to a single *price* level — the per-order
+        composition ``book_depth`` only ever aggregates to ``{price, qty,
+        count}``. ADMIN role required; the engine rejects (``rejected:
+        True``, ``orders: []``) for any other caller.
+
+        Returns
+        -------
+        dict with keys: ``symbol``, ``price`` (echoed back only when a
+        filter was supplied), ``rejected``, ``reason`` (set only when
+        rejected), ``orders`` — a list of per-order dicts each carrying
+        ``gateway_id`` plus the same fields as an ``order_list()`` entry,
+        ordered by price then by arrival sequence within a price level.
+        """
+        self._send(
+            make_price_level_orders_request_msg(self._gw_id, symbol.upper(), price)
+        )
+        return self._recv(topic_price_level_orders(self._gw_id))
 
     def symbol_list(self) -> list[str]:
         """Return the list of all symbols configured in the engine.

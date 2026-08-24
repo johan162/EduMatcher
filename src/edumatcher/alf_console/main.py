@@ -57,7 +57,9 @@ from typing import Any
 
 import zmq
 from prompt_toolkit import PromptSession
+from prompt_toolkit.filters import completion_is_selected
 from prompt_toolkit.history import InMemoryHistory
+from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.patch_stdout import patch_stdout as pt_patch_stdout
 
 from edumatcher.cli_version import add_version_argument
@@ -267,6 +269,38 @@ def _configure_logging(args: argparse.Namespace) -> int:
     return int(level)
 
 
+def _completion_key_bindings() -> KeyBindings:
+    """Make Enter accept a highlighted completion instead of submitting.
+
+    prompt_toolkit's default Enter binding does both at once when a
+    completion menu is open: it applies the highlighted completion *and*
+    accepts the whole line, in the same keypress. For a command line built
+    up across several Tab-completions (SYM=, then SIDE=, then TYPE=, ...)
+    that means one Enter can fire an order before the line is finished.
+    This overrides Enter, while a completion is selected, to only close the
+    menu and insert the choice — a second, separate Enter is then needed to
+    submit, matching the behaviour of a normal shell completion menu.
+    """
+    bindings = KeyBindings()
+
+    # pyright can't see that @bindings.add registers this handler by side
+    # effect (the KeyBindings registry, not the name _accept_completion_not_line,
+    # is what's read afterward) — it's genuinely wired up at runtime, so this
+    # is a false positive rather than actually-dead code.
+    @bindings.add("enter", filter=completion_is_selected)
+    def _accept_completion_not_line(  # pyright: ignore[reportUnusedFunction]
+        event: Any,
+    ) -> None:
+        buf = event.current_buffer
+        state = buf.complete_state
+        if state is not None and state.current_completion is not None:
+            buf.apply_completion(state.current_completion)
+        else:
+            buf.cancel_completion()
+
+    return bindings
+
+
 class Gateway:
     def __init__(self, gateway_id: str, drop_copy: bool = False) -> None:
         self.gateway_id = gateway_id.upper()
@@ -473,7 +507,28 @@ class Gateway:
         # Give sockets time to connect and SUB filters to propagate.
         log.info("starting gateway authentication gateway_id=%s", self.gateway_id)
         time.sleep(0.1)
-        self.push_sock.send_multipart(make_gateway_connect_msg(self.gateway_id))
+        # push_sock is IMMEDIATE + non-blocking (see make_pusher): a ZMQ
+        # connect() is asynchronous, and this send can fire before the
+        # ZMTP handshake with the engine has completed, raising Again. The
+        # fixed sleep above covers same-host loopback but not a host that
+        # reaches the engine over a slower hop (e.g. connecting into a
+        # container from outside it), so retry a few times rather than
+        # failing on the first race.
+        connect_msg = make_gateway_connect_msg(self.gateway_id)
+        handshake_deadline = time.monotonic() + timeout_sec
+        while True:
+            try:
+                self.push_sock.send_multipart(connect_msg)
+                break
+            except zmq.Again:
+                if time.monotonic() >= handshake_deadline:
+                    log.error(
+                        "gateway authentication failed to reach engine "
+                        "gateway_id=%s (connection not established)",
+                        self.gateway_id,
+                    )
+                    return False
+                time.sleep(0.1)
 
         poller = zmq.Poller()
         poller.register(self.sub_sock, zmq.POLLIN)
@@ -504,6 +559,31 @@ class Gateway:
         self._auth_reason = "Gateway authentication timed out"
         log.warning("gateway authentication timed out gateway_id=%s", self.gateway_id)
         return False
+
+    def _send(self, sock: zmq.Socket[bytes], frames: list[bytes]) -> bool:
+        """Send on a PUSH socket, reporting a clean error instead of
+        crashing the console.
+
+        Every PUSH socket from ``make_pusher()`` is IMMEDIATE + non-
+        blocking (see ``bus.py``), so a send raises ``zmq.Again`` whenever
+        the peer connection isn't currently established — e.g. the engine
+        restarted or the network dropped mid-session. Post-handshake sends
+        (unlike the one in ``_authenticate``) aren't worth retrying here:
+        the command the user just typed would need to be resent anyway, so
+        we just report the failure and let them decide whether to retry.
+        Returns True on success, False if the send was dropped.
+        """
+        try:
+            sock.send_multipart(frames)
+            return True
+        except zmq.Again:
+            log.warning(
+                "gateway_id=%s send dropped: engine unreachable", self.gateway_id
+            )
+            console.print(
+                "[red]Send failed: engine unreachable (connection lost?)[/red]"
+            )
+            return False
 
     # ------------------------------------------------------------------
     # Background SUB listener
@@ -964,6 +1044,13 @@ class Gateway:
             console.print(HELP_TEXT)
             return
 
+        if cmd == "CLEAR":
+            # Same effect as the shell's `clear`: wipe the screen and put the
+            # cursor back at the top, so the next prompt starts on a blank
+            # terminal instead of scrolling below whatever was there before.
+            console.clear()
+            return
+
         if cmd in ("EXIT", "QUIT"):
             self._running = False
             return
@@ -996,8 +1083,9 @@ class Gateway:
         if cmd == "QBOOT":
             kv = self._kv(parts[1:])
             symbol = kv.get("SYM", "")
-            self.push_sock.send_multipart(
-                make_quote_bootstrap_request_msg(self.gateway_id, symbol)
+            self._send(
+                self.push_sock,
+                make_quote_bootstrap_request_msg(self.gateway_id, symbol),
             )
             return
 
@@ -1006,13 +1094,11 @@ class Gateway:
             return
 
         if cmd == "SYMBOLS":
-            self.push_sock.send_multipart(make_symbols_request_msg(self.gateway_id))
+            self._send(self.push_sock, make_symbols_request_msg(self.gateway_id))
             return
 
         if cmd == "SESSION":
-            self.push_sock.send_multipart(
-                make_session_state_request_msg(self.gateway_id)
-            )
+            self._send(self.push_sock, make_session_state_request_msg(self.gateway_id))
             return
 
         if cmd == "INDEX":
@@ -1030,13 +1116,14 @@ class Gateway:
                     from_ts = time.time() - 30 * 86400
                 if to_ts is None:
                     to_ts = time.time()
-                self._index_push_sock.send_multipart(
+                self._send(
+                    self._index_push_sock,
                     make_index_history_request_msg(
                         gateway_id=self.gateway_id,
                         index_id=index_id,
                         from_ts=from_ts,
                         to_ts=to_ts,
-                    )
+                    ),
                 )
                 return
             print_current_index(self._last_index_update)
@@ -1053,15 +1140,13 @@ class Gateway:
             if not symbol:
                 console.print("[red]QUOTE_CANCEL requires SYM=<symbol>[/red]")
                 return
-            self.push_sock.send_multipart(
-                make_quote_cancel_msg(self.gateway_id, symbol)
-            )
+            self._send(self.push_sock, make_quote_cancel_msg(self.gateway_id, symbol))
             return
 
         if cmd == "KILL":
             kv = self._kv(parts[1:])
-            self.push_sock.send_multipart(
-                make_kill_switch_msg(self.gateway_id, kv.get("SYM", ""))
+            self._send(
+                self.push_sock, make_kill_switch_msg(self.gateway_id, kv.get("SYM", ""))
             )
             return
 
@@ -1080,23 +1165,19 @@ class Gateway:
             kv = self._kv(parts[1:])
             combo_id = kv.get("COMBO_ID")
             if combo_id:
-                self.push_sock.send_multipart(
-                    make_combo_cancel_msg(combo_id, self.gateway_id)
+                self._send(
+                    self.push_sock, make_combo_cancel_msg(combo_id, self.gateway_id)
                 )
                 return
             oco_id = kv.get("OCO_ID")
             if oco_id:
-                self.push_sock.send_multipart(
-                    make_oco_cancel_msg(oco_id, self.gateway_id)
-                )
+                self._send(self.push_sock, make_oco_cancel_msg(oco_id, self.gateway_id))
                 return
             order_id = kv.get("ID")
             if not order_id:
                 console.print("[red]CANCEL requires ID=, COMBO_ID=, or OCO_ID=[/red]")
                 return
-            self.push_sock.send_multipart(
-                make_order_cancel_msg(order_id, self.gateway_id)
-            )
+            self._send(self.push_sock, make_order_cancel_msg(order_id, self.gateway_id))
             return
 
         if cmd == "AMEND":
@@ -1110,10 +1191,11 @@ class Gateway:
             if new_price is None and new_qty is None:
                 console.print("[red]AMEND requires at least PRICE= or QTY=[/red]")
                 return
-            self.push_sock.send_multipart(
+            self._send(
+                self.push_sock,
                 make_order_amend_msg(
                     order_id, self.gateway_id, price=new_price, qty=new_qty
-                )
+                ),
             )
             return
 
@@ -1228,7 +1310,7 @@ class Gateway:
             "time": datetime.now().strftime("%H:%M:%S"),
         }
 
-        self.push_sock.send_multipart(make_order_new_msg(order.to_dict()))
+        self._send(self.push_sock, make_order_new_msg(order.to_dict()))
         self._dbg_count("orders_submitted")
 
     def _send_quote(self, kv: dict[str, str]) -> None:
@@ -1268,7 +1350,7 @@ class Gateway:
         if quote_id:
             payload["quote_id"] = quote_id
 
-        self.push_sock.send_multipart(make_quote_new_msg(payload))
+        self._send(self.push_sock, make_quote_new_msg(payload))
         self._dbg_count("quotes_submitted")
 
     def _send_oco(self, kv: dict[str, str]) -> None:
@@ -1340,7 +1422,7 @@ class Gateway:
             "leg1": leg1,
             "leg2": leg2,
         }
-        self.push_sock.send_multipart(make_oco_order_msg(payload))
+        self._send(self.push_sock, make_oco_order_msg(payload))
         self._dbg_count("oco_submitted")
 
     def _send_combo(self, kv: dict[str, str]) -> None:
@@ -1439,7 +1521,7 @@ class Gateway:
             legs=legs,
         )
 
-        self.push_sock.send_multipart(make_combo_order_msg(combo.to_submission_dict()))
+        self._send(self.push_sock, make_combo_order_msg(combo.to_submission_dict()))
         self._dbg_count("combo_submitted")
 
     @staticmethod
@@ -1474,7 +1556,7 @@ class Gateway:
 
         self._authenticated = True
         # Request outstanding resting orders so reconnects restore order history
-        self.push_sock.send_multipart(make_orders_request_msg(self.gateway_id))
+        self._send(self.push_sock, make_orders_request_msg(self.gateway_id))
 
         if self._dc_requested_on_startup:
             self._set_drop_copy(True)
@@ -1498,6 +1580,7 @@ class Gateway:
             complete_while_typing=False,  # only complete on Tab
             style=PROMPT_STYLE,
             mouse_support=False,
+            key_bindings=_completion_key_bindings(),
         )
         prompt_str = [("class:prompt", f"[{self.gateway_id}]> ")]
 

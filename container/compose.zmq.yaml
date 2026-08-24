@@ -1,12 +1,12 @@
 # Overlay: expose the raw ZeroMQ bus so host-side clients (pm-calf-spy,
 # pm-dc-spy, the log subscribers) can attach without entering the container.
-# 5555/5556/5557 reach the engine through the socat relays started by the
-# entrypoint; 5558/5559 and 5601/5602 are bound directly by pm-index and
-# pm-log-srv once told to listen on all interfaces.
+# The engine and pm-index bind 127.0.0.1 by default and need to be told
+# otherwise; pm-log-srv already binds 0.0.0.0 unconditionally, so 5601/5602
+# need no override here.
 services:
   edumatcher:
     environment:
-      EM_ZMQ_RELAY: "1"
+      EDUMATCHER_ENGINE_BIND_HOST: "0.0.0.0"
       EDUMATCHER_INDEX_BIND_HOST: "0.0.0.0"
     ports:
       - "${BIND_ADDR:-127.0.0.1}:5555:5555"   # pm-engine — order intake (PULL)

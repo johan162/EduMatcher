@@ -96,7 +96,7 @@ class DropCopyPublisher:
     ----------
     context : A ``zmq.Context`` instance (pass ``zmq.Context.instance()``
               in production).
-    addr    : ZMQ bind address.  Defaults to ``DROP_COPY_PUB_ADDR`` from
+    addr    : ZMQ bind address.  Defaults to ``DROP_COPY_PUB_BIND_ADDR`` from
               ``edumatcher.config`` (``tcp://127.0.0.1:5557``).
     """
 
@@ -106,9 +106,9 @@ class DropCopyPublisher:
         addr: Optional[str] = None,
         buffer_size: int = DROP_COPY_BUFFER_SIZE,
     ) -> None:
-        from edumatcher.config import DROP_COPY_PUB_ADDR
+        from edumatcher.config import DROP_COPY_PUB_BIND_ADDR
 
-        bind_addr = addr if addr is not None else DROP_COPY_PUB_ADDR
+        bind_addr = addr if addr is not None else DROP_COPY_PUB_BIND_ADDR
         self._pub: zmq.Socket[bytes] = context.socket(zmq.PUB)
         self._pub.bind(bind_addr)
         # Bounded deque: when full, oldest messages are silently dropped

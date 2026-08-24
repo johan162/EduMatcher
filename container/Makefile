@@ -1,14 +1,21 @@
 # EduMatcher container control surface.
 #
-#   make build            build the image (EduMatcher from PyPI)
-#   make build DEV=1      build it from the wheel in ../dist instead
-#   make up               start the exchange
-#   make up ZMQ=1 SSH=1   ... also exposing the ZeroMQ bus and sshd
-#   make shell            get a root shell inside the running container
-#   make down             stop and remove the container
+#   make build             build the image from a freshly built local wheel
+#   make build PYPI=1      ... from the latest PyPI release instead
+#   make build VERSION=x.y.z  ... pin a specific PyPI release
+#   make up                start the exchange
+#   make up ZMQ=1 SSH=1    ... also exposing the ZeroMQ bus and sshd
+#   make shell             get a root shell inside the running container
+#   make down              stop and remove the container
 #
 # Podman is preferred when both engines are installed; override with
 # `make up CONTAINER_ENGINE=docker`.
+#
+# `make build`'s default builds from your local source checkout (see
+# "Build" below) — this is deliberate: a plain rebuild after editing source
+# should always pick up that edit. Silently falling back to whatever's on
+# PyPI here previously cost real debugging time chasing "my fix isn't
+# taking effect" as if it were a runtime/networking bug.
 
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
@@ -20,8 +27,8 @@ CONTAINER_ENGINE ?= $(shell \
 
 COMPOSE ?= $(shell \
 	if [ "$(CONTAINER_ENGINE)" = "podman" ]; then \
-		if podman compose version >/dev/null 2>&1; then echo "podman compose"; \
-		elif command -v podman-compose >/dev/null 2>&1; then echo "podman-compose"; fi; \
+		if command -v podman-compose >/dev/null 2>&1; then echo "podman-compose"; \
+		elif podman compose version >/dev/null 2>&1; then echo "podman compose"; fi; \
 	elif [ "$(CONTAINER_ENGINE)" = "docker" ]; then \
 		if docker compose version >/dev/null 2>&1; then echo "docker compose"; \
 		elif command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; fi; \
@@ -65,8 +72,9 @@ DC := $(RUN_ENV) $(COMPOSE) $(COMPOSE_FILES)
 help:
 	@echo "EduMatcher container — targets:"
 	@echo ""
-	@echo "  make build              Build the image from PyPI (VERSION=x.y.z to pin)"
-	@echo "  make build DEV=1        Build it from a freshly built local wheel"
+	@echo "  make build              Build the image from a freshly built local wheel"
+	@echo "  make build PYPI=1       ... from the latest PyPI release instead"
+	@echo "  make build VERSION=x.y.z  ... pin a specific PyPI release"
 	@echo "  make up                 Start the exchange (CONFIG=..., PROFILE=...)"
 	@echo "  make up ZMQ=1           ... and publish the raw ZeroMQ bus ports"
 	@echo "  make up SSH=1           ... and run sshd on port $${SSH_PORT:-2222}"
@@ -104,17 +112,32 @@ info: check
 	@cp .env.example .env
 	@echo "Created .env from .env.example"
 
+init: .env
+	@echo "Initialized the container control surface. Edit .env to customize."
+
+
 # --- Build -----------------------------------------------------------------
+# Default: build from a freshly built local wheel (what DEV=1 used to mean —
+# DEV=1 is still accepted for anyone's muscle memory, but is now a no-op).
+# PYPI=1 installs the latest PyPI release instead; VERSION=x.y.z pins one
+# (and implies PyPI, so PYPI=1 alongside it is redundant but harmless).
 build: check .env
-ifeq ($(DEV),1)
-	@echo "==> building wheel from the repository checkout"
-	@cd .. && poetry build --format wheel
-	@rm -f .wheel/*.whl
-	@cp "$$(ls -t ../dist/*.whl | head -1)" .wheel/
-	@echo "==> using $$(ls .wheel/*.whl)"
-else
-	@rm -f .wheel/*.whl
-endif
+	@if [ -n "$(VERSION)" ] && [ "$(PYPI)" = "1" ]; then \
+		echo "==> building from PyPI, pinned to $(VERSION)"; \
+		rm -f .wheel/*.whl; \
+	elif [ -n "$(VERSION)" ]; then \
+		echo "==> building from PyPI, pinned to $(VERSION)"; \
+		rm -f .wheel/*.whl; \
+	elif [ "$(PYPI)" = "1" ]; then \
+		echo "==> building from PyPI (latest)"; \
+		rm -f .wheel/*.whl; \
+	else \
+		echo "==> building wheel from the repository checkout"; \
+		(cd .. && poetry build --format wheel) && \
+		rm -f .wheel/*.whl && \
+		cp "$$(ls -t ../dist/*.whl | head -1)" .wheel/ && \
+		echo "==> using $$(ls .wheel/*.whl)"; \
+	fi
 	$(DC) build
 
 # --- Lifecycle -------------------------------------------------------------
@@ -176,9 +199,12 @@ config-show: check
 
 # --- Cleanup ---------------------------------------------------------------
 clean: check
-	-$(DC) down
-	-$(CONTAINER_ENGINE) rmi $(IMAGE_NAME):$(IMAGE_TAG)
+	-@$(DC) down 2>/dev/null || true
+	-@$(CONTAINER_ENGINE) rmi $(IMAGE_NAME):$(IMAGE_TAG) 2>/dev/null || true
 
 clean-data:
 	@read -p "Delete ./data and every trade, log and database in it? [y/N] " ans; \
 	if [ "$$ans" = "y" ]; then rm -rf data && echo "data/ removed"; else echo "kept"; fi
+
+clean-all: clean clean-data
+	@echo "Cleaned all."

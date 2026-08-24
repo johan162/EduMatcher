@@ -502,6 +502,120 @@ class TestLoadConfigWithMMOrders:
         resting = engine.books["AAPL"].resting_orders()
         assert len(resting) >= 1
 
+    def test_mm_quotes_publish_order_ack_for_both_legs(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        """Seeded quote legs must publish an order.ack the moment they're
+        created — previously the only order-creation path in the engine
+        that announced nothing at all, leaving a subscriber with no symbol/
+        side/price/qty for the leg until (if ever) it was later cancelled,
+        by which point order.cancelled's deliberately minimal shape can no
+        longer supply them either. See docs-design/EduMatcher-engine-price-
+        ticks.md for the related tick/display-money asymmetry this must not
+        reintroduce: FX-style tick_decimals=4 and a non-round price are used
+        below specifically so a raw-ticks regression can't hide behind a
+        tick_decimals=2 coincidence the way the original bug did.
+        """
+        pull_sock = _Sock(sent=[])
+        pub_sock = _Sock(sent=[])
+        sym_cfg = SymbolConfig(
+            name="EURUSD",
+            tick_decimals=4,
+            market_maker_quotes=[
+                MMQuoteSeed(
+                    gateway_id="GW01",
+                    bid_price=1.23450,
+                    ask_price=1.23470,
+                    bid_qty=200,
+                    ask_qty=300,
+                    tif=TIF.GTC,
+                )
+            ],
+        )
+        cfg = EngineConfig(
+            symbols={"EURUSD": sym_cfg},
+            fix_gateways={"GW01": FixGatewayConfig(id="GW01", description="GW01")},
+        )
+        monkeypatch.setattr("edumatcher.engine.main.make_puller", lambda _: pull_sock)
+        monkeypatch.setattr("edumatcher.engine.main.make_publisher", lambda _: pub_sock)
+        monkeypatch.setattr("edumatcher.engine.main.load_engine_config", lambda _: cfg)
+        monkeypatch.setattr("edumatcher.engine.main.load_gtc_orders", lambda _: [])
+        monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: {})
+        monkeypatch.setattr("edumatcher.engine.main.time.sleep", lambda *_: None)
+        cfg_path = tmp_path / "engine_config.yaml"
+        cfg_path.write_text("dummy: true\n")
+        engine = Engine(verbose=False, config_path=str(cfg_path))
+
+        engine._load_config()
+
+        acks = [decode(f) for f in pub_sock.sent if "order.ack" in decode(f)[0]]
+        assert len(acks) == 2, "expected one order.ack per seeded leg (bid + ask)"
+
+        by_side = {payload["side"]: payload for _topic, payload in acks}
+        assert set(by_side) == {"BUY", "SELL"}
+
+        bid_ack = by_side["BUY"]
+        ask_ack = by_side["SELL"]
+        assert bid_ack["accepted"] is True
+        assert bid_ack["symbol"] == "EURUSD"
+        assert bid_ack["qty"] == 200
+        assert (
+            bid_ack["price"] == 1.2345
+        ), "ack price must be display money (1.2345), not raw ticks (12345)"
+        assert ask_ack["qty"] == 300
+        assert ask_ack["price"] == 1.2347
+
+        # The ack(s) must precede any fill/cancel event for the same order
+        # id — a subscriber building up per-order state incrementally (e.g.
+        # pm-orders) must see "this order exists" before anything else.
+        ack_topics = [t for t, _ in (decode(f) for f in pub_sock.sent)]
+        first_ack_idx = min(i for i, t in enumerate(ack_topics) if "order.ack" in t)
+        first_other_idx = next(
+            (
+                i
+                for i, t in enumerate(ack_topics)
+                if ("order.fill" in t or "order.cancelled" in t)
+            ),
+            None,
+        )
+        if first_other_idx is not None:
+            assert first_ack_idx < first_other_idx
+
+    def test_mm_quotes_publish_quote_status_active(self, monkeypatch, tmp_path) -> None:
+        """Seeded quotes must also publish quote.status: ACTIVE, the same as
+        _handle_quote_new does for a live quote submission — otherwise a
+        symbol seeded only at startup (no live quote traffic during the
+        session) never has a single quote.status event, leaving pm-orders'
+        quote lane empty even once the two order.ack legs above are fixed.
+        """
+        engine, pub_sock = _make_engine(
+            monkeypatch,
+            tmp_path,
+            mm_quotes={
+                "AAPL": [
+                    MMQuoteSeed(
+                        gateway_id="GW01",
+                        bid_price=99.0,
+                        ask_price=101.0,
+                        bid_qty=200,
+                        ask_qty=200,
+                        tif=TIF.GTC,
+                    )
+                ]
+            },
+        )
+
+        engine._load_config()
+
+        quote_status = [
+            (t, p) for t, p in (decode(f) for f in pub_sock.sent) if "quote.status" in t
+        ]
+        assert len(quote_status) == 1
+        topic, payload = quote_status[0]
+        assert topic == "quote.status.GW01"
+        assert payload["status"] == "ACTIVE"
+        assert payload["quote_id"] == "SEED-GW01-AAPL-1"
+
 
 # ---------------------------------------------------------------------------
 # _expire_tif direct test

@@ -91,6 +91,15 @@ Commands
     overwrite an existing file.
 ``show``
     Print the resolved data directory.
+``clear (--state | --all) [--yes]``
+    Delete persisted data under the data directory. ``--state`` removes only
+    engine/session state (order books, GTC orders, derived stats, index and
+    clearing state) — the files whose staleness causes surprises like a
+    ``seed_once: true`` market-maker quote silently failing to re-seed
+    because ``book_stats.json`` still remembers the symbol from a previous
+    run. ``--all`` additionally removes logs and the audit trail. Exactly one
+    of ``--state``/``--all`` must be given; ``--yes`` skips the confirmation
+    prompt. Configuration under ``ref_data/`` is never touched.
 
 All paths resolve through :func:`edumatcher.config.resolve_data_path`, so the
 tool and the processes it launches agree on ``EDUMATCHER_DATA_DIR``.
@@ -101,6 +110,7 @@ from __future__ import annotations
 import argparse
 import os
 import shlex
+import shutil
 import signal
 import socket
 import subprocess
@@ -111,7 +121,20 @@ from typing import Any
 
 import yaml
 
-from edumatcher.config import DATA_DIR, resolve_data_path
+from edumatcher.config import (
+    AUDIT_INDEX_DB_FILE,
+    AUDIT_LOG_FILE,
+    CLEARING_DB_FILE,
+    CLEARING_REPORT_FILE,
+    DATA_DIR,
+    GTC_COMBOS_FILE,
+    GTC_ORDERS_FILE,
+    BOOK_STATS_FILE,
+    LOG_DB_FILE,
+    LOG_FALLBACK_DIR,
+    STATS_DB_FILE,
+    resolve_data_path,
+)
 
 CONFIG_NAME = "emo-config.yaml"
 RUNTIME_DIR_NAME = "emo"
@@ -740,6 +763,112 @@ def show_data_dir() -> int:
     return 0
 
 
+# ---------------------------------------------------------------------------
+# clear — reset the data directory
+# ---------------------------------------------------------------------------
+# "State" is everything the engine and its satellite processes persist and
+# reload on the next start: resting/GTC orders, last-known prices, derived
+# daily statistics, index levels, and clearing output. Stale state is exactly
+# what causes surprises like a `seed_once: true` market-maker quote silently
+# failing to re-seed because `book_stats.json` already remembers the symbol
+# from a previous run — `clear --state` exists to get back to a clean slate
+# without also discarding the operational record (logs, audit trail) of what
+# already happened.
+#
+# ref_data/ (the deployed engine_config.yaml/.json) is configuration, not
+# data, and is never touched by either mode — clearing state should not also
+# undeploy the exchange's configuration.
+STATE_PATHS: tuple[Path, ...] = (
+    BOOK_STATS_FILE,
+    GTC_ORDERS_FILE,
+    GTC_COMBOS_FILE,
+    STATS_DB_FILE,
+    CLEARING_DB_FILE,
+    CLEARING_REPORT_FILE,
+    DATA_DIR / "indexes",
+)
+
+# Everything else `--all` additionally removes: logs, the audit trail, and
+# pm-opctl's own process-tracking dir (PIDs + per-process stdout/stderr).
+# Anything already listed in STATE_PATHS is skipped here to avoid double
+# work; ref_data/ is excluded — see the module note above.
+NON_STATE_PATHS: tuple[Path, ...] = (
+    AUDIT_LOG_FILE,
+    AUDIT_INDEX_DB_FILE,
+    LOG_DB_FILE,
+    LOG_FALLBACK_DIR,
+    DATA_DIR / RUNTIME_DIR_NAME,
+)
+
+
+def _remove_path(path: Path) -> bool:
+    """Delete *path* if it exists. Returns True if anything was removed."""
+    if path.is_dir():
+        shutil.rmtree(path)
+        return True
+    if path.exists():
+        path.unlink()
+        return True
+    return False
+
+
+def _running_pm_pids() -> list[int]:
+    """Best-effort list of live pm-* process PIDs, for the confirmation prompt."""
+    try:
+        return pgrep_pids("pm-")
+    except Exception:
+        return []
+
+
+def clear_data(*, scope: str, assume_yes: bool) -> int:
+    """Delete persisted data under DATA_DIR.
+
+    scope="state" removes only engine/session state (STATE_PATHS).
+    scope="all" removes state plus logs, audit, and process-tracking data
+    (STATE_PATHS + NON_STATE_PATHS). Configuration under ref_data/ is never
+    touched by either scope.
+    """
+    paths = list(STATE_PATHS)
+    if scope == "all":
+        paths.extend(NON_STATE_PATHS)
+
+    existing = [p for p in paths if p.exists()]
+
+    label = "all data (including logs and audit files)" if scope == "all" else "state"
+    print(f"This will permanently delete {label} under {DATA_DIR}:")
+    if existing:
+        for p in existing:
+            print(f"  - {p}")
+    else:
+        print("  (nothing to delete — no matching files or directories exist)")
+
+    live_pids = _running_pm_pids()
+    if live_pids:
+        print(
+            f"\nWarning: {len(live_pids)} pm-* process(es) appear to be running "
+            "and may recreate or write to these files during/after the clear."
+        )
+
+    if not assume_yes:
+        if not sys.stdin.isatty():
+            print(
+                "Refusing to clear without --yes (not running interactively).",
+                file=sys.stderr,
+            )
+            return 1
+        answer = input(f"Delete {label}? [y/N] ")
+        if answer.strip().lower() not in {"y", "yes"}:
+            print("Aborted — nothing was deleted.")
+            return 1
+
+    removed = 0
+    for p in existing:
+        if _remove_path(p):
+            removed += 1
+    print(f"Deleted {removed} item(s).")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pm-opctl-cli", description="Manage EduMatcher operational process control"
@@ -793,6 +922,34 @@ def build_parser() -> argparse.ArgumentParser:
         help="print nothing; exit 0 when all processes are running, 1 otherwise",
     )
     subparsers.add_parser("show", help="print the current data directory path")
+    clear = subparsers.add_parser(
+        "clear",
+        help="delete persisted data under the data directory",
+        description=(
+            "Delete persisted data under the data directory. Exactly one of "
+            "--state or --all is required; configuration under ref_data/ is "
+            "never touched."
+        ),
+    )
+    clear.add_argument(
+        "--state",
+        action="store_true",
+        help=(
+            "delete persisted engine/session state (order books, GTC orders, "
+            "stats, index/clearing state) but keep logs and audit files"
+        ),
+    )
+    clear.add_argument(
+        "--all",
+        dest="clear_all",
+        action="store_true",
+        help="delete all data, including logs and audit files",
+    )
+    clear.add_argument(
+        "--yes",
+        action="store_true",
+        help="skip the confirmation prompt",
+    )
     return parser
 
 
@@ -813,6 +970,23 @@ def main() -> int:
             return health_profile(args.quiet)
         if args.command == "show":
             return show_data_dir()
+        if args.command == "clear":
+            if args.state and args.clear_all:
+                print(
+                    "Error: Only one of `--all` and `--state` options can be "
+                    "given to `clear`",
+                    file=sys.stderr,
+                )
+                return 2
+            if not args.state and not args.clear_all:
+                print(
+                    "Error: One of `--all` or `--state` options must be given "
+                    "to `clear`",
+                    file=sys.stderr,
+                )
+                return 2
+            scope = "all" if args.clear_all else "state"
+            return clear_data(scope=scope, assume_yes=args.yes)
     except (OSError, ValueError, yaml.YAMLError) as exc:
         print(f"pm-opctl: {exc}", file=sys.stderr)
         return 2

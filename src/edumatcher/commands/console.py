@@ -18,6 +18,8 @@ Commands
   QCANCEL|GW=<gw>|SYM=<sym>    — cancel the active quote for a gateway on one symbol
   BOOK|SYM=<sym>                — print L1/L2 order-book snapshot
   ORDERS|GW=<gw>                — list resting orders for a gateway
+  LEVEL|SYM=<sym>[|PRICE=<px>]  — show every resting order making up a symbol
+                                   (or one price level), across all gateways
   SYMBOLS                       — list all instruments configured in the engine
   SESSION|STATE=<state>         — advance session phase
   HELP                          — show this reference
@@ -114,6 +116,7 @@ _TOP_CMDS = [
     "QCANCEL",
     "BOOK",
     "ORDERS",
+    "LEVEL",
     "SYMBOLS",
     "SESSION",
     "SESSION_STATUS",
@@ -135,6 +138,7 @@ _CMD_FIELDS: dict[str, list[str]] = {
     "QCANCEL": ["GW=", "SYM="],
     "BOOK": ["SYM="],
     "ORDERS": ["GW="],
+    "LEVEL": ["SYM=", "PRICE="],
     "SESSION": ["STATE="],
 }
 
@@ -157,6 +161,14 @@ _HELP_TEXT = """
 
   BOOK|SYM=<sym>                — print the current L1/L2 order-book snapshot for <sym>
   ORDERS|GW=<gw>                — list all resting orders for gateway <gw>
+  LEVEL|SYM=<sym>[|PRICE=<px>]  — show every resting order making up <sym>, across
+                                   every gateway (add PRICE= to narrow to one level).
+                                   Unlike BOOK, which only aggregates to {price, qty,
+                                   count} per level, LEVEL lists each order — id,
+                                   gateway, side, remaining qty — in price/time-priority
+                                   order. ADMIN only.
+                                   e.g.  LEVEL|SYM=AAPL
+                                         LEVEL|SYM=AAPL|PRICE=189.50
   SYMBOLS                       — list all instruments configured in the engine
 
   SESSION|STATE=<state>         — request a session-phase transition
@@ -296,6 +308,52 @@ def _print_orders(orders: list[dict[str, Any]], gw: str) -> None:
         t.add_row(
             o.get("id", "")[:14],
             o.get("symbol", ""),
+            f"[{side_col}]{side}[/{side_col}]",
+            o.get("order_type", ""),
+            str(o.get("remaining_qty", "")),
+            price_str,
+        )
+    console.print(t)
+
+
+def _print_level(result: dict[str, Any], sym: str, price: str) -> None:
+    """Render an ``order.price_level_orders`` reply.
+
+    Unlike ``_print_orders`` (single gateway, price implicit per-row from
+    each order's own field), this is explicitly cross-gateway, so the
+    gateway column is the one addition over ``_print_orders``'s layout —
+    rows are already server-side sorted by price then arrival_seq, so
+    reading top-to-bottom shows price/time priority directly.
+    """
+    if result.get("rejected"):
+        console.print(f"[red]REJECTED[/red]  {result.get('reason', '')}")
+        return
+
+    orders = result.get("orders", [])
+    label = f"{sym}" + (f" @ {price}" if price else "")
+    if not orders:
+        console.print(f"[dim]No resting orders for {label}[/dim]")
+        return
+
+    t = Table(
+        title=f"Price-level composition — {label}",
+        show_header=True,
+        header_style="bold magenta",
+    )
+    t.add_column("ID", style="dim", min_width=12)
+    t.add_column("Gateway", min_width=10)
+    t.add_column("Side", min_width=6)
+    t.add_column("Type", min_width=12)
+    t.add_column("Remaining", justify="right", min_width=10)
+    t.add_column("Price", justify="right", min_width=10)
+
+    for o in orders:
+        side = o.get("side", "")
+        side_col = "green" if side == "BUY" else "red"
+        price_str = str(o.get("price", "")) if o.get("price") else "—"
+        t.add_row(
+            o.get("id", "")[:14],
+            o.get("gateway_id", ""),
             f"[{side_col}]{side}[/{side_col}]",
             o.get("order_type", ""),
             str(o.get("remaining_qty", "")),
@@ -592,6 +650,28 @@ def _cmd_orders(
     return True
 
 
+def _cmd_level(
+    client: ExchangeCommandClient,
+    fields: dict[str, str],
+    symbols_cache: list[str] | None,
+) -> bool:
+    sym = fields.get("SYM", "")
+    if not sym:
+        console.print("[yellow]Usage:[/yellow]  LEVEL|SYM=<sym>[|PRICE=<px>]")
+        return False
+    price_str = fields.get("PRICE", "")
+    price: float | None = None
+    if price_str:
+        try:
+            price = float(price_str)
+        except ValueError:
+            console.print(f"[red]Invalid PRICE:[/red] {price_str!r} is not a number")
+            return False
+    result = client.price_level_orders(sym, price)
+    _print_level(result, sym.upper(), price_str)
+    return not result.get("rejected", False)
+
+
 def _cmd_symbols(
     client: ExchangeCommandClient,
     fields: dict[str, str],
@@ -674,6 +754,7 @@ _COMMAND_HANDLERS: dict[
     "QCANCEL": _cmd_qcancel,
     "BOOK": _cmd_book,
     "ORDERS": _cmd_orders,
+    "LEVEL": _cmd_level,
     "SYMBOLS": _cmd_symbols,
     "SESSION": _cmd_session,
     "SESSION_STATUS": _cmd_session_status,

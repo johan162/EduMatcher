@@ -522,6 +522,8 @@ Every topic in the system, and which process puts it on the wire.
 | `order.oco_cancel` | `order` | `gateway` |
 | `order.orders.{gateway_id}` | `order` | `engine` |
 | `order.orders_request` | `order` | `admin`, `api_gateway`, `gateway` |
+| `order.price_level_orders.{gateway_id}` | `order` | `engine` |
+| `order.price_level_orders_request` | `order` | `admin` |
 | `quote.ack.{gateway_id}` | `quote` | `engine` |
 | `quote.cancel` | `quote` | `admin`, `api_gateway`, `gateway` |
 | `quote.new` | `quote` | `gateway` |
@@ -1737,6 +1739,36 @@ One resting order as the engine reports it in an `order.orders` snapshot, in dis
 | `client_tag` | `string` | `null` when unset | max_len 64 | Client correlation tag, echoed on every lifecycle event. |
 | `arrival_seq` | `int` | defaults to `0` | unit `dimensionless` | Engine-assigned monotonic arrival sequence; 0 = unassigned. |
 
+#### `PriceLevelOrder`
+
+One resting order as reported by order.price_level_orders — the same projection as OrderDisplay (order_to_display_dict), with one field added: gateway_id. OrderDisplay can leave gateway_id topic-only because an order.orders reply is always about a single, already-known gateway; a price_level_orders reply spans every gateway resting at a symbol/price, so each record must say whose order it is. The generator has no type-extension mechanism, so this duplicates OrderDisplay's field list rather than referencing it — keep the two in sync by hand if OrderDisplay's fields change.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `gateway_id` | `string` | required | max_len 32 | Owning gateway — the one piece of information OrderDisplay omits because its own topic already says it. |
+| `id` | `string` | required | max_len 64 | Engine order id; a UUID string. |
+| `symbol` | `string` | required | max_len 16 |  |
+| `side` | enum: `BUY`, `SELL` | required | — |  |
+| `order_type` | enum: `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP` | required | — |  |
+| `tif` | enum: `DAY`, `GTC`, `ATO`, `ATC` | required | — |  |
+| `quantity` | `int` | required | gt 0, unit `shares` | Total original quantity. |
+| `remaining_qty` | `int` | required | ge 0, unit `shares` | Quantity yet to be filled. |
+| `trail_offset` | `float` | `null` when unset | unit `display_price` | TRAILING_STOP: trail distance, in display money. |
+| `oco_group_id` | `string` | `null` when unset | max_len 64 |  |
+| `timestamp` | `float` | required | ge 0, unit `epoch_seconds` | Client-supplied submission time, in seconds. NOT the book's time priority key - see arrival_seq. |
+| `status` | enum: `NEW`, `PARTIAL`, `FILLED`, `CANCELLED`, `REJECTED`, `EXPIRED` | required | — |  |
+| `price` | `float` | `null` when unset | unit `display_price` | Limit price in display money. Null for MARKET, which has none. |
+| `stop_price` | `float` | `null` when unset | unit `display_price` | STOP / STOP_LIMIT / TRAILING_STOP trigger. |
+| `visible_qty` | `int` | `null` when unset | unit `shares` | ICEBERG: fixed peak size. |
+| `displayed_qty` | `int` | `null` when unset | unit `shares` | ICEBERG: current visible slice on the book. |
+| `smp_action` | enum: `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | `null` when unset | — | Self-match prevention. Null means the client did not specify SMP at all, distinct from an explicit NONE. See SmpAction's docstring. |
+| `combo_parent_id` | `string` | `null` when unset | max_len 64 |  |
+| `leg_index` | `int` | `null` when unset | unit `dimensionless` | Position in the parent combo's legs, 0-based. |
+| `origin` | enum: `ORDER`, `QUOTE`, `IMPLIED` | defaults to `'ORDER'` | — | Defaulted rather than nullable: to_dict always supplies ORDER. |
+| `quote_id` | `string` | `null` when unset | max_len 64 |  |
+| `client_tag` | `string` | `null` when unset | max_len 64 | Client correlation tag, echoed on every lifecycle event. |
+| `arrival_seq` | `int` | defaults to `0` | unit `dimensionless` | Engine-assigned monotonic arrival sequence; 0 = unassigned. |
+
 ### `execution_report` (no bus topic)
 
 **Published by:** `gateway`
@@ -2121,6 +2153,45 @@ Engine to caller: the gateway's resting orders in display units, one OrderDispla
     gateway_id names the caller in the topic and is dropped from the body by the default projection, so the body is a single `orders` list - the same shape system.symbols uses.
 
 **See also:** `order.orders_request`, `order.new`
+
+### `order.price_level_orders_request`
+
+**Published by:** `admin`
+
+**Transport:** `engine_pub`
+
+**Since:** 1.0
+
+ADMIN to engine: every resting order for one symbol, across every gateway, optionally narrowed to a single price level. Rejected for any non-ADMIN participant (see order.price_level_orders' rejection note) since it exposes other participants' resting order detail that order.orders_request deliberately withholds.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `gateway_id` | `string` | required | max_len 32 | The ADMIN participant asking, and the reply's correlation key — not a filter on whose orders come back. |
+| `symbol` | `string` | required | max_len 16 | Instrument to inspect. |
+| `price` | `float` | omitted when unset | unit `display_price` | Narrow to orders resting at exactly this price. Omitted or null returns every resting order for the symbol, across all price levels. |
+
+**See also:** `order.price_level_orders.{GW_ID}`, `order.orders_request`, `book.{symbol}`
+
+### `order.price_level_orders.{gateway_id}`
+
+**Published by:** `engine`
+
+**Transport:** `engine_pub`
+
+**Since:** 1.0
+
+Engine to ADMIN caller: per-order detail (not just the aggregate {price, qty, count} book.* already carries) for every resting order matching the request — every gateway, ordered by price then by arrival_seq within a price level so time priority is visible. Empty, with rejected=true and a reason, when the requester is not an ADMIN participant or the symbol is unknown.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `gateway_id` | `string` | required | max_len 32 | Topic-only; dropped from the body by the default projection. |
+| `symbol` | `string` | required | max_len 16 |  |
+| `price` | `float` | omitted when unset | unit `display_price` | Echoed from the request when it filtered to one level; omitted when the request asked for the whole symbol. |
+| `rejected` | `bool` | required | — | True when the requester was not ADMIN or the symbol is unknown; orders is then always empty. |
+| `reason` | `string` | omitted when unset | max_len 256 | Set only when rejected is true. |
+| `orders` | list of [`PriceLevelOrder`](#pricelevelorder) | required | — | Matching resting orders, ordered by price then arrival_seq — empty when rejected, or when nothing rests at the requested level. |
+
+**See also:** `order.price_level_orders_request`
 
 ## Family `quote`
 

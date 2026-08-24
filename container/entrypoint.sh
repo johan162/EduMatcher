@@ -2,10 +2,9 @@
 # PID 1 of the EduMatcher container.
 #
 #   1. prepare the (bind-mounted) data directory
-#   2. deploy the selected bundled engine configuration
-#   3. optionally start sshd and the ZeroMQ relays
-#   4. start the pm-opctl-cli process profile
-#   5. stay alive until the container is stopped, then stop the profile
+#   2. optionally start sshd
+#   3. start the pm-opctl-cli process profile
+#   4. stay alive until the container is stopped, then stop the profile
 
 set -euo pipefail
 
@@ -53,22 +52,6 @@ start_sshd() {
     /usr/sbin/sshd -e
 }
 
-start_zmq_relays() {
-    # The engine binds its three ZeroMQ sockets to 127.0.0.1 (module constants
-    # in edumatcher.config, with no override), so publishing those ports would
-    # reach nothing. socat listens on the container's own address instead and
-    # forwards each connection to loopback; ZMTP is a plain TCP byte stream, so
-    # a per-connection relay is transparent to it. Binding the container IP
-    # rather than 0.0.0.0 is what keeps the relay from colliding with the
-    # engine's own loopback listener on the same port.
-    local ip
-    ip="$(python -c 'import socket; print(socket.gethostbyname(socket.gethostname()))')"
-    for port in 5555 5556 5557; do
-        socat "TCP-LISTEN:${port},bind=${ip},fork,reuseaddr" "TCP:127.0.0.1:${port}" &
-    done
-    log "ZeroMQ relays listening on ${ip} for ports 5555 5556 5557"
-}
-
 shutdown() {
     log "stopping profile '${PROFILE}'"
     pm-opctl-cli stop || true
@@ -79,10 +62,6 @@ setup_data_dir
 
 if [ "${EM_SSH:-0}" = "1" ]; then
     start_sshd
-fi
-
-if [ "${EM_ZMQ_RELAY:-0}" = "1" ]; then
-    start_zmq_relays
 fi
 
 log "starting profile '${PROFILE}'"
