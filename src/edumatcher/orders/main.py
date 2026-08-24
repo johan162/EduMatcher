@@ -1,30 +1,50 @@
 """
-Order Status Monitor — live table of all order events across all gateways.
+Order Monitor — live scrolling table of order events across all gateways.
 
 Usage:
   poetry run pm-orders [--gateway GW01]
 
-Subscribes to all order.* topics and maintains a live rich table showing
-every order's current status, quantity, and last-update time.
+Subscribes to all order.* topics and renders a full-screen, self-redrawing
+table of every order event (new/partial/filled/cancelled/rejected/expired)
+as it happens, newest at the bottom.
+
+Display:
+  A single-line rounded box, blue border, styled after pm-ticker/pm-viewer:
+    • "EduMatcher" brand badge (white on blue) top-left of the title, next
+      to the gateway filter.
+    • A fixed header row with a rule underneath; the header never scrolls.
+    • Order rows fill the remaining box height as they arrive, with no
+      lines between rows (maximizes rows shown per screen).
+    • The last 1000 events are kept in memory; Up/Down/PageUp/PageDown/
+      Home/End scroll the view back through that history. New events keep
+      the view pinned to the bottom (live) unless the user has scrolled
+      up, in which case the view holds position until they scroll back
+      down to the bottom (or press End).
+    • "Ctrl-C to quit" is pinned to the bottom-right of the box border.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import signal
 import threading
 import time
+from collections import deque
 from datetime import datetime
 from typing import Any
 
 import zmq
-from rich.console import Console
+from rich import box
+from rich.console import Console, Group
 from rich.live import Live
+from rich.panel import Panel
+from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from edumatcher.config import ENGINE_PUB_ADDR
+from edumatcher.config import COMPILED_CONFIG_FILE, ENGINE_PUB_ADDR
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
     load_default_log_server_config,
@@ -34,12 +54,113 @@ from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.message import decode
 
-console = Console()
+console = Console(highlight=False)
 log = logging.getLogger(__name__)
-_REFRESH_HZ = 2
+_REFRESH_HZ = 4
 
 _CLIENT_NAME = "pm-orders"
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
+
+# Documented fallback when a symbol's precision is unknown — matches
+# edumatcher.models.price.DEFAULT_TICK_DECIMALS /
+# edumatcher.calf_client.refdata.DEFAULT_TICK_DECIMALS.
+_DEFAULT_TICK_DECIMALS = 2
+
+
+def _load_tick_decimals() -> dict[str, int]:
+    """Symbol -> tick_decimals, read from the compiled engine config.
+
+    order.ack's "price" field (the submitted limit price) and the
+    aggressor side's "price" on order.fill are published straight from the
+    client's request — raw integer ticks, e.g. 12357 for a $123.57 limit —
+    never converted to display money. Converting requires knowing each
+    symbol's tick precision, which the engine keeps in
+    ``<DATA_DIR>/ref_data/engine_config.json`` under
+    ``engine.symbols.<SYMBOL>.tick_decimals``. Read directly as JSON here
+    rather than importing edumatcher.engine.config_loader — that loader
+    pulls in the full engine config schema/validation, far more than a
+    display client needs for one integer per symbol.
+
+    Missing file or malformed content is not fatal: individual symbols
+    just fall back to ``_DEFAULT_TICK_DECIMALS`` and prices still render,
+    only possibly at the wrong precision for that one symbol.
+    """
+    try:
+        with open(COMPILED_CONFIG_FILE, encoding="utf-8") as f:
+            compiled = json.load(f)
+        symbols = compiled.get("engine", {}).get("symbols", {})
+        return {
+            sym.upper(): int(cfg["tick_decimals"])
+            for sym, cfg in symbols.items()
+            if isinstance(cfg, dict) and "tick_decimals" in cfg
+        }
+    except Exception as exc:  # pragma: no cover - defensive
+        log.warning(
+            "could not read tick_decimals from %s: %s "
+            "(prices will fall back to %d decimals)",
+            COMPILED_CONFIG_FILE,
+            exc,
+            _DEFAULT_TICK_DECIMALS,
+        )
+        return {}
+
+
+# Loaded once at import time — the same convention as every other module
+# constant here. tick_decimals is deployed configuration (engine_config.json
+# is only written by the deploy step per REF_DATA_DIR's docstring), not
+# something that changes while pm-orders is running.
+_TICK_DECIMALS: dict[str, int] = _load_tick_decimals()
+
+
+def _ticks_to_price(raw: Any, symbol: str | None) -> float | None:
+    """Convert a raw integer-tick price to real money for display.
+
+    ``symbol`` selects the tick precision; unknown or missing symbols fall
+    back to ``_DEFAULT_TICK_DECIMALS``, matching the rest of the codebase's
+    documented fallback (edumatcher.models.price, edumatcher.calf_client.
+    refdata). A non-numeric ``raw`` is returned unchanged so a malformed
+    value stays visible as itself instead of crashing the render loop.
+    """
+    if raw is None:
+        return None
+    if not isinstance(raw, (int, float)):
+        return raw
+    decimals = _TICK_DECIMALS.get(
+        symbol.upper() if symbol else None, _DEFAULT_TICK_DECIMALS
+    )
+    return raw / (10**decimals)
+
+
+def _format_price(value: Any, symbol: str | None) -> str:
+    """Render a (already-normalized, real-money) price at the symbol's own
+    decimal precision, e.g. 123.5 -> "123.50" for a 2-decimal symbol."""
+    if value is None:
+        return "—"
+    if not isinstance(value, (int, float)):
+        return str(value)
+    decimals = _TICK_DECIMALS.get(
+        symbol.upper() if symbol else None, _DEFAULT_TICK_DECIMALS
+    )
+    return f"{value:.{decimals}f}"
+
+
+# Chrome (non-data rows) consumed by the outer frame + title + header + rule.
+# Used to work out how many order rows fit the current terminal height.
+_CHROME_ROWS = 5
+
+_HISTORY_MAXLEN = 1000  # scrollback depth
+
+# Bid/ask green-red convention used everywhere else in the UI (pm-ticker's
+# best_bid/best_ask coloring, pm-viewer's _UP/_DOWN) — BUY sides and their
+# prices are green, SELL sides and their prices are red.
+_UP = "green"
+_DOWN = "red"
+_FLAT = "grey70"
+
+_SIDE_STYLE = {
+    "BUY": _UP,
+    "SELL": _DOWN,
+}
 
 _STATUS_STYLE = {
     "NEW": "green",
@@ -51,63 +172,141 @@ _STATUS_STYLE = {
     "PENDING": "dim",
 }
 
+_COLUMNS: tuple[tuple[str, dict[str, Any]], ...] = (
+    ("Time", {"style": "dim", "width": 12, "no_wrap": True}),
+    ("ID", {"style": "dim", "width": 10, "no_wrap": True}),
+    ("Gateway", {"style": "cyan", "width": 8, "no_wrap": True}),
+    ("Symbol", {"style": "bold", "width": 8, "no_wrap": True}),
+    ("Side", {"width": 6, "no_wrap": True}),
+    ("Type", {"style": "magenta", "width": 12, "no_wrap": True}),
+    ("TIF", {"style": "dim", "width": 5, "no_wrap": True}),
+    ("Qty", {"justify": "right", "width": 7, "no_wrap": True}),
+    ("Remaining", {"justify": "right", "width": 9, "no_wrap": True}),
+    ("Price", {"justify": "right", "width": 9, "no_wrap": True}),
+    ("Status", {"width": 12, "no_wrap": True}),
+)
 
-def _build_table(orders: dict[str, Any], gw_filter: str | None) -> Table:
-    t = Table(
-        title="[bold]Order Monitor[/bold]  \u2014 "
-        + (f"gateway [cyan]{gw_filter}[/cyan]" if gw_filter else "all gateways"),
-        show_lines=True,
-        expand=True,
+
+def _build_header(gw_filter: str | None, event_count: int, now: datetime) -> Table:
+    """Fixed title/header row: brand + gateway filter on the left, the live
+    date/time pinned to the right — same pattern as pm-ticker's header."""
+    grid = Table.grid(expand=True)
+    grid.add_column(no_wrap=True, overflow="ellipsis")  # brand / filter
+    grid.add_column(ratio=1)  # elastic spacer
+    grid.add_column(no_wrap=True, justify="right")  # clock
+
+    left = Text.assemble(
+        (" EduMatcher ", "bold white on blue"),
+        ("  ", ""),
+        ("Order Monitor", "bold"),
+        ("   │   ", "grey35"),
+        ("Gateway ", "grey62"),
+        (gw_filter if gw_filter else "all", "cyan"),
+        ("   │   ", "grey35"),
+        ("Events ", "grey62"),
+        (f"{event_count:,}", "white"),
     )
-    t.add_column("ID", style="dim", width=10)
-    t.add_column("Gateway", style="cyan", width=8)
-    t.add_column("Symbol", style="bold", width=8)
-    t.add_column("Side", style="cyan", width=6)
-    t.add_column("Type", style="magenta", width=12)
-    t.add_column("TIF", style="dim", width=5)
-    t.add_column("Qty", justify="right", width=7)
-    t.add_column("Remaining", justify="right", width=9)
-    t.add_column("Price", justify="right", width=9)
-    t.add_column("Status", width=12)
-    t.add_column("Updated", style="dim", width=12)
+    # Date dimmer than the ticking clock, same contrast as pm-viewer's
+    # header (line1's clock is "bold cyan", line2's date is plain "cyan").
+    right = Text.assemble(
+        (now.strftime("%Y-%m-%d "), "cyan"),
+        (now.strftime("%H:%M:%S"), "bold cyan"),
+    )
+    grid.add_row(left, Text(""), right)
+    return grid
 
-    visible = [
-        o
-        for o in orders.values()
-        if gw_filter is None or o.get("gateway_id") == gw_filter
-    ]
-    visible.sort(key=lambda x: x.get("updated", ""), reverse=True)
 
-    for o in visible:
+def _build_rows_table(rows: list[dict[str, Any]]) -> Table:
+    """The header row plus the scrolling body in a single Table instance so
+    column widths always line up exactly — a fixed header (Rich redraws the
+    header on every frame regardless of how the body scrolls) with no lines
+    between data rows so the available height goes to data, not borders."""
+    t = Table(
+        box=None,
+        expand=True,
+        show_header=True,
+        header_style="bold grey70",
+        show_edge=False,
+        pad_edge=False,
+    )
+    for name, kwargs in _COLUMNS:
+        t.add_column(name, **kwargs)
+
+    for o in rows:
         st = o.get("status", "?")
-        colour = _STATUS_STYLE.get(st, "white")
+        status_colour = _STATUS_STYLE.get(st, "white")
+        side = o.get("side", "?")
+        side_colour = _SIDE_STYLE.get(side, _FLAT)
         t.add_row(
+            o.get("time", "?"),
             o.get("order_id", "?")[:8],
             o.get("gateway_id", "?"),
             o.get("symbol", "?"),
-            o.get("side", "?"),
+            Text(side, style=side_colour),
             o.get("order_type", "?"),
             o.get("tif", "?"),
             str(o.get("qty", "?")),
             str(o.get("remaining", "?")),
-            str(o.get("price", "—")),
-            Text(st, style=colour),
-            o.get("updated", "?"),
+            Text(_format_price(o.get("price"), o.get("symbol")), style=side_colour),
+            Text(st, style=status_colour),
         )
     return t
+
+
+def _build_panel(
+    gw_filter: str | None,
+    event_count: int,
+    now: datetime,
+    rows: list[dict[str, Any]],
+    *,
+    height: int,
+    scrolled_back: bool,
+) -> Panel:
+    """Assemble the full-screen order monitor box."""
+    subtitle = Text(
+        ("↑/↓ scroll  •  " if scrolled_back else "")
+        + "Ctrl-C to quit",
+        style="grey58" if scrolled_back else "grey42",
+    )
+    return Panel(
+        Group(
+            _build_header(gw_filter, event_count, now),
+            Rule(style="grey35"),
+            _build_rows_table(rows),
+        ),
+        box=box.ROUNDED,
+        border_style="blue",
+        padding=(0, 1),
+        height=height,
+        title=Text(" pm-orders ", style="grey58"),
+        title_align="left",
+        subtitle=subtitle,
+        subtitle_align="right",
+    )
 
 
 class OrderMonitor:
     def __init__(self, gw_filter: str | None) -> None:
         self.gw_filter = gw_filter
-        self._orders: dict[str, dict[str, Any]] = {}  # order_id → state dict
+        self._orders: dict[str, dict[str, Any]] = {}  # order_id -> latest state
+        # Ordered scrollback of every event as it was applied, oldest first.
+        # Each entry is a full row snapshot (dict) so history never mutates
+        # after the fact — only new events are appended.
+        self._history: deque[dict[str, Any]] = deque(maxlen=_HISTORY_MAXLEN)
         self._lock = threading.Lock()
         self._running = True
 
+        # Scroll offset in rows, measured from the bottom (0 == live/bottom).
+        self._scroll_offset = 0
+
         self.sub = make_subscriber(ENGINE_PUB_ADDR, "order.")
 
+    # ------------------------------------------------------------------
+    # Event handling
+    # ------------------------------------------------------------------
+
     def _handle(self, topic: str, payload: dict[str, Any]) -> None:
-        now = datetime.now().strftime("%H:%M:%S")
+        now = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         oid = payload.get("order_id", "")
         with self._lock:
             entry = self._orders.setdefault(oid, {"order_id": oid})
@@ -119,11 +318,28 @@ class OrderMonitor:
                 ("order_type", "order_type"),
                 ("tif", "tif"),
                 ("qty", "qty"),
-                ("price", "price"),
             ):
                 val = payload.get(src_key)
                 if val is not None:
                     entry[dst_key] = val
+
+            # Price normalization: order.ack's "price" (the submitted limit
+            # price) and the aggressor side's "price" on order.fill are both
+            # published straight from the client's request payload — raw
+            # integer ticks, never converted. order.fill's "fill_price" (and
+            # the passive side's "price") ARE already converted to display
+            # money via from_ticks() on the engine side. Prefer fill_price
+            # when present since it's already correct; otherwise treat the
+            # raw value as ticks and convert using this symbol's own
+            # tick_decimals so every row ends up in the same real-money
+            # units regardless of which upstream field it came from.
+            symbol = entry.get("symbol")
+            raw_price = payload.get("fill_price", payload.get("price"))
+            if raw_price is not None:
+                if "fill_price" in payload:
+                    entry["price"] = raw_price
+                else:
+                    entry["price"] = _ticks_to_price(raw_price, symbol)
 
             if "order.ack" in topic:
                 # Extract gateway_id from topic: order.ack.GW01
@@ -149,7 +365,19 @@ class OrderMonitor:
             elif "order.expired" in topic:
                 entry["status"] = "EXPIRED"
 
-            entry["updated"] = now
+            if self.gw_filter is None or entry.get("gateway_id") == self.gw_filter:
+                entry["updated"] = now
+                # Snapshot this event as its own scrollback row so past rows
+                # are never rewritten by later updates to the same order.
+                self._history.append({**entry, "time": now})
+                # Keep the live view pinned to the bottom unless the user has
+                # scrolled back into history; if scrolled back, hold position
+                # (re-clamped in case the buffer just hit its maxlen and
+                # dropped its oldest row out from under the current offset).
+                if self._scroll_offset > 0:
+                    self._scroll_offset = min(
+                        self._scroll_offset, self._max_scroll_offset()
+                    )
 
     def _receive(self) -> None:
         poller = zmq.Poller()
@@ -161,41 +389,166 @@ class OrderMonitor:
                 topic, payload = decode(frames)
                 self._handle(topic, payload)
 
+    def _max_scroll_offset(self) -> int:
+        """Furthest the view can scroll back, in rows from the bottom.
+
+        Once the oldest row in the current viewport is row 0 of the
+        history buffer, scrolling further up would just shrink the
+        viewport from the bottom (rows disappearing one at a time) instead
+        of moving the window — so the offset must stop at
+        ``total - capacity``, not ``total - 1``. Must be called with
+        ``self._lock`` held.
+        """
+        capacity = self._page_size()
+        total = len(self._history)
+        return max(0, total - capacity)
+
+    # ------------------------------------------------------------------
+    # Keyboard scroll thread
+    # ------------------------------------------------------------------
+
+    def _read_keys(self) -> None:
+        """Background reader for Up/Down arrow scrolling.
+
+        Uses prompt_toolkit's low-level raw-mode input (already a project
+        dependency) so keypresses are consumed without echoing to the
+        terminal and without blocking the ZMQ receive thread or the render
+        loop. Polls the input's file descriptor with select() rather than
+        prompt_toolkit's ``attach()`` — that helper hooks into an asyncio
+        event loop's reader callbacks, which a plain background thread
+        doesn't have. One key event moves the viewport by one row;
+        PageUp/PageDown move by a full page for faster scrolling through
+        the 1000-row history buffer; Home jumps to the oldest row kept in
+        the buffer, End jumps straight back to the live bottom of the feed.
+        """
+        import select
+
+        try:
+            from prompt_toolkit.input import create_input
+            from prompt_toolkit.keys import Keys
+        except Exception as exc:  # pragma: no cover - defensive
+            log.warning("keyboard scrolling unavailable: %s", exc)
+            return
+
+        try:
+            input_ = create_input()
+        except Exception as exc:  # pragma: no cover - defensive
+            log.warning("could not open keyboard input: %s", exc)
+            return
+
+        try:
+            with input_.raw_mode():
+                fd = input_.fileno()
+                while self._running:
+                    try:
+                        ready, _, _ = select.select([fd], [], [], 0.1)
+                    except (OSError, ValueError):
+                        break
+                    if not ready:
+                        continue
+                    for key_press in input_.read_keys():
+                        key = key_press.key
+                        with self._lock:
+                            max_offset = self._max_scroll_offset()
+                            if key == Keys.Up:
+                                self._scroll_offset = min(
+                                    max_offset, self._scroll_offset + 1
+                                )
+                            elif key == Keys.Down:
+                                self._scroll_offset = max(
+                                    0, self._scroll_offset - 1
+                                )
+                            elif key == Keys.PageUp:
+                                self._scroll_offset = min(
+                                    max_offset,
+                                    self._scroll_offset + self._page_size(),
+                                )
+                            elif key == Keys.PageDown:
+                                self._scroll_offset = max(
+                                    0, self._scroll_offset - self._page_size()
+                                )
+                            elif key == Keys.Home:
+                                self._scroll_offset = max_offset
+                            elif key == Keys.End:
+                                self._scroll_offset = 0
+                            elif key == Keys.ControlC:
+                                self._running = False
+        except Exception as exc:  # pragma: no cover - defensive
+            log.warning("keyboard scroll thread stopped: %s", exc)
+        finally:
+            try:
+                input_.close()
+            except Exception:
+                pass
+
+    def _page_size(self) -> int:
+        return max(1, console.size.height - _CHROME_ROWS)
+
+    # ------------------------------------------------------------------
+    # Rendering
+    # ------------------------------------------------------------------
+
+    def _render(self) -> Panel:
+        height = console.size.height
+        capacity = max(1, height - _CHROME_ROWS)
+        now = datetime.now()
+
+        with self._lock:
+            total = len(self._history)
+            offset = min(self._scroll_offset, self._max_scroll_offset())
+            self._scroll_offset = offset
+            # offset is measured from the bottom; end is exclusive.
+            end = total - offset
+            start = max(0, end - capacity)
+            rows = list(self._history)[start:end]
+            event_count = total
+
+        return _build_panel(
+            self.gw_filter,
+            event_count,
+            now,
+            rows,
+            height=height,
+            scrolled_back=offset > 0,
+        )
+
+    # ------------------------------------------------------------------
+    # Main loop
+    # ------------------------------------------------------------------
+
     def run(self) -> None:
         t = threading.Thread(target=self._receive, daemon=True)
         t.start()
 
+        kt = threading.Thread(target=self._read_keys, daemon=True)
+        kt.start()
+
         signal.signal(signal.SIGINT, lambda *_: setattr(self, "_running", False))
 
-        _resize_pending = False
-
-        def _on_resize(signum: int, frame: object) -> None:
-            nonlocal _resize_pending
-            _resize_pending = True
-
-        signal.signal(signal.SIGWINCH, _on_resize)
-
         try:
+            # screen=True paints on the alternate screen buffer and repaints
+            # the whole box at the current terminal size every frame, so
+            # resizes never leave stale rows behind — same as pm-ticker and
+            # pm-viewer. transient=True restores the normal terminal and
+            # scrollback on exit.
             with Live(
-                console=console, refresh_per_second=_REFRESH_HZ, screen=False
+                console=console, auto_refresh=False, screen=True, transient=True
             ) as live:
                 while self._running:
-                    if _resize_pending:
-                        _resize_pending = False
-                        console.clear()
-                    with self._lock:
-                        snapshot = dict(self._orders)
-                    live.update(_build_table(snapshot, self.gw_filter))
+                    live.update(self._render())
+                    live.refresh()
                     time.sleep(1 / _REFRESH_HZ)
         except KeyboardInterrupt:
             pass
         finally:
             self._running = False
+            t.join(timeout=2.0)
+            kt.join(timeout=2.0)
             self.sub.close()
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="EduMatcher order status monitor")
+    parser = argparse.ArgumentParser(description="EduMatcher order monitor")
     from edumatcher.cli_version import add_version_argument
 
     add_version_argument(parser, "pm-orders")

@@ -262,7 +262,12 @@ def _build_header(total_volume: int, symbol_count: int, now: datetime) -> Table:
         ("Symbols ", "grey62"),
         (f"{symbol_count}", "white"),
     )
-    right = Text(now.strftime("%Y-%m-%d %H:%M:%S"), style="bold cyan")
+    # Date dimmer than the ticking clock, same contrast as pm-viewer's
+    # header (line1's clock is "bold cyan", line2's date is plain "cyan").
+    right = Text.assemble(
+        (now.strftime("%Y-%m-%d "), "cyan"),
+        (now.strftime("%H:%M:%S"), "bold cyan"),
+    )
     grid.add_row(left, Text(""), right)
     return grid
 
