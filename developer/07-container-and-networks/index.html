@@ -12,13 +12,13 @@
         <meta name="author" content="Johan Persson <johan162@gmail.com>">
       
       
-        <link rel="canonical" href="https://github.com/johan162/EduMatcher/training/02-setting-up-MM-bots/">
+        <link rel="canonical" href="https://github.com/johan162/EduMatcher/developer/07-container-and-networks/">
       
       
-        <link rel="prev" href="../01-configuring-startup/">
+        <link rel="prev" href="../06-msgen/">
       
       
-        <link rel="next" href="../03-the-first-trade/">
+        <link rel="next" href="../../glossary/">
       
       
         
@@ -29,7 +29,7 @@
     
     
       
-        <title>02 — Setting Up Market-Maker Liquidity - EduMatcher — Educational Trading System</title>
+        <title>Container and Network Setup - EduMatcher — Educational Trading System</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#setting-up-market-maker-liquidity" class="md-skip">
+        <a href="#container-and-network-setup" class="md-skip">
           Skip to content
         </a>
       
@@ -114,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              02 — Setting Up Market-Maker Liquidity
+              Container and Network Setup
             
           </span>
         </div>
@@ -303,13 +303,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../training/" class="md-tabs__link">
           
   
   
@@ -345,11 +343,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../developer/01-dev-practice/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../01-dev-practice/" class="md-tabs__link">
           
   
   
@@ -2166,31 +2166,28 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
         
           
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
             
   
   
@@ -2208,7 +2205,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
@@ -2226,7 +2223,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../" class="md-nav__link">
+      <a href="../../training/" class="md-nav__link">
         
   
   
@@ -2254,7 +2251,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../00-installation/" class="md-nav__link">
+      <a href="../../training/00-installation/" class="md-nav__link">
         
   
   
@@ -2282,7 +2279,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../01-configuring-startup/" class="md-nav__link">
+      <a href="../../training/01-configuring-startup/" class="md-nav__link">
         
   
   
@@ -2307,37 +2304,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    02 — Setting Up Market-Maker Liquidity
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../training/02-setting-up-MM-bots/" class="md-nav__link">
         
   
   
@@ -2353,158 +2323,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#objective" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Objective
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#prerequisites" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Prerequisites
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#background" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Background
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#exercise-1-add-mm-gateways-to-configuration" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exercise 1: Add MM Gateways to Configuration
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#exercise-2-connect-the-aapl-market-maker" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exercise 2: Connect the AAPL Market Maker
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#exercise-3-quote-msft-and-tsla" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exercise 3: Quote MSFT and TSLA
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#exercise-4-verify-liquidity-from-the-trader-gateway" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exercise 4: Verify Liquidity from the Trader Gateway
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#exercise-5-inspect-quote-state-with-qlegs" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exercise 5: Inspect Quote State with QLEGS
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#exercise-6-run-the-equivalent-bot-workflow-optional" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exercise 6: Run the Equivalent Bot Workflow (Optional)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#summary" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Summary
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#reflection" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Reflection
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#further-reading" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Further Reading
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -2517,7 +2335,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../03-the-first-trade/" class="md-nav__link">
+      <a href="../../training/03-the-first-trade/" class="md-nav__link">
         
   
   
@@ -2545,7 +2363,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../04-amending-orders/" class="md-nav__link">
+      <a href="../../training/04-amending-orders/" class="md-nav__link">
         
   
   
@@ -2573,7 +2391,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../05-order-types/" class="md-nav__link">
+      <a href="../../training/05-order-types/" class="md-nav__link">
         
   
   
@@ -2601,7 +2419,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../06-time-in-force-sessions/" class="md-nav__link">
+      <a href="../../training/06-time-in-force-sessions/" class="md-nav__link">
         
   
   
@@ -2629,7 +2447,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../07-auctions/" class="md-nav__link">
+      <a href="../../training/07-auctions/" class="md-nav__link">
         
   
   
@@ -2657,7 +2475,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../08-cancelling-orders/" class="md-nav__link">
+      <a href="../../training/08-cancelling-orders/" class="md-nav__link">
         
   
   
@@ -2685,7 +2503,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../09-market-making/" class="md-nav__link">
+      <a href="../../training/09-market-making/" class="md-nav__link">
         
   
   
@@ -2713,7 +2531,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../10-combo-orders/" class="md-nav__link">
+      <a href="../../training/10-combo-orders/" class="md-nav__link">
         
   
   
@@ -2741,7 +2559,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../11-risk-controls/" class="md-nav__link">
+      <a href="../../training/11-risk-controls/" class="md-nav__link">
         
   
   
@@ -2769,7 +2587,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../12-pnl-clearing/" class="md-nav__link">
+      <a href="../../training/12-pnl-clearing/" class="md-nav__link">
         
   
   
@@ -2797,7 +2615,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../13-market-data-drop-copy/" class="md-nav__link">
+      <a href="../../training/13-market-data-drop-copy/" class="md-nav__link">
         
   
   
@@ -2825,7 +2643,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../14-ai-traders/" class="md-nav__link">
+      <a href="../../training/14-ai-traders/" class="md-nav__link">
         
   
   
@@ -2853,7 +2671,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../15-statistics-reporting/" class="md-nav__link">
+      <a href="../../training/15-statistics-reporting/" class="md-nav__link">
         
   
   
@@ -2881,7 +2699,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../16-persistence-recovery/" class="md-nav__link">
+      <a href="../../training/16-persistence-recovery/" class="md-nav__link">
         
   
   
@@ -2909,7 +2727,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../17-capstone-scenario/" class="md-nav__link">
+      <a href="../../training/17-capstone-scenario/" class="md-nav__link">
         
   
   
@@ -2937,7 +2755,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../18-exchange-observer-processes/" class="md-nav__link">
+      <a href="../../training/18-exchange-observer-processes/" class="md-nav__link">
         
   
   
@@ -2965,7 +2783,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../19-advanced-admin-operations/" class="md-nav__link">
+      <a href="../../training/19-advanced-admin-operations/" class="md-nav__link">
         
   
   
@@ -2993,7 +2811,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../20-drop-copy-replay-recovery/" class="md-nav__link">
+      <a href="../../training/20-drop-copy-replay-recovery/" class="md-nav__link">
         
   
   
@@ -3021,7 +2839,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../21-automation-commandclient-mm-bot/" class="md-nav__link">
+      <a href="../../training/21-automation-commandclient-mm-bot/" class="md-nav__link">
         
   
   
@@ -3049,7 +2867,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../22-ralf/" class="md-nav__link">
+      <a href="../../training/22-ralf/" class="md-nav__link">
         
   
   
@@ -3077,7 +2895,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../23-calf/" class="md-nav__link">
+      <a href="../../training/23-calf/" class="md-nav__link">
         
   
   
@@ -3105,7 +2923,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../24-api-gwy/" class="md-nav__link">
+      <a href="../../training/24-api-gwy/" class="md-nav__link">
         
   
   
@@ -3133,7 +2951,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../25-index/" class="md-nav__link">
+      <a href="../../training/25-index/" class="md-nav__link">
         
   
   
@@ -3161,7 +2979,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../26-alf-gwy/" class="md-nav__link">
+      <a href="../../training/26-alf-gwy/" class="md-nav__link">
         
   
   
@@ -3189,7 +3007,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../27-balf-gwy/" class="md-nav__link">
+      <a href="../../training/27-balf-gwy/" class="md-nav__link">
         
   
   
@@ -3338,28 +3156,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
-        
-          
-          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
             
   
   
@@ -3377,7 +3198,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_7">
             <span class="md-nav__icon md-icon"></span>
             
@@ -3395,7 +3216,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../developer/01-dev-practice/" class="md-nav__link">
+      <a href="../01-dev-practice/" class="md-nav__link">
         
   
   
@@ -3423,7 +3244,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../developer/02-ai-bot/" class="md-nav__link">
+      <a href="../02-ai-bot/" class="md-nav__link">
         
   
   
@@ -3451,7 +3272,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../developer/03-experiments/" class="md-nav__link">
+      <a href="../03-experiments/" class="md-nav__link">
         
   
   
@@ -3479,7 +3300,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../developer/04-verification/" class="md-nav__link">
+      <a href="../04-verification/" class="md-nav__link">
         
   
   
@@ -3507,7 +3328,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../developer/05-vm-runtime-image/" class="md-nav__link">
+      <a href="../05-vm-runtime-image/" class="md-nav__link">
         
   
   
@@ -3535,7 +3356,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../developer/06-msgen/" class="md-nav__link">
+      <a href="../06-msgen/" class="md-nav__link">
         
   
   
@@ -3560,10 +3381,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../developer/07-container-and-networks/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Container and Network Setup
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -3579,6 +3427,187 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-1-the-container-today" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 1 — The container today
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 1 — The container today">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-one-container" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why one container
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-ships-in-the-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What ships in the image
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ports-today" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ports today
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-2-bind-addresses-vs-connect-addresses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 2 — Bind addresses vs. connect addresses
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-3-how-the-container-uses-this-today" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 3 — How the container uses this today
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 3 — How the container uses this today">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#backend-on-the-lan-today" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backend on the LAN today
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-4-what-a-genuine-multi-host-split-would-still-need" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 4 — What a genuine multi-host split would still need
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 4 — What a genuine multi-host split would still need">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-todays-change-already-provides" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What today's change already provides
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-is-still-missing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is still missing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#an-indicative-topology-if-this-were-built-out" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An indicative topology, if this were built out
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference-related-design-material" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference: related design material
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -3665,146 +3694,451 @@
   
 
 
-<h1 id="setting-up-market-maker-liquidity">Setting Up Market-Maker Liquidity<a class="headerlink" href="#setting-up-market-maker-liquidity" title="Permanent link">&para;</a></h1>
-<h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
-<p>Configure market-maker gateways and use manual <code>QUOTE</code> commands to provide
-two-sided liquidity for all three symbols. You will also compare this manual
-workflow with <code>pm-mm-bot</code>, which automates the same lifecycle.</p>
-<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
-<ul>
-<li>Chapters 00–01 completed.</li>
-<li><code>pm-engine</code> and <code>pm-scheduler</code> running.</li>
-<li>At least one trader gateway connected (for book checks).</li>
-</ul>
-<h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
-<p>A market maker posts simultaneous buy (bid) and sell (ask) prices. Without one,
-the order book is empty and no trader can get an immediate fill.</p>
+<h1 id="container-and-network-setup">Container and Network Setup<a class="headerlink" href="#container-and-network-setup" title="Permanent link">&para;</a></h1>
 <div class="admonition note">
-<p class="admonition-title">Manual first, automation second</p>
-</div>
-<p><code>pm-mm-bot</code> is available, but this chapter starts with manual
-  <code>pm-alf-console</code> + <code>QUOTE</code> so you can see quote lifecycle and operator tools
-  directly before using automation.</p>
-<h2 id="exercise-1-add-mm-gateways-to-configuration">Exercise 1: Add MM Gateways to Configuration<a class="headerlink" href="#exercise-1-add-mm-gateways-to-configuration" title="Permanent link">&para;</a></h2>
-<p>Extend your <code>engine_config.yaml</code> gateways section:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">gateways</span><span class="p">:</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="c1"># ... existing TRADER01, TRADER02, GW_ADMIN entries ...</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM_AAPL_01</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"AAPL</span><span class="nv"> </span><span class="s">market-maker"</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">      </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_QUOTES_ONLY</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">      </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INACTIVATE_ON_ANY_FILL</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM_MSFT_01</span>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"MSFT</span><span class="nv"> </span><span class="s">market-maker"</span>
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">      </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_QUOTES_ONLY</span>
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">      </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INACTIVATE_ON_ANY_FILL</span>
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM_TSLA_01</span>
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"TSLA</span><span class="nv"> </span><span class="s">market-maker"</span>
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
-<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="w">      </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_QUOTES_ONLY</span>
-<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="w">      </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INACTIVATE_ON_ANY_FILL</span>
-</code></pre></div>
-<p>Restart <code>pm-engine</code> to pick up the new gateways.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> engine logs show 6 gateways loaded.</p>
-<h2 id="exercise-2-connect-the-aapl-market-maker">Exercise 2: Connect the AAPL Market Maker<a class="headerlink" href="#exercise-2-connect-the-aapl-market-maker" title="Permanent link">&para;</a></h2>
-<p>In a new terminal:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>MM_AAPL_01
-</code></pre></div>
-<p>At the prompt, submit a two-sided quote:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>MM_AAPL_01&gt; QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=AAPL-MM-001
-</code></pre></div>
-<p>Expected output should include a quote acknowledgement and active status.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> AAPL quote acknowledged and active.</p>
-<h2 id="exercise-3-quote-msft-and-tsla">Exercise 3: Quote MSFT and TSLA<a class="headerlink" href="#exercise-3-quote-msft-and-tsla" title="Permanent link">&para;</a></h2>
-<p>Open one terminal per MM gateway:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>MM_MSFT_01
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>MM_TSLA_01
-</code></pre></div>
-<p>Submit quotes:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>MM_MSFT_01&gt; QUOTE|SYM=MSFT|BID=419.90|ASK=420.10|BID_QTY=300|ASK_QTY=300|TIF=DAY|QUOTE_ID=MSFT-MM-001
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>MM_TSLA_01&gt; QUOTE|SYM=TSLA|BID=249.75|ASK=250.25|BID_QTY=200|ASK_QTY=200|TIF=DAY|QUOTE_ID=TSLA-MM-001
-</code></pre></div>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> all three market makers report active quotes.</p>
-<h2 id="exercise-4-verify-liquidity-from-the-trader-gateway">Exercise 4: Verify Liquidity from the Trader Gateway<a class="headerlink" href="#exercise-4-verify-liquidity-from-the-trader-gateway" title="Permanent link">&para;</a></h2>
-<p>From <code>TRADER01</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>TRADER01&gt; BOOK|SYM=AAPL
-</code></pre></div>
-<p>You should see a two-sided book with the MM's bid and ask. Repeat for MSFT and TSLA.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>TRADER01&gt; BOOK|SYM=MSFT
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>TRADER01&gt; BOOK|SYM=TSLA
-</code></pre></div>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> all three books show two-sided liquidity.</p>
-<h2 id="exercise-5-inspect-quote-state-with-qlegs">Exercise 5: Inspect Quote State with QLEGS<a class="headerlink" href="#exercise-5-inspect-quote-state-with-qlegs" title="Permanent link">&para;</a></h2>
-<p>From each market-maker gateway, inspect quote legs:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>MM_AAPL_01&gt; QLEGS|SYM=AAPL|SHOW=ALL
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>MM_MSFT_01&gt; QLEGS|SYM=MSFT|SHOW=ALL
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>MM_TSLA_01&gt; QLEGS|SYM=TSLA|SHOW=ALL
-</code></pre></div>
-<p><code>QLEGS</code> shows the bid and ask leg order IDs, prices, remaining quantities, and
-fill flags. This is the operator view that helps you reconcile fills after
-restart or partial execution.</p>
-<p>Interpretation guide:</p>
+<p class="admonition-title">Learning objectives</p>
+<p>After reading this page you will understand:</p>
 <ul>
-<li><code>Rem</code> is open quantity still resting in the book.</li>
-<li><code>Filled</code> is already executed quantity on that leg.</li>
-<li><code>Leg status</code> shows state such as <code>RESTING</code>, <code>PARTIAL</code>, or <code>FILLED</code>.</li>
+<li>How the single-container Podman/Docker deployment in <code>container/</code> is put together</li>
+<li>Why the engine's ZeroMQ bus was loopback-only, and how it is now configurable</li>
+<li>The difference between an engine <em>bind</em> address and a client <em>connect</em> address</li>
+<li>How to expose the exchange to other machines on your network today</li>
+<li>What a future multi-host / load-balanced backend split would need on top of
+  what exists now, and what it deliberately does not solve</li>
 </ul>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> QLEGS shows both quote legs for each symbol.</p>
-<h2 id="exercise-6-run-the-equivalent-bot-workflow-optional">Exercise 6: Run the Equivalent Bot Workflow (Optional)<a class="headerlink" href="#exercise-6-run-the-equivalent-bot-workflow-optional" title="Permanent link">&para;</a></h2>
-<p>The manual quote sequence above can be automated with one bot per symbol:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span>--qty<span class="w"> </span><span class="m">500</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.20<span class="w"> </span>--qty<span class="w"> </span><span class="m">300</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>TSLA<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.50<span class="w"> </span>--qty<span class="w"> </span><span class="m">200</span>
-</code></pre></div>
-<p>The bot connects using the gateway ID <code>MM_&lt;SYMBOL&gt;_&lt;id-suffix&gt;</code> (default
-suffix <code>01</code>), quotes around the current mid-price, reissues after fills, and
-uses <code>QBOOT</code>/<code>QLEGS</code>-style state to avoid startup deadlocks and reconcile
-quote legs.</p>
-<div class="admonition warning">
-<p class="admonition-title">Gateway ID must already exist in your config</p>
-<p><code>pm-mm-bot</code> does not create a gateway — it connects under the ID it
-computes (<code>MM_AAPL_01</code>, <code>MM_MSFT_01</code>, <code>MM_TSLA_01</code> by default) and expects
-that ID to already be present in <code>engine_config.yaml</code> from Exercise 1. If
-your config used different gateway IDs, either rename them to match this
-pattern or pass <code>--id-suffix</code> to the bot so the computed ID lines up. A
-mismatch here causes the engine to reject the bot's connection.</p>
 </div>
-<p>Quick primer:</p>
-<ul>
-<li><code>QBOOT</code> asks the engine whether a gateway+symbol already has an active quote
-  slot (for example after a crash/restart).</li>
-<li><code>QLEGS</code> reconciles leg-level state (order IDs, remaining, fills) so the bot
-  can adopt or replace safely instead of duplicating quotes.</li>
-</ul>
-<p>See the detailed walkthrough in <a href="../09-market-making/">09 — Market Making</a>.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> explain what the bot automates compared with your manual <code>QUOTE</code> workflow.</p>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
-<p>You now have:</p>
+<p><code>container/</code> packages the entire EduMatcher backend — every <code>pm-*</code> process,
+reference data, databases, and logs — into one Podman/Docker container that
+behaves like the Multipass VM in <code>../vm/</code>, minus the VM's clock-drift-on-suspend
+problem. It is a single container by design: one network namespace, one
+<code>pm-opctl-cli</code> process manager, <code>make build</code> / <code>make up</code> / <code>make shell</code> /
+<code>make down</code> as the whole interface.</p>
+<p>Until recently, one specific constraint enforced that design at the source
+level: the engine's three ZeroMQ bus sockets were hardcoded to bind
+<code>127.0.0.1</code>, with no override. That constraint has been relaxed — the engine's
+bind host is now controlled by <code>EDUMATCHER_ENGINE_BIND_HOST</code>, the same pattern
+already used for <code>pm-index</code>. This page documents the container as it exists
+today, the networking model behind it, and — separately — what would still be
+needed to genuinely split the backend across multiple hosts. Relaxing the bind
+constraint is a <em>prerequisite</em> for that future; it is not the same thing as
+doing it.</p>
+<h2 id="part-1-the-container-today">Part 1 — The container today<a class="headerlink" href="#part-1-the-container-today" title="Permanent link">&para;</a></h2>
+<h3 id="why-one-container">Why one container<a class="headerlink" href="#why-one-container" title="Permanent link">&para;</a></h3>
+<p>The container is used as a <em>machine</em>, not as a set of microservices: one
+container, <code>pm-opctl-cli</code> as the process manager inside it, you log in and
+work — exactly the Multipass VM's operating model, just without a guest
+kernel to resume after a host suspend. See <code>container/README.md</code> for the full
+day-to-day usage reference (<code>make shell</code>, <code>make status</code>, <code>make logs</code>,
+<code>make config-deploy</code>, and so on); this page focuses on how its networking is
+built and why.</p>
+<h3 id="what-ships-in-the-image">What ships in the image<a class="headerlink" href="#what-ships-in-the-image" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Base</td>
+<td><code>python:3.13-slim-bookworm</code>, two-stage build</td>
+</tr>
+<tr>
+<td>EduMatcher</td>
+<td>installed with <code>pip</code> into <code>/opt/edumatcher/.venv</code></td>
+</tr>
+<tr>
+<td>OS extras</td>
+<td><code>procps</code> (pm-opctl-cli's <code>pgrep</code>/<code>ps</code>), <code>tini</code> (PID 1), <code>tzdata</code>, <code>curl</code>, <code>openssh-server</code> (optional)</td>
+</tr>
+<tr>
+<td>Data</td>
+<td><code>/data</code>, bind-mounted from <code>./data</code> on the host</td>
+</tr>
+<tr>
+<td>PID 1</td>
+<td><code>entrypoint.sh</code> under <code>tini</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>entrypoint.sh</code> does four things on start: prepare <code>/data</code> and deploy the
+selected example configuration, optionally start <code>sshd</code>, start the
+<code>pm-opctl-cli</code> profile, then wait and stop the profile cleanly on <code>SIGTERM</code>.
+Every environment variable the container sets — including the two network
+variables this page is about — is visible to every <code>pm-*</code> process
+<code>pm-opctl-cli</code> starts, because they are ordinary child processes and inherit
+the container's environment. There is no separate propagation step to
+maintain; setting a variable on the container is enough.</p>
+<h3 id="ports-today">Ports today<a class="headerlink" href="#ports-today" title="Permanent link">&para;</a></h3>
+<p>All ports bind <code>127.0.0.1</code> on the host by default; <code>BIND_ADDR=0.0.0.0</code> in
+<code>.env</code> opens them to the local network (see <a href="#backend-on-the-lan-today">Backend on the LAN
+today</a> below for what that does and does not
+achieve).</p>
+<p><strong>Always published</strong> — the client-facing gateways, which already bind
+<code>0.0.0.0</code> <em>inside</em> the container and need nothing special:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Port</th>
+<th>Process</th>
+<th>Protocol</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">5560</td>
+<td><code>pm-balf-gwy</code></td>
+<td>TCP</td>
+<td>Binary ALF order entry</td>
+</tr>
+<tr>
+<td style="text-align: right;">5565</td>
+<td><code>pm-alf-gwy</code></td>
+<td>TCP</td>
+<td>ALF order entry</td>
+</tr>
+<tr>
+<td style="text-align: right;">5570</td>
+<td><code>pm-md-gwy</code></td>
+<td>TCP</td>
+<td>Market data (CALF/MDLF)</td>
+</tr>
+<tr>
+<td style="text-align: right;">5580</td>
+<td><code>pm-ralf-gwy</code></td>
+<td>TCP</td>
+<td>Post trade (RALF)</td>
+</tr>
+<tr>
+<td style="text-align: right;">5590</td>
+<td><code>pm-dc-gwy</code></td>
+<td>TCP</td>
+<td>Drop copy (DCLF)</td>
+</tr>
+<tr>
+<td style="text-align: right;">5600</td>
+<td><code>pm-log-srv</code></td>
+<td>TCP</td>
+<td>Log ingest (LALF)</td>
+</tr>
+<tr>
+<td style="text-align: right;">8080</td>
+<td><code>pm-api-gwy</code></td>
+<td>HTTP</td>
+<td>REST API, <code>desk</code> instance</td>
+</tr>
+<tr>
+<td style="text-align: right;">8081</td>
+<td><code>pm-api-gwy</code></td>
+<td>HTTP</td>
+<td>REST API, <code>dashboards</code> instance</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Published with <code>ZMQ=1</code></strong> — the raw internal message bus, off by default
+because every port opened here is one more way into a running exchange:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Port</th>
+<th>Process</th>
+<th>Socket</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">5555</td>
+<td><code>pm-engine</code></td>
+<td>ZMQ PULL</td>
+<td>Order intake</td>
+</tr>
+<tr>
+<td style="text-align: right;">5556</td>
+<td><code>pm-engine</code></td>
+<td>ZMQ PUB</td>
+<td>Event + book feed</td>
+</tr>
+<tr>
+<td style="text-align: right;">5557</td>
+<td><code>pm-engine</code></td>
+<td>ZMQ PUB</td>
+<td>Drop-copy feed</td>
+</tr>
+<tr>
+<td style="text-align: right;">5558</td>
+<td><code>pm-index</code></td>
+<td>ZMQ PUB</td>
+<td>Index values</td>
+</tr>
+<tr>
+<td style="text-align: right;">5559</td>
+<td><code>pm-index</code></td>
+<td>ZMQ PULL</td>
+<td>Index commands</td>
+</tr>
+<tr>
+<td style="text-align: right;">5601</td>
+<td><code>pm-log-srv</code></td>
+<td>ZMQ PUB</td>
+<td>LALF-PS broadcast</td>
+</tr>
+<tr>
+<td style="text-align: right;">5602</td>
+<td><code>pm-log-srv</code></td>
+<td>ZMQ PULL</td>
+<td>LALF-PS control</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Published with <code>SSH=1</code></strong>: host port <code>2222</code> → container port <code>22</code>.</p>
+<h2 id="part-2-bind-addresses-vs-connect-addresses">Part 2 — Bind addresses vs. connect addresses<a class="headerlink" href="#part-2-bind-addresses-vs-connect-addresses" title="Permanent link">&para;</a></h2>
+<p>This is the concept the rest of the page depends on, and it is easy to blur
+the two if you have not had to keep them apart before.</p>
+<p>A ZeroMQ (or any TCP) socket has two independent addresses:</p>
 <ul>
-<li>Market-maker gateways configured for all symbols.</li>
-<li>Manual <code>QUOTE</code> liquidity in AAPL, MSFT, and TSLA.</li>
-<li>Familiarity with <code>QLEGS</code> as the quote-leg inspection tool.</li>
-<li>A clear picture of what <code>pm-mm-bot</code> automates.</li>
+<li><strong>Bind address</strong> — what the <em>listening</em> process binds to. <code>0.0.0.0</code> means
+  "accept connections arriving on any of this machine's network interfaces."
+  <code>127.0.0.1</code> means "accept connections only from this same machine."
+  <code>0.0.0.0</code> is a wildcard for binding; it is not a real, routable address.</li>
+<li><strong>Connect address</strong> — what a <em>client</em> dials. This must be a real, reachable
+  IP or hostname — <code>0.0.0.0</code> is meaningless here, because there is no machine
+  actually at that address to connect to.</li>
 </ul>
-<h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
-<p>If no market maker were quoting a symbol, what would happen to a marketable
-order sent by a regular trader in Chapter 03? Why does the training guide
-insist you set up liquidity <em>before</em> any trading exercises rather than
-letting students discover an empty book on their own?</p>
-<h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
+<p>A process that both binds a socket and connects to another process's socket
+(which describes most <code>pm-*</code> processes on the engine bus — a gateway binds its
+own client-facing port <em>and</em> connects to the engine's PULL/PUB sockets) needs
+both addresses available separately. Conflating them — using one constant for
+both roles — is exactly the trap: setting a shared "engine host" constant to
+<code>0.0.0.0</code> so the engine binds all interfaces would silently break every other
+process's <em>connect</em> address at the same time, since <code>0.0.0.0</code> is not
+connectable.</p>
+<p><code>edumatcher.config</code> already modeled this correctly for <code>pm-index</code> before this
+change, and now models it the same way for the engine:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Index process endpoints (pre-existing)</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">EDUMATCHER_INDEX_BIND_HOST</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">"EDUMATCHER_INDEX_BIND_HOST"</span><span class="p">,</span> <span class="s2">"127.0.0.1"</span><span class="p">)</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">EDUMATCHER_ENGINE_HOST</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">"EDUMATCHER_ENGINE_HOST"</span><span class="p">,</span> <span class="s2">"127.0.0.1"</span><span class="p">)</span>  <span class="c1"># connect-side, for clients of BOTH pm-index and pm-engine</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">INDEX_PUB_ADDR</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"tcp://</span><span class="si">{</span><span class="n">EDUMATCHER_INDEX_BIND_HOST</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">EDUMATCHER_INDEX_PUB_PORT</span><span class="si">}</span><span class="s2">"</span>   <span class="c1"># bind</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">INDEX_PUB_CONNECT_ADDR</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"tcp://</span><span class="si">{</span><span class="n">EDUMATCHER_ENGINE_HOST</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">EDUMATCHER_INDEX_PUB_PORT</span><span class="si">}</span><span class="s2">"</span>  <span class="c1"># connect</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c1"># Engine bus endpoints (new)</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="n">EDUMATCHER_ENGINE_BIND_HOST</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">"EDUMATCHER_ENGINE_BIND_HOST"</span><span class="p">,</span> <span class="s2">"127.0.0.1"</span><span class="p">)</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="n">ENGINE_PULL_BIND_ADDR</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"tcp://</span><span class="si">{</span><span class="n">EDUMATCHER_ENGINE_BIND_HOST</span><span class="si">}</span><span class="s2">:5555"</span>   <span class="c1"># what pm-engine binds</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="n">ENGINE_PULL_ADDR</span>      <span class="o">=</span> <span class="sa">f</span><span class="s2">"tcp://</span><span class="si">{</span><span class="n">EDUMATCHER_ENGINE_HOST</span><span class="si">}</span><span class="s2">:5555"</span>        <span class="c1"># what everyone else connects to</span>
+</code></pre></div>
+<p><code>EDUMATCHER_ENGINE_HOST</code> already existed — it was introduced for <code>pm-index</code>'s
+connect-side addresses and happened to be named generically enough to reuse
+for the engine trio without a second variable. Its default (<code>127.0.0.1</code>) is
+unchanged, so nothing downstream changes value unless one or both variables
+are explicitly set.</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Role</th>
+<th>Consumed by</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>EDUMATCHER_ENGINE_BIND_HOST</code></td>
+<td>Where <code>pm-engine</code> binds its 3 bus sockets</td>
+<td><code>pm-engine</code> only</td>
+<td><code>127.0.0.1</code></td>
+</tr>
+<tr>
+<td><code>EDUMATCHER_ENGINE_HOST</code></td>
+<td>Where every other process connects to reach the engine</td>
+<td>gateways, <code>pm-board</code>, <code>pm-viewer</code>, <code>pm-scheduler</code>, <code>pm-audit</code>, <code>pm-clearing</code>, <code>pm-stats</code>, <code>pm-orders</code>, <code>pm-ticker</code>, <code>pm-index</code>, <code>pm-ai-trader</code>, <code>pm-alf-console</code>, <code>commands/cli</code></td>
+<td><code>127.0.0.1</code></td>
+</tr>
+<tr>
+<td><code>EDUMATCHER_INDEX_BIND_HOST</code></td>
+<td>Where <code>pm-index</code> binds its 2 sockets</td>
+<td><code>pm-index</code> only</td>
+<td><code>127.0.0.1</code></td>
+</tr>
+</tbody>
+</table>
+<p>Only <code>pm-engine</code>'s and <code>pm-index</code>'s own bind call sites needed to change
+(<code>engine/main.py</code>, <code>engine/drop_copy.py</code>). Every one of the fifteen-plus
+consumer processes listed above kept importing the same connect-side constant
+names with unchanged default values, so nothing else in the codebase needed
+to change.</p>
+<p><code>pm-log-srv</code> is a third case worth naming explicitly: it already binds
+<code>0.0.0.0</code> <strong>unconditionally</strong>, by its own design, with no environment
+variable involved at all. It needs no bind-host override because it never
+restricted itself to loopback in the first place.</p>
+<h2 id="part-3-how-the-container-uses-this-today">Part 3 — How the container uses this today<a class="headerlink" href="#part-3-how-the-container-uses-this-today" title="Permanent link">&para;</a></h2>
+<p>Before this change, the container could not simply publish ports 5555–5557,
+because nothing inside the container was listening on any interface those
+published ports could reach — the engine was bound to <code>127.0.0.1</code>, a published
+Docker port maps to a container-external interface, and loopback is not
+externally reachable no matter how a port is published. The old workaround
+was a <code>socat</code> TCP relay started by <code>entrypoint.sh</code>, listening on the
+container's own IP and forwarding each connection through to <code>127.0.0.1</code>.
+Functionally correct — ZMTP is a plain TCP byte stream, so a relay is
+transparent to it — but it was a workaround for a source-level limitation,
+running one extra process per relayed port, for no other reason than that the
+engine could not be told to bind anywhere else.</p>
+<p><code>container/compose.zmq.yaml</code> now does this instead:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">services</span><span class="p">:</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">edumatcher</span><span class="p">:</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="nt">environment</span><span class="p">:</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">      </span><span class="nt">EDUMATCHER_ENGINE_BIND_HOST</span><span class="p">:</span><span class="w"> </span><span class="s">"0.0.0.0"</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">      </span><span class="nt">EDUMATCHER_INDEX_BIND_HOST</span><span class="p">:</span><span class="w"> </span><span class="s">"0.0.0.0"</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="nt">ports</span><span class="p">:</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"${BIND_ADDR:-127.0.0.1}:5555:5555"</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"${BIND_ADDR:-127.0.0.1}:5556:5556"</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"${BIND_ADDR:-127.0.0.1}:5557:5557"</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"${BIND_ADDR:-127.0.0.1}:5558:5558"</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"${BIND_ADDR:-127.0.0.1}:5559:5559"</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"${BIND_ADDR:-127.0.0.1}:5601:5601"</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"${BIND_ADDR:-127.0.0.1}:5602:5602"</span>
+</code></pre></div>
+<p>The engine and <code>pm-index</code> now bind the ports directly, on the container's own
+<code>0.0.0.0</code>. No relay process, no <code>socat</code> dependency in the image, one less
+moving part between "container is up" and "port is reachable."</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>make<span class="w"> </span>up<span class="w"> </span><span class="nv">ZMQ</span><span class="o">=</span><span class="m">1</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># then, from the host:</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>pm-dc-spy<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">5557</span><span class="w">        </span><span class="c1"># engine drop-copy feed</span>
+</code></pre></div>
+<p>Everything inside the container still talks to everything else over
+<code>127.0.0.1</code> by default — <code>EDUMATCHER_ENGINE_HOST</code> is not touched by
+<code>compose.zmq.yaml</code>, so in-container clients keep connecting to loopback
+exactly as before. <code>EDUMATCHER_ENGINE_BIND_HOST=0.0.0.0</code> only widens <em>who can
+reach the socket</em>, not where the socket's own connect-side consumers look for
+it. That asymmetry — bind wide, connect narrow, both correct at once — is the
+entire point of keeping the two variables separate.</p>
+<h3 id="backend-on-the-lan-today">Backend on the LAN today<a class="headerlink" href="#backend-on-the-lan-today" title="Permanent link">&para;</a></h3>
+<p>Setting <code>BIND_ADDR=0.0.0.0</code> in <code>.env</code> publishes the compose ports on every
+interface of the <em>host</em> machine, and (with <code>ZMQ=1</code>) the engine and index
+sockets are actually listening for it, rather than being present but
+unreachable. This is enough for another machine on the same network to reach
+this one container's REST API, gateways, or (with <code>ZMQ=1</code>) raw bus. It is
+<strong>not</strong> a multi-host backend: there is still exactly one <code>pm-engine</code> process,
+still running inside this one container, still the single order-matching
+authority for the whole exchange. What changed is that other machines can now
+<em>reach</em> it — not that the backend itself is distributed.</p>
+<h2 id="part-4-what-a-genuine-multi-host-split-would-still-need">Part 4 — What a genuine multi-host split would still need<a class="headerlink" href="#part-4-what-a-genuine-multi-host-split-would-still-need" title="Permanent link">&para;</a></h2>
+<p>This section is deliberately speculative — nothing here is implemented. It
+exists so that the next person who wants to take the container in this
+direction knows what is already in place and what is still missing, instead
+of rediscovering both from scratch.</p>
+<h3 id="what-todays-change-already-provides">What today's change already provides<a class="headerlink" href="#what-todays-change-already-provides" title="Permanent link">&para;</a></h3>
 <ul>
-<li><a href="../../user-guide/090-market-maker/">Market Making</a></li>
-<li><a href="../../user-guide/100-mm-bot/">Market-Maker Bot (pm-mm-bot)</a></li>
-<li><a href="../../user-guide/100-mm-bot/#cli-reference">Market-Maker Bot CLI Reference</a></li>
-<li><a href="../../user-guide/055-alf-console/">ALF Console (pm-alf-console)</a></li>
-<li><a href="../../user-guide/900-app-alf-protocol/">ALF Protocol Reference</a></li>
+<li>The engine can bind a real, LAN-reachable interface instead of only
+  loopback — <code>EDUMATCHER_ENGINE_BIND_HOST=0.0.0.0</code> or a specific NIC address.</li>
+<li>Every consumer process already resolves the engine's address through one
+  environment variable (<code>EDUMATCHER_ENGINE_HOST</code>) rather than a hardcoded
+  constant, so pointing a <em>remote</em> gateway, viewer, or scheduler at an
+  engine on a different host needs no source changes — only setting that one
+  variable before the process starts.</li>
+<li><code>pm-index</code> follows the identical pattern, so the same is true for anything
+  that depends on the index feed.</li>
 </ul>
-<p><strong>Next:</strong> <a href="../03-the-first-trade/">03 — The First Trade</a></p>
+<h3 id="what-is-still-missing">What is still missing<a class="headerlink" href="#what-is-still-missing" title="Permanent link">&para;</a></h3>
+<p><strong>No load balancing is possible, because there is exactly one engine.</strong>
+<code>pm-engine</code> is the sole order-matching authority — one in-memory order book,
+one sequence of trades, one source of truth. Nothing about today's change
+makes it possible to run two engines and split traffic between them; a
+matching engine that owns the order book is not the kind of process that
+horizontally scales by adding replicas behind a load balancer. "Load
+balancing" in a future multi-host EduMatcher would have to mean distributing
+<em>gateways, viewers, and other stateless-ish clients</em> across hosts, all still
+talking to the one engine — not distributing the engine itself. Anyone
+picking this up should settle that scope question explicitly before writing
+code, because it changes what "multi-host" is even solving.</p>
+<p><strong>No transport security or authentication.</strong> ZeroMQ PUSH/PULL and PUB/SUB
+sockets accept whatever connects; today, the loopback-only bind was an
+accidental safety net — nothing could reach the engine's order-intake socket
+except a process already inside the same container. Widening the bind host
+removes that accident, not by design but as an unavoidable side effect of
+making the host configurable at all. Authentication of <em>inbound orders</em>
+already exists at the ALF/BALF gateway layer (participants authenticate to
+the gateway, not to the engine), and this project's working assumption is
+that gateways are trusted — so the engine trusts whatever a gateway forwards
+to it. That assumption stops being free the moment the engine's PULL socket
+is reachable across a real network boundary rather than only from
+co-located, already-trusted gateway processes: something has to prevent an
+arbitrary host on the LAN from talking directly to port 5555 and injecting
+orders as if it were a gateway. TLS, CURVE (ZeroMQ's built-in
+authentication/encryption mechanism), or network-level ACLs are all options;
+none are implemented today, and the existing <code>container/README.md</code> firewall
+guidance ("keep <code>BIND_ADDR=127.0.0.1</code> unless you need it") is the only
+mitigation currently in place.</p>
+<p><strong>No service discovery.</strong> Every connect-side address today is one
+environment variable naming one host. A real multi-host deployment with
+several gateway machines, or gateways that come and go, would need some way
+for a process to find the engine's current address without a human typing an
+IP into every process's environment — a DNS name, a config service, or at
+minimum a documented convention for how addresses get distributed. Nothing
+here provides that; <code>EDUMATCHER_ENGINE_HOST</code> is a single static value.</p>
+<p><strong>No cross-host container orchestration.</strong> <code>container/compose.yaml</code> describes
+one container on one host. Multiple hosts running EduMatcher processes today
+means running Docker/Podman independently on each machine and wiring the
+environment variables by hand — nothing here introduces Kubernetes, Docker
+Swarm, or any other multi-node orchestrator. That may be a reasonable next
+step, but it is a separate decision from "can the engine bind a real
+interface," which is all this change addresses.</p>
+<p><strong>No health/readiness signaling across hosts.</strong> <code>pm-opctl-cli health</code> already
+has a known pre-existing discrepancy even within one container — see the
+Troubleshooting section of <code>container/README.md</code> — where it probes a port
+<code>pm-index</code> does not actually bind under the <code>default</code> profile. A multi-host
+setup would need every remote consumer to know when the engine is actually up
+and reachable before connecting — today that is left entirely to each
+process's own retry/reconnect behavior.</p>
+<h3 id="an-indicative-topology-if-this-were-built-out">An indicative topology, if this were built out<a class="headerlink" href="#an-indicative-topology-if-this-were-built-out" title="Permanent link">&para;</a></h3>
+<p>The diagram below is illustrative only — it shows what the <em>pieces</em> would
+look like with the current single-engine constraint respected, not a
+recommendation or a tested design.</p>
+<pre class="mermaid"><code>flowchart LR
+    subgraph EngineHost["Engine host — the one pm-engine"]
+        E["pm-engine\nbind 0.0.0.0:5555/5556/5557"]
+    end
+
+    subgraph GatewayHostA["Gateway host A"]
+        G1["pm-alf-gwy\nEDUMATCHER_ENGINE_HOST=engine-host"]
+        G2["pm-md-gwy\nEDUMATCHER_ENGINE_HOST=engine-host"]
+    end
+
+    subgraph GatewayHostB["Gateway host B"]
+        G3["pm-ralf-gwy\nEDUMATCHER_ENGINE_HOST=engine-host"]
+        V["pm-viewer\nEDUMATCHER_ENGINE_HOST=engine-host"]
+    end
+
+    G1 --&gt;|PUSH 5555| E
+    G3 --&gt;|PUSH 5555| E
+    E --&gt;|PUB 5556| G2
+    E --&gt;|PUB 5556| V</code></pre>
+<p>Every arrow here already works with today's <code>EDUMATCHER_ENGINE_BIND_HOST</code> /
+<code>EDUMATCHER_ENGINE_HOST</code> pair. What is missing from the picture is everything
+in the previous subsection: nothing authenticates host A or host B to the
+engine, nothing discovers <code>engine-host</code>'s address automatically, and nothing
+orchestrates these three hosts as one deployable unit. Building any of that
+out is a separate, larger design effort — this page's job is only to make
+clear where that effort would start from.</p>
+<h2 id="reference-related-design-material">Reference: related design material<a class="headerlink" href="#reference-related-design-material" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>container/README.md</code> — day-to-day container usage: build, run, ports,
+  data directory, profiles, troubleshooting.</li>
+<li><code>docs-design/EduMatcher-Cross-host-connection.md</code> — an earlier, broader
+  <em>unimplemented</em> design proposal covering this same idea. It specifies the
+  same <code>EDUMATCHER_ENGINE_BIND_HOST</code> variable documented here, plus
+  additional scope this project has not built: per-process CLI flags
+  (<code>--bind-host</code>, <code>--engine-host</code>), a <code>primary</code>-IP auto-resolve convenience,
+  port-level environment overrides, and an optional <code>engine_config.yaml</code>
+  <code>network:</code> section. Treat it as the fuller backlog if cross-host support
+  ever becomes a first-class feature, not as a description of current
+  behavior.</li>
+</ul>
 
 
 

@@ -4119,6 +4119,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/07-container-and-networks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Container and Network Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -4937,7 +4965,7 @@ immediately or silently lose its first messages.</p>
 </div>
 <h2 id="pm-engine-matching-engine">pm-engine — Matching Engine<a class="headerlink" href="#pm-engine-matching-engine" title="Permanent link">&para;</a></h2>
 <p>The heart of the system — receives orders, matches them, publishes events.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pm-engine<span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pm-engine<span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -4963,6 +4991,26 @@ immediately or silently lose its first messages.</p>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
 <td>Explicit <code>WARNING</code> (same as the default)</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where operational log records go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>none</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout</code></td>
+<td><code>30</code> (from config)</td>
+<td>Grace window in seconds before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
 </tr>
 </tbody>
 </table>
@@ -5174,6 +5222,26 @@ See <a href="../900-app-alf-protocol/">ALF Protocol Reference</a>.</p>
 <td>No</td>
 <td>Reduce output to warnings/errors</td>
 </tr>
+<tr>
+<td><code>--log-target</code></td>
+<td>No</td>
+<td>Where operational log records go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code> (default <code>server</code>)</td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>No</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout</code></td>
+<td>No</td>
+<td>Grace window in seconds before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable (default <code>30</code> from config)</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>No</td>
+<td>Print version and exit</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Expected runtime input arguments:</strong></p>
@@ -5353,6 +5421,26 @@ connection per gateway ID; all configured <code>gateways.alf</code> IDs may conn
 <td>off</td>
 <td>Reduce output to warnings/errors</td>
 </tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where operational log records go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>none</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout</code></td>
+<td><code>30</code> (from config)</td>
+<td>Grace window in seconds before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Expected runtime input arguments:</strong></p>
@@ -5531,7 +5619,8 @@ connection per gateway ID; all configured <code>gateways.alf</code> IDs may conn
 <h2 id="pm-viewer-order-book-viewer">pm-viewer — Order Book Viewer<a class="headerlink" href="#pm-viewer-order-book-viewer" title="Permanent link">&para;</a></h2>
 <p>Live terminal view of a single symbol's order book. Draws a full-screen
 bordered box on the alternate terminal buffer that repaints cleanly on resize.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span><span class="o">[</span>--depth<span class="w"> </span>N<span class="o">]</span><span class="w"> </span><span class="o">[</span>--db<span class="w"> </span>data/stats.db<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span><span class="o">[</span>--depth<span class="w"> </span>N<span class="o">]</span><span class="w"> </span><span class="o">[</span>--db<span class="w"> </span>data/stats.db<span class="o">]</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="o">[</span>--text-color<span class="w"> </span>COLOR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--zebra-lines<span class="o">]</span><span class="w"> </span><span class="o">[</span>--zebra-lines-color<span class="w"> </span>COLOR<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -5559,6 +5648,21 @@ bordered box on the alternate terminal buffer that repaints cleanly on resize.</
 <td>Stats SQLite DB — seeds session OHLC and previous-close at startup</td>
 </tr>
 <tr>
+<td><code>--text-color</code></td>
+<td><code>white</code></td>
+<td>Body text color for the order book tables — <code>#rrggbb</code> hex or a Rich color name</td>
+</tr>
+<tr>
+<td><code>--zebra-lines</code></td>
+<td>off</td>
+<td>Shade every second row of the Bids/Asks/Trades tables with a background tint</td>
+</tr>
+<tr>
+<td><code>--zebra-lines-color</code></td>
+<td><code>grey19</code></td>
+<td>Background tint used by <code>--zebra-lines</code> — <code>#rrggbb</code> hex or a Rich color name; has no effect unless <code>--zebra-lines</code> is given</td>
+</tr>
+<tr>
 <td><code>--log-level</code></td>
 <td><code>WARNING</code></td>
 <td>Explicit log level: <code>CRITICAL</code>, <code>ERROR</code>, <code>WARNING</code>, <code>INFO</code>, <code>DEBUG</code></td>
@@ -5572,6 +5676,26 @@ bordered box on the alternate terminal buffer that repaints cleanly on resize.</
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
 <td>Reduce output to warnings/errors</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where operational log records go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>none</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout</code></td>
+<td><code>30</code> (from config)</td>
+<td>Grace window in seconds before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
 </tr>
 </tbody>
 </table>
@@ -5588,6 +5712,16 @@ bordered box on the alternate terminal buffer that repaints cleanly on resize.</
 <p>Iceberg orders only show their <code>displayed_qty</code> (the visible peak) in the viewer.
 The hidden quantity is completely invisible — this is by design and demonstrates the
 privacy feature of iceberg orders.</p>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Colors on a dark terminal</p>
+<p>Body text in the Bids/Asks/Trades tables defaults to <code>white</code>; override it with
+<code>--text-color</code> if that doesn't fit your terminal's theme (e.g. a light-background
+profile). Alternating-row shading is off by default and opt-in via <code>--zebra-lines</code>,
+which tints every second row with a background color (default <code>grey19</code>, a dark grey)
+without changing that row's text color — customize it with <code>--zebra-lines-color</code>.
+Both color options accept a <code>#rrggbb</code> hex code or any
+<a href="https://rich.readthedocs.io/en/stable/appendix/colors.html">Rich color name</a>.</p>
 </div>
 <p>Run multiple viewers simultaneously for different symbols:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span><span class="p">&amp;</span>
@@ -5630,7 +5764,7 @@ privacy feature of iceberg orders.</p>
 </table>
 <h2 id="pm-orders-order-status-monitor">pm-orders — Order Status Monitor<a class="headerlink" href="#pm-orders-order-status-monitor" title="Permanent link">&para;</a></h2>
 <p>Live cross-gateway view of all orders in the system.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-orders<span class="w"> </span><span class="o">[</span>--gateway<span class="w"> </span>GW01<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-orders<span class="w"> </span><span class="o">[</span>--gateway<span class="w"> </span>GW01<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -5647,9 +5781,43 @@ privacy feature of iceberg orders.</p>
 <td>(all)</td>
 <td>Filter to a single gateway</td>
 </tr>
+<tr>
+<td><code>--log-level</code></td>
+<td><code>WARNING</code></td>
+<td>Explicit log level: <code>CRITICAL</code>, <code>ERROR</code>, <code>WARNING</code>, <code>INFO</code>, <code>DEBUG</code></td>
+</tr>
+<tr>
+<td><code>-v</code> / <code>--verbose</code></td>
+<td>off</td>
+<td>Increase verbosity (<code>-v</code> → <code>INFO</code>, <code>-vv</code> → <code>DEBUG</code>)</td>
+</tr>
+<tr>
+<td><code>-q</code> / <code>--quiet</code></td>
+<td>off</td>
+<td>Reduce output to warnings/errors</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where operational log records go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>none</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout</code></td>
+<td><code>30</code> (from config)</td>
+<td>Grace window in seconds before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
+</tr>
 </tbody>
 </table>
-<p>No <code>--log-level</code>, <code>-v</code>, or <code>-q</code> flags — <code>pm-orders</code> has no configurable logging.</p>
 <p><strong>Expected runtime input arguments:</strong></p>
 <p>None.</p>
 <p>Displays a live table with columns:
@@ -5742,6 +5910,11 @@ privacy feature of iceberg orders.</p>
 <td>30 (from config)</td>
 <td>Seconds to wait before falling back to a local log file if <code>pm-log-srv</code> becomes unreachable</td>
 </tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Expected runtime input arguments:</strong></p>
@@ -5831,6 +6004,11 @@ changing the raw event log format.</p>
 <td>auto-detected</td>
 <td>Path to SQLite index file (auto-detected from <code>--log-dir</code> when not specified; ignored for commands that don't support it)</td>
 </tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Subcommands:</strong></p>
@@ -5902,7 +6080,8 @@ changing the raw event log format.</p>
 </ul>
 <h2 id="pm-clearing-clearing-pl">pm-clearing — Clearing &amp; P&amp;L<a class="headerlink" href="#pm-clearing-clearing-pl" title="Permanent link">&para;</a></h2>
 <p>SQLite-backed clearing writer for P&amp;L and position state.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-clearing<span class="w"> </span><span class="o">[</span>--datapath<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--db-name<span class="w"> </span>NAME<span class="o">]</span><span class="w"> </span><span class="o">[</span>--flush-size<span class="w"> </span>N<span class="o">]</span><span class="w"> </span><span class="o">[</span>--flush-interval<span class="w"> </span>SEC<span class="o">]</span><span class="w"> </span><span class="o">[</span>--print-every<span class="w"> </span>N<span class="o">]</span><span class="w"> </span><span class="o">[</span>--retention-days<span class="w"> </span>N<span class="o">]</span><span class="w"> </span><span class="o">[</span>--timezone<span class="w"> </span>TZ<span class="o">]</span><span class="w"> </span><span class="o">[</span>--sql-trace<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-clearing<span class="w"> </span><span class="o">[</span>--datapath<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--db-name<span class="w"> </span>NAME<span class="o">]</span><span class="w"> </span><span class="o">[</span>--flush-size<span class="w"> </span>N<span class="o">]</span><span class="w"> </span><span class="o">[</span>--flush-interval<span class="w"> </span>SEC<span class="o">]</span><span class="w"> </span><span class="o">[</span>--print-every<span class="w"> </span>N<span class="o">]</span><span class="w"> </span><span class="o">[</span>--retention-days<span class="w"> </span>N<span class="o">]</span><span class="w"> </span><span class="o">[</span>--timezone<span class="w"> </span>TZ<span class="o">]</span><span class="w"> </span><span class="o">[</span>--sql-trace<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -5968,6 +6147,26 @@ changing the raw event log format.</p>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
 <td>Reduce output to warnings/errors</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where operational log records go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>none</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout</code></td>
+<td><code>30</code> (from config)</td>
+<td>Grace window in seconds before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
 </tr>
 </tbody>
 </table>
@@ -6055,6 +6254,11 @@ output, and exits.</p>
 <td><code>--raw-output</code></td>
 <td>off</td>
 <td>Disable tick-decimal normalization and emit raw tick-unit values</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
 </tr>
 </tbody>
 </table>
@@ -6212,7 +6416,8 @@ output, and exits.</p>
 SQLite database (<code>data/stats.db</code>). This is the queryable time-series home for
 both trading statistics and index levels — <code>pm-index</code>'s own JSONL file only
 retains structural/corporate-action audit records, not level ticks.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>pm-stats<span class="w"> </span><span class="o">[</span>--db<span class="w"> </span>data/stats.db<span class="o">]</span><span class="w"> </span><span class="o">[</span>--snapshot-interval<span class="w"> </span>SEC<span class="o">]</span><span class="w"> </span><span class="o">[</span>--sql-trace<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>pm-stats<span class="w"> </span><span class="o">[</span>--db<span class="w"> </span>data/stats.db<span class="o">]</span><span class="w"> </span><span class="o">[</span>--snapshot-interval<span class="w"> </span>SEC<span class="o">]</span><span class="w"> </span><span class="o">[</span>--timezone<span class="w"> </span>TZ<span class="o">]</span><span class="w"> </span><span class="o">[</span>--sql-trace<span class="o">]</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="w">  </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -6235,6 +6440,11 @@ retains structural/corporate-action audit records, not level ticks.</p>
 <td>Seconds between <code>price_snapshots</code> rows per symbol. Use a smaller value for finer intraday resolution, e.g. <code>60</code> for one-minute snapshots.</td>
 </tr>
 <tr>
+<td><code>--timezone</code></td>
+<td><code>UTC</code></td>
+<td>Exchange session timezone (IANA name, e.g. <code>Europe/Stockholm</code>) that defines the trading date used by <code>daily_stats</code>/<code>index_daily_stats</code> date columns. Must match <code>pm-clearing</code>'s <code>--timezone</code> or the two daily rollups will not reconcile.</td>
+</tr>
+<tr>
 <td><code>--sql-trace</code></td>
 <td>off</td>
 <td>Log executed SQLite SQL statements from the stats writer connection</td>
@@ -6253,6 +6463,26 @@ retains structural/corporate-action audit records, not level ticks.</p>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
 <td>Reduce output to warnings/errors</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where operational log records go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>none</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout</code></td>
+<td><code>30</code> (from config)</td>
+<td>Grace window in seconds before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
 </tr>
 </tbody>
 </table>
@@ -6587,7 +6817,7 @@ matched trade pair, using the trade UUID from the engine as the primary key.</p>
 <h2 id="pm-stats-cli-statistics-query-cli">pm-stats-cli — Statistics Query CLI<a class="headerlink" href="#pm-stats-cli-statistics-query-cli" title="Permanent link">&para;</a></h2>
 <p><code>pm-stats-cli</code> is a read-only command-line interface for querying
 <code>data/stats.db</code> without writing SQL manually.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>pm-stats-cli<span class="w"> </span><span class="o">[</span>--db<span class="w"> </span>data/stats.db<span class="o">]</span><span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>json<span class="p">|</span>csv<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>pm-stats-cli<span class="w"> </span><span class="o">[</span>--db<span class="w"> </span>data/stats.db<span class="o">]</span><span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>json<span class="p">|</span>csv<span class="o">]</span><span class="w"> </span><span class="o">[</span>--no-header<span class="o">]</span><span class="w"> </span><span class="o">[</span>--timezone<span class="w"> </span>TZ<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
 </code></pre></div>
 <p>Unlike <code>pm-stats</code>, this is not a subscriber process. It runs one query,
 prints output, and exits.</p>
@@ -6616,6 +6846,16 @@ prints output, and exits.</p>
 <td>off</td>
 <td>Suppress header row in <code>csv</code> output</td>
 </tr>
+<tr>
+<td><code>--timezone</code></td>
+<td>DB-recorded timezone</td>
+<td>Override the session timezone that <code>--date</code> resolves in; rarely needed, and a mismatched value triggers a warning since <code>--date</code> would then select a different trading day than <code>pm-stats</code> used</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Subcommands:</strong></p>
@@ -6631,22 +6871,22 @@ prints output, and exits.</p>
 <tr>
 <td><code>daily</code></td>
 <td>Daily OHLCV summary from <code>daily_stats</code></td>
-<td><code>--date</code>, <code>--symbol</code>, <code>--limit</code>, <code>--wide</code></td>
+<td><code>--date</code>, <code>--symbol</code>, <code>--limit</code>, <code>--after</code>, <code>--wide</code></td>
 </tr>
 <tr>
 <td><code>snapshots</code></td>
 <td>Intraday snapshots from <code>price_snapshots</code></td>
-<td><code>--symbol</code> (required), <code>--date</code>, <code>--from</code>, <code>--to</code>, <code>--limit</code></td>
+<td><code>--symbol</code> (required), <code>--date</code>, <code>--from</code>, <code>--to</code>, <code>--limit</code>, <code>--after</code></td>
 </tr>
 <tr>
 <td><code>trades</code></td>
 <td>Trade history from <code>trade_log</code></td>
-<td><code>--symbol</code>, <code>--date</code>, <code>--from</code>, <code>--to</code>, <code>--limit</code></td>
+<td><code>--symbol</code>, <code>--date</code>, <code>--from</code>, <code>--to</code>, <code>--limit</code>, <code>--after</code></td>
 </tr>
 <tr>
 <td><code>order-events</code></td>
 <td>Private order lifecycle events from the order_events table</td>
-<td><code>--gateway</code> (required), <code>--symbol</code>, <code>--event-type</code>, <code>--date</code>, <code>--from</code>, <code>--to</code>, <code>--limit</code> (default 500)</td>
+<td><code>--gateway</code> (required), <code>--symbol</code>, <code>--event-type</code>, <code>--date</code>, <code>--from</code>, <code>--to</code>, <code>--limit</code> (default 500), <code>--after</code></td>
 </tr>
 <tr>
 <td><code>order-lifecycle</code></td>
@@ -6666,20 +6906,37 @@ prints output, and exits.</p>
 <tr>
 <td><code>index-daily</code></td>
 <td>Daily index OHLC rollup from <code>index_daily_stats</code></td>
-<td><code>--date</code>, <code>--index-id</code>, <code>--limit</code>, <code>--wide</code></td>
+<td><code>--date</code>, <code>--index-id</code>, <code>--limit</code>, <code>--after</code>, <code>--wide</code></td>
 </tr>
 <tr>
 <td><code>index-snapshots</code></td>
 <td>Every recorded index level tick from <code>index_level_snapshots</code></td>
-<td><code>--index-id</code> (required), <code>--date</code>, <code>--from</code>, <code>--to</code>, <code>--limit</code></td>
+<td><code>--index-id</code> (required), <code>--date</code>, <code>--from</code>, <code>--to</code>, <code>--limit</code>, <code>--after</code></td>
 </tr>
 <tr>
 <td><code>index-ids</code></td>
 <td>Discover index IDs with recorded data</td>
 <td><code>--date</code></td>
 </tr>
+<tr>
+<td><code>instruments</code></td>
+<td>Show instrument reference data (tick scale per symbol)</td>
+<td><code>--symbol</code></td>
+</tr>
+<tr>
+<td><code>gaps</code></td>
+<td>Show detected feed gaps (trades the recorder never received)</td>
+<td><code>--date</code>, <code>--from</code>, <code>--to</code>, <code>--limit</code> (default 500)</td>
+</tr>
+<tr>
+<td><code>health</code></td>
+<td>Check the <code>pm-stats</code> process and stats DB read/write health</td>
+<td><code>-q</code>/<code>--quiet</code> (print nothing; exit <code>0</code> when healthy, <code>-1</code> otherwise)</td>
+</tr>
 </tbody>
 </table>
+<p><code>--after CURSOR</code> pages through results returned by a previous call to the same
+subcommand — pass the cursor value from that call's last row to fetch the next page.</p>
 <p><code>index-daily</code>, <code>index-snapshots</code>, and <code>index-ids</code> query the level/EOD history
 that <code>pm-index</code>'s own JSONL file no longer stores — see
 <a href="../140-statistics-and-reporting/#index-level-history">Statistics and Reporting</a>
@@ -6720,7 +6977,8 @@ why this data moved here.</p>
 <p>Drives session-phase transitions (PRE_OPEN → OPENING_AUCTION → CONTINUOUS →
 CLOSING_AUCTION → CLOSED) by sending <code>session.transition</code> messages to the
 engine at configured wall-clock times.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>pm-scheduler<span class="w"> </span><span class="o">[</span>--now<span class="o">]</span><span class="w"> </span><span class="o">[</span>--delay<span class="w"> </span><span class="m">3</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--daily<span class="o">]</span><span class="w"> </span><span class="o">[</span>--no-confirm<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>pm-scheduler<span class="w"> </span><span class="o">[</span>--now<span class="o">]</span><span class="w"> </span><span class="o">[</span>--delay<span class="w"> </span><span class="m">3</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--daily<span class="o">]</span><span class="w"> </span><span class="o">[</span>--no-confirm<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="w">  </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -6767,6 +7025,26 @@ engine at configured wall-clock times.</p>
 <td>off</td>
 <td>Reduce output to warnings/errors</td>
 </tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where operational log records go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>none</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout</code></td>
+<td><code>30</code> (from config)</td>
+<td>Grace window in seconds before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Expected runtime input arguments:</strong></p>
@@ -6795,7 +7073,8 @@ header (the <code>EduMatcher</code> brand, today's total trade volume, and the c
 date/time) and a single ticker line listing all active symbols with live
 prices, OHLCV, and bid/ask spreads. The symbol line scrolls leftward like a
 classic ticker tape.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>pm-ticker<span class="w"> </span><span class="o">[</span>--db<span class="w"> </span>data/stats.db<span class="o">]</span><span class="w"> </span><span class="o">[</span>--db-interval<span class="w"> </span><span class="m">900</span><span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>pm-ticker<span class="w"> </span><span class="o">[</span>--db<span class="w"> </span>data/stats.db<span class="o">]</span><span class="w"> </span><span class="o">[</span>--db-interval<span class="w"> </span><span class="m">900</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--timezone<span class="w"> </span>TZ<span class="o">]</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="w">  </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -6818,6 +7097,11 @@ classic ticker tape.</p>
 <td>Seconds between daily_stats DB re-queries (15 min)</td>
 </tr>
 <tr>
+<td><code>--timezone</code></td>
+<td>DB-recorded timezone</td>
+<td>Exchange session timezone (IANA name) used to bucket data into a trading day</td>
+</tr>
+<tr>
 <td><code>--log-level</code></td>
 <td><code>WARNING</code></td>
 <td>Explicit log level: <code>CRITICAL</code>, <code>ERROR</code>, <code>WARNING</code>, <code>INFO</code>, <code>DEBUG</code></td>
@@ -6831,6 +7115,26 @@ classic ticker tape.</p>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
 <td>Reduce output to warnings/errors</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where operational log records go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>none</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout</code></td>
+<td><code>30</code> (from config)</td>
+<td>Grace window in seconds before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
 </tr>
 </tbody>
 </table>
@@ -6948,6 +7252,26 @@ Shows all active symbols in a single paged table with exchange-style colouring.<
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
 <td>Reduce output to warnings/errors</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where operational log records go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>none</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout</code></td>
+<td><code>30</code> (from config)</td>
+<td>Grace window in seconds before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
 </tr>
 </tbody>
 </table>
@@ -7151,6 +7475,26 @@ The board auto-discovers symbols as they become active — no configuration need
 <td>off</td>
 <td>Reduce output to warnings/errors</td>
 </tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where operational log records go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>none</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout</code></td>
+<td><code>30</code> (from config)</td>
+<td>Grace window in seconds before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Expected runtime input arguments:</strong></p>
@@ -7268,6 +7612,26 @@ state, which is correct for a fresh session.</p>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
 <td>Reduce output to warnings/errors; forwarded to child bots</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where the launcher's own operational log records go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>none</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout</code></td>
+<td><code>30</code> (from config)</td>
+<td>Grace window in seconds before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
 </tr>
 </tbody>
 </table>
@@ -7391,6 +7755,26 @@ on fills, mid-price drift, and session transitions.</p>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
 <td>Reduce output to warnings/errors</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where operational log records go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>none</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout</code></td>
+<td><code>30</code> (from config)</td>
+<td>Grace window in seconds before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
 </tr>
 </tbody>
 </table>
@@ -7571,7 +7955,8 @@ bootstrap details, and troubleshooting.</p>
 <h2 id="pm-ralf-gwy-post-trade-dissemination-gateway">pm-ralf-gwy — Post-Trade Dissemination Gateway<a class="headerlink" href="#pm-ralf-gwy-post-trade-dissemination-gateway" title="Permanent link">&para;</a></h2>
 <p>Runs the external machine-facing post-trade dissemination gateway that publishes
 RALF over TCP for clearing, drop-copy, and audit consumers.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>pm-ralf-gwy<span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5580</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-pub<span class="w"> </span>tcp://127.0.0.1:5556<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>pm-ralf-gwy<span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5580</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-pub<span class="w"> </span>tcp://127.0.0.1:5556<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="w">  </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -7612,6 +7997,26 @@ RALF over TCP for clearing, drop-copy, and audit consumers.</p>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
 <td>Reduce output to warnings/errors</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where operational log records go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>none</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout</code></td>
+<td><code>30</code> (from config)</td>
+<td>Grace window in seconds before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
 </tr>
 </tbody>
 </table>
@@ -7779,6 +8184,36 @@ dropping it as an idle client.</p>
 <td><code>WARNING</code></td>
 <td>Explicit log level: <code>CRITICAL</code>, <code>ERROR</code>, <code>WARNING</code>, <code>INFO</code>, <code>DEBUG</code></td>
 </tr>
+<tr>
+<td><code>-v</code> / <code>--verbose</code></td>
+<td>off</td>
+<td>Increase verbosity (<code>-v</code> → <code>INFO</code>, <code>-vv</code> → <code>DEBUG</code>)</td>
+</tr>
+<tr>
+<td><code>-q</code> / <code>--quiet</code></td>
+<td>off</td>
+<td>Reduce output to warnings/errors</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where operational log records go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>none</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout</code></td>
+<td><code>30</code> (from config)</td>
+<td>Grace window in seconds before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
+</tr>
 </tbody>
 </table>
 <p>See <a href="../251-ralf-spy-cli/">RALF Protocol Spy (pm-ralf-spy)</a> for full usage.</p>
@@ -7792,7 +8227,8 @@ of concurrently connected external clients instead of printing to a
 terminal. There is no authentication, entitlement model, or replay-by-sequence
 — any client may <code>HELLO</code> with any gateway <code>ID</code> and receive that gateway's
 live fills for as long as it stays connected.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>pm-dc-gwy<span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5590</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-dc-pub<span class="w"> </span>tcp://127.0.0.1:5557<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>pm-dc-gwy<span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5590</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-dc-pub<span class="w"> </span>tcp://127.0.0.1:5557<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a><span class="w">  </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -7833,6 +8269,26 @@ live fills for as long as it stays connected.</p>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
 <td>Reduce output to warnings/errors</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where operational log records go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>none</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout</code></td>
+<td><code>30</code> (from config)</td>
+<td>Grace window in seconds before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
 </tr>
 </tbody>
 </table>
@@ -7955,6 +8411,36 @@ of instances can run at once (e.g. one per terminal, each with a different
 <td><code>WARNING</code></td>
 <td>Explicit log level: <code>CRITICAL</code>, <code>ERROR</code>, <code>WARNING</code>, <code>INFO</code>, <code>DEBUG</code></td>
 </tr>
+<tr>
+<td><code>-v</code> / <code>--verbose</code></td>
+<td>off</td>
+<td>Increase verbosity (<code>-v</code> → <code>INFO</code>, <code>-vv</code> → <code>DEBUG</code>)</td>
+</tr>
+<tr>
+<td><code>-q</code> / <code>--quiet</code></td>
+<td>off</td>
+<td>Reduce output to warnings/errors</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where operational log records go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>none</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout</code></td>
+<td><code>30</code> (from config)</td>
+<td>Grace window in seconds before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
+</tr>
 </tbody>
 </table>
 <p>See <a href="../202-dc-spy-cli/">Drop-Copy Spy (pm-dc-spy)</a> for full usage.</p>
@@ -7963,7 +8449,7 @@ of instances can run at once (e.g. one per terminal, each with a different
 cap-weighted market indices in real time. Publishes live index values on a
 dedicated ZMQ PUB socket so <code>pm-md-gwy</code> can forward them to external subscribers
 over the CALF <code>INDEX</code> channel.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>pm-index<span class="w"> </span><span class="o">[</span>--reset<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>pm-index<span class="w"> </span><span class="o">[</span>--reset<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -7994,6 +8480,26 @@ over the CALF <code>INDEX</code> channel.</p>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
 <td>Reduce output to warnings/errors</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where operational log records go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>none</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout</code></td>
+<td><code>30</code> (from config)</td>
+<td>Grace window in seconds before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
 </tr>
 </tbody>
 </table>
@@ -8114,7 +8620,8 @@ market data over REST/JSON and WebSocket. It is not a second matching engine —
 it translates HTTP and WebSocket requests into the same ZMQ messages used by the
 interactive <code>pm-alf-console</code> terminal. Reads configuration from the <code>api_gateways:</code>
 section of <code>engine_config.yaml</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>pm-api-gwy<span class="w"> </span><span class="o">[</span>--instance<span class="w"> </span>NAME<span class="o">]</span><span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>pm-api-gwy<span class="w"> </span><span class="o">[</span>--instance<span class="w"> </span>NAME<span class="o">]</span><span class="w"> </span><span class="o">[</span>--host<span class="w"> </span>ADDR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span>PORT<span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-host<span class="w"> </span>HOST<span class="o">]</span><span class="w"> </span><span class="o">[</span>--stats-db<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a><span class="w">  </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -8153,8 +8660,38 @@ section of <code>engine_config.yaml</code>.</p>
 </tr>
 <tr>
 <td><code>--log-level LEVEL</code></td>
-<td>config value</td>
-<td><code>debug</code>, <code>info</code>, <code>warning</code>, or <code>error</code></td>
+<td><code>WARNING</code></td>
+<td>Explicit log level: <code>CRITICAL</code>, <code>ERROR</code>, <code>WARNING</code>, <code>INFO</code>, <code>DEBUG</code></td>
+</tr>
+<tr>
+<td><code>-v</code> / <code>--verbose</code></td>
+<td>off</td>
+<td>Increase verbosity (<code>-v</code> → <code>INFO</code>, <code>-vv</code> → <code>DEBUG</code>)</td>
+</tr>
+<tr>
+<td><code>-q</code> / <code>--quiet</code></td>
+<td>off</td>
+<td>Reduce output to warnings/errors</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where operational log records go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>none</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout</code></td>
+<td><code>30</code> (from config)</td>
+<td>Grace window in seconds before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
 </tr>
 </tbody>
 </table>
@@ -8425,7 +8962,7 @@ for interactive endpoint documentation and a live try-it UI.</p>
 <h2 id="pm-admin-interactive-admin-console">pm-admin — Interactive Admin Console<a class="headerlink" href="#pm-admin-interactive-admin-console" title="Permanent link">&para;</a></h2>
 <p>An interactive REPL for sending operational commands to a running engine without
 needing a full gateway session.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>pm-admin<span class="w"> </span>--id<span class="w"> </span>&lt;ADMIN_GW_ID&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>pm-admin<span class="w"> </span>--id<span class="w"> </span>&lt;ADMIN_GW_ID&gt;<span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -8441,6 +8978,41 @@ needing a full gateway session.</p>
 <td><code>--id</code></td>
 <td>Yes</td>
 <td>ADMIN gateway ID configured in <code>engine_config.yaml</code> (e.g. <code>GW_ADMIN</code>)</td>
+</tr>
+<tr>
+<td><code>--log-level</code></td>
+<td>No</td>
+<td>Explicit log level: <code>CRITICAL</code>, <code>ERROR</code>, <code>WARNING</code>, <code>INFO</code>, <code>DEBUG</code> (default <code>WARNING</code>)</td>
+</tr>
+<tr>
+<td><code>-v</code> / <code>--verbose</code></td>
+<td>No</td>
+<td>Increase verbosity (<code>-v</code> → <code>INFO</code>, <code>-vv</code> → <code>DEBUG</code>)</td>
+</tr>
+<tr>
+<td><code>-q</code> / <code>--quiet</code></td>
+<td>No</td>
+<td>Reduce output to warnings/errors</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td>No</td>
+<td>Where operational log records go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code> (default <code>server</code>)</td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>No</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout</code></td>
+<td>No</td>
+<td>Grace window in seconds before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable (default <code>30</code> from config)</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>No</td>
+<td>Print version and exit</td>
 </tr>
 </tbody>
 </table>
@@ -8540,6 +9112,11 @@ prints the result, and exits. Suitable for shell scripts and CI automation.</p>
 <td><code>--timeout &lt;MS&gt;</code></td>
 <td>No</td>
 <td>Ack timeout in milliseconds (default: <code>3000</code>)</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>No</td>
+<td>Print version and exit</td>
 </tr>
 </tbody>
 </table>
@@ -8691,6 +9268,11 @@ prints the result, and exits. Suitable for shell scripts and CI automation.</p>
 <td><code>--strict</code></td>
 <td>off</td>
 <td>Treat warnings as errors for CI exit-code purposes</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
 </tr>
 </tbody>
 </table>
@@ -8846,6 +9428,11 @@ runtime message bus.</p>
 <td>off</td>
 <td>Create the data dir only; deploy nothing</td>
 </tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Expected runtime input arguments:</strong></p>
@@ -8888,6 +9475,11 @@ result as the one file every process reads.</p>
 <td><code>--show</code></td>
 <td>off</td>
 <td>Print the deployed paths and exit</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
 </tr>
 </tbody>
 </table>
@@ -9339,6 +9931,11 @@ pm-stats-cli section above).</p>
 <td>off</td>
 <td>Suppress header row (CSV only)</td>
 </tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Expected runtime input arguments:</strong></p>
@@ -9426,6 +10023,11 @@ not read JSONL files and does not require <code>--config</code>.</p>
 <td><code>table</code></td>
 <td>Output format: <code>table</code> or <code>json</code></td>
 </tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Expected runtime input arguments:</strong></p>
@@ -9507,7 +10109,8 @@ It accepts BALF binary frames from low-latency programmatic clients and
 translates them into the same engine order flow as the ALF gateways.</p>
 <p>See <a href="../230-balf-gateway/">BALF TCP Gateway</a> for operational usage and
 <a href="../910-app-balf-protocol/">BALF Protocol Reference</a> for the wire-level contract.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a>pm-balf-gwy<span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5560</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-host<span class="w"> </span>HOST<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a>pm-balf-gwy<span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5560</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-host<span class="w"> </span>HOST<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-47-2" name="__codelineno-47-2" href="#__codelineno-47-2"></a><span class="w">  </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -9549,6 +10152,26 @@ translates them into the same engine order flow as the ALF gateways.</p>
 <td>off</td>
 <td>Reduce output to warnings/errors</td>
 </tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where operational log records go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>none</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout</code></td>
+<td><code>30</code> (from config)</td>
+<td>Grace window in seconds before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
+</tr>
 </tbody>
 </table>
 <h2 id="pm-md-gwy-calf-market-data-gateway">pm-md-gwy (CALF Market-Data Gateway)<a class="headerlink" href="#pm-md-gwy-calf-market-data-gateway" title="Permanent link">&para;</a></h2>
@@ -9559,7 +10182,8 @@ CALF/TCP. It consumes engine PUB topics and exposes sequence-aware streams for:<
 <li><code>TRADE</code> (executed trades)</li>
 <li><code>STATE</code> (session and halt/resume state)</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a>pm-md-gwy<span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5570</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-pub<span class="w"> </span>tcp://127.0.0.1:5556<span class="o">]</span><span class="w"> </span><span class="o">[</span>--index-pub<span class="w"> </span>tcp://127.0.0.1:5558<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a>pm-md-gwy<span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5570</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-pub<span class="w"> </span>tcp://127.0.0.1:5556<span class="o">]</span><span class="w"> </span><span class="o">[</span>--index-pub<span class="w"> </span>tcp://127.0.0.1:5558<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-48-2" name="__codelineno-48-2" href="#__codelineno-48-2"></a><span class="w">  </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -9605,6 +10229,26 @@ CALF/TCP. It consumes engine PUB topics and exposes sequence-aware streams for:<
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
 <td>Reduce output to warnings/errors</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where operational log records go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>none</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout</code></td>
+<td><code>30</code> (from config)</td>
+<td>Grace window in seconds before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
 </tr>
 </tbody>
 </table>
@@ -9696,6 +10340,36 @@ dropping it as an idle client.</p>
 <td><code>WARNING</code></td>
 <td>Explicit log level: <code>CRITICAL</code>, <code>ERROR</code>, <code>WARNING</code>, <code>INFO</code>, <code>DEBUG</code></td>
 </tr>
+<tr>
+<td><code>-v</code> / <code>--verbose</code></td>
+<td>off</td>
+<td>Increase verbosity (<code>-v</code> → <code>INFO</code>, <code>-vv</code> → <code>DEBUG</code>)</td>
+</tr>
+<tr>
+<td><code>-q</code> / <code>--quiet</code></td>
+<td>off</td>
+<td>Reduce output to warnings/errors</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where operational log records go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>none</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout</code></td>
+<td><code>30</code> (from config)</td>
+<td>Grace window in seconds before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
+</tr>
 </tbody>
 </table>
 <p>See <a href="../241-calf-spy-cli/">CALF Protocol Spy (pm-calf-spy)</a> for full usage.</p>
@@ -9716,7 +10390,8 @@ control each process's own stdout logging as before.</p>
 </div>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-49-1" name="__codelineno-49-1" href="#__codelineno-49-1"></a>pm-log-srv [--host ADDR] [--port PORT] [--db PATH]
 <a id="__codelineno-49-2" name="__codelineno-49-2" href="#__codelineno-49-2"></a>           [--retention-days N] [--max-message-bytes N]
-<a id="__codelineno-49-3" name="__codelineno-49-3" href="#__codelineno-49-3"></a>           [--log-level LEVEL] [-v|-vv] [-q]
+<a id="__codelineno-49-3" name="__codelineno-49-3" href="#__codelineno-49-3"></a>           [--pub-port PORT] [--pull-port PORT] [--no-pubsub] [--lease-sec N]
+<a id="__codelineno-49-4" name="__codelineno-49-4" href="#__codelineno-49-4"></a>           [--log-level LEVEL] [-v|-vv] [-q] [--log-target stdout|file] [--log-file PATH]
 </code></pre></div>
 <table>
 <thead>
@@ -9751,6 +10426,56 @@ control each process's own stdout logging as before.</p>
 <td><code>--max-message-bytes</code></td>
 <td><code>65536</code></td>
 <td>Truncation ceiling per <code>LOG</code> payload (never dropped, only truncated)</td>
+</tr>
+<tr>
+<td><code>--pub-port</code></td>
+<td><code>5601</code></td>
+<td>LALF-PS ZeroMQ PUB bind port for log distribution</td>
+</tr>
+<tr>
+<td><code>--pull-port</code></td>
+<td><code>5602</code></td>
+<td>LALF-PS ZeroMQ PULL bind port for subscriber control</td>
+</tr>
+<tr>
+<td><code>--no-pubsub</code></td>
+<td>off</td>
+<td>Disable the LALF-PS interface entirely (bind no ZeroMQ sockets)</td>
+</tr>
+<tr>
+<td><code>--lease-sec</code></td>
+<td><code>30</code></td>
+<td>Subscription lease TTL in seconds; a subscriber that stops sending <code>log.renew</code> is reaped after this long</td>
+</tr>
+<tr>
+<td><code>--log-level</code></td>
+<td><code>WARNING</code></td>
+<td>Explicit log level: <code>CRITICAL</code>, <code>ERROR</code>, <code>WARNING</code>, <code>INFO</code>, <code>DEBUG</code></td>
+</tr>
+<tr>
+<td><code>-v</code> / <code>--verbose</code></td>
+<td>off</td>
+<td>Increase verbosity (<code>-v</code> → <code>INFO</code>, <code>-vv</code> → <code>DEBUG</code>)</td>
+</tr>
+<tr>
+<td><code>-q</code> / <code>--quiet</code></td>
+<td>off</td>
+<td>Reduce output to warnings/errors</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>stdout</code></td>
+<td>Where this process's own operational log records go: <code>stdout</code> or <code>file</code> — never <code>server</code>, since <code>pm-log-srv</code> must not depend on itself over the network</td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>none</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
 </tr>
 </tbody>
 </table>

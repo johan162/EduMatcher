@@ -2764,6 +2764,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#pricelevelorder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PriceLevelOrder
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2928,6 +2939,28 @@
     <span class="md-ellipsis">
       
         order.orders.{gateway_id}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#orderprice_level_orders_request" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        order.price_level_orders_request
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#orderprice_level_ordersgateway_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        order.price_level_orders.{gateway_id}
       
     </span>
   </a>
@@ -5586,6 +5619,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/07-container-and-networks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Container and Network Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -6826,6 +6887,16 @@ wire-format specification in the
 <td><code>order.orders_request</code></td>
 <td><code>order</code></td>
 <td><code>admin</code>, <code>api_gateway</code>, <code>gateway</code></td>
+</tr>
+<tr>
+<td><code>order.price_level_orders.{gateway_id}</code></td>
+<td><code>order</code></td>
+<td><code>engine</code></td>
+</tr>
+<tr>
+<td><code>order.price_level_orders_request</code></td>
+<td><code>order</code></td>
+<td><code>admin</code></td>
 </tr>
 <tr>
 <td><code>quote.ack.{gateway_id}</code></td>
@@ -10513,6 +10584,182 @@ wire-format specification in the
 </tr>
 </tbody>
 </table>
+<h4 id="pricelevelorder"><code>PriceLevelOrder</code><a class="headerlink" href="#pricelevelorder" title="Permanent link">&para;</a></h4>
+<p>One resting order as reported by order.price_level_orders — the same projection as OrderDisplay (order_to_display_dict), with one field added: gateway_id. OrderDisplay can leave gateway_id topic-only because an order.orders reply is always about a single, already-known gateway; a price_level_orders reply spans every gateway resting at a symbol/price, so each record must say whose order it is. The generator has no type-extension mechanism, so this duplicates OrderDisplay's field list rather than referencing it — keep the two in sync by hand if OrderDisplay's fields change.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Presence</th>
+<th>Rules</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gateway_id</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 32</td>
+<td>Owning gateway — the one piece of information OrderDisplay omits because its own topic already says it.</td>
+</tr>
+<tr>
+<td><code>id</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 64</td>
+<td>Engine order id; a UUID string.</td>
+</tr>
+<tr>
+<td><code>symbol</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 16</td>
+<td></td>
+</tr>
+<tr>
+<td><code>side</code></td>
+<td>enum: <code>BUY</code>, <code>SELL</code></td>
+<td>required</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>order_type</code></td>
+<td>enum: <code>MARKET</code>, <code>LIMIT</code>, <code>STOP</code>, <code>STOP_LIMIT</code>, <code>FOK</code>, <code>ICEBERG</code>, <code>IOC</code>, <code>TRAILING_STOP</code></td>
+<td>required</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>tif</code></td>
+<td>enum: <code>DAY</code>, <code>GTC</code>, <code>ATO</code>, <code>ATC</code></td>
+<td>required</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>quantity</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>gt 0, unit <code>shares</code></td>
+<td>Total original quantity.</td>
+</tr>
+<tr>
+<td><code>remaining_qty</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>ge 0, unit <code>shares</code></td>
+<td>Quantity yet to be filled.</td>
+</tr>
+<tr>
+<td><code>trail_offset</code></td>
+<td><code>float</code></td>
+<td><code>null</code> when unset</td>
+<td>unit <code>display_price</code></td>
+<td>TRAILING_STOP: trail distance, in display money.</td>
+</tr>
+<tr>
+<td><code>oco_group_id</code></td>
+<td><code>string</code></td>
+<td><code>null</code> when unset</td>
+<td>max_len 64</td>
+<td></td>
+</tr>
+<tr>
+<td><code>timestamp</code></td>
+<td><code>float</code></td>
+<td>required</td>
+<td>ge 0, unit <code>epoch_seconds</code></td>
+<td>Client-supplied submission time, in seconds. NOT the book's time priority key - see arrival_seq.</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>enum: <code>NEW</code>, <code>PARTIAL</code>, <code>FILLED</code>, <code>CANCELLED</code>, <code>REJECTED</code>, <code>EXPIRED</code></td>
+<td>required</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>price</code></td>
+<td><code>float</code></td>
+<td><code>null</code> when unset</td>
+<td>unit <code>display_price</code></td>
+<td>Limit price in display money. Null for MARKET, which has none.</td>
+</tr>
+<tr>
+<td><code>stop_price</code></td>
+<td><code>float</code></td>
+<td><code>null</code> when unset</td>
+<td>unit <code>display_price</code></td>
+<td>STOP / STOP_LIMIT / TRAILING_STOP trigger.</td>
+</tr>
+<tr>
+<td><code>visible_qty</code></td>
+<td><code>int</code></td>
+<td><code>null</code> when unset</td>
+<td>unit <code>shares</code></td>
+<td>ICEBERG: fixed peak size.</td>
+</tr>
+<tr>
+<td><code>displayed_qty</code></td>
+<td><code>int</code></td>
+<td><code>null</code> when unset</td>
+<td>unit <code>shares</code></td>
+<td>ICEBERG: current visible slice on the book.</td>
+</tr>
+<tr>
+<td><code>smp_action</code></td>
+<td>enum: <code>NONE</code>, <code>CANCEL_AGGRESSOR</code>, <code>CANCEL_RESTING</code>, <code>CANCEL_BOTH</code></td>
+<td><code>null</code> when unset</td>
+<td>—</td>
+<td>Self-match prevention. Null means the client did not specify SMP at all, distinct from an explicit NONE. See SmpAction's docstring.</td>
+</tr>
+<tr>
+<td><code>combo_parent_id</code></td>
+<td><code>string</code></td>
+<td><code>null</code> when unset</td>
+<td>max_len 64</td>
+<td></td>
+</tr>
+<tr>
+<td><code>leg_index</code></td>
+<td><code>int</code></td>
+<td><code>null</code> when unset</td>
+<td>unit <code>dimensionless</code></td>
+<td>Position in the parent combo's legs, 0-based.</td>
+</tr>
+<tr>
+<td><code>origin</code></td>
+<td>enum: <code>ORDER</code>, <code>QUOTE</code>, <code>IMPLIED</code></td>
+<td>defaults to <code>'ORDER'</code></td>
+<td>—</td>
+<td>Defaulted rather than nullable: to_dict always supplies ORDER.</td>
+</tr>
+<tr>
+<td><code>quote_id</code></td>
+<td><code>string</code></td>
+<td><code>null</code> when unset</td>
+<td>max_len 64</td>
+<td></td>
+</tr>
+<tr>
+<td><code>client_tag</code></td>
+<td><code>string</code></td>
+<td><code>null</code> when unset</td>
+<td>max_len 64</td>
+<td>Client correlation tag, echoed on every lifecycle event.</td>
+</tr>
+<tr>
+<td><code>arrival_seq</code></td>
+<td><code>int</code></td>
+<td>defaults to <code>0</code></td>
+<td>unit <code>dimensionless</code></td>
+<td>Engine-assigned monotonic arrival sequence; 0 = unassigned.</td>
+</tr>
+</tbody>
+</table>
 <h3 id="execution_report-no-bus-topic"><code>execution_report</code> (no bus topic)<a class="headerlink" href="#execution_report-no-bus-topic" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>gateway</code></p>
 <p><strong>Transport:</strong> <code>balf</code></p>
@@ -11609,6 +11856,107 @@ wire-format specification in the
 <p>gateway_id names the caller in the topic and is dropped from the body by the default projection, so the body is a single <code>orders</code> list - the same shape system.symbols uses.</p>
 </div>
 <p><strong>See also:</strong> <code>order.orders_request</code>, <code>order.new</code></p>
+<h3 id="orderprice_level_orders_request"><code>order.price_level_orders_request</code><a class="headerlink" href="#orderprice_level_orders_request" title="Permanent link">&para;</a></h3>
+<p><strong>Published by:</strong> <code>admin</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Since:</strong> 1.0</p>
+<p>ADMIN to engine: every resting order for one symbol, across every gateway, optionally narrowed to a single price level. Rejected for any non-ADMIN participant (see order.price_level_orders' rejection note) since it exposes other participants' resting order detail that order.orders_request deliberately withholds.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Presence</th>
+<th>Rules</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gateway_id</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 32</td>
+<td>The ADMIN participant asking, and the reply's correlation key — not a filter on whose orders come back.</td>
+</tr>
+<tr>
+<td><code>symbol</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 16</td>
+<td>Instrument to inspect.</td>
+</tr>
+<tr>
+<td><code>price</code></td>
+<td><code>float</code></td>
+<td>omitted when unset</td>
+<td>unit <code>display_price</code></td>
+<td>Narrow to orders resting at exactly this price. Omitted or null returns every resting order for the symbol, across all price levels.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>See also:</strong> <code>order.price_level_orders.{GW_ID}</code>, <code>order.orders_request</code>, <code>book.{symbol}</code></p>
+<h3 id="orderprice_level_ordersgateway_id"><code>order.price_level_orders.{gateway_id}</code><a class="headerlink" href="#orderprice_level_ordersgateway_id" title="Permanent link">&para;</a></h3>
+<p><strong>Published by:</strong> <code>engine</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Since:</strong> 1.0</p>
+<p>Engine to ADMIN caller: per-order detail (not just the aggregate {price, qty, count} book.* already carries) for every resting order matching the request — every gateway, ordered by price then by arrival_seq within a price level so time priority is visible. Empty, with rejected=true and a reason, when the requester is not an ADMIN participant or the symbol is unknown.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Presence</th>
+<th>Rules</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gateway_id</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 32</td>
+<td>Topic-only; dropped from the body by the default projection.</td>
+</tr>
+<tr>
+<td><code>symbol</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 16</td>
+<td></td>
+</tr>
+<tr>
+<td><code>price</code></td>
+<td><code>float</code></td>
+<td>omitted when unset</td>
+<td>unit <code>display_price</code></td>
+<td>Echoed from the request when it filtered to one level; omitted when the request asked for the whole symbol.</td>
+</tr>
+<tr>
+<td><code>rejected</code></td>
+<td><code>bool</code></td>
+<td>required</td>
+<td>—</td>
+<td>True when the requester was not ADMIN or the symbol is unknown; orders is then always empty.</td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>max_len 256</td>
+<td>Set only when rejected is true.</td>
+</tr>
+<tr>
+<td><code>orders</code></td>
+<td>list of <a href="#pricelevelorder"><code>PriceLevelOrder</code></a></td>
+<td>required</td>
+<td>—</td>
+<td>Matching resting orders, ordered by price then arrival_seq — empty when rejected, or when nothing rests at the requested level.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>See also:</strong> <code>order.price_level_orders_request</code></p>
 <h2 id="family-quote">Family <code>quote</code><a class="headerlink" href="#family-quote" title="Permanent link">&para;</a></h2>
 <h3 id="quotenew_1"><code>quote.new</code><a class="headerlink" href="#quotenew_1" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>gateway</code></p>
