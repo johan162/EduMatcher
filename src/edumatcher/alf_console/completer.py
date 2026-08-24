@@ -26,6 +26,7 @@ _TOP_LEVEL_CMDS = [
     "SYMBOLS",
     "INDEX",
     "HELP",
+    "CLEAR",
     "EXIT",
     "QUIT",
 ]

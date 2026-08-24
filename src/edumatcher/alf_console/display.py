@@ -109,6 +109,7 @@ HELP_TEXT = """
                   audit history (corp actions, constituent changes — not level ticks;
                   use pm-stats-cli for level/EOD history)
   HELP        — this message
+  CLEAR       — clear the terminal screen (like the shell's `clear`)
   EXIT / QUIT — disconnect
 """
 

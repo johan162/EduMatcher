@@ -1010,6 +1010,13 @@ class Gateway:
             console.print(HELP_TEXT)
             return
 
+        if cmd == "CLEAR":
+            # Same effect as the shell's `clear`: wipe the screen and put the
+            # cursor back at the top, so the next prompt starts on a blank
+            # terminal instead of scrolling below whatever was there before.
+            console.clear()
+            return
+
         if cmd in ("EXIT", "QUIT"):
             self._running = False
             return
