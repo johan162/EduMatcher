@@ -15,6 +15,7 @@ services:
       args:
         EDUMATCHER_VERSION: ${EDUMATCHER_VERSION:-}
         WITH_SSH: ${WITH_SSH:-1}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
     image: ${IMAGE_NAME:-edumatcher}:${IMAGE_TAG:-local}
     container_name: ${CONTAINER_NAME:-edumatcher}
     hostname: edumatcher

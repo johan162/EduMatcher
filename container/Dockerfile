@@ -16,6 +16,10 @@ FROM python:${PYTHON_VERSION}-slim-bookworm AS builder
 
 ARG EDUMATCHER_VERSION=""
 
+# Set to a corporate PyPI proxy (e.g. Artifactory) when building behind a
+# firewall; left empty, pip falls back to its default index (PyPI).
+ARG PIP_INDEX_URL=""
+
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1
 
@@ -24,13 +28,15 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
 COPY .wheel/ /tmp/wheel/
 
 RUN python -m venv /opt/edumatcher/.venv && \
+    PIP_ARGS=""; \
+    if [ -n "${PIP_INDEX_URL}" ]; then PIP_ARGS="--index-url ${PIP_INDEX_URL}"; fi; \
     if ls /tmp/wheel/*.whl >/dev/null 2>&1; then \
         echo "Installing local wheel: $(ls /tmp/wheel/*.whl)" && \
-        /opt/edumatcher/.venv/bin/pip install /tmp/wheel/*.whl; \
+        /opt/edumatcher/.venv/bin/pip install ${PIP_ARGS} /tmp/wheel/*.whl; \
     elif [ -n "${EDUMATCHER_VERSION}" ]; then \
-        /opt/edumatcher/.venv/bin/pip install "edumatcher==${EDUMATCHER_VERSION}"; \
+        /opt/edumatcher/.venv/bin/pip install ${PIP_ARGS} "edumatcher==${EDUMATCHER_VERSION}"; \
     else \
-        /opt/edumatcher/.venv/bin/pip install edumatcher; \
+        /opt/edumatcher/.venv/bin/pip install ${PIP_ARGS} edumatcher; \
     fi
 
 # ---------------------------------------------------------------------------
@@ -43,7 +49,7 @@ ARG WITH_SSH=1
 # procps  — pm-opctl-cli uses pgrep/ps to adopt processes and report uptime/RSS
 # tini    — PID 1 that reaps the processes pm-opctl-cli detaches
 # tzdata  — the scheduler and market calendars need a real zoneinfo database
-RUN apt-get update && \
+RUN apt-get -o Acquire::Check-Valid-Until=false update && \
     apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
