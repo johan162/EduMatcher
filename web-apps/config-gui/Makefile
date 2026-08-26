@@ -1,19 +1,20 @@
 # Makefile for EduMatcher Config GUI (npm workspaces + container workflow)
 #
-# For building the container behind a proxy use environament set the environmant on the command line
-# before calling make, i.e. adjust the proxy host and port to your local setup:
+# Automatically handles proxy settings for container builds if http_proxy is set in the environment.
 #
 # Note: The special use of `host.containers.internal` is a Docker/Podman feature that resolves 
 # to the host machine from inside the container and is equivalent to "localhost" on the host. 
 # This is useful for accessing a local proxy or mirror from within the container.
 # 
-# HTTP_PROXY=http://host.containers.internal:9000 \
-# HTTPS_PROXY=http://host.containers.internal:9000 \
-# NO_PROXY=localhost,127.0.0.1  make dist
-#
-# or
-#
-# HTTP_PROXY=http://host.containers.internal:9000 HTTPS_PROXY=http://host.containers.internal:9000 NO_PROXY=localhost,127.0.0.1  make up 
+
+.PHONY: \
+	help \
+	check-npm check-container check-container-env \
+	install build build-debug typecheck test lint format \
+	dev dev-web dev-server \
+	cnt-build up down restart logs ps \
+	dist \
+	clean distclean
 
 # --------------------------------------------------------------------------------------------
 # Make behavior
@@ -29,8 +30,30 @@ SHELL := $(shell which bash)
 # --------------------------------------------------------------------------------------------
 # Variables
 # --------------------------------------------------------------------------------------------
+APP_NAME := edumatcher-config-gui
+SERVICE_NAME := config-gui
+
 NPM ?= npm
 UNAME_S := $(shell uname -s)
+
+VERSION ?= $(shell node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0")
+CONTAINER_NAME := $(APP_NAME)
+IMAGE ?= $(APP_NAME):$(VERSION)
+DIST_DIR ?= dist
+
+# Colors for output
+RED := \033[0;31m
+GREEN := \033[0;32m
+YELLOW := \033[1;33m
+BLUE := \033[0;34m
+BRIGHTCYAN := \033[1;36m
+NC := \033[0m
+
+# Timestamp files
+TIMESTAMP_DIR := .timestamps
+CONTAINER_STAMP := $(TIMESTAMP_DIR)/.container-stamp
+GHCR_LOGIN_STAMP := $(TIMESTAMP_DIR)/.ghcr-login-stamp
+CDIST_STAMP := $(TIMESTAMP_DIR)/.cdist-stamp
 
 # --------------------------------------------------------------------------------------------
 # Rewrite HTTP_PROXY from http_proxy 
@@ -66,11 +89,6 @@ print-proxy:
 	@echo -e "$(BLUE)  HTTPS_PROXY: $(HTTPS_PROXY)$(NC)"
 	@echo -e "$(BLUE)  NO_PROXY: $(NO_PROXY)$(NC)"
 
-# HTTP_PROXY_DEFAULT := http://host.containers.internal:9000
-# HTTPS_PROXY_DEFAULT := http://host.containers.internal:9000
-# NO_PROXY_DEFAULT := localhost,127.0.0.1
-
-
 # Auto-detect container runtime (prefer podman when both are installed)
 CONTAINER_RUNTIME := $(shell if command -v podman >/dev/null 2>&1; then echo podman; elif command -v docker >/dev/null 2>&1; then echo docker; fi)
 ifeq ($(CONTAINER_RUNTIME),podman)
@@ -80,30 +98,6 @@ else ifeq ($(CONTAINER_RUNTIME),docker)
 else
 	DOCKER_COMPOSE :=
 endif
-
-APP_NAME := edumatcher-config-gui
-SERVICE_NAME := config-gui
-VERSION ?= $(shell node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0")
-CONTAINER_NAME := $(APP_NAME)
-IMAGE ?= $(APP_NAME):$(VERSION)
-DIST_DIR ?= dist
-
-# Colors for output
-RED := \033[0;31m
-GREEN := \033[0;32m
-YELLOW := \033[1;33m
-BLUE := \033[0;34m
-BRIGHTCYAN := \033[1;36m
-NC := \033[0m
-
-.PHONY: \
-	help \
-	check-npm check-container check-container-env \
-	install build build-debug typecheck test lint format \
-	dev dev-web dev-server \
-	cnt-build up down restart logs ps \
-	dist \
-	clean distclean
 
 # --------------------------------------------------------------------------------------------
 # Tool checks
@@ -167,6 +161,10 @@ help: ## Show this help message
 	@$(call print_section,Distribute,dist)
 	@echo ""
 
+# --------------------------------------------------------------------------------------------
+# Local npm workflow
+# --------------------------------------------------------------------------------------------
+
 # Bump version in "TopBar.tsx" file (for display in the GUI) when updating the version in package.json
 bump-version: ## Update version in TopBar.tsx to match package.json
 	@echo -e "$(YELLOW)- Bumping version in TopBar.tsx to match package.json...$(NC)"
@@ -175,15 +173,18 @@ bump-version: ## Update version in TopBar.tsx to match package.json
 	sed -i.bak -E "s/v[0-9]+\.[0-9]+\.[0-9]+/v$$VERSION/" "$$TOPBAR_FILE" && rm -f "$$TOPBAR_FILE.bak"
 	@echo -e "$(GREEN)✓ Version updated in TopBar.tsx to v$(VERSION)$(NC)"
 
-# --------------------------------------------------------------------------------------------
-# Local npm workflow
-# --------------------------------------------------------------------------------------------
 install: check-npm ## Install a full local npm workspace environment
 	@echo -e "$(YELLOW)- Installing Node workspace dependencies...$(NC)"
 	@if [[ -f package-lock.json ]]; then \
 		$(NPM) ci; \
 	else \
-		$(NPM) install; \
+		echo -e "$(BLUE)  No lockfile yet — first install uses --no-dedupe$(NC)"; \
+		echo -e "$(BLUE)  (works around an npm arborist bug: it crashes deduping"; \
+		echo -e "$(BLUE)   apps/web's vite against the root's own vite, both of"; \
+		echo -e "$(BLUE)   which resolve to the same esbuild version — see comment"; \
+		echo -e "$(BLUE)   on this target). Once package-lock.json exists, plain"; \
+		echo -e "$(BLUE)   'npm ci' is used and never hits this path again.$(NC)"; \
+		$(NPM) install --no-dedupe; \
 	fi
 	@echo -e "$(GREEN)✓ Environment ready$(NC)"
 
@@ -224,17 +225,9 @@ dev-web: check-npm bump-version ## Run only web dev server (Vite)
 dev-server: check-npm bump-version ## Run only backend dev server (Fastify)
 	@$(NPM) run dev:server
 
-# Timestamp files
-TIMESTAMP_DIR := .timestamps
-CONTAINER_STAMP := $(TIMESTAMP_DIR)/.container-stamp
-GHCR_LOGIN_STAMP := $(TIMESTAMP_DIR)/.ghcr-login-stamp
-CDIST_STAMP := $(TIMESTAMP_DIR)/.cdist-stamp
-
 
 $(TIMESTAMP_DIR):
 	@mkdir -p $(TIMESTAMP_DIR)
-
-
 
 # --------------------------------------------------------------------------------------------
 # Container workflow
@@ -242,35 +235,26 @@ $(TIMESTAMP_DIR):
 cbuild: check-container | $(TIMESTAMP_DIR) ## Build container image via compose (podman/docker)
 	@echo -e "$(YELLOW)- Building container image...$(NC)"
 	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
-	@$(DOCKER_COMPOSE) build --build-arg USE_PROXY_CA=false \
+	@$(DOCKER_COMPOSE) build \
+	    --build-arg USE_PROXY_CA=false \
 	    --build-arg NPM_STRICT_SSL=false \
-	    --build-arg CA_CERT_FILE="$${CA_CERT_FILE:-}" \
-	    --build-arg HTTP_PROXY="$${HTTP_PROXY:-}" \
-	    --build-arg HTTPS_PROXY="$${HTTPS_PROXY:-}" \
-	    --build-arg NO_PROXY="$${NO_PROXY:-}"
+	    --build-arg CA_CERT_FILE="$(CA_CERT_FILE)" \
+	    --build-arg HTTP_PROXY="$(HTTP_PROXY)" \
+	    --build-arg HTTPS_PROXY="$(HTTPS_PROXY)" \
+	    --build-arg NO_PROXY="$(NO_PROXY)"
 	@touch $(CONTAINER_STAMP)
 	@echo -e "$(GREEN)✓ Container image built$(NC)"
 
-
-# proxy-up: check-container-env ## Start the stack through a local dev proxy (optional)
-# 	@echo -e "$(YELLOW)- Starting container stack via local proxy...$(NC)"
-# 	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
-# 	@echo -e "$(BLUE)- Using proxy settings:$(NC)"
-# 	@echo -e "$(BLUE)  HTTP_PROXY: $(HTTP_PROXY_DEFAULT)$(NC)"
-# 	@echo -e "$(BLUE)  HTTPS_PROXY: $(HTTPS_PROXY_DEFAULT)$(NC)"
-# 	@echo -e "$(BLUE)  NO_PROXY: $(NO_PROXY_DEFAULT)$(NC)"
-# 	HTTP_PROXY="$(HTTP_PROXY_DEFAULT)" HTTPS_PROXY="$(HTTPS_PROXY_DEFAULT)" NO_PROXY="$(NO_PROXY_DEFAULT)" $(MAKE) up
-
 up: check-container-env bump-version ## Start container stack (detached) with build
-	@echo -e "$(YELLOW)- Starting container stack...$(NC)"
 	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
+	@echo -e "$(YELLOW)- Starting container stack...$(NC)"
 	@$(DOCKER_COMPOSE) up -d --build \
 	    --build-arg USE_PROXY_CA=false \
 	    --build-arg NPM_STRICT_SSL=false \
-	    --build-arg CA_CERT_FILE="$${CA_CERT_FILE:-}" \
-	    --build-arg HTTP_PROXY="$${HTTP_PROXY:-}" \
-	    --build-arg HTTPS_PROXY="$${HTTPS_PROXY:-}" \
-	    --build-arg NO_PROXY="$${NO_PROXY:-}"
+	    --build-arg CA_CERT_FILE="$(CA_CERT_FILE)" \
+	    --build-arg HTTP_PROXY="$(HTTP_PROXY)" \
+	    --build-arg HTTPS_PROXY="$(HTTPS_PROXY)" \
+	    --build-arg NO_PROXY="$(NO_PROXY)"
 	@echo -e "$(GREEN)✓ Container stack is up$(NC)"
 
 down: check-container | $(TIMESTAMP_DIR) ## Stop and remove container stack
@@ -280,15 +264,10 @@ down: check-container | $(TIMESTAMP_DIR) ## Stop and remove container stack
 	@echo -e "$(GREEN)✓ Container stack is down$(NC)"
 
 restart: check-container-env | $(TIMESTAMP_DIR) ## Restart container stack
+	@echo -e "$(YELLOW)- Restarting container stack...$(NC)"
 	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
 	@$(DOCKER_COMPOSE) down
-	@$(DOCKER_COMPOSE) up -d --build \
-	    --build-arg USE_PROXY_CA=false \
-	    --build-arg NPM_STRICT_SSL=false \
-	    --build-arg CA_CERT_FILE="$${CA_CERT_FILE:-}" \
-	    --build-arg HTTP_PROXY="$${HTTP_PROXY:-}" \
-	    --build-arg HTTPS_PROXY="$${HTTPS_PROXY:-}" \
-	    --build-arg NO_PROXY="$${NO_PROXY:-}"
+	@$(MAKE) up
 
 logs: check-container ## Follow container logs
 	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
@@ -349,30 +328,14 @@ distclean: clean ## Remove node_modules and package-lock.json for a pristine `ma
 	@rm -f package-lock.json
 	@echo -e "$(GREEN)✓ Distclean completed — run 'make install' for a pristine environment$(NC)"
 
-# --------------------------------------------------------------------------------------------
-# Targets to push to ghcr
-# --------------------------------------------------------------------------------------------
-# push-ghcr: check-container-env ## Push the container image to GitHub Container Registry (ghcr.io)
-# 	@echo -e "$(YELLOW)- Pushing container image to GitHub Container Registry (ghcr.io)...$(NC)"
-# 	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
-# 	@echo -e "$(BLUE)- Image:   $(IMAGE)$(NC)"
-# 	@$(CONTAINER_RUNTIME) push ghcr.io/edumatcher/$(APP_NAME):$(VERSION)
-# 	@echo -e "$(GREEN)✓ Container image pushed to ghcr.io/edumatcher/$(APP_NAME):$(VERSION)$(NC)"
-
-# # Login to ghcr.io (GitHub Container Registry) using a personal access token (PAT)
-# login-ghcr: check-container-env ## Log in to GitHub Container Registry (ghcr.io) using a personal access token (PAT)
-# 	@echo -e "$(YELLOW)- Logging in to GitHub Container Registry (ghcr.io)...$(NC)"
-# 	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
-# 	@echo -e "$(BLUE)- Image:   $(IMAGE)$(NC)"
-# 	@echo -e "$(YELLOW)- Please enter your GitHub username and personal access token (PAT) when prompted.$(NC)"
-# 	@$(CONTAINER_RUNTIME) login ghcr.io
-# 	@echo -e "$(GREEN)✓ Logged in to GitHub Container Registry (ghcr.io)$(NC)"
-
+imageclean: check-container ## Remove all local container images for this project
+	@echo -e "$(YELLOW)- Removing local container images...$(NC)"
+	@$(CONTAINER_RUNTIME) rmi -f $(IMAGE) || true
+	@echo -e "$(GREEN)✓ Local container images removed$(NC)"
 
 # ============================================================================================
 # GitHub Container Registry Targets
 # ============================================================================================
-
 
 $(GHCR_LOGIN_STAMP): | $(TIMESTAMP_DIR)
 	@if [ -z "$(GHCR_TOKEN)" ]; then \
@@ -428,6 +391,7 @@ ghcr-logout: ## Logout from GitHub Container Registry
 	@rm -f $(GHCR_LOGIN_STAMP)
 	@echo -e "$(GREEN)✓ Logged out from GHCR$(NC)"
 
-ghcr-clean: ghcr-logout container-clean-images ## Clean up GHCR login and local images
+ghcr-clean: ghcr-logout imageclean ## Clean up GHCR login and local images
 	@:
 
+# EOF
