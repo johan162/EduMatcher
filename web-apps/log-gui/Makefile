@@ -32,6 +32,9 @@ SHELL := $(shell which bash)
 # --------------------------------------------------------------------------------------------
 APP_NAME := edumatcher-log-gui
 SERVICE_NAME := log-gui
+# Exposed port for the web GUI inside the container (default: 8091).
+WEB_PORT ?= 8091
+export WEB_PORT # We need to export this so that docker-compose.yml can see it.
 
 NPM ?= npm
 UNAME_S := $(shell uname -s)
@@ -236,12 +239,12 @@ cbuild: check-container | $(TIMESTAMP_DIR) ## Build container image via compose 
 	@echo -e "$(YELLOW)- Building container image...$(NC)"
 	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
 	@$(DOCKER_COMPOSE) build \
-	    --build-arg USE_PROXY_CA=false \
 	    --build-arg NPM_STRICT_SSL=false \
-	    --build-arg CA_CERT_FILE="$(CA_CERT_FILE)" \
+		--build-arg NPM_REGISTRY="https://registry.npmjs.org/" \
 	    --build-arg HTTP_PROXY="$(HTTP_PROXY)" \
 	    --build-arg HTTPS_PROXY="$(HTTPS_PROXY)" \
-	    --build-arg NO_PROXY="$(NO_PROXY)"
+	    --build-arg NO_PROXY="$(NO_PROXY)" \
+		--build-arg WEB_PORT="$(WEB_PORT)"
 	@touch $(CONTAINER_STAMP)
 	@echo -e "$(GREEN)✓ Container image built$(NC)"
 
@@ -249,13 +252,14 @@ up: check-container-env bump-version ## Start container stack (detached) with bu
 	@echo -e "$(YELLOW)- Starting container stack...$(NC)"
 	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
 	@$(DOCKER_COMPOSE) up -d --build \
-	    --build-arg USE_PROXY_CA=false \
 	    --build-arg NPM_STRICT_SSL=false \
-	    --build-arg CA_CERT_FILE="$(CA_CERT_FILE)" \
+		--build-arg NPM_REGISTRY="https://registry.npmjs.org/" \
 	    --build-arg HTTP_PROXY="$(HTTP_PROXY)" \
 	    --build-arg HTTPS_PROXY="$(HTTPS_PROXY)" \
-	    --build-arg NO_PROXY="$(NO_PROXY)"
-	@echo -e "$(GREEN)✓ Container stack is up$(NC)"
+	    --build-arg NO_PROXY="$(NO_PROXY)" \
+		--build-arg WEB_PORT="$(WEB_PORT)"
+	@echo -e "$(GREEN)✓ Container stack is up and listening on port $(WEB_PORT)$(NC)"
+	@echo -e "$(GREEN)✓ Web interface available at ${YELLOW}http://localhost:$(WEB_PORT)$(NC)"
 
 down: check-container ## Stop container stack
 	@echo -e "$(YELLOW)- Stopping container stack...$(NC)"
@@ -288,12 +292,12 @@ $(CDIST_STAMP): $(CONTAINER_STAMP)   ## Build a distributable: container image +
 	@echo -e "$(BLUE)- Output:   $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar$(NC)"
 	@# Build (or rebuild) the container image tagged with the version
 	@$(DOCKER_COMPOSE) up -d --build \
-	    --build-arg USE_PROXY_CA=false \
 	    --build-arg NPM_STRICT_SSL=false \
-	    --build-arg CA_CERT_FILE="$(CA_CERT_FILE)" \
+		--build-arg NPM_REGISTRY="https://registry.npmjs.org/" \
 	    --build-arg HTTP_PROXY="$(HTTP_PROXY)" \
 	    --build-arg HTTPS_PROXY="$(HTTPS_PROXY)" \
-	    --build-arg NO_PROXY="$(NO_PROXY)"
+	    --build-arg NO_PROXY="$(NO_PROXY)" \
+		--build-arg WEB_PORT="$(WEB_PORT)" 
 	# Also tag the image with the version so the tarball carries a useful name
 	@$(CONTAINER_RUNTIME) tag $(APP_NAME):latest $(IMAGE)
 	# Export the image to a tar archive for offline distribution

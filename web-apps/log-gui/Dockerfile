@@ -22,12 +22,13 @@
 FROM node:22-slim AS build
 WORKDIR /app
 
-# --- Corporate-network support (see config-gui/Dockerfile for precedent) -----
-ARG HTTP_PROXY=${HTTP_PROXY:-}
-ARG HTTPS_PROXY=${HTTPS_PROXY:-}
-ARG NO_PROXY=${NO_PROXY:-}
-ARG NPM_REGISTRY=${NPM_REGISTRY:-https://registry.npmjs.org/}
-ARG NPM_STRICT_SSL=${NPM_STRICT_SSL:-true}
+# --- Corporate-network support -----
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG NO_PROXY
+ARG NPM_REGISTRY=https://registry.npmjs.org/
+ARG NPM_STRICT_SSL=true
+ARG WEB_PORT=8091
 
 ENV HTTP_PROXY=${HTTP_PROXY} HTTPS_PROXY=${HTTPS_PROXY} NO_PROXY=${NO_PROXY} \
     http_proxy=${HTTP_PROXY} https_proxy=${HTTPS_PROXY} no_proxy=${NO_PROXY}
@@ -48,10 +49,12 @@ RUN npm prune --omit=dev
 
 # ---- runtime stage -----------------------------------------------------------
 FROM node:22-slim AS runtime
+ARG WEB_PORT=8091
+
 WORKDIR /app
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
-    PORT=8091 \
+    PORT=${WEB_PORT} \
     STATIC_DIR=/app/apps/web/dist \
     LOG_DB_PATH=/app/data/log.db \
     ACK_STORE_PATH=/app/data/log-ui-acks.db
@@ -63,5 +66,5 @@ COPY --from=build /app/apps/web/dist ./apps/web/dist
 COPY --from=build /app/package.json /app/tsconfig.base.json ./
 
 VOLUME ["/app/data"]
-EXPOSE 8091
+EXPOSE ${WEB_PORT}
 CMD ["npm", "run", "start", "--workspace", "@edumatcher/log-bridge"]
