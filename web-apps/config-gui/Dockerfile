@@ -29,17 +29,13 @@
 FROM node:22-slim AS build
 WORKDIR /app
 
-# --- Corporate-network support (see docs/user-guide/030-config-GUI.md) --------
-# The build downloads npm packages from a registry. Behind a corporate proxy or
-# firewall the default `npm install` can HANG (dropped connections / TLS
-# interception). Pass these build args to route through your proxy / mirror.
-ARG HTTP_PROXY=${HTTP_PROXY:-}
-ARG HTTPS_PROXY=${HTTPS_PROXY:-}
-ARG NO_PROXY=${NO_PROXY:-}
-# Point at a corporate npm mirror (Artifactory/Nexus) if direct access is blocked.
-ARG NPM_REGISTRY=${NPM_REGISTRY:-https://registry.npmjs.org/}
-# Last resort for TLS-intercepting proxies without a trusted CA: set to "false".
-ARG NPM_STRICT_SSL=${NPM_STRICT_SSL:-true}
+# --- Corporate-network support --------
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG NO_PROXY
+ARG WEB_PORT=8092
+ARG NPM_REGISTRY=https://registry.npmjs.org/
+ARG NPM_STRICT_SSL=true
 
 # Export proxy vars so npm (and node's fetch) honour them during the build.
 ENV HTTP_PROXY=${HTTP_PROXY} HTTPS_PROXY=${HTTPS_PROXY} NO_PROXY=${NO_PROXY} \
@@ -66,10 +62,12 @@ RUN npm prune --omit=dev
 
 # ---- runtime stage -----------------------------------------------------------
 FROM node:22-slim AS runtime
+ARG WEB_PORT=8092
+
 WORKDIR /app
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
-    PORT=8092 \
+    PORT=${WEB_PORT} \
     STATIC_DIR=/app/apps/web/dist
 
 COPY --from=build /app/node_modules ./node_modules
@@ -78,7 +76,7 @@ COPY --from=build /app/apps/server ./apps/server
 COPY --from=build /app/apps/web/dist ./apps/web/dist
 COPY --from=build /app/package.json /app/tsconfig.base.json ./
 
-EXPOSE 8092
+EXPOSE ${WEB_PORT}
 # tsx (a server runtime dependency) runs the TypeScript server directly;
 # suitable for this internal tool.
 CMD ["npm", "run", "start", "--workspace", "@edumatcher/server"]
