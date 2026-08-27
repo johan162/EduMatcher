@@ -308,7 +308,7 @@ $(CDIST_STAMP): $(CONTAINER_STAMP)   ## Build a distributable: container image +
 	@echo -e "$(BLUE)- Load on another host:$(NC)"
 	@echo -e "$(WHITE)    $(CONTAINER_RUNTIME) load --input $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar.xz$(NC)"
 	@echo -e "$(BLUE)- Then run:$(NC)"
-	@echo -e "$(WHITE)    $(CONTAINER_RUNTIME) run -p 8092:8092 $(IMAGE)$(NC)"
+	@echo -e "$(WHITE)    $(CONTAINER_RUNTIME) run -p $(WEB_PORT):$(WEB_PORT) $(IMAGE)$(NC)"
 
 cdist: $(CDIST_STAMP) check-container-env bump-version ## Build a distributable package (container image + exported OCI tarball in dist)
 	@:

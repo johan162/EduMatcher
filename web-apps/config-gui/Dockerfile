@@ -6,23 +6,6 @@
 # The optional "Verify with pm-cverifier" button needs the Python toolchain,
 # which is NOT included here; that endpoint returns a friendly 503 in this
 # image. Everything else works. See docs/user-guide/030-config-GUI.md.
-
-# Typically build the image when behind a corporate proxy with:
-#
-# podman build --no-cache --pull --log-level=debug \
-#  --build-arg HTTP_PROXY=http://host.containers.internal:9000 \
-#  --build-arg HTTPS_PROXY=http://host.containers.internal:9000 \
-#  --build-arg NO_PROXY=localhost,127.0.0.1 \
-#  --build-arg NPM_STRICT_SSL=false \
-#  -t config-gui:latest -f Dockerfile .
-#
-# When not behind a proxy, build with:
-# podman build --no-cache -t config-gui:latest -f Dockerfile .
-
-# Typically run the backend (non-interactive) with:
-# podman run --rm -it -p 8092:8092 config-gui:latest
-#
-# (Press Ctrl-C to stop the container, or use `podman ps` and `podman stop <id>`.)
 # 
 
 # ---- build stage -------------------------------------------------------------
@@ -45,6 +28,7 @@ ENV HTTP_PROXY=${HTTP_PROXY} HTTPS_PROXY=${HTTPS_PROXY} NO_PROXY=${NO_PROXY} \
 COPY package.json package-lock.json* tsconfig.base.json ./
 COPY packages ./packages
 COPY apps ./apps
+
 # Fail fast (in ~2 min) instead of hanging indefinitely when the network is
 # blocked, and apply any registry / TLS overrides supplied via build args.
 RUN npm config set fetch-retries 2 \
