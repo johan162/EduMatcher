@@ -66,7 +66,7 @@ multipass version
 Run the curl bootstrap script (pinned to this release):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.20.5 --snapshot
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | bash -s -- --version 0.20.5 --snapshot
 ```
 
 This command will:
@@ -79,7 +79,7 @@ This command will:
 !!! tip "Security-first variant"
     If you prefer to inspect scripts before running them:
     ```bash
-    curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh -o curl_setup_vm.sh
+    curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh -o curl_setup_vm.sh
     less curl_setup_vm.sh
     bash curl_setup_vm.sh --version 0.20.5 --snapshot
     ```

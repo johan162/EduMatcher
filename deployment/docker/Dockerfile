@@ -4,7 +4,7 @@
 # handful of OS tools pm-opctl-cli needs, so pip caches and build leftovers
 # never reach the final image.
 #
-# The image deliberately mirrors the Multipass runtime VM (vm/): a dedicated
+# The image deliberately mirrors the Multipass runtime VM (deployment/vm/): a dedicated
 # venv under /opt/edumatcher/.venv with every pm-* command on PATH.
 
 ARG PYTHON_VERSION=3.13

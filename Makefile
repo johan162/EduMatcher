@@ -318,7 +318,7 @@ mp-dev: ## Install the current dev snapshot into the multipass VM (requires mult
 	@echo -e "$(DARKYELLOW)- Installing package into multipass VM...$(NC)"
 	@if ! multipass list | grep -q edumatcher-dev; then \
 		echo -e "$(YELLOW)⚠ Multipass VM 'edumatcher-dev' not found. Building it from scratch...$(NC)"; \
-		./vm/build_multipass_vm.sh --name edumatcher-dev --dev --snapshot; \
+		./deployment/vm/build_multipass_vm.sh --name edumatcher-dev --dev --snapshot; \
 	else \
 		echo -e "$(BLUE)Multipass VM 'edumatcher-dev' already exists. Updating edumatcher to current dev-build ...$(NC)"; \
 		multipass exec edumatcher-dev -- bash -c "rm /tmp/*.whl"; \
@@ -371,7 +371,7 @@ NODE_NAME := ems
 node: ## Launch the multipass VM (requires multipass)
 	@if ! multipass list | grep -q $(NODE_NAME); then \
 		echo -e "$(YELLOW)⚠ Multipass VM '$(NODE_NAME)' not found. Building it from scratch...$(NC)"; \
-		bash ./vm/mknode.sh --name $(NODE_NAME); \
+		bash ./deployment/vm/mknode.sh --name $(NODE_NAME); \
 	else \
 		echo -e "$(BLUE)Multipass VM '$(NODE_NAME)' already exists. Starting it...$(NC)"; \
 		multipass start $(NODE_NAME); \
@@ -383,13 +383,13 @@ rebuild_node: ## Rebuild the multipass VM from scratch (requires multipass)
 		multipass delete --purge $(NODE_NAME); \
 	fi
 	@echo -e "$(YELLOW)⚠ Building multipass VM '$(NODE_NAME)' from scratch...$(NC)"
-	@bash ./vm/mknode.sh --name $(NODE_NAME)
+	@bash ./deployment/vm/mknode.sh --name $(NODE_NAME)
 
 DEVNODE_NAME := dev-ems
 devnode: ## Launch the multipass VM in dev mode (requires multipass)
 	@if ! multipass list | grep -q $(DEVNODE_NAME); then \
 		echo -e "$(YELLOW)⚠ Multipass VM '$(DEVNODE_NAME)' not found. Building it from scratch...$(NC)"; \
-		bash vm/mknode.sh --name $(DEVNODE_NAME); \
+		bash deployment/vm/mknode.sh --name $(DEVNODE_NAME); \
 	else \
 		echo -e "$(BLUE)Multipass VM '$(DEVNODE_NAME)' already exists. Starting it...$(NC)"; \
 		multipass start $(DEVNODE_NAME); \
@@ -401,7 +401,7 @@ rebuild_devnode: ## Rebuild the multipass VM in dev mode from scratch (requires 
 		multipass delete --purge $(DEVNODE_NAME); \
 	fi
 	@echo -e "$(YELLOW)⚠ Building multipass VM '$(DEVNODE_NAME)' from scratch...$(NC)"
-	@bash vm/mknode.sh --name $(DEVNODE_NAME) --dev
+	@bash deployment/vm/mknode.sh --name $(DEVNODE_NAME) --dev
 
 
 

@@ -38,14 +38,14 @@ pipx is excellent for per-user workstation installs, but less predictable for a 
 Run directly from GitHub with curl:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.7.1 --snapshot
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | bash -s -- --version 0.7.1 --snapshot
 ```
 
 Optional environment overrides for custom forks/branches:
 
 ```bash
 REPO_OWNER=<owner> REPO_NAME=<repo> REPO_REF=<ref> \
-curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/<ref>/vm/curl_setup_vm.sh | bash -s -- [build options]
+curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/<ref>/deployment/vm/curl_setup_vm.sh | bash -s -- [build options]
 ```
 
 ## Build a VM with pinned EduMatcher version
@@ -53,7 +53,7 @@ curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/<ref>/vm/curl_setup_
 From repository root:
 
 ```bash
-./vm/build_multipass_vm.sh --name edumatcher-016 --version 0.16.0 --snapshot
+./deployment/vm/build_multipass_vm.sh --name edumatcher-016 --version 0.16.0 --snapshot
 ```
 
 ## Build a VM with the current development wheel file
@@ -61,7 +61,7 @@ From repository root:
 From repository root:
 
 ```bash
-./vm/build_multipass_vm.sh --name edumatcher-dev --dev --snapshot
+./deployment/vm/build_multipass_vm.sh --name edumatcher-dev --dev --snapshot
 ```
 
 Optional flags:
@@ -103,10 +103,10 @@ pm-gateway --id TRADER01
 
 Rebuild with a new version pin:
 
-./vm/build_multipass_vm.sh --name edumatcher-016--version 0.16.0 --snapshot
+./deployment/vm/build_multipass_vm.sh --name edumatcher-016--version 0.16.0 --snapshot
 
 Or reprovision an existing VM manually:
 
-multipass transfer vm/install_edumatcher_runtime.sh edumatcher-016:/tmp/install_edumatcher_runtime.sh
+multipass transfer deployment/vm/install_edumatcher_runtime.sh edumatcher-016:/tmp/install_edumatcher_runtime.sh
 multipass exec edumatcher-016 -- sudo chmod +x /tmp/install_edumatcher_runtime.sh
 multipass exec edumatcher-016 -- sudo /tmp/install_edumatcher_runtime.sh --version 0.16.0 

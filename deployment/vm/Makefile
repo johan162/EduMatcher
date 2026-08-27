@@ -1,6 +1,6 @@
 # EduMatcher VM control surface.
 #
-#   make build             create the runtime VM (vm/mknode.sh, name: ems)
+#   make build             create the runtime VM (deployment/vm/mknode.sh, name: ems)
 #   make build DEV=1       ... installing the local wheel from ../dist instead of PyPI
 #   make up                start the VM
 #   make down               stop the VM

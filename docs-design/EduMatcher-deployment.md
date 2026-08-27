@@ -25,7 +25,7 @@ minimal manual wiring.
 !!! note "Nothing here is implemented yet"
     Every path, script and file in §9 onward is a *specification*. None of it
     exists in the repository at the time of writing. Facts about the *current*
-    system — ports, entry points, `vm/` behaviour, the config pipeline — are
+    system — ports, entry points, `deployment/vm/` behaviour, the config pipeline — are
     marked **(current)** and were read from the source, not assumed.
 
 
@@ -34,7 +34,7 @@ minimal manual wiring.
 Today EduMatcher has strong runtime components, but packaging is split:
 
 - The Python runtime (`pm-*`) is installable and usable.
-- VM bootstrap scripts exist in `vm/`, but need refresh to current release shape.
+- VM bootstrap scripts exist in `deployment/vm/`, but need refresh to current release shape.
 - Browser UIs (`terminal-gui`, `log-gui`, `config-gui`, `trader-gui`) are not
   delivered as one cohesive operator deployment experience.
 - There is no single, official orchestrator that starts the whole system in one
@@ -685,7 +685,7 @@ if command -v pm-engine >/dev/null 2>&1; then
   [[ "$installed" == *"$EDUMATCHER_VERSION"* ]] \
     || warn "installed runtime ($installed) != EDUMATCHER_VERSION ($EDUMATCHER_VERSION)"
 else
-  fail "pm-engine not on PATH — run vm/install_edumatcher_runtime.sh"
+  fail "pm-engine not on PATH — run deployment/vm/install_edumatcher_runtime.sh"
 fi
 command -v pm-config-deploy >/dev/null 2>&1 || fail "pm-config-deploy not on PATH"
 
@@ -1138,7 +1138,7 @@ offline-bundle:  ## Build the air-gapped artifact set
 
 | Artifact | Built by | Consumed by |
 |---|---|---|
-| `edumatcher-<v>-py3-none-any.whl` | `poetry build` | `vm/install_edumatcher_runtime.sh` |
+| `edumatcher-<v>-py3-none-any.whl` | `poetry build` | `deployment/vm/install_edumatcher_runtime.sh` |
 | `edumatcher-terminal-gui:<v>` | `terminal-gui/Makefile dist` | Compose |
 | `edumatcher-log-gui:<v>` | `log-gui/Makefile dist` | Compose |
 | `edumatcher-config-gui:<v>` | `config-gui/Makefile dist` | Compose |
@@ -1387,7 +1387,7 @@ exist".
 
 ### Phase 1 — Deployable
 
-**Work:** refresh `vm/` to the current release shape; publish the four UI
+**Work:** refresh `deployment/vm/` to the current release shape; publish the four UI
 images per release (§22); create `deploy/` per §9–§14; resolve the remaining
 §6.3 collision (host bind default — collision 1 is already fixed, see §6.3);
 write the operator chapter for the user guide.

@@ -200,7 +200,7 @@ make ssh                     # or: ssh -p 2222 root@localhost
 ```
 
 `make up SSH=1` runs `make keys` first, which collects every `~/.ssh/*.pub` on
-the host into `container/.ssh/authorized_keys`. That file is mounted read-only
+the host into `deployment/docker/.ssh/authorized_keys`. That file is mounted read-only
 into the container and copied into place with the ownership and mode `sshd`
 insists on. No key material is baked into the image, and adding a key is a
 `make keys && make restart` away — no rebuild.
@@ -348,7 +348,7 @@ the container agree with your wall clock.
 
 `make build` (no flags) is the default and builds from your local source
 checkout: it runs `poetry build --format wheel` in the repository root,
-copies the freshest `dist/*.whl` into `container/.wheel/`, and the
+copies the freshest `dist/*.whl` into `deployment/docker/.wheel/`, and the
 Dockerfile installs it. Every plain rebuild picks up whatever you've
 changed locally, including uncommitted changes — there's no flag to
 remember for that to happen.
@@ -360,7 +360,7 @@ make build PYPI=1        # latest PyPI release
 make build VERSION=0.20.2  # a specific pinned release
 ```
 
-Either form clears `container/.wheel/` first, so a stale local wheel never
+Either form clears `deployment/docker/.wheel/` first, so a stale local wheel never
 shadows the PyPI install. `VERSION=` alone (without `PYPI=1`) also goes to
 PyPI — pinning a version only makes sense against a release, so it implies
 `PYPI=1`.

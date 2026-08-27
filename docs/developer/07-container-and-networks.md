@@ -3,7 +3,7 @@
 !!! note "Learning objectives"
     After reading this page you will understand:
 
-    - How the single-container Podman/Docker deployment in `container/` is put together
+    - How the single-container Podman/Docker deployment in `deployment/docker/` is put together
     - Why the engine's ZeroMQ bus was loopback-only, and how it is now configurable
     - The difference between an engine *bind* address and a client *connect* address
     - How to expose the exchange to other machines on your network today
@@ -13,9 +13,9 @@
 
 ## Summary
 
-`container/` packages the entire EduMatcher backend — every `pm-*` process,
+`deployment/docker/` packages the entire EduMatcher backend — every `pm-*` process,
 reference data, databases, and logs — into one Podman/Docker container that
-behaves like the Multipass VM in `../vm/`, minus the VM's clock-drift-on-suspend
+behaves like the Multipass VM in `deployment/vm/`, minus the VM's clock-drift-on-suspend
 problem. It is a single container by design: one network namespace, one
 `pm-opctl-cli` process manager, `make build` / `make up` / `make shell` /
 `make down` as the whole interface.
@@ -38,7 +38,7 @@ doing it.
 The container is used as a *machine*, not as a set of microservices: one
 container, `pm-opctl-cli` as the process manager inside it, you log in and
 work — exactly the Multipass VM's operating model, just without a guest
-kernel to resume after a host suspend. See `container/README.md` for the full
+kernel to resume after a host suspend. See `deployment/docker/README.md` for the full
 day-to-day usage reference (`make shell`, `make status`, `make logs`,
 `make config-deploy`, and so on); this page focuses on how its networking is
 built and why.
@@ -179,7 +179,7 @@ transparent to it — but it was a workaround for a source-level limitation,
 running one extra process per relayed port, for no other reason than that the
 engine could not be told to bind anywhere else.
 
-`container/compose.zmq.yaml` now does this instead:
+`deployment/docker/compose.zmq.yaml` now does this instead:
 
 ```yaml
 services:
@@ -277,7 +277,7 @@ co-located, already-trusted gateway processes: something has to prevent an
 arbitrary host on the LAN from talking directly to port 5555 and injecting
 orders as if it were a gateway. TLS, CURVE (ZeroMQ's built-in
 authentication/encryption mechanism), or network-level ACLs are all options;
-none are implemented today, and the existing `container/README.md` firewall
+none are implemented today, and the existing `deployment/docker/README.md` firewall
 guidance ("keep `BIND_ADDR=127.0.0.1` unless you need it") is the only
 mitigation currently in place.
 
@@ -289,7 +289,7 @@ IP into every process's environment — a DNS name, a config service, or at
 minimum a documented convention for how addresses get distributed. Nothing
 here provides that; `EDUMATCHER_ENGINE_HOST` is a single static value.
 
-**No cross-host container orchestration.** `container/compose.yaml` describes
+**No cross-host container orchestration.** `deployment/docker/compose.yaml` describes
 one container on one host. Multiple hosts running EduMatcher processes today
 means running Docker/Podman independently on each machine and wiring the
 environment variables by hand — nothing here introduces Kubernetes, Docker
@@ -299,7 +299,7 @@ interface," which is all this change addresses.
 
 **No health/readiness signaling across hosts.** `pm-opctl-cli health` already
 has a known pre-existing discrepancy even within one container — see the
-Troubleshooting section of `container/README.md` — where it probes a port
+Troubleshooting section of `deployment/docker/README.md` — where it probes a port
 `pm-index` does not actually bind under the `default` profile. A multi-host
 setup would need every remote consumer to know when the engine is actually up
 and reachable before connecting — today that is left entirely to each
@@ -344,7 +344,7 @@ clear where that effort would start from.
 
 ## Reference: related design material
 
-- `container/README.md` — day-to-day container usage: build, run, ports,
+- `deployment/docker/README.md` — day-to-day container usage: build, run, ports,
   data directory, profiles, troubleshooting.
 - `docs-design/EduMatcher-Cross-host-connection.md` — an earlier, broader
   *unimplemented* design proposal covering this same idea. It specifies the
