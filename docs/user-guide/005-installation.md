@@ -21,7 +21,7 @@ The first question is whether you want to **run** EduMatcher or **change** it.
 |---|---|---|---|---|
 | **Containers, one command** | Running a venue: classroom, demo, self-study | Podman or Docker | The exchange **and** all four web GUIs | `./edumatcher.sh start` |
 | **Containers from source** | Changing the code and seeing it run as a system | Podman/Docker, Poetry, Node | The same, built from your checkout | `make up-all` |
-| **VM bootstrap** | Workshops where host setup must stay untouched | Multipass, `curl` | Backend inside a Multipass VM | `multipass shell edumatcher-vm` |
+| **VM bootstrap** | Workshops where host setup must stay untouched | Multipass, `curl` | Backend inside a Multipass VM | `multipass shell ems` |
 | **pipx** | Students running processes by hand, one per terminal | Python 3.13, `pipx` | `pm-*` commands on your PATH | `pm-engine` |
 | **Poetry checkout** | Developing, running the test suite | Python 3.13, Poetry | Repository plus dev dependencies | `poetry run pm-engine` |
 
@@ -84,7 +84,7 @@ Because the script is read from a pipe, options need `bash -s --` so that the
 shell hands them to the script rather than consuming them itself:
 
 ```bash
-curl -fsSL .../install.sh | bash -s -- --config ten-nominal --version 0.20.5
+curl -fsSL .../install.sh | bash -s -- --config ten-nominal --version 0.26.0
 ```
 
 Two environment variables are also honoured: `REPO_OWNER` (which GitHub
@@ -419,35 +419,37 @@ disk, not inside a container: it survives stop, start, rebuild and update.
 ## VM bootstrap — a ready-to-run Multipass VM
 
 Use this when you want the fewest assumptions about your host machine. Your
-host needs Multipass and `curl`; Python, Poetry and EduMatcher are installed
-inside the VM. This mode installs the backend only — the web GUIs are part of
-the container deployment.
+host needs Multipass and `curl`; Python and EduMatcher are installed inside the
+VM. This mode installs the backend only — the web GUIs are part of the
+container deployment. Provisioning runs `pm-setup`, so the VM comes up with a
+deployed configuration and `pm-opctl-cli` ready to start the stack.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | \
-    bash -s -- --version 0.20.5 --snapshot
+    bash -s -- --version 0.26.0 --snapshot
 
-multipass shell edumatcher-vm
+multipass shell ems
 cd /home/ubuntu/session
-pm-engine --verbose
+pm-opctl-cli start
 ```
 
-| Option | Purpose |
-|---|---|
-| `--name <vm>` | Name the VM (default `edumatcher-vm`) |
-| `--version X.Y.Z` | Install a specific EduMatcher release |
-| `--dev` | Install from a source checkout rather than a release |
-| `--cpus`, `--memory`, `--disk` | Size the VM, e.g. `--cpus 2 --memory 3G --disk 8G` |
-| `--image <name>` | Base image to launch |
-| `--snapshot`, `--snapshot-name` | Take a snapshot once installation finishes, so you can reset a workshop VM instantly |
-| `--ssh-key <path>` | Authorise an additional public key |
+| Option | Default | Purpose |
+|---|---|---|
+| `--name <vm>` | `ems` | Name the VM |
+| `--version X.Y.Z` | `dev` | Install a specific EduMatcher release. The default installs a local wheel, so pass this unless you have a checkout |
+| `--dev` | — | Install the wheel from the repository's `dist/` instead of PyPI |
+| `--cpus` / `--memory` / `--disk` | `4` / `4G` / `6G` | Size the VM |
+| `--image <name>` | `lts` | Base Multipass image |
+| `--snapshot-name <name>` | `clean` | Name of the snapshot taken after provisioning |
+| `--snapshot` | already on | Snapshots are taken by default; the flag only makes that explicit |
+| `--ssh-key <path>` | `~/.ssh/<vm>_ed25519` | Private key whose public half is installed for passwordless login |
 
 To read the script before running it:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh -o curl_setup_vm.sh
 less curl_setup_vm.sh
-bash curl_setup_vm.sh --version 0.20.5 --snapshot
+bash curl_setup_vm.sh --version 0.26.0 --snapshot
 ```
 
 

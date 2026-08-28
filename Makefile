@@ -318,7 +318,7 @@ mp-dev: ## Install the current dev snapshot into the multipass VM (requires mult
 	@echo -e "$(DARKYELLOW)- Installing package into multipass VM...$(NC)"
 	@if ! multipass list | grep -q edumatcher-dev; then \
 		echo -e "$(YELLOW)⚠ Multipass VM 'edumatcher-dev' not found. Building it from scratch...$(NC)"; \
-		./deployment/vm/build_multipass_vm.sh --name edumatcher-dev --dev --snapshot; \
+		./deployment/vm/mknode.sh --name edumatcher-dev --dev --snapshot; \
 	else \
 		echo -e "$(BLUE)Multipass VM 'edumatcher-dev' already exists. Updating edumatcher to current dev-build ...$(NC)"; \
 		multipass exec edumatcher-dev -- bash -c "rm /tmp/*.whl"; \

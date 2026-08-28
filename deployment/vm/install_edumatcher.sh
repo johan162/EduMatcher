@@ -16,7 +16,7 @@ UPDATE="false"
 usage() {
   cat <<'EOF'
 Usage:
-  sudo ./install_edumatcher_runtime.sh [--version <pypi-version>]
+  sudo ./install_edumatcher.sh [--version <pypi-version>]
 
 Options:
   --version   Optional. PyPI version to install, for example 0.7.1
