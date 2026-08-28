@@ -188,9 +188,29 @@ jobs:
           if [[ "${{ steps.ref.outputs.is_production }}" == "true" ]]; then
             TAGS="$TAGS -t ${IMAGE}:latest"
           fi
+
+          # 'edumatcher' is a prefix of every GUI image name, so the download
+          # pattern above also pulls in digests-edumatcher-config-gui-* and the
+          # rest. Each digest file is named '<image>@<hex>', so select this
+          # image's own by exact prefix — otherwise the backend merge asks the
+          # registry for a GUI's digest under ghcr.io/.../edumatcher and gets
+          # 'not found'.
+          DIGESTS=$(ls | grep "^${{ matrix.image }}@" | sed 's/.*@//')
+
+          # Exactly one digest per architecture. Fewer means an arch is missing
+          # and the tag would silently become single-architecture — the failure
+          # nobody notices, because the maintainer's own machine still works.
+          COUNT=$(printf '%s\n' "$DIGESTS" | grep -c .)
+          if [[ "$COUNT" -ne 2 ]]; then
+            echo "Expected 2 digests for ${{ matrix.image }}, found $COUNT:" >&2
+            printf '  %s\n' $DIGESTS >&2
+            echo "Files present:" >&2; ls >&2
+            exit 1
+          fi
+
           # shellcheck disable=SC2046
           docker buildx imagetools create $TAGS \
-            $(printf "${IMAGE}@sha256:%s " $(ls | sed 's/.*@//'))
+            $(printf "${IMAGE}@sha256:%s " $DIGESTS)
 
       - name: Show what was published
         run: |
