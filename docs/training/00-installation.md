@@ -66,13 +66,13 @@ multipass version
 Run the curl bootstrap script (pinned to this release):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | bash -s -- --version 0.20.5 --snapshot
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | bash -s -- --version 0.26.0
 ```
 
 This command will:
 
 1. Download the VM setup scripts from the EduMatcher repository.
-2. Launch a Multipass VM (default name: `edumatcher-vm`).
+2. Launch a Multipass VM (default name: `ems`).
 3. Install the EduMatcher runtime and required dependencies in the VM.
 4. Print a short summary showing how to enter the VM and start processes.
 
@@ -81,13 +81,13 @@ This command will:
     ```bash
     curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh -o curl_setup_vm.sh
     less curl_setup_vm.sh
-    bash curl_setup_vm.sh --version 0.20.5 --snapshot
+    bash curl_setup_vm.sh --version 0.26.0
     ```
 
 ### Step 3: Enter the VM and verify commands
 
 ```bash
-multipass shell edumatcher-vm
+multipass shell ems
 pm-engine --version
 pm-scheduler --help
 pm-alf-console --help
@@ -98,11 +98,21 @@ pm-alf-console --help
 Open several host terminals and attach each to the same VM:
 
 ```bash
-multipass shell edumatcher-vm
+multipass shell ems
 ```
 
-Then start core processes in separate VM shells (engine, scheduler, gateways,
-and clients) following the run order from the User Guide. 
+The quickest way to bring the whole exchange up is the process manager, which
+provisioning has already configured:
+
+```bash
+pm-opctl-cli start          # start the 'default' profile
+pm-opctl-cli list           # one row per process
+pm-opctl-cli stop
+```
+
+To watch the processes individually instead, start them in separate VM shells
+(engine, scheduler, gateways, then clients) following the run order in the
+User Guide.
 
 ### Step 5: Stop, restart, and clean up the VM
 
@@ -110,15 +120,14 @@ From your host machine:
 
 ```bash
 multipass list
-multipass stop edumatcher-vm
-multipass start edumatcher-vm
+multipass stop ems
+multipass start ems
 ```
 
 When you no longer need it:
 
 ```bash
-multipass delete edumatcher-vm
-multipass purge
+multipass delete --purge ems
 ```
 
 ### Relevant User Guide chapters
@@ -129,7 +138,7 @@ multipass purge
 - [Examples](../user-guide/800-examples.md)
 
 :material-checkbox-blank-outline: **Checkpoint:** You can enter
-`edumatcher-vm` and `pm-engine --version` succeeds inside the VM.
+`ems` and `pm-engine --version` succeeds inside the VM.
 
  
 
