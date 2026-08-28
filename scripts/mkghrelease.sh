@@ -52,6 +52,8 @@ RELEASE_NOTES_FILE=".github_release_notes.tmp"
 DRY_RUN=false
 FORCE_PRE_RELEASE=false
 SHOW_HELP=false
+SKIP_IMAGES=false
+IMAGE_WAIT_MINUTES=${IMAGE_WAIT_MINUTES:-30}
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -65,6 +67,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --dry-run)
             DRY_RUN=true
+            shift
+            ;;
+        --skip-images)
+            SKIP_IMAGES=true
             shift
             ;;
         *)
@@ -158,6 +164,7 @@ OPTIONS:
     --help          Show this help message and exit
     --pre-release   Force the release to be marked as a pre-release
                     (overrides automatic detection based on tag name)
+    --skip-images   Do not wait for the container image workflow to finish
     --dry-run       Show what commands would be executed without actually
                     running them
 
@@ -683,6 +690,87 @@ else
 fi
 
 # =====================================
+# PHASE 6B: CONTAINER IMAGES
+# =====================================
+#
+# The five container images are built and pushed by .github/workflows/
+# publish-images.yml, which fires on 'release: published' exactly as the PyPI
+# workflow does. They are not built here: each one is built natively on both
+# amd64 and arm64 runners and joined into a manifest list, which a single
+# developer machine cannot do without hours of emulation.
+#
+# What this phase does is make the release script honest about when the images
+# are actually usable — 'deployment/curl/install.sh' pulls them by this
+# release's version tag, so a green release with a failed image workflow is a
+# broken install for every new user.
+
+echo ""
+print_step_colored ""
+print_step_colored "📦 PHASE 6B: Container images"
+print_step_colored ""
+
+IMAGE_WORKFLOW="publish-images.yml"
+
+if [[ "$SKIP_IMAGES" == "true" ]]; then
+    print_warning "Skipping the image workflow check (--skip-images)"
+    print_info "Watch it yourself: gh run list --workflow $IMAGE_WORKFLOW"
+elif [[ "$DRY_RUN" == "true" ]]; then
+    print_warning "[DRY-RUN] Would wait for $IMAGE_WORKFLOW triggered by $LATEST_TAG"
+else
+    print_sub_step "Waiting for $IMAGE_WORKFLOW (up to ${IMAGE_WAIT_MINUTES} min)..."
+
+    # The run is created asynchronously by the release event; give it a moment
+    # to appear before asking for its id.
+    RUN_ID=""
+    for _ in $(seq 1 30); do
+        RUN_ID=$(gh run list --workflow "$IMAGE_WORKFLOW" --event release \
+                    --limit 1 --json databaseId --jq '.[0].databaseId' 2>/dev/null || true)
+        [[ -n "$RUN_ID" && "$RUN_ID" != "null" ]] && break
+        sleep 5
+    done
+
+    if [[ -z "$RUN_ID" || "$RUN_ID" == "null" ]]; then
+        print_warning "No $IMAGE_WORKFLOW run appeared for $LATEST_TAG."
+        print_warning "The release exists, but the container images may be missing."
+        print_info "Check: https://github.com/${GITHUB_USER}/${PROGRAMNAME}/actions"
+    else
+        print_info "Watching run $RUN_ID"
+
+        # Polled rather than backgrounding 'gh run watch': a finished
+        # background job stays a zombie until reaped, so 'kill -0' keeps
+        # succeeding and a wait-loop around it never exits early.
+        RUN_STATUS=""
+        RUN_CONCLUSION=""
+        DEADLINE=$(( SECONDS + IMAGE_WAIT_MINUTES * 60 ))
+        while (( SECONDS < DEADLINE )); do
+            RUN_JSON=$(gh run view "$RUN_ID" --json status,conclusion \
+                          --jq '.status + " " + (.conclusion // "")' 2>/dev/null || echo "")
+            RUN_STATUS=${RUN_JSON%% *}
+            RUN_CONCLUSION=${RUN_JSON#* }
+            [[ "$RUN_STATUS" == "completed" ]] && break
+            sleep 20
+        done
+
+        if [[ "$RUN_STATUS" != "completed" ]]; then
+            print_warning "Still running after ${IMAGE_WAIT_MINUTES} min — not waiting further."
+            print_info "Follow it: gh run watch $RUN_ID"
+        elif [[ "$RUN_CONCLUSION" == "success" ]]; then
+            print_success "Container images published for $LATEST_TAG"
+            echo ""
+            for img in edumatcher edumatcher-config-gui edumatcher-log-gui \
+                       edumatcher-terminal-gui edumatcher-trader-gui; do
+                echo "  ghcr.io/${GITHUB_USER}/${img}:${VERSION_NUMBER}"
+            done
+        else
+            print_warning "The image workflow finished as '${RUN_CONCLUSION}'."
+            print_warning "The GitHub release is created; the images are not usable yet."
+            print_info "Inspect: gh run view $RUN_ID --log-failed"
+            print_info "Re-run:  gh workflow run $IMAGE_WORKFLOW -f tag=$LATEST_TAG"
+        fi
+    fi
+fi
+
+# =====================================
 # PHASE 7: CLEANUP
 # =====================================
 
@@ -738,7 +826,9 @@ else
     echo "     https://github.com/${GITHUB_USER}/${PROGRAMNAME}/releases"
     echo "  2. Verify that PyPI upload has been done or is in progress (via GitHub Actions):"
     echo "     https://github.com/${GITHUB_USER}/${PROGRAMNAME}/actions"
-    echo "  3. Announce release to users"
+    echo "  3. Verify the one-line container install works for a fresh user:"
+    echo "     curl -fsSL https://raw.githubusercontent.com/${GITHUB_USER}/${PROGRAMNAME}/${LATEST_TAG}/deployment/curl/install.sh | bash"
+    echo "  4. Announce release to users"
     echo ""
 fi
 

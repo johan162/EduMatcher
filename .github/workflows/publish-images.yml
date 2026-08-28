@@ -1,0 +1,189 @@
+# Publish the five EduMatcher container images to GHCR.
+#
+# Runs on the same trigger as publish-to-pypi.yml, so one GitHub release
+# produces the wheel and the images together, all tagged with that release's
+# version. The curl installer (deployment/curl/) pins a whole system with that
+# single tag.
+#
+# Each image is built twice, natively: amd64 on ubuntu-24.04 and arm64 on
+# ubuntu-24.04-arm. The two are pushed by digest and joined into one manifest
+# list in the merge job — no QEMU anywhere, which is what makes a five-image
+# multi-arch release finish in minutes instead of hours.
+name: Publish Container Images to GHCR
+
+on:
+  release:
+    types: [published]
+  # Manual re-run for a tag whose release already exists.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build (e.g. v0.20.5)"
+        required: true
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  # -------------------------------------------------------------------------
+  # One native build per (image, architecture), pushed by digest only.
+  # -------------------------------------------------------------------------
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - name: edumatcher
+            context: deployment/docker
+          - name: edumatcher-config-gui
+            context: web-apps/config-gui
+          - name: edumatcher-log-gui
+            context: web-apps/log-gui
+          - name: edumatcher-terminal-gui
+            context: web-apps/terminal-gui
+          - name: edumatcher-trader-gui
+            context: web-apps/trader-gui
+        platform:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.platform.runner }}
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Resolve the tag being built
+        id: ref
+        run: |
+          TAG="${{ github.event.inputs.tag || github.event.release.tag_name }}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.ref.outputs.tag }}
+
+      # The backend image installs from .wheel/ when a wheel is present and
+      # falls back to PyPI otherwise. Build the wheel from *this tag* rather
+      # than relying on PyPI: publish-to-pypi.yml runs on the same trigger, so
+      # whether the new version is on PyPI yet is a race the image must not
+      # depend on.
+      - name: Build the wheel for the backend image
+        if: matrix.image.name == 'edumatcher'
+        run: |
+          pipx install poetry
+          poetry build --format wheel
+          mkdir -p deployment/docker/.wheel
+          cp dist/*.whl deployment/docker/.wheel/
+          ls -l deployment/docker/.wheel/
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.image.context }}
+          platforms: linux/${{ matrix.platform.arch }}
+          # Links the package to this repository on its GHCR page.
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.ref.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image.name }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.image.name }}-${{ matrix.platform.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image.name }}-${{ matrix.platform.arch }}
+
+      - name: Export the digest
+        run: |
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${{ matrix.image.name }}@${digest#sha256:}"
+        env:
+          digest: ${{ steps.build.outputs.digest }}
+
+      - name: Upload the digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.image.name }}-${{ matrix.platform.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # -------------------------------------------------------------------------
+  # Join each image's two digests into one multi-arch manifest list and tag it.
+  # -------------------------------------------------------------------------
+  merge:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - edumatcher
+          - edumatcher-config-gui
+          - edumatcher-log-gui
+          - edumatcher-terminal-gui
+          - edumatcher-trader-gui
+
+    steps:
+      - name: Resolve the tag being built
+        id: ref
+        run: |
+          TAG="${{ github.event.inputs.tag || github.event.release.tag_name }}"
+          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+          # 'latest' must never point at a pre-release, so it is only moved for
+          # an exact vMAJOR.MINOR.PATCH tag — the same test publish-to-pypi.yml
+          # uses to decide PyPI versus TestPyPI.
+          if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "is_production=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_production=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download the digests
+        uses: actions/download-artifact@v4
+        with:
+          pattern: digests-${{ matrix.image }}-*
+          merge-multiple: true
+          path: /tmp/digests
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push the manifest list
+        working-directory: /tmp/digests
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}"
+          TAGS="-t ${IMAGE}:${{ steps.ref.outputs.version }}"
+          if [[ "${{ steps.ref.outputs.is_production }}" == "true" ]]; then
+            TAGS="$TAGS -t ${IMAGE}:latest"
+          fi
+          # shellcheck disable=SC2046
+          docker buildx imagetools create $TAGS \
+            $(printf "${IMAGE}@sha256:%s " $(ls | sed 's/.*@//'))
+
+      - name: Show what was published
+        run: |
+          docker buildx imagetools inspect \
+            "${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}:${{ steps.ref.outputs.version }}"

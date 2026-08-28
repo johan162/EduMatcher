@@ -24,6 +24,7 @@ make down      # stop it
 - [What is in the image](#what-is-in-the-image)
 - [Ports](#ports)
 - [Exposing the ZeroMQ bus](#exposing-the-zeromq-bus)
+- [The whole system: backend plus web GUIs](#the-whole-system-backend-plus-web-guis)
 - [SSH access](#ssh-access)
 - [The data directory](#the-data-directory)
 - [Choosing the configuration and the profile](#choosing-the-configuration-and-the-profile)
@@ -192,6 +193,88 @@ pm-dc-spy --host 127.0.0.1 --port 5557        # engine drop-copy feed
 Keep it off unless you need it — every published port is one more way into a
 running exchange.
 
+## The whole system: backend plus web GUIs
+
+> Running EduMatcher rather than developing it? [`../curl/`](../curl/) starts
+> this same system from prebuilt images with one command and no toolchain.
+> Everything below builds it from your checkout instead.
+
+```bash
+make up-all                                # exchange + terminal-, log- and trader-gui
+make up-all CONFIG=ten-nominal             # on a bundled example configuration
+make up-all CONFIG=~/mine/engine_config.yaml   # on a configuration of your own
+make up-all CONFIG_GUI=1                   # and the configuration builder too
+make down-all                              # stop and remove everything
+```
+
+| GUI | URL | Talks to |
+|---|---|---|
+| Trading terminal | <http://localhost:8090> | `pm-md-gwy` 5570, `pm-api-gwy` 8081, `pm-log-srv` 5600 |
+| Log viewer | <http://localhost:8091> | `pm-log-srv` 5601/5602, and `data/log.db` read-only |
+| Config builder | <http://localhost:8092> | nothing — standalone, hence `CONFIG_GUI=1` |
+| Trader GUI | <http://localhost:8093> | `pm-api-gwy` 8080 |
+
+### How the GUIs reach the exchange
+
+They share the compose project, so they share its network, and the backend
+answers to the hostname `edumatcher`. Every gateway already binds `0.0.0.0`
+inside the container — including `pm-log-srv`'s LALF-PS sockets — so this
+needs no `ZMQ=1`, no published host port, and no `host.docker.internal`,
+`host-gateway` or VM IP. It behaves identically under Podman, Docker Desktop
+and Linux Docker.
+
+The published host ports are for *you* — `curl`, Swagger, `pm-dc-spy` — not
+for the GUIs. `make up-all ZMQ=1 SSH=1` still works and still means what it
+meant before.
+
+`log-gui` additionally needs the file `log.db`, not just a socket, so `./data`
+is mounted into it read-only. The bridge opens the database read-only and
+`pm-log-srv` keeps it in rollback-journal mode, so nothing tries to write a
+`-wal` file on a read-only mount.
+
+### Loopback gateway binds are opened inside the container
+
+The bundled examples set `bind_address: 127.0.0.1` on `market_data_gateway`
+and `post_trade_gateway`. On a laptop that is a sensible default — the
+gateways have no authentication, so a wildcard bind puts order entry on
+whatever network you are attached to. Inside a container it protects nothing
+and breaks everything: the network namespace is already the boundary, `.env`'s
+`BIND_ADDR` (still `127.0.0.1`) is what decides host exposure, and a
+loopback-bound gateway is simply unreachable from a sibling container. It is
+what leaves terminal-gui's market-data panel empty with `calf: RECONNECTING`.
+
+The entrypoint therefore rewrites `bind_address:`/`host:` lines that say
+`127.0.0.1` to `0.0.0.0` in the deployed configuration and recompiles it, so
+`make config-show` keeps describing what the processes actually do. It runs
+for bundled examples and for your own `CONFIG=<file>` alike, touches only
+those two keys — the only bind keys in the schema — and is a no-op on
+restart. Nothing about a bare-metal `pm-setup` changes.
+
+Note this is diagnosable from inside: `make status` shows
+`tcp connect to 127.0.0.1:5570 ok` either way, because that healthcheck
+connects over loopback *within* the container. A green process table does not
+mean a gateway is reachable from a sibling container.
+
+### Why `up-all` is two phases
+
+`terminal-gui` reads history through `pm-api-gwy` with the read-only
+credential (`gateway_id: null`), which is generated *per configuration* — a
+different key in every bundled example — and lives on the `dashboards`
+instance (8081), not `desk` (8080). It does not exist until the exchange has
+deployed its configuration, so `up-all` starts the backend, reads the key out
+of `data/ref_data/engine_config.json`, and only then starts the GUIs with it.
+A configuration with no such credential is not an error: the live market-data
+feed still works, and `up-all` warns that history will be unavailable.
+
+### Running a configuration of your own
+
+`CONFIG=<path>` copies the file to `./config/engine_config.yaml`, which is
+mounted read-only at `/config`, and the entrypoint deploys it with
+`pm-config-deploy` instead of unpacking a bundled example. The file is
+re-deployed on every `up-all`, so editing it and running `make up-all` again
+is the edit-test loop. `CONFIG=<name>` (no `/`, no `.yaml`) still means a
+bundled example, exactly as for `make up`.
+
 ## SSH access
 
 ```bash
@@ -200,7 +283,7 @@ make ssh                     # or: ssh -p 2222 root@localhost
 ```
 
 `make up SSH=1` runs `make keys` first, which collects every `~/.ssh/*.pub` on
-the host into `container/.ssh/authorized_keys`. That file is mounted read-only
+the host into `deployment/docker/.ssh/authorized_keys`. That file is mounted read-only
 into the container and copied into place with the ownership and mode `sshd`
 insists on. No key material is baked into the image, and adding a key is a
 `make keys && make restart` away — no rebuild.
@@ -304,6 +387,8 @@ make restart
 |---|---|
 | `make build` | Build the image from a freshly built local wheel. `PYPI=1` installs latest PyPI instead; `VERSION=0.20.2` pins a PyPI release |
 | `make up` | Start the exchange. `CONFIG=`, `PROFILE=`, `ZMQ=1`, `SSH=1` |
+| `make up-all` | Start the exchange *and* the web GUIs. `CONFIG=`, `PROFILE=`, `CONFIG_GUI=1`, `ZMQ=1`, `SSH=1` |
+| `make down-all` | Stop and remove every container, GUIs included |
 | `make down` | Stop and remove the container; `./data` is kept |
 | `make restart` | Restart the container (re-runs the entrypoint) |
 | `make shell` | Interactive root shell in the container |
@@ -316,11 +401,46 @@ make restart
 | `make config-deploy` | Recompile `data/ref_data/engine_config.yaml` |
 | `make config-show` | Show the deployed configuration |
 | `make ports` | List the published ports |
+| `make ghcr-push` | Push all five images to GHCR as `:dev`. `TAG=x.y.z FORCE=1` for a release tag, `LATEST=1` to move `latest`. Needs `GITHUB_USER` and `GHCR_TOKEN` |
 | `make info` | Show the detected engine, compose command and image name |
 | `make clean` | Remove the container and the image |
 | `make clean-data` | Delete `./data` (asks first) |
 
 Flags combine: `make up ZMQ=1 SSH=1 CONFIG=ten-complex PROFILE=mini`.
+
+## Publishing images by hand
+
+Releases publish images from `.github/workflows/publish-images.yml`, which
+builds each of the five natively on amd64 and arm64 and joins them into one
+manifest list. `make ghcr-push` is the escape hatch for when that workflow
+cannot run — a registry outage, a fork without Actions, or an image you want in
+someone's hands before a release exists.
+
+```bash
+export GITHUB_USER=johan162 GHCR_TOKEN=<token with write:packages>
+
+make ghcr-push                              # all five, tagged :dev
+make ghcr-push TAG=0.20.6 FORCE=1           # ...as a release tag
+make ghcr-push TAG=0.20.6 FORCE=1 LATEST=1  # ...and move :latest
+```
+
+It builds every image from your checkout first, so what is pushed is what this
+tree produces.
+
+**It can only build for the architecture you are standing on.** That is the
+whole reason releases go through Actions: pushing a single-arch image over a
+release tag replaces the manifest list, and every user on the other
+architecture then gets "no matching manifest" — a failure you will not see,
+because your own machine still works. A release-looking tag therefore requires
+`FORCE=1`, and `latest` is never moved unless you ask. If the workflow is
+merely stuck rather than unavailable, re-run it instead:
+
+```bash
+gh workflow run publish-images.yml -f tag=v0.20.6
+```
+
+A newly created GHCR package is **private**. Until each of the five is made
+public in its package settings, nobody but you can pull them.
 
 ## Configuration reference (`.env`)
 
@@ -337,6 +457,7 @@ is git-ignored, so it is the right place for host-specific choices.
 | `TZ` | `UTC` | Container timezone — match your trading calendar |
 | `BIND_ADDR` | `127.0.0.1` | Host interface the ports bind to |
 | `SSH_PORT` | `2222` | Host port forwarded to sshd |
+| `TERMINAL_GUI_PORT` / `LOG_GUI_PORT` / `CONFIG_GUI_PORT` / `TRADER_GUI_PORT` | `8090` / `8091` / `8092` / `8093` | Host ports for the GUIs started by `make up-all` |
 | `IMAGE_NAME` / `IMAGE_TAG` | `edumatcher` / `local` | Image naming |
 | `CONTAINER_NAME` | `edumatcher` | Container name |
 
@@ -348,7 +469,7 @@ the container agree with your wall clock.
 
 `make build` (no flags) is the default and builds from your local source
 checkout: it runs `poetry build --format wheel` in the repository root,
-copies the freshest `dist/*.whl` into `container/.wheel/`, and the
+copies the freshest `dist/*.whl` into `deployment/docker/.wheel/`, and the
 Dockerfile installs it. Every plain rebuild picks up whatever you've
 changed locally, including uncommitted changes — there's no flag to
 remember for that to happen.
@@ -360,7 +481,7 @@ make build PYPI=1        # latest PyPI release
 make build VERSION=0.20.2  # a specific pinned release
 ```
 
-Either form clears `container/.wheel/` first, so a stale local wheel never
+Either form clears `deployment/docker/.wheel/` first, so a stale local wheel never
 shadows the PyPI install. `VERSION=` alone (without `PYPI=1`) also goes to
 PyPI — pinning a version only makes sense against a release, so it implies
 `PYPI=1`.

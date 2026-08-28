@@ -8,7 +8,8 @@ Vite/React frontend, Zustand for client state.
 **Dependencies:** `pm-md-gwy` must be reachable for live market data (CALF
 TCP, default port `5570`) — without it the UI renders its disconnected
 state. `pm-api-gwy` is needed for historical REST reads (default
-`http://127.0.0.1:8080`) using a read-only API key. `pm-log-srv` is
+`http://127.0.0.1:8081`, the `dashboards` instance) using a read-only API
+key — such keys are issued there, not on `desk` (8080). `pm-log-srv` is
 optional; if unreachable the bridge falls back to stdout, or to a local
 failover log file if the connection drops later.
 
@@ -56,6 +57,28 @@ when it detects `docker` on Linux. On Podman the name `host.containers.internal`
 serves the same purpose; override `CALF_HOST`, `API_GATEWAY_URL`, and
 `LOG_SRV_HOST` to point there if needed.
 
+**The read-only API key is looked up for you.** History reads need
+`PM_TERMINAL_API_KEY` — the credential with `gateway_id: null` in the engine
+configuration. It is generated per configuration, so it differs between the
+bundled examples and cannot be committed here. `make up` reads it out of the
+deployed configuration at `$EDUMATCHER_DATA_DIR/ref_data/engine_config.json`,
+the same file every exchange process reads:
+
+```bash
+export EDUMATCHER_DATA_DIR=~/.local/share/edumatcher
+make up
+```
+
+A `PM_TERMINAL_API_KEY` already in the environment always wins, so
+`make up PM_TERMINAL_API_KEY=key-readonly-...` still works. With
+`EDUMATCHER_DATA_DIR` unset, or no read-only credential in the deployed
+configuration, `make up` says so and starts anyway: the live market-data feed
+works without a key, only the history endpoints fail.
+
+`make up` also warns when the credential it found belongs to a gateway
+instance on a different port than `API_GATEWAY_URL` points at — a key issued
+on `dashboards` is not accepted by `desk`.
+
 ### Development server
 
 ```bash
@@ -77,7 +100,7 @@ Open **http://127.0.0.1:8190**. Run `make help` for the full target list.
 | `CALF_CLIENT_ID`                    | `pm-terminal-bridge`          | `HELLO.CLIENT` identifier sent to the gateway                                              |
 | `CALF_PING_INTERVAL_SEC`            | `60`                          | Keepalive cadence — the gateway's idle timer only resets on inbound client bytes, so a bridge that merely listens needs to ping or it is disconnected after the gateway's idle timeout (default 300s) |
 | `INDEX_IDS`                         | _(empty)_                    | Comma-separated index ids to subscribe to (`SUB\|CH=INDEX`); CALF has no "list indexes" request |
-| `API_GATEWAY_URL`                   | `http://127.0.0.1:8080`       | `pm-api-gwy` base URL for historical REST reads                                            |
+| `API_GATEWAY_URL`                   | `http://127.0.0.1:8081`       | `pm-api-gwy` base URL for historical REST reads — the `dashboards` instance, which is where read-only keys are issued |
 | `PM_TERMINAL_API_KEY`               | _(empty)_                    | Read-only (`gateway_id: null`) API key, history reads only                                 |
 | `LOG_SRV_ENABLED`                   | `true`                        | `false` skips even the startup probe                                                       |
 | `LOG_SRV_HOST` / `LOG_SRV_PORT`     | `127.0.0.1` / `5600`           | `pm-log-srv` address                                                                       |

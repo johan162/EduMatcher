@@ -15,6 +15,7 @@ services:
       args:
         EDUMATCHER_VERSION: ${EDUMATCHER_VERSION:-}
         WITH_SSH: ${WITH_SSH:-1}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
     image: ${IMAGE_NAME:-edumatcher}:${IMAGE_TAG:-local}
     container_name: ${CONTAINER_NAME:-edumatcher}
     hostname: edumatcher
@@ -23,6 +24,10 @@ services:
     stop_grace_period: 30s
     environment:
       EM_CONFIG: ${EM_CONFIG:-three-basic}
+      # Set to a path inside the container to deploy an engine configuration
+      # of your own instead of a bundled example. `make up-all CONFIG=<file>`
+      # copies the file into ./config and sets this.
+      EM_CONFIG_FILE: ${EM_CONFIG_FILE:-}
       EM_PROFILE: ${EM_PROFILE:-default}
       TZ: ${TZ:-UTC}
     volumes:
@@ -30,6 +35,9 @@ services:
       # databases, emo/ logs and PID files. Survives down/up; wiped by
       # `make clean-data`.
       - ./data:/data
+      # Where `make up-all CONFIG=<file>` puts an engine configuration of your
+      # own. Empty otherwise, and then EM_CONFIG_FILE is unset and ignored.
+      - ./config:/config:ro
     ports:
       - "${BIND_ADDR:-127.0.0.1}:5560:5560"   # pm-balf-gwy  — binary ALF
       - "${BIND_ADDR:-127.0.0.1}:5565:5565"   # pm-alf-gwy   — ALF order entry

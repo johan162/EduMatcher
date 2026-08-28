@@ -10,7 +10,7 @@ REPO_REF="${REPO_REF:-main}"
 WORK_DIR="${WORK_DIR:-$(mktemp -d)}"
 KEEP_WORK_DIR="${KEEP_WORK_DIR:-0}"
 
-BASE_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${REPO_REF}/vm"
+BASE_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${REPO_REF}/deployment/vm"
 BUILD_SCRIPT_PATH="$WORK_DIR/mknode.sh"
 INSTALL_SCRIPT_PATH="$WORK_DIR/install_edumatcher.sh"
 
@@ -34,7 +34,7 @@ if ! command -v multipass >/dev/null 2>&1; then
 fi
 
 echo "Downloading VM scripts from ${REPO_OWNER}/${REPO_NAME}@${REPO_REF}..."
-curl -fsSL "${BASE_URL}/build_multipass_vm.sh" -o "$BUILD_SCRIPT_PATH"
+curl -fsSL "${BASE_URL}/mknode.sh" -o "$BUILD_SCRIPT_PATH"
 curl -fsSL "${BASE_URL}/install_edumatcher.sh" -o "$INSTALL_SCRIPT_PATH"
 chmod +x "$BUILD_SCRIPT_PATH" "$INSTALL_SCRIPT_PATH"
 

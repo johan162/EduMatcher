@@ -1,0 +1,112 @@
+# Overlay: the three web GUIs that talk to the backend, in the same compose
+# project as the exchange itself.
+#
+# Sharing one project is the whole trick. Compose puts every service on the
+# project's default network, so the backend answers to the hostname
+# "edumatcher" and every gateway port is reachable directly — all of them
+# already bind 0.0.0.0 inside the container. Nothing has to be published to
+# the host for this, and the ZMQ overlay is irrelevant here: pm-log-srv's
+# LALF-PS sockets (5601/5602) bind 0.0.0.0 too. That also retires
+# host.docker.internal / host-gateway / VM_BACKEND_IP, which is what made
+# Podman and Linux Docker differ from Docker Desktop.
+#
+# Brought up by `make up-all`; config-gui lives in compose.config-gui.yaml
+# because it needs no backend at all.
+services:
+  log-gui:
+    build:
+      context: ../../web-apps/log-gui
+      dockerfile: Dockerfile
+      args:
+        NPM_STRICT_SSL:
+        HTTP_PROXY:
+        HTTPS_PROXY:
+        NO_PROXY:
+    image: edumatcher-log-gui:latest
+    container_name: ${CONTAINER_NAME:-edumatcher}-log-gui
+    depends_on:
+      - edumatcher
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${LOG_GUI_PORT:-8091}:8091"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8091"
+      CORS_ORIGIN: "${CORS_ORIGIN:-*}"
+      LOG_SRV_HOST: "edumatcher"
+      LOG_SRV_PUB_PORT: "5601"
+      LOG_SRV_PULL_PORT: "5602"
+      LOG_DB_PATH: "/backend-data/log.db"
+      ACK_STORE_PATH: "/app/ack-data/log-ui-acks.db"
+    volumes:
+      # pm-log-srv's own data directory — the same ./data the backend writes,
+      # mounted read-only. The bridge opens log.db with { readOnly: true } and
+      # pm-log-srv keeps the database in rollback-journal mode, so there is no
+      # -wal/-shm write to fail on a read-only mount.
+      - ./data:/backend-data:ro
+      # This project's own ack store, read-write and persisted across restarts.
+      - log-gui-acks:/app/ack-data
+
+  terminal-gui:
+    build:
+      context: ../../web-apps/terminal-gui
+      dockerfile: Dockerfile
+      args:
+        NPM_STRICT_SSL:
+        HTTP_PROXY:
+        HTTPS_PROXY:
+        NO_PROXY:
+    image: edumatcher-terminal-gui:latest
+    container_name: ${CONTAINER_NAME:-edumatcher}-terminal-gui
+    depends_on:
+      - edumatcher
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${TERMINAL_GUI_PORT:-8090}:8090"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8090"
+      CORS_ORIGIN: "${CORS_ORIGIN:-*}"
+      MAX_WS_CLIENTS: "${MAX_WS_CLIENTS:-200}"
+      CALF_HOST: "edumatcher"
+      CALF_PORT: "5570"
+      CALF_CLIENT_ID: "${CALF_CLIENT_ID:-pm-terminal-bridge}"
+      INDEX_IDS: "${INDEX_IDS:-}"
+      # The read-only credential (gateway_id: null) is generated per engine
+      # configuration and lives on the "dashboards" instance, not "desk", so
+      # both the URL and the key are resolved from the deployed config by
+      # `make up-all` rather than hardcoded here.
+      API_GATEWAY_URL: "${API_GATEWAY_URL:-http://edumatcher:8081}"
+      PM_TERMINAL_API_KEY: "${PM_TERMINAL_API_KEY:-}"
+      LOG_SRV_ENABLED: "${LOG_SRV_ENABLED:-true}"
+      LOG_SRV_HOST: "edumatcher"
+      LOG_SRV_PORT: "5600"
+      LOG_FAILOVER_DIR: "/app/logs"
+    volumes:
+      - terminal-gui-logs:/app/logs
+
+  trader-gui:
+    build:
+      context: ../../web-apps/trader-gui
+      dockerfile: Dockerfile
+      args:
+        NPM_STRICT_SSL:
+        HTTP_PROXY:
+        HTTPS_PROXY:
+        NO_PROXY:
+    image: edumatcher-trader-gui:latest
+    container_name: ${CONTAINER_NAME:-edumatcher}-trader-gui
+    depends_on:
+      - edumatcher
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${TRADER_GUI_PORT:-8093}:8093"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8093"
+      # The desk instance: trading credentials are entered in the browser.
+      API_PROXY_TARGET: "http://edumatcher:8080"
+
+volumes:
+  log-gui-acks:
+  terminal-gui-logs:

@@ -14,7 +14,9 @@ LIGHT_GRAY='\033[0;37m'
 NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# Two levels up: this script lives in deployment/vm/, so the repository root —
+# and the dist/ directory Poetry writes wheels into — is $SCRIPT_DIR/../..
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 INSTALL_SCRIPT="install_edumatcher.sh"
 
 VM_NAME="ems"

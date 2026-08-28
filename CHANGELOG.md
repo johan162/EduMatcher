@@ -1,3 +1,37 @@
+## [v0.26.0] - 2026-08-28
+
+Release Type: major
+
+### 📋 Summary
+This release introduces a beta version of a complete container distribution and installation workflow, consolidates deployment assets under a single directory, and standardizes proxy, port, and container handling across the web applications. EduMatcher can now be installed and operated as a published container stack using a curl-based bootstrap flow.
+
+### ⚠️ Breaking Changes
+- Moved the top-level `container/` and `vm/` deployment assets to `deployment/docker/` and `deployment/vm/`; scripts, automation, and documentation that reference the previous paths must be updated
+- Reworked container Makefiles, Compose files, environment settings, and image handling around the unified deployment workflow; existing local overrides should be reviewed against the new examples
+
+### ✨ Additions
+- Added a curl-based installer and management script for installing and operating the complete EduMatcher container stack
+- Added published container-image workflows for building and releasing the exchange services and web applications
+- Added Compose profiles for launching the full GUI suite or Config GUI alongside the exchange container stack
+
+### 🚀 Improvements
+- Improved proxy handling across container and web-application builds, including translation of localhost proxies for container access
+- Improved port handling and Compose configuration for Config GUI, Log GUI, Terminal GUI, and Trader GUI deployments
+- Unified container build, startup, distribution, and cleanup targets across the web applications
+- Improved deployment and VM scripts to use the consolidated directory structure and current release artifacts
+
+### 📚 Documentation
+- Added a comprehensive installation chapter (`005-installation.md`) covering container, VM, and development installation paths
+- Expanded developer documentation for container networking, bind/connect behavior, release management, and VM runtime images
+- Updated getting-started, training, deployment-design, and README guidance for the new deployment layout and container release flow
+
+### 🛠 Internal
+- Updated the GitHub release tooling to publish container images and assemble the complete container distribution
+- Reorganized deployment sources under `deployment/` and aligned top-level Makefile targets with the new layout
+- Added optional `PIP_INDEX_URL` support for container builds that use a local or private Python package index
+- Fixed container proxy propagation when host proxy variables use localhost addresses
+- Fixed web-application container port mappings and runtime configuration inconsistencies
+
 ## [v0.20.4] - 2026-08-24
 
 Release Type: minor

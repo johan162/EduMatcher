@@ -49,8 +49,11 @@ services:
 
       # Historical REST reads. The key is read-only (gateway_id: null) and
       # never reaches the browser — supply it from the host environment
-      # rather than committing it here.
-      API_GATEWAY_URL: "${API_GATEWAY_URL:-http://host.docker.internal:8080}"
+      # rather than committing it here. Such a key is issued on the
+      # "dashboards" gateway instance (8081), not "desk" (8080), and it is
+      # generated per engine configuration, so it differs between the
+      # bundled examples.
+      API_GATEWAY_URL: "${API_GATEWAY_URL:-http://host.docker.internal:8081}"
       PM_TERMINAL_API_KEY: "${PM_TERMINAL_API_KEY:-}"
 
       # Operational logging. An unreachable pm-log-srv is a normal condition:

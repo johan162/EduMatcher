@@ -1,7 +1,7 @@
 # EduMatcher VM control surface.
 #
-#   make build             create the runtime VM (vm/mknode.sh, name: ems)
-#   make build DEV=1       ... installing the local wheel from ../dist instead of PyPI
+#   make build             create the runtime VM (deployment/vm/mknode.sh, name: ems)
+#   make build DEV=1       ... installing the local wheel from ../../dist instead of PyPI
 #   make up                start the VM
 #   make down               stop the VM
 #   make shell              interactive shell inside the VM
@@ -39,7 +39,7 @@ help:
 	@echo "EduMatcher VM — targets:"
 	@echo ""
 	@echo "  make build              Create the VM (NAME=... to override '$(DEFAULT_NAME)')"
-	@echo "  make build DEV=1        ... installing the local wheel from ../dist"
+	@echo "  make build DEV=1        ... installing the local wheel from ../../dist"
 	@echo "  make build VERSION=x.y.z ... pinning a specific PyPI release"
 	@echo "  make up                 Start the VM"
 	@echo "  make down               Stop the VM"

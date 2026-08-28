@@ -8,7 +8,9 @@
 
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# Two levels up: this script lives in deployment/vm/, so the repository root —
+# holding pyproject.toml and the dist/ wheel — is $SCRIPT_DIR/../..
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 VM_NAME="ems"
 VERSION=$(grep '^version' "$REPO_ROOT/pyproject.toml" | head -1 | cut -d'"' -f2)
 

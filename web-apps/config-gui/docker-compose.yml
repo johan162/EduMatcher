@@ -2,7 +2,7 @@
 #
 #   docker compose up --build
 #
-# Then open http://localhost:8092. See docs/user-guide/030-config-GUI.md.
+# Then open http://localhost:${WEB_PORT:-8092}. See docs/user-guide/030-config-GUI.md.
 services:
   config-gui:
     build:
@@ -15,12 +15,14 @@ services:
         HTTP_PROXY: 
         HTTPS_PROXY:
         NO_PROXY: 
+        WEB_PORT: "${WEB_PORT:-8092}"
     image: edumatcher-config-gui:latest
     ports:
-      - "8092:8092"
+      - "${WEB_PORT:-8092}:${WEB_PORT:-8092}"
     environment:
       HOST: "0.0.0.0"
-      PORT: "8092"
+      # Fastify will listen on this port inside the container. The host port is mapped to this port.
+      PORT: "${WEB_PORT:-8092}"
       # Restrict this to your site origin when exposed beyond localhost.
       CORS_ORIGIN: "*"
       # STATIC_DIR is baked into the image; override only if you relocate assets.

@@ -22,12 +22,13 @@ services:
         HTTP_PROXY:
         HTTPS_PROXY:
         NO_PROXY:
+        WEB_PORT: "${WEB_PORT:-8091}"
     image: edumatcher-log-gui:latest
     ports:
-      - "8091:8091"
+      - "${WEB_PORT:-8091}:${WEB_PORT:-8091}"
     environment:
       HOST: "0.0.0.0"
-      PORT: "8091"
+      PORT: "${WEB_PORT:-8091}"
       # Restrict this to your site origin when exposed beyond localhost.
       CORS_ORIGIN: "*"
       # Reachable from inside the container — "host.docker.internal" on

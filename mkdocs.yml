@@ -88,6 +88,7 @@ nav:
     - Implied Orders: concepts/07-concepts-implied-orders.md
   - User Guide:
     - Getting Started: user-guide/000-getting-started.md
+    - Installation: user-guide/005-installation.md
     - Engine Configuration: user-guide/010-configuration.md
     - Config Verifier: user-guide/020-config-verifier.md
     - Configuration GUI: user-guide/030-config-GUI.md

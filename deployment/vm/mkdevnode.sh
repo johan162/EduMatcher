@@ -19,7 +19,10 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# Two levels up: this script lives in deployment/vm/, so the repository root —
+# and the scripts/ directory holding print_funcs.inc and verify_setup.sh — is
+# $SCRIPT_DIR/../..
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 source ${REPO_ROOT}/scripts/print_funcs.inc
 
