@@ -1,0 +1,124 @@
+# EduMatcher — the whole exchange plus its web GUIs, from prebuilt images.
+#
+# This file is deliberately build-free: every image is pulled from GHCR, so a
+# user needs only podman or docker, never a Node or Python toolchain. The
+# repository's own deployment/docker/compose.yaml is the one that builds from
+# source; this is its released twin.
+#
+# One compose project means one network, so the GUIs reach the exchange at the
+# hostname 'edumatcher' and none of the published ports below are involved in
+# GUI-to-backend traffic. They are published for you: REST clients, Swagger,
+# and the protocol example programs.
+#
+# Normally driven by ./edumatcher.sh rather than by hand.
+
+services:
+  edumatcher:
+    image: ghcr.io/${GHCR_OWNER:-johan162}/edumatcher:${EM_VERSION:-latest}
+    container_name: edumatcher
+    hostname: edumatcher
+    restart: unless-stopped
+    # pm-opctl-cli stop has to walk the whole profile before PID 1 exits.
+    stop_grace_period: 30s
+    environment:
+      # A bundled example name — one-basic, three-basic, ten-basic,
+      # thirty-basic, each also as ...-nominal and ...-complex.
+      EM_CONFIG: ${EM_CONFIG:-three-basic}
+      # Set instead to run a configuration of your own; ./edumatcher.sh
+      # config <file> copies the file into ./config and sets this for you.
+      EM_CONFIG_FILE: ${EM_CONFIG_FILE:-}
+      EM_PROFILE: ${EM_PROFILE:-default}
+      TZ: ${TZ:-UTC}
+    volumes:
+      # Every trade, log and database the exchange produces. Survives
+      # stop/start; removed only by './edumatcher.sh uninstall --data'.
+      - ./data:/data
+      # Where a configuration of your own is mounted, read-only.
+      - ./config:/config:ro
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:5560:5560"   # pm-balf-gwy  — binary ALF
+      - "${BIND_ADDR:-127.0.0.1}:5565:5565"   # pm-alf-gwy   — ALF order entry
+      - "${BIND_ADDR:-127.0.0.1}:5570:5570"   # pm-md-gwy    — market data (MDLF)
+      - "${BIND_ADDR:-127.0.0.1}:5580:5580"   # pm-ralf-gwy  — post trade (RALF)
+      - "${BIND_ADDR:-127.0.0.1}:5590:5590"   # pm-dc-gwy    — drop copy (DCLF)
+      - "${BIND_ADDR:-127.0.0.1}:5600:5600"   # pm-log-srv   — log ingest (LALF)
+      - "${BIND_ADDR:-127.0.0.1}:8080:8080"   # pm-api-gwy   — REST, desk
+      - "${BIND_ADDR:-127.0.0.1}:8081:8081"   # pm-api-gwy   — REST, dashboards
+
+  terminal-gui:
+    image: ghcr.io/${GHCR_OWNER:-johan162}/edumatcher-terminal-gui:${EM_VERSION:-latest}
+    container_name: edumatcher-terminal-gui
+    depends_on:
+      - edumatcher
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${TERMINAL_GUI_PORT:-8090}:8090"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8090"
+      CORS_ORIGIN: "*"
+      CALF_HOST: "edumatcher"
+      CALF_PORT: "5570"
+      # Resolved from the deployed configuration by ./edumatcher.sh start:
+      # the read-only credential is generated per configuration and lives on
+      # the 'dashboards' gateway instance (8081), not 'desk' (8080).
+      API_GATEWAY_URL: "${API_GATEWAY_URL:-http://edumatcher:8081}"
+      PM_TERMINAL_API_KEY: "${PM_TERMINAL_API_KEY:-}"
+      LOG_SRV_ENABLED: "true"
+      LOG_SRV_HOST: "edumatcher"
+      LOG_SRV_PORT: "5600"
+      LOG_FAILOVER_DIR: "/app/logs"
+    volumes:
+      - terminal-gui-logs:/app/logs
+
+  log-gui:
+    image: ghcr.io/${GHCR_OWNER:-johan162}/edumatcher-log-gui:${EM_VERSION:-latest}
+    container_name: edumatcher-log-gui
+    depends_on:
+      - edumatcher
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${LOG_GUI_PORT:-8091}:8091"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8091"
+      CORS_ORIGIN: "*"
+      LOG_SRV_HOST: "edumatcher"
+      LOG_SRV_PUB_PORT: "5601"
+      LOG_SRV_PULL_PORT: "5602"
+      LOG_DB_PATH: "/backend-data/log.db"
+      ACK_STORE_PATH: "/app/ack-data/log-ui-acks.db"
+    volumes:
+      # pm-log-srv's own directory, read-only: the viewer reads log.db but
+      # must never write it.
+      - ./data:/backend-data:ro
+      - log-gui-acks:/app/ack-data
+
+  config-gui:
+    image: ghcr.io/${GHCR_OWNER:-johan162}/edumatcher-config-gui:${EM_VERSION:-latest}
+    container_name: edumatcher-config-gui
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${CONFIG_GUI_PORT:-8092}:8092"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8092"
+      CORS_ORIGIN: "*"
+
+  trader-gui:
+    image: ghcr.io/${GHCR_OWNER:-johan162}/edumatcher-trader-gui:${EM_VERSION:-latest}
+    container_name: edumatcher-trader-gui
+    depends_on:
+      - edumatcher
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${TRADER_GUI_PORT:-8093}:8093"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8093"
+      # The 'desk' instance: trading credentials are entered in the browser.
+      API_PROXY_TARGET: "http://edumatcher:8080"
+
+volumes:
+  log-gui-acks:
+  terminal-gui-logs:

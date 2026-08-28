@@ -143,109 +143,29 @@ guided lab.
 
 ## Installation
 
-Choose one installation mode. The commands later in this chapter are shown in
-installed mode. In developer mode, prefix `pm-*` commands with `poetry run`.
+Installation has its own chapter: [Installation](005-installation.md). It
+covers all five modes — the one-command container install, building the
+containers from a checkout, the Multipass VM, `pipx` and a Poetry checkout —
+together with the container networking, every build flag, and every directory
+the system uses.
 
-| Mode | Best for | What you install | Command style |
-|---|---|---|---|
-| **VM bootstrap** | Workshops, clean demos, avoiding host setup | Multipass VM with EduMatcher installed inside it | `multipass shell edumatcher-vm`, then `pm-engine` |
-| **pipx** | Students and instructors running a local session | EduMatcher commands on your host PATH | `pm-engine` |
-| **Poetry checkout** | Development, tests, changing source code | Repository plus dev dependencies | `poetry run pm-engine` |
-
-
-### VM bootstrap - ready-to-run Multipass VM
-
-Use this when you want the fewest host-machine assumptions. Your host needs
-Multipass and `curl`; Python, Poetry and EduMatcher are installed inside the VM.
+The short version, if you just want a running exchange with all four web
+applications:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | \
-    bash -s -- --version 0.20.5 --snapshot
-
-multipass shell edumatcher-vm
-cd /home/ubuntu/session
-pm-engine --verbose
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash
 ```
 
-Useful options:
-
-```bash
-# Name the VM and take an initial snapshot
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | \
-    bash -s -- --name edumatcher-vm --version 0.20.5 --snapshot
-
-# Tune resources
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | \
-    bash -s -- --cpus 2 --memory 3G --disk 8G
-```
-
-If you prefer to inspect the script first:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh -o curl_setup_vm.sh
-less curl_setup_vm.sh
-bash curl_setup_vm.sh --version 0.20.5 --snapshot
-```
-
-
-### End-user / student mode - pipx
-
-Use this when you want to run EduMatcher directly on your host, without a source
-checkout or Poetry environment.
-
-Requirements:
-
-| Requirement | Notes |
-|---|---|
-| Python 3.13 or later | Check with `python --version` |
-| `pipx` | Installs command-line applications into isolated environments |
-| Several terminals | Or `tmux` / `screen`; one process per pane is normal |
-
-Install `pipx` if needed:
-
-```bash
-# macOS with Homebrew
-brew install pipx
-pipx ensurepath
-
-# Linux / generic Python install
-python -m pip install --user pipx
-python -m pipx ensurepath
-```
-
-Install EduMatcher and bootstrap a session directory:
+Or, to run the processes yourself as the rest of this chapter shows:
 
 ```bash
 pipx install edumatcher
-mkdir edumatcher-session
-cd edumatcher-session
+mkdir edumatcher-session && cd edumatcher-session
 pm-setup
 ```
 
-`pm-setup` prepares the data directory, deploys the bundled sample
-configuration, and prints the `EDUMATCHER_DATA_DIR` line to add to your shell
-profile. Open a new terminal after updating your profile so every `pm-*` command
-sees the same data directory.
-
-
-### Developer mode - Poetry checkout
-
-Use this when you are changing code, running tests, or working with the docs
-from source.
-
-```bash
-git clone https://github.com/johan162/EduMatcher.git
-cd EduMatcher
-poetry config virtualenvs.in-project true
-poetry install --with dev,docs
-
-poetry run pm-engine --verbose
-poetry run pm-alf-console --id TRADER01
-```
-
-Developer mode uses the repository-local defaults. When exact behavior matters,
-use the same deployed-configuration flow as installed mode: author YAML, run
-`poetry run pm-config-deploy ...`, then restart the processes.
+The commands in this chapter are shown in installed mode. In a Poetry
+checkout, prefix every `pm-*` command with `poetry run`.
 
 
 ## Environment variables

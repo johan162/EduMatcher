@@ -60,6 +60,20 @@ ifeq ($(CONFIG_GUI),1)
 ALL_COMPOSE_FILES += -f compose.config-gui.yaml
 endif
 DOWN_COMPOSE_FILES := $(COMPOSE_FILES) -f compose.guis.yaml
+# Publishing covers every image, config-gui included — it is a released
+# application even though `up-all` leaves it opt-in.
+PUBLISH_COMPOSE_FILES := -f compose.yaml -f compose.guis.yaml -f compose.config-gui.yaml
+
+# --- Publishing to GHCR ----------------------------------------------------
+# The release path is .github/workflows/publish-images.yml, which builds each
+# image natively on amd64 and arm64 and joins them into one manifest list.
+# `make ghcr-push` is the manual escape hatch for when that is unavailable, and
+# it can only produce an image for the architecture you are standing on.
+GHCR_REGISTRY ?= ghcr.io
+PROJECT_VERSION := $(shell awk -F'"' '/^version =/ {print $$2; exit}' ../../pyproject.toml)
+# Not VERSION: that already means "which PyPI release to install" for `make build`.
+TAG ?= dev
+GUI_IMAGES := edumatcher-config-gui edumatcher-log-gui edumatcher-terminal-gui edumatcher-trader-gui
 
 # Command-line overrides win over .env for this invocation only.
 RUN_ENV :=
@@ -99,7 +113,7 @@ export READONLY_CREDENTIAL_PY
 
 .PHONY: help info check build up up-all down down-all restart shell logs \
 	proc-logs status health ssh keys config-deploy config-show ports \
-	clean clean-data
+	ghcr-push clean clean-data
 
 help:
 	@echo "EduMatcher container — targets:"
@@ -127,6 +141,9 @@ help:
 	@echo "  make config-deploy      Recompile data/ref_data/engine_config.yaml"
 	@echo "  make config-show        Show the deployed configuration"
 	@echo "  make ports              List the published ports"
+	@echo ""
+	@echo "  make ghcr-push          Push all five images to GHCR as :dev (this arch only)"
+	@echo "  make ghcr-push TAG=x.y.z FORCE=1   ... as a release tag (see the warning)"
 	@echo "  make clean              Remove the container and the image"
 	@echo "  make clean-data         Delete ./data (the whole exchange state)"
 	@echo "  make info               Show the detected engine and image names"
@@ -293,6 +310,56 @@ config-deploy: check
 
 config-show: check
 	$(EXEC_TTY) $(CONTAINER_NAME) pm-config-show
+
+# --- Publishing ------------------------------------------------------------
+# Builds all five images from this checkout and pushes them to GHCR under one
+# tag. Needs GITHUB_USER and GHCR_TOKEN.
+#
+#   make ghcr-push                       -> :dev
+#   make ghcr-push TAG=0.20.6 FORCE=1    -> :0.20.6
+#   make ghcr-push TAG=0.20.6 FORCE=1 LATEST=1   -> also moves :latest
+#
+# This publishes a SINGLE-ARCHITECTURE image. Pushing a release tag here
+# replaces the multi-arch manifest list the workflow published for that tag,
+# which silently breaks every user on the other architecture — so a release-
+# looking tag requires FORCE=1, and `latest` is never moved unless asked.
+ghcr-push: check
+	@set -eu; \
+	if [ -z "$${GITHUB_USER:-}" ]; then \
+		echo "ERROR: GITHUB_USER is not set." >&2; exit 1; fi; \
+	if [ -z "$${GHCR_TOKEN:-}" ]; then \
+		echo "ERROR: GHCR_TOKEN is not set (a GitHub token with write:packages)." >&2; exit 1; fi; \
+	case "$(TAG)" in \
+		[0-9]*.[0-9]*.[0-9]*) \
+			if [ "$(FORCE)" != "1" ]; then \
+				echo "REFUSING to push '$(TAG)': that looks like a release tag." >&2; \
+				echo "  The release images are multi-arch; this pushes $$(uname -m) only," >&2; \
+				echo "  which would replace the manifest list and break the other architecture." >&2; \
+				echo "  Prefer: gh workflow run publish-images.yml -f tag=v$(TAG)" >&2; \
+				echo "  Override with FORCE=1 if you know the workflow cannot run." >&2; \
+				exit 1; \
+			fi; \
+			echo "==> WARNING: pushing single-arch ($$(uname -m)) images as '$(TAG)'";; \
+	esac; \
+	echo "==> building all five images from this checkout"; \
+	$(COMPOSE) $(PUBLISH_COMPOSE_FILES) build; \
+	echo "$$GHCR_TOKEN" | $(CONTAINER_ENGINE) login $(GHCR_REGISTRY) \
+		-u "$$GITHUB_USER" --password-stdin; \
+	for pair in "$(IMAGE_NAME):$(IMAGE_TAG) edumatcher" \
+	            $(foreach g,$(GUI_IMAGES),"$(g):latest $(g)"); do \
+		set -- $$pair; local_ref="$$1"; remote="$(GHCR_REGISTRY)/$$GITHUB_USER/$$2"; \
+		echo "==> $$local_ref -> $$remote:$(TAG)"; \
+		$(CONTAINER_ENGINE) tag "$$local_ref" "$$remote:$(TAG)"; \
+		$(CONTAINER_ENGINE) push "$$remote:$(TAG)"; \
+		if [ "$(LATEST)" = "1" ]; then \
+			$(CONTAINER_ENGINE) tag "$$local_ref" "$$remote:latest"; \
+			$(CONTAINER_ENGINE) push "$$remote:latest"; \
+		fi; \
+	done; \
+	echo ""; \
+	echo "Pushed as :$(TAG) (project version is $(PROJECT_VERSION))."; \
+	echo "New packages are PRIVATE — make each one public in its GitHub package settings,"; \
+	echo "or nobody but you can pull them."
 
 # --- Cleanup ---------------------------------------------------------------
 clean: check

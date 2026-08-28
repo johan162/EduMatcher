@@ -195,6 +195,10 @@ running exchange.
 
 ## The whole system: backend plus web GUIs
 
+> Running EduMatcher rather than developing it? [`../curl/`](../curl/) starts
+> this same system from prebuilt images with one command and no toolchain.
+> Everything below builds it from your checkout instead.
+
 ```bash
 make up-all                                # exchange + terminal-, log- and trader-gui
 make up-all CONFIG=ten-nominal             # on a bundled example configuration
@@ -397,11 +401,46 @@ make restart
 | `make config-deploy` | Recompile `data/ref_data/engine_config.yaml` |
 | `make config-show` | Show the deployed configuration |
 | `make ports` | List the published ports |
+| `make ghcr-push` | Push all five images to GHCR as `:dev`. `TAG=x.y.z FORCE=1` for a release tag, `LATEST=1` to move `latest`. Needs `GITHUB_USER` and `GHCR_TOKEN` |
 | `make info` | Show the detected engine, compose command and image name |
 | `make clean` | Remove the container and the image |
 | `make clean-data` | Delete `./data` (asks first) |
 
 Flags combine: `make up ZMQ=1 SSH=1 CONFIG=ten-complex PROFILE=mini`.
+
+## Publishing images by hand
+
+Releases publish images from `.github/workflows/publish-images.yml`, which
+builds each of the five natively on amd64 and arm64 and joins them into one
+manifest list. `make ghcr-push` is the escape hatch for when that workflow
+cannot run — a registry outage, a fork without Actions, or an image you want in
+someone's hands before a release exists.
+
+```bash
+export GITHUB_USER=johan162 GHCR_TOKEN=<token with write:packages>
+
+make ghcr-push                              # all five, tagged :dev
+make ghcr-push TAG=0.20.6 FORCE=1           # ...as a release tag
+make ghcr-push TAG=0.20.6 FORCE=1 LATEST=1  # ...and move :latest
+```
+
+It builds every image from your checkout first, so what is pushed is what this
+tree produces.
+
+**It can only build for the architecture you are standing on.** That is the
+whole reason releases go through Actions: pushing a single-arch image over a
+release tag replaces the manifest list, and every user on the other
+architecture then gets "no matching manifest" — a failure you will not see,
+because your own machine still works. A release-looking tag therefore requires
+`FORCE=1`, and `latest` is never moved unless you ask. If the workflow is
+merely stuck rather than unavailable, re-run it instead:
+
+```bash
+gh workflow run publish-images.yml -f tag=v0.20.6
+```
+
+A newly created GHCR package is **private**. Until each of the five is made
+public in its package settings, nobody but you can pull them.
 
 ## Configuration reference (`.env`)
 
