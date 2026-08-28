@@ -846,6 +846,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/005-installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/010-configuration/" class="md-nav__link">
         
   
@@ -3455,22 +3483,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#part-1-the-container-today" class="md-nav__link">
+  <a href="#part-1-how-the-makefiles-are-structured" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Part 1 — The container today
+        Part 1 — How the Makefiles are structured
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Part 1 — The container today">
+    <nav class="md-nav" aria-label="Part 1 — How the Makefiles are structured">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#why-one-container" class="md-nav__link">
+  <a href="#what-the-app-makefiles-give-you" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why one container
+        What the app Makefiles give you
       
     </span>
   </a>
@@ -3478,21 +3506,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#what-ships-in-the-image" class="md-nav__link">
+  <a href="#variable-names-that-mean-different-things" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What ships in the image
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#ports-today" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Ports today
+        Variable names that mean different things
       
     </span>
   </a>
@@ -3505,33 +3522,55 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#part-2-bind-addresses-vs-connect-addresses" class="md-nav__link">
+  <a href="#part-2-networking-who-is-responsible-for-what" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Part 2 — Bind addresses vs. connect addresses
+        Part 2 — Networking: who is responsible for what
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 2 — Networking: who is responsible for what">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bind-address-versus-connect-address" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bind address versus connect address
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#part-3-how-the-container-uses-this-today" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#the-four-layers-an-address-passes-through" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Part 3 — How the container uses this today
+        The four layers an address passes through
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Part 3 — How the container uses this today">
-      <ul class="md-nav__list">
+</li>
         
           <li class="md-nav__item">
-  <a href="#backend-on-the-lan-today" class="md-nav__link">
+  <a href="#why-the-guis-need-no-host-address-at-all" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Backend on the LAN today
+        Why the GUIs need no host address at all
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-loopback-rewrite" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The loopback rewrite
       
     </span>
   </a>
@@ -3544,22 +3583,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#part-4-what-a-genuine-multi-host-split-would-still-need" class="md-nav__link">
+  <a href="#part-3-build-time-versus-run-time" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Part 4 — What a genuine multi-host split would still need
+        Part 3 — Build time versus run time
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Part 4 — What a genuine multi-host split would still need">
+    <nav class="md-nav" aria-label="Part 3 — Build time versus run time">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#what-todays-change-already-provides" class="md-nav__link">
+  <a href="#precedence-when-the-same-thing-is-settable-in-several-places" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What today's change already provides
+        Precedence when the same thing is settable in several places
       
     </span>
   </a>
@@ -3567,21 +3606,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#what-is-still-missing" class="md-nav__link">
+  <a href="#build-arguments" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What is still missing
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#an-indicative-topology-if-this-were-built-out" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        An indicative topology, if this were built out
+        Build arguments
       
     </span>
   </a>
@@ -3594,10 +3622,216 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#reference-related-design-material" class="md-nav__link">
+  <a href="#part-4-starting-and-configuring-the-whole-system" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Reference: related design material
+        Part 4 — Starting and configuring the whole system
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 4 — Starting and configuring the whole system">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-up-all-runs-in-two-phases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why up-all runs in two phases
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-5-the-release-process" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 5 — The release process
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 5 — The release process">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-manual-escape-hatch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The manual escape hatch
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#two-release-failures-that-are-silent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two release failures that are silent
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-6-maintenance-burden" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 6 — Maintenance burden
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 6 — Maintenance burden">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#adding-a-sixth-application" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding a sixth application
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#known-duplication-and-how-to-detect-drift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known duplication, and how to detect drift
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#standing-costs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Standing costs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-7-troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 7 — Troubleshooting
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 7 — Troubleshooting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#two-signals-that-look-like-proof-and-are-not" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two signals that look like proof and are not
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tracking-down-a-network-block" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tracking down a network block
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#other-things-that-will-bite" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Other things that will bite
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-8-what-a-genuine-multi-host-split-would-still-need" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 8 — What a genuine multi-host split would still need
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 8 — What a genuine multi-host split would still need">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-exists-today" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What exists today
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-is-missing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is missing
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference
       
     </span>
   </a>
@@ -3699,445 +3933,822 @@
 <p class="admonition-title">Learning objectives</p>
 <p>After reading this page you will understand:</p>
 <ul>
-<li>How the single-container Podman/Docker deployment in <code>container/</code> is put together</li>
-<li>Why the engine's ZeroMQ bus was loopback-only, and how it is now configurable</li>
-<li>The difference between an engine <em>bind</em> address and a client <em>connect</em> address</li>
-<li>How to expose the exchange to other machines on your network today</li>
-<li>What a future multi-host / load-balanced backend split would need on top of
-  what exists now, and what it deliberately does not solve</li>
+<li>How the five container images, the compose overlays and the three layers
+  of Makefile fit together</li>
+<li>Where networking responsibility actually sits, and which of the several
+  <code>127.0.0.1</code>/<code>0.0.0.0</code> knobs controls what</li>
+<li>What is baked into an image at build time versus decided at start time,
+  and the precedence order between the ways of setting each</li>
+<li>How a release turns one git tag into a wheel and five multi-architecture
+  images</li>
+<li>What maintenance this design will demand as the system grows, and where
+  it will drift first</li>
+<li>How to diagnose a container that "is running" but cannot be reached</li>
 </ul>
 </div>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
-<p><code>container/</code> packages the entire EduMatcher backend — every <code>pm-*</code> process,
-reference data, databases, and logs — into one Podman/Docker container that
-behaves like the Multipass VM in <code>../vm/</code>, minus the VM's clock-drift-on-suspend
-problem. It is a single container by design: one network namespace, one
-<code>pm-opctl-cli</code> process manager, <code>make build</code> / <code>make up</code> / <code>make shell</code> /
-<code>make down</code> as the whole interface.</p>
-<p>Until recently, one specific constraint enforced that design at the source
-level: the engine's three ZeroMQ bus sockets were hardcoded to bind
-<code>127.0.0.1</code>, with no override. That constraint has been relaxed — the engine's
-bind host is now controlled by <code>EDUMATCHER_ENGINE_BIND_HOST</code>, the same pattern
-already used for <code>pm-index</code>. This page documents the container as it exists
-today, the networking model behind it, and — separately — what would still be
-needed to genuinely split the backend across multiple hosts. Relaxing the bind
-constraint is a <em>prerequisite</em> for that future; it is not the same thing as
-doing it.</p>
-<h2 id="part-1-the-container-today">Part 1 — The container today<a class="headerlink" href="#part-1-the-container-today" title="Permanent link">&para;</a></h2>
-<h3 id="why-one-container">Why one container<a class="headerlink" href="#why-one-container" title="Permanent link">&para;</a></h3>
-<p>The container is used as a <em>machine</em>, not as a set of microservices: one
-container, <code>pm-opctl-cli</code> as the process manager inside it, you log in and
-work — exactly the Multipass VM's operating model, just without a guest
-kernel to resume after a host suspend. See <code>container/README.md</code> for the full
-day-to-day usage reference (<code>make shell</code>, <code>make status</code>, <code>make logs</code>,
-<code>make config-deploy</code>, and so on); this page focuses on how its networking is
-built and why.</p>
-<h3 id="what-ships-in-the-image">What ships in the image<a class="headerlink" href="#what-ships-in-the-image" title="Permanent link">&para;</a></h3>
+<p>EduMatcher ships as <strong>five container images</strong> that run as <strong>one Compose
+project</strong>:</p>
 <table>
 <thead>
 <tr>
-<th></th>
-<th></th>
+<th>Image</th>
+<th>Built from</th>
+<th>Serves</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Base</td>
-<td><code>python:3.13-slim-bookworm</code>, two-stage build</td>
+<td><code>edumatcher</code></td>
+<td><code>deployment/docker/</code></td>
+<td>Every <code>pm-*</code> process — engine, gateways, REST API</td>
 </tr>
 <tr>
-<td>EduMatcher</td>
-<td>installed with <code>pip</code> into <code>/opt/edumatcher/.venv</code></td>
+<td><code>edumatcher-terminal-gui</code></td>
+<td><code>web-apps/terminal-gui/</code></td>
+<td>Trading terminal, port 8090</td>
 </tr>
 <tr>
-<td>OS extras</td>
-<td><code>procps</code> (pm-opctl-cli's <code>pgrep</code>/<code>ps</code>), <code>tini</code> (PID 1), <code>tzdata</code>, <code>curl</code>, <code>openssh-server</code> (optional)</td>
+<td><code>edumatcher-log-gui</code></td>
+<td><code>web-apps/log-gui/</code></td>
+<td>Log viewer, port 8091</td>
 </tr>
 <tr>
-<td>Data</td>
-<td><code>/data</code>, bind-mounted from <code>./data</code> on the host</td>
+<td><code>edumatcher-config-gui</code></td>
+<td><code>web-apps/config-gui/</code></td>
+<td>Configuration builder, port 8092</td>
 </tr>
 <tr>
-<td>PID 1</td>
-<td><code>entrypoint.sh</code> under <code>tini</code></td>
+<td><code>edumatcher-trader-gui</code></td>
+<td><code>web-apps/trader-gui/</code></td>
+<td>Trader GUI, port 8093</td>
 </tr>
 </tbody>
 </table>
-<p><code>entrypoint.sh</code> does four things on start: prepare <code>/data</code> and deploy the
-selected example configuration, optionally start <code>sshd</code>, start the
-<code>pm-opctl-cli</code> profile, then wait and stop the profile cleanly on <code>SIGTERM</code>.
-Every environment variable the container sets — including the two network
-variables this page is about — is visible to every <code>pm-*</code> process
-<code>pm-opctl-cli</code> starts, because they are ordinary child processes and inherit
-the container's environment. There is no separate propagation step to
-maintain; setting a variable on the container is enough.</p>
-<h3 id="ports-today">Ports today<a class="headerlink" href="#ports-today" title="Permanent link">&para;</a></h3>
-<p>All ports bind <code>127.0.0.1</code> on the host by default; <code>BIND_ADDR=0.0.0.0</code> in
-<code>.env</code> opens them to the local network (see <a href="#backend-on-the-lan-today">Backend on the LAN
-today</a> below for what that does and does not
-achieve).</p>
-<p><strong>Always published</strong> — the client-facing gateways, which already bind
-<code>0.0.0.0</code> <em>inside</em> the container and need nothing special:</p>
+<p>The backend is one container by design — the engine's ZeroMQ bus binds
+loopback by default, so every <code>pm-*</code> process must share a network namespace,
+with <code>pm-opctl-cli</code> as the process manager inside it. The GUIs are separate
+containers that reach it over the Compose network.</p>
+<p>There are two deployments of that same set:</p>
+<pre class="mermaid"><code>flowchart LR
+    subgraph repo["This repository"]
+        BE["deployment/docker/\nDockerfile + entrypoint.sh"]
+        WA["web-apps/*/Dockerfile\nfour Node apps"]
+    end
+
+    subgraph dev["deployment/docker/ — built from source"]
+        DC["compose.yaml\n+ compose.guis.yaml\n+ compose.config-gui.yaml\n+ compose.zmq.yaml\n+ compose.ssh.yaml"]
+        MK["make up-all"]
+    end
+
+    subgraph rel["deployment/curl/ — released images"]
+        RC["compose.yaml\nbuild-free, images from GHCR"]
+        SH["install.sh\nedumatcher.sh"]
+    end
+
+    GH["GHCR\nfive multi-arch images\ntagged with the release version"]
+
+    BE --&gt; DC
+    WA --&gt; DC
+    BE --&gt;|"publish-images.yml"| GH
+    WA --&gt;|"publish-images.yml"| GH
+    GH --&gt; RC
+    DC --- MK
+    RC --- SH</code></pre>
+<p><code>deployment/docker/</code> is the one you use while changing the code: it builds
+from your working tree. <code>deployment/curl/</code> is its released twin: identical
+wiring, no <code>build:</code> sections, images pulled by tag. Keeping those two in step
+is the main standing maintenance cost of this design — see
+<a href="#part-6-maintenance-burden">Part 6</a>.</p>
+<h2 id="part-1-how-the-makefiles-are-structured">Part 1 — How the Makefiles are structured<a class="headerlink" href="#part-1-how-the-makefiles-are-structured" title="Permanent link">&para;</a></h2>
+<p>There are three layers, and they answer three different questions.</p>
+<pre class="mermaid"><code>flowchart TD
+    A["deployment/docker/Makefile\n&lt;b&gt;the whole system&lt;/b&gt;"]
+    B["web-apps/Makefile\n&lt;b&gt;the GUIs as a group&lt;/b&gt;"]
+    C1["web-apps/terminal-gui/Makefile"]
+    C2["web-apps/log-gui/Makefile"]
+    C3["web-apps/trader-gui/Makefile"]
+    C4["web-apps/config-gui/Makefile"]
+
+    A --&gt;|"compose build/up across\nall five contexts"| IMGS["five images"]
+    B --&gt;|"make -C, one per app"| C1
+    B --&gt; C2
+    B --&gt; C3
+    C1 --&gt;|"own compose file"| IMGS
+    C2 --&gt; IMGS
+    C3 --&gt; IMGS
+    C4 --&gt; IMGS
+
+    A -.-&gt;|"never calls"| B</code></pre>
 <table>
 <thead>
 <tr>
-<th style="text-align: right;">Port</th>
-<th>Process</th>
-<th>Protocol</th>
-<th>Purpose</th>
+<th>Layer</th>
+<th>File</th>
+<th>Owns</th>
+<th>Use it when</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td style="text-align: right;">5560</td>
-<td><code>pm-balf-gwy</code></td>
-<td>TCP</td>
-<td>Binary ALF order entry</td>
+<td><strong>System</strong></td>
+<td><code>deployment/docker/Makefile</code></td>
+<td>The backend image, and Compose across all five services. Data directory, profiles, configuration deployment, publishing</td>
+<td>You want a working exchange with GUIs</td>
 </tr>
 <tr>
-<td style="text-align: right;">5565</td>
-<td><code>pm-alf-gwy</code></td>
-<td>TCP</td>
-<td>ALF order entry</td>
+<td><strong>Group</strong></td>
+<td><code>web-apps/Makefile</code></td>
+<td>Fanning out to three GUI Makefiles with a shared <code>VM_BACKEND_IP</code></td>
+<td>You run the GUIs against a backend that is <em>not</em> in the same Compose project — a Multipass VM, or a host install</td>
 </tr>
 <tr>
-<td style="text-align: right;">5570</td>
-<td><code>pm-md-gwy</code></td>
-<td>TCP</td>
-<td>Market data (CALF/MDLF)</td>
-</tr>
-<tr>
-<td style="text-align: right;">5580</td>
-<td><code>pm-ralf-gwy</code></td>
-<td>TCP</td>
-<td>Post trade (RALF)</td>
-</tr>
-<tr>
-<td style="text-align: right;">5590</td>
-<td><code>pm-dc-gwy</code></td>
-<td>TCP</td>
-<td>Drop copy (DCLF)</td>
-</tr>
-<tr>
-<td style="text-align: right;">5600</td>
-<td><code>pm-log-srv</code></td>
-<td>TCP</td>
-<td>Log ingest (LALF)</td>
-</tr>
-<tr>
-<td style="text-align: right;">8080</td>
-<td><code>pm-api-gwy</code></td>
-<td>HTTP</td>
-<td>REST API, <code>desk</code> instance</td>
-</tr>
-<tr>
-<td style="text-align: right;">8081</td>
-<td><code>pm-api-gwy</code></td>
-<td>HTTP</td>
-<td>REST API, <code>dashboards</code> instance</td>
+<td><strong>App</strong></td>
+<td><code>web-apps/&lt;gui&gt;/Makefile</code></td>
+<td>One application: npm workspace, its own image, its own compose file</td>
+<td>You are developing that one GUI</td>
 </tr>
 </tbody>
 </table>
-<p><strong>Published with <code>ZMQ=1</code></strong> — the raw internal message bus, off by default
-because every port opened here is one more way into a running exchange:</p>
+<p>The system layer does <strong>not</strong> call the group layer. It reaches the same
+Dockerfiles directly through <code>compose.guis.yaml</code>'s build contexts
+(<code>../../web-apps/&lt;gui&gt;</code>). That is deliberate — one Compose project is what
+puts every container on one network — but it does mean the GUI service
+definitions exist in two places. See <a href="#part-6-maintenance-burden">Part 6</a>.</p>
+<h3 id="what-the-app-makefiles-give-you">What the app Makefiles give you<a class="headerlink" href="#what-the-app-makefiles-give-you" title="Permanent link">&para;</a></h3>
+<p>Each GUI Makefile has the same shape (<code>make help</code> in any of them):</p>
 <table>
 <thead>
 <tr>
-<th style="text-align: right;">Port</th>
-<th>Process</th>
-<th>Socket</th>
-<th>Purpose</th>
+<th>Group</th>
+<th>Targets</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td style="text-align: right;">5555</td>
-<td><code>pm-engine</code></td>
-<td>ZMQ PULL</td>
-<td>Order intake</td>
+<td>npm workspace</td>
+<td><code>install</code>, <code>build</code>, <code>build-debug</code>, <code>typecheck</code>, <code>test</code>, <code>lint</code>, <code>format</code></td>
 </tr>
 <tr>
-<td style="text-align: right;">5556</td>
-<td><code>pm-engine</code></td>
-<td>ZMQ PUB</td>
-<td>Event + book feed</td>
+<td>Development servers</td>
+<td><code>dev</code>, <code>dev-web</code>, <code>dev-bridge</code></td>
 </tr>
 <tr>
-<td style="text-align: right;">5557</td>
-<td><code>pm-engine</code></td>
-<td>ZMQ PUB</td>
-<td>Drop-copy feed</td>
+<td>Container</td>
+<td><code>cbuild</code>, <code>up</code>, <code>down</code>, <code>restart</code>, <code>logs</code>, <code>ps</code></td>
 </tr>
 <tr>
-<td style="text-align: right;">5558</td>
-<td><code>pm-index</code></td>
-<td>ZMQ PUB</td>
-<td>Index values</td>
+<td>Distribution</td>
+<td><code>cdist</code> — an image exported as an <code>xz</code>-compressed tarball for offline delivery</td>
 </tr>
 <tr>
-<td style="text-align: right;">5559</td>
-<td><code>pm-index</code></td>
-<td>ZMQ PULL</td>
-<td>Index commands</td>
-</tr>
-<tr>
-<td style="text-align: right;">5601</td>
-<td><code>pm-log-srv</code></td>
-<td>ZMQ PUB</td>
-<td>LALF-PS broadcast</td>
-</tr>
-<tr>
-<td style="text-align: right;">5602</td>
-<td><code>pm-log-srv</code></td>
-<td>ZMQ PULL</td>
-<td>LALF-PS control</td>
+<td>Registry</td>
+<td><code>ghcr-login</code>, <code>cpush</code>, <code>ghcr-logout</code></td>
 </tr>
 </tbody>
 </table>
-<p><strong>Published with <code>SSH=1</code></strong>: host port <code>2222</code> → container port <code>22</code>.</p>
-<h2 id="part-2-bind-addresses-vs-connect-addresses">Part 2 — Bind addresses vs. connect addresses<a class="headerlink" href="#part-2-bind-addresses-vs-connect-addresses" title="Permanent link">&para;</a></h2>
-<p>This is the concept the rest of the page depends on, and it is easy to blur
-the two if you have not had to keep them apart before.</p>
-<p>A ZeroMQ (or any TCP) socket has two independent addresses:</p>
+<div class="admonition warning">
+<p class="admonition-title">Two different GHCR paths exist, and they tag differently</p>
+<p>A GUI's own <code>make cpush</code> tags with <strong>that app's <code>package.json</code> version</strong>
+(terminal-gui is <code>0.1.0</code>), while <code>deployment/docker</code>'s <code>make ghcr-push</code> and
+the release workflow tag with the <strong>EduMatcher release version</strong>
+(<code>0.20.5</code>). Only the latter produces a coherent set that the installer can
+pin with one number. Use a per-app <code>cpush</code> for ad-hoc work on one GUI;
+never as part of a release.</p>
+</div>
+<h3 id="variable-names-that-mean-different-things">Variable names that mean different things<a class="headerlink" href="#variable-names-that-mean-different-things" title="Permanent link">&para;</a></h3>
+<p>Two collisions are worth committing to memory before you invent a third:</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>In <code>deployment/docker/Makefile</code></th>
+<th>Elsewhere</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>VERSION</code></td>
+<td>Which <strong>PyPI release to install into the image</strong> (<code>make build VERSION=0.20.4</code>)</td>
+<td>In a GUI Makefile, that app's <code>package.json</code> version</td>
+</tr>
+<tr>
+<td><code>TAG</code></td>
+<td>Which <strong>registry tag to push</strong> (<code>make ghcr-push TAG=0.20.6</code>)</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>CONFIG</code></td>
+<td>A <code>make</code>-level flag: an example name <em>or</em> a file path</td>
+<td><code>EM_CONFIG</code> / <code>EM_CONFIG_FILE</code> are the container-level variables it sets</td>
+</tr>
+</tbody>
+</table>
+<p><code>ghcr-push</code> uses <code>TAG</code> rather than <code>VERSION</code> precisely because <code>VERSION</code>
+already had a contradictory meaning one target away.</p>
+<h2 id="part-2-networking-who-is-responsible-for-what">Part 2 — Networking: who is responsible for what<a class="headerlink" href="#part-2-networking-who-is-responsible-for-what" title="Permanent link">&para;</a></h2>
+<h3 id="bind-address-versus-connect-address">Bind address versus connect address<a class="headerlink" href="#bind-address-versus-connect-address" title="Permanent link">&para;</a></h3>
+<p>A ZeroMQ or TCP endpoint appears twice in this codebase and the two are not
+interchangeable:</p>
 <ul>
-<li><strong>Bind address</strong> — what the <em>listening</em> process binds to. <code>0.0.0.0</code> means
-  "accept connections arriving on any of this machine's network interfaces."
-  <code>127.0.0.1</code> means "accept connections only from this same machine."
-  <code>0.0.0.0</code> is a wildcard for binding; it is not a real, routable address.</li>
-<li><strong>Connect address</strong> — what a <em>client</em> dials. This must be a real, reachable
-  IP or hostname — <code>0.0.0.0</code> is meaningless here, because there is no machine
-  actually at that address to connect to.</li>
+<li>A <strong>bind</strong> address is what a server listens on. <code>127.0.0.1</code> accepts only
+  connections originating inside the same network namespace. <code>0.0.0.0</code> accepts
+  connections arriving on any interface the namespace has.</li>
+<li>A <strong>connect</strong> address is what a client dials. It must name a host that is
+  reachable <em>from the client's</em> namespace.</li>
 </ul>
-<p>A process that both binds a socket and connects to another process's socket
-(which describes most <code>pm-*</code> processes on the engine bus — a gateway binds its
-own client-facing port <em>and</em> connects to the engine's PULL/PUB sockets) needs
-both addresses available separately. Conflating them — using one constant for
-both roles — is exactly the trap: setting a shared "engine host" constant to
-<code>0.0.0.0</code> so the engine binds all interfaces would silently break every other
-process's <em>connect</em> address at the same time, since <code>0.0.0.0</code> is not
-connectable.</p>
-<p><code>edumatcher.config</code> already modeled this correctly for <code>pm-index</code> before this
-change, and now models it the same way for the engine:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Index process endpoints (pre-existing)</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">EDUMATCHER_INDEX_BIND_HOST</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">"EDUMATCHER_INDEX_BIND_HOST"</span><span class="p">,</span> <span class="s2">"127.0.0.1"</span><span class="p">)</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">EDUMATCHER_ENGINE_HOST</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">"EDUMATCHER_ENGINE_HOST"</span><span class="p">,</span> <span class="s2">"127.0.0.1"</span><span class="p">)</span>  <span class="c1"># connect-side, for clients of BOTH pm-index and pm-engine</span>
+<p>In <code>edumatcher/config.py</code> these are separate constants:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Bind side — where a server listens</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">EDUMATCHER_ENGINE_BIND_HOST</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">"EDUMATCHER_ENGINE_BIND_HOST"</span><span class="p">,</span> <span class="s2">"127.0.0.1"</span><span class="p">)</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">ENGINE_PULL_BIND_ADDR</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"tcp://</span><span class="si">{</span><span class="n">EDUMATCHER_ENGINE_BIND_HOST</span><span class="si">}</span><span class="s2">:5555"</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">INDEX_PUB_ADDR</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"tcp://</span><span class="si">{</span><span class="n">EDUMATCHER_INDEX_BIND_HOST</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">EDUMATCHER_INDEX_PUB_PORT</span><span class="si">}</span><span class="s2">"</span>   <span class="c1"># bind</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">INDEX_PUB_CONNECT_ADDR</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"tcp://</span><span class="si">{</span><span class="n">EDUMATCHER_ENGINE_HOST</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">EDUMATCHER_INDEX_PUB_PORT</span><span class="si">}</span><span class="s2">"</span>  <span class="c1"># connect</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c1"># Engine bus endpoints (new)</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="n">EDUMATCHER_ENGINE_BIND_HOST</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">"EDUMATCHER_ENGINE_BIND_HOST"</span><span class="p">,</span> <span class="s2">"127.0.0.1"</span><span class="p">)</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="n">ENGINE_PULL_BIND_ADDR</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"tcp://</span><span class="si">{</span><span class="n">EDUMATCHER_ENGINE_BIND_HOST</span><span class="si">}</span><span class="s2">:5555"</span>   <span class="c1"># what pm-engine binds</span>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="n">ENGINE_PULL_ADDR</span>      <span class="o">=</span> <span class="sa">f</span><span class="s2">"tcp://</span><span class="si">{</span><span class="n">EDUMATCHER_ENGINE_HOST</span><span class="si">}</span><span class="s2">:5555"</span>        <span class="c1"># what everyone else connects to</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># Connect side — where a client dials</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">EDUMATCHER_ENGINE_HOST</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">"EDUMATCHER_ENGINE_HOST"</span><span class="p">,</span> <span class="s2">"127.0.0.1"</span><span class="p">)</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="n">ENGINE_PULL_ADDR</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"tcp://</span><span class="si">{</span><span class="n">EDUMATCHER_ENGINE_HOST</span><span class="si">}</span><span class="s2">:5555"</span>
 </code></pre></div>
-<p><code>EDUMATCHER_ENGINE_HOST</code> already existed — it was introduced for <code>pm-index</code>'s
-connect-side addresses and happened to be named generically enough to reuse
-for the engine trio without a second variable. Its default (<code>127.0.0.1</code>) is
-unchanged, so nothing downstream changes value unless one or both variables
-are explicitly set.</p>
+<p>Setting the bind host does not move any client, and setting the connect host
+does not open any listener. Cross-host work needs both.</p>
+<h3 id="the-four-layers-an-address-passes-through">The four layers an address passes through<a class="headerlink" href="#the-four-layers-an-address-passes-through" title="Permanent link">&para;</a></h3>
+<pre class="mermaid"><code>flowchart TB
+    subgraph L1["1. Your machine"]
+        BR["Browser, curl,\nprotocol clients"]
+    end
+    subgraph L2["2. Published ports — controlled by BIND_ADDR"]
+        P["127.0.0.1:8090-8093\n127.0.0.1:5560-5600, 8080-8081"]
+    end
+    subgraph L3["3. The Compose network — one per project"]
+        G["terminal-gui, log-gui,\nconfig-gui, trader-gui"]
+    end
+    subgraph L4["4. Inside the backend namespace"]
+        GW["Gateways — bind_address in engine_config.yaml"]
+        BUS["Engine bus 5555-5557, index 5558-5559\nEDUMATCHER_ENGINE_BIND_HOST / _INDEX_"]
+    end
+
+    BR --&gt; P
+    P --&gt; G
+    P --&gt; GW
+    G --&gt;|"hostname 'edumatcher'"| GW
+    GW &lt;--&gt; BUS</code></pre>
 <table>
 <thead>
 <tr>
-<th>Variable</th>
-<th>Role</th>
-<th>Consumed by</th>
-<th>Default</th>
+<th>Layer</th>
+<th>Controlled by</th>
+<th>Set where</th>
+<th><code>0.0.0.0</code> here means</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>EDUMATCHER_ENGINE_BIND_HOST</code></td>
-<td>Where <code>pm-engine</code> binds its 3 bus sockets</td>
-<td><code>pm-engine</code> only</td>
-<td><code>127.0.0.1</code></td>
+<td>Published ports</td>
+<td><code>BIND_ADDR</code></td>
+<td><code>.env</code></td>
+<td><strong>Anyone on your LAN can reach the exchange</strong></td>
 </tr>
 <tr>
-<td><code>EDUMATCHER_ENGINE_HOST</code></td>
-<td>Where every other process connects to reach the engine</td>
-<td>gateways, <code>pm-board</code>, <code>pm-viewer</code>, <code>pm-scheduler</code>, <code>pm-audit</code>, <code>pm-clearing</code>, <code>pm-stats</code>, <code>pm-orders</code>, <code>pm-ticker</code>, <code>pm-index</code>, <code>pm-ai-trader</code>, <code>pm-alf-console</code>, <code>commands/cli</code></td>
-<td><code>127.0.0.1</code></td>
+<td>Compose network</td>
+<td>Compose project membership</td>
+<td>which <code>-f</code> overlays you pass</td>
+<td>—</td>
 </tr>
 <tr>
-<td><code>EDUMATCHER_INDEX_BIND_HOST</code></td>
-<td>Where <code>pm-index</code> binds its 2 sockets</td>
-<td><code>pm-index</code> only</td>
-<td><code>127.0.0.1</code></td>
+<td>Gateway listeners</td>
+<td><code>bind_address:</code> / <code>host:</code></td>
+<td><code>engine_config.yaml</code></td>
+<td>Any container on the Compose network</td>
+</tr>
+<tr>
+<td>Engine + index bus</td>
+<td><code>EDUMATCHER_ENGINE_BIND_HOST</code>, <code>EDUMATCHER_INDEX_BIND_HOST</code></td>
+<td><code>compose.zmq.yaml</code>, via <code>ZMQ=1</code></td>
+<td>Same, plus publishable to the host</td>
 </tr>
 </tbody>
 </table>
-<p>Only <code>pm-engine</code>'s and <code>pm-index</code>'s own bind call sites needed to change
-(<code>engine/main.py</code>, <code>engine/drop_copy.py</code>). Every one of the fifteen-plus
-consumer processes listed above kept importing the same connect-side constant
-names with unchanged default values, so nothing else in the codebase needed
-to change.</p>
-<p><code>pm-log-srv</code> is a third case worth naming explicitly: it already binds
-<code>0.0.0.0</code> <strong>unconditionally</strong>, by its own design, with no environment
-variable involved at all. It needs no bind-host override because it never
-restricted itself to loopback in the first place.</p>
-<h2 id="part-3-how-the-container-uses-this-today">Part 3 — How the container uses this today<a class="headerlink" href="#part-3-how-the-container-uses-this-today" title="Permanent link">&para;</a></h2>
-<p>Before this change, the container could not simply publish ports 5555–5557,
-because nothing inside the container was listening on any interface those
-published ports could reach — the engine was bound to <code>127.0.0.1</code>, a published
-Docker port maps to a container-external interface, and loopback is not
-externally reachable no matter how a port is published. The old workaround
-was a <code>socat</code> TCP relay started by <code>entrypoint.sh</code>, listening on the
-container's own IP and forwarding each connection through to <code>127.0.0.1</code>.
-Functionally correct — ZMTP is a plain TCP byte stream, so a relay is
-transparent to it — but it was a workaround for a source-level limitation,
-running one extra process per relayed port, for no other reason than that the
-engine could not be told to bind anywhere else.</p>
-<p><code>container/compose.zmq.yaml</code> now does this instead:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">services</span><span class="p">:</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">edumatcher</span><span class="p">:</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="nt">environment</span><span class="p">:</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">      </span><span class="nt">EDUMATCHER_ENGINE_BIND_HOST</span><span class="p">:</span><span class="w"> </span><span class="s">"0.0.0.0"</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">      </span><span class="nt">EDUMATCHER_INDEX_BIND_HOST</span><span class="p">:</span><span class="w"> </span><span class="s">"0.0.0.0"</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="nt">ports</span><span class="p">:</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"${BIND_ADDR:-127.0.0.1}:5555:5555"</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"${BIND_ADDR:-127.0.0.1}:5556:5556"</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"${BIND_ADDR:-127.0.0.1}:5557:5557"</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"${BIND_ADDR:-127.0.0.1}:5558:5558"</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"${BIND_ADDR:-127.0.0.1}:5559:5559"</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"${BIND_ADDR:-127.0.0.1}:5601:5601"</span>
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"${BIND_ADDR:-127.0.0.1}:5602:5602"</span>
+<p>Only the first is a security boundary. The rest are inside a namespace that
+already isolates the container; widening them exposes nothing that a published
+port does not already expose.</p>
+<h3 id="why-the-guis-need-no-host-address-at-all">Why the GUIs need no host address at all<a class="headerlink" href="#why-the-guis-need-no-host-address-at-all" title="Permanent link">&para;</a></h3>
+<p>All five services belong to one Compose project, so Compose puts them on one
+network and registers the backend under the service name, the container name
+<em>and</em> the hostname — all three resolve to the same address:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="gp">$ </span>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-trader-gui<span class="w"> </span>getent<span class="w"> </span>hosts<span class="w"> </span>edumatcher
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="go">10.89.2.2       edumatcher.dns.podman</span>
 </code></pre></div>
-<p>The engine and <code>pm-index</code> now bind the ports directly, on the container's own
-<code>0.0.0.0</code>. No relay process, no <code>socat</code> dependency in the image, one less
-moving part between "container is up" and "port is reachable."</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>make<span class="w"> </span>up<span class="w"> </span><span class="nv">ZMQ</span><span class="o">=</span><span class="m">1</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># then, from the host:</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>pm-dc-spy<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">5557</span><span class="w">        </span><span class="c1"># engine drop-copy feed</span>
+<p>That is why <code>compose.guis.yaml</code> points every GUI at <code>edumatcher:&lt;port&gt;</code> and
+why <code>host.docker.internal</code>, the <code>host-gateway</code> pseudo-address and
+<code>VM_BACKEND_IP</code> have all disappeared from that path. Those existed to route
+GUI traffic out to the host and back in, which behaved differently on Docker
+Desktop, Linux Docker and Podman. <code>web-apps/Makefile</code> still carries
+<code>VM_BACKEND_IP</code> because it serves the other case: GUIs in one project talking
+to a backend that is somewhere else entirely.</p>
+<h3 id="the-loopback-rewrite">The loopback rewrite<a class="headerlink" href="#the-loopback-rewrite" title="Permanent link">&para;</a></h3>
+<p>The bundled example configurations set <code>bind_address: 127.0.0.1</code> on the
+market-data and post-trade gateways. On a host install that is a real
+protection — the protocol gateways have no authentication. Inside a container
+it protects nothing and makes the gateway unreachable from a sibling
+container, which is exactly what leaves the trading terminal showing
+<code>calf: RECONNECTING</code>.</p>
+<p><code>entrypoint.sh:open_gateway_binds()</code> therefore rewrites <code>bind_address:</code> and
+<code>host:</code> values of <code>127.0.0.1</code> to <code>0.0.0.0</code> in the deployed YAML and re-runs
+<code>pm-config-deploy</code> to recompile and re-validate. It is guarded by a <code>grep</code>, so
+it is a no-op on restart, and it touches only those two keys — the only bind
+keys in the schema; nothing in <code>engine_config.yaml</code> uses either to mean
+"connect to".</p>
+<p>The alternative — editing the twelve bundled examples — was rejected because it
+would also loosen every bare-metal <code>pm-setup</code>, and because the rewrite already
+covers any future example that sets loopback.</p>
+<h2 id="part-3-build-time-versus-run-time">Part 3 — Build time versus run time<a class="headerlink" href="#part-3-build-time-versus-run-time" title="Permanent link">&para;</a></h2>
+<p>The single most common way to waste an hour here is to change something at run
+time that was decided at build time, or the reverse.</p>
+<table>
+<thead>
+<tr>
+<th>Decided at <strong>build</strong> time (baked into the image)</th>
+<th>Decided at <strong>run</strong> time (changeable with a restart)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Which EduMatcher package is installed — local wheel, PyPI, or a pinned version</td>
+<td>Which engine configuration is deployed (<code>EM_CONFIG</code>, <code>EM_CONFIG_FILE</code>)</td>
+</tr>
+<tr>
+<td>Whether <code>openssh-server</code> exists (<code>WITH_SSH</code>)</td>
+<td>Whether <code>sshd</code> is started (<code>EM_SSH</code>, via <code>SSH=1</code>)</td>
+</tr>
+<tr>
+<td>The Python base image (<code>PYTHON_VERSION</code>)</td>
+<td>Which process profile runs (<code>EM_PROFILE</code>)</td>
+</tr>
+<tr>
+<td><code>EDUMATCHER_DATA_DIR=/data</code>, <code>PATH</code>, the entrypoint</td>
+<td>Timezone (<code>TZ</code>)</td>
+</tr>
+<tr>
+<td><strong>The compiled SPA bundle for each GUI</strong></td>
+<td>Which host interface ports publish on (<code>BIND_ADDR</code>)</td>
+</tr>
+<tr>
+<td>npm registry, proxy and CA settings used during the build</td>
+<td>Every GUI's backend addresses and API key</td>
+</tr>
+<tr>
+<td>Each GUI's default <code>WEB_PORT</code></td>
+<td>The port it actually listens on (<code>PORT</code>), and its host mapping</td>
+</tr>
+</tbody>
+</table>
+<p>The one that catches people is the SPA bundle: a change to any GUI's frontend
+needs an image rebuild. <code>make up-all</code> builds an image that is missing, but does
+not rebuild one that already exists — use <code>make build</code> or
+<code>$(COMPOSE) ... build</code> when you have changed frontend source.</p>
+<h3 id="precedence-when-the-same-thing-is-settable-in-several-places">Precedence when the same thing is settable in several places<a class="headerlink" href="#precedence-when-the-same-thing-is-settable-in-several-places" title="Permanent link">&para;</a></h3>
+<pre class="mermaid"><code>flowchart LR
+    A["make flag\nCONFIG= PROFILE= ZMQ=1"] --&gt; B["shell environment\nexported before compose runs"]
+    B --&gt; C[".env\ndeployment/docker/.env"]
+    C --&gt; D["compose default\n${VAR:-fallback}"]
+    D --&gt; E["image ENV\nDockerfile"]
+    E --&gt; F["application default\nconfig.py / config.ts"]</code></pre>
+<p>Leftmost wins. A <code>make</code> flag becomes an exported variable for that one
+invocation only; <code>.env</code> is Compose's own file and is where machine-specific
+choices belong; the <code>${VAR:-fallback}</code> defaults inside the compose files are
+the last stop before the image's own <code>ENV</code>.</p>
+<p>This is why <code>make up-all CONFIG=ten-nominal</code> does not edit <code>.env</code>, and why
+re-running plain <code>make up-all</code> afterwards goes back to whatever <code>.env</code> says.
+Compose notices the changed environment and recreates the container, so the
+switch takes effect without an explicit <code>down</code>.</p>
+<h3 id="build-arguments">Build arguments<a class="headerlink" href="#build-arguments" title="Permanent link">&para;</a></h3>
+<p>Backend (<code>deployment/docker/Dockerfile</code>): <code>PYTHON_VERSION</code>,
+<code>EDUMATCHER_VERSION</code>, <code>PIP_INDEX_URL</code>, <code>WITH_SSH</code>.</p>
+<p>Each GUI (<code>web-apps/*/Dockerfile</code>): <code>WEB_PORT</code>, <code>NPM_REGISTRY</code>,
+<code>NPM_STRICT_SSL</code>, <code>HTTP_PROXY</code>, <code>HTTPS_PROXY</code>, <code>NO_PROXY</code>; config-gui also
+takes <code>USE_PROXY_CA</code> and <code>CA_CERT_FILE</code>.</p>
+<p>The backend's package source is selected by what is present rather than by a
+flag:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">COPY</span><span class="w"> </span>.wheel/<span class="w"> </span>/tmp/wheel/
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">RUN</span><span class="w"> </span><span class="k">if</span><span class="w"> </span>ls<span class="w"> </span>/tmp/wheel/*.whl<span class="p">;</span><span class="w"> </span><span class="k">then</span><span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>/tmp/wheel/*.whl<span class="p">;</span><span class="w">   </span>#<span class="w"> </span><span class="nb">local</span><span class="w"> </span>build
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="k">elif</span><span class="w"> </span><span class="o">[</span><span class="w"> </span>-n<span class="w"> </span><span class="s2">"</span><span class="si">${</span><span class="nv">EDUMATCHER_VERSION</span><span class="si">}</span><span class="s2">"</span><span class="w"> </span><span class="o">]</span><span class="p">;</span><span class="w"> </span><span class="k">then</span><span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"edumatcher==</span><span class="si">${</span><span class="nv">EDUMATCHER_VERSION</span><span class="si">}</span><span class="s2">"</span><span class="p">;</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="k">else</span><span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>edumatcher<span class="p">;</span><span class="w"> </span><span class="k">fi</span><span class="w">                              </span>#<span class="w"> </span>newest<span class="w"> </span>on<span class="w"> </span>PyPI
 </code></pre></div>
-<p>Everything inside the container still talks to everything else over
-<code>127.0.0.1</code> by default — <code>EDUMATCHER_ENGINE_HOST</code> is not touched by
-<code>compose.zmq.yaml</code>, so in-container clients keep connecting to loopback
-exactly as before. <code>EDUMATCHER_ENGINE_BIND_HOST=0.0.0.0</code> only widens <em>who can
-reach the socket</em>, not where the socket's own connect-side consumers look for
-it. That asymmetry — bind wide, connect narrow, both correct at once — is the
-entire point of keeping the two variables separate.</p>
-<h3 id="backend-on-the-lan-today">Backend on the LAN today<a class="headerlink" href="#backend-on-the-lan-today" title="Permanent link">&para;</a></h3>
-<p>Setting <code>BIND_ADDR=0.0.0.0</code> in <code>.env</code> publishes the compose ports on every
-interface of the <em>host</em> machine, and (with <code>ZMQ=1</code>) the engine and index
-sockets are actually listening for it, rather than being present but
-unreachable. This is enough for another machine on the same network to reach
-this one container's REST API, gateways, or (with <code>ZMQ=1</code>) raw bus. It is
-<strong>not</strong> a multi-host backend: there is still exactly one <code>pm-engine</code> process,
-still running inside this one container, still the single order-matching
-authority for the whole exchange. What changed is that other machines can now
-<em>reach</em> it — not that the backend itself is distributed.</p>
-<h2 id="part-4-what-a-genuine-multi-host-split-would-still-need">Part 4 — What a genuine multi-host split would still need<a class="headerlink" href="#part-4-what-a-genuine-multi-host-split-would-still-need" title="Permanent link">&para;</a></h2>
-<p>This section is deliberately speculative — nothing here is implemented. It
-exists so that the next person who wants to take the container in this
-direction knows what is already in place and what is still missing, instead
-of rediscovering both from scratch.</p>
-<h3 id="what-todays-change-already-provides">What today's change already provides<a class="headerlink" href="#what-todays-change-already-provides" title="Permanent link">&para;</a></h3>
+<p><code>make build</code> puts a freshly built wheel in <code>.wheel/</code>; <code>PYPI=1</code> and
+<code>VERSION=x.y.z</code> clear it first.</p>
+<div class="admonition danger">
+<p class="admonition-title">Always confirm which package went into the image</p>
+<p>A successful build prints
+<code>Installing local wheel: /tmp/wheel/edumatcher-&lt;version&gt;.whl</code>. If you see
+pip <em>downloading</em> <code>edumatcher</code> instead, the image contains a published
+release and your source change is not in it — while everything else about
+the build looks fine. This exact failure mode has cost real debugging time
+on this project, from a path in the <code>RUN</code> step that did not match the
+<code>COPY</code> destination.</p>
+</div>
+<h2 id="part-4-starting-and-configuring-the-whole-system">Part 4 — Starting and configuring the whole system<a class="headerlink" href="#part-4-starting-and-configuring-the-whole-system" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>make<span class="w"> </span>build<span class="w">          </span><span class="c1"># backend image from a wheel built out of this checkout</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>make<span class="w"> </span>up-all<span class="w">         </span><span class="c1"># exchange + terminal-, log- and trader-gui</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>make<span class="w"> </span>down-all<span class="w">       </span><span class="c1"># stop and remove everything</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Applies to</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CONFIG=&lt;name&gt;</code></td>
+<td><code>up</code>, <code>up-all</code></td>
+<td>Deploy a bundled example</td>
+</tr>
+<tr>
+<td><code>CONFIG=&lt;file&gt;</code></td>
+<td><code>up-all</code></td>
+<td>Copy the file to <code>config/</code>, mount it read-only at <code>/config</code>, deploy it</td>
+</tr>
+<tr>
+<td><code>PROFILE=&lt;name&gt;</code></td>
+<td><code>up</code>, <code>up-all</code></td>
+<td><code>default</code>, <code>mini</code> or <code>micro</code></td>
+</tr>
+<tr>
+<td><code>ZMQ=1</code></td>
+<td><code>up</code>, <code>up-all</code></td>
+<td>Add <code>compose.zmq.yaml</code>: publish the raw bus and set the engine/index bind hosts to <code>0.0.0.0</code></td>
+</tr>
+<tr>
+<td><code>SSH=1</code></td>
+<td><code>up</code>, <code>up-all</code></td>
+<td>Add <code>compose.ssh.yaml</code> and prepare <code>authorized_keys</code></td>
+</tr>
+<tr>
+<td><code>CONFIG_GUI=1</code></td>
+<td><code>up-all</code></td>
+<td>Add <code>compose.config-gui.yaml</code></td>
+</tr>
+<tr>
+<td><code>PYPI=1</code>, <code>VERSION=</code></td>
+<td><code>build</code></td>
+<td>Install from PyPI instead of the checkout</td>
+</tr>
+<tr>
+<td><code>CONTAINER_ENGINE=docker</code></td>
+<td>all</td>
+<td>Force Docker when Podman is also installed</td>
+</tr>
+</tbody>
+</table>
+<p>The overlays are additive <code>-f</code> files, which is why they compose freely:
+<code>make up-all CONFIG=ten-complex PROFILE=mini ZMQ=1 CONFIG_GUI=1</code>.</p>
+<h3 id="why-up-all-runs-in-two-phases">Why <code>up-all</code> runs in two phases<a class="headerlink" href="#why-up-all-runs-in-two-phases" title="Permanent link">&para;</a></h3>
+<p>The trading terminal reads history through <code>pm-api-gwy</code> using the credential
+whose <code>gateway_id</code> is <code>null</code>. That key is <strong>generated per engine
+configuration</strong> — different in each of the twelve examples — and is issued on
+the <code>dashboards</code> instance (8081), not <code>desk</code> (8080). It does not exist until
+the exchange has deployed its configuration, so it cannot be a compose default.</p>
+<pre class="mermaid"><code>sequenceDiagram
+    participant M as make up-all
+    participant B as edumatcher
+    participant G as the GUI services
+
+    M-&gt;&gt;B: compose up -d edumatcher
+    B-&gt;&gt;B: pm-setup / pm-config-deploy
+    B-&gt;&gt;B: open_gateway_binds() rewrites loopback binds
+    B-&gt;&gt;B: pm-opctl-cli start &lt;profile&gt;
+    M-&gt;&gt;B: poll for /data/ref_data/engine_config.json
+    M-&gt;&gt;B: exec python3 — read the gateway_id:null credential
+    B--&gt;&gt;M: port + api_key
+    M-&gt;&gt;G: compose up -d (with API_GATEWAY_URL + PM_TERMINAL_API_KEY)</code></pre>
+<p><code>deployment/curl/edumatcher.sh start</code> performs the identical sequence with the
+same extraction snippet — that logic lives in <code>edumatcher.sh</code> rather than in
+<code>install.sh</code> so there is one copy on the released path.</p>
+<p>A configuration with no read-only credential is not an error: the start
+continues and warns. The live CALF feed needs no key; only history does.</p>
+<h2 id="part-5-the-release-process">Part 5 — The release process<a class="headerlink" href="#part-5-the-release-process" title="Permanent link">&para;</a></h2>
+<p>One git tag produces a wheel and five multi-architecture images, all carrying
+the same version. That coupling is what lets <code>install.sh --version 0.26.0</code>
+pin an entire system with one number.</p>
+<pre class="mermaid"><code>flowchart TD
+    MK["scripts/mkrelease.sh\nbump, build docs, commit, tag"]
+    GHR["scripts/mkghrelease.sh\nvalidate dist/, gh release create"]
+    REL["GitHub release published"]
+
+    PY["publish-to-pypi.yml"]
+    IMG["publish-images.yml"]
+
+    subgraph matrix["build job — 5 images x 2 architectures"]
+        AMD["ubuntu-24.04\nlinux/amd64"]
+        ARM["ubuntu-24.04-arm\nlinux/arm64"]
+    end
+    MERGE["merge job\nbuildx imagetools create\ntags X.Y.Z (+ latest)"]
+
+    MK --&gt; GHR --&gt; REL
+    REL --&gt; PY --&gt; PYPI["PyPI"]
+    REL --&gt; IMG --&gt; matrix --&gt; MERGE --&gt; GHCR["GHCR — 5 manifest lists"]
+    GHR -.-&gt;|"PHASE 6B polls gh run view"| MERGE</code></pre>
+<p>Points a developer needs to know:</p>
+<p><strong>Each image is built twice, natively.</strong> A single-runner build with
+<code>platforms: linux/amd64,linux/arm64</code> would emulate the foreign architecture
+under QEMU — four Node images each running <code>npm ci</code> and a Vite build, which
+turns a release into hours. Instead each <code>(image, arch)</code> pair builds on its own
+native runner and pushes <strong>by digest only</strong>; a merge job then joins the two
+digests into a manifest list and applies the tags. arm64 hosted runners are
+generally available and free for public repositories.</p>
+<p><strong>The backend's wheel is built inside the workflow</strong>, not taken from PyPI.
+<code>publish-to-pypi.yml</code> fires on the same <code>release: published</code> event, so whether
+the new version has reached PyPI yet is a race — and losing it means shipping
+an image one release behind. The workflow runs <code>poetry build</code> and drops the
+wheel into <code>deployment/docker/.wheel/</code> before the image build.</p>
+<p><strong><code>latest</code> only moves for an exact <code>vMAJOR.MINOR.PATCH</code> tag</strong>, so a pre-release
+never becomes what a new user gets by default. That is the same test
+<code>publish-to-pypi.yml</code> uses to choose between PyPI and TestPyPI.</p>
+<p><strong><code>mkghrelease.sh</code> waits but does not push.</strong> Its PHASE 6B polls
+<code>gh run view</code> for the image workflow — bounded by <code>IMAGE_WAIT_MINUTES</code>
+(default 30), skippable with <code>--skip-images</code> — and reports the five image
+references. If the workflow fails the GitHub release still exists; only the
+images are missing, and <code>gh workflow run publish-images.yml -f tag=vX.Y.Z</code>
+re-runs just that part.</p>
+<h3 id="the-manual-escape-hatch">The manual escape hatch<a class="headerlink" href="#the-manual-escape-hatch" title="Permanent link">&para;</a></h3>
+<p><code>make ghcr-push</code> in <code>deployment/docker/</code> builds all five images from your
+checkout and pushes them. It exists for when the workflow cannot run at all.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">GITHUB_USER</span><span class="o">=</span>&lt;you&gt;<span class="w"> </span><span class="nv">GHCR_TOKEN</span><span class="o">=</span>&lt;token<span class="w"> </span>with<span class="w"> </span>write:packages&gt;
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>make<span class="w"> </span>ghcr-push<span class="w">                              </span><span class="c1"># all five, tagged :dev</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>make<span class="w"> </span>ghcr-push<span class="w"> </span><span class="nv">TAG</span><span class="o">=</span><span class="m">0</span>.20.6<span class="w"> </span><span class="nv">FORCE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">LATEST</span><span class="o">=</span><span class="m">1</span><span class="w">  </span><span class="c1"># as a release tag</span>
+</code></pre></div>
+<p>It can only build for the architecture you are on. Pushing single-arch over a
+release tag <strong>replaces the manifest list</strong>, and users on the other
+architecture then get "no matching manifest" — a failure you will not observe,
+because your own machine still works. Hence <code>FORCE=1</code> for a release-looking
+tag, and <code>latest</code> never moving unless asked.</p>
+<h3 id="two-release-failures-that-are-silent">Two release failures that are silent<a class="headerlink" href="#two-release-failures-that-are-silent" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Failure</th>
+<th>Who sees it</th>
+<th>What catches it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Image built from PyPI instead of the checkout</td>
+<td>Nobody — it looks like a normal build</td>
+<td>The <code>Installing local wheel:</code> line in the build output</td>
+</tr>
+<tr>
+<td>GHCR packages left private</td>
+<td>Everyone except the maintainer, who is already authenticated</td>
+<td>Installing from a machine with no credentials</td>
+</tr>
+</tbody>
+</table>
+<p>A newly created GHCR package is private. Until each of the five is made public
+in its package settings, <code>podman pull</code> fails for every user but you.</p>
+<h2 id="part-6-maintenance-burden">Part 6 — Maintenance burden<a class="headerlink" href="#part-6-maintenance-burden" title="Permanent link">&para;</a></h2>
+<p>This design trades some duplication for a property that is hard to get any
+other way: one Compose project, therefore one network, therefore no host
+addresses anywhere. Knowing exactly what that costs is the point of this
+section.</p>
+<h3 id="adding-a-sixth-application">Adding a sixth application<a class="headerlink" href="#adding-a-sixth-application" title="Permanent link">&para;</a></h3>
+<p>Every place that has to change, in order:</p>
+<ol>
+<li><code>web-apps/&lt;new-gui&gt;/</code> — Dockerfile, compose file, Makefile (copy the closest
+   existing app; they are deliberately near-identical)</li>
+<li><code>deployment/docker/compose.guis.yaml</code> — service definition pointing at
+   <code>edumatcher:&lt;port&gt;</code>, <strong>never</strong> at a host address</li>
+<li><code>deployment/curl/compose.yaml</code> — the same service, image from GHCR, no
+   <code>build:</code> section</li>
+<li><code>deployment/docker/Makefile</code> — add the image to <code>GUI_IMAGES</code></li>
+<li><code>.github/workflows/publish-images.yml</code> — add it to <strong>both</strong> matrices, the
+   <code>build</code> job's <code>image:</code> list and the <code>merge</code> job's</li>
+<li><code>deployment/docker/.env.example</code> and <code>deployment/curl/.env.example</code> — its
+   host port</li>
+<li><code>deployment/curl/edumatcher.sh</code> — the <code>urls</code> output</li>
+<li>Docs — the port tables in
+   <code>docs/user-guide/005-installation.md</code>, <code>deployment/docker/README.md</code> and
+   <code>deployment/curl/README.md</code></li>
+</ol>
+<p>Steps 2 and 3 are the pair that will drift.</p>
+<h3 id="known-duplication-and-how-to-detect-drift">Known duplication, and how to detect drift<a class="headerlink" href="#known-duplication-and-how-to-detect-drift" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Duplicated</th>
+<th>Between</th>
+<th>Detection</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GUI service definitions</td>
+<td><code>deployment/docker/compose.guis.yaml</code> and <code>deployment/curl/compose.yaml</code></td>
+<td>The script below</td>
+</tr>
+<tr>
+<td>The read-only-credential lookup</td>
+<td><code>deployment/docker/Makefile</code>, <code>deployment/curl/edumatcher.sh</code>, <code>web-apps/terminal-gui/Makefile</code></td>
+<td>Three copies in two languages; a change to the credential schema touches all three</td>
+</tr>
+<tr>
+<td>The image list</td>
+<td><code>Makefile:GUI_IMAGES</code> and both workflow matrices</td>
+<td>A missing entry means an image silently is not published</td>
+</tr>
+<tr>
+<td>Port numbers</td>
+<td>Both <code>.env.example</code> files, both compose files, three READMEs, the user guide</td>
+<td>Grep</td>
+</tr>
+</tbody>
+</table>
+<p>A drift check for the compose pair, worth running before a release:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>python3<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;'PY'</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="s">import yaml</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="s">dev = {**yaml.safe_load(open('deployment/docker/compose.yaml'))['services'],</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="s">       **yaml.safe_load(open('deployment/docker/compose.guis.yaml'))['services'],</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="s">       **yaml.safe_load(open('deployment/docker/compose.config-gui.yaml'))['services']}</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="s">rel = yaml.safe_load(open('deployment/curl/compose.yaml'))['services']</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="s">assert sorted(dev) == sorted(rel), (sorted(dev), sorted(rel))</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="s">keys = ["CALF_HOST","CALF_PORT","API_GATEWAY_URL","LOG_SRV_HOST","LOG_SRV_PORT",</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="s">        "LOG_SRV_PUB_PORT","LOG_SRV_PULL_PORT","API_PROXY_TARGET","LOG_DB_PATH"]</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="s">for svc in sorted(rel):</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="s">    d, r = dev[svc].get('environment', {}), rel[svc].get('environment', {})</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="s">    for k in keys:</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="s">        assert d.get(k) == r.get(k), f"{svc}.{k}: dev={d.get(k)!r} release={r.get(k)!r}"</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="s">print("compose files agree")</span>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="s">PY</span>
+</code></pre></div>
+<h3 id="standing-costs">Standing costs<a class="headerlink" href="#standing-costs" title="Permanent link">&para;</a></h3>
+<p><strong>Version coupling.</strong> Every image carries the EduMatcher release version, so
+every release republishes all five even when only the backend changed. That is
+the price of "one tag names a coherent set" and is almost certainly the right
+trade — but it means a GUI-only fix still needs a full release.</p>
+<p><strong>The GUI <code>package.json</code> versions are now decorative</strong> for release purposes.
+They still drive <code>make cdist</code> and per-app <code>cpush</code>. If that divergence starts
+causing confusion, the fix is to stop versioning the apps independently rather
+than to reintroduce per-app tags into the release.</p>
+<p><strong>Build minutes grow linearly with images.</strong> Ten build jobs today; a sixth
+application makes it twelve. The GitHub Actions cache is scoped per
+<code>(image, arch)</code>, so an unchanged app is cheap, but the matrix is not free.</p>
+<p><strong>The credential-lookup snippet is the fragile one.</strong> It reads a specific shape
+out of the compiled configuration — <code>api_gateways.&lt;name&gt;.credentials[].gateway_id</code>.
+A schema change there breaks three call sites that no test covers.</p>
+<h2 id="part-7-troubleshooting">Part 7 — Troubleshooting<a class="headerlink" href="#part-7-troubleshooting" title="Permanent link">&para;</a></h2>
+<h3 id="two-signals-that-look-like-proof-and-are-not">Two signals that look like proof and are not<a class="headerlink" href="#two-signals-that-look-like-proof-and-are-not" title="Permanent link">&para;</a></h3>
+<p><strong>"I can reach the port from the host."</strong> Podman's rootless port forwarding
+delivers a published connection to <em>loopback inside the container's
+namespace</em>. A gateway bound to <code>127.0.0.1</code> therefore answers host traffic
+perfectly while refusing every sibling container. Host reachability tells you
+nothing about container-to-container reachability.</p>
+<p><strong>"<code>make status</code> is green."</strong> <code>pm-opctl-cli list</code> reports
+<code>tcp connect to 127.0.0.1:5570 ok</code>, but that probe also runs inside the
+container over the same loopback. A healthy process table is not evidence that
+anything outside that container can connect.</p>
+<h3 id="tracking-down-a-network-block">Tracking down a network block<a class="headerlink" href="#tracking-down-a-network-block" title="Permanent link">&para;</a></h3>
+<pre class="mermaid"><code>flowchart TD
+    S["A GUI cannot reach the backend"] --&gt; A{"Does the backend\ncontainer resolve?"}
+    A --&gt;|no| A1["Different Compose projects.\nCheck you passed the same -f set;\nCOMPOSE_PROJECT_NAME must match"]
+    A --&gt;|yes| B{"Does the port accept\na connection?"}
+    B --&gt;|"ECONNREFUSED"| B1{"What does the compiled\nconfig say it binds?"}
+    B1 --&gt;|"127.0.0.1"| B2["The loopback rewrite did not run.\nCheck podman logs edumatcher\nfor 'rewriting loopback gateway binds'"]
+    B1 --&gt;|"0.0.0.0"| B3["The process is not running.\nmake status, then the process log\nunder data/emo/"]
+    B --&gt;|"timeout"| B4["Firewall or a wrong host —\na refused port answers immediately"]
+    B --&gt;|"connects"| C{"Does the application\nstill report an error?"}
+    C --&gt;|"401 / 403"| C1["Wrong API key or wrong gateway instance.\nThe read-only key lives on 8081, not 8080"]
+    C --&gt;|"protocol-level"| C2["Application layer — read the bridge log,\nnot the network"]</code></pre>
+<p>The ladder of commands behind that tree:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># 1. Name resolution across the Compose network</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-trader-gui<span class="w"> </span>getent<span class="w"> </span>hosts<span class="w"> </span>edumatcher
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># 2. An actual connection attempt, from where it matters — with a</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="c1">#    known-good port as the control</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-terminal-gui<span class="w"> </span>node<span class="w"> </span>-e<span class="w"> </span><span class="s1">'</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="s1">const net = require("net");</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="s1">for (const p of [5600, 5570]) {</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="s1">  const s = net.connect(p, "edumatcher", () =&gt; { console.log(p, "OPEN"); s.end(); });</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="s1">  s.on("error", e =&gt; console.log(p, "FAIL", e.code));</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="s1">}'</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="c1"># 3. What the processes actually read — the compiled artifact, not the YAML</span>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher<span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="w">  </span><span class="s2">"import json; print(json.load(open('/data/ref_data/engine_config.json'))['market_data_gateway'])"</span>
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a><span class="c1"># 4. Did the entrypoint rewrite the binds?</span>
+<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a>podman<span class="w"> </span>logs<span class="w"> </span>edumatcher<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-i<span class="w"> </span><span class="s1">'rewriting loopback'</span>
+<a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a>
+<a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a><span class="c1"># 5. What the bridges think of their own uplinks</span>
+<a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a>curl<span class="w"> </span>-s<span class="w"> </span>localhost:8090/api/bridge/status<span class="w">   </span><span class="c1"># calf, logging</span>
+<a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a>curl<span class="w"> </span>-s<span class="w"> </span>localhost:8091/api/bridge/status<span class="w">   </span><span class="c1"># lalfPs, logDb</span>
+<a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a>
+<a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a><span class="c1"># 6. Which ports are actually published</span>
+<a id="__codelineno-6-25" name="__codelineno-6-25" href="#__codelineno-6-25"></a>podman<span class="w"> </span>port<span class="w"> </span>edumatcher
+</code></pre></div>
+<p>Step 3 is the one that settles arguments. The deployed YAML in <code>ref_data/</code> is
+the <em>source</em> copy; the compiled JSON beside it is what every process reads,
+with defaults resolved. Reading the YAML has sent people down the wrong path on
+this project more than once.</p>
+<h3 id="other-things-that-will-bite">Other things that will bite<a class="headerlink" href="#other-things-that-will-bite" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Cause</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>terminal-gui</code> shows a live book but empty history</td>
+<td><code>PM_TERMINAL_API_KEY</code> unset, or <code>API_GATEWAY_URL</code> pointing at 8080 where the read-only key is not valid</td>
+</tr>
+<tr>
+<td><code>log-gui</code> shows live entries but no history</td>
+<td>The <code>./data:/backend-data:ro</code> mount is missing or empty; the viewer needs the <em>file</em> <code>log.db</code>, not just the socket</td>
+</tr>
+<tr>
+<td>A source change has no effect</td>
+<td>The image was built from PyPI — see the warning in <a href="#part-3-build-time-versus-run-time">Part 3</a></td>
+</tr>
+<tr>
+<td><code>no container with name or ID ... found</code> during <code>down</code></td>
+<td>podman-compose removes only what the named files declare; Docker Compose removes by project label and does not care. <code>down-all</code> adds the config-gui overlay only when that container exists</td>
+</tr>
+<tr>
+<td>No health status in <code>podman ps</code></td>
+<td>Podman ignores the image <code>HEALTHCHECK</code> on OCI-format images. Nothing here depends on it — the Makefile sequences the phases itself</td>
+</tr>
+<tr>
+<td><code>apt-get</code> fails with "Release file is not valid yet"</td>
+<td>The podman-machine VM's clock has drifted behind after a host suspend. The Dockerfile passes <code>Acquire::Check-Date=false</code>, but fix the clock: it also skews the trading calendar and every timestamp in <code>log.db</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="part-8-what-a-genuine-multi-host-split-would-still-need">Part 8 — What a genuine multi-host split would still need<a class="headerlink" href="#part-8-what-a-genuine-multi-host-split-would-still-need" title="Permanent link">&para;</a></h2>
+<p>Nothing in this section is implemented. It exists so the next person to take
+the deployment in that direction knows what is already in place.</p>
+<h3 id="what-exists-today">What exists today<a class="headerlink" href="#what-exists-today" title="Permanent link">&para;</a></h3>
 <ul>
-<li>The engine can bind a real, LAN-reachable interface instead of only
-  loopback — <code>EDUMATCHER_ENGINE_BIND_HOST=0.0.0.0</code> or a specific NIC address.</li>
-<li>Every consumer process already resolves the engine's address through one
-  environment variable (<code>EDUMATCHER_ENGINE_HOST</code>) rather than a hardcoded
-  constant, so pointing a <em>remote</em> gateway, viewer, or scheduler at an
-  engine on a different host needs no source changes — only setting that one
-  variable before the process starts.</li>
-<li><code>pm-index</code> follows the identical pattern, so the same is true for anything
-  that depends on the index feed.</li>
+<li>The engine can bind a real interface, not only loopback
+  (<code>EDUMATCHER_ENGINE_BIND_HOST</code>), and <code>pm-index</code> follows the same pattern.</li>
+<li>Every consumer resolves the engine through <code>EDUMATCHER_ENGINE_HOST</code>, so
+  pointing a remote gateway or viewer at another host needs no source change.</li>
 </ul>
-<h3 id="what-is-still-missing">What is still missing<a class="headerlink" href="#what-is-still-missing" title="Permanent link">&para;</a></h3>
-<p><strong>No load balancing is possible, because there is exactly one engine.</strong>
-<code>pm-engine</code> is the sole order-matching authority — one in-memory order book,
-one sequence of trades, one source of truth. Nothing about today's change
-makes it possible to run two engines and split traffic between them; a
-matching engine that owns the order book is not the kind of process that
-horizontally scales by adding replicas behind a load balancer. "Load
-balancing" in a future multi-host EduMatcher would have to mean distributing
-<em>gateways, viewers, and other stateless-ish clients</em> across hosts, all still
-talking to the one engine — not distributing the engine itself. Anyone
-picking this up should settle that scope question explicitly before writing
-code, because it changes what "multi-host" is even solving.</p>
+<h3 id="what-is-missing">What is missing<a class="headerlink" href="#what-is-missing" title="Permanent link">&para;</a></h3>
+<p><strong>Load balancing is not possible, because there is exactly one engine.</strong>
+<code>pm-engine</code> owns the order book, the trade sequence and the single source of
+truth. Multi-host here can only mean distributing <em>gateways and viewers</em>
+across hosts, all still talking to one engine. Settle that scope question
+before writing code.</p>
 <p><strong>No transport security or authentication.</strong> ZeroMQ PUSH/PULL and PUB/SUB
-sockets accept whatever connects; today, the loopback-only bind was an
-accidental safety net — nothing could reach the engine's order-intake socket
-except a process already inside the same container. Widening the bind host
-removes that accident, not by design but as an unavoidable side effect of
-making the host configurable at all. Authentication of <em>inbound orders</em>
-already exists at the ALF/BALF gateway layer (participants authenticate to
-the gateway, not to the engine), and this project's working assumption is
-that gateways are trusted — so the engine trusts whatever a gateway forwards
-to it. That assumption stops being free the moment the engine's PULL socket
-is reachable across a real network boundary rather than only from
-co-located, already-trusted gateway processes: something has to prevent an
-arbitrary host on the LAN from talking directly to port 5555 and injecting
-orders as if it were a gateway. TLS, CURVE (ZeroMQ's built-in
-authentication/encryption mechanism), or network-level ACLs are all options;
-none are implemented today, and the existing <code>container/README.md</code> firewall
-guidance ("keep <code>BIND_ADDR=127.0.0.1</code> unless you need it") is the only
-mitigation currently in place.</p>
-<p><strong>No service discovery.</strong> Every connect-side address today is one
-environment variable naming one host. A real multi-host deployment with
-several gateway machines, or gateways that come and go, would need some way
-for a process to find the engine's current address without a human typing an
-IP into every process's environment — a DNS name, a config service, or at
-minimum a documented convention for how addresses get distributed. Nothing
-here provides that; <code>EDUMATCHER_ENGINE_HOST</code> is a single static value.</p>
-<p><strong>No cross-host container orchestration.</strong> <code>container/compose.yaml</code> describes
-one container on one host. Multiple hosts running EduMatcher processes today
-means running Docker/Podman independently on each machine and wiring the
-environment variables by hand — nothing here introduces Kubernetes, Docker
-Swarm, or any other multi-node orchestrator. That may be a reasonable next
-step, but it is a separate decision from "can the engine bind a real
-interface," which is all this change addresses.</p>
-<p><strong>No health/readiness signaling across hosts.</strong> <code>pm-opctl-cli health</code> already
-has a known pre-existing discrepancy even within one container — see the
-Troubleshooting section of <code>container/README.md</code> — where it probes a port
-<code>pm-index</code> does not actually bind under the <code>default</code> profile. A multi-host
-setup would need every remote consumer to know when the engine is actually up
-and reachable before connecting — today that is left entirely to each
-process's own retry/reconnect behavior.</p>
-<h3 id="an-indicative-topology-if-this-were-built-out">An indicative topology, if this were built out<a class="headerlink" href="#an-indicative-topology-if-this-were-built-out" title="Permanent link">&para;</a></h3>
-<p>The diagram below is illustrative only — it shows what the <em>pieces</em> would
-look like with the current single-engine constraint respected, not a
-recommendation or a tested design.</p>
+accept whatever connects. The loopback bind was an accidental safety net;
+making the bind host configurable removed it. Participants authenticate to the
+ALF/BALF <em>gateways</em>, and the engine trusts whatever a gateway forwards — an
+assumption that stops being free once port 5555 is reachable across a real
+network. TLS, ZeroMQ CURVE, or network ACLs are the options; none are
+implemented.</p>
+<p><strong>No service discovery.</strong> Every connect address is one static environment
+variable naming one host.</p>
+<p><strong>No cross-host orchestration.</strong> <code>compose.yaml</code> describes containers on one
+host. Several hosts means running the engine independently on each and wiring
+the variables by hand.</p>
+<p><strong>No cross-host health signalling.</strong> <code>pm-opctl-cli health</code> has a known
+pre-existing discrepancy even within one container — its built-in <code>index-srv</code>
+entry probes <code>127.0.0.1:5610</code> while <code>pm-index</code> binds 5558/5559 — which is why
+the image <code>HEALTHCHECK</code> TCP-probes the engine on 5555 instead.</p>
 <pre class="mermaid"><code>flowchart LR
     subgraph EngineHost["Engine host — the one pm-engine"]
         E["pm-engine\nbind 0.0.0.0:5555/5556/5557"]
     end
-
     subgraph GatewayHostA["Gateway host A"]
         G1["pm-alf-gwy\nEDUMATCHER_ENGINE_HOST=engine-host"]
         G2["pm-md-gwy\nEDUMATCHER_ENGINE_HOST=engine-host"]
     end
-
     subgraph GatewayHostB["Gateway host B"]
-        G3["pm-ralf-gwy\nEDUMATCHER_ENGINE_HOST=engine-host"]
-        V["pm-viewer\nEDUMATCHER_ENGINE_HOST=engine-host"]
+        G3["pm-ralf-gwy"]
+        V["pm-viewer"]
     end
 
-    G1 --&gt;|PUSH 5555| E
-    G3 --&gt;|PUSH 5555| E
-    E --&gt;|PUB 5556| G2
-    E --&gt;|PUB 5556| V</code></pre>
-<p>Every arrow here already works with today's <code>EDUMATCHER_ENGINE_BIND_HOST</code> /
-<code>EDUMATCHER_ENGINE_HOST</code> pair. What is missing from the picture is everything
-in the previous subsection: nothing authenticates host A or host B to the
-engine, nothing discovers <code>engine-host</code>'s address automatically, and nothing
-orchestrates these three hosts as one deployable unit. Building any of that
-out is a separate, larger design effort — this page's job is only to make
-clear where that effort would start from.</p>
-<h2 id="reference-related-design-material">Reference: related design material<a class="headerlink" href="#reference-related-design-material" title="Permanent link">&para;</a></h2>
+    G1 --&gt;|"PUSH 5555"| E
+    G3 --&gt;|"PUSH 5555"| E
+    E --&gt;|"PUB 5556"| G2
+    E --&gt;|"PUB 5556"| V</code></pre>
+<p>Every arrow already works with the existing bind/connect pair. What the picture
+lacks is everything above: nothing authenticates host A to the engine, nothing
+discovers its address, nothing orchestrates the three hosts as one unit.</p>
+<h2 id="reference">Reference<a class="headerlink" href="#reference" title="Permanent link">&para;</a></h2>
 <ul>
-<li><code>container/README.md</code> — day-to-day container usage: build, run, ports,
-  data directory, profiles, troubleshooting.</li>
+<li><code>deployment/docker/README.md</code> — day-to-day usage of the source-built stack</li>
+<li><code>deployment/curl/README.md</code> — the released, pull-only deployment</li>
+<li><a href="../../user-guide/005-installation/">Installation</a> — the user-facing view of
+  the same material, including every flag and directory</li>
+<li><a href="../../user-guide/170-processes/">Processes</a> — what each <code>pm-*</code> process does
+  and what the profiles contain</li>
 <li><code>docs-design/EduMatcher-Cross-host-connection.md</code> — an earlier, broader
-  <em>unimplemented</em> design proposal covering this same idea. It specifies the
-  same <code>EDUMATCHER_ENGINE_BIND_HOST</code> variable documented here, plus
-  additional scope this project has not built: per-process CLI flags
-  (<code>--bind-host</code>, <code>--engine-host</code>), a <code>primary</code>-IP auto-resolve convenience,
-  port-level environment overrides, and an optional <code>engine_config.yaml</code>
-  <code>network:</code> section. Treat it as the fuller backlog if cross-host support
-  ever becomes a first-class feature, not as a description of current
-  behavior.</li>
+  <em>unimplemented</em> proposal for cross-host support: per-process <code>--bind-host</code>
+  and <code>--engine-host</code> flags, a <code>primary</code>-IP auto-resolve, port-level
+  environment overrides, and a <code>network:</code> section in <code>engine_config.yaml</code>.
+  Treat it as the backlog for Part 8, not as current behaviour.</li>
 </ul>
 
 

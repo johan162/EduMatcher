@@ -1,0 +1,5080 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A multi-process Python trading system for learning order matching and market microstructure.">
+      
+      
+        <meta name="author" content="Johan Persson <johan162@gmail.com>">
+      
+      
+        <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/005-installation/">
+      
+      
+        <link rel="prev" href="../000-getting-started/">
+      
+      
+        <link rel="next" href="../010-configuration/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Installation - EduMatcher — Educational Trading System</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#installation" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-header__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            EduMatcher — Educational Trading System
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Installation
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/johan162/EduMatcher" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    johan162/EduMatcher
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../how-exchange-works/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  How an Exchange Works
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/01-concepts-order-book/" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../000-getting-started/" class="md-tabs__link">
+          
+  
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../training/" class="md-tabs__link">
+          
+  
+  
+  Training
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../architecture/01-architecture/" class="md-tabs__link">
+          
+  
+  
+  Architecture
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../developer/01-dev-practice/" class="md-tabs__link">
+          
+  
+  
+  Developer Info
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../glossary/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Glossary
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../faq/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  FAQ
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-nav__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    EduMatcher — Educational Trading System
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/johan162/EduMatcher" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    johan162/EduMatcher
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-exchange-works/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How an Exchange Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/01-concepts-order-book/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/02-concepts-order-book-deep-dive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/03-concepts-mm-quotes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MM Quotes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/04-concepts-first-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your First Trade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/05-concepts-trading-day/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A Full Trading Day
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/06-concepts-market-data-feed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/07-concepts-implied-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Implied Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../000-getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#choosing-an-installation-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing an installation mode
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#containers-the-whole-system-in-one-command" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Containers: the whole system in one command
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Containers: the whole system in one command">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-installer-does" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the installer does
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#installer-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installer options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#everyday-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Everyday commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#choosing-what-the-exchange-trades" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing what the exchange trades
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#containers-from-the-source-checkout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Containers from the source checkout
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Containers from the source checkout">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#flags-that-control-the-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flags that control the build
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#flags-that-control-a-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flags that control a start
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#settings-in-env" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Settings in .env
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#image-build-arguments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Image build arguments
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-the-containers-are-wired" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the containers are wired
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How the containers are wired">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#one-compose-project-one-private-network" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One compose project, one private network
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-three-places-an-address-appears" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The three places an address appears
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#two-things-that-look-like-evidence-and-are-not" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two things that look like evidence and are not
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-read-only-api-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The read-only API key
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#directories-and-paths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Directories and paths
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Directories and paths">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-data-directory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The data directory
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-that-lands-in-each-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where that lands in each mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supporting-directories" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supporting directories
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#vm-bootstrap-a-ready-to-run-multipass-vm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VM bootstrap — a ready-to-run Multipass VM
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pipx-commands-on-your-own-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pipx — commands on your own machine
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#poetry-checkout-developing-edumatcher" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Poetry checkout — developing EduMatcher
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-a-release-is-produced" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How a release is produced
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How a release is produced">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#publishing-by-hand" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Publishing by hand
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#developer-release-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Developer release checklist
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Developer release checklist">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#before-tagging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Before tagging
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tag-and-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tag and release
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#after-the-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        After the release
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#doing-a-manual-ghcr-push" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Doing a manual GHCR push
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-to-go-next" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where to go next
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../010-configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../020-config-verifier/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Config Verifier
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../030-config-GUI/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration GUI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../040-running-the-exchange/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running the Exchange
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../051-gateway-intro/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gateway Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../055-alf-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF Console (pm-alf-console)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../060-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Order Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../070-combo-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../080-session-scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auctions & Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../090-market-maker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../100-mm-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market-Maker Bot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../110-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Traders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../120-risk-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../130-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../140-statistics-and-reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistics and Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../150-market-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../152-index-admin-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index Admin CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../160-exchange-commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exchange Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../170-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../180-persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../190-audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit Trail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../200-drop-copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../201-dc-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy TCP Gateway (pm-dc-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../202-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../210-protocols-overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External Protocols Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../220-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../230-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../240-calf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../241-calf-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CALF Protocol Spy (pm-calf-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../250-ralf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-Trade Dissemination (RALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../251-ralf-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RALF Protocol Spy (pm-ralf-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../260-api-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../270-message-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Message Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../280-log-srv/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../285-log-srv-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Information Terminal (TapeDeck)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../300-trader-order-entry-terminal.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Order Entry Terminal (TraderUI)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../800-examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../810-example-configs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Example Engine Configs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../890-known-limitations-bugs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Known Limitations & Bugs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../900-app-alf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: ALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../910-app-balf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: BALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../920-app-calf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: CALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../930-app-ralf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: RALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../940-app-lalf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: LALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../950-app-REST-API-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: REST API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../990-app-config-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: Engine Config Specification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Training
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/00-installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    00 — Installation & Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/01-configuring-startup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    01 — Configuring & Starting Up
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/02-setting-up-MM-bots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    02 — Setting Up Market-Maker Liquidity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/03-the-first-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    03 — The First Trade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/04-amending-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    04 — Amending Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/05-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    05 — Order Types Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/06-time-in-force-sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    06 — Time-in-Force & Sessions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/07-auctions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    07 — Auctions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/08-cancelling-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    08 — Cancelling & Managing Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/09-market-making/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    09 — Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/10-combo-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    10 — Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/11-risk-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    11 — Risk Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/12-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    12 — P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/13-market-data-drop-copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    13 — Market Data & Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/14-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    14 — AI Traders & Swarm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/15-statistics-reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    15 — Statistics & Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/16-persistence-recovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    16 — Persistence & Recovery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/17-capstone-scenario/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    17 — Capstone Scenario
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/18-exchange-observer-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    18 — Exchange Observer Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/19-advanced-admin-operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    19 — Advanced Admin Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/20-drop-copy-replay-recovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    20 — Drop-Copy Replay & Recovery Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/21-automation-commandclient-mm-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    21 — Automation with CommandClient & MM Bot Tuning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/22-ralf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    22 — RALF Post-Trade Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/23-calf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    23 — CALF Market-Data Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/24-api-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    24 — API Gateway (REST/WebSocket)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/25-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    25 — Market Index (pm-index)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/26-alf-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    26 - ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/27-balf-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    27 - BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/01-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/02-architecture-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Detailed Walkthrough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Info
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Developer Info
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/01-dev-practice/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Practice
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/02-ai-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Bot Traders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/03-experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/04-verification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Verification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/05-vm-runtime-image/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VM Runtime Image
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/06-msgen/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Message Generator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/07-container-and-networks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Container and Network Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h1>
+<div class="admonition note">
+<p class="admonition-title">Learning objectives</p>
+<p>After reading this page you will understand:</p>
+<ul>
+<li>Which of the five installation modes fits what you are trying to do</li>
+<li>How the container deployment is wired, and why the web GUIs reach the
+  exchange without any published port being involved</li>
+<li>What <code>127.0.0.1</code> and <code>0.0.0.0</code> mean at each of the three separate places
+  they appear, and which one actually protects you</li>
+<li>Every flag that controls a build or a start, and every directory the
+  system reads or writes</li>
+<li>How a release is produced, and what a developer must do to cut one</li>
+</ul>
+</div>
+<h2 id="choosing-an-installation-mode">Choosing an installation mode<a class="headerlink" href="#choosing-an-installation-mode" title="Permanent link">&para;</a></h2>
+<p>The first question is whether you want to <strong>run</strong> EduMatcher or <strong>change</strong> it.</p>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Best for</th>
+<th>Needs on your machine</th>
+<th>What you get</th>
+<th>Command style</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Containers, one command</strong></td>
+<td>Running a venue: classroom, demo, self-study</td>
+<td>Podman or Docker</td>
+<td>The exchange <strong>and</strong> all four web GUIs</td>
+<td><code>./edumatcher.sh start</code></td>
+</tr>
+<tr>
+<td><strong>Containers from source</strong></td>
+<td>Changing the code and seeing it run as a system</td>
+<td>Podman/Docker, Poetry, Node</td>
+<td>The same, built from your checkout</td>
+<td><code>make up-all</code></td>
+</tr>
+<tr>
+<td><strong>VM bootstrap</strong></td>
+<td>Workshops where host setup must stay untouched</td>
+<td>Multipass, <code>curl</code></td>
+<td>Backend inside a Multipass VM</td>
+<td><code>multipass shell ems</code></td>
+</tr>
+<tr>
+<td><strong>pipx</strong></td>
+<td>Students running processes by hand, one per terminal</td>
+<td>Python 3.13, <code>pipx</code></td>
+<td><code>pm-*</code> commands on your PATH</td>
+<td><code>pm-engine</code></td>
+</tr>
+<tr>
+<td><strong>Poetry checkout</strong></td>
+<td>Developing, running the test suite</td>
+<td>Python 3.13, Poetry</td>
+<td>Repository plus dev dependencies</td>
+<td><code>poetry run pm-engine</code></td>
+</tr>
+</tbody>
+</table>
+<p>The container modes give you the whole system — engine, gateways, REST API and
+the four browser applications — with one command. The pipx and Poetry modes
+give you the individual processes to start yourself, which is what the rest of
+this guide assumes when it shows a bare <code>pm-*</code> command. In Poetry mode, prefix
+those commands with <code>poetry run</code>.</p>
+<div class="admonition tip">
+<p class="admonition-title">If you are not sure</p>
+<p>Use the one-command container install. It is the fastest route to a
+running market, and nothing it installs is outside a single directory you
+can delete.</p>
+</div>
+<h2 id="containers-the-whole-system-in-one-command">Containers: the whole system in one command<a class="headerlink" href="#containers-the-whole-system-in-one-command" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash
+</code></pre></div>
+<p>Then open <a href="http://localhost:8090">http://localhost:8090</a>.</p>
+<p>That starts a complete exchange plus four web applications, from images built
+and published by the project. Nothing is compiled on your machine: no Python,
+no Node, no checkout. The only requirement is Podman or Docker.</p>
+<table>
+<thead>
+<tr>
+<th>Application</th>
+<th>URL</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Trading terminal</td>
+<td><a href="http://localhost:8090">http://localhost:8090</a></td>
+<td>Live order books, trades and market data</td>
+</tr>
+<tr>
+<td>Log viewer</td>
+<td><a href="http://localhost:8091">http://localhost:8091</a></td>
+<td>The centralized log, searchable, with acknowledgements</td>
+</tr>
+<tr>
+<td>Configuration builder</td>
+<td><a href="http://localhost:8092">http://localhost:8092</a></td>
+<td>Author an <code>engine_config.yaml</code> in the browser</td>
+</tr>
+<tr>
+<td>Trader GUI</td>
+<td><a href="http://localhost:8093">http://localhost:8093</a></td>
+<td>Submit and manage orders as a trading participant</td>
+</tr>
+<tr>
+<td>REST API docs</td>
+<td><a href="http://localhost:8080/docs">http://localhost:8080/docs</a></td>
+<td>Swagger UI for the <code>desk</code> API gateway</td>
+</tr>
+</tbody>
+</table>
+<h3 id="what-the-installer-does">What the installer does<a class="headerlink" href="#what-the-installer-does" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Checks that Podman or Docker is present, preferring Podman when both are.</li>
+<li>Resolves the newest release (or the one you named with <code>--version</code>).</li>
+<li>Downloads <code>compose.yaml</code>, <code>edumatcher.sh</code> and <code>.env.example</code> <strong>from that
+   release's tag</strong>, so the files and the images always come from one commit.</li>
+<li>Writes <code>.env</code>, creating <code>data/</code> and <code>config/</code> beside it.</li>
+<li>Pulls the five images and starts them.</li>
+</ol>
+<p>Everything lands in <code>~/.edumatcher</code>. There is nothing installed anywhere else,
+no service registered, and no change to your PATH.</p>
+<h3 id="installer-options">Installer options<a class="headerlink" href="#installer-options" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Default</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--version X.Y.Z</code></td>
+<td>newest release</td>
+<td>Install one specific release. All five images carry this tag, so it pins the whole system</td>
+</tr>
+<tr>
+<td><code>--config NAME</code></td>
+<td><code>three-basic</code></td>
+<td>Deploy a bundled example configuration</td>
+</tr>
+<tr>
+<td><code>--config FILE</code></td>
+<td>—</td>
+<td>...or a path to an <code>engine_config.yaml</code> of your own</td>
+</tr>
+<tr>
+<td><code>--dir PATH</code></td>
+<td><code>~/.edumatcher</code></td>
+<td>Where to install</td>
+</tr>
+<tr>
+<td><code>--no-start</code></td>
+<td>—</td>
+<td>Fetch and configure, but do not start anything</td>
+</tr>
+<tr>
+<td><code>--help</code></td>
+<td>—</td>
+<td>Show the options</td>
+</tr>
+</tbody>
+</table>
+<p>Because the script is read from a pipe, options need <code>bash -s --</code> so that the
+shell hands them to the script rather than consuming them itself:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>.../install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--config<span class="w"> </span>ten-nominal<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.26.0
+</code></pre></div>
+<p>Two environment variables are also honoured: <code>REPO_OWNER</code> (which GitHub
+account and GHCR namespace to use) and <code>REPO_REF</code> (fetch the support files
+from a branch instead of the release tag, for testing an unreleased installer).</p>
+<h3 id="everyday-commands">Everyday commands<a class="headerlink" href="#everyday-commands" title="Permanent link">&para;</a></h3>
+<p>Everything is driven by one script in the install directory:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">cd</span><span class="w"> </span>~/.edumatcher
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>./edumatcher.sh<span class="w"> </span>status<span class="w">              </span><span class="c1"># containers, plus the exchange process table</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>./edumatcher.sh<span class="w"> </span>logs<span class="w"> </span>terminal-gui<span class="w">   </span><span class="c1"># follow one service</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>./edumatcher.sh<span class="w"> </span>urls<span class="w">                </span><span class="c1"># the application table, with your ports</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>./edumatcher.sh<span class="w"> </span>stop<span class="w">                </span><span class="c1"># stop everything; ./data is kept</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>./edumatcher.sh<span class="w"> </span>start<span class="w">               </span><span class="c1"># bring it back</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>./edumatcher.sh<span class="w"> </span>update<span class="w">              </span><span class="c1"># pull the newest release and restart</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>./edumatcher.sh<span class="w"> </span>update<span class="w"> </span><span class="m">0</span>.20.5<span class="w">       </span><span class="c1"># ...or move to an exact one</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>./edumatcher.sh<span class="w"> </span>uninstall<span class="w">           </span><span class="c1"># remove containers and volumes, keep data</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>./edumatcher.sh<span class="w"> </span>uninstall<span class="w"> </span>--data<span class="w">    </span><span class="c1"># remove everything</span>
+</code></pre></div>
+<h3 id="choosing-what-the-exchange-trades">Choosing what the exchange trades<a class="headerlink" href="#choosing-what-the-exchange-trades" title="Permanent link">&para;</a></h3>
+<p>EduMatcher ships twelve ready-made configurations: one, three, ten or thirty
+order books, each as a <code>basic</code>, <code>nominal</code> or <code>complex</code> variant. They are inside
+the backend image, so no download is involved in switching.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>./edumatcher.sh<span class="w"> </span>config<span class="w"> </span>ten-nominal
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>./edumatcher.sh<span class="w"> </span>restart
+</code></pre></div>
+<p>The names are <code>one-</code>, <code>three-</code>, <code>ten-</code> and <code>thirty-</code> combined with <code>basic</code>,
+<code>nominal</code> and <code>complex</code>. <code>./edumatcher.sh config</code> lists them all if you mistype
+one. See <a href="../810-example-configs/">Example Engine Configs</a> for what each
+contains.</p>
+<p>To run a configuration of your own, give the same command a path instead:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>./edumatcher.sh<span class="w"> </span>config<span class="w"> </span>./my-market.yaml
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>./edumatcher.sh<span class="w"> </span>restart
+</code></pre></div>
+<p>The file is copied into <code>~/.edumatcher/config/</code>, mounted read-only into the
+container, and deployed on every start — so editing it and restarting is the
+whole edit-test loop. Switching back to a bundled example is
+<code>./edumatcher.sh config three-basic</code>. The configuration builder at
+<a href="http://localhost:8092">http://localhost:8092</a> is the easy way to author one; see
+<a href="../030-config-GUI/">Configuration GUI</a>.</p>
+<h2 id="containers-from-the-source-checkout">Containers from the source checkout<a class="headerlink" href="#containers-from-the-source-checkout" title="Permanent link">&para;</a></h2>
+<p>Use this when you are changing EduMatcher and want to see your change running
+as a whole system. It builds the same five images from your working tree.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/johan162/EduMatcher.git
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nb">cd</span><span class="w"> </span>EduMatcher/deployment/docker
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>make<span class="w"> </span>build<span class="w">          </span><span class="c1"># builds a wheel from the checkout, then the image</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>make<span class="w"> </span>up-all<span class="w">         </span><span class="c1"># exchange + terminal-, log- and trader-gui</span>
+</code></pre></div>
+<p><code>make help</code> lists every target. The two that matter are <code>up</code> (the exchange
+alone) and <code>up-all</code> (the exchange plus the GUIs).</p>
+<h3 id="flags-that-control-the-build">Flags that control the build<a class="headerlink" href="#flags-that-control-the-build" title="Permanent link">&para;</a></h3>
+<p><code>make build</code> decides <strong>where the EduMatcher package comes from</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><em>(none)</em></td>
+<td>Build a wheel from this checkout with Poetry and install that. This is the default deliberately: a rebuild after editing source must pick up the edit</td>
+</tr>
+<tr>
+<td><code>PYPI=1</code></td>
+<td>Ignore the checkout; install the newest release from PyPI</td>
+</tr>
+<tr>
+<td><code>VERSION=x.y.z</code></td>
+<td>Install exactly that PyPI release (implies <code>PYPI=1</code>)</td>
+</tr>
+<tr>
+<td><code>DEV=1</code></td>
+<td>Accepted and ignored — it used to select the local wheel, which is now the default</td>
+</tr>
+<tr>
+<td><code>CONTAINER_ENGINE=docker</code></td>
+<td>Force Docker when Podman is also installed</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition warning">
+<p class="admonition-title">Confirm which package went in</p>
+<p>A successful build prints <code>Installing local wheel: /tmp/wheel/edumatcher-&lt;version&gt;.whl</code>.
+If instead you see pip <em>downloading</em> <code>edumatcher</code>, the image is running a
+published release rather than your code — and a source change you are
+hunting for will appear not to take effect.</p>
+</div>
+<h3 id="flags-that-control-a-start">Flags that control a start<a class="headerlink" href="#flags-that-control-a-start" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CONFIG=&lt;name&gt;</code></td>
+<td><code>three-basic</code></td>
+<td>Deploy a bundled example</td>
+</tr>
+<tr>
+<td><code>CONFIG=&lt;file&gt;</code></td>
+<td>—</td>
+<td>Deploy an <code>engine_config.yaml</code> of your own; the file is copied to <code>deployment/docker/config/</code> and mounted read-only</td>
+</tr>
+<tr>
+<td><code>PROFILE=&lt;name&gt;</code></td>
+<td><code>default</code></td>
+<td>Which processes <code>pm-opctl-cli</code> starts: <code>default</code>, <code>mini</code> or <code>micro</code>. See <a href="../170-processes/">Processes</a></td>
+</tr>
+<tr>
+<td><code>ZMQ=1</code></td>
+<td>off</td>
+<td>Also publish the raw ZeroMQ bus (5555-5559, 5601-5602) to the host, and set the engine and index sockets to bind <code>0.0.0.0</code> inside the container</td>
+</tr>
+<tr>
+<td><code>SSH=1</code></td>
+<td>off</td>
+<td>Run <code>sshd</code> in the container on <code>SSH_PORT</code>, authorised by your <code>~/.ssh/*.pub</code></td>
+</tr>
+<tr>
+<td><code>CONFIG_GUI=1</code></td>
+<td>off</td>
+<td>Include the configuration builder in <code>up-all</code>. It is opt-in because it talks to nothing — it is a standalone authoring tool</td>
+</tr>
+</tbody>
+</table>
+<p>Flags combine: <code>make up-all CONFIG=ten-complex PROFILE=mini ZMQ=1 CONFIG_GUI=1</code>.</p>
+<h3 id="settings-in-env">Settings in <code>.env</code><a class="headerlink" href="#settings-in-env" title="Permanent link">&para;</a></h3>
+<p><code>deployment/docker/.env</code> is created from <code>.env.example</code> on the first build. It
+is git-ignored, so it is the right place for choices specific to your machine.</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>COMPOSE_PROJECT_NAME</code></td>
+<td><code>edumatcher</code></td>
+<td>Compose project name; decides container and network naming</td>
+</tr>
+<tr>
+<td><code>EDUMATCHER_VERSION</code></td>
+<td><em>(empty)</em></td>
+<td>PyPI version for <code>PYPI=1</code> builds; empty means newest</td>
+</tr>
+<tr>
+<td><code>WITH_SSH</code></td>
+<td><code>1</code></td>
+<td>Install <code>openssh-server</code> into the image at build time</td>
+</tr>
+<tr>
+<td><code>EM_CONFIG</code></td>
+<td><code>three-basic</code></td>
+<td>Bundled example to deploy</td>
+</tr>
+<tr>
+<td><code>EM_CONFIG_FILE</code></td>
+<td><em>(empty)</em></td>
+<td>Path <strong>inside the container</strong> to a configuration of your own; set for you by <code>CONFIG=&lt;file&gt;</code></td>
+</tr>
+<tr>
+<td><code>EM_PROFILE</code></td>
+<td><code>default</code></td>
+<td>Process profile to start</td>
+</tr>
+<tr>
+<td><code>TZ</code></td>
+<td><code>UTC</code></td>
+<td>Container timezone — match the trading calendar in your configuration</td>
+</tr>
+<tr>
+<td><code>BIND_ADDR</code></td>
+<td><code>127.0.0.1</code></td>
+<td>Which host interface the published ports listen on. See below</td>
+</tr>
+<tr>
+<td><code>SSH_PORT</code></td>
+<td><code>2222</code></td>
+<td>Host port forwarded to <code>sshd</code></td>
+</tr>
+<tr>
+<td><code>TERMINAL_GUI_PORT</code></td>
+<td><code>8090</code></td>
+<td>Host port for the trading terminal</td>
+</tr>
+<tr>
+<td><code>LOG_GUI_PORT</code></td>
+<td><code>8091</code></td>
+<td>Host port for the log viewer</td>
+</tr>
+<tr>
+<td><code>CONFIG_GUI_PORT</code></td>
+<td><code>8092</code></td>
+<td>Host port for the configuration builder</td>
+</tr>
+<tr>
+<td><code>TRADER_GUI_PORT</code></td>
+<td><code>8093</code></td>
+<td>Host port for the trader GUI</td>
+</tr>
+<tr>
+<td><code>IMAGE_NAME</code> / <code>IMAGE_TAG</code></td>
+<td><code>edumatcher</code> / <code>local</code></td>
+<td>Image naming</td>
+</tr>
+<tr>
+<td><code>CONTAINER_NAME</code></td>
+<td><code>edumatcher</code></td>
+<td>Container name</td>
+</tr>
+</tbody>
+</table>
+<h3 id="image-build-arguments">Image build arguments<a class="headerlink" href="#image-build-arguments" title="Permanent link">&para;</a></h3>
+<p>Passed with <code>--build-arg</code>, or through the compose files' <code>args:</code> blocks. You
+need these mainly behind a corporate proxy.</p>
+<p>The backend image (<code>deployment/docker/Dockerfile</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PYTHON_VERSION</code></td>
+<td><code>3.13</code></td>
+<td>Base image tag for both build and runtime stages</td>
+</tr>
+<tr>
+<td><code>EDUMATCHER_VERSION</code></td>
+<td><em>(empty)</em></td>
+<td>PyPI version to install when no local wheel is present</td>
+</tr>
+<tr>
+<td><code>PIP_INDEX_URL</code></td>
+<td><em>(empty)</em></td>
+<td>Point pip at an internal index such as Artifactory</td>
+</tr>
+<tr>
+<td><code>WITH_SSH</code></td>
+<td><code>1</code></td>
+<td>Set to <code>0</code> for a smaller image with no <code>openssh-server</code></td>
+</tr>
+</tbody>
+</table>
+<p>Each web GUI image (<code>web-apps/*/Dockerfile</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>WEB_PORT</code></td>
+<td>per app</td>
+<td>Port the server listens on inside the container</td>
+</tr>
+<tr>
+<td><code>NPM_REGISTRY</code></td>
+<td><code>https://registry.npmjs.org/</code></td>
+<td>Internal npm mirror</td>
+</tr>
+<tr>
+<td><code>NPM_STRICT_SSL</code></td>
+<td><code>true</code></td>
+<td>Set <code>false</code> when a proxy re-signs TLS</td>
+</tr>
+<tr>
+<td><code>HTTP_PROXY</code> / <code>HTTPS_PROXY</code> / <code>NO_PROXY</code></td>
+<td><em>(empty)</em></td>
+<td>Honoured by npm during the build</td>
+</tr>
+<tr>
+<td><code>USE_PROXY_CA</code> / <code>CA_CERT_FILE</code></td>
+<td><em>(empty)</em></td>
+<td>config-gui only: install a corporate CA certificate</td>
+</tr>
+</tbody>
+</table>
+<h2 id="how-the-containers-are-wired">How the containers are wired<a class="headerlink" href="#how-the-containers-are-wired" title="Permanent link">&para;</a></h2>
+<p>This section is worth reading even if the install "just worked", because the
+one thing that reliably confuses people here — the difference between
+<code>127.0.0.1</code> and <code>0.0.0.0</code> — appears in three separate places that mean three
+different things.</p>
+<h3 id="one-compose-project-one-private-network">One compose project, one private network<a class="headerlink" href="#one-compose-project-one-private-network" title="Permanent link">&para;</a></h3>
+<p>All five containers belong to a single Compose project, so Compose puts them on
+one private network and gives each a name on it. The backend answers to the
+hostname <code>edumatcher</code>.</p>
+<pre class="mermaid"><code>flowchart LR
+    subgraph host["Your machine"]
+        BROWSER["Browser"]
+        CLIENT["curl, Swagger,\nprotocol clients"]
+    end
+
+    subgraph project["Compose project — one private network"]
+        TERM["terminal-gui\n:8090"]
+        LOG["log-gui\n:8091"]
+        CFG["config-gui\n:8092"]
+        TRD["trader-gui\n:8093"]
+        BE["edumatcher\nengine + all gateways"]
+    end
+
+    BROWSER --&gt;|"published 8090-8093\nvia BIND_ADDR"| TERM
+    BROWSER --&gt; LOG
+    BROWSER --&gt; CFG
+    BROWSER --&gt; TRD
+    CLIENT --&gt;|"published 5560-5600, 8080-8081\nvia BIND_ADDR"| BE
+
+    TERM --&gt;|"edumatcher:5570 market data\nedumatcher:8081 history"| BE
+    LOG --&gt;|"edumatcher:5601 / :5602 log stream"| BE
+    TRD --&gt;|"edumatcher:8080 REST + WebSocket"| BE</code></pre>
+<p>Two things follow, and both are easy to get wrong:</p>
+<ul>
+<li><strong>The GUIs do not use the published ports.</strong> Their traffic never leaves the
+  private network. The ports published on your machine exist for <em>you</em> — your
+  browser, <code>curl</code>, Swagger, the protocol example clients.</li>
+<li><strong>Nothing needs <code>host.docker.internal</code>.</strong> Older setups pointed the GUIs at
+  the host and back in again, which behaved differently on Docker Desktop,
+  Linux Docker and Podman. Sharing one project removes the problem rather than
+  working around it.</li>
+</ul>
+<p>The configuration builder is the exception: it talks to nothing at all, which
+is why it is opt-in with <code>CONFIG_GUI=1</code> when building from source.</p>
+<h3 id="the-three-places-an-address-appears">The three places an address appears<a class="headerlink" href="#the-three-places-an-address-appears" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Where</th>
+<th>Set by</th>
+<th><code>127.0.0.1</code> means</th>
+<th><code>0.0.0.0</code> means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Published ports</strong> — the host side</td>
+<td><code>BIND_ADDR</code> in <code>.env</code></td>
+<td>Only this machine can reach the exchange</td>
+<td>Anyone on your network can</td>
+</tr>
+<tr>
+<td><strong>Gateway binds</strong> — inside the container</td>
+<td><code>bind_address:</code> / <code>host:</code> in <code>engine_config.yaml</code></td>
+<td>Only processes <em>in that container</em> — not even a sibling container</td>
+<td>Any container on the compose network</td>
+</tr>
+<tr>
+<td><strong>Engine and index bus</strong> — inside the container</td>
+<td><code>EDUMATCHER_ENGINE_BIND_HOST</code>, <code>EDUMATCHER_INDEX_BIND_HOST</code>; set by <code>ZMQ=1</code></td>
+<td>Same: container-internal only</td>
+<td>Reachable from the network and publishable</td>
+</tr>
+</tbody>
+</table>
+<p>The one that protects you is the <strong>first</strong>. The second and third are inside a
+network namespace that already isolates the container; binding <code>0.0.0.0</code> there
+does not expose anything to the outside world, because there is no route in
+except through a published port.</p>
+<p>That distinction matters because the bundled example configurations set
+<code>bind_address: 127.0.0.1</code> on the market-data and post-trade gateways. On a
+laptop running EduMatcher directly, that is a real protection: <strong>the protocol
+gateways have no authentication</strong>, so anyone who can open the socket can submit
+orders. Inside a container it protects nothing and breaks the trading terminal,
+whose market-data feed comes from a sibling container.</p>
+<p>So the container entrypoint rewrites <code>bind_address:</code> and <code>host:</code> values of
+<code>127.0.0.1</code> to <code>0.0.0.0</code> in the deployed configuration and recompiles it. It
+runs for bundled examples and for a configuration of your own alike, and it is
+a no-op on restart. Nothing about a bare-metal <code>pm-setup</code> changes — and
+<code>make config-show</code> keeps describing what the processes actually do.</p>
+<div class="admonition warning">
+<p class="admonition-title"><code>BIND_ADDR=0.0.0.0</code> puts an unauthenticated exchange on your network</p>
+<p>It is the right setting for a classroom where students connect to the
+instructor's machine. It is the wrong setting on a network you do not
+control. There is no password on the order-entry gateways.</p>
+</div>
+<h3 id="two-things-that-look-like-evidence-and-are-not">Two things that look like evidence and are not<a class="headerlink" href="#two-things-that-look-like-evidence-and-are-not" title="Permanent link">&para;</a></h3>
+<p>Both of these will tell you a gateway is reachable when it is not:</p>
+<p><strong>"I can reach the port from the host."</strong> Podman's rootless port forwarding
+delivers a published connection to <em>loopback inside the container's namespace</em>.
+A gateway bound to <code>127.0.0.1</code> therefore answers host traffic perfectly, while
+a sibling container connecting across the private network gets
+<code>ECONNREFUSED</code>. Host reachability says nothing about container-to-container
+reachability.</p>
+<p><strong>"<code>make status</code> is all green."</strong> <code>pm-opctl-cli list</code> shows
+<code>tcp connect to 127.0.0.1:5570 ok</code>, but that check also runs inside the
+container, over the same loopback. A healthy process table is not evidence that
+anything outside that container can connect.</p>
+<p>The check that settles it is the compiled configuration, which is the file the
+processes actually read:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher<span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="s2">"import json; print(json.load(open('/data/ref_data/engine_config.json'))['market_data_gateway'])"</span>
+</code></pre></div>
+<p>and, from a GUI container, an actual connection attempt:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-terminal-gui<span class="w"> </span>node<span class="w"> </span>-e<span class="w"> </span><span class="s1">'</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="s1">const net = require("net");</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="s1">const s = net.connect(5570, "edumatcher", () =&gt; { console.log("OPEN"); s.end(); });</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="s1">s.on("error", e =&gt; console.log("FAIL", e.code));'</span>
+</code></pre></div>
+<h3 id="the-read-only-api-key">The read-only API key<a class="headerlink" href="#the-read-only-api-key" title="Permanent link">&para;</a></h3>
+<p>One value cannot be a fixed default. The trading terminal reads historical data
+through <code>pm-api-gwy</code> using the credential whose <code>gateway_id</code> is <code>null</code>. That
+key is <strong>generated per engine configuration</strong> — every bundled example has a
+different one — and it is issued on the <code>dashboards</code> gateway instance (port
+8081), not the <code>desk</code> instance (8080) that carries the trading credentials.</p>
+<p>Both start paths therefore run in two phases: bring up the exchange, read the
+key out of the deployed configuration, then start the GUIs with it. If a
+configuration has no such credential the start still succeeds and says so — the
+live market-data feed needs no key, only the history panels do.</p>
+<h2 id="directories-and-paths">Directories and paths<a class="headerlink" href="#directories-and-paths" title="Permanent link">&para;</a></h2>
+<p>Every location the system reads or writes, and what controls it.</p>
+<h3 id="the-data-directory">The data directory<a class="headerlink" href="#the-data-directory" title="Permanent link">&para;</a></h3>
+<p>One variable decides where an exchange keeps its state:</p>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Controlled by</th>
+<th>Contains</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&lt;DATA_DIR&gt;</code></td>
+<td><code>EDUMATCHER_DATA_DIR</code>; see <a href="../000-getting-started/#environment-variables">Getting Started</a> for how the default is chosen</td>
+<td>Everything below</td>
+</tr>
+<tr>
+<td><code>&lt;DATA_DIR&gt;/ref_data/engine_config.json</code></td>
+<td><code>pm-setup</code>, <code>pm-config-deploy</code></td>
+<td>The <strong>compiled artifact every process reads</strong></td>
+</tr>
+<tr>
+<td><code>&lt;DATA_DIR&gt;/ref_data/engine_config.yaml</code></td>
+<td>same</td>
+<td>The authored source it was compiled from, kept for provenance</td>
+</tr>
+<tr>
+<td><code>&lt;DATA_DIR&gt;/emo/</code></td>
+<td><code>pm-opctl-cli</code></td>
+<td>One log per process, PID files, and the active profile name</td>
+</tr>
+<tr>
+<td><code>&lt;DATA_DIR&gt;/log.db</code></td>
+<td><code>pm-log-srv</code></td>
+<td>The centralized log</td>
+</tr>
+<tr>
+<td><code>&lt;DATA_DIR&gt;/stats.db</code></td>
+<td><code>pm-stats</code></td>
+<td>Statistics and history behind the REST API</td>
+</tr>
+<tr>
+<td><code>&lt;DATA_DIR&gt;/clearing.db</code>, <code>clearing_report.csv</code></td>
+<td><code>pm-clearing</code></td>
+<td>Positions and P&amp;L</td>
+</tr>
+<tr>
+<td><code>&lt;DATA_DIR&gt;/audit.log</code>, <code>audit_index.db</code></td>
+<td><code>pm-audit</code></td>
+<td>The audit trail and its index</td>
+</tr>
+<tr>
+<td><code>&lt;DATA_DIR&gt;/gtc_orders.json</code>, <code>gtc_combos.json</code>, <code>book_stats.json</code></td>
+<td><code>pm-engine</code></td>
+<td>Resting orders and book state across restarts</td>
+</tr>
+<tr>
+<td><code>&lt;DATA_DIR&gt;/logs/</code></td>
+<td>log clients</td>
+<td>Failover logs written when <code>pm-log-srv</code> is unreachable</td>
+</tr>
+</tbody>
+</table>
+<p>Configured relative paths such as <code>data/stats.db</code> resolve under <code>&lt;DATA_DIR&gt;</code>,
+so they mean the same file no matter which directory a process was started
+from. Absolute paths in the configuration remain explicit overrides.</p>
+<h3 id="where-that-lands-in-each-mode">Where that lands in each mode<a class="headerlink" href="#where-that-lands-in-each-mode" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th><code>&lt;DATA_DIR&gt;</code> is</th>
+<th>Controlled by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>One-command containers</td>
+<td><code>~/.edumatcher/data</code> on your disk, mounted at <code>/data</code> in the container</td>
+<td><code>--dir</code> at install time</td>
+</tr>
+<tr>
+<td>Containers from source</td>
+<td><code>deployment/docker/data</code>, mounted at <code>/data</code></td>
+<td>The <code>./data:/data</code> mount in <code>compose.yaml</code></td>
+</tr>
+<tr>
+<td>pipx</td>
+<td><code>~/.local/share/edumatcher</code></td>
+<td><code>EDUMATCHER_DATA_DIR</code></td>
+</tr>
+<tr>
+<td>Poetry checkout</td>
+<td><code>&lt;repo&gt;/src/data/</code></td>
+<td><code>EDUMATCHER_DATA_DIR</code></td>
+</tr>
+<tr>
+<td>VM</td>
+<td><code>/home/ubuntu/session</code> inside the VM</td>
+<td><code>mknode.sh</code></td>
+</tr>
+</tbody>
+</table>
+<p>The container images set <code>EDUMATCHER_DATA_DIR=/data</code> internally, so the
+container's view and your directory are the same files. Your data is on your
+disk, not inside a container: it survives stop, start, rebuild and update.</p>
+<h3 id="supporting-directories">Supporting directories<a class="headerlink" href="#supporting-directories" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Created by</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>~/.edumatcher/</code></td>
+<td>the installer (<code>--dir</code> to change)</td>
+<td><code>compose.yaml</code>, <code>.env</code>, <code>edumatcher.sh</code>, <code>data/</code>, <code>config/</code></td>
+</tr>
+<tr>
+<td><code>~/.edumatcher/config/</code></td>
+<td><code>./edumatcher.sh config &lt;file&gt;</code></td>
+<td>Your own configuration, mounted read-only at <code>/config</code></td>
+</tr>
+<tr>
+<td><code>deployment/docker/.env</code></td>
+<td>first <code>make build</code> or <code>make up</code></td>
+<td>Machine-specific settings; git-ignored</td>
+</tr>
+<tr>
+<td><code>deployment/docker/config/</code></td>
+<td><code>make up-all CONFIG=&lt;file&gt;</code></td>
+<td>As above, for the source-built stack</td>
+</tr>
+<tr>
+<td><code>deployment/docker/.wheel/</code></td>
+<td><code>make build</code></td>
+<td>The locally built wheel the image installs from</td>
+</tr>
+<tr>
+<td><code>deployment/docker/.ssh/</code></td>
+<td><code>make keys</code></td>
+<td><code>authorized_keys</code> assembled from your <code>~/.ssh/*.pub</code>, for <code>SSH=1</code></td>
+</tr>
+<tr>
+<td><code>/backend-data</code> (in log-gui)</td>
+<td>the <code>./data:/backend-data:ro</code> mount</td>
+<td>Where the log viewer reads <code>log.db</code> — read-only by construction, so the viewer can never write the log server's database</td>
+</tr>
+<tr>
+<td><code>log-gui-acks</code>, <code>terminal-gui-logs</code></td>
+<td>Compose named volumes</td>
+<td>Log acknowledgements; the terminal's failover log</td>
+</tr>
+</tbody>
+</table>
+<h2 id="vm-bootstrap-a-ready-to-run-multipass-vm">VM bootstrap — a ready-to-run Multipass VM<a class="headerlink" href="#vm-bootstrap-a-ready-to-run-multipass-vm" title="Permanent link">&para;</a></h2>
+<p>Use this when you want the fewest assumptions about your host machine. Your
+host needs Multipass and <code>curl</code>; Python and EduMatcher are installed inside the
+VM. This mode installs the backend only — the web GUIs are part of the
+container deployment. Provisioning runs <code>pm-setup</code>, so the VM comes up with a
+deployed configuration and <code>pm-opctl-cli</code> ready to start the stack.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">    </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.26.0<span class="w"> </span>--snapshot
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>multipass<span class="w"> </span>shell<span class="w"> </span>ems
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="nb">cd</span><span class="w"> </span>/home/ubuntu/session
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>pm-opctl-cli<span class="w"> </span>start
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--name &lt;vm&gt;</code></td>
+<td><code>ems</code></td>
+<td>Name the VM</td>
+</tr>
+<tr>
+<td><code>--version X.Y.Z</code></td>
+<td><code>dev</code></td>
+<td>Install a specific EduMatcher release. The default installs a local wheel, so pass this unless you have a checkout</td>
+</tr>
+<tr>
+<td><code>--dev</code></td>
+<td>—</td>
+<td>Install the wheel from the repository's <code>dist/</code> instead of PyPI</td>
+</tr>
+<tr>
+<td><code>--cpus</code> / <code>--memory</code> / <code>--disk</code></td>
+<td><code>4</code> / <code>4G</code> / <code>6G</code></td>
+<td>Size the VM</td>
+</tr>
+<tr>
+<td><code>--image &lt;name&gt;</code></td>
+<td><code>lts</code></td>
+<td>Base Multipass image</td>
+</tr>
+<tr>
+<td><code>--snapshot-name &lt;name&gt;</code></td>
+<td><code>clean</code></td>
+<td>Name of the snapshot taken after provisioning</td>
+</tr>
+<tr>
+<td><code>--snapshot</code></td>
+<td>already on</td>
+<td>Snapshots are taken by default; the flag only makes that explicit</td>
+</tr>
+<tr>
+<td><code>--ssh-key &lt;path&gt;</code></td>
+<td><code>~/.ssh/&lt;vm&gt;_ed25519</code></td>
+<td>Private key whose public half is installed for passwordless login</td>
+</tr>
+</tbody>
+</table>
+<p>To read the script before running it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span>-o<span class="w"> </span>curl_setup_vm.sh
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>less<span class="w"> </span>curl_setup_vm.sh
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.26.0<span class="w"> </span>--snapshot
+</code></pre></div>
+<h2 id="pipx-commands-on-your-own-machine">pipx — commands on your own machine<a class="headerlink" href="#pipx-commands-on-your-own-machine" title="Permanent link">&para;</a></h2>
+<p>Use this when you want to run the processes yourself, one per terminal, which
+is how most of this guide is written.</p>
+<table>
+<thead>
+<tr>
+<th>Requirement</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Python 3.13 or later</td>
+<td>Check with <code>python --version</code></td>
+</tr>
+<tr>
+<td><code>pipx</code></td>
+<td>Installs command-line applications into isolated environments</td>
+</tr>
+<tr>
+<td>Several terminals</td>
+<td>Or <code>tmux</code> / <code>screen</code>; one process per pane is normal</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># macOS with Homebrew</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>brew<span class="w"> </span>install<span class="w"> </span>pipx
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>pipx<span class="w"> </span>ensurepath
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="c1"># Linux / generic Python install</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--user<span class="w"> </span>pipx
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>python<span class="w"> </span>-m<span class="w"> </span>pipx<span class="w"> </span>ensurepath
+</code></pre></div>
+<p>Then install and bootstrap a session directory:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pipx<span class="w"> </span>install<span class="w"> </span>edumatcher
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>mkdir<span class="w"> </span>edumatcher-session
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="nb">cd</span><span class="w"> </span>edumatcher-session
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>pm-setup
+</code></pre></div>
+<p><code>pm-setup</code> creates the data directory, deploys a bundled example configuration
+and prints the <code>EDUMATCHER_DATA_DIR</code> line to add to your shell profile. Open a
+new terminal afterwards so every <code>pm-*</code> command sees the same data directory.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>pm-setup<span class="w"> </span>--config<span class="w"> </span>ten-nominal<span class="w">   </span><span class="c1"># a different bundled example</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>pm-setup<span class="w"> </span>--data-dir<span class="w"> </span>~/my-venue<span class="w">  </span><span class="c1"># an explicit location</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>pm-setup<span class="w"> </span>--force<span class="w">                </span><span class="c1"># replace an already-deployed configuration</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>pm-setup<span class="w"> </span>--no-config<span class="w">            </span><span class="c1"># create the directory only</span>
+</code></pre></div>
+<h2 id="poetry-checkout-developing-edumatcher">Poetry checkout — developing EduMatcher<a class="headerlink" href="#poetry-checkout-developing-edumatcher" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/johan162/EduMatcher.git
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="nb">cd</span><span class="w"> </span>EduMatcher
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>poetry<span class="w"> </span>config<span class="w"> </span>virtualenvs.in-project<span class="w"> </span><span class="nb">true</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>poetry<span class="w"> </span>install<span class="w"> </span>--with<span class="w"> </span>dev,docs
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine<span class="w"> </span>--verbose
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
+</code></pre></div>
+<p>Developer mode uses the repository-local data directory. When exact behaviour
+matters, use the same deployed-configuration flow as installed mode: author
+YAML, run <code>poetry run pm-config-deploy ...</code>, then restart the processes.</p>
+<h2 id="how-a-release-is-produced">How a release is produced<a class="headerlink" href="#how-a-release-is-produced" title="Permanent link">&para;</a></h2>
+<p>Two scripts and two GitHub workflows. One tag produces the Python package and
+the container images together, all carrying the same version, which is what
+lets the installer pin a whole system with a single number.</p>
+<pre class="mermaid"><code>flowchart TD
+    MK["scripts/mkrelease.sh\nbump version, build docs, tag"]
+    TAG["git tag vX.Y.Z\npushed to GitHub"]
+    GH["scripts/mkghrelease.sh\ngh release create + artifacts"]
+    REL["GitHub release published"]
+
+    PYPI["publish-to-pypi.yml\npoetry build and publish"]
+    IMG["publish-images.yml"]
+
+    AMD["build amd64\nubuntu-24.04"]
+    ARM["build arm64\nubuntu-24.04-arm"]
+    MERGE["merge digests into\none manifest list\ntags X.Y.Z and latest"]
+
+    OUTP["PyPI\nedumatcher X.Y.Z"]
+    OUTC["GHCR\n5 multi-arch images X.Y.Z"]
+
+    USER1["pipx install edumatcher"]
+    USER2["curl .../install.sh | bash"]
+
+    MK --&gt; TAG --&gt; GH --&gt; REL
+    REL --&gt; PYPI --&gt; OUTP --&gt; USER1
+    REL --&gt; IMG
+    IMG --&gt; AMD --&gt; MERGE
+    IMG --&gt; ARM --&gt; MERGE
+    MERGE --&gt; OUTC --&gt; USER2
+    GH -.-&gt;|"phase 6B waits for the run"| MERGE</code></pre>
+<p>Each image is built <strong>natively</strong> on both architectures rather than emulated,
+then the two are joined into one manifest list. A user on Intel and a user on
+Apple Silicon pull the same tag and each gets the right binary.</p>
+<p>The five published images are:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>ghcr.io/johan162/edumatcher                 the exchange, all pm-* processes
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>ghcr.io/johan162/edumatcher-terminal-gui    the trading terminal
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>ghcr.io/johan162/edumatcher-log-gui         the log viewer
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>ghcr.io/johan162/edumatcher-config-gui      the configuration builder
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>ghcr.io/johan162/edumatcher-trader-gui      the trader GUI
+</code></pre></div>
+<p><code>latest</code> is only moved for an exact <code>vMAJOR.MINOR.PATCH</code> tag, so a pre-release
+never becomes what a new user gets by default — the same rule the PyPI workflow
+uses to choose between PyPI and TestPyPI.</p>
+<h3 id="publishing-by-hand">Publishing by hand<a class="headerlink" href="#publishing-by-hand" title="Permanent link">&para;</a></h3>
+<p><code>make ghcr-push</code> in <code>deployment/docker/</code> builds all five images from your
+checkout and pushes them, for when the workflow cannot run:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">GITHUB_USER</span><span class="o">=</span>&lt;you&gt;<span class="w"> </span><span class="nv">GHCR_TOKEN</span><span class="o">=</span>&lt;token<span class="w"> </span>with<span class="w"> </span>write:packages&gt;
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>make<span class="w"> </span>ghcr-push<span class="w">                              </span><span class="c1"># all five, tagged :dev</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>make<span class="w"> </span>ghcr-push<span class="w"> </span><span class="nv">TAG</span><span class="o">=</span><span class="m">0</span>.20.6<span class="w"> </span><span class="nv">FORCE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">LATEST</span><span class="o">=</span><span class="m">1</span><span class="w">  </span><span class="c1"># as a release tag</span>
+</code></pre></div>
+<p>It builds only for the architecture you are on. Pushing a single-architecture
+image over a release tag replaces the manifest list, and users on the other
+architecture then get "no matching manifest" — which you will not notice,
+because your own machine keeps working. That is why a release-looking tag needs
+<code>FORCE=1</code> and why <code>latest</code> is never moved unless asked.</p>
+<h2 id="developer-release-checklist">Developer release checklist<a class="headerlink" href="#developer-release-checklist" title="Permanent link">&para;</a></h2>
+<p>For the maintainer cutting a release. Steps 1-4 are local, 5-7 are automated
+but need watching, and 8-10 are the checks that the release actually works for
+somebody who is not you.</p>
+<h3 id="before-tagging">Before tagging<a class="headerlink" href="#before-tagging" title="Permanent link">&para;</a></h3>
+<ol>
+<li>
+<p><strong>Working tree is clean and tests pass.</strong>
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>make<span class="w"> </span>-C<span class="w"> </span>web-apps/terminal-gui<span class="w"> </span>typecheck<span class="w"> </span><span class="nb">test</span>
+</code></pre></div>
+   Repeat the last line for <code>log-gui</code>, <code>trader-gui</code> and <code>config-gui</code>.</p>
+</li>
+<li>
+<p><strong><code>CHANGELOG.md</code> has an entry for this version.</strong> <code>scripts/mkchlogentry.sh</code>
+   drafts one from the commit log.</p>
+</li>
+<li>
+<p><strong>The container stack starts from a clean state.</strong> This is the test that
+   catches a stale deployed configuration or a broken image:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>make<span class="w"> </span>build<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>down-all<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>clean-data<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>up-all
+</code></pre></div>
+   Confirm the build printed <code>Installing local wheel: ...</code>, not a PyPI
+   download, then check each application answers: 8090, 8091, 8093, and
+   <code>curl -s localhost:8093/api/v1/healthz</code>.</p>
+</li>
+<li>
+<p><strong>The trading terminal shows a live book <em>and</em> history.</strong> This exercises the
+   whole chain — the private network, the loopback-bind rewrite and the
+   per-configuration API key — in one look:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>localhost:8090/api/bridge/status
+</code></pre></div>
+   Expect <code>"calf":"ACTIVE"</code> with a non-zero <code>symbols</code> count.</p>
+</li>
+</ol>
+<h3 id="tag-and-release">Tag and release<a class="headerlink" href="#tag-and-release" title="Permanent link">&para;</a></h3>
+<ol>
+<li>
+<p><strong>Run <code>scripts/mkrelease.sh</code>.</strong> It bumps the version, builds the
+   documentation bundles, commits and tags.</p>
+</li>
+<li>
+<p><strong>Wait for the CI workflows on the tag to go green</strong> before creating the
+   release.</p>
+</li>
+<li>
+<p><strong>Run <code>scripts/mkghrelease.sh</code>.</strong> It validates the artifacts in <code>dist/</code>,
+   creates the GitHub release, and then waits for the container image workflow.</p>
+</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--dry-run</code></td>
+<td>Show what would happen; create nothing</td>
+</tr>
+<tr>
+<td><code>--pre-release</code></td>
+<td>Force pre-release marking regardless of the tag</td>
+</tr>
+<tr>
+<td><code>--skip-images</code></td>
+<td>Do not wait for the image workflow</td>
+</tr>
+<tr>
+<td><code>IMAGE_WAIT_MINUTES=n</code></td>
+<td>How long to wait (default 30)</td>
+</tr>
+</tbody>
+</table>
+<p>If the image workflow fails, the GitHub release still exists — only the
+   images are missing. Re-run just that part:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>gh<span class="w"> </span>run<span class="w"> </span>view<span class="w"> </span>&lt;run-id&gt;<span class="w"> </span>--log-failed
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>gh<span class="w"> </span>workflow<span class="w"> </span>run<span class="w"> </span>publish-images.yml<span class="w"> </span>-f<span class="w"> </span><span class="nv">tag</span><span class="o">=</span>vX.Y.Z
+</code></pre></div></p>
+<h3 id="after-the-release">After the release<a class="headerlink" href="#after-the-release" title="Permanent link">&para;</a></h3>
+<ol>
+<li>
+<p><strong>First release only: make the GHCR packages public.</strong> New packages are
+   private, so <code>podman pull</code> fails with a permission error for everyone except
+   you, and the one-line installer silently stops working. Set each of the five
+   packages to Public in its package settings on GitHub.</p>
+</li>
+<li>
+<p><strong>Verify the one-line install as a stranger would</strong>, into a throwaway
+   directory so your own instance is untouched:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/vX.Y.Z/deployment/curl/install.sh<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">    </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--dir<span class="w"> </span>/tmp/em-release-test
+</code></pre></div>
+   Then open <a href="http://localhost:8090">http://localhost:8090</a>, and clean up with
+   <code>cd /tmp/em-release-test &amp;&amp; ./edumatcher.sh uninstall --data</code>.</p>
+</li>
+<li>
+<p><strong>Verify the PyPI install</strong> in a fresh environment:
+    <div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>pipx<span class="w"> </span>install<span class="w"> </span><span class="nv">edumatcher</span><span class="o">==</span>X.Y.Z
+</code></pre></div></p>
+</li>
+</ol>
+<div class="admonition tip">
+<p class="admonition-title">Where releases usually go wrong</p>
+<p>Two failures are quiet rather than loud. An image built from PyPI instead
+of the checkout looks like a successful build but ships the <em>previous</em>
+release — step 3's <code>Installing local wheel</code> line is what catches it. And
+private GHCR packages fail only for other people, never for the maintainer
+who is already authenticated — step 9, run without credentials, is what
+catches that.</p>
+</div>
+<h2 id="doing-a-manual-ghcr-push">Doing a manual GHCR push<a class="headerlink" href="#doing-a-manual-ghcr-push" title="Permanent link">&para;</a></h2>
+<p>Normally the push is handled by the workflow but it can be manually overridden.
+The target <code>ghcr-push</code> in <code>deployment/docker/Makefile</code> builds all five images from. 
+In will login with ghe existing GITHUB_USER/GHCR_TOKEN, then tags and pushes each one.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>export GITHUB_USER=&lt;user with admin priv&gt; GHCR_TOKEN=&lt;token with write:packages&gt;
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>make ghcr-push                              # all five, tagged :dev
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>make ghcr-push TAG=0.20.6 FORCE=1           # ...as a release tag
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>make ghcr-push TAG=0.20.6 FORCE=1 LATEST=1  # ...and move :latest
+</code></pre></div>
+<h2 id="where-to-go-next">Where to go next<a class="headerlink" href="#where-to-go-next" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../000-getting-started/">Getting Started</a> — what EduMatcher is, and your
+  first trade in five minutes</li>
+<li><a href="../010-configuration/">Engine Configuration</a> — authoring an
+  <code>engine_config.yaml</code></li>
+<li><a href="../030-config-GUI/">Configuration GUI</a> — doing it in the browser instead</li>
+<li><a href="../040-running-the-exchange/">Running the Exchange</a> — starting processes and
+  keeping them healthy</li>
+<li><a href="../170-processes/">Processes</a> — what each <code>pm-*</code> process is for</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["toc.integrate", "navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

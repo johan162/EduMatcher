@@ -846,6 +846,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/005-installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/010-configuration/" class="md-nav__link">
         
   
@@ -3399,10 +3427,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#why-pip-in-venv-instead-of-pipx-for-this-vm" class="md-nav__link">
+  <a href="#why-pip-in-a-venv-instead-of-pipx" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why pip in venv instead of pipx for this VM
+        Why pip in a venv instead of pipx
       
     </span>
   </a>
@@ -3410,13 +3438,30 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#build-the-vm-image" class="md-nav__link">
+  <a href="#build-the-vm" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Build the VM image
+        Build the VM
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Build the VM">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#mknodesh-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        mknode.sh options
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -3429,13 +3474,30 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="What provisioning does">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#verify-the-install" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verify the install
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
-  <a href="#verify-command-links" class="md-nav__link">
+  <a href="#operate-the-vm" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Verify command links
+        Operate the VM
       
     </span>
   </a>
@@ -3443,10 +3505,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#launch-and-run-edumatcher-in-the-vm" class="md-nav__link">
+  <a href="#snapshots-upgrades-and-reset" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Launch and run EduMatcher in the VM
+        Snapshots, upgrades and reset
       
     </span>
   </a>
@@ -3454,10 +3516,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#upgrading-the-pinned-version" class="md-nav__link">
+  <a href="#development-nodes-are-a-different-thing" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Upgrading the pinned version
+        Development nodes are a different thing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference
       
     </span>
   </a>
@@ -3615,128 +3688,277 @@
 <p class="admonition-title">Learning objectives</p>
 <p>After reading this page you will understand:</p>
 <ul>
-<li>How to build a VM image preinstalled with a selected EduMatcher version</li>
-<li>Why the VM image uses pip in a dedicated venv instead of pipx</li>
-<li>How all pm-* commands are linked into /usr/local/bin</li>
-<li>How to launch and operate EduMatcher from the provisioned VM</li>
+<li>How to build a Multipass VM preinstalled with a chosen EduMatcher release</li>
+<li>Why the image uses pip in a dedicated venv rather than pipx</li>
+<li>What provisioning does, and how every <code>pm-*</code> command reaches
+  <code>/usr/local/bin</code></li>
+<li>How to operate, snapshot, upgrade and reset the VM</li>
+<li>When to reach for the VM instead of the container deployment</li>
 </ul>
 </div>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
-<p>EduMatcher can be distributed as a pre-provisioned VM where runtime commands are available globally.</p>
-<p>This repository includes a scripted pipeline in <code>vm/README.md</code>:</p>
-<ul>
-<li><code>vm/build_multipass_vm.sh</code></li>
-<li><code>vm/install_edumatcher_runtime.sh</code></li>
-</ul>
-<p>The provisioning flow installs a pinned package version from PyPI and creates symlinks for every detected pm-* command in /usr/local/bin.</p>
-<h2 id="why-pip-in-venv-instead-of-pipx-for-this-vm">Why pip in venv instead of pipx for this VM<a class="headerlink" href="#why-pip-in-venv-instead-of-pipx-for-this-vm" title="Permanent link">&para;</a></h2>
-<p>For a shared VM runtime image, pip in a dedicated virtual environment is the better fit:</p>
-<ol>
-<li>Deterministic system pathing: all pm-* commands resolve from /usr/local/bin.</li>
-<li>Operational clarity: one controlled runtime location under /opt/edumatcher/.venv.</li>
-<li>Easier service wiring: unit files and scripts can always reference stable absolute paths.</li>
-</ol>
-<p>pipx remains a strong choice for per-user workstation installs, but this VM image has a system-wide command-link requirement.</p>
-<h2 id="build-the-vm-image">Build the VM image<a class="headerlink" href="#build-the-vm-image" title="Permanent link">&para;</a></h2>
-<p>Without cloning the repository:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.20.4<span class="w"> </span>--snapshot
-</code></pre></div>
-<p>With a local repository checkout:</p>
-<p>From repository root:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>./vm/build_multipass_vm.sh --version 0.20.4
-</code></pre></div>
-<p>Useful options:</p>
+<p><code>deployment/vm/</code> builds a Multipass VM carrying one chosen EduMatcher release,
+with every <code>pm-*</code> command on the system PATH and a configuration already
+deployed. It is the option to pick when you want a <em>machine</em> to log into —
+a workshop image you can snapshot and reset between classes, or an environment
+where processes are started by hand.</p>
 <table>
 <thead>
 <tr>
-<th>Name</th>
+<th>Script</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>deployment/vm/Makefile</code></td>
+<td>The everyday interface — <code>build</code>, <code>up</code>, <code>shell</code>, <code>ssh</code>, <code>status</code>, <code>restore</code>, <code>clean</code></td>
+</tr>
+<tr>
+<td><code>deployment/vm/mknode.sh</code></td>
+<td>Creates and provisions the VM</td>
+</tr>
+<tr>
+<td><code>deployment/vm/install_edumatcher.sh</code></td>
+<td>The in-VM installer <code>mknode.sh</code> runs</td>
+</tr>
+<tr>
+<td><code>deployment/vm/curl_setup_vm.sh</code></td>
+<td>Repository-free entry point; fetches the two scripts above and forwards its arguments</td>
+</tr>
+<tr>
+<td><code>deployment/vm/mkupd.sh</code></td>
+<td>Updates an existing VM in place</td>
+</tr>
+<tr>
+<td><code>deployment/vm/mkdevnode.sh</code></td>
+<td>A larger <em>development workstation</em> VM — a different thing, see below</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition tip">
+<p class="admonition-title">VM or container?</p>
+<p>Use <a href="../07-container-and-networks/"><code>deployment/docker/</code></a> when you want the
+whole system — exchange plus all four web GUIs — running with one command,
+or when you are changing code and need a fast rebuild. Use the VM when you
+want a real machine, a snapshot you can roll back to, or a demo that
+survives being handed to somebody else. The VM installs the backend only;
+the web GUIs are part of the container deployment.</p>
+</div>
+<h2 id="why-pip-in-a-venv-instead-of-pipx">Why pip in a venv instead of pipx<a class="headerlink" href="#why-pip-in-a-venv-instead-of-pipx" title="Permanent link">&para;</a></h2>
+<p>For a shared VM runtime image, pip in a dedicated virtual environment fits
+better than pipx:</p>
+<ol>
+<li><strong>Deterministic system paths</strong> — every <code>pm-*</code> command resolves from
+   <code>/usr/local/bin</code>, the same for every user on the machine.</li>
+<li><strong>One controlled runtime location</strong> — <code>/opt/edumatcher/.venv</code>, easy to
+   inspect, replace or reason about.</li>
+<li><strong>Easier service wiring</strong> — unit files and scripts can reference stable
+   absolute paths.</li>
+</ol>
+<p>pipx remains the right choice for a per-user workstation install. This image
+has a system-wide command-link requirement that pipx does not serve as
+directly.</p>
+<h2 id="build-the-vm">Build the VM<a class="headerlink" href="#build-the-vm" title="Permanent link">&para;</a></h2>
+<p>From a checkout, through the Makefile:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/vm
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>make<span class="w"> </span>build<span class="w">                              </span><span class="c1"># VM named 'ems', local wheel</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>make<span class="w"> </span>build<span class="w"> </span><span class="nv">NAME</span><span class="o">=</span>ems-026<span class="w"> </span><span class="nv">VERSION</span><span class="o">=</span><span class="m">0</span>.26.0<span class="w">  </span><span class="c1"># a pinned PyPI release</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>make<span class="w"> </span>build<span class="w"> </span><span class="nv">DEV</span><span class="o">=</span><span class="m">1</span><span class="w">                        </span><span class="c1"># explicitly the wheel in ../../dist</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>make<span class="w"> </span><span class="nb">help</span><span class="w">                               </span><span class="c1"># every target and variable</span>
+</code></pre></div>
+<p><code>make build</code> writes the VM name to <code>.vm-name</code>, so <code>make shell</code>, <code>make ssh</code>,
+<code>make status</code> and the rest need no arguments afterwards.</p>
+<p>Without a repository checkout:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.26.0
+</code></pre></div>
+<p><code>curl_setup_vm.sh</code> downloads <code>mknode.sh</code> and <code>install_edumatcher.sh</code> into a
+temporary directory and forwards everything after <code>--</code> to <code>mknode.sh</code>. Set
+<code>REPO_OWNER</code>, <code>REPO_NAME</code> or <code>REPO_REF</code> to pull them from a fork or branch.</p>
+<h3 id="mknodesh-options"><code>mknode.sh</code> options<a class="headerlink" href="#mknodesh-options" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Option</th>
 <th>Default</th>
 <th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>--name</code></td>
-<td><code>edumatcher-vm</code></td>
-<td>Name of the Multipass VM instance</td>
+<td><code>--name &lt;vm-name&gt;</code></td>
+<td><code>ems</code></td>
+<td>VM instance name</td>
 </tr>
 <tr>
-<td><code>--image</code></td>
+<td><code>--image &lt;image&gt;</code></td>
 <td><code>lts</code></td>
-<td>Base Multipass image to launch</td>
+<td>Base Multipass image</td>
 </tr>
 <tr>
-<td><code>--cpus</code></td>
-<td><code>2</code></td>
-<td>Number of virtual CPUs assigned to the VM</td>
+<td><code>--cpus &lt;count&gt;</code></td>
+<td><code>4</code></td>
+<td>Virtual CPUs</td>
 </tr>
 <tr>
-<td><code>--memory</code></td>
-<td><code>3G</code></td>
-<td>RAM allocated to the VM</td>
+<td><code>--memory &lt;size&gt;</code></td>
+<td><code>4G</code></td>
+<td>RAM</td>
 </tr>
 <tr>
-<td><code>--disk</code></td>
-<td><code>10G</code></td>
-<td>Maximum virtual disk size for the VM</td>
+<td><code>--disk &lt;size&gt;</code></td>
+<td><code>6G</code></td>
+<td>Disk</td>
 </tr>
 <tr>
-<td><code>--snapshot-name</code></td>
-<td><code>clean-runtime</code></td>
-<td>Snapshot name used when <code>--snapshot</code> is enabled</td>
+<td><code>--version &lt;x.y.z&gt;</code></td>
+<td><code>dev</code></td>
+<td>PyPI release to install</td>
 </tr>
 <tr>
-<td><code>--version</code></td>
-<td><code>0.7.1</code></td>
-<td>EduMatcher PyPI version to install in the VM</td>
+<td><code>--dev</code></td>
+<td>—</td>
+<td>Install the local wheel from the repository's <code>dist/</code>. This is what happens by default when no <code>--version</code> is given</td>
+</tr>
+<tr>
+<td><code>--snapshot</code></td>
+<td>already enabled</td>
+<td>Snapshot after provisioning. Snapshots are on by default, so this only makes it explicit — there is no <code>--no-snapshot</code></td>
+</tr>
+<tr>
+<td><code>--snapshot-name &lt;name&gt;</code></td>
+<td><code>clean</code></td>
+<td>Snapshot name</td>
+</tr>
+<tr>
+<td><code>--ssh-key &lt;path&gt;</code></td>
+<td><code>~/.ssh/&lt;vm-name&gt;_ed25519</code></td>
+<td>Private key whose public half is installed for passwordless login</td>
+</tr>
+<tr>
+<td><code>--help</code></td>
+<td>—</td>
+<td>Usage</td>
 </tr>
 </tbody>
 </table>
+<div class="admonition warning">
+<p class="admonition-title">The default is <code>--dev</code>, not a release</p>
+<p><code>DEFAULT_VERSION</code> is <code>dev</code>, so a bare <code>mknode.sh</code> or <code>make build</code> installs
+the wheel from the repository's <code>dist/</code> directory and fails if none is
+there. Run <code>poetry build</code> first, or pass <code>--version</code>/<code>VERSION=</code>.</p>
+</div>
 <h2 id="what-provisioning-does">What provisioning does<a class="headerlink" href="#what-provisioning-does" title="Permanent link">&para;</a></h2>
-<p>Inside the VM, provisioning performs the following steps:</p>
-<ol>
-<li>Installs Python 3.13 and runtime prerequisites.</li>
-<li>Creates /opt/edumatcher/.venv.</li>
-<li>Installs edumatcher==<selected version> from PyPI.</li>
-<li>Discovers all installed pm-* console entry points.</li>
-<li>Symlinks each command to /usr/local/bin/pm-*</li>
-<li>Persists installed version to /opt/edumatcher/EDUMATCHER_VERSION.</li>
-</ol>
-<h2 id="verify-command-links">Verify command links<a class="headerlink" href="#verify-command-links" title="Permanent link">&para;</a></h2>
+<pre class="mermaid"><code>flowchart TD
+    A["multipass launch\nimage, cpus, memory, disk"] --&gt; B["transfer install_edumatcher.sh\ninto the VM"]
+    B --&gt; C["install Python and prerequisites\nprefers python3.13, falls back"]
+    C --&gt; D["create /opt/edumatcher/.venv"]
+    D --&gt; E{"which source?"}
+    E --&gt;|"--version x.y.z"| F["pip install edumatcher==x.y.z"]
+    E --&gt;|"--dev"| G["transfer dist/*.whl\nand pip install it"]
+    F --&gt; H["discover pm-* console entry points"]
+    G --&gt; H
+    H --&gt; I["symlink each into /usr/local/bin"]
+    I --&gt; J["record /opt/edumatcher/EDUMATCHER_VERSION"]
+    J --&gt; K["generate an SSH key,\ninstall the public half"]
+    K --&gt; L["mkdir ~/session, run pm-setup --force,\nexport EDUMATCHER_DATA_DIR in .bashrc"]
+    L --&gt; M["snapshot 'clean'"]
+    M --&gt; N["print VM IP and the API keys\nfrom the deployed configuration"]</code></pre>
+<p>Two details are easy to miss:</p>
+<ul>
+<li><strong><code>pm-setup</code> runs from <code>/home/ubuntu/session</code>, but that is not the data
+  directory.</strong> The deployed configuration goes to
+  <code>/home/ubuntu/.local/share/edumatcher</code>, which provisioning exports as
+  <code>EDUMATCHER_DATA_DIR</code> in <code>.bashrc</code>. <code>~/session</code> is only a convenient working
+  directory.</li>
+<li><strong>The API keys are printed once, at the end.</strong> <code>mknode.sh</code> finishes by
+  showing the VM's IP address and the admin, TRADER01, TRADER02 and MM01 keys
+  from the deployed configuration. Keep that output, or recover them later with
+  <code>pm-config-show</code>.</li>
+</ul>
+<h3 id="verify-the-install">Verify the install<a class="headerlink" href="#verify-the-install" title="Permanent link">&para;</a></h3>
 <p>Inside the VM:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>ls -1 /usr/local/bin/pm-*
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>cat /opt/edumatcher/EDUMATCHER_VERSION
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>ls<span class="w"> </span>-1<span class="w"> </span>/usr/local/bin/pm-*<span class="w">                 </span><span class="c1"># the linked commands</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>ls<span class="w"> </span>-1<span class="w"> </span>/opt/edumatcher/.venv/bin/pm-*<span class="w">      </span><span class="c1"># their targets</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>cat<span class="w"> </span>/opt/edumatcher/EDUMATCHER_VERSION<span class="w">    </span><span class="c1"># what was installed</span>
 </code></pre></div>
-<p>You can also inspect the source directory for symlink targets:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>ls -1 /opt/edumatcher/.venv/bin/pm-*
+<h2 id="operate-the-vm">Operate the VM<a class="headerlink" href="#operate-the-vm" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/vm
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>make<span class="w"> </span>shell<span class="w">            </span><span class="c1"># or: multipass shell ems</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>make<span class="w"> </span>ssh<span class="w">              </span><span class="c1"># passwordless, as user 'ubuntu'</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>make<span class="w"> </span>status<span class="w">           </span><span class="c1"># pm-opctl-cli list — one row per process</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>make<span class="w"> </span>health<span class="w">           </span><span class="c1"># exit 0 when every process is OK</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>make<span class="w"> </span>info<span class="w">             </span><span class="c1"># VM name and multipass state</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>make<span class="w"> </span>up<span class="w"> </span>/<span class="w"> </span>make<span class="w"> </span>down<span class="w">   </span><span class="c1"># start and stop the VM</span>
 </code></pre></div>
-<h2 id="launch-and-run-edumatcher-in-the-vm">Launch and run EduMatcher in the VM<a class="headerlink" href="#launch-and-run-edumatcher-in-the-vm" title="Permanent link">&para;</a></h2>
-<p>Open a shell:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>multipass shell edumatcher-vm
+<p>Inside the VM, the process manager starts the whole stack:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-opctl-cli<span class="w"> </span>start<span class="w">          </span><span class="c1"># the 'default' profile</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>pm-opctl-cli<span class="w"> </span>list
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>pm-opctl-cli<span class="w"> </span>stop
 </code></pre></div>
-<p>A bootstrap config have already been created in <code>/home/ubuntu/session/</code> using <code>pm-setup</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>cd ~/session
+<p>To run processes by hand instead — the arrangement the User Guide assumes —
+open a shell per process with <code>multipass shell ems</code> and start them separately:</p>
+<table>
+<thead>
+<tr>
+<th>Terminal</th>
+<th>Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>pm-engine --verbose</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>pm-audit --terminal</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>pm-clearing</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>pm-viewer --symbol AAPL</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>pm-alf-console --id TRADER01</code></td>
+</tr>
+</tbody>
+</table>
+<p>See <a href="../../user-guide/170-processes/">Processes</a> for what each one does and what
+the <code>default</code>, <code>mini</code> and <code>micro</code> profiles contain.</p>
+<h2 id="snapshots-upgrades-and-reset">Snapshots, upgrades and reset<a class="headerlink" href="#snapshots-upgrades-and-reset" title="Permanent link">&para;</a></h2>
+<p>Provisioning takes a snapshot named <code>clean</code> by default. That is what makes this
+image worth using for teaching: after a class has filled the order books with
+nonsense, one command puts the VM back to freshly-provisioned.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>make<span class="w"> </span>restore<span class="w">                  </span><span class="c1"># roll back to the 'clean' snapshot</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>make<span class="w"> </span>clean<span class="w">                    </span><span class="c1"># multipass delete --purge</span>
 </code></pre></div>
-<p>Open five terminals and connect them to a VM shell with <code>multipass shell edumatcher-vm</code> . The start the EduMatcher key processes in separate terminals:</p>
-<p>Terminal 1:
-<code>pm-engine --verbose</code></p>
-<p>Terminal 2:
-<code>pm-audit --terminal</code></p>
-<p>Terminal 3:
-<code>pm-clearing</code></p>
-<p>Terminal 4:
-<code>pm-viewer --symbol AAPL</code></p>
-<p>Terminal 5:
-<code>pm-alf-console --id TRADER01</code> </p>
-<h2 id="upgrading-the-pinned-version">Upgrading the pinned version<a class="headerlink" href="#upgrading-the-pinned-version" title="Permanent link">&para;</a></h2>
-<p>Preferred approach is immutable rebuild with a new VM name:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>./vm/build_multipass_vm.sh --name edumatcher-072 --version 0.20.4 --snapshot
+<p>For a new release, prefer an immutable rebuild under a new name so the old VM
+stays available:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>make<span class="w"> </span>build<span class="w"> </span><span class="nv">NAME</span><span class="o">=</span>ems-026<span class="w"> </span><span class="nv">VERSION</span><span class="o">=</span><span class="m">0</span>.26.0
 </code></pre></div>
-<p>If you need in-place reprovisioning:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>multipass transfer vm/install_edumatcher_runtime.sh edumatcher-071:/tmp/install_edumatcher_runtime.sh
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>multipass exec edumatcher-071 -- sudo chmod +x /tmp/install_edumatcher_runtime.sh
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>multipass exec edumatcher-071 -- sudo /tmp/install_edumatcher_runtime.sh --version 0.20.4
+<p>To reprovision an existing VM in place:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>./mkupd.sh<span class="w"> </span>--vm-name<span class="w"> </span>ems
 </code></pre></div>
+<h2 id="development-nodes-are-a-different-thing">Development nodes are a different thing<a class="headerlink" href="#development-nodes-are-a-different-thing" title="Permanent link">&para;</a></h2>
+<p><code>mkdevnode.sh</code> builds a larger <em>development workstation</em> VM from a checkout,
+with SSH access and the toolchain <code>scripts/verify_setup.sh</code> checks for. It is
+not a runtime image and not a substitute for <code>mknode.sh</code> or the curl path — use
+it when you want to develop EduMatcher inside a VM rather than run it.</p>
+<h2 id="reference">Reference<a class="headerlink" href="#reference" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>deployment/vm/README.md</code> — the same material as a quick reference beside the
+  scripts</li>
+<li><a href="../07-container-and-networks/">Container and Network Setup</a> — the container
+  deployment, which runs the same backend plus the web GUIs</li>
+<li><a href="../../user-guide/005-installation/">Installation</a> — all five installation
+  modes from a user's perspective</li>
+</ul>
 
 
 
