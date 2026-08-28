@@ -64,6 +64,7 @@ cd ~/.edumatcher
 ./edumatcher.sh status              # containers, plus the exchange process table
 ./edumatcher.sh logs terminal-gui   # follow one service
 ./edumatcher.sh urls                # the table above, with your ports
+./edumatcher.sh mounts              # which directory is behind each container path
 ./edumatcher.sh stop                # stop everything; ./data is kept
 ./edumatcher.sh start               # bring it back
 ./edumatcher.sh update              # pull the newest release and restart
@@ -71,6 +72,32 @@ cd ~/.edumatcher
 ./edumatcher.sh uninstall           # remove containers and volumes, keep data
 ./edumatcher.sh uninstall --data    # remove everything
 ```
+
+### When a GUI shows something unexpected
+
+The health pages report *container* paths — the log viewer says its database is
+`/backend-data/log.db`, which tells you nothing about whose data that is.
+`./edumatcher.sh mounts` answers both halves of that question:
+
+```console
+$ ./edumatcher.sh mounts
+This install: /home/you/.edumatcher
+
+edumatcher               ghcr.io/johan162/edumatcher:0.26.2  [running]
+    /home/you/.edumatcher/data -> /data
+    /home/you/.edumatcher/config -> /config
+
+edumatcher-log-gui       ghcr.io/johan162/edumatcher-log-gui:0.26.2  [running]
+    /home/you/.edumatcher/data -> /backend-data
+    /var/lib/containers/volumes/edumatcher_log-gui-acks/_data -> /app/ack-data
+```
+
+A data mount that does not point into this directory is flagged `NOT this
+install`, and the image name tells you where a container came from:
+`ghcr.io/…` is a released install, `localhost/…` one built from a source
+checkout. That combination is what identifies a container belonging to a
+different EduMatcher install — `start` refuses to run alongside one, but a
+stack started before that check existed can still be there.
 
 ## Installer options
 

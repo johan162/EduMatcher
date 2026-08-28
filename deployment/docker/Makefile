@@ -75,6 +75,9 @@ PROJECT_VERSION := $(shell awk -F'"' '/^version =/ {print $$2; exit}' ../../pypr
 TAG ?= dev
 GUI_IMAGES := edumatcher-config-gui edumatcher-log-gui edumatcher-terminal-gui edumatcher-trader-gui
 
+# Every container this stack owns, named as the compose files name them.
+ALL_CONTAINERS := $(CONTAINER_NAME) $(foreach g,$(GUI_IMAGES),$(CONTAINER_NAME)-$(g:edumatcher-%=%))
+
 # Command-line overrides win over .env for this invocation only.
 RUN_ENV :=
 ifdef CONFIG
@@ -113,7 +116,7 @@ export READONLY_CREDENTIAL_PY
 
 .PHONY: help info check build up up-all down down-all restart shell logs \
 	proc-logs status health ssh keys config-deploy config-show ports \
-	ghcr-push clean clean-data
+	ghcr-push check-foreign mounts clean clean-data
 
 help:
 	@echo "EduMatcher container — targets:"
@@ -141,6 +144,7 @@ help:
 	@echo "  make config-deploy      Recompile data/ref_data/engine_config.yaml"
 	@echo "  make config-show        Show the deployed configuration"
 	@echo "  make ports              List the published ports"
+	@echo "  make mounts             Which directory is behind each container path"
 	@echo ""
 	@echo "  make ghcr-push          Push all five images to GHCR as :dev (this arch only)"
 	@echo "  make ghcr-push TAG=x.y.z FORCE=1   ... as a release tag (see the warning)"
@@ -209,7 +213,28 @@ endif
 # Two phases, deliberately: terminal-gui's read-only API key does not exist
 # until the exchange has deployed its configuration, so the backend has to be
 # up before the GUIs can be given their environment.
-up-all: check .env
+# deployment/curl/ uses the same fixed container names and host ports as this
+# stack, so only one can run at a time. Compose leaves an existing container of
+# the same name alone, which means the other install's exchange answers on these
+# ports with no error anywhere — refuse instead of attaching to it.
+check-foreign: check
+	@set -eu; \
+	name="$(CONTAINER_NAME)"; \
+	$(CONTAINER_ENGINE) container inspect "$$name" >/dev/null 2>&1 || exit 0; \
+	src=$$($(CONTAINER_ENGINE) inspect "$$name" \
+	        --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' \
+	        2>/dev/null || true); \
+	norm() { if [ -d "$$1" ]; then (cd "$$1" && pwd -P); else printf '%s' "$$1"; fi; }; \
+	if [ "$$(norm "$$src")" != "$$(norm "$(CURDIR)/data")" ]; then \
+		echo "ERROR: a container named '$$name' exists from a different EduMatcher install." >&2; \
+		echo "         its data directory: $${src:-<none>}" >&2; \
+		echo "         this stack:         $(CURDIR)/data" >&2; \
+		echo "       Stop that one first — for a curl install:" >&2; \
+		echo "         cd ~/.edumatcher && ./edumatcher.sh stop" >&2; \
+		exit 1; \
+	fi
+
+up-all: check check-foreign .env
 ifeq ($(SSH),1)
 	@$(MAKE) --no-print-directory keys
 endif
@@ -302,6 +327,44 @@ health: check
 
 ports: check
 	$(CONTAINER_ENGINE) port $(CONTAINER_NAME)
+
+# Which directory on disk is behind each path inside each container, and where
+# each container came from. The health pages report container paths such as
+# /backend-data/log.db, which say nothing about *whose* data that is; the image
+# name answers the other half — 'localhost/...' was built from this checkout,
+# 'ghcr.io/...' came from a released install that this stack is sharing names
+# with.
+mounts: check
+	@set -eu; \
+	here_data=$$(cd "$(CURDIR)/data" 2>/dev/null && pwd -P || echo "$(CURDIR)/data"); \
+	here_cfg=$$(cd "$(CURDIR)/config" 2>/dev/null && pwd -P || echo "$(CURDIR)/config"); \
+	echo "This stack: $(CURDIR)"; \
+	echo; \
+	for name in $(ALL_CONTAINERS); do \
+		if ! $(CONTAINER_ENGINE) container inspect "$$name" >/dev/null 2>&1; then \
+			printf '%-24s %s\n\n' "$$name" "(not created)"; \
+			continue; \
+		fi; \
+		img=$$($(CONTAINER_ENGINE) inspect "$$name" --format '{{.Config.Image}}' 2>/dev/null || echo '?'); \
+		state=$$($(CONTAINER_ENGINE) inspect "$$name" --format '{{.State.Status}}' 2>/dev/null || echo '?'); \
+		printf '%-24s %s  [%s]\n' "$$name" "$$img" "$$state"; \
+		$(CONTAINER_ENGINE) inspect "$$name" \
+			--format '{{range .Mounts}}{{.Source}} -> {{.Destination}}{{"\n"}}{{end}}' 2>/dev/null | \
+		while read -r src _arrow dst; do \
+			[ -z "$${src:-}" ] && continue; \
+			case "$$dst" in \
+				/data|/backend-data|/config) \
+					real=$$(cd "$$src" 2>/dev/null && pwd -P || echo "$$src"); \
+					if [ "$$real" = "$$here_data" ] || [ "$$real" = "$$here_cfg" ]; then \
+						printf '    %s -> %s\n' "$$src" "$$dst"; \
+					else \
+						printf '    %s -> %s   NOT this stack\n' "$$src" "$$dst"; \
+					fi;; \
+				*) printf '    %s -> %s\n' "$$src" "$$dst";; \
+			esac; \
+		done; \
+		echo; \
+	done
 
 # --- Configuration ---------------------------------------------------------
 config-deploy: check

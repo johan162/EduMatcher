@@ -339,6 +339,10 @@ make down-all       # stop and remove everything
 | `PYPI=1`, `VERSION=` | `build` | Install from PyPI instead of the checkout |
 | `CONTAINER_ENGINE=docker` | all | Force Docker when Podman is also installed |
 
+`make mounts` reports, for every container, which host directory is behind each
+path inside it and which image it came from — the fastest way to tell whether
+the stack answering your ports is the one you started.
+
 The overlays are additive `-f` files, which is why they compose freely:
 `make up-all CONFIG=ten-complex PROFILE=mini ZMQ=1 CONFIG_GUI=1`.
 
@@ -637,6 +641,13 @@ curl -s localhost:8091/api/bridge/status   # lalfPs, logDb
 
 # 6. Which ports are actually published
 podman port edumatcher
+
+# 7. Which directory on disk is behind each container path, and where each
+#    container came from.  make mounts  in deployment/docker, or
+#    ./edumatcher.sh mounts  in a released install. The raw forms:
+podman inspect edumatcher-log-gui \
+  --format '{{range .Mounts}}{{.Source}} -> {{.Destination}}{{"\n"}}{{end}}'
+podman ps --filter name=edumatcher --format '{{.Names}}\t{{.Image}}\t{{.CreatedAt}}'
 ```
 
 Step 3 is the one that settles arguments. The deployed YAML in `ref_data/` is
@@ -652,6 +663,7 @@ this project more than once.
 | `log-gui` shows live entries but no history | The `./data:/backend-data:ro` mount is missing or empty; the viewer needs the *file* `log.db`, not just the socket |
 | A source change has no effect | The image was built from PyPI — see the warning in [Part 3](#part-3-build-time-versus-run-time) |
 | `no container with name or ID ... found` during `down` | podman-compose removes only what the named files declare; Docker Compose removes by project label and does not care. `down-all` adds the config-gui overlay only when that container exists |
+| A GUI shows data that predates this install | Another install's containers. `make mounts` / `./edumatcher.sh mounts` names the directory behind each container path. Both deployments use the same fixed container names and host ports, so compose leaves an existing one alone and serves you its exchange. `podman ps` — the image tells you which: `ghcr.io/...` is the released stack, `localhost/...` the source-built one. Both `start` paths now refuse this rather than attaching |
 | No health status in `podman ps` | Podman ignores the image `HEALTHCHECK` on OCI-format images. Nothing here depends on it — the Makefile sequences the phases itself |
 | `apt-get` fails with "Release file is not valid yet" | The podman-machine VM's clock has drifted behind after a host suspend. The Dockerfile passes `Acquire::Check-Date=false`, but fix the clock: it also skews the trading calendar and every timestamp in `log.db` |
 
