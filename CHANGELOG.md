@@ -1,3 +1,19 @@
+## [v0.26.2] - 2026-08-28
+
+Release Type: patch
+
+### 📋 Summary
+This patch release fixes the container image publishing workflow.
+
+### 🐛 Bug Fixes
+- Fixed name-prefix collision, `edumatcher` is a prefix of all four
+`edumatcher-*-gui` names, so that glob over-matches.
+
+### 📚 Documentation
+- Added note on the alternative handling of matching image names.
+
+
+
 ## [v0.26.1] - 2026-08-28
 
 Release Type: patch
