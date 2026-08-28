@@ -39,6 +39,29 @@ those commands with `poetry run`.
 
 ## Containers: the whole system in one command
 
+Everything this install creates lives in **one directory**, `~/.edumatcher` by
+default. Nothing is written anywhere else — no system paths, no service
+registered, no change to your PATH — so removing that directory removes the
+installation.
+
+| Inside it | Holds |
+|---|---|
+| `~/.edumatcher/data` | **Every trade, order book, log and database the exchange produces.** Mounted into the containers, so it is on your disk rather than inside one, and survives stop, start and update |
+| `~/.edumatcher/config` | An engine configuration of your own, when you supply one |
+| `~/.edumatcher/compose.yaml`, `.env`, `edumatcher.sh` | The deployment itself |
+
+Pick a different location with `--dir`; the layout is the same underneath it.
+Two Compose volumes sit outside that directory, in your container engine's
+storage — the log viewer's acknowledgements and the trading terminal's failover
+log. Neither holds exchange data, and `./edumatcher.sh uninstall` removes both.
+
+!!! tip "`~/.edumatcher/data` is the directory to back up, and the one to delete"
+    `./edumatcher.sh uninstall` keeps it; `uninstall --data` is what erases a
+    venue's history. `./edumatcher.sh mounts` shows which directory is behind
+    each path inside each container if you are ever unsure.
+
+With that established:
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash
 ```
@@ -66,8 +89,9 @@ no Node, no checkout. The only requirement is Podman or Docker.
 4. Writes `.env`, creating `data/` and `config/` beside it.
 5. Pulls the five images and starts them.
 
-Everything lands in `~/.edumatcher`. There is nothing installed anywhere else,
-no service registered, and no change to your PATH.
+Step 3 is worth noting: the support files come from the release tag being
+installed, not from a branch, so the compose file and the images can never
+describe different systems.
 
 ### Installer options
 
@@ -84,12 +108,66 @@ Because the script is read from a pipe, options need `bash -s --` so that the
 shell hands them to the script rather than consuming them itself:
 
 ```bash
-curl -fsSL .../install.sh | bash -s -- --config ten-nominal --version 0.26.2
+curl -fsSL .../install.sh | bash -s -- --config ten-nominal --version 0.26.3
 ```
 
 Two environment variables are also honoured: `REPO_OWNER` (which GitHub
 account and GHCR namespace to use) and `REPO_REF` (fetch the support files
 from a branch instead of the release tag, for testing an unreleased installer).
+
+### Configuring it: the `.env` file
+
+`~/.edumatcher/.env` is where every choice about a running install lives. The
+installer writes it from `.env.example` on the first run and **keeps your copy
+afterwards**, so a later `./edumatcher.sh update` re-pins the version without
+discarding anything else you changed.
+
+Compose reads that file automatically because it sits beside `compose.yaml`.
+Nothing else does: there is no separate configuration for the containers, and
+the compose file itself contains no settings, only `${VARIABLE}` references
+into this file.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `EM_VERSION` | *(the installed release)* | Which release to run. All five images carry this tag, so one value pins the whole system. `latest` follows the newest release |
+| `GHCR_OWNER` | `johan162` | The GHCR namespace the images are pulled from. Change it only for a fork |
+| `EM_CONFIG` | `three-basic` | Which bundled example configuration the exchange deploys |
+| `EM_CONFIG_FILE` | *(empty)* | Set to `/config/engine_config.yaml` when you run a configuration of your own. Non-empty wins over `EM_CONFIG` |
+| `EM_PROFILE` | `default` | Which processes start: `default`, `mini` or `micro`. See [Processes](170-processes.md) |
+| `TZ` | `UTC` | Container timezone. Set it to match the trading calendar in your configuration, e.g. `Europe/Stockholm` |
+| `BIND_ADDR` | `127.0.0.1` | Which host interface the published ports listen on. See the warning below |
+| `TERMINAL_GUI_PORT` | `8090` | Host port for the trading terminal |
+| `LOG_GUI_PORT` | `8091` | Host port for the log viewer |
+| `CONFIG_GUI_PORT` | `8092` | Host port for the configuration builder |
+| `TRADER_GUI_PORT` | `8093` | Host port for the trader GUI |
+
+Two settings have their own commands, because editing them by hand is easy to
+get half-right — `EM_CONFIG` and `EM_CONFIG_FILE` must agree, and `EM_VERSION`
+needs an image pull to take effect:
+
+```bash
+./edumatcher.sh config ten-nominal    # sets EM_CONFIG, clears EM_CONFIG_FILE
+./edumatcher.sh config ./mine.yaml    # copies the file, sets EM_CONFIG_FILE
+./edumatcher.sh update 0.26.2         # sets EM_VERSION, pulls, restarts
+```
+
+Everything else is a plain edit followed by `./edumatcher.sh restart`.
+
+!!! warning "`BIND_ADDR=0.0.0.0` puts an unauthenticated exchange on your network"
+    It is the right setting for a classroom where students connect to the
+    instructor's machine, and the wrong one on a network you do not control:
+    the protocol gateways have no password. The default keeps everything on
+    this machine.
+
+#### Two values you will not find in `.env`
+
+The trading terminal also needs `API_GATEWAY_URL` and `PM_TERMINAL_API_KEY`.
+Those are **resolved at startup and injected**, not stored: the read-only API
+key is generated per engine configuration — a different one in each bundled
+example — and lives on a different gateway instance than the trading
+credentials. `./edumatcher.sh start` reads the deployed configuration and
+passes both to the terminal. Setting them in `.env` would only go stale the
+next time you switched configuration.
 
 ### Everyday commands
 
@@ -100,6 +178,7 @@ cd ~/.edumatcher
 ./edumatcher.sh status              # containers, plus the exchange process table
 ./edumatcher.sh logs terminal-gui   # follow one service
 ./edumatcher.sh urls                # the application table, with your ports
+./edumatcher.sh mounts              # which directory is behind each container path
 ./edumatcher.sh stop                # stop everything; ./data is kept
 ./edumatcher.sh start               # bring it back
 ./edumatcher.sh update              # pull the newest release and restart
@@ -187,8 +266,19 @@ Flags combine: `make up-all CONFIG=ten-complex PROFILE=mini ZMQ=1 CONFIG_GUI=1`.
 
 ### Settings in `.env`
 
-`deployment/docker/.env` is created from `.env.example` on the first build. It
-is git-ignored, so it is the right place for choices specific to your machine.
+`deployment/docker/.env` is created from `.env.example` on the first build.
+Compose reads it automatically because it sits beside the compose files, and it
+is git-ignored — so it is the right place for choices specific to your machine,
+as opposed to a `make` flag, which applies to one invocation only.
+
+When the same setting is available in more than one place, the nearer one wins:
+
+```text
+make flag  →  shell environment  →  .env  →  compose ${VAR:-default}  →  image ENV
+```
+
+That is why `make up-all CONFIG=ten-nominal` does not edit `.env`, and why a
+plain `make up-all` afterwards goes back to whatever `.env` says.
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -207,6 +297,17 @@ is git-ignored, so it is the right place for choices specific to your machine.
 | `TRADER_GUI_PORT` | `8093` | Host port for the trader GUI |
 | `IMAGE_NAME` / `IMAGE_TAG` | `edumatcher` / `local` | Image naming |
 | `CONTAINER_NAME` | `edumatcher` | Container name |
+
+Beyond these, the compose files read a few variables that have sensible
+defaults and no `.env` entry: `CORS_ORIGIN`, `MAX_WS_CLIENTS`, `CALF_CLIENT_ID`
+and `INDEX_IDS` for the trading terminal, `LOG_SRV_ENABLED` for its logging
+uplink, and `PIP_INDEX_URL` as a build argument. Export any of them in your
+shell before `make up-all` if you need to.
+
+`API_GATEWAY_URL` and `PM_TERMINAL_API_KEY` are read the same way but should be
+left alone: `up-all` resolves them from the deployed configuration and injects
+them, for the reasons in
+[The read-only API key](#the-read-only-api-key).
 
 ### Image build arguments
 
@@ -426,7 +527,7 @@ deployed configuration and `pm-opctl-cli` ready to start the stack.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | \
-    bash -s -- --version 0.26.2 --snapshot
+    bash -s -- --version 0.26.3 --snapshot
 
 multipass shell ems
 cd /home/ubuntu/session
@@ -449,7 +550,7 @@ To read the script before running it:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh -o curl_setup_vm.sh
 less curl_setup_vm.sh
-bash curl_setup_vm.sh --version 0.26.2 --snapshot
+bash curl_setup_vm.sh --version 0.26.3 --snapshot
 ```
 
 
@@ -659,8 +760,16 @@ somebody who is not you.
      cannot write to it. The symptom is `denied: permission_denied:
      read_package` on push, after authentication has already succeeded.
 
-9. **Verify the one-line install as a stranger would**, into a throwaway
-   directory so your own instance is untouched:
+9. **Verify the one-line install as a stranger would.** First **stop any stack
+   you already have running** — the released deployment and the source-built one
+   use the same container names and host ports, so an install started beside a
+   running stack silently attaches to it and verifies nothing:
+
+   ```bash
+   make -C deployment/docker down-all
+   ```
+
+   Then install into a throwaway directory so your own instance is untouched:
    ```bash
    curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/vX.Y.Z/deployment/curl/install.sh \
        | bash -s -- --dir /tmp/em-release-test

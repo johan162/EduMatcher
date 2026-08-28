@@ -401,12 +401,44 @@ make restart
 | `make config-deploy` | Recompile `data/ref_data/engine_config.yaml` |
 | `make config-show` | Show the deployed configuration |
 | `make ports` | List the published ports |
+| `make mounts` | Which directory on disk is behind each container path, and which image each container came from |
 | `make ghcr-push` | Push all five images to GHCR as `:dev`. `TAG=x.y.z FORCE=1` for a release tag, `LATEST=1` to move `latest`. Needs `GITHUB_USER` and `GHCR_TOKEN` |
 | `make info` | Show the detected engine, compose command and image name |
 | `make clean` | Remove the container and the image |
 | `make clean-data` | Delete `./data` (asks first) |
 
 Flags combine: `make up ZMQ=1 SSH=1 CONFIG=ten-complex PROFILE=mini`.
+
+## When a GUI shows something unexpected
+
+The health pages report *container* paths — the log viewer says its database is
+`/backend-data/log.db`, which tells you nothing about whose data that is.
+`make mounts` answers both halves:
+
+```console
+$ make mounts
+This stack: /home/you/EduMatcher/deployment/docker
+
+edumatcher               localhost/edumatcher:local  [running]
+    /home/you/EduMatcher/deployment/docker/data -> /data
+    /home/you/EduMatcher/deployment/docker/config -> /config
+
+edumatcher-log-gui       localhost/edumatcher-log-gui:latest  [running]
+    /home/you/EduMatcher/deployment/docker/data -> /backend-data
+    /var/lib/containers/volumes/edumatcher_log-gui-acks/_data -> /app/ack-data
+```
+
+A data mount that does not point into this directory is flagged `NOT this
+stack`, and the image name says where the container came from: `localhost/…`
+was built from this checkout, `ghcr.io/…` came from a released install.
+
+That distinction matters because this stack and [`../curl/`](../curl/) use the
+same fixed container names and the same host ports, so only one can run at a
+time. Compose leaves an existing container of the same name alone, which would
+otherwise serve you the other install's exchange on these ports with no error
+anywhere. `make up-all` refuses to start alongside a foreign stack, but one
+started before that check existed can still be running — `make mounts` is how
+you see it.
 
 ## Publishing images by hand
 

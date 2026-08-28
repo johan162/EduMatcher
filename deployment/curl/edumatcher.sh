@@ -3,6 +3,7 @@
 #
 #   ./edumatcher.sh start | stop | restart | status | logs [service]
 #   ./edumatcher.sh urls
+#   ./edumatcher.sh mounts
 #   ./edumatcher.sh config <example-name | path/to/engine_config.yaml>
 #   ./edumatcher.sh update [version]
 #   ./edumatcher.sh uninstall [--data]
@@ -19,6 +20,11 @@ info()  { echo -e "${BLUE}- $*${NC}"; }
 ok()    { echo -e "${GREEN}✓ $*${NC}"; }
 warn()  { echo -e "${YELLOW}⚠ $*${NC}"; }
 die()   { echo -e "${RED}✗ $*${NC}" >&2; exit 1; }
+
+# Every container this deployment owns. The names are fixed in compose.yaml
+# rather than derived from the project, which is why two installs collide —
+# see assert_no_foreign_stack below.
+CONTAINERS="edumatcher edumatcher-terminal-gui edumatcher-log-gui edumatcher-config-gui edumatcher-trader-gui"
 
 # --- Container engine ------------------------------------------------------
 # Podman is preferred when both are installed, matching the repository's own
@@ -60,8 +66,36 @@ for name, gw in sorted((cfg.get("api_gateways") or {}).items()):
 raise SystemExit(1)
 '
 
+# Resolve a directory through symlinks so /tmp and /private/tmp compare equal
+# on macOS. Non-existent paths are returned unchanged.
+norm_dir() { if [[ -d "$1" ]]; then (cd "$1" && pwd -P); else printf '%s' "$1"; fi; }
+
+# This deployment and the repository's deployment/docker one use the same fixed
+# container names AND the same host ports, so only one can run at a time. If the
+# other one is up, compose quietly leaves its containers alone and you end up
+# looking at its exchange through this install's URLs — same ports, same
+# in-container paths, no error anywhere. Refuse instead.
+assert_no_foreign_stack() {
+    local name="${CONTAINER_NAME:-edumatcher}" src
+    $ENGINE container inspect "$name" >/dev/null 2>&1 || return 0
+    src=$($ENGINE inspect "$name" \
+            --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' \
+            2>/dev/null || true)
+    [[ "$(norm_dir "$src")" == "$(norm_dir "$HERE/data")" ]] && return 0
+    echo -e "${RED}✗ A container named '$name' already exists, from a different EduMatcher install.${NC}" >&2
+    echo -e "    its data directory:  ${src:-<none>}" >&2
+    echo -e "    this install:        $HERE/data" >&2
+    echo >&2
+    echo -e "${YELLOW}  Both deployments use the same container names and host ports, so only one" >&2
+    echo -e "  can run at a time. Stop the other one, then retry:${NC}" >&2
+    echo -e "    a source checkout:     make -C <repo>/deployment/docker down-all" >&2
+    echo -e "    another curl install:  cd <that directory> && ./edumatcher.sh stop" >&2
+    exit 1
+}
+
 cmd_start() {
     detect_engine
+    assert_no_foreign_stack
     mkdir -p data config
     info "Engine: $ENGINE ($COMPOSE)"
 
@@ -125,6 +159,50 @@ cmd_urls() {
     echo "  Config builder     http://localhost:${CONFIG_GUI_PORT:-8092}"
     echo "  Trader GUI         http://localhost:${TRADER_GUI_PORT:-8093}"
     echo "  REST API docs      http://localhost:8080/docs"
+}
+
+# Which directory on your disk is behind each path inside each container.
+# The first question when a GUI shows something you did not expect: the health
+# pages report container paths like /backend-data/log.db, which say nothing
+# about whose data that is. The image name answers the other half — a
+# 'ghcr.io/...' image is a released install, 'localhost/...' one built from a
+# source checkout.
+cmd_mounts() {
+    detect_engine
+    local here_data name img state
+    here_data="$(norm_dir "$HERE/data")"
+    echo "This install: $HERE"
+    echo
+
+    for name in $CONTAINERS; do
+        if ! $ENGINE container inspect "$name" >/dev/null 2>&1; then
+            printf "%-24s %s\n\n" "$name" "(not created)"
+            continue
+        fi
+        img=$($ENGINE inspect "$name" --format '{{.Config.Image}}' 2>/dev/null || echo "?")
+        state=$($ENGINE inspect "$name" --format '{{.State.Status}}' 2>/dev/null || echo "?")
+        printf "%-24s %s  [%s]\n" "$name" "$img" "$state"
+
+        $ENGINE inspect "$name" \
+            --format '{{range .Mounts}}{{.Source}} -> {{.Destination}}{{"\n"}}{{end}}' \
+            2>/dev/null |
+        while read -r src _arrow dst; do
+            [[ -z "${src:-}" ]] && continue
+            # Only the data mounts can belong to a foreign install; the named
+            # volumes are this project's own and live in the engine's storage.
+            case "$dst" in
+                /data|/backend-data|/config)
+                    if [[ "$(norm_dir "$src")" == "$here_data" || "$(norm_dir "$src")" == "$(norm_dir "$HERE/config")" ]]; then
+                        printf "    %s -> %s\n" "$src" "$dst"
+                    else
+                        printf "    ${RED}%s -> %s   NOT this install${NC}\n" "$src" "$dst"
+                    fi
+                    ;;
+                *) printf "    %s -> %s\n" "$src" "$dst" ;;
+            esac
+        done
+        echo
+    done
 }
 
 EXAMPLES="one-basic one-nominal one-complex three-basic three-nominal three-complex
@@ -192,6 +270,7 @@ case "${1:-}" in
     status)    shift; cmd_status "$@" ;;
     logs)      shift; cmd_logs "$@" ;;
     urls)      shift; cmd_urls "$@" ;;
+    mounts)    shift; cmd_mounts "$@" ;;
     config)    shift; cmd_config "$@" ;;
     update)    shift; cmd_update "$@" ;;
     uninstall) shift; cmd_uninstall "$@" ;;
