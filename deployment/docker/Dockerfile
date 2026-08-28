@@ -30,9 +30,9 @@ COPY .wheel/ /tmp/wheel/
 RUN python -m venv /opt/edumatcher/.venv && \
     PIP_ARGS=""; \
     if [ -n "${PIP_INDEX_URL}" ]; then PIP_ARGS="--index-url ${PIP_INDEX_URL}"; fi; \
-    if ls .wheel/*.whl >/dev/null 2>&1; then \
-        echo "Installing local wheel: $(ls .wheel/*.whl)" && \
-        /opt/edumatcher/.venv/bin/pip install ${PIP_ARGS} .wheel/*.whl; \
+    if ls /tmp/wheel/*.whl >/dev/null 2>&1; then \
+        echo "Installing local wheel: $(ls /tmp/wheel/*.whl)" && \
+        /opt/edumatcher/.venv/bin/pip install ${PIP_ARGS} /tmp/wheel/*.whl; \
     elif [ -n "${EDUMATCHER_VERSION}" ]; then \
         /opt/edumatcher/.venv/bin/pip install ${PIP_ARGS} "edumatcher==${EDUMATCHER_VERSION}"; \
     else \
@@ -49,7 +49,7 @@ ARG WITH_SSH=1
 # procps  — pm-opctl-cli uses pgrep/ps to adopt processes and report uptime/RSS
 # tini    — PID 1 that reaps the processes pm-opctl-cli detaches
 # tzdata  — the scheduler and market calendars need a real zoneinfo database
-RUN apt-get -o Acquire::Check-Valid-Until=false update && \
+RUN apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false update && \
     apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \

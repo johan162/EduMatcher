@@ -48,6 +48,37 @@ export WEB_PORT # We need to export this so that docker-compose.yml can see it.
 NPM ?= npm
 UNAME_S := $(shell uname -s)
 
+# The bridge reads history from pm-api-gwy with the read-only credential
+# (gateway_id: null). That key is generated per engine configuration, so it
+# cannot be committed here — it is derived from the deployed configuration the
+# exchange's own processes read, found via EDUMATCHER_DATA_DIR. An explicit
+# PM_TERMINAL_API_KEY in the environment always wins.
+EDUMATCHER_DATA_DIR ?=
+COMPILED_CONFIG := $(if $(EDUMATCHER_DATA_DIR),$(EDUMATCHER_DATA_DIR)/ref_data/engine_config.json)
+
+# Prints "<instance> <port> <api_key>" for the first read-only credential.
+# Instances are visited in name order, so 'dashboards' is preferred over
+# 'desk' when both carry one.
+define READONLY_CREDENTIAL_JS
+const fs = require("fs");
+let cfg;
+try { cfg = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); } catch { process.exit(1); }
+for (const name of Object.keys(cfg.api_gateways ?? {}).sort()) {
+  const gw = cfg.api_gateways[name];
+  if (gw.enabled === false) continue;
+  for (const cred of gw.credentials ?? []) {
+    if (cred.gateway_id === null) {
+      // Plain concatenation, not a template literal: ${...} inside a make
+      // 'define' is a make variable reference and would be expanded away.
+      console.log(name + " " + gw.port + " " + cred.api_key);
+      process.exit(0);
+    }
+  }
+}
+process.exit(1);
+endef
+export READONLY_CREDENTIAL_JS
+
 VERSION ?= $(shell node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0")
 CONTAINER_NAME := $(APP_NAME)
 IMAGE ?= $(APP_NAME):$(VERSION)
@@ -265,6 +296,36 @@ cbuild: check-container | $(TIMESTAMP_DIR) ## Build container image via compose 
 
 up: check-container-env bump-version ## Start container stack (detached) with build
 	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
+	@if [[ -n "$${PM_TERMINAL_API_KEY:-}" ]]; then
+		echo -e "$(BLUE)- Using PM_TERMINAL_API_KEY from the environment$(NC)"
+	elif [[ -z "$(EDUMATCHER_DATA_DIR)" ]]; then
+		echo -e "$(YELLOW)⚠️  EDUMATCHER_DATA_DIR is not set, so the read-only API key cannot"
+		echo -e "   be looked up. The live market-data feed will work; the history"
+		echo -e "   endpoints will not. Set the key one of these two ways:$(NC)"
+		echo -e "$(BLUE)     export EDUMATCHER_DATA_DIR=~/.local/share/edumatcher   # then: make up"
+		echo -e "     make up PM_TERMINAL_API_KEY=key-readonly-...$(NC)"
+		echo -e "$(BLUE)   The key is the credential with 'gateway_id: null' under"
+		echo -e "   api_gateways in your deployed engine_config.yaml.$(NC)"
+	elif [[ ! -f "$(COMPILED_CONFIG)" ]]; then
+		echo -e "$(YELLOW)⚠️  No deployed configuration at $(COMPILED_CONFIG)$(NC)"
+		echo -e "$(BLUE)   Deploy one with 'pm-setup' or 'pm-config-deploy', or pass the key"
+		echo -e "   directly: make up PM_TERMINAL_API_KEY=key-readonly-...$(NC)"
+	else
+		cred=$$(node -e "$$READONLY_CREDENTIAL_JS" "$(COMPILED_CONFIG)" || true)
+		if [[ -z "$$cred" ]]; then
+			echo -e "$(YELLOW)⚠️  No read-only credential (gateway_id: null) in $(COMPILED_CONFIG)$(NC)"
+			echo -e "$(BLUE)   Add one under api_gateways and redeploy, or pass the key"
+			echo -e "   directly: make up PM_TERMINAL_API_KEY=key-readonly-...$(NC)"
+		else
+			set -- $$cred
+			export PM_TERMINAL_API_KEY="$$3"
+			echo -e "$(GREEN)✓ Read-only API key taken from the '$$1' gateway instance (port $$2)$(NC)"
+			# Mirrors docker-compose.yml's own default for the unset case.
+			if [[ "$${API_GATEWAY_URL:-http://host.docker.internal:8081}" != *":$$2" ]]; then
+				echo -e "$(YELLOW)  Note: this key is only valid on port $$2 — set API_GATEWAY_URL to match$(NC)"
+			fi
+		fi
+	fi
 	@echo -e "$(YELLOW)- Starting container stack...$(NC)"
 	@mkdir -p logs
 	@$(DOCKER_COMPOSE) up -d --build \

@@ -114,7 +114,9 @@ export function loadBridgeConfig(): BridgeConfig {
     },
 
     apiGateway: {
-      baseUrl: process.env["API_GATEWAY_URL"] ?? "http://127.0.0.1:8080",
+      // 8081 is the "dashboards" instance: the read-only credential this
+      // bridge uses (gateway_id: null) is issued there, not on "desk" (8080).
+      baseUrl: process.env["API_GATEWAY_URL"] ?? "http://127.0.0.1:8081",
       apiKey: process.env["PM_TERMINAL_API_KEY"] ?? "",
     },
 

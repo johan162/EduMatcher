@@ -55,7 +55,7 @@ ifdef VM_BACKEND_IP
   LOG_GUI_ENV := LOG_SRV_HOST=$(VM_BACKEND_IP)
   # terminal-gui: pm-md-gwy (CALF), pm-api-gwy (REST), pm-log-srv
   TERMINAL_GUI_ENV := CALF_HOST=$(VM_BACKEND_IP) \
-                      API_GATEWAY_URL=http://$(VM_BACKEND_IP):8080 \
+                      API_GATEWAY_URL=http://$(VM_BACKEND_IP):8081 \
                       LOG_SRV_HOST=$(VM_BACKEND_IP)
   # trader-gui: pm-api-gwy REST/WS proxy target
   TRADER_GUI_ENV := API_PROXY_TARGET=http://$(VM_BACKEND_IP):8080
@@ -105,8 +105,6 @@ help: ## Show this help
 # --------------------------------------------------------------------------------------------
 up: up-log up-terminal up-trader ## Start all three GUI containers (set VM_BACKEND_IP for a remote VM)
 
-proxy-up: proxy-up-log proxy-up-terminal proxy-up-trader ## Start all three GUI containers via a local dev proxy (set VM_BACKEND_IP for a remote VM)
-
 down: down-log down-terminal down-trader ## Stop and remove all three GUI containers
 
 restart: down up ## Restart all three GUI containers
@@ -128,35 +126,17 @@ up-log: ## Start log-gui container
 	fi
 	@env $(LOG_GUI_ENV) $(MAKE) -C $(LOG_GUI_DIR) up
 
-proxy-up-log: ## Start log-gui container via a local dev proxy
-	@if [[ -n "$(VM_BACKEND_IP)" ]]; then \
-		echo -e "$(YELLOW)- log-gui backend: $(VM_BACKEND_IP)$(NC)"; \
-	fi
-	@env $(LOG_GUI_ENV) $(MAKE) -C $(LOG_GUI_DIR) proxy-up
-
 up-terminal: ## Start terminal-gui container
 	@if [[ -n "$(VM_BACKEND_IP)" ]]; then \
 		echo -e "$(YELLOW)- terminal-gui backend: $(VM_BACKEND_IP)$(NC)"; \
 	fi
 	@env $(TERMINAL_GUI_ENV) $(MAKE) -C $(TERMINAL_GUI_DIR) up
 
-proxy-up-terminal: ## Start terminal-gui container via a local dev proxy
-	@if [[ -n "$(VM_BACKEND_IP)" ]]; then \
-		echo -e "$(YELLOW)- terminal-gui backend: $(VM_BACKEND_IP)$(NC)"; \
-	fi
-	@env $(TERMINAL_GUI_ENV) $(MAKE) -C $(TERMINAL_GUI_DIR) proxy-up
-
 up-trader: ## Start trader-gui container
 	@if [[ -n "$(VM_BACKEND_IP)" ]]; then \
 		echo -e "$(YELLOW)- trader-gui backend: $(VM_BACKEND_IP)$(NC)"; \
 	fi
 	@env $(TRADER_GUI_ENV) $(MAKE) -C $(TRADER_GUI_DIR) up
-
-proxy-up-trader: ## Start trader-gui container via a local dev proxy
-	@if [[ -n "$(VM_BACKEND_IP)" ]]; then \
-		echo -e "$(YELLOW)- trader-gui backend: $(VM_BACKEND_IP)$(NC)"; \
-	fi
-	@env $(TRADER_GUI_ENV) $(MAKE) -C $(TRADER_GUI_DIR) proxy-up
 
 down-log: ## Stop log-gui container
 	@$(MAKE) -C $(LOG_GUI_DIR) down

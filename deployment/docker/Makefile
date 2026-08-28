@@ -52,6 +52,15 @@ ifeq ($(SSH),1)
 COMPOSE_FILES += -f compose.ssh.yaml
 endif
 
+# The whole system — the exchange plus the web GUIs — in one compose project,
+# which is what puts them on one network and lets the GUIs reach the backend
+# by the hostname 'edumatcher'. config-gui talks to nothing and is opt-in.
+ALL_COMPOSE_FILES := $(COMPOSE_FILES) -f compose.guis.yaml
+ifeq ($(CONFIG_GUI),1)
+ALL_COMPOSE_FILES += -f compose.config-gui.yaml
+endif
+DOWN_COMPOSE_FILES := $(COMPOSE_FILES) -f compose.guis.yaml
+
 # Command-line overrides win over .env for this invocation only.
 RUN_ENV :=
 ifdef CONFIG
@@ -65,9 +74,32 @@ RUN_ENV += EDUMATCHER_VERSION=$(VERSION)
 endif
 
 DC := $(RUN_ENV) $(COMPOSE) $(COMPOSE_FILES)
+DC_ALL := $(COMPOSE) $(ALL_COMPOSE_FILES)
 
-.PHONY: help info check build up down restart shell logs proc-logs \
-	status health ssh keys config-deploy config-show ports clean clean-data
+# Reads the deployed configuration and prints "<port> <api_key>" for the first
+# read-only credential (gateway_id: null). terminal-gui's history endpoints
+# need it, and it is generated per configuration — different in every bundled
+# example — and lives on the 'dashboards' instance (8081), not 'desk' (8080).
+define READONLY_CREDENTIAL_PY
+import json
+try:
+    cfg = json.load(open("/data/ref_data/engine_config.json"))
+except OSError:
+    raise SystemExit(1)
+for name, gw in sorted((cfg.get("api_gateways") or {}).items()):
+    if not gw.get("enabled", True):
+        continue
+    for cred in gw.get("credentials") or []:
+        if cred.get("gateway_id") is None:
+            print(gw.get("port", 8080), cred["api_key"])
+            raise SystemExit(0)
+raise SystemExit(1)
+endef
+export READONLY_CREDENTIAL_PY
+
+.PHONY: help info check build up up-all down down-all restart shell logs \
+	proc-logs status health ssh keys config-deploy config-show ports \
+	clean clean-data
 
 help:
 	@echo "EduMatcher container — targets:"
@@ -79,6 +111,12 @@ help:
 	@echo "  make up ZMQ=1           ... and publish the raw ZeroMQ bus ports"
 	@echo "  make up SSH=1           ... and run sshd on port $${SSH_PORT:-2222}"
 	@echo "  make down               Stop and remove the container"
+	@echo ""
+	@echo "  make up-all             Start the exchange AND the web GUIs together"
+	@echo "  make up-all CONFIG=ten-nominal        ... on a bundled example"
+	@echo "  make up-all CONFIG=./my_config.yaml   ... on a configuration of your own"
+	@echo "  make up-all CONFIG_GUI=1              ... and the config builder too"
+	@echo "  make down-all           Stop and remove every container"
 	@echo "  make restart            Restart the container"
 	@echo "  make shell              Interactive shell inside the container"
 	@echo "  make ssh                Log in over ssh (needs 'make up SSH=1')"
@@ -133,9 +171,9 @@ build: check .env
 		rm -f .wheel/*.whl; \
 	else \
 		echo "==> building wheel from the repository checkout"; \
-		(cd .. && poetry build --format wheel) && \
+		(cd ../.. && poetry build --format wheel) && \
 		rm -f .wheel/*.whl && \
-		cp "$$(ls -t ../dist/*.whl | head -1)" .wheel/ && \
+		cp "$$(ls -t ../../dist/*.whl | head -1)" .wheel/ && \
 		echo "==> using $$(ls .wheel/*.whl)"; \
 	fi
 	$(DC) build
@@ -145,10 +183,69 @@ up: check .env
 ifeq ($(SSH),1)
 	@$(MAKE) --no-print-directory keys
 endif
-	@mkdir -p data
+	@mkdir -p data config
 	$(DC) up -d
 	@echo ""
 	@echo "Started. 'make status' for the process table, 'make shell' to log in."
+
+# --- The whole system ------------------------------------------------------
+# Two phases, deliberately: terminal-gui's read-only API key does not exist
+# until the exchange has deployed its configuration, so the backend has to be
+# up before the GUIs can be given their environment.
+up-all: check .env
+ifeq ($(SSH),1)
+	@$(MAKE) --no-print-directory keys
+endif
+	@mkdir -p data config
+	@set -eu; \
+	if [ -n "$(CONFIG)" ] && [ -f "$(CONFIG)" ]; then \
+		cp "$(CONFIG)" config/engine_config.yaml; \
+		EM_CONFIG_FILE=/config/engine_config.yaml; export EM_CONFIG_FILE; \
+		echo "==> engine config: $(CONFIG)"; \
+	elif [ -n "$(CONFIG)" ]; then \
+		EM_CONFIG="$(CONFIG)"; export EM_CONFIG; \
+		echo "==> engine config: bundled example '$(CONFIG)'"; \
+	fi; \
+	if [ -n "$(PROFILE)" ]; then EM_PROFILE="$(PROFILE)"; export EM_PROFILE; fi; \
+	$(DC_ALL) up -d edumatcher; \
+	printf '==> waiting for the exchange to deploy its configuration'; \
+	for _ in $$(seq 1 60); do \
+		if $(CONTAINER_ENGINE) exec $(CONTAINER_NAME) \
+		   test -f /data/ref_data/engine_config.json >/dev/null 2>&1; then break; fi; \
+		printf '.'; sleep 1; \
+	done; echo; \
+	cred=$$($(CONTAINER_ENGINE) exec $(CONTAINER_NAME) \
+	        python3 -c "$$READONLY_CREDENTIAL_PY" 2>/dev/null || true); \
+	if [ -n "$$cred" ]; then \
+		set -- $$cred; \
+		API_GATEWAY_URL="http://edumatcher:$$1"; export API_GATEWAY_URL; \
+		PM_TERMINAL_API_KEY="$$2"; export PM_TERMINAL_API_KEY; \
+		echo "==> terminal-gui history: $$API_GATEWAY_URL (read-only key from the deployed config)"; \
+	else \
+		echo "==> WARNING: no read-only credential (gateway_id: null) in the deployed"; \
+		echo "    configuration — terminal-gui's history endpoints will be unavailable."; \
+	fi; \
+	$(DC_ALL) up -d
+	@echo ""
+	@echo "Started. Open:"
+	@echo "  terminal-gui  http://localhost:$${TERMINAL_GUI_PORT:-8090}"
+	@echo "  log-gui       http://localhost:$${LOG_GUI_PORT:-8091}"
+	@echo "  trader-gui    http://localhost:$${TRADER_GUI_PORT:-8093}"
+ifeq ($(CONFIG_GUI),1)
+	@echo "  config-gui    http://localhost:$${CONFIG_GUI_PORT:-8092}"
+endif
+
+# podman-compose removes what the named files declare, so an overlay naming a
+# container that was never started is an error rather than a no-op. Name the
+# config-gui overlay only when there is something to remove.
+down-all: check
+	@set -eu; \
+	files="$(DOWN_COMPOSE_FILES)"; \
+	if [ "$(CONFIG_GUI)" = "1" ] || \
+	   $(CONTAINER_ENGINE) container inspect $(CONTAINER_NAME)-config-gui >/dev/null 2>&1; then \
+		files="$$files -f compose.config-gui.yaml"; \
+	fi; \
+	$(COMPOSE) $$files down
 
 down: check
 	$(DC) down

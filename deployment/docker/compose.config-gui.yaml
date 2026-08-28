@@ -1,0 +1,27 @@
+# Overlay: the configuration builder. Optional, and separate from
+# compose.guis.yaml because it is entirely standalone — it never talks to the
+# exchange, so it is neither started nor stopped with the rest by default.
+#
+#   make up-all CONFIG_GUI=1
+services:
+  config-gui:
+    build:
+      context: ../../web-apps/config-gui
+      dockerfile: Dockerfile
+      args:
+        USE_PROXY_CA:
+        NPM_STRICT_SSL:
+        CA_CERT_FILE:
+        HTTP_PROXY:
+        HTTPS_PROXY:
+        NO_PROXY:
+        WEB_PORT: "8092"
+    image: edumatcher-config-gui:latest
+    container_name: ${CONTAINER_NAME:-edumatcher}-config-gui
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${CONFIG_GUI_PORT:-8092}:8092"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8092"
+      CORS_ORIGIN: "${CORS_ORIGIN:-*}"
