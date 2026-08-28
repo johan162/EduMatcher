@@ -4411,6 +4411,9 @@ on this project, from a path in the <code>RUN</code> step that did not match the
 </tr>
 </tbody>
 </table>
+<p><code>make mounts</code> reports, for every container, which host directory is behind each
+path inside it and which image it came from — the fastest way to tell whether
+the stack answering your ports is the one you started.</p>
 <p>The overlays are additive <code>-f</code> files, which is why they compose freely:
 <code>make up-all CONFIG=ten-complex PROFILE=mini ZMQ=1 CONFIG_GUI=1</code>.</p>
 <h3 id="why-up-all-runs-in-two-phases">Why <code>up-all</code> runs in two phases<a class="headerlink" href="#why-up-all-runs-in-two-phases" title="Permanent link">&para;</a></h3>
@@ -4439,7 +4442,7 @@ same extraction snippet — that logic lives in <code>edumatcher.sh</code> rathe
 continues and warns. The live CALF feed needs no key; only history does.</p>
 <h2 id="part-5-the-release-process">Part 5 — The release process<a class="headerlink" href="#part-5-the-release-process" title="Permanent link">&para;</a></h2>
 <p>One git tag produces a wheel and five multi-architecture images, all carrying
-the same version. That coupling is what lets <code>install.sh --version 0.26.2</code>
+the same version. That coupling is what lets <code>install.sh --version 0.26.3</code>
 pin an entire system with one number.</p>
 <pre class="mermaid"><code>flowchart TD
     MK["scripts/mkrelease.sh\nbump, build docs, commit, tag"]
@@ -4699,6 +4702,13 @@ anything outside that container can connect.</p>
 <a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a>
 <a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a><span class="c1"># 6. Which ports are actually published</span>
 <a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a>podman<span class="w"> </span>port<span class="w"> </span>edumatcher
+<a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a>
+<a id="__codelineno-7-27" name="__codelineno-7-27" href="#__codelineno-7-27"></a><span class="c1"># 7. Which directory on disk is behind each container path, and where each</span>
+<a id="__codelineno-7-28" name="__codelineno-7-28" href="#__codelineno-7-28"></a><span class="c1">#    container came from.  make mounts  in deployment/docker, or</span>
+<a id="__codelineno-7-29" name="__codelineno-7-29" href="#__codelineno-7-29"></a><span class="c1">#    ./edumatcher.sh mounts  in a released install. The raw forms:</span>
+<a id="__codelineno-7-30" name="__codelineno-7-30" href="#__codelineno-7-30"></a>podman<span class="w"> </span>inspect<span class="w"> </span>edumatcher-log-gui<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-31" name="__codelineno-7-31" href="#__codelineno-7-31"></a><span class="w">  </span>--format<span class="w"> </span><span class="s1">'{{range .Mounts}}{{.Source}} -&gt; {{.Destination}}{{"\n"}}{{end}}'</span>
+<a id="__codelineno-7-32" name="__codelineno-7-32" href="#__codelineno-7-32"></a>podman<span class="w"> </span>ps<span class="w"> </span>--filter<span class="w"> </span><span class="nv">name</span><span class="o">=</span>edumatcher<span class="w"> </span>--format<span class="w"> </span><span class="s1">'{{.Names}}\t{{.Image}}\t{{.CreatedAt}}'</span>
 </code></pre></div>
 <p>Step 3 is the one that settles arguments. The deployed YAML in <code>ref_data/</code> is
 the <em>source</em> copy; the compiled JSON beside it is what every process reads,
@@ -4728,6 +4738,10 @@ this project more than once.</p>
 <tr>
 <td><code>no container with name or ID ... found</code> during <code>down</code></td>
 <td>podman-compose removes only what the named files declare; Docker Compose removes by project label and does not care. <code>down-all</code> adds the config-gui overlay only when that container exists</td>
+</tr>
+<tr>
+<td>A GUI shows data that predates this install</td>
+<td>Another install's containers. <code>make mounts</code> / <code>./edumatcher.sh mounts</code> names the directory behind each container path. Both deployments use the same fixed container names and host ports, so compose leaves an existing one alone and serves you its exchange. <code>podman ps</code> — the image tells you which: <code>ghcr.io/...</code> is the released stack, <code>localhost/...</code> the source-built one. Both <code>start</code> paths now refuse this rather than attaching</td>
 </tr>
 <tr>
 <td>No health status in <code>podman ps</code></td>

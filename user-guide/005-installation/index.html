@@ -954,6 +954,34 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#configuring-it-the-env-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuring it: the .env file
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuring it: the .env file">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#two-values-you-will-not-find-in-env" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two values you will not find in .env
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#everyday-commands" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4015,6 +4043,43 @@ running market, and nothing it installs is outside a single directory you
 can delete.</p>
 </div>
 <h2 id="containers-the-whole-system-in-one-command">Containers: the whole system in one command<a class="headerlink" href="#containers-the-whole-system-in-one-command" title="Permanent link">&para;</a></h2>
+<p>Everything this install creates lives in <strong>one directory</strong>, <code>~/.edumatcher</code> by
+default. Nothing is written anywhere else — no system paths, no service
+registered, no change to your PATH — so removing that directory removes the
+installation.</p>
+<table>
+<thead>
+<tr>
+<th>Inside it</th>
+<th>Holds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>~/.edumatcher/data</code></td>
+<td><strong>Every trade, order book, log and database the exchange produces.</strong> Mounted into the containers, so it is on your disk rather than inside one, and survives stop, start and update</td>
+</tr>
+<tr>
+<td><code>~/.edumatcher/config</code></td>
+<td>An engine configuration of your own, when you supply one</td>
+</tr>
+<tr>
+<td><code>~/.edumatcher/compose.yaml</code>, <code>.env</code>, <code>edumatcher.sh</code></td>
+<td>The deployment itself</td>
+</tr>
+</tbody>
+</table>
+<p>Pick a different location with <code>--dir</code>; the layout is the same underneath it.
+Two Compose volumes sit outside that directory, in your container engine's
+storage — the log viewer's acknowledgements and the trading terminal's failover
+log. Neither holds exchange data, and <code>./edumatcher.sh uninstall</code> removes both.</p>
+<div class="admonition tip">
+<p class="admonition-title"><code>~/.edumatcher/data</code> is the directory to back up, and the one to delete</p>
+<p><code>./edumatcher.sh uninstall</code> keeps it; <code>uninstall --data</code> is what erases a
+venue's history. <code>./edumatcher.sh mounts</code> shows which directory is behind
+each path inside each container if you are ever unsure.</p>
+</div>
+<p>With that established:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash
 </code></pre></div>
 <p>Then open <a href="http://localhost:8090">http://localhost:8090</a>.</p>
@@ -4066,8 +4131,9 @@ no Node, no checkout. The only requirement is Podman or Docker.</p>
 <li>Writes <code>.env</code>, creating <code>data/</code> and <code>config/</code> beside it.</li>
 <li>Pulls the five images and starts them.</li>
 </ol>
-<p>Everything lands in <code>~/.edumatcher</code>. There is nothing installed anywhere else,
-no service registered, and no change to your PATH.</p>
+<p>Step 3 is worth noting: the support files come from the release tag being
+installed, not from a branch, so the compose file and the images can never
+describe different systems.</p>
 <h3 id="installer-options">Installer options<a class="headerlink" href="#installer-options" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -4112,38 +4178,137 @@ no service registered, and no change to your PATH.</p>
 </table>
 <p>Because the script is read from a pipe, options need <code>bash -s --</code> so that the
 shell hands them to the script rather than consuming them itself:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>.../install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--config<span class="w"> </span>ten-nominal<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.26.2
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>.../install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--config<span class="w"> </span>ten-nominal<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.26.3
 </code></pre></div>
 <p>Two environment variables are also honoured: <code>REPO_OWNER</code> (which GitHub
 account and GHCR namespace to use) and <code>REPO_REF</code> (fetch the support files
 from a branch instead of the release tag, for testing an unreleased installer).</p>
+<h3 id="configuring-it-the-env-file">Configuring it: the <code>.env</code> file<a class="headerlink" href="#configuring-it-the-env-file" title="Permanent link">&para;</a></h3>
+<p><code>~/.edumatcher/.env</code> is where every choice about a running install lives. The
+installer writes it from <code>.env.example</code> on the first run and <strong>keeps your copy
+afterwards</strong>, so a later <code>./edumatcher.sh update</code> re-pins the version without
+discarding anything else you changed.</p>
+<p>Compose reads that file automatically because it sits beside <code>compose.yaml</code>.
+Nothing else does: there is no separate configuration for the containers, and
+the compose file itself contains no settings, only <code>${VARIABLE}</code> references
+into this file.</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>EM_VERSION</code></td>
+<td><em>(the installed release)</em></td>
+<td>Which release to run. All five images carry this tag, so one value pins the whole system. <code>latest</code> follows the newest release</td>
+</tr>
+<tr>
+<td><code>GHCR_OWNER</code></td>
+<td><code>johan162</code></td>
+<td>The GHCR namespace the images are pulled from. Change it only for a fork</td>
+</tr>
+<tr>
+<td><code>EM_CONFIG</code></td>
+<td><code>three-basic</code></td>
+<td>Which bundled example configuration the exchange deploys</td>
+</tr>
+<tr>
+<td><code>EM_CONFIG_FILE</code></td>
+<td><em>(empty)</em></td>
+<td>Set to <code>/config/engine_config.yaml</code> when you run a configuration of your own. Non-empty wins over <code>EM_CONFIG</code></td>
+</tr>
+<tr>
+<td><code>EM_PROFILE</code></td>
+<td><code>default</code></td>
+<td>Which processes start: <code>default</code>, <code>mini</code> or <code>micro</code>. See <a href="../170-processes/">Processes</a></td>
+</tr>
+<tr>
+<td><code>TZ</code></td>
+<td><code>UTC</code></td>
+<td>Container timezone. Set it to match the trading calendar in your configuration, e.g. <code>Europe/Stockholm</code></td>
+</tr>
+<tr>
+<td><code>BIND_ADDR</code></td>
+<td><code>127.0.0.1</code></td>
+<td>Which host interface the published ports listen on. See the warning below</td>
+</tr>
+<tr>
+<td><code>TERMINAL_GUI_PORT</code></td>
+<td><code>8090</code></td>
+<td>Host port for the trading terminal</td>
+</tr>
+<tr>
+<td><code>LOG_GUI_PORT</code></td>
+<td><code>8091</code></td>
+<td>Host port for the log viewer</td>
+</tr>
+<tr>
+<td><code>CONFIG_GUI_PORT</code></td>
+<td><code>8092</code></td>
+<td>Host port for the configuration builder</td>
+</tr>
+<tr>
+<td><code>TRADER_GUI_PORT</code></td>
+<td><code>8093</code></td>
+<td>Host port for the trader GUI</td>
+</tr>
+</tbody>
+</table>
+<p>Two settings have their own commands, because editing them by hand is easy to
+get half-right — <code>EM_CONFIG</code> and <code>EM_CONFIG_FILE</code> must agree, and <code>EM_VERSION</code>
+needs an image pull to take effect:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./edumatcher.sh<span class="w"> </span>config<span class="w"> </span>ten-nominal<span class="w">    </span><span class="c1"># sets EM_CONFIG, clears EM_CONFIG_FILE</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>./edumatcher.sh<span class="w"> </span>config<span class="w"> </span>./mine.yaml<span class="w">    </span><span class="c1"># copies the file, sets EM_CONFIG_FILE</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>./edumatcher.sh<span class="w"> </span>update<span class="w"> </span><span class="m">0</span>.26.2<span class="w">         </span><span class="c1"># sets EM_VERSION, pulls, restarts</span>
+</code></pre></div>
+<p>Everything else is a plain edit followed by <code>./edumatcher.sh restart</code>.</p>
+<div class="admonition warning">
+<p class="admonition-title"><code>BIND_ADDR=0.0.0.0</code> puts an unauthenticated exchange on your network</p>
+<p>It is the right setting for a classroom where students connect to the
+instructor's machine, and the wrong one on a network you do not control:
+the protocol gateways have no password. The default keeps everything on
+this machine.</p>
+</div>
+<h4 id="two-values-you-will-not-find-in-env">Two values you will not find in <code>.env</code><a class="headerlink" href="#two-values-you-will-not-find-in-env" title="Permanent link">&para;</a></h4>
+<p>The trading terminal also needs <code>API_GATEWAY_URL</code> and <code>PM_TERMINAL_API_KEY</code>.
+Those are <strong>resolved at startup and injected</strong>, not stored: the read-only API
+key is generated per engine configuration — a different one in each bundled
+example — and lives on a different gateway instance than the trading
+credentials. <code>./edumatcher.sh start</code> reads the deployed configuration and
+passes both to the terminal. Setting them in <code>.env</code> would only go stale the
+next time you switched configuration.</p>
 <h3 id="everyday-commands">Everyday commands<a class="headerlink" href="#everyday-commands" title="Permanent link">&para;</a></h3>
 <p>Everything is driven by one script in the install directory:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">cd</span><span class="w"> </span>~/.edumatcher
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>./edumatcher.sh<span class="w"> </span>status<span class="w">              </span><span class="c1"># containers, plus the exchange process table</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>./edumatcher.sh<span class="w"> </span>logs<span class="w"> </span>terminal-gui<span class="w">   </span><span class="c1"># follow one service</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>./edumatcher.sh<span class="w"> </span>urls<span class="w">                </span><span class="c1"># the application table, with your ports</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>./edumatcher.sh<span class="w"> </span>stop<span class="w">                </span><span class="c1"># stop everything; ./data is kept</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>./edumatcher.sh<span class="w"> </span>start<span class="w">               </span><span class="c1"># bring it back</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>./edumatcher.sh<span class="w"> </span>update<span class="w">              </span><span class="c1"># pull the newest release and restart</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>./edumatcher.sh<span class="w"> </span>update<span class="w"> </span><span class="m">0</span>.20.5<span class="w">       </span><span class="c1"># ...or move to an exact one</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>./edumatcher.sh<span class="w"> </span>uninstall<span class="w">           </span><span class="c1"># remove containers and volumes, keep data</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>./edumatcher.sh<span class="w"> </span>uninstall<span class="w"> </span>--data<span class="w">    </span><span class="c1"># remove everything</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nb">cd</span><span class="w"> </span>~/.edumatcher
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>./edumatcher.sh<span class="w"> </span>status<span class="w">              </span><span class="c1"># containers, plus the exchange process table</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>./edumatcher.sh<span class="w"> </span>logs<span class="w"> </span>terminal-gui<span class="w">   </span><span class="c1"># follow one service</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>./edumatcher.sh<span class="w"> </span>urls<span class="w">                </span><span class="c1"># the application table, with your ports</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>./edumatcher.sh<span class="w"> </span>mounts<span class="w">              </span><span class="c1"># which directory is behind each container path</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>./edumatcher.sh<span class="w"> </span>stop<span class="w">                </span><span class="c1"># stop everything; ./data is kept</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>./edumatcher.sh<span class="w"> </span>start<span class="w">               </span><span class="c1"># bring it back</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>./edumatcher.sh<span class="w"> </span>update<span class="w">              </span><span class="c1"># pull the newest release and restart</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>./edumatcher.sh<span class="w"> </span>update<span class="w"> </span><span class="m">0</span>.20.5<span class="w">       </span><span class="c1"># ...or move to an exact one</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>./edumatcher.sh<span class="w"> </span>uninstall<span class="w">           </span><span class="c1"># remove containers and volumes, keep data</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>./edumatcher.sh<span class="w"> </span>uninstall<span class="w"> </span>--data<span class="w">    </span><span class="c1"># remove everything</span>
 </code></pre></div>
 <h3 id="choosing-what-the-exchange-trades">Choosing what the exchange trades<a class="headerlink" href="#choosing-what-the-exchange-trades" title="Permanent link">&para;</a></h3>
 <p>EduMatcher ships twelve ready-made configurations: one, three, ten or thirty
 order books, each as a <code>basic</code>, <code>nominal</code> or <code>complex</code> variant. They are inside
 the backend image, so no download is involved in switching.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>./edumatcher.sh<span class="w"> </span>config<span class="w"> </span>ten-nominal
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>./edumatcher.sh<span class="w"> </span>restart
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>./edumatcher.sh<span class="w"> </span>config<span class="w"> </span>ten-nominal
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>./edumatcher.sh<span class="w"> </span>restart
 </code></pre></div>
 <p>The names are <code>one-</code>, <code>three-</code>, <code>ten-</code> and <code>thirty-</code> combined with <code>basic</code>,
 <code>nominal</code> and <code>complex</code>. <code>./edumatcher.sh config</code> lists them all if you mistype
 one. See <a href="../810-example-configs/">Example Engine Configs</a> for what each
 contains.</p>
 <p>To run a configuration of your own, give the same command a path instead:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>./edumatcher.sh<span class="w"> </span>config<span class="w"> </span>./my-market.yaml
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>./edumatcher.sh<span class="w"> </span>restart
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>./edumatcher.sh<span class="w"> </span>config<span class="w"> </span>./my-market.yaml
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>./edumatcher.sh<span class="w"> </span>restart
 </code></pre></div>
 <p>The file is copied into <code>~/.edumatcher/config/</code>, mounted read-only into the
 container, and deployed on every start — so editing it and restarting is the
@@ -4154,10 +4319,10 @@ whole edit-test loop. Switching back to a bundled example is
 <h2 id="containers-from-the-source-checkout">Containers from the source checkout<a class="headerlink" href="#containers-from-the-source-checkout" title="Permanent link">&para;</a></h2>
 <p>Use this when you are changing EduMatcher and want to see your change running
 as a whole system. It builds the same five images from your working tree.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/johan162/EduMatcher.git
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nb">cd</span><span class="w"> </span>EduMatcher/deployment/docker
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>make<span class="w"> </span>build<span class="w">          </span><span class="c1"># builds a wheel from the checkout, then the image</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>make<span class="w"> </span>up-all<span class="w">         </span><span class="c1"># exchange + terminal-, log- and trader-gui</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/johan162/EduMatcher.git
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nb">cd</span><span class="w"> </span>EduMatcher/deployment/docker
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>make<span class="w"> </span>build<span class="w">          </span><span class="c1"># builds a wheel from the checkout, then the image</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>make<span class="w"> </span>up-all<span class="w">         </span><span class="c1"># exchange + terminal-, log- and trader-gui</span>
 </code></pre></div>
 <p><code>make help</code> lists every target. The two that matter are <code>up</code> (the exchange
 alone) and <code>up-all</code> (the exchange plus the GUIs).</p>
@@ -4244,8 +4409,15 @@ hunting for will appear not to take effect.</p>
 </table>
 <p>Flags combine: <code>make up-all CONFIG=ten-complex PROFILE=mini ZMQ=1 CONFIG_GUI=1</code>.</p>
 <h3 id="settings-in-env">Settings in <code>.env</code><a class="headerlink" href="#settings-in-env" title="Permanent link">&para;</a></h3>
-<p><code>deployment/docker/.env</code> is created from <code>.env.example</code> on the first build. It
-is git-ignored, so it is the right place for choices specific to your machine.</p>
+<p><code>deployment/docker/.env</code> is created from <code>.env.example</code> on the first build.
+Compose reads it automatically because it sits beside the compose files, and it
+is git-ignored — so it is the right place for choices specific to your machine,
+as opposed to a <code>make</code> flag, which applies to one invocation only.</p>
+<p>When the same setting is available in more than one place, the nearer one wins:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>make flag  →  shell environment  →  .env  →  compose ${VAR:-default}  →  image ENV
+</code></pre></div>
+<p>That is why <code>make up-all CONFIG=ten-nominal</code> does not edit <code>.env</code>, and why a
+plain <code>make up-all</code> afterwards goes back to whatever <code>.env</code> says.</p>
 <table>
 <thead>
 <tr>
@@ -4332,6 +4504,15 @@ is git-ignored, so it is the right place for choices specific to your machine.</
 </tr>
 </tbody>
 </table>
+<p>Beyond these, the compose files read a few variables that have sensible
+defaults and no <code>.env</code> entry: <code>CORS_ORIGIN</code>, <code>MAX_WS_CLIENTS</code>, <code>CALF_CLIENT_ID</code>
+and <code>INDEX_IDS</code> for the trading terminal, <code>LOG_SRV_ENABLED</code> for its logging
+uplink, and <code>PIP_INDEX_URL</code> as a build argument. Export any of them in your
+shell before <code>make up-all</code> if you need to.</p>
+<p><code>API_GATEWAY_URL</code> and <code>PM_TERMINAL_API_KEY</code> are read the same way but should be
+left alone: <code>up-all</code> resolves them from the deployed configuration and injects
+them, for the reasons in
+<a href="#the-read-only-api-key">The read-only API key</a>.</p>
 <h3 id="image-build-arguments">Image build arguments<a class="headerlink" href="#image-build-arguments" title="Permanent link">&para;</a></h3>
 <p>Passed with <code>--build-arg</code>, or through the compose files' <code>args:</code> blocks. You
 need these mainly behind a corporate proxy.</p>
@@ -4514,14 +4695,14 @@ container, over the same loopback. A healthy process table is not evidence that
 anything outside that container can connect.</p>
 <p>The check that settles it is the compiled configuration, which is the file the
 processes actually read:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher<span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="s2">"import json; print(json.load(open('/data/ref_data/engine_config.json'))['market_data_gateway'])"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher<span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="s2">"import json; print(json.load(open('/data/ref_data/engine_config.json'))['market_data_gateway'])"</span>
 </code></pre></div>
 <p>and, from a GUI container, an actual connection attempt:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-terminal-gui<span class="w"> </span>node<span class="w"> </span>-e<span class="w"> </span><span class="s1">'</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="s1">const net = require("net");</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="s1">const s = net.connect(5570, "edumatcher", () =&gt; { console.log("OPEN"); s.end(); });</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="s1">s.on("error", e =&gt; console.log("FAIL", e.code));'</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-terminal-gui<span class="w"> </span>node<span class="w"> </span>-e<span class="w"> </span><span class="s1">'</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="s1">const net = require("net");</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="s1">const s = net.connect(5570, "edumatcher", () =&gt; { console.log("OPEN"); s.end(); });</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="s1">s.on("error", e =&gt; console.log("FAIL", e.code));'</span>
 </code></pre></div>
 <h3 id="the-read-only-api-key">The read-only API key<a class="headerlink" href="#the-read-only-api-key" title="Permanent link">&para;</a></h3>
 <p>One value cannot be a fixed default. The trading terminal reads historical data
@@ -4699,12 +4880,12 @@ host needs Multipass and <code>curl</code>; Python and EduMatcher are installed 
 VM. This mode installs the backend only — the web GUIs are part of the
 container deployment. Provisioning runs <code>pm-setup</code>, so the VM comes up with a
 deployed configuration and <code>pm-opctl-cli</code> ready to start the stack.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">    </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.26.2<span class="w"> </span>--snapshot
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>multipass<span class="w"> </span>shell<span class="w"> </span>ems
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="nb">cd</span><span class="w"> </span>/home/ubuntu/session
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>pm-opctl-cli<span class="w"> </span>start
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.26.3<span class="w"> </span>--snapshot
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>multipass<span class="w"> </span>shell<span class="w"> </span>ems
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="nb">cd</span><span class="w"> </span>/home/ubuntu/session
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>pm-opctl-cli<span class="w"> </span>start
 </code></pre></div>
 <table>
 <thead>
@@ -4758,9 +4939,9 @@ deployed configuration and <code>pm-opctl-cli</code> ready to start the stack.</
 </tbody>
 </table>
 <p>To read the script before running it:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span>-o<span class="w"> </span>curl_setup_vm.sh
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>less<span class="w"> </span>curl_setup_vm.sh
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.26.2<span class="w"> </span>--snapshot
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span>-o<span class="w"> </span>curl_setup_vm.sh
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>less<span class="w"> </span>curl_setup_vm.sh
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.26.3<span class="w"> </span>--snapshot
 </code></pre></div>
 <h2 id="pipx-commands-on-your-own-machine">pipx — commands on your own machine<a class="headerlink" href="#pipx-commands-on-your-own-machine" title="Permanent link">&para;</a></h2>
 <p>Use this when you want to run the processes yourself, one per terminal, which
@@ -4787,36 +4968,36 @@ is how most of this guide is written.</p>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># macOS with Homebrew</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>brew<span class="w"> </span>install<span class="w"> </span>pipx
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>pipx<span class="w"> </span>ensurepath
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="c1"># Linux / generic Python install</span>
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--user<span class="w"> </span>pipx
-<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>python<span class="w"> </span>-m<span class="w"> </span>pipx<span class="w"> </span>ensurepath
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># macOS with Homebrew</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>brew<span class="w"> </span>install<span class="w"> </span>pipx
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>pipx<span class="w"> </span>ensurepath
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="c1"># Linux / generic Python install</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--user<span class="w"> </span>pipx
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>python<span class="w"> </span>-m<span class="w"> </span>pipx<span class="w"> </span>ensurepath
 </code></pre></div>
 <p>Then install and bootstrap a session directory:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pipx<span class="w"> </span>install<span class="w"> </span>edumatcher
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>mkdir<span class="w"> </span>edumatcher-session
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="nb">cd</span><span class="w"> </span>edumatcher-session
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>pm-setup
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pipx<span class="w"> </span>install<span class="w"> </span>edumatcher
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>mkdir<span class="w"> </span>edumatcher-session
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="nb">cd</span><span class="w"> </span>edumatcher-session
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>pm-setup
 </code></pre></div>
 <p><code>pm-setup</code> creates the data directory, deploys a bundled example configuration
 and prints the <code>EDUMATCHER_DATA_DIR</code> line to add to your shell profile. Open a
 new terminal afterwards so every <code>pm-*</code> command sees the same data directory.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>pm-setup<span class="w"> </span>--config<span class="w"> </span>ten-nominal<span class="w">   </span><span class="c1"># a different bundled example</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>pm-setup<span class="w"> </span>--data-dir<span class="w"> </span>~/my-venue<span class="w">  </span><span class="c1"># an explicit location</span>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>pm-setup<span class="w"> </span>--force<span class="w">                </span><span class="c1"># replace an already-deployed configuration</span>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>pm-setup<span class="w"> </span>--no-config<span class="w">            </span><span class="c1"># create the directory only</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>pm-setup<span class="w"> </span>--config<span class="w"> </span>ten-nominal<span class="w">   </span><span class="c1"># a different bundled example</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>pm-setup<span class="w"> </span>--data-dir<span class="w"> </span>~/my-venue<span class="w">  </span><span class="c1"># an explicit location</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>pm-setup<span class="w"> </span>--force<span class="w">                </span><span class="c1"># replace an already-deployed configuration</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>pm-setup<span class="w"> </span>--no-config<span class="w">            </span><span class="c1"># create the directory only</span>
 </code></pre></div>
 <h2 id="poetry-checkout-developing-edumatcher">Poetry checkout — developing EduMatcher<a class="headerlink" href="#poetry-checkout-developing-edumatcher" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/johan162/EduMatcher.git
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="nb">cd</span><span class="w"> </span>EduMatcher
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>poetry<span class="w"> </span>config<span class="w"> </span>virtualenvs.in-project<span class="w"> </span><span class="nb">true</span>
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>poetry<span class="w"> </span>install<span class="w"> </span>--with<span class="w"> </span>dev,docs
-<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>
-<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine<span class="w"> </span>--verbose
-<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/johan162/EduMatcher.git
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="nb">cd</span><span class="w"> </span>EduMatcher
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>poetry<span class="w"> </span>config<span class="w"> </span>virtualenvs.in-project<span class="w"> </span><span class="nb">true</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>poetry<span class="w"> </span>install<span class="w"> </span>--with<span class="w"> </span>dev,docs
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine<span class="w"> </span>--verbose
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
 </code></pre></div>
 <p>Developer mode uses the repository-local data directory. When exact behaviour
 matters, use the same deployed-configuration flow as installed mode: author
@@ -4855,11 +5036,11 @@ lets the installer pin a whole system with a single number.</p>
 then the two are joined into one manifest list. A user on Intel and a user on
 Apple Silicon pull the same tag and each gets the right binary.</p>
 <p>The five published images are:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>ghcr.io/johan162/edumatcher                 the exchange, all pm-* processes
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>ghcr.io/johan162/edumatcher-terminal-gui    the trading terminal
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>ghcr.io/johan162/edumatcher-log-gui         the log viewer
-<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>ghcr.io/johan162/edumatcher-config-gui      the configuration builder
-<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>ghcr.io/johan162/edumatcher-trader-gui      the trader GUI
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>ghcr.io/johan162/edumatcher                 the exchange, all pm-* processes
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>ghcr.io/johan162/edumatcher-terminal-gui    the trading terminal
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>ghcr.io/johan162/edumatcher-log-gui         the log viewer
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>ghcr.io/johan162/edumatcher-config-gui      the configuration builder
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>ghcr.io/johan162/edumatcher-trader-gui      the trader GUI
 </code></pre></div>
 <p><code>latest</code> is only moved for an exact <code>vMAJOR.MINOR.PATCH</code> tag, so a pre-release
 never becomes what a new user gets by default — the same rule the PyPI workflow
@@ -4867,9 +5048,9 @@ uses to choose between PyPI and TestPyPI.</p>
 <h3 id="publishing-by-hand">Publishing by hand<a class="headerlink" href="#publishing-by-hand" title="Permanent link">&para;</a></h3>
 <p><code>make ghcr-push</code> in <code>deployment/docker/</code> builds all five images from your
 checkout and pushes them, for when the workflow cannot run:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">GITHUB_USER</span><span class="o">=</span>&lt;you&gt;<span class="w"> </span><span class="nv">GHCR_TOKEN</span><span class="o">=</span>&lt;token<span class="w"> </span>with<span class="w"> </span>write:packages&gt;
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>make<span class="w"> </span>ghcr-push<span class="w">                              </span><span class="c1"># all five, tagged :dev</span>
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>make<span class="w"> </span>ghcr-push<span class="w"> </span><span class="nv">TAG</span><span class="o">=</span><span class="m">0</span>.20.6<span class="w"> </span><span class="nv">FORCE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">LATEST</span><span class="o">=</span><span class="m">1</span><span class="w">  </span><span class="c1"># as a release tag</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">GITHUB_USER</span><span class="o">=</span>&lt;you&gt;<span class="w"> </span><span class="nv">GHCR_TOKEN</span><span class="o">=</span>&lt;token<span class="w"> </span>with<span class="w"> </span>write:packages&gt;
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>make<span class="w"> </span>ghcr-push<span class="w">                              </span><span class="c1"># all five, tagged :dev</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>make<span class="w"> </span>ghcr-push<span class="w"> </span><span class="nv">TAG</span><span class="o">=</span><span class="m">0</span>.20.6<span class="w"> </span><span class="nv">FORCE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">LATEST</span><span class="o">=</span><span class="m">1</span><span class="w">  </span><span class="c1"># as a release tag</span>
 </code></pre></div>
 <p>It builds only for the architecture you are on. Pushing a single-architecture
 image over a release tag replaces the manifest list, and users on the other
@@ -4884,8 +5065,8 @@ somebody who is not you.</p>
 <ol>
 <li>
 <p><strong>Working tree is clean and tests pass.</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>make<span class="w"> </span>-C<span class="w"> </span>web-apps/terminal-gui<span class="w"> </span>typecheck<span class="w"> </span><span class="nb">test</span>
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>make<span class="w"> </span>-C<span class="w"> </span>web-apps/terminal-gui<span class="w"> </span>typecheck<span class="w"> </span><span class="nb">test</span>
 </code></pre></div>
    Repeat the last line for <code>log-gui</code>, <code>trader-gui</code> and <code>config-gui</code>.</p>
 </li>
@@ -4896,8 +5077,8 @@ somebody who is not you.</p>
 <li>
 <p><strong>The container stack starts from a clean state.</strong> This is the test that
    catches a stale deployed configuration or a broken image:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>make<span class="w"> </span>build<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>down-all<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>clean-data<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>up-all
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>make<span class="w"> </span>build<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>down-all<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>clean-data<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>up-all
 </code></pre></div>
    Confirm the build printed <code>Installing local wheel: ...</code>, not a PyPI
    download, then check each application answers: 8090, 8091, 8093, and
@@ -4907,7 +5088,7 @@ somebody who is not you.</p>
 <p><strong>The trading terminal shows a live book <em>and</em> history.</strong> This exercises the
    whole chain — the private network, the loopback-bind rewrite and the
    per-configuration API key — in one look:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>localhost:8090/api/bridge/status
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>localhost:8090/api/bridge/status
 </code></pre></div>
    Expect <code>"calf":"ACTIVE"</code> with a non-zero <code>symbols</code> count.</p>
 </li>
@@ -4955,8 +5136,8 @@ somebody who is not you.</p>
 </table>
 <p>If the image workflow fails, the GitHub release still exists — only the
    images are missing. Re-run just that part:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>gh<span class="w"> </span>run<span class="w"> </span>view<span class="w"> </span>&lt;run-id&gt;<span class="w"> </span>--log-failed
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>gh<span class="w"> </span>workflow<span class="w"> </span>run<span class="w"> </span>publish-images.yml<span class="w"> </span>-f<span class="w"> </span><span class="nv">tag</span><span class="o">=</span>vX.Y.Z
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>gh<span class="w"> </span>run<span class="w"> </span>view<span class="w"> </span>&lt;run-id&gt;<span class="w"> </span>--log-failed
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>gh<span class="w"> </span>workflow<span class="w"> </span>run<span class="w"> </span>publish-images.yml<span class="w"> </span>-f<span class="w"> </span><span class="nv">tag</span><span class="o">=</span>vX.Y.Z
 </code></pre></div></p>
 <h3 id="after-the-release">After the release<a class="headerlink" href="#after-the-release" title="Permanent link">&para;</a></h3>
 <ol>
@@ -4978,19 +5159,24 @@ somebody who is not you.</p>
      read_package</code> on push, after authentication has already succeeded.</p>
 </li>
 <li>
-<p><strong>Verify the one-line install as a stranger would</strong>, into a throwaway
-   directory so your own instance is untouched:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/vX.Y.Z/deployment/curl/install.sh<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">    </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--dir<span class="w"> </span>/tmp/em-release-test
+<p><strong>Verify the one-line install as a stranger would.</strong> First <strong>stop any stack
+   you already have running</strong> — the released deployment and the source-built one
+   use the same container names and host ports, so an install started beside a
+   running stack silently attaches to it and verifies nothing:</p>
+</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>make<span class="w"> </span>-C<span class="w"> </span>deployment/docker<span class="w"> </span>down-all
+</code></pre></div>
+<p>Then install into a throwaway directory so your own instance is untouched:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/vX.Y.Z/deployment/curl/install.sh<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="w">    </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--dir<span class="w"> </span>/tmp/em-release-test
 </code></pre></div>
    Then open <a href="http://localhost:8090">http://localhost:8090</a>, and clean up with
    <code>cd /tmp/em-release-test &amp;&amp; ./edumatcher.sh uninstall --data</code>.</p>
-</li>
-<li>
-<p><strong>Verify the PyPI install</strong> in a fresh environment:
-    <div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>pipx<span class="w"> </span>install<span class="w"> </span><span class="nv">edumatcher</span><span class="o">==</span>X.Y.Z
-</code></pre></div></p>
-</li>
+<ol>
+<li><strong>Verify the PyPI install</strong> in a fresh environment:
+    <div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>pipx<span class="w"> </span>install<span class="w"> </span><span class="nv">edumatcher</span><span class="o">==</span>X.Y.Z
+</code></pre></div></li>
 </ol>
 <div class="admonition tip">
 <p class="admonition-title">Where releases usually go wrong</p>
@@ -5005,11 +5191,11 @@ catches that.</p>
 <p>Normally the push is handled by the workflow but it can be manually overridden.
 The target <code>ghcr-push</code> in <code>deployment/docker/Makefile</code> builds all five images from. 
 In will login with ghe existing GITHUB_USER/GHCR_TOKEN, then tags and pushes each one.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>export GITHUB_USER=&lt;user with admin priv&gt; GHCR_TOKEN=&lt;token with write:packages&gt;
-<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>
-<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>make ghcr-push                              # all five, tagged :dev
-<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>make ghcr-push TAG=0.20.6 FORCE=1           # ...as a release tag
-<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>make ghcr-push TAG=0.20.6 FORCE=1 LATEST=1  # ...and move :latest
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>export GITHUB_USER=&lt;user with admin priv&gt; GHCR_TOKEN=&lt;token with write:packages&gt;
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>make ghcr-push                              # all five, tagged :dev
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>make ghcr-push TAG=0.20.6 FORCE=1           # ...as a release tag
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>make ghcr-push TAG=0.20.6 FORCE=1 LATEST=1  # ...and move :latest
 </code></pre></div>
 <h2 id="where-to-go-next">Where to go next<a class="headerlink" href="#where-to-go-next" title="Permanent link">&para;</a></h2>
 <ul>
