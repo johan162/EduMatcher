@@ -66,6 +66,15 @@ jobs:
         with:
           ref: ${{ steps.ref.outputs.tag }}
 
+      # ubuntu-24.04 ships Python 3.12; pyproject requires ^3.13, and Poetry
+      # refuses to build against an interpreter the project excludes. Same
+      # step, same version, as publish-to-pypi.yml.
+      - name: Set up Python
+        if: matrix.image.name == 'edumatcher'
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
       # The backend image installs from .wheel/ when a wheel is present and
       # falls back to PyPI otherwise. Build the wheel from *this tag* rather
       # than relying on PyPI: publish-to-pypi.yml runs on the same trigger, so

@@ -84,7 +84,7 @@ Because the script is read from a pipe, options need `bash -s --` so that the
 shell hands them to the script rather than consuming them itself:
 
 ```bash
-curl -fsSL .../install.sh | bash -s -- --config ten-nominal --version 0.26.0
+curl -fsSL .../install.sh | bash -s -- --config ten-nominal --version 0.26.1
 ```
 
 Two environment variables are also honoured: `REPO_OWNER` (which GitHub
@@ -426,7 +426,7 @@ deployed configuration and `pm-opctl-cli` ready to start the stack.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | \
-    bash -s -- --version 0.26.0 --snapshot
+    bash -s -- --version 0.26.1 --snapshot
 
 multipass shell ems
 cd /home/ubuntu/session
@@ -449,7 +449,7 @@ To read the script before running it:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh -o curl_setup_vm.sh
 less curl_setup_vm.sh
-bash curl_setup_vm.sh --version 0.26.0 --snapshot
+bash curl_setup_vm.sh --version 0.26.1 --snapshot
 ```
 
 
@@ -646,10 +646,18 @@ somebody who is not you.
 
 ### After the release
 
-8. **First release only: make the GHCR packages public.** New packages are
-   private, so `podman pull` fails with a permission error for everyone except
-   you, and the one-line installer silently stops working. Set each of the five
-   packages to Public in its package settings on GitHub.
+8. **First release only: fix the GHCR package permissions.** Two separate
+   settings, both one-time and both per package:
+
+   - **Make each package Public.** New packages are private, so `podman pull`
+     fails for everyone except you and the one-line installer silently stops
+     working.
+   - **Grant the repository Write access** under *Manage Actions access* for
+     any package that existed before the workflow did — one pushed by hand with
+     a personal access token, for example. Such a package belongs to your user
+     account rather than the repository, and the workflow's `GITHUB_TOKEN`
+     cannot write to it. The symptom is `denied: permission_denied:
+     read_package` on push, after authentication has already succeeded.
 
 9. **Verify the one-line install as a stranger would**, into a throwaway
    directory so your own instance is untouched:

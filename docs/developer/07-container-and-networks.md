@@ -377,7 +377,7 @@ continues and warns. The live CALF feed needs no key; only history does.
 ## Part 5 — The release process
 
 One git tag produces a wheel and five multi-architecture images, all carrying
-the same version. That coupling is what lets `install.sh --version 0.26.0`
+the same version. That coupling is what lets `install.sh --version 0.26.1`
 pin an entire system with one number.
 
 ```mermaid
@@ -451,9 +451,36 @@ tag, and `latest` never moving unless asked.
 |---|---|---|
 | Image built from PyPI instead of the checkout | Nobody — it looks like a normal build | The `Installing local wheel:` line in the build output |
 | GHCR packages left private | Everyone except the maintainer, who is already authenticated | Installing from a machine with no credentials |
+| A package that predates the workflow | Only that one image, and only in CI | `permission_denied: read_package` on push |
 
 A newly created GHCR package is private. Until each of the five is made public
 in its package settings, `podman pull` fails for every user but you.
+
+### A package the workflow did not create
+
+A package that a workflow pushes for the first time is linked to the repository
+automatically, and `GITHUB_TOKEN` can write to it from then on. A package that
+already existed — because someone pushed it by hand with a personal access
+token, for instance with a GUI's own `make cpush` — belongs to the *user*
+account and has no repository in its access list. `GITHUB_TOKEN` is scoped to
+the repository, so the push fails:
+
+```text
+#21 [auth] johan162/edumatcher-config-gui:pull,push token for ghcr.io
+#21 DONE 0.0s
+#20 pushing layers 0.5s done
+#20 ERROR: failed to push ghcr.io/johan162/edumatcher-config-gui: denied: permission_denied: read_package
+```
+
+The authentication *succeeds* and the layers upload; only the manifest write is
+refused. Fix it once, on the package's page under **Package settings → Manage
+Actions access → Add repository**, granting the repository the **Write** role.
+Deleting the package and letting the workflow recreate it works too, and loses
+whatever was published under it.
+
+This is another failure that only appears for images somebody published by
+hand before the workflow existed — which is one more reason not to use a
+per-app `cpush` as part of a release.
 
 
 ## Part 6 — Maintenance burden
