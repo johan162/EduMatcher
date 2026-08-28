@@ -1,3 +1,21 @@
+## [v0.26.3] - 2026-08-29
+
+Release Type: patch
+
+### 📋 Summary
+This patch release makes full container deployments more robust when multiple
+EduMatcher installs share fixed container names and host ports. It also improves
+the guidance for installing, inspecting, and operating the container stack.
+
+### 🚀 Improvements
+- Added `mounts` commands to show each container's host mounts, runtime state, and image source
+
+### 🐛 Bug Fixes
+- Fixed container startup attaching to a same-named container from a different EduMatcher install
+
+### 📚 Documentation
+- Expanded container, installation, and training documentation with deployment diagnostics and clearer installation workflows
+
 ## [v0.26.2] - 2026-08-28
 
 Release Type: patch
