@@ -3683,6 +3683,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#a-package-the-workflow-did-not-create" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A package the workflow did not create
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4428,7 +4439,7 @@ same extraction snippet — that logic lives in <code>edumatcher.sh</code> rathe
 continues and warns. The live CALF feed needs no key; only history does.</p>
 <h2 id="part-5-the-release-process">Part 5 — The release process<a class="headerlink" href="#part-5-the-release-process" title="Permanent link">&para;</a></h2>
 <p>One git tag produces a wheel and five multi-architecture images, all carrying
-the same version. That coupling is what lets <code>install.sh --version 0.26.0</code>
+the same version. That coupling is what lets <code>install.sh --version 0.26.1</code>
 pin an entire system with one number.</p>
 <pre class="mermaid"><code>flowchart TD
     MK["scripts/mkrelease.sh\nbump, build docs, commit, tag"]
@@ -4502,10 +4513,35 @@ tag, and <code>latest</code> never moving unless asked.</p>
 <td>Everyone except the maintainer, who is already authenticated</td>
 <td>Installing from a machine with no credentials</td>
 </tr>
+<tr>
+<td>A package that predates the workflow</td>
+<td>Only that one image, and only in CI</td>
+<td><code>permission_denied: read_package</code> on push</td>
+</tr>
 </tbody>
 </table>
 <p>A newly created GHCR package is private. Until each of the five is made public
 in its package settings, <code>podman pull</code> fails for every user but you.</p>
+<h3 id="a-package-the-workflow-did-not-create">A package the workflow did not create<a class="headerlink" href="#a-package-the-workflow-did-not-create" title="Permanent link">&para;</a></h3>
+<p>A package that a workflow pushes for the first time is linked to the repository
+automatically, and <code>GITHUB_TOKEN</code> can write to it from then on. A package that
+already existed — because someone pushed it by hand with a personal access
+token, for instance with a GUI's own <code>make cpush</code> — belongs to the <em>user</em>
+account and has no repository in its access list. <code>GITHUB_TOKEN</code> is scoped to
+the repository, so the push fails:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>#21 [auth] johan162/edumatcher-config-gui:pull,push token for ghcr.io
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>#21 DONE 0.0s
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>#20 pushing layers 0.5s done
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>#20 ERROR: failed to push ghcr.io/johan162/edumatcher-config-gui: denied: permission_denied: read_package
+</code></pre></div>
+<p>The authentication <em>succeeds</em> and the layers upload; only the manifest write is
+refused. Fix it once, on the package's page under <strong>Package settings → Manage
+Actions access → Add repository</strong>, granting the repository the <strong>Write</strong> role.
+Deleting the package and letting the workflow recreate it works too, and loses
+whatever was published under it.</p>
+<p>This is another failure that only appears for images somebody published by
+hand before the workflow existed — which is one more reason not to use a
+per-app <code>cpush</code> as part of a release.</p>
 <h2 id="part-6-maintenance-burden">Part 6 — Maintenance burden<a class="headerlink" href="#part-6-maintenance-burden" title="Permanent link">&para;</a></h2>
 <p>This design trades some duplication for a property that is hard to get any
 other way: one Compose project, therefore one network, therefore no host
@@ -4564,21 +4600,21 @@ section.</p>
 </tbody>
 </table>
 <p>A drift check for the compose pair, worth running before a release:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>python3<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;'PY'</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="s">import yaml</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="s">dev = {**yaml.safe_load(open('deployment/docker/compose.yaml'))['services'],</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="s">       **yaml.safe_load(open('deployment/docker/compose.guis.yaml'))['services'],</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="s">       **yaml.safe_load(open('deployment/docker/compose.config-gui.yaml'))['services']}</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="s">rel = yaml.safe_load(open('deployment/curl/compose.yaml'))['services']</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="s">assert sorted(dev) == sorted(rel), (sorted(dev), sorted(rel))</span>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="s">keys = ["CALF_HOST","CALF_PORT","API_GATEWAY_URL","LOG_SRV_HOST","LOG_SRV_PORT",</span>
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="s">        "LOG_SRV_PUB_PORT","LOG_SRV_PULL_PORT","API_PROXY_TARGET","LOG_DB_PATH"]</span>
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="s">for svc in sorted(rel):</span>
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="s">    d, r = dev[svc].get('environment', {}), rel[svc].get('environment', {})</span>
-<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="s">    for k in keys:</span>
-<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="s">        assert d.get(k) == r.get(k), f"{svc}.{k}: dev={d.get(k)!r} release={r.get(k)!r}"</span>
-<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="s">print("compose files agree")</span>
-<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="s">PY</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>python3<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;'PY'</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="s">import yaml</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="s">dev = {**yaml.safe_load(open('deployment/docker/compose.yaml'))['services'],</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="s">       **yaml.safe_load(open('deployment/docker/compose.guis.yaml'))['services'],</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="s">       **yaml.safe_load(open('deployment/docker/compose.config-gui.yaml'))['services']}</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="s">rel = yaml.safe_load(open('deployment/curl/compose.yaml'))['services']</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="s">assert sorted(dev) == sorted(rel), (sorted(dev), sorted(rel))</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="s">keys = ["CALF_HOST","CALF_PORT","API_GATEWAY_URL","LOG_SRV_HOST","LOG_SRV_PORT",</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="s">        "LOG_SRV_PUB_PORT","LOG_SRV_PULL_PORT","API_PROXY_TARGET","LOG_DB_PATH"]</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="s">for svc in sorted(rel):</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="s">    d, r = dev[svc].get('environment', {}), rel[svc].get('environment', {})</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="s">    for k in keys:</span>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="s">        assert d.get(k) == r.get(k), f"{svc}.{k}: dev={d.get(k)!r} release={r.get(k)!r}"</span>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="s">print("compose files agree")</span>
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="s">PY</span>
 </code></pre></div>
 <h3 id="standing-costs">Standing costs<a class="headerlink" href="#standing-costs" title="Permanent link">&para;</a></h3>
 <p><strong>Version coupling.</strong> Every image carries the EduMatcher release version, so
@@ -4619,31 +4655,31 @@ anything outside that container can connect.</p>
     C --&gt;|"401 / 403"| C1["Wrong API key or wrong gateway instance.\nThe read-only key lives on 8081, not 8080"]
     C --&gt;|"protocol-level"| C2["Application layer — read the bridge log,\nnot the network"]</code></pre>
 <p>The ladder of commands behind that tree:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># 1. Name resolution across the Compose network</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-trader-gui<span class="w"> </span>getent<span class="w"> </span>hosts<span class="w"> </span>edumatcher
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># 2. An actual connection attempt, from where it matters — with a</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="c1">#    known-good port as the control</span>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-terminal-gui<span class="w"> </span>node<span class="w"> </span>-e<span class="w"> </span><span class="s1">'</span>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="s1">const net = require("net");</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="s1">for (const p of [5600, 5570]) {</span>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="s1">  const s = net.connect(p, "edumatcher", () =&gt; { console.log(p, "OPEN"); s.end(); });</span>
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="s1">  s.on("error", e =&gt; console.log(p, "FAIL", e.code));</span>
-<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="s1">}'</span>
-<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>
-<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="c1"># 3. What the processes actually read — the compiled artifact, not the YAML</span>
-<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher<span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="w">  </span><span class="s2">"import json; print(json.load(open('/data/ref_data/engine_config.json'))['market_data_gateway'])"</span>
-<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>
-<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a><span class="c1"># 4. Did the entrypoint rewrite the binds?</span>
-<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a>podman<span class="w"> </span>logs<span class="w"> </span>edumatcher<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-i<span class="w"> </span><span class="s1">'rewriting loopback'</span>
-<a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a>
-<a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a><span class="c1"># 5. What the bridges think of their own uplinks</span>
-<a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a>curl<span class="w"> </span>-s<span class="w"> </span>localhost:8090/api/bridge/status<span class="w">   </span><span class="c1"># calf, logging</span>
-<a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a>curl<span class="w"> </span>-s<span class="w"> </span>localhost:8091/api/bridge/status<span class="w">   </span><span class="c1"># lalfPs, logDb</span>
-<a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a>
-<a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a><span class="c1"># 6. Which ports are actually published</span>
-<a id="__codelineno-6-25" name="__codelineno-6-25" href="#__codelineno-6-25"></a>podman<span class="w"> </span>port<span class="w"> </span>edumatcher
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># 1. Name resolution across the Compose network</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-trader-gui<span class="w"> </span>getent<span class="w"> </span>hosts<span class="w"> </span>edumatcher
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># 2. An actual connection attempt, from where it matters — with a</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="c1">#    known-good port as the control</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-terminal-gui<span class="w"> </span>node<span class="w"> </span>-e<span class="w"> </span><span class="s1">'</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="s1">const net = require("net");</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="s1">for (const p of [5600, 5570]) {</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="s1">  const s = net.connect(p, "edumatcher", () =&gt; { console.log(p, "OPEN"); s.end(); });</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="s1">  s.on("error", e =&gt; console.log(p, "FAIL", e.code));</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="s1">}'</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="c1"># 3. What the processes actually read — the compiled artifact, not the YAML</span>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher<span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="w">  </span><span class="s2">"import json; print(json.load(open('/data/ref_data/engine_config.json'))['market_data_gateway'])"</span>
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>
+<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a><span class="c1"># 4. Did the entrypoint rewrite the binds?</span>
+<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a>podman<span class="w"> </span>logs<span class="w"> </span>edumatcher<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-i<span class="w"> </span><span class="s1">'rewriting loopback'</span>
+<a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a>
+<a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a><span class="c1"># 5. What the bridges think of their own uplinks</span>
+<a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a>curl<span class="w"> </span>-s<span class="w"> </span>localhost:8090/api/bridge/status<span class="w">   </span><span class="c1"># calf, logging</span>
+<a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a>curl<span class="w"> </span>-s<span class="w"> </span>localhost:8091/api/bridge/status<span class="w">   </span><span class="c1"># lalfPs, logDb</span>
+<a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a>
+<a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a><span class="c1"># 6. Which ports are actually published</span>
+<a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a>podman<span class="w"> </span>port<span class="w"> </span>edumatcher
 </code></pre></div>
 <p>Step 3 is the one that settles arguments. The deployed YAML in <code>ref_data/</code> is
 the <em>source</em> copy; the compiled JSON beside it is what every process reads,
