@@ -84,7 +84,7 @@ Because the script is read from a pipe, options need `bash -s --` so that the
 shell hands them to the script rather than consuming them itself:
 
 ```bash
-curl -fsSL .../install.sh | bash -s -- --config ten-nominal --version 0.26.0
+curl -fsSL .../install.sh | bash -s -- --config ten-nominal --version 0.26.1
 ```
 
 Two environment variables are also honoured: `REPO_OWNER` (which GitHub
@@ -426,7 +426,7 @@ deployed configuration and `pm-opctl-cli` ready to start the stack.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | \
-    bash -s -- --version 0.26.0 --snapshot
+    bash -s -- --version 0.26.1 --snapshot
 
 multipass shell ems
 cd /home/ubuntu/session
@@ -449,7 +449,7 @@ To read the script before running it:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh -o curl_setup_vm.sh
 less curl_setup_vm.sh
-bash curl_setup_vm.sh --version 0.26.0 --snapshot
+bash curl_setup_vm.sh --version 0.26.1 --snapshot
 ```
 
 

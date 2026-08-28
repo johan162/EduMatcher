@@ -1,3 +1,18 @@
+## [v0.26.1] - 2026-08-28
+
+Release Type: patch
+
+### 📋 Summary
+This patch release fixes the container image publishing workflow and clarifies
+the one-time GitHub Container Registry permissions needed for releases.
+
+### 🐛 Bug Fixes
+- Fixed backend image publishing on Ubuntu 24.04 by selecting the Python version required by the project
+
+### 📚 Documentation
+- Added guidance for granting repository write access to pre-existing GHCR packages
+
+
 ## [v0.26.0] - 2026-08-28
 
 Release Type: major
