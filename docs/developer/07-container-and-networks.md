@@ -411,6 +411,18 @@ native runner and pushes **by digest only**; a merge job then joins the two
 digests into a manifest list and applies the tags. arm64 hosted runners are
 generally available and free for public repositories.
 
+**The merge job selects digests by exact image prefix.** Each build job uploads
+its digest as an artifact named `digests-<image>-<arch>`, and the merge job
+collects them with a glob. `edumatcher` is a prefix of all four
+`edumatcher-*-gui` names, so that glob over-matches: the backend's merge job
+receives every image's digests. It therefore filters the downloaded files —
+each is named `<image>@<hex>` — by exact prefix, and asserts it ended up with
+exactly two. Without the filter the backend asks the registry for a GUI's
+digest under `ghcr.io/…/edumatcher` and gets `not found`; without the count
+check, a missing architecture would publish a single-architecture image under
+the release tag, which nobody notices because the maintainer's own machine
+still works.
+
 **The backend's wheel is built inside the workflow**, not taken from PyPI.
 `publish-to-pypi.yml` fires on the same `release: published` event, so whether
 the new version has reached PyPI yet is a race — and losing it means shipping
@@ -450,6 +462,7 @@ tag, and `latest` never moving unless asked.
 | Failure | Who sees it | What catches it |
 |---|---|---|
 | Image built from PyPI instead of the checkout | Nobody — it looks like a normal build | The `Installing local wheel:` line in the build output |
+| A tag published with only one architecture | Only users on the other architecture | The merge job's two-digest assertion |
 | GHCR packages left private | Everyone except the maintainer, who is already authenticated | Installing from a machine with no credentials |
 | A package that predates the workflow | Only that one image, and only in CI | `permission_denied: read_package` on push |
 
@@ -502,7 +515,10 @@ Every place that has to change, in order:
    `build:` section
 4. `deployment/docker/Makefile` — add the image to `GUI_IMAGES`
 5. `.github/workflows/publish-images.yml` — add it to **both** matrices, the
-   `build` job's `image:` list and the `merge` job's
+   `build` job's `image:` list and the `merge` job's. If the new name is a
+   prefix of another image's name, or another's is a prefix of it, the digest
+   filter in the merge job already handles it — but check that the count
+   assertion still expects one digest per architecture
 6. `deployment/docker/.env.example` and `deployment/curl/.env.example` — its
    host port
 7. `deployment/curl/edumatcher.sh` — the `urls` output

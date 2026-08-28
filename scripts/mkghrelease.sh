@@ -719,12 +719,18 @@ elif [[ "$DRY_RUN" == "true" ]]; then
 else
     print_sub_step "Waiting for $IMAGE_WORKFLOW (up to ${IMAGE_WAIT_MINUTES} min)..."
 
-    # The run is created asynchronously by the release event; give it a moment
-    # to appear before asking for its id.
+    # The run is created asynchronously by the release event, so it is not
+    # there the instant the release is. Match on the tag rather than taking
+    # the newest run: for a few seconds after 'gh release create' the newest
+    # release-triggered run is still the PREVIOUS release's, and reporting
+    # that one's id sends you to read the wrong log — which is exactly what
+    # happened on v0.26.1.
     RUN_ID=""
     for _ in $(seq 1 30); do
         RUN_ID=$(gh run list --workflow "$IMAGE_WORKFLOW" --event release \
-                    --limit 1 --json databaseId --jq '.[0].databaseId' 2>/dev/null || true)
+                    --limit 20 --json databaseId,headBranch \
+                    --jq "[.[] | select(.headBranch == \"$LATEST_TAG\")] | .[0].databaseId" \
+                    2>/dev/null || true)
         [[ -n "$RUN_ID" && "$RUN_ID" != "null" ]] && break
         sleep 5
     done
@@ -734,7 +740,8 @@ else
         print_warning "The release exists, but the container images may be missing."
         print_info "Check: https://github.com/${GITHUB_USER}/${PROGRAMNAME}/actions"
     else
-        print_info "Watching run $RUN_ID"
+        print_info "Watching run $RUN_ID for $LATEST_TAG"
+        print_info "  https://github.com/${GITHUB_USER}/${PROGRAMNAME}/actions/runs/$RUN_ID"
 
         # Polled rather than backgrounding 'gh run watch': a finished
         # background job stays a zombie until reaped, so 'kill -0' keeps
