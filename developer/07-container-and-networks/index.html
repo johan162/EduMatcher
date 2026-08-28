@@ -4439,7 +4439,7 @@ same extraction snippet — that logic lives in <code>edumatcher.sh</code> rathe
 continues and warns. The live CALF feed needs no key; only history does.</p>
 <h2 id="part-5-the-release-process">Part 5 — The release process<a class="headerlink" href="#part-5-the-release-process" title="Permanent link">&para;</a></h2>
 <p>One git tag produces a wheel and five multi-architecture images, all carrying
-the same version. That coupling is what lets <code>install.sh --version 0.26.1</code>
+the same version. That coupling is what lets <code>install.sh --version 0.26.2</code>
 pin an entire system with one number.</p>
 <pre class="mermaid"><code>flowchart TD
     MK["scripts/mkrelease.sh\nbump, build docs, commit, tag"]
@@ -4467,6 +4467,17 @@ turns a release into hours. Instead each <code>(image, arch)</code> pair builds 
 native runner and pushes <strong>by digest only</strong>; a merge job then joins the two
 digests into a manifest list and applies the tags. arm64 hosted runners are
 generally available and free for public repositories.</p>
+<p><strong>The merge job selects digests by exact image prefix.</strong> Each build job uploads
+its digest as an artifact named <code>digests-&lt;image&gt;-&lt;arch&gt;</code>, and the merge job
+collects them with a glob. <code>edumatcher</code> is a prefix of all four
+<code>edumatcher-*-gui</code> names, so that glob over-matches: the backend's merge job
+receives every image's digests. It therefore filters the downloaded files —
+each is named <code>&lt;image&gt;@&lt;hex&gt;</code> — by exact prefix, and asserts it ended up with
+exactly two. Without the filter the backend asks the registry for a GUI's
+digest under <code>ghcr.io/…/edumatcher</code> and gets <code>not found</code>; without the count
+check, a missing architecture would publish a single-architecture image under
+the release tag, which nobody notices because the maintainer's own machine
+still works.</p>
 <p><strong>The backend's wheel is built inside the workflow</strong>, not taken from PyPI.
 <code>publish-to-pypi.yml</code> fires on the same <code>release: published</code> event, so whether
 the new version has reached PyPI yet is a race — and losing it means shipping
@@ -4507,6 +4518,11 @@ tag, and <code>latest</code> never moving unless asked.</p>
 <td>Image built from PyPI instead of the checkout</td>
 <td>Nobody — it looks like a normal build</td>
 <td>The <code>Installing local wheel:</code> line in the build output</td>
+</tr>
+<tr>
+<td>A tag published with only one architecture</td>
+<td>Only users on the other architecture</td>
+<td>The merge job's two-digest assertion</td>
 </tr>
 <tr>
 <td>GHCR packages left private</td>
@@ -4558,7 +4574,10 @@ section.</p>
    <code>build:</code> section</li>
 <li><code>deployment/docker/Makefile</code> — add the image to <code>GUI_IMAGES</code></li>
 <li><code>.github/workflows/publish-images.yml</code> — add it to <strong>both</strong> matrices, the
-   <code>build</code> job's <code>image:</code> list and the <code>merge</code> job's</li>
+   <code>build</code> job's <code>image:</code> list and the <code>merge</code> job's. If the new name is a
+   prefix of another image's name, or another's is a prefix of it, the digest
+   filter in the merge job already handles it — but check that the count
+   assertion still expects one digest per architecture</li>
 <li><code>deployment/docker/.env.example</code> and <code>deployment/curl/.env.example</code> — its
    host port</li>
 <li><code>deployment/curl/edumatcher.sh</code> — the <code>urls</code> output</li>
