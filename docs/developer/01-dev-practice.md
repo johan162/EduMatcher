@@ -190,6 +190,11 @@ It is worth keeping a **small live system** available during development. Even
 when unit tests pass, a real end-to-end run catches startup, wiring, and event
 flow mistakes early.
 
+This section covers a minimal system on the host. If you are working on one of
+the web applications instead, the fastest loop is the exchange in containers
+with the app running locally against it — see
+[The Development Loop](08-dev-workflow.md).
+
 ### Minimal reference data
 
 EduMatcher uses `engine_config.yaml` for reference data. A one-symbol minimal
