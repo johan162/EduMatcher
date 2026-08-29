@@ -128,6 +128,7 @@ def resolve_gateway_bind_host(configured: str | None = None) -> str:
         return EDUMATCHER_GATEWAY_BIND_HOST
     return configured if configured else DEFAULT_GATEWAY_BIND_HOST
 
+
 # ---------------------------------------------------------------------------
 # Data directory resolution
 # ---------------------------------------------------------------------------
