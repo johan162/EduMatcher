@@ -28,6 +28,16 @@ services:
       # config <file> copies the file into ./config and sets this for you.
       EM_CONFIG_FILE: ${EM_CONFIG_FILE:-}
       EM_PROFILE: ${EM_PROFILE:-default}
+      # Bind host for every service-layer listener (the protocol gateways,
+      # pm-log-srv and pm-api-gwy). The processes already default to 0.0.0.0;
+      # this is set explicitly so that a configuration written for a laptop —
+      # one that pins bind_address to 127.0.0.1 — still comes up reachable
+      # from the sibling GUI containers. Inside a container the namespace is
+      # the isolation boundary and BIND_ADDR above decides host exposure.
+      # Because this wins over engine_config.yaml, set it here if you need a
+      # specific interface. It does not affect the engine/index core plane;
+      # that is EDUMATCHER_ENGINE_BIND_HOST / _INDEX_BIND_HOST, via ZMQ=1.
+      EDUMATCHER_GATEWAY_BIND_HOST: ${EDUMATCHER_GATEWAY_BIND_HOST:-0.0.0.0}
       TZ: ${TZ:-UTC}
     volumes:
       # Every trade, log and database the exchange produces. Survives

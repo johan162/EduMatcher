@@ -111,15 +111,22 @@ cd ~/.edumatcher
 ### Running `pm-*` commands for the rest of the training
 
 Every `pm-*` command is inside the exchange container, already on the PATH.
-Open a shell there:
+The control script puts you there:
 
 ```bash
-podman exec -it edumatcher bash     # or: docker exec -it edumatcher bash
+cd ~/.edumatcher
+./edumatcher.sh shell
 ```
 
 Inside that shell, `pm-engine`, `pm-alf-console`, `pm-config-deploy` and the
 rest work exactly as the training chapters describe, and
 `EDUMATCHER_DATA_DIR` is already set to `/data`.
+
+To run a single command without staying inside, pass it along:
+
+```bash
+./edumatcher.sh shell pm-opctl-cli list
+```
 
 One difference matters. The container **starts the processes for you** — the
 `default` profile is already running, which is why the terminal showed a live
@@ -132,16 +139,16 @@ pm-opctl-cli stop           # stop the profile; the container stays up
 pm-engine --verbose         # now follow the chapters
 ```
 
-For the exercises that need several terminals, open a shell per terminal with
-the same `podman exec -it edumatcher bash`.
+For the exercises that need several terminals, run `./edumatcher.sh shell` once
+in each of them.
 
 !!! note "Getting back to a running market"
     `pm-opctl-cli start` restarts the whole profile whenever you want the
     web applications populated again.
 
 :material-checkbox-blank-outline: **Checkpoint:** <http://localhost:8090> shows
-order books, and `podman exec -it edumatcher pm-engine --version` prints a
-version number.
+order books, and `./edumatcher.sh shell pm-engine --version` prints a version
+number.
 
 
 ## Exercise 1B: pipx — commands on your own machine
@@ -212,7 +219,7 @@ verify it, then bootstrap:
 ```bash
 multipass version
 
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | bash -s -- --version 0.26.3
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | bash -s -- --version 0.27.0
 ```
 
 This launches a VM (default name `ems`), installs the runtime inside it, runs
@@ -327,7 +334,7 @@ Look at what your install deployed:
 **If you installed with containers:**
 
 ```bash
-podman exec -it edumatcher pm-config-show
+./edumatcher.sh shell pm-config-show
 cat ~/.edumatcher/data/ref_data/engine_config.yaml
 ```
 
@@ -398,7 +405,9 @@ so updating does not discard your edits.
 | `EM_CONFIG_FILE` | *(empty)* | Set when you run a configuration of your own; non-empty wins over `EM_CONFIG` |
 | `EM_PROFILE` | `default` | Which processes start: `default`, `mini` or `micro` |
 | `TZ` | `UTC` | Container timezone — match the trading calendar in your configuration |
-| `BIND_ADDR` | `127.0.0.1` | Which host interface the ports listen on |
+| `BIND_ADDR` | `127.0.0.1` | Which host interface the published ports listen on — **the setting that decides whether the exchange is on your network** |
+| `EM_ZMQ` | `0` | `1` also publishes the raw ZeroMQ bus, and tells the engine and `pm-index` to bind the container interface so host tools can attach |
+| `EDUMATCHER_GATEWAY_BIND_HOST` | `0.0.0.0` | Bind host for the gateways *inside* the container. This is what makes them reachable from the GUI containers; it is not a host-exposure setting |
 | `TERMINAL_GUI_PORT` | `8090` | Host port for the trading terminal |
 | `LOG_GUI_PORT` | `8091` | Host port for the log viewer |
 | `CONFIG_GUI_PORT` | `8092` | Host port for the configuration builder |
@@ -415,6 +424,16 @@ pulls images after changing `EM_VERSION`.
     the protocol gateways have no password. The default keeps everything on
     this machine.
 
+!!! note "Two different `0.0.0.0`s"
+    `0.0.0.0` appears twice above and means two different things. On
+    `BIND_ADDR` it is a real exposure decision: it opens the published ports to
+    your LAN. On `EDUMATCHER_GATEWAY_BIND_HOST` it is not — that address lives
+    inside the container's private network, where the only route in is a port
+    `BIND_ADDR` published. Widening it lets the GUI containers reach the
+    exchange and nothing else. [The installation
+    chapter](../user-guide/005-installation.md#what-0000-does-and-does-not-expose)
+    works through all three places an address appears.
+
 :material-checkbox-blank-outline: **Checkpoint:** you have switched to a
 different bundled configuration and seen the symbols change.
 
@@ -422,7 +441,7 @@ different bundled configuration and seen the symbols change.
 ## Exercise 5: Confirm your entry points
 
 Verify the commands the coming chapters use. Prefix each with
-`podman exec -it edumatcher` on the container route, or run them directly
+`./edumatcher.sh shell` on the container route, or run them directly
 otherwise:
 
 ```bash
@@ -467,8 +486,7 @@ chapter assumes without re-explaining:
 - [ ] `pm-engine --version` and `pm-engine --help` both resolve **in the shell
       you will use for the next chapter** — for pipx that means
       `EDUMATCHER_DATA_DIR` is in your shell profile, not just this terminal;
-      for containers it means a shell opened with
-      `podman exec -it edumatcher bash`.
+      for containers it means a shell opened with `./edumatcher.sh shell`.
 - [ ] On the container route only: `pm-opctl-cli stop`, so the next chapter can
       start the processes itself.
 

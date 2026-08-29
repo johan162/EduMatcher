@@ -98,7 +98,7 @@ flowchart TD
 
 | Layer | File | Owns | Use it when |
 |---|---|---|---|
-| **System** | `deployment/docker/Makefile` | The backend image, and Compose across all five services. Data directory, profiles, configuration deployment, publishing | You want a working exchange with GUIs |
+| **System** | `deployment/docker/Makefile` | The backend image, the web-app images (`build-guis`), and Compose across all five services. Data directory, profiles, configuration deployment, publishing | You want a working exchange with GUIs |
 | **Group** | `web-apps/Makefile` | Fanning out to three GUI Makefiles with a shared `VM_BACKEND_IP` | You run the GUIs against a backend that is *not* in the same Compose project — a Multipass VM, or a host install |
 | **App** | `web-apps/<gui>/Makefile` | One application: npm workspace, its own image, its own compose file | You are developing that one GUI |
 
@@ -119,6 +119,12 @@ Each GUI Makefile has the same shape (`make help` in any of them):
 | Container | `cbuild`, `up`, `down`, `restart`, `logs`, `ps` |
 | Distribution | `cdist` — an image exported as an `xz`-compressed tarball for offline delivery |
 | Registry | `ghcr-login`, `cpush`, `ghcr-logout` |
+
+The development servers are the interesting ones: `make dev` runs each app's
+Vite server and its bridge with hot reload, against the exchange running in
+containers. That inner loop — and the fact that `make up-all` will *not* pick
+up a web-app change on its own — is
+[The Development Loop](08-dev-workflow.md).
 
 !!! warning "Two different GHCR paths exist, and they tag differently"
     A GUI's own `make cpush` tags with **that app's `package.json` version**
@@ -184,8 +190,8 @@ flowchart TB
         G["terminal-gui, log-gui,\nconfig-gui, trader-gui"]
     end
     subgraph L4["4. Inside the backend namespace"]
-        GW["Gateways — bind_address in engine_config.yaml"]
-        BUS["Engine bus 5555-5557, index 5558-5559\nEDUMATCHER_ENGINE_BIND_HOST / _INDEX_"]
+        GW["Service layer — gateways, pm-log-srv, pm-api-gwy\ndefault 0.0.0.0 · EDUMATCHER_GATEWAY_BIND_HOST"]
+        BUS["Core plane — engine 5555-5557, index 5558-5559\ndefault 127.0.0.1 · EDUMATCHER_ENGINE_BIND_HOST / _INDEX_"]
     end
 
     BR --> P
@@ -195,12 +201,12 @@ flowchart TB
     GW <--> BUS
 ```
 
-| Layer | Controlled by | Set where | `0.0.0.0` here means |
-|---|---|---|---|
-| Published ports | `BIND_ADDR` | `.env` | **Anyone on your LAN can reach the exchange** |
-| Compose network | Compose project membership | which `-f` overlays you pass | — |
-| Gateway listeners | `bind_address:` / `host:` | `engine_config.yaml` | Any container on the Compose network |
-| Engine + index bus | `EDUMATCHER_ENGINE_BIND_HOST`, `EDUMATCHER_INDEX_BIND_HOST` | `compose.zmq.yaml`, via `ZMQ=1` | Same, plus publishable to the host |
+| Layer | Controlled by | Set where | Default | `0.0.0.0` here means |
+|---|---|---|---|---|
+| Published ports | `BIND_ADDR` | `.env` | `127.0.0.1` | **Anyone on your LAN can reach the exchange** |
+| Compose network | Compose project membership | which `-f` overlays you pass | — | — |
+| Service layer | `EDUMATCHER_GATEWAY_BIND_HOST`, then `bind_address:` / `host:` | `compose.yaml`; `engine_config.yaml` | `0.0.0.0` | Any container on the Compose network, and anything reaching a published port |
+| Core plane | `EDUMATCHER_ENGINE_BIND_HOST`, `EDUMATCHER_INDEX_BIND_HOST` | `compose.zmq.yaml`, via `ZMQ=1` | `127.0.0.1` | Same, plus publishable to the host |
 
 Only the first is a security boundary. The rest are inside a namespace that
 already isolates the container; widening them exposes nothing that a published
@@ -225,26 +231,96 @@ Desktop, Linux Docker and Podman. `web-apps/Makefile` still carries
 `VM_BACKEND_IP` because it serves the other case: GUIs in one project talking
 to a backend that is somewhere else entirely.
 
-### The loopback rewrite
+### The two planes and their defaults
 
-The bundled example configurations set `bind_address: 127.0.0.1` on the
-market-data and post-trade gateways. On a host install that is a real
-protection — the protocol gateways have no authentication. Inside a container
-it protects nothing and makes the gateway unreachable from a sibling
-container, which is exactly what leaves the trading terminal showing
-`calf: RECONNECTING`.
+Every listening socket the backend opens belongs to one of two planes, and the
+asymmetry between them is deliberate rather than historical.
 
-`entrypoint.sh:open_gateway_binds()` therefore rewrites `bind_address:` and
-`host:` values of `127.0.0.1` to `0.0.0.0` in the deployed YAML and re-runs
-`pm-config-deploy` to recompile and re-validate. It is guarded by a `grep`, so
-it is a no-op on restart, and it touches only those two keys — the only bind
-keys in the schema; nothing in `engine_config.yaml` uses either to mean
-"connect to".
+| | Core plane | Service layer |
+|---|---|---|
+| Processes | `pm-engine`, `pm-index` | `pm-alf-gwy`, `pm-md-gwy`, `pm-balf-gwy`, `pm-ralf-gwy`, `pm-dc-gwy`, `pm-log-srv`, `pm-api-gwy` |
+| Ports | 5555–5559 | 5560, 5570, 5580, 5590, 5600, 5601/5602, 8080/8081 |
+| Who dials in | Other `pm-*` processes only | GUI containers, student clients, `curl`, Swagger |
+| Default bind host | `127.0.0.1` | `0.0.0.0` |
+| Constant | `EDUMATCHER_ENGINE_BIND_HOST`, `EDUMATCHER_INDEX_BIND_HOST` | `EDUMATCHER_GATEWAY_BIND_HOST` |
+| Opened by | `ZMQ=1` / `EM_ZMQ=1` | already open |
 
-The alternative — editing the twelve bundled examples — was rejected because it
-would also loosen every bare-metal `pm-setup`, and because the rewrite already
-covers any future example that sets loopback.
+The core plane is an internal bus. Every peer shares the backend's namespace,
+so loopback is both sufficient and the safer default; `ZMQ=1` widens it when
+you want `pm-calf-spy` or `pm-index-cli` attaching from the host. The service
+layer is the product's public surface — a listener nobody outside the
+namespace can reach is a listener that does not do its job — so it defaults
+open, and the namespace plus `BIND_ADDR` provide the isolation.
 
+### How a service listener resolves its bind host
+
+All seven service processes share one resolver in `edumatcher/config.py`:
+
+```python
+EDUMATCHER_GATEWAY_BIND_HOST = os.getenv("EDUMATCHER_GATEWAY_BIND_HOST") or None
+DEFAULT_GATEWAY_BIND_HOST = "0.0.0.0"
+
+def resolve_gateway_bind_host(configured: str | None = None) -> str:
+    if EDUMATCHER_GATEWAY_BIND_HOST:
+        return EDUMATCHER_GATEWAY_BIND_HOST
+    return configured if configured else DEFAULT_GATEWAY_BIND_HOST
+```
+
+It is wired in at two points in each service's `config.py`, and both are
+needed:
+
+```python
+# 1. The dataclass default — used when no configuration file supplies the key
+bind_address: str = field(default_factory=resolve_gateway_bind_host)
+
+# 2. The loader — used when one does
+bind_address = resolve_gateway_bind_host(section.get("bind_address"))
+```
+
+`field(default_factory=...)` rather than a plain default because the
+environment must be read when the object is constructed, not when the module
+is imported into the test suite. `pm-api-gwy` spells the key `host:` instead
+of `bind_address:`; everything else about it is identical.
+
+Precedence, first match wins:
+
+```text
+--host flag  →  EDUMATCHER_GATEWAY_BIND_HOST  →  bind_address:/host: in YAML  →  0.0.0.0
+```
+
+The environment variable sits **above** the configuration file, which is the
+opposite of the usual ordering in this project and is the point: it is a
+deployment-wide switch that closes or redirects every service listener at once
+without editing a configuration that may belong to someone else. Both
+`compose.yaml` files set it to `0.0.0.0` explicitly — redundant against the
+code default, but it means a user-supplied configuration that pins loopback
+still comes up reachable from the GUI containers. It is written as
+`${EDUMATCHER_GATEWAY_BIND_HOST:-0.0.0.0}`, so an operator can still pin one
+interface from `.env`.
+
+`src/edumatcher/config_show/extract.py` calls the same resolver, so
+`pm-config-show` and `make config-show` report the host each process will
+actually bind rather than the literal in the YAML.
+
+### Why the entrypoint no longer rewrites anything
+
+Until v0.26 the bundled examples set `bind_address: 127.0.0.1` and
+`entrypoint.sh:open_gateway_binds()` rewrote loopback binds to `0.0.0.0` in the
+deployed YAML, then re-ran `pm-config-deploy`. It worked, but it had three
+costs: the deployed configuration was not the one the user wrote, the rewrite
+was invisible unless you read the container log, and `pm-config-show` described
+the file rather than the behaviour.
+
+The defaults now carry that responsibility. The twelve bundled examples say
+`0.0.0.0`, `open_gateway_binds()` and `LOOPBACK_BIND_RE` are gone from
+`entrypoint.sh`, and the deployed configuration is byte-for-byte the one
+supplied.
+
+!!! warning "This is a behaviour change for bare-metal installs"
+    A `pipx` or Poetry install has no namespace around it, so service
+    listeners that used to default to loopback are now on every interface.
+    `EDUMATCHER_GATEWAY_BIND_HOST=127.0.0.1` restores the old behaviour for a
+    whole install in one variable. See `CHANGELOG.md`.
 
 ## Part 3 — Build time versus run time
 
@@ -362,7 +438,6 @@ sequenceDiagram
 
     M->>B: compose up -d edumatcher
     B->>B: pm-setup / pm-config-deploy
-    B->>B: open_gateway_binds() rewrites loopback binds
     B->>B: pm-opctl-cli start <profile>
     M->>B: poll for /data/ref_data/engine_config.json
     M->>B: exec python3 — read the gateway_id:null credential
@@ -381,7 +456,7 @@ continues and warns. The live CALF feed needs no key; only history does.
 ## Part 5 — The release process
 
 One git tag produces a wheel and five multi-architecture images, all carrying
-the same version. That coupling is what lets `install.sh --version 0.26.3`
+the same version. That coupling is what lets `install.sh --version 0.27.0`
 pin an entire system with one number.
 
 ```mermaid
@@ -590,7 +665,9 @@ A schema change there breaks three call sites that no test covers.
 delivers a published connection to *loopback inside the container's
 namespace*. A gateway bound to `127.0.0.1` therefore answers host traffic
 perfectly while refusing every sibling container. Host reachability tells you
-nothing about container-to-container reachability.
+nothing about container-to-container reachability. The defaults no longer
+produce this, but `EDUMATCHER_GATEWAY_BIND_HOST`, a `--host` flag or a
+`bind_address:` in a supplied configuration still can.
 
 **"`make status` is green."** `pm-opctl-cli list` reports
 `tcp connect to 127.0.0.1:5570 ok`, but that probe also runs inside the
@@ -605,7 +682,7 @@ flowchart TD
     A -->|no| A1["Different Compose projects.\nCheck you passed the same -f set;\nCOMPOSE_PROJECT_NAME must match"]
     A -->|yes| B{"Does the port accept\na connection?"}
     B -->|"ECONNREFUSED"| B1{"What does the compiled\nconfig say it binds?"}
-    B1 -->|"127.0.0.1"| B2["The loopback rewrite did not run.\nCheck podman logs edumatcher\nfor 'rewriting loopback gateway binds'"]
+    B1 -->|"127.0.0.1"| B2["Something narrowed the bind.\nCheck EDUMATCHER_GATEWAY_BIND_HOST\nin the container env, then bind_address:\nin the supplied configuration"]
     B1 -->|"0.0.0.0"| B3["The process is not running.\nmake status, then the process log\nunder data/emo/"]
     B -->|"timeout"| B4["Firewall or a wrong host —\na refused port answers immediately"]
     B -->|"connects"| C{"Does the application\nstill report an error?"}
@@ -632,8 +709,9 @@ for (const p of [5600, 5570]) {
 podman exec edumatcher python3 -c \
   "import json; print(json.load(open('/data/ref_data/engine_config.json'))['market_data_gateway'])"
 
-# 4. Did the entrypoint rewrite the binds?
-podman logs edumatcher | grep -i 'rewriting loopback'
+# 4. What bind host the processes were actually told to use
+podman exec edumatcher env | grep -E 'EDUMATCHER_(GATEWAY|ENGINE|INDEX)_BIND_HOST'
+podman exec edumatcher pm-config-show --section ports
 
 # 5. What the bridges think of their own uplinks
 curl -s localhost:8090/api/bridge/status   # calf, logging

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +11,7 @@ import yaml
 from edumatcher.config import (
     ENGINE_PUB_ADDR,
     INDEX_PUB_CONNECT_ADDR,
+    resolve_gateway_bind_host,
 )
 
 
@@ -20,7 +21,7 @@ class MarketDataGatewayConfig:
 
     enabled: bool = True
     name: str = "md-gwy01"
-    bind_address: str = "0.0.0.0"
+    bind_address: str = field(default_factory=resolve_gateway_bind_host)
     port: int = 5570
     engine_pub_addr: str = ENGINE_PUB_ADDR
     index_pub_addr: str = INDEX_PUB_CONNECT_ADDR
@@ -62,7 +63,7 @@ def _load_market_data_gateway_config_from_raw(
 
     enabled = bool(md_raw.get("enabled", True))
     name = str(md_raw.get("name", "md-gwy01"))
-    bind_address = str(md_raw.get("bind_address", "0.0.0.0"))
+    bind_address = resolve_gateway_bind_host(md_raw.get("bind_address"))
     port = _as_int(md_raw.get("port", 5570), "port")
     heartbeat_interval_sec = _as_int(
         md_raw.get("heartbeat_interval_sec", 1),

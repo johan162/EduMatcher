@@ -159,7 +159,7 @@ Expected generated section:
 ```yaml
 post_trade_gateway:
   name: ralf-gwy01
-  bind_address: 127.0.0.1
+  bind_address: 0.0.0.0
   port: 5580
   replay_retention_sec: 3600
   heartbeat_interval_sec: 1

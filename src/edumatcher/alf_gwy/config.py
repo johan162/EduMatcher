@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -10,8 +10,9 @@ import yaml
 
 from edumatcher.config import (
     DROP_COPY_PUB_ADDR,
-    ENGINE_PULL_ADDR,
     ENGINE_PUB_ADDR,
+    ENGINE_PULL_ADDR,
+    resolve_gateway_bind_host,
 )
 
 
@@ -21,7 +22,7 @@ class AlfGatewayConfig:
 
     enabled: bool = True
     name: str = "alf-gwy01"
-    bind_address: str = "0.0.0.0"
+    bind_address: str = field(default_factory=resolve_gateway_bind_host)
     port: int = 5565
     engine_pull_addr: str = ENGINE_PULL_ADDR
     engine_pub_addr: str = ENGINE_PUB_ADDR
@@ -90,7 +91,7 @@ def _load_alf_gateway_config_from_raw(raw: dict[str, Any]) -> AlfGatewayConfig:
 
     enabled = bool(section.get("enabled", True))
     name = str(section.get("name", "alf-gwy01"))
-    bind_address = str(section.get("bind_address", "0.0.0.0"))
+    bind_address = resolve_gateway_bind_host(section.get("bind_address"))
     port = _as_int(section.get("port", 5565), "port")
     heartbeat_interval_sec = _as_int(
         section.get("heartbeat_interval_sec", 5), "heartbeat_interval_sec"

@@ -1,3 +1,59 @@
+## [v0.27.0] - 2026-08-29
+
+Release Type: major
+
+### 📋 Summary
+This release makes the network model uniform. Every service-layer listener —
+the four protocol gateways, `pm-log-srv` and `pm-api-gwy` — now binds `0.0.0.0`
+by default and is controlled by one variable, replacing the mix of
+loopback-bound example configurations and a container entrypoint that rewrote
+them. `pm-engine` and `pm-index` keep their loopback default, so the two planes
+are now separated by intent rather than by accident. Bare-metal installs that
+relied on the old defaults should read the behaviour note below. The release
+also adds the missing development targets for rebuilding a web-app image and
+for running a web application on the host against a containerised exchange.
+
+### ⚠️ Behaviour Changes
+- Service-layer listeners now bind `0.0.0.0` by default. The four protocol
+gateways, `pm-log-srv` and `pm-api-gwy` previously took `127.0.0.1` from the
+bundled example configurations. **On a bare-metal (pipx/Poetry) install these
+sockets are now reachable from your network**; set
+`EDUMATCHER_GATEWAY_BIND_HOST=127.0.0.1` to restore the previous behaviour for
+a whole install. Container installs are unaffected — the namespace, and
+`BIND_ADDR`, still decide host exposure.
+- `pm-engine` and `pm-index` are unchanged and still default to `127.0.0.1`
+(`EDUMATCHER_ENGINE_BIND_HOST` / `EDUMATCHER_INDEX_BIND_HOST`, opened by
+`ZMQ=1` / `EM_ZMQ=1`).
+
+### ✨ Additions
+- `make build-guis [GUI=<app>]` and `make up-all BUILD=1` in `deployment/docker`
+— until now no target rebuilt a web-app image, so a change in `web-apps/` was
+silently invisible after `make up-all`.
+- `make dev-env GUI=<app>` prints the environment needed to run one web
+application on the host against the running backend container.
+
+### 🚀 Improvements
+- Added `EDUMATCHER_GATEWAY_BIND_HOST`, a single deployment-wide override for
+every service-layer bind host. Precedence is `--host` flag, then this variable,
+then `bind_address:`/`host:` in the engine configuration, then `0.0.0.0`.
+- The twelve bundled example configurations now specify `0.0.0.0`, and the
+container entrypoint no longer rewrites loopback binds — the deployed
+configuration is byte-for-byte the one supplied.
+- `pm-config-show` reports the bind host each process will actually use rather
+than the literal in the YAML.
+
+### 📚 Documentation
+- Rewrote the networking sections of the installation guide and the container
+and networks developer chapter around the two-plane model.
+- Added `docs/developer/08-dev-workflow.md` — the development inner loop:
+rebuilding a web-app image, running an application on the host against the
+containerised exchange, and which loop suits which change.
+
+### 🐛 Bug Fixes
+- Fixed `web-apps/trader-gui/Makefile`: `build-debug` was indented with spaces,
+which made the whole Makefile unparseable, and the `install` target was
+misspelled `iinstall`.
+
 ## [v0.26.3] - 2026-08-29
 
 Release Type: patch

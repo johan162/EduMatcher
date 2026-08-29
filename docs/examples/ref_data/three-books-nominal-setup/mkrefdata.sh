@@ -89,7 +89,7 @@ COMMON_ARGS=(
 "${CONFIG_GEN[@]}" "${COMMON_ARGS[@]}" \
   --sessions-enabled \
   --post-trade-gateway \
-  --post-trade-bind-address 127.0.0.1 \
+  --post-trade-bind-address 0.0.0.0 \
   --post-trade-port 5580 \
   --post-trade-replay-retention-sec 3600 \
   --post-trade-heartbeat-interval-sec 1 \
@@ -99,7 +99,7 @@ COMMON_ARGS=(
   --market-data-gateway \
   --market-data-enabled \
   --market-data-name md-gwy01 \
-  --market-data-bind-address 127.0.0.1 \
+  --market-data-bind-address 0.0.0.0 \
   --market-data-port 5570 \
   --market-data-heartbeat-interval-sec 1 \
   --market-data-idle-timeout-sec 5 \

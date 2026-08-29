@@ -2,19 +2,20 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 from edumatcher.config import ENGINE_PUB_ADDR
+from edumatcher.config import resolve_gateway_bind_host
 
 
 @dataclass(frozen=True)
 class RalfGatewayConfig:
     name: str = "ralf-gwy01"
-    bind_address: str = "0.0.0.0"
+    bind_address: str = field(default_factory=resolve_gateway_bind_host)
     port: int = 5580
     engine_pub_addr: str = ENGINE_PUB_ADDR
     replay_retention_sec: int = 86_400
@@ -44,7 +45,7 @@ def _load_ralf_gateway_config_from_raw(raw: dict[str, Any]) -> RalfGatewayConfig
         raise ValueError("post_trade_gateway must be a mapping")
 
     name = str(pg.get("name", "ralf-gwy01"))
-    bind_address = str(pg.get("bind_address", "0.0.0.0"))
+    bind_address = resolve_gateway_bind_host(pg.get("bind_address"))
     port = _as_int(pg.get("port", 5580), "port")
     replay_retention_sec = _as_int(
         pg.get("replay_retention_sec", 86_400), "replay_retention_sec"

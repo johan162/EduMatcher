@@ -2,6 +2,7 @@
 # EduMatcher control script — installed alongside compose.yaml and .env.
 #
 #   ./edumatcher.sh start | stop | restart | status | logs [service]
+#   ./edumatcher.sh shell [command...]
 #   ./edumatcher.sh urls
 #   ./edumatcher.sh mounts
 #   ./edumatcher.sh config <example-name | path/to/engine_config.yaml>
@@ -26,6 +27,9 @@ die()   { echo -e "${RED}✗ $*${NC}" >&2; exit 1; }
 # see assert_no_foreign_stack below.
 CONTAINERS="edumatcher edumatcher-terminal-gui edumatcher-log-gui edumatcher-config-gui edumatcher-trader-gui"
 
+# Read one key out of .env without sourcing the whole file.
+env_value() { [[ -f .env ]] && sed -n "s/^$1=//p" .env | tail -1; }
+
 # --- Container engine ------------------------------------------------------
 # Podman is preferred when both are installed, matching the repository's own
 # tooling. Override with EM_ENGINE=docker.
@@ -44,6 +48,17 @@ detect_engine() {
         if docker compose version >/dev/null 2>&1; then COMPOSE="docker compose"
         elif command -v docker-compose >/dev/null 2>&1; then COMPOSE="docker-compose"
         else die "docker is installed but has no compose support."; fi
+    fi
+
+    # Overlay files are additive -f arguments, the same mechanism the source
+    # checkout uses for ZMQ=1 and SSH=1. Word splitting here is intended.
+    COMPOSE_FILES="-f compose.yaml"
+    if [[ "$(env_value EM_ZMQ)" == "1" ]]; then
+        [[ -f compose.zmq.yaml ]] || die "EM_ZMQ=1 but compose.zmq.yaml is missing.
+  It arrived with a later release — re-run the installer into this directory to
+  fetch it; your .env and data are kept:
+    curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash -s -- --dir $HERE"
+        COMPOSE_FILES="$COMPOSE_FILES -f compose.zmq.yaml"
     fi
 }
 
@@ -102,7 +117,7 @@ cmd_start() {
     # Two phases, deliberately: the read-only API key does not exist until the
     # exchange has deployed its configuration, so the backend has to be up
     # before the GUIs can be given their environment.
-    $COMPOSE up -d edumatcher
+    $COMPOSE $COMPOSE_FILES up -d edumatcher
     printf -- "- waiting for the exchange to deploy its configuration"
     for _ in $(seq 1 60); do
         if $ENGINE exec edumatcher test -f /data/ref_data/engine_config.json >/dev/null 2>&1; then
@@ -123,14 +138,14 @@ cmd_start() {
         warn "The live market-data feed will work; history panels will not."
     fi
 
-    $COMPOSE up -d
+    $COMPOSE $COMPOSE_FILES up -d
     echo
     cmd_urls
 }
 
 cmd_stop() {
     detect_engine
-    $COMPOSE down
+    $COMPOSE $COMPOSE_FILES down
     ok "Stopped. Your data in ./data is untouched."
 }
 
@@ -138,7 +153,7 @@ cmd_restart() { cmd_stop; cmd_start; }
 
 cmd_status() {
     detect_engine
-    $COMPOSE ps
+    $COMPOSE $COMPOSE_FILES ps
     echo
     info "Exchange process table:"
     $ENGINE exec edumatcher pm-opctl-cli list --no-restart 2>/dev/null \
@@ -147,7 +162,39 @@ cmd_status() {
 
 cmd_logs() {
     detect_engine
-    if [[ $# -gt 0 ]]; then $COMPOSE logs -f "$1"; else $COMPOSE logs -f; fi
+    if [[ $# -gt 0 ]]; then $COMPOSE $COMPOSE_FILES logs -f "$1"; else $COMPOSE $COMPOSE_FILES logs -f; fi
+}
+
+# An interactive shell inside the exchange container, or one command run there.
+# Every pm-* command is on the image's PATH and EDUMATCHER_DATA_DIR is already
+# /data, so `pm-opctl-cli`, `pm-config-show`, `pm-alf-console` and the rest work
+# exactly as the guides describe them.
+#
+#   ./edumatcher.sh shell                       an interactive bash
+#   ./edumatcher.sh shell pm-opctl-cli list     one command, then exit
+#   ./edumatcher.sh shell pm-alf-console --id TRADER01
+cmd_shell() {
+    detect_engine
+    local name="${CONTAINER_NAME:-edumatcher}" state
+    $ENGINE container inspect "$name" >/dev/null 2>&1 \
+        || die "No container '$name'. Start the exchange first: ./edumatcher.sh start"
+    state=$($ENGINE inspect "$name" --format '{{.State.Status}}' 2>/dev/null || echo "?")
+    [[ "$state" == "running" ]] \
+        || die "Container '$name' is $state. Start the exchange first: ./edumatcher.sh start"
+
+    # -t only when there is a terminal on both ends, so that
+    # `./edumatcher.sh shell pm-opctl-cli list > file` still works.
+    local tty_flags="-i"
+    [[ -t 0 && -t 1 ]] && tty_flags="-it"
+
+    # The full-screen tools (pm-alf-console, pm-viewer, pm-board) render as
+    # garbage without a usable TERM, and the container inherits none.
+    if [[ $# -gt 0 ]]; then
+        $ENGINE exec $tty_flags -e TERM="${TERM:-xterm-256color}" "$name" "$@"
+    else
+        info "Shell in '$name' — every pm-* command is on the PATH. Ctrl-D to leave."
+        $ENGINE exec $tty_flags -e TERM="${TERM:-xterm-256color}" "$name" bash
+    fi
 }
 
 cmd_urls() {
@@ -247,14 +294,14 @@ cmd_update() {
     local version="${1:-latest}"
     set_env EM_VERSION "$version"
     info "Pulling images for version '$version'..."
-    $COMPOSE pull
+    $COMPOSE $COMPOSE_FILES pull
     ok "Pulled. Restarting..."
     cmd_restart
 }
 
 cmd_uninstall() {
     detect_engine
-    $COMPOSE down --volumes || true
+    $COMPOSE $COMPOSE_FILES down --volumes || true
     if [[ "${1:-}" == "--data" ]]; then
         rm -rf data config
         ok "Containers, volumes and ./data removed."
@@ -269,6 +316,7 @@ case "${1:-}" in
     restart)   shift; cmd_restart "$@" ;;
     status)    shift; cmd_status "$@" ;;
     logs)      shift; cmd_logs "$@" ;;
+    shell)     shift; cmd_shell "$@" ;;
     urls)      shift; cmd_urls "$@" ;;
     mounts)    shift; cmd_mounts "$@" ;;
     config)    shift; cmd_config "$@" ;;

@@ -11,7 +11,7 @@ const DESTINATIONS = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/logs", label: "Logs", icon: Gauge, end: false },
   { to: "/alerts", label: "Alerts", icon: AlertTriangle, end: false },
-  { to: "/processes", label: "Processes", icon: Activity, end: false },
+  { to: "/connections", label: "Connections", icon: Activity, end: false },
   { to: "/diagnostics", label: "Diagnostics", icon: Stethoscope, end: false },
   { to: "/health", label: "Health", icon: HeartPulse, end: false },
 ] as const;

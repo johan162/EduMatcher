@@ -40,26 +40,6 @@ setup_data_dir() {
     printf '%s\n' "${CONFIG}" > "${CONFIG_STAMP}"
 }
 
-# Inside a container the network namespace is the isolation boundary, and the
-# compose BIND_ADDR (127.0.0.1 by default) decides what reaches the host. A
-# gateway bound to 127.0.0.1 is therefore unreachable from a sibling container
-# for no benefit — it is what stops terminal-gui from opening its CALF feed to
-# pm-md-gwy on 5570. Rewrite loopback binds and recompile, so the deployed
-# artifact keeps describing what the processes actually do.
-#
-# 'bind_address' and 'host' are the only two bind keys in the schema; nothing
-# in engine_config.yaml uses either to mean "connect to".
-LOOPBACK_BIND_RE='^([[:space:]]*(bind_address|host):[[:space:]]*)127\.0\.0\.1[[:space:]]*$'
-
-open_gateway_binds() {
-    local source="${DATA_DIR}/ref_data/engine_config.yaml"
-    [ -f "${source}" ] || return 0
-    grep -qE "${LOOPBACK_BIND_RE}" "${source}" || return 0
-    log "rewriting loopback gateway binds to 0.0.0.0 (the container namespace is the boundary)"
-    sed -i -E "s/${LOOPBACK_BIND_RE}/\10.0.0.0/" "${source}"
-    pm-config-deploy "${source}"
-}
-
 start_sshd() {
     # Host keys live in the data directory so they survive `make down`; without
     # that, every recreated container would trip the client's known_hosts.
@@ -90,7 +70,6 @@ shutdown() {
 }
 
 setup_data_dir
-open_gateway_binds
 
 if [ "${EM_SSH:-0}" = "1" ]; then
     start_sshd

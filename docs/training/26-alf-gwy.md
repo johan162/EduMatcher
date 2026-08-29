@@ -73,7 +73,7 @@ Append the `alf_gateway:` section yourself:
 alf_gateway:
   enabled: true
   name: "alf-gwy01"
-  bind_address: "127.0.0.1"
+  bind_address: "0.0.0.0"
   port: 5565
   heartbeat_interval_sec: 5
   handshake_timeout_sec: 10

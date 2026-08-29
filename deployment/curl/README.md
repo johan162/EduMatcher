@@ -63,6 +63,8 @@ Everything lives in `~/.edumatcher` and is driven by one script:
 cd ~/.edumatcher
 ./edumatcher.sh status              # containers, plus the exchange process table
 ./edumatcher.sh logs terminal-gui   # follow one service
+./edumatcher.sh shell               # a shell inside the exchange container
+./edumatcher.sh shell pm-opctl-cli list   # ...or one command in it
 ./edumatcher.sh urls                # the table above, with your ports
 ./edumatcher.sh mounts              # which directory is behind each container path
 ./edumatcher.sh stop                # stop everything; ./data is kept
@@ -72,6 +74,67 @@ cd ~/.edumatcher
 ./edumatcher.sh uninstall           # remove containers and volumes, keep data
 ./edumatcher.sh uninstall --data    # remove everything
 ```
+
+### Running exchange commands
+
+The `pm-*` command line tools live inside the exchange container. `shell` puts
+you there, with every command on the PATH and the data directory already set:
+
+```bash
+./edumatcher.sh shell
+# then, inside:
+pm-opctl-cli list          # what is running
+pm-config-show             # the deployed configuration
+pm-alf-console --id TRADER01
+```
+
+Pass a command to run just that one and come straight back:
+
+```bash
+./edumatcher.sh shell pm-opctl-cli list
+./edumatcher.sh shell pm-log-cli --tail 20
+```
+
+The full-screen tools work too — `TERM` is forwarded, and the exit status of
+whatever you ran is the exit status of `edumatcher.sh`, so it composes in
+scripts.
+
+### Attaching your own tools to the ZeroMQ bus
+
+By default the exchange publishes its gateways and REST API, but not the raw
+ZeroMQ bus. Set `EM_ZMQ=1` in `.env` and restart to publish it too:
+
+```bash
+cd ~/.edumatcher
+sed -i '' 's/^EM_ZMQ=0/EM_ZMQ=1/' .env    # or just edit the file
+./edumatcher.sh restart
+```
+
+| Port | Process | Socket | Carries |
+|---:|---|---|---|
+| 5555 | `pm-engine` | ZMQ PULL | Order intake |
+| 5556 | `pm-engine` | ZMQ PUB | Event and book feed |
+| 5557 | `pm-engine` | ZMQ PUB | Drop-copy feed |
+| 5558 | `pm-index` | ZMQ PUB | Index values |
+| 5559 | `pm-index` | ZMQ PULL | Index commands |
+| 5601 | `pm-log-srv` | ZMQ PUB | LALF-PS broadcast |
+| 5602 | `pm-log-srv` | ZMQ PULL | LALF-PS control |
+
+Tools installed on your machine can then attach directly:
+
+```bash
+pm-dc-spy --host 127.0.0.1 --port 5557
+```
+
+This does more than open ports: the engine and `pm-index` bind loopback
+*inside* the container by default, so the overlay also tells them to bind the
+container's interface. Publishing alone would not be enough.
+
+!!! warning
+    These sockets have no authentication of any kind — anything that can reach
+    5555 can inject orders as though it were a gateway. `BIND_ADDR` decides how
+    far that reaches; leave it at `127.0.0.1` unless you mean otherwise. Turn
+    the bus back off with `EM_ZMQ=0` and a restart.
 
 ### When a GUI shows something unexpected
 
@@ -138,6 +201,13 @@ and are not involved in GUI-to-backend traffic.
 machine only. **The protocol gateways have no authentication**, so anyone who
 can open the socket can trade; think before setting it to `0.0.0.0` on a
 network you do not control.
+
+Inside the container the gateways themselves bind `0.0.0.0` — that is what
+makes them reachable from the sibling GUI containers, and it exposes nothing on
+its own, because the only route in is a port `BIND_ADDR` published.
+`EDUMATCHER_GATEWAY_BIND_HOST` in `.env` overrides it if you need one specific
+interface; it wins over any `bind_address:` in the deployed configuration. The
+engine and `pm-index` are the exception and stay on loopback unless `EM_ZMQ=1`.
 
 Two things are resolved for you at startup, because neither can be a fixed
 default: the trading terminal's read-only API key is generated per

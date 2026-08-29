@@ -11,7 +11,7 @@ module.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -19,12 +19,13 @@ import yaml
 
 from edumatcher.config import (
     AUDIT_INDEX_DB_FILE,
-    ENGINE_PULL_ADDR,
     ENGINE_PUB_ADDR,
-    INDEX_PULL_ADDR,
+    ENGINE_PULL_ADDR,
     INDEX_PUB_ADDR,
-    resolve_data_path,
+    INDEX_PULL_ADDR,
     STATS_DB_FILE,
+    resolve_data_path,
+    resolve_gateway_bind_host,
 )
 from edumatcher.stats.trading_day import resolve_timezone
 
@@ -61,7 +62,7 @@ class ApiGatewayConfig:
 
     name: str = "default"
     enabled: bool = True
-    host: str = "0.0.0.0"
+    host: str = field(default_factory=resolve_gateway_bind_host)
     port: int = 8080
     engine_pull_addr: str = ENGINE_PULL_ADDR
     engine_pub_addr: str = ENGINE_PUB_ADDR
@@ -236,7 +237,7 @@ def _load_api_gateway_section(
     return ApiGatewayConfig(
         name=gateway_name,
         enabled=bool(section.get("enabled", True)),
-        host=str(section.get("host", "0.0.0.0")),
+        host=resolve_gateway_bind_host(section.get("host")),
         port=port,
         engine_pull_addr=str(section.get("engine_pull_addr", ENGINE_PULL_ADDR)),
         engine_pub_addr=str(section.get("engine_pub_addr", ENGINE_PUB_ADDR)),

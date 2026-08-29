@@ -90,7 +90,7 @@ BASE_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${FETCH_R
 mkdir -p "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 info "Downloading into $INSTALL_DIR ..."
-for f in compose.yaml edumatcher.sh .env.example; do
+for f in compose.yaml compose.zmq.yaml edumatcher.sh .env.example; do
     curl -fsSL "${BASE_URL}/${f}" -o "$f" \
         || die "Could not download ${f} from ${BASE_URL} — does ${FETCH_REF} exist?"
 done

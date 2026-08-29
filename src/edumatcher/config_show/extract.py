@@ -14,6 +14,11 @@ import os
 from pathlib import Path
 from typing import Any
 
+from edumatcher.config import (
+    EDUMATCHER_ENGINE_BIND_HOST,
+    EDUMATCHER_INDEX_BIND_HOST,
+    resolve_gateway_bind_host,
+)
 from edumatcher.gateway_ports import (
     DEFAULT_API_GATEWAY_PORT,
     LOG_SERVER_EXTRA_PORTS,
@@ -129,7 +134,14 @@ def _listeners(raw: dict[str, Any]) -> tuple[Listener, ...]:
                 proto=fixed.proto,
                 process=fixed.process,
                 function=fixed.function,
-                bind="127.0.0.1",
+                # The engine trio and the index pair are the only listeners
+                # whose bind host comes from the environment alone; report
+                # what they will actually bind, not the compiled-in default.
+                bind=(
+                    EDUMATCHER_INDEX_BIND_HOST
+                    if fixed.process == "pm-index"
+                    else EDUMATCHER_ENGINE_BIND_HOST
+                ),
                 origin=fixed.origin,
                 enabled=True,
                 section=fixed.env_var or "config.py",
@@ -144,7 +156,11 @@ def _listeners(raw: dict[str, Any]) -> tuple[Listener, ...]:
         port = effective_port(section, spec.default_port)
         if port is None:
             continue
-        bind = _as_str(section.get("bind_address") or section.get("host"), "127.0.0.1")
+        # Same resolution the gateway itself performs, so the panel matches
+        # the running process even when EDUMATCHER_GATEWAY_BIND_HOST is set.
+        bind = resolve_gateway_bind_host(
+            section.get("bind_address") or section.get("host")
+        )
         enabled = section.get("enabled", True) is not False
         origin = "configured" if "port" in section else "default"
         out.append(
@@ -193,7 +209,7 @@ def _listeners(raw: dict[str, Any]) -> tuple[Listener, ...]:
                 "HTTP",
                 "pm-api-gwy",
                 f"REST API — {name}",
-                _as_str(section.get("host"), "127.0.0.1"),
+                resolve_gateway_bind_host(section.get("host")),
                 "configured" if "port" in section else "default",
                 section.get("enabled", True) is not False,
                 f"api_gateways.{name}",

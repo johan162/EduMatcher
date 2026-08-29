@@ -10,13 +10,14 @@ to keep Phase-1 engine changes at zero.  See spec §12.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 from edumatcher.config import ENGINE_PULL_ADDR, ENGINE_PUB_ADDR
+from edumatcher.config import resolve_gateway_bind_host
 
 
 @dataclass(frozen=True)
@@ -25,7 +26,7 @@ class BalfGatewayConfig:
 
     enabled: bool = True
     name: str = "balf-gwy01"
-    bind_address: str = "0.0.0.0"
+    bind_address: str = field(default_factory=resolve_gateway_bind_host)
     port: int = 5560
     engine_pull_addr: str = ENGINE_PULL_ADDR
     engine_pub_addr: str = ENGINE_PUB_ADDR
@@ -120,7 +121,7 @@ def _load_balf_gateway_config_from_raw(raw: dict[str, Any]) -> BalfGatewayConfig
 
     enabled = bool(section.get("enabled", True))
     name = str(section.get("name", "balf-gwy01"))
-    bind_address = str(section.get("bind_address", "0.0.0.0"))
+    bind_address = resolve_gateway_bind_host(section.get("bind_address"))
     port = _as_int(section.get("port", 5560), "port")
     if port <= 0 or port > 65535:
         raise ValueError("balf_gateway.port must be in 1-65535")

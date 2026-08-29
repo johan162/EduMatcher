@@ -75,6 +75,11 @@ PROJECT_VERSION := $(shell awk -F'"' '/^version =/ {print $$2; exit}' ../../pypr
 TAG ?= dev
 GUI_IMAGES := edumatcher-config-gui edumatcher-log-gui edumatcher-terminal-gui edumatcher-trader-gui
 
+# The same four as compose *service* names, which is what `build` and
+# `up -d <svc>` take. GUI= selects one for build-guis / up-all BUILD=1.
+GUI_SERVICES := log-gui terminal-gui trader-gui config-gui
+GUI ?=
+
 # Every container this stack owns, named as the compose files name them.
 ALL_CONTAINERS := $(CONTAINER_NAME) $(foreach g,$(GUI_IMAGES),$(CONTAINER_NAME)-$(g:edumatcher-%=%))
 
@@ -114,9 +119,9 @@ raise SystemExit(1)
 endef
 export READONLY_CREDENTIAL_PY
 
-.PHONY: help info check build up up-all down down-all restart shell logs \
+.PHONY: help info check build build-guis up up-all down down-all restart shell logs \
 	proc-logs status health ssh keys config-deploy config-show ports \
-	ghcr-push check-foreign mounts clean clean-data
+	ghcr-push check-foreign mounts dev-env clean clean-data
 
 help:
 	@echo "EduMatcher container — targets:"
@@ -134,6 +139,13 @@ help:
 	@echo "  make up-all CONFIG=./my_config.yaml   ... on a configuration of your own"
 	@echo "  make up-all CONFIG_GUI=1              ... and the config builder too"
 	@echo "  make down-all           Stop and remove every container"
+	@echo ""
+	@echo "  make build-guis                    Rebuild all four web-app images"
+	@echo "  make build-guis GUI=terminal-gui   ... just one"
+	@echo "  make up-all BUILD=1                Rebuild the web-app images, then start"
+	@echo "  make up-all BUILD=1 GUI=log-gui    ... rebuilding only that one"
+	@echo "  make dev-env GUI=terminal-gui      Env for running that app locally"
+	@echo "                                     against this backend container"
 	@echo "  make restart            Restart the container"
 	@echo "  make shell              Interactive shell inside the container"
 	@echo "  make ssh                Log in over ssh (needs 'make up SSH=1')"
@@ -199,6 +211,33 @@ build: check .env
 	fi
 	$(DC) build
 
+# `up-all` deliberately does not pass --build. Compose would then re-evaluate
+# five build contexts on every start, and the backend image is `make build`'s
+# job. The consequence is that a change in web-apps/ is invisible until its
+# image is rebuilt explicitly — which is what this target is for.
+#
+#   make build-guis                       all four
+#   make build-guis GUI=terminal-gui      one
+#   make up-all BUILD=1 [GUI=...]         rebuild, then start
+#
+# PUBLISH_COMPOSE_FILES is used rather than ALL_COMPOSE_FILES so config-gui is
+# always buildable here, whether or not CONFIG_GUI=1 is set for the start.
+build-guis: check .env
+	@set -eu; \
+	if [ -n "$(GUI)" ]; then \
+		case " $(GUI_SERVICES) " in \
+			*" $(GUI) "*) ;; \
+			*) echo "ERROR: unknown GUI '$(GUI)'." >&2; \
+			   echo "       One of: $(GUI_SERVICES)" >&2; exit 1;; \
+		esac; \
+		echo "==> rebuilding $(GUI)"; \
+		$(COMPOSE) $(PUBLISH_COMPOSE_FILES) build $(GUI); \
+	else \
+		echo "==> rebuilding all web-app images"; \
+		$(COMPOSE) $(PUBLISH_COMPOSE_FILES) build $(GUI_SERVICES); \
+	fi
+	@echo "==> rebuilt. 'make up-all' recreates the containers whose image changed."
+
 # --- Lifecycle -------------------------------------------------------------
 up: check .env
 ifeq ($(SSH),1)
@@ -235,6 +274,9 @@ check-foreign: check
 	fi
 
 up-all: check check-foreign .env
+ifeq ($(BUILD),1)
+	@$(MAKE) --no-print-directory build-guis GUI=$(GUI)
+endif
 ifeq ($(SSH),1)
 	@$(MAKE) --no-print-directory keys
 endif
@@ -365,6 +407,62 @@ mounts: check
 		done; \
 		echo; \
 	done
+
+# Prints the environment a web application needs to run on the host — `make
+# dev` in web-apps/<app>/ — against THIS running backend container, instead of
+# in a container of its own. Meant to be evaluated:
+#
+#   eval "$(make -s dev-env GUI=terminal-gui)"
+#   cd ../../web-apps/terminal-gui && make dev
+#
+# Every bridge already defaults its connect targets to 127.0.0.1, which is
+# where this stack publishes, so most of the wiring needs nothing. What cannot
+# be defaulted is printed here: the per-configuration read-only API key, and
+# the paths into this stack's ./data. Warnings go to stderr so the stdout side
+# stays safe to eval.
+dev-env: check
+	@set -eu; \
+	if [ -z "$(GUI)" ]; then \
+		echo "ERROR: set GUI=<service>. One of: $(GUI_SERVICES)" >&2; exit 1; fi; \
+	data=$$(cd "$(CURDIR)/data" 2>/dev/null && pwd -P || echo "$(CURDIR)/data"); \
+	if ! $(CONTAINER_ENGINE) container inspect $(CONTAINER_NAME) >/dev/null 2>&1; then \
+		echo "WARNING: the backend container '$(CONTAINER_NAME)' is not running." >&2; \
+		echo "         Start it first: make up-all" >&2; \
+	fi; \
+	published() { $(CONTAINER_ENGINE) port $(CONTAINER_NAME) "$$1" >/dev/null 2>&1; }; \
+	case "$(GUI)" in \
+	terminal-gui) \
+		echo "# terminal-gui: web on 8190, bridge on 5190 (Vite proxies /api and /ws)"; \
+		cred=$$($(EXEC) $(CONTAINER_NAME) python3 -c "$$READONLY_CREDENTIAL_PY" 2>/dev/null || true); \
+		if [ -n "$$cred" ]; then \
+			set -- $$cred; \
+			echo "export API_GATEWAY_URL=http://127.0.0.1:$$1"; \
+			echo "export PM_TERMINAL_API_KEY=$$2"; \
+			published "$$1" || echo "WARNING: port $$1 is not published on the host." >&2; \
+		else \
+			echo "# no read-only credential (gateway_id: null) in the deployed config —"; \
+			echo "# the live feed will work, the history endpoints will not"; \
+		fi;; \
+	log-gui) \
+		echo "# log-gui: web on 8191, bridge on 5191 (Vite proxies /api and /ws)"; \
+		echo "export LOG_DB_PATH=$$data/log.db"; \
+		echo "export ACK_STORE_PATH=$$data/log-ui-acks.db"; \
+		[ -f "$$data/log.db" ] || \
+			echo "WARNING: $$data/log.db does not exist yet — pm-log-srv creates it on first entry." >&2; \
+		if ! published 5601 || ! published 5602; then \
+			echo "WARNING: 5601/5602 are not published, so there will be no live stream." >&2; \
+			echo "         The history views still work from log.db. For the live feed the" >&2; \
+			echo "         stack has to publish pm-log-srv's ZeroMQ sockets:" >&2; \
+			echo "           make down-all && make up-all ZMQ=1" >&2; \
+		fi;; \
+	trader-gui) \
+		echo "# trader-gui: web on 8193. No bridge and no environment needed — vite.config.ts"; \
+		echo "# proxies /api straight to pm-api-gwy on http://localhost:8080."; \
+		published 8080 || echo "WARNING: port 8080 is not published on the host." >&2;; \
+	config-gui) \
+		echo "# config-gui talks to no backend at all. Nothing to set — just 'make dev'.";; \
+	*) echo "ERROR: unknown GUI '$(GUI)'. One of: $(GUI_SERVICES)" >&2; exit 1;; \
+	esac
 
 # --- Configuration ---------------------------------------------------------
 config-deploy: check
