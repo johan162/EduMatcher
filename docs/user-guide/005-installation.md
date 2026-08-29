@@ -136,6 +136,7 @@ into this file.
 | `EM_PROFILE` | `default` | Which processes start: `default`, `mini` or `micro`. See [Processes](170-processes.md) |
 | `TZ` | `UTC` | Container timezone. Set it to match the trading calendar in your configuration, e.g. `Europe/Stockholm` |
 | `BIND_ADDR` | `127.0.0.1` | Which host interface the published ports listen on. See the warning below |
+| `EM_ZMQ` | `0` | `1` also publishes the raw ZeroMQ bus (5555-5559, 5601/5602) and tells the engine and `pm-index` to bind the container interface, so tools on your machine can attach. The equivalent of `make up ZMQ=1` |
 | `TERMINAL_GUI_PORT` | `8090` | Host port for the trading terminal |
 | `LOG_GUI_PORT` | `8091` | Host port for the log viewer |
 | `CONFIG_GUI_PORT` | `8092` | Host port for the configuration builder |

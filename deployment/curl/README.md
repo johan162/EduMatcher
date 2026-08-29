@@ -99,6 +99,43 @@ The full-screen tools work too — `TERM` is forwarded, and the exit status of
 whatever you ran is the exit status of `edumatcher.sh`, so it composes in
 scripts.
 
+### Attaching your own tools to the ZeroMQ bus
+
+By default the exchange publishes its gateways and REST API, but not the raw
+ZeroMQ bus. Set `EM_ZMQ=1` in `.env` and restart to publish it too:
+
+```bash
+cd ~/.edumatcher
+sed -i '' 's/^EM_ZMQ=0/EM_ZMQ=1/' .env    # or just edit the file
+./edumatcher.sh restart
+```
+
+| Port | Process | Socket | Carries |
+|---:|---|---|---|
+| 5555 | `pm-engine` | ZMQ PULL | Order intake |
+| 5556 | `pm-engine` | ZMQ PUB | Event and book feed |
+| 5557 | `pm-engine` | ZMQ PUB | Drop-copy feed |
+| 5558 | `pm-index` | ZMQ PUB | Index values |
+| 5559 | `pm-index` | ZMQ PULL | Index commands |
+| 5601 | `pm-log-srv` | ZMQ PUB | LALF-PS broadcast |
+| 5602 | `pm-log-srv` | ZMQ PULL | LALF-PS control |
+
+Tools installed on your machine can then attach directly:
+
+```bash
+pm-dc-spy --host 127.0.0.1 --port 5557
+```
+
+This does more than open ports: the engine and `pm-index` bind loopback
+*inside* the container by default, so the overlay also tells them to bind the
+container's interface. Publishing alone would not be enough.
+
+!!! warning
+    These sockets have no authentication of any kind — anything that can reach
+    5555 can inject orders as though it were a gateway. `BIND_ADDR` decides how
+    far that reaches; leave it at `127.0.0.1` unless you mean otherwise. Turn
+    the bus back off with `EM_ZMQ=0` and a restart.
+
 ### When a GUI shows something unexpected
 
 The health pages report *container* paths — the log viewer says its database is
