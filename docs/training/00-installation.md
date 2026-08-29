@@ -111,15 +111,22 @@ cd ~/.edumatcher
 ### Running `pm-*` commands for the rest of the training
 
 Every `pm-*` command is inside the exchange container, already on the PATH.
-Open a shell there:
+The control script puts you there:
 
 ```bash
-podman exec -it edumatcher bash     # or: docker exec -it edumatcher bash
+cd ~/.edumatcher
+./edumatcher.sh shell
 ```
 
 Inside that shell, `pm-engine`, `pm-alf-console`, `pm-config-deploy` and the
 rest work exactly as the training chapters describe, and
 `EDUMATCHER_DATA_DIR` is already set to `/data`.
+
+To run a single command without staying inside, pass it along:
+
+```bash
+./edumatcher.sh shell pm-opctl-cli list
+```
 
 One difference matters. The container **starts the processes for you** — the
 `default` profile is already running, which is why the terminal showed a live
@@ -132,16 +139,16 @@ pm-opctl-cli stop           # stop the profile; the container stays up
 pm-engine --verbose         # now follow the chapters
 ```
 
-For the exercises that need several terminals, open a shell per terminal with
-the same `podman exec -it edumatcher bash`.
+For the exercises that need several terminals, run `./edumatcher.sh shell` once
+in each of them.
 
 !!! note "Getting back to a running market"
     `pm-opctl-cli start` restarts the whole profile whenever you want the
     web applications populated again.
 
 :material-checkbox-blank-outline: **Checkpoint:** <http://localhost:8090> shows
-order books, and `podman exec -it edumatcher pm-engine --version` prints a
-version number.
+order books, and `./edumatcher.sh shell pm-engine --version` prints a version
+number.
 
 
 ## Exercise 1B: pipx — commands on your own machine
@@ -327,7 +334,7 @@ Look at what your install deployed:
 **If you installed with containers:**
 
 ```bash
-podman exec -it edumatcher pm-config-show
+./edumatcher.sh shell pm-config-show
 cat ~/.edumatcher/data/ref_data/engine_config.yaml
 ```
 
@@ -422,7 +429,7 @@ different bundled configuration and seen the symbols change.
 ## Exercise 5: Confirm your entry points
 
 Verify the commands the coming chapters use. Prefix each with
-`podman exec -it edumatcher` on the container route, or run them directly
+`./edumatcher.sh shell` on the container route, or run them directly
 otherwise:
 
 ```bash
@@ -467,8 +474,7 @@ chapter assumes without re-explaining:
 - [ ] `pm-engine --version` and `pm-engine --help` both resolve **in the shell
       you will use for the next chapter** — for pipx that means
       `EDUMATCHER_DATA_DIR` is in your shell profile, not just this terminal;
-      for containers it means a shell opened with
-      `podman exec -it edumatcher bash`.
+      for containers it means a shell opened with `./edumatcher.sh shell`.
 - [ ] On the container route only: `pm-opctl-cli stop`, so the next chapter can
       start the processes itself.
 

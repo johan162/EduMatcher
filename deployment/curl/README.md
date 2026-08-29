@@ -63,6 +63,8 @@ Everything lives in `~/.edumatcher` and is driven by one script:
 cd ~/.edumatcher
 ./edumatcher.sh status              # containers, plus the exchange process table
 ./edumatcher.sh logs terminal-gui   # follow one service
+./edumatcher.sh shell               # a shell inside the exchange container
+./edumatcher.sh shell pm-opctl-cli list   # ...or one command in it
 ./edumatcher.sh urls                # the table above, with your ports
 ./edumatcher.sh mounts              # which directory is behind each container path
 ./edumatcher.sh stop                # stop everything; ./data is kept
@@ -72,6 +74,30 @@ cd ~/.edumatcher
 ./edumatcher.sh uninstall           # remove containers and volumes, keep data
 ./edumatcher.sh uninstall --data    # remove everything
 ```
+
+### Running exchange commands
+
+The `pm-*` command line tools live inside the exchange container. `shell` puts
+you there, with every command on the PATH and the data directory already set:
+
+```bash
+./edumatcher.sh shell
+# then, inside:
+pm-opctl-cli list          # what is running
+pm-config-show             # the deployed configuration
+pm-alf-console --id TRADER01
+```
+
+Pass a command to run just that one and come straight back:
+
+```bash
+./edumatcher.sh shell pm-opctl-cli list
+./edumatcher.sh shell pm-log-cli --tail 20
+```
+
+The full-screen tools work too — `TERM` is forwarded, and the exit status of
+whatever you ran is the exit status of `edumatcher.sh`, so it composes in
+scripts.
 
 ### When a GUI shows something unexpected
 

@@ -177,6 +177,8 @@ Everything is driven by one script in the install directory:
 cd ~/.edumatcher
 ./edumatcher.sh status              # containers, plus the exchange process table
 ./edumatcher.sh logs terminal-gui   # follow one service
+./edumatcher.sh shell               # a shell inside the exchange container
+./edumatcher.sh shell pm-config-show      # ...or one command in it
 ./edumatcher.sh urls                # the application table, with your ports
 ./edumatcher.sh mounts              # which directory is behind each container path
 ./edumatcher.sh stop                # stop everything; ./data is kept

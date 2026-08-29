@@ -2,6 +2,7 @@
 # EduMatcher control script — installed alongside compose.yaml and .env.
 #
 #   ./edumatcher.sh start | stop | restart | status | logs [service]
+#   ./edumatcher.sh shell [command...]
 #   ./edumatcher.sh urls
 #   ./edumatcher.sh mounts
 #   ./edumatcher.sh config <example-name | path/to/engine_config.yaml>
@@ -150,6 +151,38 @@ cmd_logs() {
     if [[ $# -gt 0 ]]; then $COMPOSE logs -f "$1"; else $COMPOSE logs -f; fi
 }
 
+# An interactive shell inside the exchange container, or one command run there.
+# Every pm-* command is on the image's PATH and EDUMATCHER_DATA_DIR is already
+# /data, so `pm-opctl-cli`, `pm-config-show`, `pm-alf-console` and the rest work
+# exactly as the guides describe them.
+#
+#   ./edumatcher.sh shell                       an interactive bash
+#   ./edumatcher.sh shell pm-opctl-cli list     one command, then exit
+#   ./edumatcher.sh shell pm-alf-console --id TRADER01
+cmd_shell() {
+    detect_engine
+    local name="${CONTAINER_NAME:-edumatcher}" state
+    $ENGINE container inspect "$name" >/dev/null 2>&1 \
+        || die "No container '$name'. Start the exchange first: ./edumatcher.sh start"
+    state=$($ENGINE inspect "$name" --format '{{.State.Status}}' 2>/dev/null || echo "?")
+    [[ "$state" == "running" ]] \
+        || die "Container '$name' is $state. Start the exchange first: ./edumatcher.sh start"
+
+    # -t only when there is a terminal on both ends, so that
+    # `./edumatcher.sh shell pm-opctl-cli list > file` still works.
+    local tty_flags="-i"
+    [[ -t 0 && -t 1 ]] && tty_flags="-it"
+
+    # The full-screen tools (pm-alf-console, pm-viewer, pm-board) render as
+    # garbage without a usable TERM, and the container inherits none.
+    if [[ $# -gt 0 ]]; then
+        $ENGINE exec $tty_flags -e TERM="${TERM:-xterm-256color}" "$name" "$@"
+    else
+        info "Shell in '$name' — every pm-* command is on the PATH. Ctrl-D to leave."
+        $ENGINE exec $tty_flags -e TERM="${TERM:-xterm-256color}" "$name" bash
+    fi
+}
+
 cmd_urls() {
     # shellcheck disable=SC1091
     [[ -f .env ]] && source .env
@@ -269,6 +302,7 @@ case "${1:-}" in
     restart)   shift; cmd_restart "$@" ;;
     status)    shift; cmd_status "$@" ;;
     logs)      shift; cmd_logs "$@" ;;
+    shell)     shift; cmd_shell "$@" ;;
     urls)      shift; cmd_urls "$@" ;;
     mounts)    shift; cmd_mounts "$@" ;;
     config)    shift; cmd_config "$@" ;;
