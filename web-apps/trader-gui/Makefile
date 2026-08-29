@@ -171,7 +171,7 @@ bump-version: ## Update version in TopBar.tsx to match package.json
 	@echo -e "$(GREEN)✓ Version updated in TopBar.tsx to v$(VERSION)$(NC)"
 
 
-iinstall: check-npm ## Install a full local npm workspace environment
+install: check-npm ## Install a full local npm workspace environment
 	@echo -e "$(YELLOW)- Installing Node workspace dependencies...$(NC)"
 	@if [[ -f package-lock.json ]]; then \
 		$(NPM) ci; \
@@ -186,11 +186,11 @@ build: check-npm ## Typecheck + production build (apps/web/dist/)
 	@echo -e "$(GREEN)✓ Build complete$(NC)"
 
 build-debug: check-npm ## Build frontend in development mode (sourcemaps, no minification)
-    @echo -e "$(YELLOW)- Building web (debug)...$(NC)"
-    @$(NPM) exec --workspace @edumatcher/trader-web -- \
+	@echo -e "$(YELLOW)- Building web (debug)...$(NC)"
+	@$(NPM) exec --workspace @edumatcher/trader-web -- \
         vite build --mode development --minify false --sourcemap true
-    @echo -e "$(GREEN)✓ Debug build completed — output: apps/web/dist$(NC)"
-    @echo -e "$(BLUE)  Sourcemaps included; NODE_ENV stays 'development'$(NC)"
+	@echo -e "$(GREEN)✓ Debug build completed — output: apps/web/dist$(NC)"
+	@echo -e "$(BLUE)  Sourcemaps included; NODE_ENV stays 'development'$(NC)"
 
 typecheck: check-npm ## Run TypeScript type-checking across all workspaces
 	@echo -e "$(BLUE)→ Type-checking…$(NC)"
