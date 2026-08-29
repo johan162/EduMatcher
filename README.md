@@ -48,7 +48,7 @@ Main documentation site [EduMatcher Documentation](https://johan162.github.io/Ed
 
 ## Installing
 
-See [User Guide: Installation](https://johan162.github.io/EduMatcher/user-guide/00-getting-started/#installation)
+See [User Guide: Installation](https://johan162.github.io/EduMatcher/user-guide/005-installation/)
 
 ***Note:** Running an exchange is an inherent complex task and unfortunately it is only so much that can be simplified. However, going throught the user guide and training material should give a great start!*
 

@@ -113,74 +113,118 @@ Three details shape how the screens behave:
 
 ## Running the application
 
-The Trading GUI can run as a plain Node/Vite project, or as a single
-container built from `web-apps/trader-gui/Dockerfile` — the same pattern
-[TapeDeck](290-trader-info-terminal.md) uses.
+There are three ways to run it, and which one you want depends on what you are
+doing. If you are not sure, use the first.
 
-### Recommended: run the container
+| | What it is | Open | Use it when |
+|---|---|---|---|
+| **The whole stack** | The exchange and all four web applications, started together as containers | <http://localhost:8093> | You want a working system. This is almost always the right answer |
+| **This app alone, in a container** | Just the Trading GUI, pointed at an exchange you started some other way | <http://localhost:8093> | The exchange runs elsewhere — another machine, a VM, a host install |
+| **Local dev server** | Vite with hot reload, on your machine | <http://localhost:8193> | You are changing this application's code |
 
-From `web-apps/trader-gui/`:
+### The whole stack (recommended)
+
+This starts the exchange *and* the Trading GUI together, on one private
+network, with no addresses to configure:
+
+**A released install:**
 
 ```bash
-make up     # auto-detects Docker or Podman
+cd ~/.edumatcher
+./edumatcher.sh start
 ```
 
-Then open **http://localhost:4173**. Use `make logs` to follow the server log
-and `make down` to stop the container.
-
-The Compose file's default `API_PROXY_TARGET` targets `pm-api-gwy` on the
-host machine via `host.docker.internal`, which works on Docker Desktop. On
-Podman, or if Linux Docker cannot resolve `host.docker.internal`, set it
-explicitly before starting:
+**From a source checkout:**
 
 ```bash
-export API_PROXY_TARGET=http://host.containers.internal:8080
+cd deployment/docker
+make up-all
+```
+
+Then open **<http://localhost:8093>**. The exchange's REST API is reachable at
+`edumatcher:8080` from inside the network, which the compose file sets for you
+— there is nothing to point anywhere.
+
+The other applications come up at the same time: the trader terminal on
+[8090](290-trader-info-terminal.md), the log console on
+[8091](285-log-srv-gui.md).
+
+Everyday commands, from `deployment/docker` (or with `./edumatcher.sh` in a
+released install):
+
+```bash
+make status      # is every exchange process up?
+make logs        # the backend's own output
+make down-all    # stop everything
+```
+
+Full detail — including how to change which configuration the exchange trades
+— is in [Installation](005-installation.md).
+
+### This app alone, in a container
+
+Use this when the exchange is already running somewhere else. From
+`web-apps/trader-gui/`:
+
+```bash
 make up
 ```
 
-Use `TRADER_GUI_PORT` if port `4173` is already taken on the host:
+Then open **<http://localhost:8093>**.
+
+This path has one thing to configure, because the application is no longer on
+the same network as the exchange: where `pm-api-gwy` is. The compose file
+defaults to `host.docker.internal`, which resolves on Docker Desktop but not
+on Podman or Linux Docker, so set it explicitly:
 
 ```bash
-TRADER_GUI_PORT=4174 make up
+# Podman
+API_PROXY_TARGET=http://host.containers.internal:8080 make up
+
+# Linux Docker, or a gateway on another machine
+API_PROXY_TARGET=http://192.168.1.50:8080 make up
 ```
 
-The container serves the built React frontend and proxies `/api/*` (REST and
-WebSocket upgrades) to `pm-api-gwy` from the same port — there is no database
-volume or bind mount, since the server holds no state of its own.
-
-!!! note "`CALF_*` and `LOG_SRV_*` in the Compose file"
-    `docker-compose.yml` sets `CALF_HOST`, `CALF_PORT` and the `LOG_SRV_*`
-    variables for parity with TapeDeck's compose file. `apps/serve/serve.ts`
-    does not read them — the Trading GUI has no direct CALF uplink and no
-    bridge process of its own. Leave them alone; they are placeholders.
-
-#### Alternative: direct Compose commands
+If port 8093 is taken on your machine, move the *host* side of it:
 
 ```bash
-docker compose up --build -d
-docker compose logs -f trader-gui
-docker compose down
+TRADER_GUI_PORT=8193 make up
 ```
 
-With Podman, use `podman-compose` for the same commands.
+`make logs` follows the server log, `make down` stops it, `make ps` shows the
+stack.
 
-### Local development
+!!! note "`CALF_*` and `LOG_SRV_*` in this compose file"
+    The file sets them for parity with TapeDeck, but `apps/serve/serve.ts`
+    does not read them: the Trading GUI has no CALF uplink and no bridge
+    process of its own, only the REST/WebSocket proxy. Leave them alone.
+
+### Local dev server
 
 ```bash
-make install    # npm install (all workspaces)
-make dev        # Vite dev server → http://localhost:5173
+make install    # once, and after any dependency change
+make dev        # Vite with hot reload
 ```
 
-Open **http://localhost:5173**, enter an API key, and click **Connect**. The
-dev server proxies every `/api/*` request (REST and WebSocket upgrades) to
-`localhost:8080`, so `VITE_API_BASE` and `VITE_WS_BASE` can be left empty for
-local development.
+Open **<http://localhost:8193>**, enter an API key, and click **Connect**.
+
+`vite.config.ts` proxies every `/api/*` request — REST *and* the WebSocket
+upgrades for `/events`, `/market-data` and `/admin/monitor` — to
+`http://localhost:8080`. So as long as `pm-api-gwy`'s `desk` instance is
+reachable on port 8080 of your own machine, this needs no configuration:
+`VITE_API_BASE` and `VITE_WS_BASE` stay empty and the browser only ever talks
+to one origin, which sidesteps CORS entirely.
+
+Starting the exchange with `make up-all` publishes 8080 on `127.0.0.1`, so the
+container stack and this dev server work together with nothing further to set.
+See [The Development Loop](../developer/08-dev-workflow.md) for the full
+inner-loop workflow.
 
 ### Production build and serve (without a container)
 
 ```bash
 make build      # typecheck + vite build → apps/web/dist/
-make serve      # serve apps/web/dist/ via pm-trading-ui-serve, :4173
+make serve      # serve apps/web/dist/ via pm-trading-ui-serve, :8093
 ```
 
 `pm-trading-ui-serve` (`apps/serve/serve.ts`) is a small dependency-free Node
@@ -207,23 +251,22 @@ which needs no extra infrastructure for a single-machine setup.
 | Target | What it does |
 |---|---|
 | `make install` | `npm install` across all workspaces |
-| `make dev` | Vite dev server on `:5173` with hot reload |
+| `make dev` | Vite dev server on `:8193` with hot reload |
 | `make build` | Typecheck + production build into `apps/web/dist/` |
 | `make build-debug` | Build with source maps, skipping the typecheck |
 | `make typecheck` / `make lint` | TypeScript type-check (TypeScript *is* the linter here) |
 | `make test` | Vitest suite |
 | `make format` | Prettier over the whole tree |
-| `make serve` | Serve the built SPA via `pm-trading-ui-serve` on `:4173` |
-| `make up` / `make down` / `make restart` | Start / stop / rebuild-and-restart the container stack |
-| `make cnt-build` | Build the container image without starting it |
+| `make serve` | Serve the built SPA via `pm-trading-ui-serve` on `:8093` |
+| `make up` / `make down` / `make restart` | Start / stop / restart this app's own container |
+| `make cbuild` | Build the container image without starting it |
 | `make logs` / `make ps` | Follow container logs / show stack status |
-| `make dist` | Build a distributable image tarball under `dist/` |
-| `make clean` | Remove build artefacts and `node_modules` |
+| `make cdist` | Build a distributable image tarball under `dist/` |
+| `make clean` | Remove build artefacts and `dist/` |
 
 Run `make help` for the authoritative list, `npm run serve -- --help` for the
 static server's own flag reference, and see `web-apps/trader-gui/README.md` for the
 implementation's own notes.
-
 ## Logging in
 
 The Trading GUI has no user database of its own. It authenticates against
@@ -1596,7 +1639,7 @@ values:
 | Variable | Default | Purpose |
 |---|---|---|
 | `HOST` | `0.0.0.0` | Bind address. |
-| `PORT` | `4173` | Listen port. |
+| `PORT` | `8093` | Listen port. |
 | `STATIC_DIR` | `apps/web/dist/` | Path to the built SPA. |
 | `API_PROXY_TARGET` | *(unset — `/api/*` returns 503)* | Forward `/api/*` to this URL, e.g. `http://localhost:8080`. |
 
@@ -1605,16 +1648,20 @@ so `npm run serve -- --help` prints exactly these four options and their real
 defaults — including the absolute `STATIC_DIR` path resolved for your checkout.
 Treat that output as authoritative if it ever disagrees with this page.
 
-The container (`docker-compose.yml`) sets the same `pm-trading-ui-serve`
-variables above, plus a host-side port mapping. Most installations only need
-to set `API_PROXY_TARGET` when `pm-api-gwy` is not reachable at the default
-host name:
+Both container paths set the same `pm-trading-ui-serve` variables, plus a
+host-side port mapping — but they differ in exactly one place, which is the
+thing worth knowing:
 
-| Variable | Container default | Purpose |
+| Variable | In the whole stack (`compose.guis.yaml`) | In this app alone (`web-apps/trader-gui/docker-compose.yml`) |
 |---|---|---|
-| `TRADER_GUI_PORT` | `4173` | Host port exposed by `docker-compose.yml`; use this when `4173` is already in use. |
-| `HOST` / `PORT` | `0.0.0.0` / `4173` | Server bind address inside the container. |
-| `API_PROXY_TARGET` | `http://host.docker.internal:8080` | `pm-api-gwy`; use `host.containers.internal` for Podman if needed. |
+| `TRADER_GUI_PORT` | `8093` — host port; change it if 8093 is taken | `8093` — same |
+| `HOST` / `PORT` | `0.0.0.0` / `8093` — bind inside the container | `0.0.0.0` / `8093` — same |
+| `API_PROXY_TARGET` | `http://edumatcher:8080` — the backend's service name on the shared network; nothing to configure | `http://host.docker.internal:8080` — reaches back out to your host; **set it explicitly on Podman or Linux Docker** |
+
+That single row is why the whole-stack path needs no addresses: both
+containers are on one Compose network, so the exchange has a name
+(`edumatcher`) that simply resolves. Running this app on its own puts it
+outside that network, and it has to be told how to get back in.
 
 ## Troubleshooting
 

@@ -55,7 +55,7 @@ flowchart LR
     UI -->|"WS /ws/stream\n(JSON frames)"| BRIDGE["pm-terminal-bridge\nFastify + Node :8090"]
     UI -->|"REST /api/history/*\n(proxied)"| BRIDGE
     BRIDGE -->|"CALF TCP :5570\none session, shared by every tab"| MDGWY["pm-md-gwy"]
-    BRIDGE -->|"REST GET /history/*\n(server-held API key)"| APIGWY["pm-api-gwy :8080"]
+    BRIDGE -->|"REST GET /history/*\n(server-held read-only key)"| APIGWY["pm-api-gwy :8081\n(dashboards instance)"]
     BRIDGE -.->|"LALF TCP :5600\noperational logging"| LOGSRV["pm-log-srv"]
 ```
 
@@ -71,42 +71,80 @@ flowchart LR
 
 ## Running the application
 
-### Recommended: run the container
+TapeDeck needs three things from the exchange, and how you supply them is the
+only real difference between the ways of running it:
 
-Start the exchange services first, or at least know where they are reachable
-from inside the container:
+| It needs | For | Without it |
+|---|---|---|
+| `pm-md-gwy` on 5570 | The live CALF feed — prices, depth, trades | The page loads but shows `RECONNECTING` |
+| `pm-api-gwy` on 8081, plus a read-only API key | Charts, previous close, historical index data | Live prices tick; history panels stay empty |
+| `pm-log-srv` on 5600 *(optional)* | Sending the bridge's own logs to the central log server | The bridge writes a fallback log to `./logs` |
 
-1. Start `pm-md-gwy` so live CALF market data is available.
-2. Start `pm-api-gwy` and provide a read-only `PM_TERMINAL_API_KEY` if you want
-    charts, previous-close comparisons, and historical index data.
-3. Optionally start `pm-log-srv` for centralized operational logs.
-4. Start TapeDeck and open the browser.
+### The whole stack (recommended)
 
-From `web-apps/terminal-gui/`:
+This is the path that requires nothing of you: it starts the exchange and
+TapeDeck together, resolves the read-only API key out of the deployed
+configuration, and points the terminal at the backend by service name.
+
+**A released install:**
 
 ```bash
-export PM_TERMINAL_API_KEY='...'   # read-only API-gateway key, history only
-make up                            # auto-detects Docker or Podman
+cd ~/.edumatcher
+./edumatcher.sh start
 ```
 
-Then open **http://localhost:8090**. Use `make logs` to follow the bridge log
-and `make down` to stop the container.
+**From a source checkout:**
 
-The Compose file defaults to services on the host machine. The defaults work
-on Docker Desktop. On Podman, or if Linux Docker cannot resolve
-`host.docker.internal`, set the host names explicitly before starting:
+```bash
+cd deployment/docker
+make up-all
+```
+
+Then open **<http://localhost:8090>**. The log console comes up on
+[8091](285-log-srv-gui.md) and the trading GUI on
+[8093](300-trader-gui.md) at the same time.
+
+There are no addresses to configure because every container shares one
+Compose network, on which the exchange answers to the hostname `edumatcher`.
+The API key is the one part that cannot be a fixed default — it is generated
+per engine configuration — so `up-all` reads it from the deployed
+configuration and injects it. See [Installation](005-installation.md).
+
+### This app alone, in a container
+
+Use this when the exchange is running somewhere else — another machine, a VM,
+or as processes on your host. From `web-apps/terminal-gui/`:
+
+```bash
+export PM_TERMINAL_API_KEY='key-readonly-...'   # read-only key; history only
+make up
+```
+
+Then open **<http://localhost:8090>**. `make logs` follows the bridge log,
+`make down` stops it.
+
+Now the addresses matter, because the container is no longer beside the
+exchange. The compose file defaults to `host.docker.internal`, which resolves
+on Docker Desktop but not on Podman or Linux Docker:
 
 ```bash
 export CALF_HOST=host.containers.internal
-export API_GATEWAY_URL=http://host.containers.internal:8080
+export API_GATEWAY_URL=http://host.containers.internal:8081
 export LOG_SRV_HOST=host.containers.internal
 make up
 ```
 
-Use `TERMINAL_GUI_PORT` if port `8090` is already taken on the host:
+!!! warning "The history key is valid on 8081, not 8080"
+    `API_GATEWAY_URL` must point at the `dashboards` instance. The read-only
+    credential (`gateway_id: null`) is issued there; `desk` on 8080 will reject
+    it, and the symptom is a live book with empty charts. The compose file
+    already defaults to `:8081` — keep the port when you change the host.
+
+If port 8090 is taken, move the *host* side of it. Pick something outside
+8090–8093, which the other applications use:
 
 ```bash
-TERMINAL_GUI_PORT=8091 make up
+TERMINAL_GUI_PORT=8100 make up
 ```
 
 The container serves the built React frontend, the WebSocket endpoint, and the
@@ -114,7 +152,7 @@ small read-only history proxy from the same port. There is no database volume:
 the only bind mount is `./logs:/app/logs`, used when the optional log server is
 not reachable after startup.
 
-### Alternative: direct Compose commands
+#### Alternative: direct Compose commands
 
 ```bash
 PM_TERMINAL_API_KEY='...' docker compose up --build -d
@@ -141,10 +179,10 @@ requirements are:
 | Exchange-side item | What to check |
 |---|---|
 | `pm-md-gwy` | It normally binds to `0.0.0.0:5570`, so no application change is needed unless your config deliberately set `market_data_gateway.bind_address` to `127.0.0.1`. The display server must be able to open TCP `5570` on the exchange host. |
-| `pm-api-gwy` | It normally binds to `0.0.0.0:8080`, so no application change is needed unless your config deliberately set `api_gateways.<name>.host` to `127.0.0.1`. The display server must be able to reach HTTP `8080`. |
+| `pm-api-gwy` | It binds `0.0.0.0` by default, so no application change is needed unless your configuration deliberately narrows `api_gateways.<name>.host`. The display server must reach the instance that issues the **read-only** credential — the `dashboards` instance, HTTP `8081` in the bundled configurations, not `desk` on 8080. |
 | API key | Create or reuse a read-only `pm-api-gwy` key with `gateway_id: null`; TapeDeck only needs history reads and never sends the key to browsers. |
 | `pm-log-srv` | Optional. If you want centralized terminal logs, make TCP `5600` reachable and set `LOG_SRV_HOST` on the display server. If not, set `LOG_SRV_ENABLED=false` or let the container write its fallback log to `./logs`. |
-| Firewall / routing | Open only the ports the display server actually needs: TCP `5570` for CALF, TCP `8080` for history, and optionally TCP `5600` for logs. Browsers only need access to the display server's `8090` port, not to the exchange gateways. |
+| Firewall / routing | Open only the ports the display server actually needs: TCP `5570` for CALF, TCP `8081` for history, and optionally TCP `5600` for logs. Browsers only need access to the display server's `8090` port, not to the exchange gateways. |
 
 On the display server, use the prepared image rather than building from source.
 The exact image name depends on how the release was delivered:
@@ -169,7 +207,7 @@ podman run -d --name terminal-gui \
   -v "$PWD/logs:/app/logs" \
   -e CALF_HOST=exchange.example.org \
   -e CALF_PORT=5570 \
-  -e API_GATEWAY_URL=http://exchange.example.org:8080 \
+  -e API_GATEWAY_URL=http://exchange.example.org:8081 \
   -e PM_TERMINAL_API_KEY='...' \
   -e INDEX_IDS=MAIN \
   -e LOG_SRV_ENABLED=false \
@@ -195,16 +233,30 @@ close values are missing, check `API_GATEWAY_URL` and `PM_TERMINAL_API_KEY`.
 From the `web-apps/terminal-gui/` directory:
 
 ```bash
-make install    # npm workspace install
-make dev        # bridge on :8090, Vite dev server on :5179
+make install    # npm workspace install; once, and after a dependency change
+make dev        # Vite dev server on :8190, bridge on :5190
 ```
 
-Open **http://localhost:5179** for the Vite development server. The web app
-talks to the bridge on **http://localhost:8090**. If `pm-md-gwy` is not yet
-running, the page can load but the connection indicator will show
-`RECONNECTING`/`OFFLINE` until the feed appears. `make dev-bridge` runs only
-the bridge, `make dev-web` runs only the web server, and `make test` runs the
-Vitest suite across the workspace.
+Open **<http://localhost:8190>**. You do not talk to the bridge directly:
+`vite.config.ts` proxies `/api` and `/ws` from the dev server to the bridge on
+`127.0.0.1:5190`, so the browser sees a single origin.
+
+The bridge's own connect targets all default to `127.0.0.1`, which is exactly
+where the container stack publishes its ports — so `make up-all` in
+`deployment/docker` plus `make dev` here works with no configuration beyond the
+API key. `make dev-env GUI=terminal-gui` in `deployment/docker` prints the two
+values that cannot be defaulted:
+
+```bash
+eval "$(make -s -C ../../deployment/docker dev-env GUI=terminal-gui)"
+make dev
+```
+
+If `pm-md-gwy` is not running the page still loads, with the connection
+indicator showing `RECONNECTING`/`OFFLINE` until the feed appears.
+`make dev-bridge` runs only the bridge, `make dev-web` only the web server, and
+`make test` the Vitest suite. The full inner-loop workflow is
+[The Development Loop](../developer/08-dev-workflow.md).
 
 ## A tour of the interface
 
@@ -492,7 +544,7 @@ default host names, `CALF_HOST`, `API_GATEWAY_URL`, and `LOG_SRV_HOST`.
 | `CALF_CLIENT_ID` | `pm-terminal-bridge` | CALF `HELLO.CLIENT` |
 | `CALF_PING_INTERVAL_SEC` | `60` | Keepalive; belt-and-braces now that the gateway's idle timer honours outbound traffic too |
 | `INDEX_IDS` | — | Comma-separated index ids to subscribe to (CALF has no "list the indexes" request) |
-| `API_GATEWAY_URL` | `http://host.docker.internal:8080` | `pm-api-gwy`; use `host.containers.internal` for Podman if needed. |
+| `API_GATEWAY_URL` | `http://host.docker.internal:8081` | `pm-api-gwy`, **the `dashboards` instance** — the read-only key is not valid on `desk` (8080). Use `host.containers.internal` for Podman. In the whole-stack path this is `http://edumatcher:8081`, set for you. |
 | `PM_TERMINAL_API_KEY` | — | Read-only (`gateway_id: null`) key, history reads only — never sent to the browser |
 | `LOG_SRV_ENABLED` | `true` | `false` skips even the startup probe |
 | `LOG_SRV_HOST` / `LOG_SRV_PORT` | `host.docker.internal` / `5600` | `pm-log-srv`; use `host.containers.internal` for Podman if needed. |

@@ -428,7 +428,7 @@ Each service listener resolves its bind host in this order, first match wins:
 
 | Precedence | Source | Example |
 |---|---|---|
-| 1 | The process's own `--host` command-line flag | `pm-md-gwy --host 127.0.0.1` |
+| 1 | The process's own command-line flag — `--bind` on the four protocol gateways, `--host` on `pm-log-srv` and `pm-api-gwy` | `pm-md-gwy --bind 127.0.0.1` |
 | 2 | The `EDUMATCHER_GATEWAY_BIND_HOST` environment variable | `EDUMATCHER_GATEWAY_BIND_HOST=127.0.0.1` |
 | 3 | `bind_address:` (or `host:` for `pm-api-gwy`) in the engine configuration | `bind_address: 10.0.0.5` |
 | 4 | The built-in default | `0.0.0.0` |

@@ -463,7 +463,7 @@ QLEGS|SYM=AAPL|SHOW=ALL
 | `SHOW` | No       | `ACTIVE`    | `ACTIVE` = currently live legs, `RECENT` = recently-inactivated quotes, `ALL` = both |
 
 `pm-alf-gwy` forwards this straight to the engine's
-[`system.quote_legs_request`](270-message-reference.md#systemquote_legs_request-systemquote_legsgw_id)
+[`system.quote_legs_request`](270-message-reference.md#systemquote_legs_request)
 message and renders the reply. `ACTIVE` legs (`LEG` lines) carry live
 qty/remaining/status per leg, same as before. `RECENT` rows (`RECENT_LEG`
 lines) are quote-level summaries drawn from the engine's bounded, in-memory,
@@ -473,7 +473,7 @@ carrying that leg's final qty/remaining/filled/status snapshot at the
 moment it was cancelled — these are emitted only when the engine had that
 leg's final order state available at removal time, which is the common
 case for every normal inactivation path (see
-[`system.quote_legs_request`](270-message-reference.md#systemquote_legs_request-systemquote_legsgw_id)
+[`system.quote_legs_request`](270-message-reference.md#systemquote_legs_request)
 for when a leg's snapshot can be absent). See
 [ALF Console → QLEGS](055-alf-console.md#qlegs-inspect-mm-quote-legs-and-fill-flags)
 for the full column semantics (shared with `pm-alf-console`'s `QLEGS`).
@@ -536,7 +536,7 @@ These messages arrive **unsolicited** on every authenticated session.
 
 | Message type | Key fields | Trigger |
 |---|---|---|
-| `SESSION` | `STATE`, `PREV_STATE` | Session phase change (e.g. `CONTINUOUS`, `CLOSED`). Also sent (with `PREV_STATE` empty and an added `SESSIONS_ENABLED` field) as a direct reply to the [`SESSION` command](#session--query-current-trading-session-state) |
+| `SESSION` | `STATE`, `PREV_STATE` | Session phase change (e.g. `CONTINUOUS`, `CLOSED`). Also sent (with `PREV_STATE` empty and an added `SESSIONS_ENABLED` field) as a direct reply to the [`SESSION` command](#session-query-current-trading-session-state) |
 | `HALT` | `SYMBOL`, `LEVEL` | Circuit-breaker halt on a symbol |
 | `RESUME` | `SYMBOL`, `MODE` | Circuit-breaker resume |
 | `TRADE` | `SYMBOL`, `PRICE`, `QTY`, `SIDE` | Any matched trade on any symbol |

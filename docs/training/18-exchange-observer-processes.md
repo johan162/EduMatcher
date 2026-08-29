@@ -169,10 +169,12 @@ for the SQLite database written by `pm-stats`.
 
 ## Exercise 6: Launch the Scrolling Ticker
 
-Start the ticker with short intervals for training:
+Start the ticker. The book updates it receives are pushed live by the engine;
+`--db-interval` controls only how often it re-reads the daily aggregates from
+`stats.db`, so a short value makes those refresh quickly during a lesson:
 
 ```bash
-pm-ticker --interval 5 --db-interval 30
+pm-ticker --db-interval 30
 ```
 
 The ticker combines live book updates with statistics from `stats.db` when they

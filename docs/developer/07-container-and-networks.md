@@ -285,7 +285,7 @@ of `bind_address:`; everything else about it is identical.
 Precedence, first match wins:
 
 ```text
---host flag  →  EDUMATCHER_GATEWAY_BIND_HOST  →  bind_address:/host: in YAML  →  0.0.0.0
+--bind / --host flag  →  EDUMATCHER_GATEWAY_BIND_HOST  →  bind_address:/host: in YAML  →  0.0.0.0
 ```
 
 The environment variable sits **above** the configuration file, which is the
@@ -666,7 +666,7 @@ delivers a published connection to *loopback inside the container's
 namespace*. A gateway bound to `127.0.0.1` therefore answers host traffic
 perfectly while refusing every sibling container. Host reachability tells you
 nothing about container-to-container reachability. The defaults no longer
-produce this, but `EDUMATCHER_GATEWAY_BIND_HOST`, a `--host` flag or a
+produce this, but `EDUMATCHER_GATEWAY_BIND_HOST`, a `--bind`/`--host` flag or a
 `bind_address:` in a supplied configuration still can.
 
 **"`make status` is green."** `pm-opctl-cli list` reports

@@ -42,7 +42,7 @@ and each `pm-calf-spy` process has its own independent subscription set.
 ## Why not the example subscriber?
 
 `docs/examples/calf/calf_subscriber.py` (see
-[Market Data Feed — Python subscriber example](240-calf-gateway.md#python-subscriber-example))
+[Market Data Feed — Python subscriber example](240-calf-gateway.md#run-the-bundled-examples))
 is a *library-style* example meant to be read and adapted: it hard-codes a
 fixed channel set (`TOP`, `TRADE`, `STATE`, `DEPTH`, optionally `INDEX`) and
 formats output for a specific demo. `pm-calf-spy` is a *general-purpose

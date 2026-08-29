@@ -589,7 +589,7 @@ for the authoritative table.
 | Server refuses to start, port error | `port`, `pub_port` and `pull_port` are not all distinct | Give each a different port |
 
 For the complete normative field tables of every LALF-PS message, see
-[Message Reference — LALF-PS messages](270-message-reference.md#lalf-ps-messages-log-subscriber-pm-log-srv).
+[Message Reference — LALF-PS messages](270-message-reference.md#family-log).
 
 
 
@@ -1005,7 +1005,7 @@ subcommand reads (or, for `prune`, writes) it directly.
 ## See Also
 
 - [LALF Protocol Reference](940-app-lalf-protocol.md) — normative wire specification for anyone implementing a LALF client
-- [Message Reference — LALF-PS messages](270-message-reference.md#lalf-ps-messages-log-subscriber-pm-log-srv) — normative field tables for every LALF-PS message
+- [Message Reference — LALF-PS messages](270-message-reference.md#family-log) — normative field tables for every LALF-PS message
 - [Processes — pm-log-srv / pm-log-cli](170-processes.md#pm-log-srv-centralized-log-server) — startup reference tables in the process overview
 - [Configuration — Configuring pm-log-srv](010-configuration.md#configuring-pm-log-srv) — the `log_server:` config block field reference
 - [Audit Trail](190-audit.md) — the equivalent dedicated-collector pattern for trading events (`pm-audit`/`pm-audit-cli`)

@@ -174,13 +174,15 @@ The bridge tracks four uplink states, surfaced in the top bar:
 
 ## Running the application
 
-Three supported ways, in increasing order of setup effort.
+Four supported ways, in increasing order of setup effort. If you are not sure,
+use the first.
 
 | Method | Best for | Needs | URL |
 |---|---|---|---|
-| [Container stack](#option-1-one-command-with-the-container-stack) | Most users; production | Podman/Docker + Make | `http://localhost:8091` |
-| [Pre-built image artifact](#option-2-a-pre-built-image-artifact) | Offline hosts, no repo clone | Podman/Docker only | `http://localhost:8091` |
-| [Local development](#option-3-local-development) | Contributing to the console itself | Node.js + npm | `http://127.0.0.1:5178` |
+| [The whole stack](#option-1-the-whole-stack-recommended) | Almost everyone — it starts the exchange too | Podman/Docker + Make | `http://localhost:8091` |
+| [This app alone, in a container](#option-2-this-app-alone-in-a-container) | An exchange that runs elsewhere | Podman/Docker + Make | `http://localhost:8091` |
+| [Pre-built image artifact](#option-3-a-pre-built-image-artifact) | Offline hosts, no repo clone | Podman/Docker only | `http://localhost:8091` |
+| [Local development](#option-4-local-development) | Contributing to the console itself | Node.js + npm | `http://localhost:8191` |
 
 ### Prerequisites
 
@@ -196,10 +198,58 @@ sources:
 Any modern browser (Chrome/Edge ≥ 110, Firefox ≥ 115, Safari ≥ 16). No
 extensions are required.
 
-### Option 1 — One command with the container stack
+The console needs two things from the exchange, and this is the whole of it:
 
-The fastest path with a repository checkout and a container runtime. From the
-`web-apps/log-gui/` directory:
+| It needs | For | Without it |
+|---|---|---|
+| `pm-log-srv`'s LALF-PS sockets (5601/5602) | The live tail | History still works; nothing streams |
+| The file `log.db` | Search, history, alerts, acknowledgements | The live tail works; the history views are empty |
+
+Note the second one: this console reads a **file**, not just a socket. Any way
+of running it has to give it a path to the same `log.db` that `pm-log-srv`
+writes.
+
+### Option 1 — The whole stack (recommended)
+
+Starts the exchange and all four applications together, with the console
+already pointed at the exchange's own data directory:
+
+**A released install:**
+
+```bash
+cd ~/.edumatcher
+./edumatcher.sh start
+```
+
+**From a source checkout:**
+
+```bash
+cd deployment/docker
+make up-all
+```
+
+Open **<http://localhost:8091>**. Nothing needs configuring: the console
+reaches `pm-log-srv` at the hostname `edumatcher` on the shared Compose
+network, and the exchange's data directory is mounted read-only at
+`/backend-data`, so `log.db` is the very file the collector is writing.
+
+Everyday commands from `deployment/docker` (or `./edumatcher.sh` in a released
+install):
+
+```bash
+make status      # the exchange's process table
+make mounts      # which host directory is behind each container path
+make down-all    # stop everything
+```
+
+`make mounts` is worth knowing about here specifically. The console's health
+page reports *container* paths — it will say its database is
+`/backend-data/log.db`, which tells you nothing about whose data that is. If
+you ever doubt which exchange you are looking at, that command answers it.
+
+### Option 2 — This app alone, in a container
+
+Use this when `pm-log-srv` runs somewhere else. From `web-apps/log-gui/`:
 
 ```bash
 make up
@@ -207,7 +257,7 @@ make up
 
 `make up` auto-detects Podman or Docker (preferring Podman), starts the Podman
 machine on macOS if needed, builds the image, and starts the stack detached.
-Open **http://localhost:8091**.
+Open **<http://localhost:8091>**.
 
 ```bash
 make down      # stop and remove the stack
@@ -217,7 +267,17 @@ make ps        # show stack status
 make help      # list every target
 ```
 
-The compose file mounts two separate volumes, deliberately:
+Two things need pointing at the exchange, because this container is not beside
+it. Set `LOG_SRV_HOST` to wherever `pm-log-srv` is reachable *from inside the
+container* — `host.docker.internal` on Docker Desktop,
+`host.containers.internal` on Podman, or a real hostname:
+
+```bash
+LOG_SRV_HOST=host.containers.internal make up
+```
+
+And mount the directory that holds `log.db` at `./logsrv-data`. This app's
+compose file mounts two volumes, deliberately:
 
 ```yaml
 volumes:
@@ -231,16 +291,12 @@ The `:ro` on the first mount is not decoration. "This project never writes to
 `log.db`" is enforced by the kernel rather than by application code, so a bug
 in the console cannot corrupt the collector's database.
 
-Set `LOG_SRV_HOST` in `docker-compose.yml` to wherever `pm-log-srv` is
-reachable *from inside the container* — `host.docker.internal` on Docker
-Desktop, `host.containers.internal` on Podman, or a real hostname.
-
-### Option 2 — A pre-built image artifact
+### Option 3 — A pre-built image artifact
 
 For a host with no repository clone, build a self-contained OCI archive:
 
 ```bash
-make dist
+make cdist
 ```
 
 This produces `dist/edumatcher-log-gui-<version>.tar.gz` containing the Node
@@ -262,17 +318,32 @@ podman run -d --name log-gui -p 8091:8091 \
 !!! note "No Node.js or npm required"
     The archive is fully self-contained. The host needs only Podman or Docker.
 
-### Option 3 — Local development
+### Option 4 — Local development
 
 ```bash
 cd web-apps/log-gui
-make install      # npm ci from the lockfile
-make dev          # bridge (8091) + web dev server (5178) together
+make install      # npm ci from the lockfile; once, and after a dependency change
+make dev          # web dev server (8191) + bridge (5191) together
 ```
 
-Open **http://127.0.0.1:5178**. The Vite dev server hot-reloads on save and
-proxies both `/api/*` and `/ws/*` to the bridge, so you only ever open the
-`5178` URL.
+Open **<http://localhost:8191>**. The Vite dev server hot-reloads on save and
+proxies both `/api/*` and `/ws/*` to the bridge on `127.0.0.1:5191`, so you
+only ever open the `8191` URL.
+
+Running against the container stack works with no addresses to set — the
+bridge defaults to `127.0.0.1`, which is where the stack publishes — with one
+exception: **the live tail needs `ZMQ=1`**, because 5601/5602 are ZeroMQ
+sockets that the stack does not publish by default.
+
+```bash
+cd deployment/docker && make down-all && make up-all ZMQ=1
+eval "$(make -s dev-env GUI=log-gui)"     # exports LOG_DB_PATH and ACK_STORE_PATH
+cd ../../web-apps/log-gui && make dev
+```
+
+Without `ZMQ=1` the history views still work — they read `log.db` directly —
+and only the live stream is missing. See
+[The Development Loop](../developer/08-dev-workflow.md).
 
 For separate logs, run the two halves in two terminals:
 
@@ -705,11 +776,11 @@ read-only — enforced by the `:ro` mount in the container deployment.
 | **"Diagnostics unavailable"** | `pm-log-cli` not on `PATH` where the bridge runs | Expected in the default container. Set `LOG_CLI_COMMAND`, or run the bridge where the CLI is installed. Every other view is unaffected. |
 | **Acks vanish after a restart** | `ACK_STORE_PATH` points at ephemeral storage | Mount a persistent volume for the ack store — it is the only state the console owns. |
 | **Acks are not shared between operators** | Each is running their own bridge | Run one bridge and have everyone open the same URL. Acks live in that bridge's store. |
-| **`make up` fails: neither podman nor docker found** | No container runtime | Install one, or use [local development](#option-3-local-development). |
+| **`make up` fails: neither podman nor docker found** | No container runtime | Install one, or use [local development](#option-4-local-development). |
 | **`make up` on macOS: podman machine not running** | The Podman VM is not started | `make up` starts it automatically; otherwise `podman machine init && podman machine start`. |
 | **Container cannot reach `pm-log-srv` on `localhost`** | `localhost` inside a container is the container | Use `host.docker.internal` (Docker Desktop) or `host.containers.internal` (Podman), or a real hostname. |
 | **`npm install` crashes: `TypeError: Invalid Version:`** | npm dedup bug | Use `make install`, or rerun with `--no-dedupe`. |
-| **Port `8091` or `5178` already in use** | Another process holds it | Change `PORT`, or the `server.port` in `web-apps/log-gui/apps/web/vite.config.ts`. |
+| **Port `8091` or `8191` already in use** | Another process holds it | For the container, set `LOG_GUI_PORT`. For the dev server, change `server.port` in `web-apps/log-gui/apps/web/vite.config.ts`. |
 | **Blank page in production**, API responds | Frontend not built or `STATIC_DIR` wrong | `make build`, then point `STATIC_DIR` at an **absolute** path to `apps/web/dist`. |
 | **A client route 404s in production** | Static host with no SPA fallback | Let the bridge serve the UI via `STATIC_DIR`; it falls back to `index.html`. |
 | **Explorer shows fewer rows than expected** | `QUERY_MAX_ROWS` cap (5 000) | Narrow the filter, use a time range, or export instead. |
@@ -739,7 +810,7 @@ any of these changes.
 
 - [Centralized Log Server](280-log-srv.md) — `pm-log-srv` and `pm-log-cli`, the data this console displays
 - [Appendix: LALF Protocol Reference](940-app-lalf-protocol.md) — normative wire spec for the producer protocol
-- [Message Reference — LALF-PS messages](270-message-reference.md#lalf-ps-messages-log-subscriber-pm-log-srv) — normative field tables for every message the bridge sends and receives
+- [Message Reference — LALF-PS messages](270-message-reference.md#family-log) — normative field tables for every message the bridge sends and receives
 - [Configuration — Configuring pm-log-srv](010-configuration.md#configuring-pm-log-srv) — the `log_server:` block, including the LALF-PS ports
 - [Processes](170-processes.md#pm-log-srv-centralized-log-server) — where `pm-log-srv` sits among the other processes
 - [Configuration GUI (`config-gui`)](030-config-GUI.md) — the sibling browser application, same deployment pattern
