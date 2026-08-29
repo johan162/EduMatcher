@@ -276,7 +276,10 @@ def _configure_logging(args: argparse.Namespace) -> int:
         log_target=getattr(args, "log_target", None),
         log_file=getattr(args, "log_file", None),
         client_name=_CLIENT_NAME,
-        instance=None,
+        # Several pm-api-gwy processes run at once (one per api_gateways
+        # entry), so the instance name is what tells them apart in the log
+        # server's connection registry. args is already parsed here.
+        instance=getattr(args, "instance", None),
         host=resolve_host_default(),
         port=server_config.port,
         connect_timeout_sec=client_config.connect_timeout_sec,
