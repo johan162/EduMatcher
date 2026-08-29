@@ -4327,6 +4327,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/08-dev-workflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Development Loop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -5127,10 +5155,39 @@ reach is provided only through the external protocol gateways.</p>
     end
     RC["Remote order-entry clients"] --&gt;|"ALF/BALF TCP :5565/:5560\n(authenticated)"| GWP
     RM["Remote data / post-trade consumers"] --&gt;|"CALF/RALF TCP :5570/:5580"| GWP</code></pre>
-<p>The ZMQ bind host is overridable (<code>EDUMATCHER_ENGINE_HOST</code>,
-<code>EDUMATCHER_INDEX_BIND_HOST</code>), which <em>can</em> place ZMQ consumers on another machine —
+<p>Listeners fall into two planes with different defaults:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Core plane</th>
+<th>Service layer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Processes</td>
+<td><code>pm-engine</code>, <code>pm-index</code></td>
+<td>the four protocol gateways, <code>pm-log-srv</code>, <code>pm-api-gwy</code></td>
+</tr>
+<tr>
+<td>Default bind host</td>
+<td><code>127.0.0.1</code></td>
+<td><code>0.0.0.0</code></td>
+</tr>
+<tr>
+<td>Override</td>
+<td><code>EDUMATCHER_ENGINE_BIND_HOST</code>, <code>EDUMATCHER_INDEX_BIND_HOST</code></td>
+<td><code>EDUMATCHER_GATEWAY_BIND_HOST</code>, then <code>bind_address:</code> / <code>host:</code></td>
+</tr>
+</tbody>
+</table>
+<p>The core plane is an internal ZMQ bus between co-located processes, so it
+defaults to loopback. Widening it <em>can</em> place ZMQ consumers on another machine —
 but doing so exposes the <strong>unauthenticated</strong> bus over the network and SHOULD only be
-done on a private, trusted segment. The supported remote path is the gateways.</p>
+done on a private, trusted segment. The supported remote path is the gateways,
+which default to <code>0.0.0.0</code> because being reachable is their purpose; the ALF and
+BALF order-entry gateways authenticate, the read-only feeds do not.</p>
 <h2 id="order-book-data-structures">Order Book Data Structures<a class="headerlink" href="#order-book-data-structures" title="Permanent link">&para;</a></h2>
 <h3 id="visual-order-depth-at-each-price-level">Visual: order depth at each price level<a class="headerlink" href="#visual-order-depth-at-each-price-level" title="Permanent link">&para;</a></h3>
 <p>Before looking at the heap internals, here is what an order book actually looks like

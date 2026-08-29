@@ -119,7 +119,7 @@ SPECIFIC_ARGS=(
   --symbol-opts TSLA:level=HIGH_BETA,dynamic_band=0.04,cb_halt_l1=10
   --post-trade-gateway
   --post-trade-name ralf-gwy01
-  --post-trade-bind-address 127.0.0.1
+  --post-trade-bind-address 0.0.0.0
   --post-trade-port 5580
   --post-trade-replay-retention-sec 14400
   --post-trade-heartbeat-interval-sec 1
@@ -129,7 +129,7 @@ SPECIFIC_ARGS=(
   --market-data-gateway
   --market-data-enabled
   --market-data-name md-gwy01
-  --market-data-bind-address 127.0.0.1
+  --market-data-bind-address 0.0.0.0
   --market-data-port 5570
   --market-data-heartbeat-interval-sec 1
   --market-data-idle-timeout-sec 5

@@ -18,7 +18,7 @@
         <link rel="prev" href="../06-msgen/">
       
       
-        <link rel="next" href="../../glossary/">
+        <link rel="next" href="../08-dev-workflow/">
       
       
         
@@ -3567,10 +3567,32 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#the-loopback-rewrite" class="md-nav__link">
+  <a href="#the-two-planes-and-their-defaults" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The loopback rewrite
+        The two planes and their defaults
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-a-service-listener-resolves-its-bind-host" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How a service listener resolves its bind host
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-the-entrypoint-no-longer-rewrites-anything" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why the entrypoint no longer rewrites anything
       
     </span>
   </a>
@@ -3858,6 +3880,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../08-dev-workflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Development Loop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -4064,7 +4114,7 @@ is the main standing maintenance cost of this design — see
 <tr>
 <td><strong>System</strong></td>
 <td><code>deployment/docker/Makefile</code></td>
-<td>The backend image, and Compose across all five services. Data directory, profiles, configuration deployment, publishing</td>
+<td>The backend image, the web-app images (<code>build-guis</code>), and Compose across all five services. Data directory, profiles, configuration deployment, publishing</td>
 <td>You want a working exchange with GUIs</td>
 </tr>
 <tr>
@@ -4118,6 +4168,11 @@ definitions exist in two places. See <a href="#part-6-maintenance-burden">Part 6
 </tr>
 </tbody>
 </table>
+<p>The development servers are the interesting ones: <code>make dev</code> runs each app's
+Vite server and its bridge with hot reload, against the exchange running in
+containers. That inner loop — and the fact that <code>make up-all</code> will <em>not</em> pick
+up a web-app change on its own — is
+<a href="../08-dev-workflow/">The Development Loop</a>.</p>
 <div class="admonition warning">
 <p class="admonition-title">Two different GHCR paths exist, and they tag differently</p>
 <p>A GUI's own <code>make cpush</code> tags with <strong>that app's <code>package.json</code> version</strong>
@@ -4191,8 +4246,8 @@ does not open any listener. Cross-host work needs both.</p>
         G["terminal-gui, log-gui,\nconfig-gui, trader-gui"]
     end
     subgraph L4["4. Inside the backend namespace"]
-        GW["Gateways — bind_address in engine_config.yaml"]
-        BUS["Engine bus 5555-5557, index 5558-5559\nEDUMATCHER_ENGINE_BIND_HOST / _INDEX_"]
+        GW["Service layer — gateways, pm-log-srv, pm-api-gwy\ndefault 0.0.0.0 · EDUMATCHER_GATEWAY_BIND_HOST"]
+        BUS["Core plane — engine 5555-5557, index 5558-5559\ndefault 127.0.0.1 · EDUMATCHER_ENGINE_BIND_HOST / _INDEX_"]
     end
 
     BR --&gt; P
@@ -4206,6 +4261,7 @@ does not open any listener. Cross-host work needs both.</p>
 <th>Layer</th>
 <th>Controlled by</th>
 <th>Set where</th>
+<th>Default</th>
 <th><code>0.0.0.0</code> here means</th>
 </tr>
 </thead>
@@ -4214,6 +4270,7 @@ does not open any listener. Cross-host work needs both.</p>
 <td>Published ports</td>
 <td><code>BIND_ADDR</code></td>
 <td><code>.env</code></td>
+<td><code>127.0.0.1</code></td>
 <td><strong>Anyone on your LAN can reach the exchange</strong></td>
 </tr>
 <tr>
@@ -4221,17 +4278,20 @@ does not open any listener. Cross-host work needs both.</p>
 <td>Compose project membership</td>
 <td>which <code>-f</code> overlays you pass</td>
 <td>—</td>
+<td>—</td>
 </tr>
 <tr>
-<td>Gateway listeners</td>
-<td><code>bind_address:</code> / <code>host:</code></td>
-<td><code>engine_config.yaml</code></td>
-<td>Any container on the Compose network</td>
+<td>Service layer</td>
+<td><code>EDUMATCHER_GATEWAY_BIND_HOST</code>, then <code>bind_address:</code> / <code>host:</code></td>
+<td><code>compose.yaml</code>; <code>engine_config.yaml</code></td>
+<td><code>0.0.0.0</code></td>
+<td>Any container on the Compose network, and anything reaching a published port</td>
 </tr>
 <tr>
-<td>Engine + index bus</td>
+<td>Core plane</td>
 <td><code>EDUMATCHER_ENGINE_BIND_HOST</code>, <code>EDUMATCHER_INDEX_BIND_HOST</code></td>
 <td><code>compose.zmq.yaml</code>, via <code>ZMQ=1</code></td>
+<td><code>127.0.0.1</code></td>
 <td>Same, plus publishable to the host</td>
 </tr>
 </tbody>
@@ -4253,22 +4313,111 @@ GUI traffic out to the host and back in, which behaved differently on Docker
 Desktop, Linux Docker and Podman. <code>web-apps/Makefile</code> still carries
 <code>VM_BACKEND_IP</code> because it serves the other case: GUIs in one project talking
 to a backend that is somewhere else entirely.</p>
-<h3 id="the-loopback-rewrite">The loopback rewrite<a class="headerlink" href="#the-loopback-rewrite" title="Permanent link">&para;</a></h3>
-<p>The bundled example configurations set <code>bind_address: 127.0.0.1</code> on the
-market-data and post-trade gateways. On a host install that is a real
-protection — the protocol gateways have no authentication. Inside a container
-it protects nothing and makes the gateway unreachable from a sibling
-container, which is exactly what leaves the trading terminal showing
-<code>calf: RECONNECTING</code>.</p>
-<p><code>entrypoint.sh:open_gateway_binds()</code> therefore rewrites <code>bind_address:</code> and
-<code>host:</code> values of <code>127.0.0.1</code> to <code>0.0.0.0</code> in the deployed YAML and re-runs
-<code>pm-config-deploy</code> to recompile and re-validate. It is guarded by a <code>grep</code>, so
-it is a no-op on restart, and it touches only those two keys — the only bind
-keys in the schema; nothing in <code>engine_config.yaml</code> uses either to mean
-"connect to".</p>
-<p>The alternative — editing the twelve bundled examples — was rejected because it
-would also loosen every bare-metal <code>pm-setup</code>, and because the rewrite already
-covers any future example that sets loopback.</p>
+<h3 id="the-two-planes-and-their-defaults">The two planes and their defaults<a class="headerlink" href="#the-two-planes-and-their-defaults" title="Permanent link">&para;</a></h3>
+<p>Every listening socket the backend opens belongs to one of two planes, and the
+asymmetry between them is deliberate rather than historical.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Core plane</th>
+<th>Service layer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Processes</td>
+<td><code>pm-engine</code>, <code>pm-index</code></td>
+<td><code>pm-alf-gwy</code>, <code>pm-md-gwy</code>, <code>pm-balf-gwy</code>, <code>pm-ralf-gwy</code>, <code>pm-dc-gwy</code>, <code>pm-log-srv</code>, <code>pm-api-gwy</code></td>
+</tr>
+<tr>
+<td>Ports</td>
+<td>5555–5559</td>
+<td>5560, 5570, 5580, 5590, 5600, 5601/5602, 8080/8081</td>
+</tr>
+<tr>
+<td>Who dials in</td>
+<td>Other <code>pm-*</code> processes only</td>
+<td>GUI containers, student clients, <code>curl</code>, Swagger</td>
+</tr>
+<tr>
+<td>Default bind host</td>
+<td><code>127.0.0.1</code></td>
+<td><code>0.0.0.0</code></td>
+</tr>
+<tr>
+<td>Constant</td>
+<td><code>EDUMATCHER_ENGINE_BIND_HOST</code>, <code>EDUMATCHER_INDEX_BIND_HOST</code></td>
+<td><code>EDUMATCHER_GATEWAY_BIND_HOST</code></td>
+</tr>
+<tr>
+<td>Opened by</td>
+<td><code>ZMQ=1</code> / <code>EM_ZMQ=1</code></td>
+<td>already open</td>
+</tr>
+</tbody>
+</table>
+<p>The core plane is an internal bus. Every peer shares the backend's namespace,
+so loopback is both sufficient and the safer default; <code>ZMQ=1</code> widens it when
+you want <code>pm-calf-spy</code> or <code>pm-index-cli</code> attaching from the host. The service
+layer is the product's public surface — a listener nobody outside the
+namespace can reach is a listener that does not do its job — so it defaults
+open, and the namespace plus <code>BIND_ADDR</code> provide the isolation.</p>
+<h3 id="how-a-service-listener-resolves-its-bind-host">How a service listener resolves its bind host<a class="headerlink" href="#how-a-service-listener-resolves-its-bind-host" title="Permanent link">&para;</a></h3>
+<p>All seven service processes share one resolver in <code>edumatcher/config.py</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">EDUMATCHER_GATEWAY_BIND_HOST</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">"EDUMATCHER_GATEWAY_BIND_HOST"</span><span class="p">)</span> <span class="ow">or</span> <span class="kc">None</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">DEFAULT_GATEWAY_BIND_HOST</span> <span class="o">=</span> <span class="s2">"0.0.0.0"</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">resolve_gateway_bind_host</span><span class="p">(</span><span class="n">configured</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="k">if</span> <span class="n">EDUMATCHER_GATEWAY_BIND_HOST</span><span class="p">:</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>        <span class="k">return</span> <span class="n">EDUMATCHER_GATEWAY_BIND_HOST</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="k">return</span> <span class="n">configured</span> <span class="k">if</span> <span class="n">configured</span> <span class="k">else</span> <span class="n">DEFAULT_GATEWAY_BIND_HOST</span>
+</code></pre></div>
+<p>It is wired in at two points in each service's <code>config.py</code>, and both are
+needed:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># 1. The dataclass default — used when no configuration file supplies the key</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">bind_address</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">resolve_gateway_bind_host</span><span class="p">)</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># 2. The loader — used when one does</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">bind_address</span> <span class="o">=</span> <span class="n">resolve_gateway_bind_host</span><span class="p">(</span><span class="n">section</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"bind_address"</span><span class="p">))</span>
+</code></pre></div>
+<p><code>field(default_factory=...)</code> rather than a plain default because the
+environment must be read when the object is constructed, not when the module
+is imported into the test suite. <code>pm-api-gwy</code> spells the key <code>host:</code> instead
+of <code>bind_address:</code>; everything else about it is identical.</p>
+<p>Precedence, first match wins:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>--host flag  →  EDUMATCHER_GATEWAY_BIND_HOST  →  bind_address:/host: in YAML  →  0.0.0.0
+</code></pre></div>
+<p>The environment variable sits <strong>above</strong> the configuration file, which is the
+opposite of the usual ordering in this project and is the point: it is a
+deployment-wide switch that closes or redirects every service listener at once
+without editing a configuration that may belong to someone else. Both
+<code>compose.yaml</code> files set it to <code>0.0.0.0</code> explicitly — redundant against the
+code default, but it means a user-supplied configuration that pins loopback
+still comes up reachable from the GUI containers. It is written as
+<code>${EDUMATCHER_GATEWAY_BIND_HOST:-0.0.0.0}</code>, so an operator can still pin one
+interface from <code>.env</code>.</p>
+<p><code>src/edumatcher/config_show/extract.py</code> calls the same resolver, so
+<code>pm-config-show</code> and <code>make config-show</code> report the host each process will
+actually bind rather than the literal in the YAML.</p>
+<h3 id="why-the-entrypoint-no-longer-rewrites-anything">Why the entrypoint no longer rewrites anything<a class="headerlink" href="#why-the-entrypoint-no-longer-rewrites-anything" title="Permanent link">&para;</a></h3>
+<p>Until v0.26 the bundled examples set <code>bind_address: 127.0.0.1</code> and
+<code>entrypoint.sh:open_gateway_binds()</code> rewrote loopback binds to <code>0.0.0.0</code> in the
+deployed YAML, then re-ran <code>pm-config-deploy</code>. It worked, but it had three
+costs: the deployed configuration was not the one the user wrote, the rewrite
+was invisible unless you read the container log, and <code>pm-config-show</code> described
+the file rather than the behaviour.</p>
+<p>The defaults now carry that responsibility. The twelve bundled examples say
+<code>0.0.0.0</code>, <code>open_gateway_binds()</code> and <code>LOOPBACK_BIND_RE</code> are gone from
+<code>entrypoint.sh</code>, and the deployed configuration is byte-for-byte the one
+supplied.</p>
+<div class="admonition warning">
+<p class="admonition-title">This is a behaviour change for bare-metal installs</p>
+<p>A <code>pipx</code> or Poetry install has no namespace around it, so service
+listeners that used to default to loopback are now on every interface.
+<code>EDUMATCHER_GATEWAY_BIND_HOST=127.0.0.1</code> restores the old behaviour for a
+whole install in one variable. See <code>CHANGELOG.md</code>.</p>
+</div>
 <h2 id="part-3-build-time-versus-run-time">Part 3 — Build time versus run time<a class="headerlink" href="#part-3-build-time-versus-run-time" title="Permanent link">&para;</a></h2>
 <p>The single most common way to waste an hour here is to change something at run
 time that was decided at build time, or the reverse.</p>
@@ -4337,10 +4486,10 @@ switch takes effect without an explicit <code>down</code>.</p>
 takes <code>USE_PROXY_CA</code> and <code>CA_CERT_FILE</code>.</p>
 <p>The backend's package source is selected by what is present rather than by a
 flag:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">COPY</span><span class="w"> </span>.wheel/<span class="w"> </span>/tmp/wheel/
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">RUN</span><span class="w"> </span><span class="k">if</span><span class="w"> </span>ls<span class="w"> </span>/tmp/wheel/*.whl<span class="p">;</span><span class="w"> </span><span class="k">then</span><span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>/tmp/wheel/*.whl<span class="p">;</span><span class="w">   </span>#<span class="w"> </span><span class="nb">local</span><span class="w"> </span>build
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="k">elif</span><span class="w"> </span><span class="o">[</span><span class="w"> </span>-n<span class="w"> </span><span class="s2">"</span><span class="si">${</span><span class="nv">EDUMATCHER_VERSION</span><span class="si">}</span><span class="s2">"</span><span class="w"> </span><span class="o">]</span><span class="p">;</span><span class="w"> </span><span class="k">then</span><span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"edumatcher==</span><span class="si">${</span><span class="nv">EDUMATCHER_VERSION</span><span class="si">}</span><span class="s2">"</span><span class="p">;</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="k">else</span><span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>edumatcher<span class="p">;</span><span class="w"> </span><span class="k">fi</span><span class="w">                              </span>#<span class="w"> </span>newest<span class="w"> </span>on<span class="w"> </span>PyPI
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">COPY</span><span class="w"> </span>.wheel/<span class="w"> </span>/tmp/wheel/
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">RUN</span><span class="w"> </span><span class="k">if</span><span class="w"> </span>ls<span class="w"> </span>/tmp/wheel/*.whl<span class="p">;</span><span class="w"> </span><span class="k">then</span><span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>/tmp/wheel/*.whl<span class="p">;</span><span class="w">   </span>#<span class="w"> </span><span class="nb">local</span><span class="w"> </span>build
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">    </span><span class="k">elif</span><span class="w"> </span><span class="o">[</span><span class="w"> </span>-n<span class="w"> </span><span class="s2">"</span><span class="si">${</span><span class="nv">EDUMATCHER_VERSION</span><span class="si">}</span><span class="s2">"</span><span class="w"> </span><span class="o">]</span><span class="p">;</span><span class="w"> </span><span class="k">then</span><span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"edumatcher==</span><span class="si">${</span><span class="nv">EDUMATCHER_VERSION</span><span class="si">}</span><span class="s2">"</span><span class="p">;</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">    </span><span class="k">else</span><span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>edumatcher<span class="p">;</span><span class="w"> </span><span class="k">fi</span><span class="w">                              </span>#<span class="w"> </span>newest<span class="w"> </span>on<span class="w"> </span>PyPI
 </code></pre></div>
 <p><code>make build</code> puts a freshly built wheel in <code>.wheel/</code>; <code>PYPI=1</code> and
 <code>VERSION=x.y.z</code> clear it first.</p>
@@ -4355,10 +4504,10 @@ on this project, from a path in the <code>RUN</code> step that did not match the
 <code>COPY</code> destination.</p>
 </div>
 <h2 id="part-4-starting-and-configuring-the-whole-system">Part 4 — Starting and configuring the whole system<a class="headerlink" href="#part-4-starting-and-configuring-the-whole-system" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>make<span class="w"> </span>build<span class="w">          </span><span class="c1"># backend image from a wheel built out of this checkout</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>make<span class="w"> </span>up-all<span class="w">         </span><span class="c1"># exchange + terminal-, log- and trader-gui</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>make<span class="w"> </span>down-all<span class="w">       </span><span class="c1"># stop and remove everything</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>make<span class="w"> </span>build<span class="w">          </span><span class="c1"># backend image from a wheel built out of this checkout</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>make<span class="w"> </span>up-all<span class="w">         </span><span class="c1"># exchange + terminal-, log- and trader-gui</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>make<span class="w"> </span>down-all<span class="w">       </span><span class="c1"># stop and remove everything</span>
 </code></pre></div>
 <table>
 <thead>
@@ -4429,7 +4578,6 @@ the exchange has deployed its configuration, so it cannot be a compose default.<
 
     M-&gt;&gt;B: compose up -d edumatcher
     B-&gt;&gt;B: pm-setup / pm-config-deploy
-    B-&gt;&gt;B: open_gateway_binds() rewrites loopback binds
     B-&gt;&gt;B: pm-opctl-cli start &lt;profile&gt;
     M-&gt;&gt;B: poll for /data/ref_data/engine_config.json
     M-&gt;&gt;B: exec python3 — read the gateway_id:null credential
@@ -4442,7 +4590,7 @@ same extraction snippet — that logic lives in <code>edumatcher.sh</code> rathe
 continues and warns. The live CALF feed needs no key; only history does.</p>
 <h2 id="part-5-the-release-process">Part 5 — The release process<a class="headerlink" href="#part-5-the-release-process" title="Permanent link">&para;</a></h2>
 <p>One git tag produces a wheel and five multi-architecture images, all carrying
-the same version. That coupling is what lets <code>install.sh --version 0.26.3</code>
+the same version. That coupling is what lets <code>install.sh --version 0.27.0</code>
 pin an entire system with one number.</p>
 <pre class="mermaid"><code>flowchart TD
     MK["scripts/mkrelease.sh\nbump, build docs, commit, tag"]
@@ -4498,9 +4646,9 @@ re-runs just that part.</p>
 <h3 id="the-manual-escape-hatch">The manual escape hatch<a class="headerlink" href="#the-manual-escape-hatch" title="Permanent link">&para;</a></h3>
 <p><code>make ghcr-push</code> in <code>deployment/docker/</code> builds all five images from your
 checkout and pushes them. It exists for when the workflow cannot run at all.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">GITHUB_USER</span><span class="o">=</span>&lt;you&gt;<span class="w"> </span><span class="nv">GHCR_TOKEN</span><span class="o">=</span>&lt;token<span class="w"> </span>with<span class="w"> </span>write:packages&gt;
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>make<span class="w"> </span>ghcr-push<span class="w">                              </span><span class="c1"># all five, tagged :dev</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>make<span class="w"> </span>ghcr-push<span class="w"> </span><span class="nv">TAG</span><span class="o">=</span><span class="m">0</span>.20.6<span class="w"> </span><span class="nv">FORCE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">LATEST</span><span class="o">=</span><span class="m">1</span><span class="w">  </span><span class="c1"># as a release tag</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">GITHUB_USER</span><span class="o">=</span>&lt;you&gt;<span class="w"> </span><span class="nv">GHCR_TOKEN</span><span class="o">=</span>&lt;token<span class="w"> </span>with<span class="w"> </span>write:packages&gt;
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>make<span class="w"> </span>ghcr-push<span class="w">                              </span><span class="c1"># all five, tagged :dev</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>make<span class="w"> </span>ghcr-push<span class="w"> </span><span class="nv">TAG</span><span class="o">=</span><span class="m">0</span>.20.6<span class="w"> </span><span class="nv">FORCE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">LATEST</span><span class="o">=</span><span class="m">1</span><span class="w">  </span><span class="c1"># as a release tag</span>
 </code></pre></div>
 <p>It can only build for the architecture you are on. Pushing single-arch over a
 release tag <strong>replaces the manifest list</strong>, and users on the other
@@ -4548,10 +4696,10 @@ already existed — because someone pushed it by hand with a personal access
 token, for instance with a GUI's own <code>make cpush</code> — belongs to the <em>user</em>
 account and has no repository in its access list. <code>GITHUB_TOKEN</code> is scoped to
 the repository, so the push fails:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>#21 [auth] johan162/edumatcher-config-gui:pull,push token for ghcr.io
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>#21 DONE 0.0s
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>#20 pushing layers 0.5s done
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>#20 ERROR: failed to push ghcr.io/johan162/edumatcher-config-gui: denied: permission_denied: read_package
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>#21 [auth] johan162/edumatcher-config-gui:pull,push token for ghcr.io
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>#21 DONE 0.0s
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>#20 pushing layers 0.5s done
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>#20 ERROR: failed to push ghcr.io/johan162/edumatcher-config-gui: denied: permission_denied: read_package
 </code></pre></div>
 <p>The authentication <em>succeeds</em> and the layers upload; only the manifest write is
 refused. Fix it once, on the package's page under <strong>Package settings → Manage
@@ -4622,21 +4770,21 @@ section.</p>
 </tbody>
 </table>
 <p>A drift check for the compose pair, worth running before a release:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>python3<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;'PY'</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="s">import yaml</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="s">dev = {**yaml.safe_load(open('deployment/docker/compose.yaml'))['services'],</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="s">       **yaml.safe_load(open('deployment/docker/compose.guis.yaml'))['services'],</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="s">       **yaml.safe_load(open('deployment/docker/compose.config-gui.yaml'))['services']}</span>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="s">rel = yaml.safe_load(open('deployment/curl/compose.yaml'))['services']</span>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="s">assert sorted(dev) == sorted(rel), (sorted(dev), sorted(rel))</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="s">keys = ["CALF_HOST","CALF_PORT","API_GATEWAY_URL","LOG_SRV_HOST","LOG_SRV_PORT",</span>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="s">        "LOG_SRV_PUB_PORT","LOG_SRV_PULL_PORT","API_PROXY_TARGET","LOG_DB_PATH"]</span>
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="s">for svc in sorted(rel):</span>
-<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="s">    d, r = dev[svc].get('environment', {}), rel[svc].get('environment', {})</span>
-<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="s">    for k in keys:</span>
-<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="s">        assert d.get(k) == r.get(k), f"{svc}.{k}: dev={d.get(k)!r} release={r.get(k)!r}"</span>
-<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="s">print("compose files agree")</span>
-<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="s">PY</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>python3<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;'PY'</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="s">import yaml</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="s">dev = {**yaml.safe_load(open('deployment/docker/compose.yaml'))['services'],</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="s">       **yaml.safe_load(open('deployment/docker/compose.guis.yaml'))['services'],</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="s">       **yaml.safe_load(open('deployment/docker/compose.config-gui.yaml'))['services']}</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="s">rel = yaml.safe_load(open('deployment/curl/compose.yaml'))['services']</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="s">assert sorted(dev) == sorted(rel), (sorted(dev), sorted(rel))</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="s">keys = ["CALF_HOST","CALF_PORT","API_GATEWAY_URL","LOG_SRV_HOST","LOG_SRV_PORT",</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="s">        "LOG_SRV_PUB_PORT","LOG_SRV_PULL_PORT","API_PROXY_TARGET","LOG_DB_PATH"]</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="s">for svc in sorted(rel):</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="s">    d, r = dev[svc].get('environment', {}), rel[svc].get('environment', {})</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="s">    for k in keys:</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="s">        assert d.get(k) == r.get(k), f"{svc}.{k}: dev={d.get(k)!r} release={r.get(k)!r}"</span>
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="s">print("compose files agree")</span>
+<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="s">PY</span>
 </code></pre></div>
 <h3 id="standing-costs">Standing costs<a class="headerlink" href="#standing-costs" title="Permanent link">&para;</a></h3>
 <p><strong>Version coupling.</strong> Every image carries the EduMatcher release version, so
@@ -4659,7 +4807,9 @@ A schema change there breaks three call sites that no test covers.</p>
 delivers a published connection to <em>loopback inside the container's
 namespace</em>. A gateway bound to <code>127.0.0.1</code> therefore answers host traffic
 perfectly while refusing every sibling container. Host reachability tells you
-nothing about container-to-container reachability.</p>
+nothing about container-to-container reachability. The defaults no longer
+produce this, but <code>EDUMATCHER_GATEWAY_BIND_HOST</code>, a <code>--host</code> flag or a
+<code>bind_address:</code> in a supplied configuration still can.</p>
 <p><strong>"<code>make status</code> is green."</strong> <code>pm-opctl-cli list</code> reports
 <code>tcp connect to 127.0.0.1:5570 ok</code>, but that probe also runs inside the
 container over the same loopback. A healthy process table is not evidence that
@@ -4670,45 +4820,46 @@ anything outside that container can connect.</p>
     A --&gt;|no| A1["Different Compose projects.\nCheck you passed the same -f set;\nCOMPOSE_PROJECT_NAME must match"]
     A --&gt;|yes| B{"Does the port accept\na connection?"}
     B --&gt;|"ECONNREFUSED"| B1{"What does the compiled\nconfig say it binds?"}
-    B1 --&gt;|"127.0.0.1"| B2["The loopback rewrite did not run.\nCheck podman logs edumatcher\nfor 'rewriting loopback gateway binds'"]
+    B1 --&gt;|"127.0.0.1"| B2["Something narrowed the bind.\nCheck EDUMATCHER_GATEWAY_BIND_HOST\nin the container env, then bind_address:\nin the supplied configuration"]
     B1 --&gt;|"0.0.0.0"| B3["The process is not running.\nmake status, then the process log\nunder data/emo/"]
     B --&gt;|"timeout"| B4["Firewall or a wrong host —\na refused port answers immediately"]
     B --&gt;|"connects"| C{"Does the application\nstill report an error?"}
     C --&gt;|"401 / 403"| C1["Wrong API key or wrong gateway instance.\nThe read-only key lives on 8081, not 8080"]
     C --&gt;|"protocol-level"| C2["Application layer — read the bridge log,\nnot the network"]</code></pre>
 <p>The ladder of commands behind that tree:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># 1. Name resolution across the Compose network</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-trader-gui<span class="w"> </span>getent<span class="w"> </span>hosts<span class="w"> </span>edumatcher
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># 2. An actual connection attempt, from where it matters — with a</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="c1">#    known-good port as the control</span>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-terminal-gui<span class="w"> </span>node<span class="w"> </span>-e<span class="w"> </span><span class="s1">'</span>
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="s1">const net = require("net");</span>
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="s1">for (const p of [5600, 5570]) {</span>
-<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="s1">  const s = net.connect(p, "edumatcher", () =&gt; { console.log(p, "OPEN"); s.end(); });</span>
-<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="s1">  s.on("error", e =&gt; console.log(p, "FAIL", e.code));</span>
-<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="s1">}'</span>
-<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>
-<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="c1"># 3. What the processes actually read — the compiled artifact, not the YAML</span>
-<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher<span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="w">  </span><span class="s2">"import json; print(json.load(open('/data/ref_data/engine_config.json'))['market_data_gateway'])"</span>
-<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>
-<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a><span class="c1"># 4. Did the entrypoint rewrite the binds?</span>
-<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a>podman<span class="w"> </span>logs<span class="w"> </span>edumatcher<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-i<span class="w"> </span><span class="s1">'rewriting loopback'</span>
-<a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a>
-<a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a><span class="c1"># 5. What the bridges think of their own uplinks</span>
-<a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a>curl<span class="w"> </span>-s<span class="w"> </span>localhost:8090/api/bridge/status<span class="w">   </span><span class="c1"># calf, logging</span>
-<a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a>curl<span class="w"> </span>-s<span class="w"> </span>localhost:8091/api/bridge/status<span class="w">   </span><span class="c1"># lalfPs, logDb</span>
-<a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a>
-<a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a><span class="c1"># 6. Which ports are actually published</span>
-<a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a>podman<span class="w"> </span>port<span class="w"> </span>edumatcher
-<a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a>
-<a id="__codelineno-7-27" name="__codelineno-7-27" href="#__codelineno-7-27"></a><span class="c1"># 7. Which directory on disk is behind each container path, and where each</span>
-<a id="__codelineno-7-28" name="__codelineno-7-28" href="#__codelineno-7-28"></a><span class="c1">#    container came from.  make mounts  in deployment/docker, or</span>
-<a id="__codelineno-7-29" name="__codelineno-7-29" href="#__codelineno-7-29"></a><span class="c1">#    ./edumatcher.sh mounts  in a released install. The raw forms:</span>
-<a id="__codelineno-7-30" name="__codelineno-7-30" href="#__codelineno-7-30"></a>podman<span class="w"> </span>inspect<span class="w"> </span>edumatcher-log-gui<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-7-31" name="__codelineno-7-31" href="#__codelineno-7-31"></a><span class="w">  </span>--format<span class="w"> </span><span class="s1">'{{range .Mounts}}{{.Source}} -&gt; {{.Destination}}{{"\n"}}{{end}}'</span>
-<a id="__codelineno-7-32" name="__codelineno-7-32" href="#__codelineno-7-32"></a>podman<span class="w"> </span>ps<span class="w"> </span>--filter<span class="w"> </span><span class="nv">name</span><span class="o">=</span>edumatcher<span class="w"> </span>--format<span class="w"> </span><span class="s1">'{{.Names}}\t{{.Image}}\t{{.CreatedAt}}'</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># 1. Name resolution across the Compose network</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-trader-gui<span class="w"> </span>getent<span class="w"> </span>hosts<span class="w"> </span>edumatcher
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1"># 2. An actual connection attempt, from where it matters — with a</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="c1">#    known-good port as the control</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-terminal-gui<span class="w"> </span>node<span class="w"> </span>-e<span class="w"> </span><span class="s1">'</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="s1">const net = require("net");</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="s1">for (const p of [5600, 5570]) {</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="s1">  const s = net.connect(p, "edumatcher", () =&gt; { console.log(p, "OPEN"); s.end(); });</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="s1">  s.on("error", e =&gt; console.log(p, "FAIL", e.code));</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="s1">}'</span>
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a>
+<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a><span class="c1"># 3. What the processes actually read — the compiled artifact, not the YAML</span>
+<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher<span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a><span class="w">  </span><span class="s2">"import json; print(json.load(open('/data/ref_data/engine_config.json'))['market_data_gateway'])"</span>
+<a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a>
+<a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a><span class="c1"># 4. What bind host the processes were actually told to use</span>
+<a id="__codelineno-10-18" name="__codelineno-10-18" href="#__codelineno-10-18"></a>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher<span class="w"> </span>env<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-E<span class="w"> </span><span class="s1">'EDUMATCHER_(GATEWAY|ENGINE|INDEX)_BIND_HOST'</span>
+<a id="__codelineno-10-19" name="__codelineno-10-19" href="#__codelineno-10-19"></a>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher<span class="w"> </span>pm-config-show<span class="w"> </span>--section<span class="w"> </span>ports
+<a id="__codelineno-10-20" name="__codelineno-10-20" href="#__codelineno-10-20"></a>
+<a id="__codelineno-10-21" name="__codelineno-10-21" href="#__codelineno-10-21"></a><span class="c1"># 5. What the bridges think of their own uplinks</span>
+<a id="__codelineno-10-22" name="__codelineno-10-22" href="#__codelineno-10-22"></a>curl<span class="w"> </span>-s<span class="w"> </span>localhost:8090/api/bridge/status<span class="w">   </span><span class="c1"># calf, logging</span>
+<a id="__codelineno-10-23" name="__codelineno-10-23" href="#__codelineno-10-23"></a>curl<span class="w"> </span>-s<span class="w"> </span>localhost:8091/api/bridge/status<span class="w">   </span><span class="c1"># lalfPs, logDb</span>
+<a id="__codelineno-10-24" name="__codelineno-10-24" href="#__codelineno-10-24"></a>
+<a id="__codelineno-10-25" name="__codelineno-10-25" href="#__codelineno-10-25"></a><span class="c1"># 6. Which ports are actually published</span>
+<a id="__codelineno-10-26" name="__codelineno-10-26" href="#__codelineno-10-26"></a>podman<span class="w"> </span>port<span class="w"> </span>edumatcher
+<a id="__codelineno-10-27" name="__codelineno-10-27" href="#__codelineno-10-27"></a>
+<a id="__codelineno-10-28" name="__codelineno-10-28" href="#__codelineno-10-28"></a><span class="c1"># 7. Which directory on disk is behind each container path, and where each</span>
+<a id="__codelineno-10-29" name="__codelineno-10-29" href="#__codelineno-10-29"></a><span class="c1">#    container came from.  make mounts  in deployment/docker, or</span>
+<a id="__codelineno-10-30" name="__codelineno-10-30" href="#__codelineno-10-30"></a><span class="c1">#    ./edumatcher.sh mounts  in a released install. The raw forms:</span>
+<a id="__codelineno-10-31" name="__codelineno-10-31" href="#__codelineno-10-31"></a>podman<span class="w"> </span>inspect<span class="w"> </span>edumatcher-log-gui<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-10-32" name="__codelineno-10-32" href="#__codelineno-10-32"></a><span class="w">  </span>--format<span class="w"> </span><span class="s1">'{{range .Mounts}}{{.Source}} -&gt; {{.Destination}}{{"\n"}}{{end}}'</span>
+<a id="__codelineno-10-33" name="__codelineno-10-33" href="#__codelineno-10-33"></a>podman<span class="w"> </span>ps<span class="w"> </span>--filter<span class="w"> </span><span class="nv">name</span><span class="o">=</span>edumatcher<span class="w"> </span>--format<span class="w"> </span><span class="s1">'{{.Names}}\t{{.Image}}\t{{.CreatedAt}}'</span>
 </code></pre></div>
 <p>Step 3 is the one that settles arguments. The deployed YAML in <code>ref_data/</code> is
 the <em>source</em> copy; the compiled JSON beside it is what every process reads,

@@ -1093,10 +1093,32 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#the-three-places-an-address-appears" class="md-nav__link">
+  <a href="#the-two-planes-and-where-each-address-is-decided" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The three places an address appears
+        The two planes, and where each address is decided
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-0000-does-and-does-not-expose" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What 0.0.0.0 does and does not expose
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-there-is-no-longer-a-loopback-rewrite" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why there is no longer a loopback rewrite
       
     </span>
   </a>
@@ -3885,6 +3907,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/08-dev-workflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Development Loop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3974,8 +4024,9 @@
 <li>Which of the five installation modes fits what you are trying to do</li>
 <li>How the container deployment is wired, and why the web GUIs reach the
   exchange without any published port being involved</li>
-<li>What <code>127.0.0.1</code> and <code>0.0.0.0</code> mean at each of the three separate places
-  they appear, and which one actually protects you</li>
+<li>What <code>127.0.0.1</code> and <code>0.0.0.0</code> mean in each of the three separate places
+  they appear, which of them actually protects you, and how the core plane
+  and the service layer come by their different defaults</li>
 <li>Every flag that controls a build or a start, and every directory the
   system reads or writes</li>
 <li>How a release is produced, and what a developer must do to cut one</li>
@@ -4178,7 +4229,7 @@ describe different systems.</p>
 </table>
 <p>Because the script is read from a pipe, options need <code>bash -s --</code> so that the
 shell hands them to the script rather than consuming them itself:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>.../install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--config<span class="w"> </span>ten-nominal<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.26.3
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>.../install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--config<span class="w"> </span>ten-nominal<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.27.0
 </code></pre></div>
 <p>Two environment variables are also honoured: <code>REPO_OWNER</code> (which GitHub
 account and GHCR namespace to use) and <code>REPO_REF</code> (fetch the support files
@@ -4237,6 +4288,16 @@ into this file.</p>
 <td>Which host interface the published ports listen on. See the warning below</td>
 </tr>
 <tr>
+<td><code>EDUMATCHER_GATEWAY_BIND_HOST</code></td>
+<td><code>0.0.0.0</code></td>
+<td>Bind host for the service-layer listeners <em>inside</em> the container — the four protocol gateways, <code>pm-log-srv</code> and <code>pm-api-gwy</code>. It is what makes them reachable from the GUI containers, and it wins over any <code>bind_address:</code> in the deployed configuration. Not a host-exposure setting; that is <code>BIND_ADDR</code></td>
+</tr>
+<tr>
+<td><code>EM_ZMQ</code></td>
+<td><code>0</code></td>
+<td><code>1</code> also publishes the raw ZeroMQ bus (5555-5559, 5601/5602) and tells the engine and <code>pm-index</code> to bind the container interface, so tools on your machine can attach. The equivalent of <code>make up ZMQ=1</code></td>
+</tr>
+<tr>
 <td><code>TERMINAL_GUI_PORT</code></td>
 <td><code>8090</code></td>
 <td>Host port for the trading terminal</td>
@@ -4286,14 +4347,16 @@ next time you switched configuration.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nb">cd</span><span class="w"> </span>~/.edumatcher
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>./edumatcher.sh<span class="w"> </span>status<span class="w">              </span><span class="c1"># containers, plus the exchange process table</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>./edumatcher.sh<span class="w"> </span>logs<span class="w"> </span>terminal-gui<span class="w">   </span><span class="c1"># follow one service</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>./edumatcher.sh<span class="w"> </span>urls<span class="w">                </span><span class="c1"># the application table, with your ports</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>./edumatcher.sh<span class="w"> </span>mounts<span class="w">              </span><span class="c1"># which directory is behind each container path</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>./edumatcher.sh<span class="w"> </span>stop<span class="w">                </span><span class="c1"># stop everything; ./data is kept</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>./edumatcher.sh<span class="w"> </span>start<span class="w">               </span><span class="c1"># bring it back</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>./edumatcher.sh<span class="w"> </span>update<span class="w">              </span><span class="c1"># pull the newest release and restart</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>./edumatcher.sh<span class="w"> </span>update<span class="w"> </span><span class="m">0</span>.20.5<span class="w">       </span><span class="c1"># ...or move to an exact one</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>./edumatcher.sh<span class="w"> </span>uninstall<span class="w">           </span><span class="c1"># remove containers and volumes, keep data</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>./edumatcher.sh<span class="w"> </span>uninstall<span class="w"> </span>--data<span class="w">    </span><span class="c1"># remove everything</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w">               </span><span class="c1"># a shell inside the exchange container</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>pm-config-show<span class="w">      </span><span class="c1"># ...or one command in it</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>./edumatcher.sh<span class="w"> </span>urls<span class="w">                </span><span class="c1"># the application table, with your ports</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>./edumatcher.sh<span class="w"> </span>mounts<span class="w">              </span><span class="c1"># which directory is behind each container path</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>./edumatcher.sh<span class="w"> </span>stop<span class="w">                </span><span class="c1"># stop everything; ./data is kept</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>./edumatcher.sh<span class="w"> </span>start<span class="w">               </span><span class="c1"># bring it back</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>./edumatcher.sh<span class="w"> </span>update<span class="w">              </span><span class="c1"># pull the newest release and restart</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>./edumatcher.sh<span class="w"> </span>update<span class="w"> </span><span class="m">0</span>.20.5<span class="w">       </span><span class="c1"># ...or move to an exact one</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>./edumatcher.sh<span class="w"> </span>uninstall<span class="w">           </span><span class="c1"># remove containers and volumes, keep data</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>./edumatcher.sh<span class="w"> </span>uninstall<span class="w"> </span>--data<span class="w">    </span><span class="c1"># remove everything</span>
 </code></pre></div>
 <h3 id="choosing-what-the-exchange-trades">Choosing what the exchange trades<a class="headerlink" href="#choosing-what-the-exchange-trades" title="Permanent link">&para;</a></h3>
 <p>EduMatcher ships twelve ready-made configurations: one, three, ten or thirty
@@ -4468,6 +4531,11 @@ plain <code>make up-all</code> afterwards goes back to whatever <code>.env</code
 <td>Which host interface the published ports listen on. See below</td>
 </tr>
 <tr>
+<td><code>EDUMATCHER_GATEWAY_BIND_HOST</code></td>
+<td><code>0.0.0.0</code></td>
+<td>Bind host for the service-layer listeners <em>inside</em> the container — the four protocol gateways, <code>pm-log-srv</code> and <code>pm-api-gwy</code>. It is what makes them reachable from the GUI containers, and it wins over any <code>bind_address:</code> in the deployed configuration. Not a host-exposure setting; that is <code>BIND_ADDR</code></td>
+</tr>
+<tr>
 <td><code>SSH_PORT</code></td>
 <td><code>2222</code></td>
 <td>Host port forwarded to <code>sshd</code></td>
@@ -4589,7 +4657,7 @@ need these mainly behind a corporate proxy.</p>
 <p>This section is worth reading even if the install "just worked", because the
 one thing that reliably confuses people here — the difference between
 <code>127.0.0.1</code> and <code>0.0.0.0</code> — appears in three separate places that mean three
-different things.</p>
+different things, and only one of them is a security boundary.</p>
 <h3 id="one-compose-project-one-private-network">One compose project, one private network<a class="headerlink" href="#one-compose-project-one-private-network" title="Permanent link">&para;</a></h3>
 <p>All five containers belong to a single Compose project, so Compose puts them on
 one private network and gives each a name on it. The backend answers to the
@@ -4629,7 +4697,68 @@ hostname <code>edumatcher</code>.</p>
 </ul>
 <p>The configuration builder is the exception: it talks to nothing at all, which
 is why it is opt-in with <code>CONFIG_GUI=1</code> when building from source.</p>
-<h3 id="the-three-places-an-address-appears">The three places an address appears<a class="headerlink" href="#the-three-places-an-address-appears" title="Permanent link">&para;</a></h3>
+<h3 id="the-two-planes-and-where-each-address-is-decided">The two planes, and where each address is decided<a class="headerlink" href="#the-two-planes-and-where-each-address-is-decided" title="Permanent link">&para;</a></h3>
+<p>Every listening socket in EduMatcher belongs to one of two planes, and the two
+have deliberately different defaults.</p>
+<pre class="mermaid"><code>flowchart TB
+    subgraph ns["Inside the backend container's network namespace"]
+        subgraph core["Core plane — ports 5555-5559"]
+            ENG["pm-engine\n5555 pull · 5556 pub · 5557 drop-copy"]
+            IDX["pm-index\n5558 pub · 5559 pull"]
+        end
+        subgraph svc["Service layer — every other listener"]
+            GW["pm-alf-gwy 5560 · pm-md-gwy 5570\npm-balf-gwy 5580 · pm-ralf-gwy 5590\npm-dc-gwy 5600 · pm-log-srv 5601/5602\npm-api-gwy 8080/8081"]
+        end
+    end
+    core --&gt;|"defaults to 127.0.0.1"| N1["Private to the container.\nOpen it with EDUMATCHER_ENGINE_BIND_HOST\nand EDUMATCHER_INDEX_BIND_HOST — ZMQ=1 does this"]
+    svc --&gt;|"defaults to 0.0.0.0"| N2["Reachable from sibling containers\nand through published ports.\nNarrow it with EDUMATCHER_GATEWAY_BIND_HOST"]</code></pre>
+<p><strong>The core plane is the internal bus.</strong> <code>pm-engine</code> and <code>pm-index</code> speak
+ZeroMQ to the other EduMatcher processes and to nothing else, so they default
+to <code>127.0.0.1</code> and a stock install keeps the bus inside the container.
+Starting with <code>ZMQ=1</code> sets <code>EDUMATCHER_ENGINE_BIND_HOST</code> and
+<code>EDUMATCHER_INDEX_BIND_HOST</code> to <code>0.0.0.0</code> and publishes 5555–5559, so you can
+attach your own ZeroMQ client from the host.</p>
+<p><strong>The service layer is what clients talk to.</strong> All seven gateway processes
+default to <code>0.0.0.0</code>, because every practical deployment needs them reachable
+from somewhere else — a sibling GUI container, a student's laptop in a
+classroom, a protocol example running on your host.</p>
+<p>Each service listener resolves its bind host in this order, first match wins:</p>
+<table>
+<thead>
+<tr>
+<th>Precedence</th>
+<th>Source</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>The process's own <code>--host</code> command-line flag</td>
+<td><code>pm-md-gwy --host 127.0.0.1</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>The <code>EDUMATCHER_GATEWAY_BIND_HOST</code> environment variable</td>
+<td><code>EDUMATCHER_GATEWAY_BIND_HOST=127.0.0.1</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>bind_address:</code> (or <code>host:</code> for <code>pm-api-gwy</code>) in the engine configuration</td>
+<td><code>bind_address: 10.0.0.5</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>The built-in default</td>
+<td><code>0.0.0.0</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>EDUMATCHER_GATEWAY_BIND_HOST</code> deliberately sits <em>above</em> the configuration
+file. It is a deployment-wide switch: one environment variable closes every
+service listener at once, without editing a configuration that may not be
+yours to edit.</p>
+<h3 id="what-0000-does-and-does-not-expose">What <code>0.0.0.0</code> does and does not expose<a class="headerlink" href="#what-0000-does-and-does-not-expose" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -4647,48 +4776,60 @@ is why it is opt-in with <code>CONFIG_GUI=1</code> when building from source.</p
 <td>Anyone on your network can</td>
 </tr>
 <tr>
-<td><strong>Gateway binds</strong> — inside the container</td>
-<td><code>bind_address:</code> / <code>host:</code> in <code>engine_config.yaml</code></td>
+<td><strong>Service listeners</strong> — inside the container</td>
+<td>default, or <code>EDUMATCHER_GATEWAY_BIND_HOST</code>, or <code>bind_address:</code> / <code>host:</code></td>
 <td>Only processes <em>in that container</em> — not even a sibling container</td>
-<td>Any container on the compose network</td>
+<td>Any container on the Compose network, and anything reaching a published port</td>
 </tr>
 <tr>
-<td><strong>Engine and index bus</strong> — inside the container</td>
-<td><code>EDUMATCHER_ENGINE_BIND_HOST</code>, <code>EDUMATCHER_INDEX_BIND_HOST</code>; set by <code>ZMQ=1</code></td>
+<td><strong>Core plane</strong> — inside the container</td>
+<td>default, or <code>EDUMATCHER_ENGINE_BIND_HOST</code> / <code>EDUMATCHER_INDEX_BIND_HOST</code>; set by <code>ZMQ=1</code></td>
 <td>Same: container-internal only</td>
-<td>Reachable from the network and publishable</td>
+<td>Reachable from the Compose network and publishable</td>
 </tr>
 </tbody>
 </table>
-<p>The one that protects you is the <strong>first</strong>. The second and third are inside a
-network namespace that already isolates the container; binding <code>0.0.0.0</code> there
-does not expose anything to the outside world, because there is no route in
-except through a published port.</p>
-<p>That distinction matters because the bundled example configurations set
-<code>bind_address: 127.0.0.1</code> on the market-data and post-trade gateways. On a
-laptop running EduMatcher directly, that is a real protection: <strong>the protocol
-gateways have no authentication</strong>, so anyone who can open the socket can submit
-orders. Inside a container it protects nothing and breaks the trading terminal,
-whose market-data feed comes from a sibling container.</p>
-<p>So the container entrypoint rewrites <code>bind_address:</code> and <code>host:</code> values of
-<code>127.0.0.1</code> to <code>0.0.0.0</code> in the deployed configuration and recompiles it. It
-runs for bundled examples and for a configuration of your own alike, and it is
-a no-op on restart. Nothing about a bare-metal <code>pm-setup</code> changes — and
-<code>make config-show</code> keeps describing what the processes actually do.</p>
+<p><strong>Only the first row is a security boundary.</strong> The second and third are inside
+a network namespace that already isolates the container: binding <code>0.0.0.0</code>
+there exposes nothing to the outside world, because there is no route in except
+through a port you chose to publish. Whether the exchange is visible on your
+LAN is decided entirely by <code>BIND_ADDR</code>.</p>
 <div class="admonition warning">
 <p class="admonition-title"><code>BIND_ADDR=0.0.0.0</code> puts an unauthenticated exchange on your network</p>
 <p>It is the right setting for a classroom where students connect to the
 instructor's machine. It is the wrong setting on a network you do not
-control. There is no password on the order-entry gateways.</p>
+control. There is no password on the order-entry gateways — anyone who can
+open the socket can submit orders.</p>
 </div>
+<div class="admonition note">
+<p class="admonition-title">On bare metal there is no namespace</p>
+<p>A <code>pipx</code> or Poetry install has no container around it, so a service
+listener on <code>0.0.0.0</code> really is on your network. If that is not what you
+want, export <code>EDUMATCHER_GATEWAY_BIND_HOST=127.0.0.1</code> — one variable,
+every gateway, no configuration edits. This is a change in default
+behaviour; see the note in <code>CHANGELOG.md</code>.</p>
+</div>
+<h3 id="why-there-is-no-longer-a-loopback-rewrite">Why there is no longer a loopback rewrite<a class="headerlink" href="#why-there-is-no-longer-a-loopback-rewrite" title="Permanent link">&para;</a></h3>
+<p>Earlier versions shipped the bundled examples with
+<code>bind_address: 127.0.0.1</code> and had the container entrypoint rewrite them to
+<code>0.0.0.0</code> on the way in. That rewrite worked, but it meant the deployed
+configuration was not the configuration you wrote, and <code>pm-config-show</code>
+described one thing while the processes did another.</p>
+<p>The gateways now bind <code>0.0.0.0</code> themselves, the twelve bundled examples say
+<code>0.0.0.0</code>, and the entrypoint rewrites nothing: <strong>the deployed configuration is
+the configuration you supplied</strong>, and <code>make config-show</code> describes what the
+processes actually do.</p>
 <h3 id="two-things-that-look-like-evidence-and-are-not">Two things that look like evidence and are not<a class="headerlink" href="#two-things-that-look-like-evidence-and-are-not" title="Permanent link">&para;</a></h3>
 <p>Both of these will tell you a gateway is reachable when it is not:</p>
 <p><strong>"I can reach the port from the host."</strong> Podman's rootless port forwarding
 delivers a published connection to <em>loopback inside the container's namespace</em>.
-A gateway bound to <code>127.0.0.1</code> therefore answers host traffic perfectly, while
+A listener bound to <code>127.0.0.1</code> therefore answers host traffic perfectly, while
 a sibling container connecting across the private network gets
 <code>ECONNREFUSED</code>. Host reachability says nothing about container-to-container
-reachability.</p>
+reachability. The stock defaults avoid this, but you can still walk into it by
+setting <code>EDUMATCHER_GATEWAY_BIND_HOST=127.0.0.1</code>, by passing <code>--host</code> to a
+process, or by supplying a configuration that pins <code>bind_address:</code> to
+loopback.</p>
 <p><strong>"<code>make status</code> is all green."</strong> <code>pm-opctl-cli list</code> shows
 <code>tcp connect to 127.0.0.1:5570 ok</code>, but that check also runs inside the
 container, over the same loopback. A healthy process table is not evidence that
@@ -4881,7 +5022,7 @@ VM. This mode installs the backend only — the web GUIs are part of the
 container deployment. Provisioning runs <code>pm-setup</code>, so the VM comes up with a
 deployed configuration and <code>pm-opctl-cli</code> ready to start the stack.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.26.3<span class="w"> </span>--snapshot
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.27.0<span class="w"> </span>--snapshot
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
 <a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>multipass<span class="w"> </span>shell<span class="w"> </span>ems
 <a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="nb">cd</span><span class="w"> </span>/home/ubuntu/session
@@ -4941,7 +5082,7 @@ deployed configuration and <code>pm-opctl-cli</code> ready to start the stack.</
 <p>To read the script before running it:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span>-o<span class="w"> </span>curl_setup_vm.sh
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>less<span class="w"> </span>curl_setup_vm.sh
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.26.3<span class="w"> </span>--snapshot
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.27.0<span class="w"> </span>--snapshot
 </code></pre></div>
 <h2 id="pipx-commands-on-your-own-machine">pipx — commands on your own machine<a class="headerlink" href="#pipx-commands-on-your-own-machine" title="Permanent link">&para;</a></h2>
 <p>Use this when you want to run the processes yourself, one per terminal, which
@@ -5086,7 +5227,7 @@ somebody who is not you.</p>
 </li>
 <li>
 <p><strong>The trading terminal shows a live book <em>and</em> history.</strong> This exercises the
-   whole chain — the private network, the loopback-bind rewrite and the
+   whole chain — the private network, the gateway bind hosts and the
    per-configuration API key — in one look:
    <div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>localhost:8090/api/bridge/status
 </code></pre></div>

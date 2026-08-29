@@ -4079,6 +4079,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../08-dev-workflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Development Loop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -4405,6 +4433,10 @@ do not silently expand the scope of your change.</p>
 <p>It is worth keeping a <strong>small live system</strong> available during development. Even
 when unit tests pass, a real end-to-end run catches startup, wiring, and event
 flow mistakes early.</p>
+<p>This section covers a minimal system on the host. If you are working on one of
+the web applications instead, the fastest loop is the exchange in containers
+with the app running locally against it — see
+<a href="../08-dev-workflow/">The Development Loop</a>.</p>
 <h3 id="minimal-reference-data">Minimal reference data<a class="headerlink" href="#minimal-reference-data" title="Permanent link">&para;</a></h3>
 <p>EduMatcher uses <code>engine_config.yaml</code> for reference data. A one-symbol minimal
 configuration can look like this:</p>
