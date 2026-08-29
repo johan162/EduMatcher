@@ -428,10 +428,20 @@ flowchart LR
     RM["Remote data / post-trade consumers"] -->|"CALF/RALF TCP :5570/:5580"| GWP
 ```
 
-The ZMQ bind host is overridable (`EDUMATCHER_ENGINE_HOST`,
-`EDUMATCHER_INDEX_BIND_HOST`), which *can* place ZMQ consumers on another machine —
+Listeners fall into two planes with different defaults:
+
+| | Core plane | Service layer |
+|---|---|---|
+| Processes | `pm-engine`, `pm-index` | the four protocol gateways, `pm-log-srv`, `pm-api-gwy` |
+| Default bind host | `127.0.0.1` | `0.0.0.0` |
+| Override | `EDUMATCHER_ENGINE_BIND_HOST`, `EDUMATCHER_INDEX_BIND_HOST` | `EDUMATCHER_GATEWAY_BIND_HOST`, then `bind_address:` / `host:` |
+
+The core plane is an internal ZMQ bus between co-located processes, so it
+defaults to loopback. Widening it *can* place ZMQ consumers on another machine —
 but doing so exposes the **unauthenticated** bus over the network and SHOULD only be
-done on a private, trusted segment. The supported remote path is the gateways.
+done on a private, trusted segment. The supported remote path is the gateways,
+which default to `0.0.0.0` because being reachable is their purpose; the ALF and
+BALF order-entry gateways authenticate, the read-only feeds do not.
 
 
 

@@ -6,8 +6,9 @@
     - Which of the five installation modes fits what you are trying to do
     - How the container deployment is wired, and why the web GUIs reach the
       exchange without any published port being involved
-    - What `127.0.0.1` and `0.0.0.0` mean at each of the three separate places
-      they appear, and which one actually protects you
+    - What `127.0.0.1` and `0.0.0.0` mean in each of the three separate places
+      they appear, which of them actually protects you, and how the core plane
+      and the service layer come by their different defaults
     - Every flag that controls a build or a start, and every directory the
       system reads or writes
     - How a release is produced, and what a developer must do to cut one
@@ -136,6 +137,7 @@ into this file.
 | `EM_PROFILE` | `default` | Which processes start: `default`, `mini` or `micro`. See [Processes](170-processes.md) |
 | `TZ` | `UTC` | Container timezone. Set it to match the trading calendar in your configuration, e.g. `Europe/Stockholm` |
 | `BIND_ADDR` | `127.0.0.1` | Which host interface the published ports listen on. See the warning below |
+| `EDUMATCHER_GATEWAY_BIND_HOST` | `0.0.0.0` | Bind host for the service-layer listeners *inside* the container — the four protocol gateways, `pm-log-srv` and `pm-api-gwy`. It is what makes them reachable from the GUI containers, and it wins over any `bind_address:` in the deployed configuration. Not a host-exposure setting; that is `BIND_ADDR` |
 | `EM_ZMQ` | `0` | `1` also publishes the raw ZeroMQ bus (5555-5559, 5601/5602) and tells the engine and `pm-index` to bind the container interface, so tools on your machine can attach. The equivalent of `make up ZMQ=1` |
 | `TERMINAL_GUI_PORT` | `8090` | Host port for the trading terminal |
 | `LOG_GUI_PORT` | `8091` | Host port for the log viewer |
@@ -293,6 +295,7 @@ plain `make up-all` afterwards goes back to whatever `.env` says.
 | `EM_PROFILE` | `default` | Process profile to start |
 | `TZ` | `UTC` | Container timezone — match the trading calendar in your configuration |
 | `BIND_ADDR` | `127.0.0.1` | Which host interface the published ports listen on. See below |
+| `EDUMATCHER_GATEWAY_BIND_HOST` | `0.0.0.0` | Bind host for the service-layer listeners *inside* the container — the four protocol gateways, `pm-log-srv` and `pm-api-gwy`. It is what makes them reachable from the GUI containers, and it wins over any `bind_address:` in the deployed configuration. Not a host-exposure setting; that is `BIND_ADDR` |
 | `SSH_PORT` | `2222` | Host port forwarded to `sshd` |
 | `TERMINAL_GUI_PORT` | `8090` | Host port for the trading terminal |
 | `LOG_GUI_PORT` | `8091` | Host port for the log viewer |
@@ -342,7 +345,7 @@ Each web GUI image (`web-apps/*/Dockerfile`):
 This section is worth reading even if the install "just worked", because the
 one thing that reliably confuses people here — the difference between
 `127.0.0.1` and `0.0.0.0` — appears in three separate places that mean three
-different things.
+different things, and only one of them is a security boundary.
 
 ### One compose project, one private network
 
@@ -389,36 +392,91 @@ Two things follow, and both are easy to get wrong:
 The configuration builder is the exception: it talks to nothing at all, which
 is why it is opt-in with `CONFIG_GUI=1` when building from source.
 
-### The three places an address appears
+### The two planes, and where each address is decided
+
+Every listening socket in EduMatcher belongs to one of two planes, and the two
+have deliberately different defaults.
+
+```mermaid
+flowchart TB
+    subgraph ns["Inside the backend container's network namespace"]
+        subgraph core["Core plane — ports 5555-5559"]
+            ENG["pm-engine\n5555 pull · 5556 pub · 5557 drop-copy"]
+            IDX["pm-index\n5558 pub · 5559 pull"]
+        end
+        subgraph svc["Service layer — every other listener"]
+            GW["pm-alf-gwy 5560 · pm-md-gwy 5570\npm-balf-gwy 5580 · pm-ralf-gwy 5590\npm-dc-gwy 5600 · pm-log-srv 5601/5602\npm-api-gwy 8080/8081"]
+        end
+    end
+    core -->|"defaults to 127.0.0.1"| N1["Private to the container.\nOpen it with EDUMATCHER_ENGINE_BIND_HOST\nand EDUMATCHER_INDEX_BIND_HOST — ZMQ=1 does this"]
+    svc -->|"defaults to 0.0.0.0"| N2["Reachable from sibling containers\nand through published ports.\nNarrow it with EDUMATCHER_GATEWAY_BIND_HOST"]
+```
+
+**The core plane is the internal bus.** `pm-engine` and `pm-index` speak
+ZeroMQ to the other EduMatcher processes and to nothing else, so they default
+to `127.0.0.1` and a stock install keeps the bus inside the container.
+Starting with `ZMQ=1` sets `EDUMATCHER_ENGINE_BIND_HOST` and
+`EDUMATCHER_INDEX_BIND_HOST` to `0.0.0.0` and publishes 5555–5559, so you can
+attach your own ZeroMQ client from the host.
+
+**The service layer is what clients talk to.** All seven gateway processes
+default to `0.0.0.0`, because every practical deployment needs them reachable
+from somewhere else — a sibling GUI container, a student's laptop in a
+classroom, a protocol example running on your host.
+
+Each service listener resolves its bind host in this order, first match wins:
+
+| Precedence | Source | Example |
+|---|---|---|
+| 1 | The process's own `--host` command-line flag | `pm-md-gwy --host 127.0.0.1` |
+| 2 | The `EDUMATCHER_GATEWAY_BIND_HOST` environment variable | `EDUMATCHER_GATEWAY_BIND_HOST=127.0.0.1` |
+| 3 | `bind_address:` (or `host:` for `pm-api-gwy`) in the engine configuration | `bind_address: 10.0.0.5` |
+| 4 | The built-in default | `0.0.0.0` |
+
+`EDUMATCHER_GATEWAY_BIND_HOST` deliberately sits *above* the configuration
+file. It is a deployment-wide switch: one environment variable closes every
+service listener at once, without editing a configuration that may not be
+yours to edit.
+
+### What `0.0.0.0` does and does not expose
 
 | Where | Set by | `127.0.0.1` means | `0.0.0.0` means |
 |---|---|---|---|
 | **Published ports** — the host side | `BIND_ADDR` in `.env` | Only this machine can reach the exchange | Anyone on your network can |
-| **Gateway binds** — inside the container | `bind_address:` / `host:` in `engine_config.yaml` | Only processes *in that container* — not even a sibling container | Any container on the compose network |
-| **Engine and index bus** — inside the container | `EDUMATCHER_ENGINE_BIND_HOST`, `EDUMATCHER_INDEX_BIND_HOST`; set by `ZMQ=1` | Same: container-internal only | Reachable from the network and publishable |
+| **Service listeners** — inside the container | default, or `EDUMATCHER_GATEWAY_BIND_HOST`, or `bind_address:` / `host:` | Only processes *in that container* — not even a sibling container | Any container on the Compose network, and anything reaching a published port |
+| **Core plane** — inside the container | default, or `EDUMATCHER_ENGINE_BIND_HOST` / `EDUMATCHER_INDEX_BIND_HOST`; set by `ZMQ=1` | Same: container-internal only | Reachable from the Compose network and publishable |
 
-The one that protects you is the **first**. The second and third are inside a
-network namespace that already isolates the container; binding `0.0.0.0` there
-does not expose anything to the outside world, because there is no route in
-except through a published port.
-
-That distinction matters because the bundled example configurations set
-`bind_address: 127.0.0.1` on the market-data and post-trade gateways. On a
-laptop running EduMatcher directly, that is a real protection: **the protocol
-gateways have no authentication**, so anyone who can open the socket can submit
-orders. Inside a container it protects nothing and breaks the trading terminal,
-whose market-data feed comes from a sibling container.
-
-So the container entrypoint rewrites `bind_address:` and `host:` values of
-`127.0.0.1` to `0.0.0.0` in the deployed configuration and recompiles it. It
-runs for bundled examples and for a configuration of your own alike, and it is
-a no-op on restart. Nothing about a bare-metal `pm-setup` changes — and
-`make config-show` keeps describing what the processes actually do.
+**Only the first row is a security boundary.** The second and third are inside
+a network namespace that already isolates the container: binding `0.0.0.0`
+there exposes nothing to the outside world, because there is no route in except
+through a port you chose to publish. Whether the exchange is visible on your
+LAN is decided entirely by `BIND_ADDR`.
 
 !!! warning "`BIND_ADDR=0.0.0.0` puts an unauthenticated exchange on your network"
     It is the right setting for a classroom where students connect to the
     instructor's machine. It is the wrong setting on a network you do not
-    control. There is no password on the order-entry gateways.
+    control. There is no password on the order-entry gateways — anyone who can
+    open the socket can submit orders.
+
+!!! note "On bare metal there is no namespace"
+    A `pipx` or Poetry install has no container around it, so a service
+    listener on `0.0.0.0` really is on your network. If that is not what you
+    want, export `EDUMATCHER_GATEWAY_BIND_HOST=127.0.0.1` — one variable,
+    every gateway, no configuration edits. This is a change in default
+    behaviour; see the note in `CHANGELOG.md`.
+
+### Why there is no longer a loopback rewrite
+
+Earlier versions shipped the bundled examples with
+`bind_address: 127.0.0.1` and had the container entrypoint rewrite them to
+`0.0.0.0` on the way in. That rewrite worked, but it meant the deployed
+configuration was not the configuration you wrote, and `pm-config-show`
+described one thing while the processes did another.
+
+The gateways now bind `0.0.0.0` themselves, the twelve bundled examples say
+`0.0.0.0`, and the entrypoint rewrites nothing: **the deployed configuration is
+the configuration you supplied**, and `make config-show` describes what the
+processes actually do.
 
 ### Two things that look like evidence and are not
 
@@ -426,10 +484,13 @@ Both of these will tell you a gateway is reachable when it is not:
 
 **"I can reach the port from the host."** Podman's rootless port forwarding
 delivers a published connection to *loopback inside the container's namespace*.
-A gateway bound to `127.0.0.1` therefore answers host traffic perfectly, while
+A listener bound to `127.0.0.1` therefore answers host traffic perfectly, while
 a sibling container connecting across the private network gets
 `ECONNREFUSED`. Host reachability says nothing about container-to-container
-reachability.
+reachability. The stock defaults avoid this, but you can still walk into it by
+setting `EDUMATCHER_GATEWAY_BIND_HOST=127.0.0.1`, by passing `--host` to a
+process, or by supplying a configuration that pins `bind_address:` to
+loopback.
 
 **"`make status` is all green."** `pm-opctl-cli list` shows
 `tcp connect to 127.0.0.1:5570 ok`, but that check also runs inside the
@@ -716,7 +777,7 @@ somebody who is not you.
    `curl -s localhost:8093/api/v1/healthz`.
 
 4. **The trading terminal shows a live book *and* history.** This exercises the
-   whole chain — the private network, the loopback-bind rewrite and the
+   whole chain — the private network, the gateway bind hosts and the
    per-configuration API key — in one look:
    ```bash
    curl -s localhost:8090/api/bridge/status

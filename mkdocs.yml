@@ -177,5 +177,6 @@ nav:
     - VM Runtime Image: developer/05-vm-runtime-image.md
     - Message Generator: developer/06-msgen.md
     - Container and Network Setup: developer/07-container-and-networks.md
+    - The Development Loop: developer/08-dev-workflow.md
   - Glossary: glossary.md
   - FAQ: faq.md

@@ -202,6 +202,13 @@ machine only. **The protocol gateways have no authentication**, so anyone who
 can open the socket can trade; think before setting it to `0.0.0.0` on a
 network you do not control.
 
+Inside the container the gateways themselves bind `0.0.0.0` — that is what
+makes them reachable from the sibling GUI containers, and it exposes nothing on
+its own, because the only route in is a port `BIND_ADDR` published.
+`EDUMATCHER_GATEWAY_BIND_HOST` in `.env` overrides it if you need one specific
+interface; it wins over any `bind_address:` in the deployed configuration. The
+engine and `pm-index` are the exception and stay on loopback unless `EM_ZMQ=1`.
+
 Two things are resolved for you at startup, because neither can be a fixed
 default: the trading terminal's read-only API key is generated per
 configuration, and lives on a different gateway instance than the trading one,

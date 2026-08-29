@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 from edumatcher.config import DROP_COPY_PUB_ADDR
+from edumatcher.config import resolve_gateway_bind_host
 
 
 @dataclass(frozen=True)
@@ -16,7 +17,7 @@ class DcGatewayConfig:
     """Runtime settings for the DC TCP gateway."""
 
     name: str = "dc-gwy01"
-    bind_address: str = "0.0.0.0"
+    bind_address: str = field(default_factory=resolve_gateway_bind_host)
     port: int = 5590
     drop_copy_pub_addr: str = DROP_COPY_PUB_ADDR
     heartbeat_interval_sec: int = 5
@@ -44,7 +45,7 @@ def _load_dc_gateway_config_from_raw(raw: dict[str, Any]) -> DcGatewayConfig:
         raise ValueError("dc_gateway must be a mapping")
 
     name = str(section.get("name", "dc-gwy01"))
-    bind_address = str(section.get("bind_address", "0.0.0.0"))
+    bind_address = resolve_gateway_bind_host(section.get("bind_address"))
     port = _as_int(section.get("port", 5590), "port")
     heartbeat_interval_sec = _as_int(
         section.get("heartbeat_interval_sec", 5), "heartbeat_interval_sec"

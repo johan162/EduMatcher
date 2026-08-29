@@ -405,7 +405,9 @@ so updating does not discard your edits.
 | `EM_CONFIG_FILE` | *(empty)* | Set when you run a configuration of your own; non-empty wins over `EM_CONFIG` |
 | `EM_PROFILE` | `default` | Which processes start: `default`, `mini` or `micro` |
 | `TZ` | `UTC` | Container timezone — match the trading calendar in your configuration |
-| `BIND_ADDR` | `127.0.0.1` | Which host interface the ports listen on |
+| `BIND_ADDR` | `127.0.0.1` | Which host interface the published ports listen on — **the setting that decides whether the exchange is on your network** |
+| `EM_ZMQ` | `0` | `1` also publishes the raw ZeroMQ bus, and tells the engine and `pm-index` to bind the container interface so host tools can attach |
+| `EDUMATCHER_GATEWAY_BIND_HOST` | `0.0.0.0` | Bind host for the gateways *inside* the container. This is what makes them reachable from the GUI containers; it is not a host-exposure setting |
 | `TERMINAL_GUI_PORT` | `8090` | Host port for the trading terminal |
 | `LOG_GUI_PORT` | `8091` | Host port for the log viewer |
 | `CONFIG_GUI_PORT` | `8092` | Host port for the configuration builder |
@@ -421,6 +423,16 @@ pulls images after changing `EM_VERSION`.
     instructor's machine, and the wrong one on a network you do not control:
     the protocol gateways have no password. The default keeps everything on
     this machine.
+
+!!! note "Two different `0.0.0.0`s"
+    `0.0.0.0` appears twice above and means two different things. On
+    `BIND_ADDR` it is a real exposure decision: it opens the published ports to
+    your LAN. On `EDUMATCHER_GATEWAY_BIND_HOST` it is not — that address lives
+    inside the container's private network, where the only route in is a port
+    `BIND_ADDR` published. Widening it lets the GUI containers reach the
+    exchange and nothing else. [The installation
+    chapter](../user-guide/005-installation.md#what-0000-does-and-does-not-expose)
+    works through all three places an address appears.
 
 :material-checkbox-blank-outline: **Checkpoint:** you have switched to a
 different bundled configuration and seen the symbols change.

@@ -14,7 +14,7 @@ kept in this same module since both blocks live under the one
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +28,7 @@ from edumatcher.config import (
     LOG_SRV_PUB_PORT,
     LOG_SRV_PULL_PORT,
     resolve_data_path,
+    resolve_gateway_bind_host,
 )
 from edumatcher.logclient.protocol import DEFAULT_MAX_MESSAGE_BYTES
 
@@ -57,7 +58,7 @@ class LogServerConfig:
 
     enabled: bool = True
     name: str = "log-srv01"
-    bind_address: str = "0.0.0.0"
+    bind_address: str = field(default_factory=resolve_gateway_bind_host)
     port: int = LOG_SRV_PORT
     db_path: Path = LOG_DB_FILE
     retention_days: int | None = DEFAULT_RETENTION_DAYS
@@ -210,7 +211,7 @@ def _load_log_server_config_from_raw(raw: dict[str, Any]) -> LogServerConfig:
 
     enabled = bool(ls_raw.get("enabled", True))
     name = str(ls_raw.get("name", "log-srv01"))
-    bind_address = str(ls_raw.get("bind_address", "0.0.0.0"))
+    bind_address = resolve_gateway_bind_host(ls_raw.get("bind_address"))
     port = _as_int(ls_raw.get("port", LOG_SRV_PORT), "port")
     db_path_raw = ls_raw.get("db_path", str(LOG_DB_FILE))
     retention_days = _as_optional_int(

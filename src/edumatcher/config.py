@@ -93,6 +93,42 @@ ENGINE_PUB_ADDR = (
 DROP_COPY_PUB_ADDR = f"tcp://{EDUMATCHER_ENGINE_HOST}:5557"  # engine drop-copy feed (per-participant fills)
 
 # ---------------------------------------------------------------------------
+# Service-layer bind host
+# ---------------------------------------------------------------------------
+# The client-facing listeners — pm-alf-gwy, pm-balf-gwy, pm-md-gwy,
+# pm-ralf-gwy, pm-dc-gwy, pm-log-srv and pm-api-gwy — take their bind address
+# from engine_config.yaml, defaulting to 0.0.0.0. This variable overrides all
+# of them at once, which is what a container or a locked-down host needs:
+# one setting rather than an edit to every section of a deployed artifact.
+#
+# It completes the pair with EDUMATCHER_ENGINE_BIND_HOST above, so both planes
+# are steered the same way:
+#
+#   core plane    5555-5559   EDUMATCHER_ENGINE_BIND_HOST / _INDEX_BIND_HOST
+#   service layer the rest    EDUMATCHER_GATEWAY_BIND_HOST, or per-section YAML
+#
+# Precedence for a service listener is: an explicit --host flag where the
+# process has one, then this variable, then engine_config.yaml, then the
+# 0.0.0.0 default. Unset (the normal case) changes nothing.
+EDUMATCHER_GATEWAY_BIND_HOST = os.getenv("EDUMATCHER_GATEWAY_BIND_HOST") or None
+
+#: The value a service-layer listener binds when its section says nothing.
+DEFAULT_GATEWAY_BIND_HOST = "0.0.0.0"
+
+
+def resolve_gateway_bind_host(configured: str | None = None) -> str:
+    """Return the bind host a service-layer listener should use.
+
+    ``configured`` is whatever engine_config.yaml asked for, or ``None`` when
+    the section is absent. The environment wins so that one variable can open
+    or close every client-facing socket without rewriting a deployed
+    configuration.
+    """
+    if EDUMATCHER_GATEWAY_BIND_HOST:
+        return EDUMATCHER_GATEWAY_BIND_HOST
+    return configured if configured else DEFAULT_GATEWAY_BIND_HOST
+
+# ---------------------------------------------------------------------------
 # Data directory resolution
 # ---------------------------------------------------------------------------
 # Detect whether we are running from a source checkout.  config.py lives at

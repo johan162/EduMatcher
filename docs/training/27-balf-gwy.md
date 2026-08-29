@@ -77,7 +77,7 @@ Expected output includes:
 ```yaml
 balf_gateway:
   name: balf-gwy01
-  bind_address: 127.0.0.1
+  bind_address: 0.0.0.0
   port: 5560
   heartbeat_interval_sec: 1
   heartbeat_timeout_sec: 5

@@ -25,12 +25,15 @@ make down      # stop it
 - [Ports](#ports)
 - [Exposing the ZeroMQ bus](#exposing-the-zeromq-bus)
 - [The whole system: backend plus web GUIs](#the-whole-system-backend-plus-web-guis)
+  - [Bind hosts: what the container sets, and why](#bind-hosts-what-the-container-sets-and-why)
 - [SSH access](#ssh-access)
 - [The data directory](#the-data-directory)
 - [Choosing the configuration and the profile](#choosing-the-configuration-and-the-profile)
 - [Make targets](#make-targets)
+- [When a GUI shows something unexpected](#when-a-gui-shows-something-unexpected)
+- [Publishing images by hand](#publishing-images-by-hand)
 - [Configuration reference (`.env`)](#configuration-reference-env)
-- [Building from a development wheel](#building-from-a-development-wheel)
+- [Building from PyPI instead of local source](#building-from-pypi-instead-of-local-source)
 - [Useful Docker / Podman commands](#useful-docker--podman-commands)
 - [Troubleshooting](#troubleshooting)
 - [Design notes](#design-notes)
@@ -176,12 +179,13 @@ in `.env` to reach the exchange from other machines on your network.
 
 ## Exposing the ZeroMQ bus
 
-The gateways bind `0.0.0.0` and need nothing special. The engine's three bus
-sockets and `pm-index`'s two default to `127.0.0.1` and need to be told
-otherwise: `ZMQ=1` sets `EDUMATCHER_ENGINE_BIND_HOST` and
-`EDUMATCHER_INDEX_BIND_HOST` to `0.0.0.0`, which is honoured directly by
-`edumatcher.config` — no relay process involved. `pm-log-srv` needs no
-override; it already binds `0.0.0.0` unconditionally.
+There are two planes with different defaults. The **service layer** — the four
+protocol gateways, `pm-log-srv` and `pm-api-gwy` — defaults to `0.0.0.0` and
+needs nothing special. The **core plane** — the engine's three bus sockets and
+`pm-index`'s two — defaults to `127.0.0.1` and has to be told otherwise:
+`ZMQ=1` sets `EDUMATCHER_ENGINE_BIND_HOST` and `EDUMATCHER_INDEX_BIND_HOST` to
+`0.0.0.0`, which `edumatcher.config` honours directly — no relay process
+involved.
 
 ```bash
 make up ZMQ=1
@@ -206,6 +210,21 @@ make up-all CONFIG=~/mine/engine_config.yaml   # on a configuration of your own
 make up-all CONFIG_GUI=1                   # and the configuration builder too
 make down-all                              # stop and remove everything
 ```
+
+`up-all` starts; it does not build. After changing a web application, rebuild
+its image first — otherwise compose reuses the one it already has and your
+change is invisible:
+
+```bash
+make build-guis GUI=terminal-gui   # rebuild one image (omit GUI= for all four)
+make up-all                        # recreate the containers whose image changed
+make up-all BUILD=1 GUI=log-gui    # both steps in one
+```
+
+For the day-to-day inner loop — running a web app on your machine with hot
+reload against this container stack — see
+[The Development Loop](../../docs/developer/08-dev-workflow.md) and
+`make dev-env GUI=<app>`.
 
 | GUI | URL | Talks to |
 |---|---|---|
@@ -232,28 +251,37 @@ is mounted into it read-only. The bridge opens the database read-only and
 `pm-log-srv` keeps it in rollback-journal mode, so nothing tries to write a
 `-wal` file on a read-only mount.
 
-### Loopback gateway binds are opened inside the container
+### Bind hosts: what the container sets, and why
 
-The bundled examples set `bind_address: 127.0.0.1` on `market_data_gateway`
-and `post_trade_gateway`. On a laptop that is a sensible default — the
-gateways have no authentication, so a wildcard bind puts order entry on
-whatever network you are attached to. Inside a container it protects nothing
-and breaks everything: the network namespace is already the boundary, `.env`'s
-`BIND_ADDR` (still `127.0.0.1`) is what decides host exposure, and a
-loopback-bound gateway is simply unreachable from a sibling container. It is
-what leaves terminal-gui's market-data panel empty with `calf: RECONNECTING`.
+The service-layer processes default to `0.0.0.0`, so a stock start needs no
+intervention: the network namespace is already the isolation boundary, and
+`.env`'s `BIND_ADDR` (still `127.0.0.1`) is what decides host exposure. A
+gateway bound to loopback inside the container is simply unreachable from a
+sibling container — that is what leaves terminal-gui's market-data panel empty
+with `calf: RECONNECTING`.
 
-The entrypoint therefore rewrites `bind_address:`/`host:` lines that say
-`127.0.0.1` to `0.0.0.0` in the deployed configuration and recompiles it, so
-`make config-show` keeps describing what the processes actually do. It runs
-for bundled examples and for your own `CONFIG=<file>` alike, touches only
-those two keys — the only bind keys in the schema — and is a no-op on
-restart. Nothing about a bare-metal `pm-setup` changes.
+`compose.yaml` still sets `EDUMATCHER_GATEWAY_BIND_HOST` explicitly, as
+`${EDUMATCHER_GATEWAY_BIND_HOST:-0.0.0.0}`. That is redundant against the code
+default and deliberately so: a configuration written for a laptop, which pins
+`bind_address: 127.0.0.1`, still comes up reachable from the GUI containers.
+The variable wins over the configuration file, so set it in `.env` if you need
+one specific interface.
 
-Note this is diagnosable from inside: `make status` shows
-`tcp connect to 127.0.0.1:5570 ok` either way, because that healthcheck
-connects over loopback *within* the container. A green process table does not
-mean a gateway is reachable from a sibling container.
+Precedence for a service listener, first match wins:
+
+```text
+--host flag  →  EDUMATCHER_GATEWAY_BIND_HOST  →  bind_address:/host: in YAML  →  0.0.0.0
+```
+
+Earlier versions shipped loopback-bound examples and had the entrypoint rewrite
+them. That rewrite is gone: the twelve bundled examples say `0.0.0.0`, and the
+deployed configuration is byte-for-byte the one you supplied. `make config-show`
+resolves the same way the processes do, so it describes actual behaviour.
+
+Note what is *not* diagnosable from inside: `make status` shows
+`tcp connect to 127.0.0.1:5570 ok` whatever the bind host, because that
+healthcheck connects over loopback *within* the container. A green process
+table does not mean a gateway is reachable from a sibling container.
 
 ### Why `up-all` is two phases
 
