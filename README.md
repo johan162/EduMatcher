@@ -58,7 +58,7 @@ checkpoint at every step.
 - Risk handling with circuit breakers and price collars
 - Message-based process boundaries with strong observability
 - Real risk controls: price collars, kill switch, circuit breakers, and mass cancel
-- Easy to understand configuration through single source `engine_config.yaml` which acts as the system reference data. To simplify its creation a CLI tool `pm-config-gen` can be used and a handwritten config file can be verified with `pm-cverifier`
+- Easy to understand configuration through single source `engine_config.yaml` which acts as the system reference data. To simplify its creation either Web-based tool (`http://localhost:8092/`) or a CLI tool `pm-config-gen` can be used. In addition it is of course possible to manually create a handwritten config file that can be verified with `pm-cverifier`. To guarantee correctness and that it is a single-source of truth the YAML file is then compiled and checked by `pm-deploy-config` to be automatically stored in the canonical location used by the system.
 
 ## Documentation
 
