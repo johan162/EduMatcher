@@ -1,3 +1,23 @@
+## [v0.27.2] - 2026-08-30
+
+Release Type: patch
+
+### 📋 Summary
+This patch release fixes and streamlines the release workflow, reduces redundant
+CI runs, and refreshes release references across the documentation.
+
+### 🐛 Bug Fixes
+- Restored direct execution of `scripts/mkrelease.sh`
+- Fixed release monitoring to follow the CI run for the exact commit pushed to `main`
+
+### 📚 Documentation
+- Updated README wording, badges, citation metadata, and pinned deployment examples for version 0.27.2
+
+### 🛠 Internal
+- Reduced full CI push checks to `main` while retaining pull-request checks for `develop` and `main`
+- Removed redundant package validation from the release script after artifacts have already passed the build checks
+- Tightened coverage badge updates and aligned the badge colour with Shields.io conventions
+
 ## [v0.27.1] - 2026-08-29
 
 Release Type: minor

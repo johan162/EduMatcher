@@ -246,7 +246,7 @@ echo -e "📊 Coverage percentage: ${MAGENTA}${coverage_percent}%${NC}"
 if [ "$coverage_percent" -ge 90 ]; then
     badge_color="darkgreen"
 elif [ "$coverage_percent" -ge 80 ]; then
-    badge_color="brightgreen"
+    badge_color="green"
 elif [ "$coverage_percent" -ge 70 ]; then
     badge_color="yellowgreen"
 elif [ "$coverage_percent" -ge 60 ]; then
@@ -261,7 +261,7 @@ echo -e "🎨 Badge color: ${MAGENTA}${badge_color}${NC}"
 
 # Create the new badge URL
 new_badge_url="https://img.shields.io/badge/coverage-${coverage_percent}%25-${badge_color}.svg"
-badge_url_pattern='https://img.shields.io/badge/coverage-[0-9][0-9]*%25-[A-Za-z][A-Za-z0-9-]*(\.svg)?'
+badge_url_pattern='https://img.shields.io/badge/coverage-[0-9][0-9]+%25-[A-Za-z][A-Za-z0-9-]*(\.svg)?'
 
 
 # =====================================
@@ -278,15 +278,15 @@ if grep -q "img.shields.io/badge/coverage-" "$README_FILE"; then
     if grep -Fq "${new_badge_url}" "$README_FILE"; then
         print_info_colored "Coverage badge already up to date in README.md"
     else
-        # Use sed to replace the coverage badge URL
+        # Use sed to replace the existing coverage badge URL
         if [[ "$OSTYPE" == "darwin"* ]]; then
             # macOS sed requires empty string after -i
             run_command "sed -E -i '' \"s|${badge_url_pattern}|${new_badge_url}|g\" \"$README_FILE\"" "Updating coverage badge in README.md to ${coverage_percent}%"
-            # sed -i '' "s|https://img.shields.io/badge/coverage-[0-9]*%25-[a-z]*.svg|${new_badge_url}|g" "$README_FILE"
+            # sed -i '' "s|https://img.shields.io/badge/coverage-[0-9]+%25-[a-z]*.svg|${new_badge_url}|g" "$README_FILE"
         else
             # Linux sed
             run_command "sed -E -i \"s|${badge_url_pattern}|${new_badge_url}|g\" \"$README_FILE\"" "Updating coverage badge in README.md to ${coverage_percent}%"
-            # sed -i "s|https://img.shields.io/badge/coverage-[0-9]*%25-[a-z]*.svg|${new_badge_url}|g" "$README_FILE"
+            # sed -i "s|https://img.shields.io/badge/coverage-[0-9]+%25-[a-z]*.svg|${new_badge_url}|g" "$README_FILE"
         fi
     fi
     # print_success_colored "Updated coverage badge in README.md to ${coverage_percent}%"
