@@ -18,6 +18,11 @@ You will practise:
 
  
 
+
+!!! abstract "Pre-reading in the User Guide"
+    - [BALF Gateway](../user-guide/230-balf-gateway.md)
+    - [BALF Protocol](../user-guide/910-app-balf-protocol.md)
+
 ## Prerequisites
 
 - Chapters 01-26 completed.
@@ -400,11 +405,19 @@ Use this mapping:
 | `LOGON_ACK` | `0x01` | Gateway ID not configured in engine |
 | `LOGON_ACK` | `0x02` | Gateway already connected (duplicate session) |
 | `LOGON_ACK` | `0x03` | Protocol version mismatch |
-| `ORDER_ACK` | `0x01` | Symbol not configured |
-| `ORDER_ACK` | `0x02` | Invalid quantity |
-| `ORDER_ACK` | `0x03` | Price required but missing |
-| `ORDER_ACK` | `0x05` | Session/market phase rejected order |
+| `ORDER_ACK` | `0x03` | Symbol not configured |
+| `ORDER_ACK` | `0x04` | Market closed |
+| `ORDER_ACK` | `0x07` | Symbol halted |
+| `ORDER_ACK` | `0x08` | Rejected by the current session phase |
+| `ORDER_ACK` | `0x0B` | Rejected by a price collar |
+| `ORDER_ACK` | `0x0C` | Invalid field — bad quantity, or a LIMIT order with no price |
 | `ORDER_ACK` | `0xFF` | Other error; inspect reason string |
+
+The full code list is in
+[Appendix: BALF Protocol — reject codes](../user-guide/910-app-balf-protocol.md).
+Note that `ORDER_ACK` and `LOGON_ACK` use **different** code spaces: `0x01` on a
+logon means "gateway not configured", while on an order it means the same thing
+about the *gateway*, and a bad **symbol** is `0x03`.
 
 :material-checkbox-blank-outline: Checkpoint: you can map BALF reject codes to the correct config or client-code fix.
 
@@ -453,7 +466,7 @@ following:
 
  
 
-## Handoff for Chapter 28
+## Where to go next
 
 This completes the BALF training chapter. `pm-engine`, `pm-balf-gwy`, and any
 supporting processes can remain up if you want to continue live testing, or you

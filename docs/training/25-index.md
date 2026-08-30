@@ -21,6 +21,11 @@ You will practice:
 
  
 
+
+!!! abstract "Pre-reading in the User Guide"
+    - [Market Index](../user-guide/150-market-index.md)
+    - [Index Admin CLI](../user-guide/152-index-admin-cli.md)
+
 ## Prerequisites
 
 - Chapters 01–03 completed (engine running, at least one gateway, a few trades).
@@ -162,7 +167,7 @@ cat data/indexes/EDU100_history.jsonl
 Connect your TRADER01 gateway and run the `INDEX` command:
 
 ```
-TRADER01> INDEX
+[TRADER01]> INDEX
 ```
 
 Expected response (level will depend on seeded prices):
@@ -194,16 +199,16 @@ Move the session into `CONTINUOUS` (if the scheduler hasn't already done so)
 and execute a few trades:
 
 ```
-OPS01> SESSION|STATE=CONTINUOUS
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=500
-TRADER01> NEW|SYM=MSFT|SIDE=BUY|TYPE=MARKET|QTY=300
-TRADER01> NEW|SYM=TSLA|SIDE=SELL|TYPE=MARKET|QTY=200
+[OPS01|ADMIN]> SESSION|STATE=CONTINUOUS
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=500
+[TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=MARKET|QTY=300
+[TRADER01]> NEW|SYM=TSLA|SIDE=SELL|TYPE=MARKET|QTY=200
 ```
 
 After each fill, query the index again:
 
 ```
-TRADER01> INDEX
+[TRADER01]> INDEX
 ```
 
 Observe the level changing as trades update the constituent prices. The index is
@@ -237,8 +242,7 @@ Apply the split:
 
 ```bash
 pm-index-admin-cli --id OPS01 split \
-  --index EDU100 --symbol AAPL \
-  --ratio-numerator 2 --ratio-denominator 1
+  --index EDU100 --sym AAPL --ratio 2:1
 ```
 
 You'll be shown a confirmation prompt before the command is sent (add `-y` to
@@ -250,7 +254,7 @@ live, and writes a `CORP_ACTION` record to the structural/audit history file.
 Query the index immediately after, from any gateway terminal:
 
 ```
-TRADER01> INDEX
+[TRADER01]> INDEX
 ```
 
 The level should be **unchanged** (or differ by only rounding). Now check that
@@ -286,16 +290,16 @@ Apply a $2.50 cash dividend for MSFT — same `pm-index-admin-cli` mechanism
 as Exercise 5, no gateway command:
 
 ```
-TRADER01> INDEX        (before)
+[TRADER01]> INDEX        (before)
 ```
 
 ```bash
 pm-index-admin-cli --id OPS01 dividend \
-  --index EDU100 --symbol MSFT --dividend-per-share 2.50
+  --index EDU100 --sym MSFT --amount 2.50
 ```
 
 ```
-TRADER01> INDEX        (after)
+[TRADER01]> INDEX        (after)
 ```
 
 A cash dividend reduces the effective price by the dividend amount. The divisor
@@ -338,21 +342,21 @@ moment of addition. You must supply the new shares and a reference price:
 
 ```bash
 pm-index-admin-cli --id OPS01 add \
-  --index EDU100 --symbol AMZN \
-  --shares-outstanding 10500000000 --initial-price 195.00
+  --index EDU100 --sym AMZN \
+  --shares 10500000000 --price 195.00
 ```
 
 Check that AMZN now appears when you run `INDEX`. It may take a few trades before
 AMZN's price updates from the seeded reference.
 
 ```
-TRADER01> INDEX
+[TRADER01]> INDEX
 ```
 
 ### Remove TSLA from the index
 
 ```bash
-pm-index-admin-cli --id OPS01 delist --index EDU100 --symbol TSLA
+pm-index-admin-cli --id OPS01 delist --index EDU100 --sym TSLA
 ```
 
 Run `INDEX` again and confirm TSLA no longer appears in the constituent listing.
@@ -458,14 +462,14 @@ rows for `EDU100`.
 ### Export EOD data to CSV
 
 ```bash
-pm-stats-cli index-daily --index-id EDU100 --format csv > edu100_eod.csv
+pm-stats-cli --format csv index-daily --index-id EDU100 > edu100_eod.csv
 cat edu100_eod.csv
 ```
 
 ### Export intraday data to JSON
 
 ```bash
-pm-stats-cli index-snapshots --index-id EDU100 --format json \
+pm-stats-cli --format json index-snapshots --index-id EDU100 \
   | python3 -c "
 import json, sys
 rows = json.load(sys.stdin)
@@ -534,7 +538,7 @@ pm-index --reset
 Run `INDEX` in the TRADER terminal to see both indices:
 
 ```
-TRADER01> INDEX
+[TRADER01]> INDEX
 ```
 
 ```
@@ -568,7 +572,7 @@ single-index scope keeps the output meaningful).
 These go over the PULL socket (port 5559) and return records inline:
 
 ```
-OPS01> INDEX|HISTORY
+[OPS01]> INDEX|HISTORY
 ```
 
 Returns the last 30 days of **structural/audit records** — `INIT`,
@@ -577,7 +581,7 @@ saw an `INDEX` update for (or pass `INDEX=<id>` explicitly, e.g.
 `INDEX|HISTORY|INDEX=EDU100`).
 
 ```
-OPS01> INDEX|HISTORY|FROM=2026-06-25|TO=2026-06-25
+[OPS01]> INDEX|HISTORY|FROM=2026-06-25|TO=2026-06-25
 ```
 
 Returns structural/audit records within the specified date range, newest
@@ -610,18 +614,18 @@ last.
 | Re-initialise from scratch | `pm-index --reset` |
 | Live level query | `INDEX` (any gateway) |
 | Structural/audit history query (gateway) | `INDEX\|HISTORY`, `INDEX\|HISTORY\|FROM=…\|TO=…` — INIT/CORP_ACTION/ADD_CONSTITUENT/DELIST only |
-| Stock split (no gateway command — use `pm-index-admin-cli`) | `pm-index-admin-cli --id ID split --index IDX --symbol SYM --ratio-numerator … --ratio-denominator …` |
-| Cash dividend | `pm-index-admin-cli --id ID dividend --index IDX --symbol SYM --dividend-per-share …` |
-| Shares issuance / buy-back | `pm-index-admin-cli --id ID shares --index IDX --symbol SYM --new-shares …` (or `--delta …`) |
-| Add constituent | `pm-index-admin-cli --id ID add --index IDX --symbol SYM --shares-outstanding … --initial-price …` |
-| Remove constituent | `pm-index-admin-cli --id ID delist --index IDX --symbol SYM` |
+| Stock split (no gateway command — use `pm-index-admin-cli`) | `pm-index-admin-cli --id ID split --index IDX --sym SYM --ratio N:M` |
+| Cash dividend | `pm-index-admin-cli --id ID dividend --index IDX --sym SYM --amount …` |
+| Shares issuance / buy-back | `pm-index-admin-cli --id ID shares --index IDX --sym SYM --new-shares …` (or `--delta …`) |
+| Add constituent | `pm-index-admin-cli --id ID add --index IDX --sym SYM --shares … --price …` |
+| Remove constituent | `pm-index-admin-cli --id ID delist --index IDX --sym SYM` |
 | List configured indices | `pm-index-cli --config … indices` |
 | Structural/audit events | `pm-index-cli --config … events [--type TYPE]` |
 | Intraday level snapshots | `pm-stats-cli index-snapshots --index-id ID` |
 | Daily OHLC (EOD) rollup | `pm-stats-cli index-daily [--index-id ID]` |
 | List indices seen by pm-stats | `pm-stats-cli index-ids` |
 | CSV export (structural events) | `pm-index-cli --config … events --format csv > out.csv` |
-| CSV export (daily OHLC) | `pm-stats-cli index-daily --format csv > out.csv` |
+| CSV export (daily OHLC) | `pm-stats-cli --format csv index-daily > out.csv` |
 
  
 

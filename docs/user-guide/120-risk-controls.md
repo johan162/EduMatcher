@@ -759,7 +759,7 @@ and a limit buy at 12200 ticks trades:
 What the gateway operator sees when a collar rejects an order:
 
 ```text
-TRADER01> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=75.00
+[TRADER01]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=75.00
 [14:02:00.301] ORDER REJECTED  reason="STATIC_COLLAR_BREACH"
 ```
 
@@ -1424,7 +1424,7 @@ gateways:
 ```
 
 ```text
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
 ```
 
 No `SMP=` on the wire → resolves to `CANCEL_RESTING` (the gateway default).
@@ -1435,7 +1435,7 @@ participants (or rests itself, if none remain).
 **Example 2 — explicit `SMP=NONE` overrides a non-`NONE` gateway default.**
 
 ```text
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|SMP=NONE
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|SMP=NONE
 ```
 
 Even though `TRADER01`'s gateway default is `CANCEL_RESTING`, the explicit
@@ -1464,7 +1464,7 @@ pattern applied to a market maker.
 **Example 4 — combo on the ALF text protocol: one `SMP=` value for every leg.**
 
 ```text
-TRADER01> NEW|TYPE=COMBO|COMBO_ID=spread-1|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|
+[TRADER01]> NEW|TYPE=COMBO|COMBO_ID=spread-1|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|
   LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.00|
   LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=400.00|SMP=CANCEL_BOTH
 ```

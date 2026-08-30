@@ -3,6 +3,8 @@
 !!! note "Learning objectives"
     After reading this page you will understand:
 
+    - The three ways to run the exchange — containers, `pm-opctl-cli`, or one
+      terminal per process — and which one fits what you are doing
     - How to prepare a session before the first process starts
     - Why the deployed configuration artifact is the operational source of truth
     - Which processes to start for a minimum session, a recorded session, a
@@ -33,6 +35,39 @@ The operator's job is to make five things true before trading starts:
 
 For the deep architectural explanation, see [Processes](170-processes.md). This
 chapter is the practical runbook.
+
+## Three ways to run it
+
+The processes are the same in all three. What differs is who starts them, and
+where they live.
+
+| | Containers | `pm-opctl-cli` on the host | One terminal per process |
+|---|---|---|---|
+| Start the exchange | `./edumatcher.sh start` or `make up-all` | `pm-opctl-cli start` | 8–14 commands, in order |
+| Web applications | four, included | started separately | started separately |
+| Process table | `make status` | `pm-opctl-cli list` | `ps`, and your own notes |
+| Process logs | `data/emo/<name>.log` | `<DATA_DIR>/emo/<name>.log` | each terminal's scrollback |
+| Best for | classrooms, demos, anyone who wants it *running* | scripted or repeated local runs | learning what each process does, and debugging one of them |
+
+**If you want a running exchange**, use the containers. That is
+[Installation](005-installation.md); the rest of this chapter still applies,
+because the container runs exactly these processes:
+
+```bash
+cd ~/.edumatcher && ./edumatcher.sh start     # a released install
+cd deployment/docker && make up-all           # from a checkout
+```
+
+**If you are learning the system**, start processes by hand. Nothing below
+assumes a container, and the manual startup order is the best way to see why
+each process exists and what it depends on.
+
+!!! note "The container is not a different system"
+    Inside the container it is `pm-opctl-cli` starting the same `pm-*`
+    processes, reading the same deployed artifact, writing the same databases
+    into a directory on your own disk. Every operator command, CLI and
+    troubleshooting step in this chapter works there too — `make shell`, or
+    `./edumatcher.sh shell`, puts you at a prompt inside it.
 
 
 ## Runtime source of truth
@@ -69,19 +104,22 @@ already loaded the previous artifact.
 
 ## Running modes
 
-EduMatcher supports installed and source-checkout operation. The behavior is the
-same; only the command prefix and default data directory differ.
+EduMatcher runs installed on the host, from a source checkout, or in a
+container. The behaviour is the same; the command prefix and the default data
+directory differ.
 
-| | Installed mode | Developer mode |
-|---|---|---|
-| Typical user | Instructor, student, demo operator | Contributor, test runner, docs author |
-| Install | `pipx install edumatcher` | `poetry install --with dev,docs` |
-| Command style | `pm-engine --verbose` | `poetry run pm-engine --verbose` |
-| Default data directory | `~/.local/share/edumatcher` | `<repo>/src/data/` |
-| First setup | `pm-setup` | Usually none, but deployment is still recommended |
+| | Installed mode | Developer mode | Container |
+|---|---|---|---|
+| Typical user | Instructor, student, demo operator | Contributor, test runner, docs author | Anyone who wants the whole system, GUIs included |
+| Install | `pipx install edumatcher` | `poetry install --with dev,docs` | `install.sh`, or `make up-all` from a checkout |
+| Command style | `pm-engine --verbose` | `poetry run pm-engine --verbose` | `make shell`, then `pm-engine --verbose` |
+| Default data directory | `~/.local/share/edumatcher` | `<repo>/src/data/` | `/data` inside; `~/.edumatcher/data` or `deployment/docker/data` outside |
+| First setup | `pm-setup` | Usually none, but deployment is still recommended | Done by the entrypoint on first start |
 
 Throughout this chapter commands are shown in installed form. In developer mode,
-prefix each `pm-*` command with `poetry run`.
+prefix each `pm-*` command with `poetry run`. In a container, run them inside it
+— `make shell` or `./edumatcher.sh shell` — where they are already on `PATH`
+and `EDUMATCHER_DATA_DIR` is already `/data`.
 
 
 ## Data directory
@@ -111,6 +149,15 @@ pm-engine --verbose
 For the complete file map, see
 [Persistence -> Data files at a glance](180-persistence.md#data-files-at-a-glance).
 
+!!! note "Where this is in a container install"
+    `EDUMATCHER_DATA_DIR` is `/data` inside the container, bind-mounted from a
+    directory on your disk — `~/.edumatcher/data` for a released install,
+    `deployment/docker/data` from a checkout. Everything in the table above is
+    therefore a real file you can open, back up and delete with your own tools;
+    `./edumatcher.sh mounts` (or `make mounts`) prints which host directory is
+    behind each container path, which is the fastest way to settle "*which*
+    exchange's data am I looking at".
+
 
 ## Preflight checklist
 
@@ -134,6 +181,20 @@ Run this before a classroom, demo, test session, or integration exercise.
     `pm-scheduler --now --delay 5`, make one trade, query stats and clearing,
     then shut down cleanly. It is much easier to fix a config in rehearsal than
     while participants are waiting.
+
+### Preflight for a container install
+
+Most of the checklist above is handled for you: the entrypoint deploys the
+configuration, `EDUMATCHER_DATA_DIR` is fixed, and one container means one data
+directory. What is left is shorter:
+
+| Check | Command | Why it matters |
+|---|---|---|
+| The right configuration is deployed | `./edumatcher.sh config` or `make config-show` | `EM_CONFIG` picks a bundled example; `EM_CONFIG_FILE` overrides it |
+| Every process came up | `./edumatcher.sh status` or `make status` | Runs `pm-opctl-cli list` inside the container |
+| It is *your* exchange on those ports | `./edumatcher.sh mounts` or `make mounts` | A released and a source-built stack use the same container names and host ports |
+| The applications answer | open 8090, 8091, 8093 | The two-phase start can succeed for the backend and still leave a GUI unhealthy |
+| Timezone matches the calendar | `TZ` in `.env` | Set it before the session; it affects every timestamp and the trading date |
 
 
 ## Minimum viable run
@@ -192,6 +253,67 @@ fill requires a crossing order or resting liquidity on the other side.
     minute demo, but it is usually not enough for a real exercise.
 
 
+## Starting the stack with `pm-opctl-cli`
+
+Starting eight to fourteen processes by hand, in the right order, is exactly
+the kind of thing that goes wrong five minutes before a class.
+`pm-opctl-cli` does it for you. It is not a container tool — it works the same
+on the host — and it is what the container itself runs internally.
+
+```bash
+pm-opctl-cli start          # start the 'default' profile
+pm-opctl-cli start mini     # ... a smaller one
+pm-opctl-cli list           # one row per process, with health
+pm-opctl-cli health -q      # exit 0 when everything is running
+pm-opctl-cli stop           # stop what it started
+```
+
+`start` is idempotent: a process it finds already running is left alone and
+reported as such, so it is safe to re-run after adding one by hand.
+
+### The three built-in profiles
+
+| Profile | Processes | Use it for |
+|---|---|---|
+| `micro` | `pm-log-srv`, `pm-engine` | The smallest thing that can match an order |
+| `mini` | `micro` plus `pm-stats`, `pm-scheduler`, `pm-md-gwy`, `pm-api-gwy` (desk), `pm-alf-gwy`, `pm-ralf-gwy`, `pm-dc-gwy` | A trading-capable venue with external access, without clearing or audit |
+| `default` | `mini` plus `pm-audit`, `pm-clearing`, `pm-index`, `pm-balf-gwy` and the second `pm-api-gwy` instance (`dashboards`) | Everything — the operational baseline below |
+
+The built-ins are used as they are when no configuration file exists.
+`pm-opctl-cli init` writes all three to `<DATA_DIR>/emo-config.yaml`, and once
+that file exists **its profiles replace the built-ins entirely**. That is the
+supported way to add a process, change a flag or define a profile of your own.
+
+Each entry in a profile is a `name`, a `command`, and optionally a
+`healthcheck` command or a `tcp` `host:port` to probe.
+
+### What it gives you that a row of terminals does not
+
+- **Ordering.** Processes are started in the profile's order, which encodes the
+  dependencies described below. It does not wait for each one to become
+  healthy — for a slow first start, check `pm-opctl-cli list` before inviting
+  participants in.
+- **A process table.** `list` reports each process as `running`, `not
+  responding` (the PID is alive but its check failed) or `dead`. A
+  `healthcheck` outranks a `tcp` probe, because a TCP connect to a ZeroMQ
+  socket proves only that libzmq's I/O thread is accepting — not that the
+  application is still processing messages.
+- **Log files instead of scrollback.** Combined stdout and stderr are appended
+  to `<DATA_DIR>/emo/<name>.log`, with PID files beside them.
+- **A stop that stops only what it started**, from those PID files. `kill` is
+  the blunt instrument: it sends `SIGTERM` to *every* process whose command
+  line contains `pm-`, including ones it never started.
+
+`pm-opctl-cli` does not start the browser applications. Those are containers
+(`make up-all`) or a local dev server — see
+[Installation](005-installation.md).
+
+!!! tip "In a container, use the Makefile wrappers"
+    `make status`, `make health` and `make proc-logs P=engine` in
+    `deployment/docker` run `pm-opctl-cli` inside the container for you, so you
+    do not need a shell for the routine checks.
+
+
 ## Recommended startup order
 
 For any session where records matter, use the **operational baseline** below.
@@ -199,6 +321,11 @@ This is stricter than the technical minimum. The technical minimum is still just
 `pm-engine` plus one or more order-entry clients, but that is not enough for a
 properly operated class, demo, test venue, integration environment, or
 production-like rehearsal.
+
+This baseline *is* the `default` profile: `pm-opctl-cli start` and a container
+start both perform this sequence. Read this section to understand why the order
+is what it is — and follow it by hand when you want to watch each process come
+up, or when you are debugging one of them.
 
 The ordering has two principles:
 
@@ -235,14 +362,21 @@ flowchart TD
 | 9 | `pm-api-gwy` | `pm-api-gwy` | Optional `--instance NAME`, `--host`, `--port`, `--engine-host`; API keys come from config | The API gateway has no `--id`. Use `--instance` only when multiple `api_gateways` entries are configured. Start after engine and stats history are available. |
 | 10 | `pm-alf-gwy` | `pm-alf-gwy` | Optional `--bind`, `--port`, `--engine-host`; gateway IDs come from client `HELLO` and config | The ALF TCP gateway has no process-level `--id`. Start after the engine is healthy, then external text clients can connect. |
 | 11 | `pm-balf-gwy` | `pm-balf-gwy` | Optional `--bind`, `--port`, `--engine-host`; identity is configured/client-provided | Optional binary order-entry gateway. Start only for BALF client exercises or integrations. |
-| 12 | TapeDeck | `cd web-apps/terminal-gui && PM_TERMINAL_API_KEY=... make up` | `PM_TERMINAL_API_KEY` for history; `CALF_HOST`, `API_GATEWAY_URL` when remote | The browser terminal needs `pm-md-gwy` for live data and `pm-api-gwy` for history, so it starts after both. |
-| 13 | Log Operator Console (`pm-log-ui`) | `cd web-apps/log-gui && make up` | Configure it to reach `pm-log-srv` / `log.db` as described in its chapter | The log UI is useful only after `pm-log-srv` is running and has data to display. |
+| 12 | Web applications | `cd deployment/docker && make up-all` | None — `up-all` resolves the read-only API key and the backend hostname itself | TapeDeck needs `pm-md-gwy` for live data and `pm-api-gwy` for history; the log console needs `pm-log-srv`. Starting them last is why `up-all` runs in two phases. |
 
 This order is approximate for independent consumers, but not arbitrary. The
 recorders can safely wait for the engine to appear, so starting them first is a
 good habit when completeness matters. The scheduler and external gateways should
 wait until the engine is actually up. Browser UIs should be last because they
 depend on the services underneath them.
+
+!!! note "Running the web applications against a host install"
+    `make up-all` starts the backend *and* the applications as one container
+    stack, which is the simplest thing when nothing else is running. To point
+    the applications at an exchange you started by hand instead, run them from
+    `web-apps/<app>/` — see
+    [The Development Loop](../developer/08-dev-workflow.md), whose "hybrid" setup
+    is exactly this case.
 
 !!! note "Where are participant terminals?"
         Local interactive participant terminals (`pm-alf-console --id TRADER01`) are
@@ -309,7 +443,7 @@ commands require a gateway with `role: ADMIN`.
 pm-viewer --symbol AAPL
 pm-orders
 pm-board
-pm-ticker --interval 15
+pm-ticker --db-interval 15
 ```
 
 `pm-board` and `pm-ticker` become much more useful when `pm-stats` is already
@@ -372,16 +506,33 @@ TapeDeck (`pm-terminal`) is the browser-based read-only market display in
 - `pm-api-gwy` with a read-only API key for history and charts
 - optionally `pm-log-srv` for bridge logs
 
-From `web-apps/terminal-gui/`:
+The usual way to start it is as part of the container stack, which resolves
+the read-only API key from the deployed configuration and wires the terminal to
+the exchange for you:
 
 ```bash
-export PM_TERMINAL_API_KEY='...'
-make up
+cd deployment/docker && make up-all      # or: ./edumatcher.sh start
 ```
 
-Then open `http://localhost:8090`. See
+Then open <http://localhost:8090>. The same applies to the log console (8091)
+and the browser trading terminal (8093).
+
+To run it against an exchange you started by hand instead, start it from
+`web-apps/terminal-gui/` with the key and the gateway URL in its environment:
+
+```bash
+export PM_TERMINAL_API_KEY='key-readonly-...'   # the credential with gateway_id: null
+export API_GATEWAY_URL='http://127.0.0.1:8081'  # the 'dashboards' instance, not 'desk'
+make dev                                        # or: make up, for a container
+```
+
+That key is generated per engine configuration and is issued on the
+`dashboards` API gateway instance. Without it the live book works and the
+history panels stay empty. See
 [Trader Information Terminal (TapeDeck)](290-trader-info-terminal.md) for
-container, remote display server and troubleshooting details.
+remote display servers and troubleshooting, and
+[The Development Loop](../developer/08-dev-workflow.md) for the
+`make dev-env` helper that prints both values for you.
 
 
 ## Process groups by scenario
@@ -394,6 +545,11 @@ container, remote display server and troubleshooting details.
 | External client integration | core engine/recorders plus `pm-alf-gwy` or `pm-balf-gwy`, `pm-md-gwy`, `pm-ralf-gwy` as needed |
 | Browser market display | core engine/recorders plus `pm-md-gwy`, `pm-api-gwy`, TapeDeck |
 | Operational investigation | running system plus `pm-audit-cli`, `pm-stats-cli`, `pm-clearing-cli`, `pm-log-cli`, `pm-admin-cli` |
+| Everything, with the web applications | the container stack: `./edumatcher.sh start`, or `make up-all` from a checkout |
+
+The first five rows are `pm-opctl-cli` profiles or subsets of them: `micro` is
+the quick demo, `mini` adds external access, `default` is the recorded
+classroom set plus the index and the second API instance.
 
 
 ## The `tools/launch_all.sh` convenience launcher
@@ -418,6 +574,12 @@ for that scenario.
     external services such as `pm-md-gwy`, `pm-api-gwy`, `pm-ralf-gwy`,
     `pm-log-srv` or TapeDeck. Start those explicitly when your playbook needs
     them.
+
+!!! tip "Prefer `pm-opctl-cli` for anything repeated"
+    The launcher's value is that you can *see* each process in its own window,
+    which is useful while learning. For a stack you start more than once,
+    `pm-opctl-cli start` covers the full process set, is portable beyond macOS,
+    writes proper log files, and stops cleanly.
 
 
 ## Verifying the system is running correctly
@@ -499,6 +661,19 @@ curl -s http://127.0.0.1:8080/api/v1/healthz
 
 Use the checks that match the services you actually started.
 
+**In a container**, the first two checks collapse into one, and the rest are
+run the same way with a shell inside:
+
+```bash
+make status                     # or ./edumatcher.sh status — the process table
+make health                     # exit code 0 when every process is up
+make ports                      # what is actually published on the host
+make shell                      # then any pm-*-cli command, as above
+```
+
+`make status` runs `pm-opctl-cli list` inside the container, so a `not
+responding` row means the same thing there as on the host.
+
 
 ## Monitoring a running exchange
 
@@ -515,6 +690,10 @@ Use the checks that match the services you actually started.
 | TapeDeck | Browser display for live prices, trades, movers, index, auctions and halts |
 | `pm-audit --terminal` | Raw event flow while recording to disk |
 | `pm-log-cli diagnose` | Operational log diagnosis when log server data exists |
+| Log Operator Console (log-gui) | Browsing, searching and acknowledging centralized logs in a browser |
+| `make status` / `./edumatcher.sh status` | The container process table, without opening a shell |
+| `make logs` / `./edumatcher.sh logs` | The container's own entrypoint output — startup and deployment problems |
+| `make proc-logs P=engine` | Follow one process log from `data/emo/` |
 
 ### Common operator queries
 
@@ -562,6 +741,18 @@ echo "OK: engine sockets and admin queries are healthy"
 
 Add scenario-specific checks for `pm-md-gwy`, `pm-api-gwy`, TapeDeck, clearing,
 stats or logs when those services are required.
+
+With `pm-opctl-cli` managing the stack, most of that script is one command:
+
+```bash
+pm-opctl-cli health -q || echo "one or more processes are down"
+```
+
+and against a container, from the host:
+
+```bash
+make -C deployment/docker health
+```
 
 
 ## Logging levels
@@ -708,6 +899,22 @@ See [Trader Information Terminal](290-trader-info-terminal.md) for the full
 TapeDeck runbook.
 
 
+### Container-specific problems
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| A GUI shows data from an exchange you did not start | Another install's containers own these names and ports | `./edumatcher.sh mounts` or `make mounts` names the host directory behind each container path. Stop the other stack first |
+| The stack starts but the terminal's history panels are empty | The read-only API key was not resolved — the configuration has no credential with `gateway_id: null` | Add one under `api_gateways` and redeploy. The live feed does not need it; history does |
+| `make status` is all green but a sibling container cannot connect | A listener was narrowed to loopback inside the container | Check `EDUMATCHER_GATEWAY_BIND_HOST` and any `bind_address:` in your configuration — see [Installation](005-installation.md#what-0000-does-and-does-not-expose) |
+| A source change has no effect | The image was not rebuilt | `make build` for the backend, `make build-guis` for a web app |
+| No entries in the log viewer's live tab | `pm-log-srv`'s ZeroMQ sockets are not published | Only matters when running the app outside the stack; inside it, nothing needs publishing |
+
+A container that will not start at all is usually explained by its own output:
+`./edumatcher.sh logs` or `make logs` shows the entrypoint's configuration
+deployment, which is where a bad `EM_CONFIG` or an invalid supplied
+configuration surfaces.
+
+
 ## Restart and shutdown
 
 ### Restarting non-engine processes
@@ -755,6 +962,23 @@ Example archive:
 tar -czf edumatcher-session-$(date +%Y%m%d-%H%M%S).tgz \
     -C "$EDUMATCHER_DATA_DIR" .
 ```
+
+### Shutting down a managed stack
+
+`pm-opctl-cli stop` sends `SIGTERM` to everything it started, in the order the
+PID files are found — which is *not* the order above. For a session whose
+records matter, stop order entry first (close the participant terminals, or
+halt the session with `pm-admin`), then let it stop the rest.
+
+For a container:
+
+```bash
+./edumatcher.sh stop        # or: make down-all
+```
+
+The container stops the processes and exits; the data directory is on your disk
+and survives untouched, so `start` resumes the same exchange. `make clean-data`
+— and only that — throws the exchange state away.
 
 
 ## Appendix: operator playbooks
@@ -840,7 +1064,7 @@ Goal: run a session with complete audit, stats and clearing records.
     pm-viewer --symbol AAPL
     pm-orders
     pm-board
-    pm-ticker --interval 15
+    pm-ticker --db-interval 15
     ```
 
 5. During the session, check:
@@ -973,3 +1197,5 @@ configuration.
 - [Risk Controls](120-risk-controls.md) - collars, circuit breakers and halts
 - [Persistence](180-persistence.md) - all files written by the exchange
 - [Trader Information Terminal](290-trader-info-terminal.md) - TapeDeck browser display
+- [Installation](005-installation.md) - the container stack, its networking and every directory it uses
+- [The Development Loop](../developer/08-dev-workflow.md) - running a web application against a backend you started yourself

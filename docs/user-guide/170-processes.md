@@ -194,7 +194,7 @@ pm-config-deploy ~/configs/morning.yaml
 pm-engine --verbose
 ```
 
-See [`pm-config-deploy`](#pm-config-deploy) for installing a configuration.
+See [`pm-config-deploy`](#pm-config-deploy-compile-and-install-a-configuration) for installing a configuration.
 
 **Core processes:**
 
@@ -330,8 +330,10 @@ process's own `config.py`.
          ```
          pm-opctl-cli start
          ```
-         Then use `pm-opctl-cli lisgt` to lisgt status of each process
-     6. Start remaining optional observers/tools as needed (`pm-board`,`pm-viewer`, `pm-ticker`).
+         Then use `pm-opctl-cli list` to list the status of each process, and
+         `pm-opctl-cli stop` to shut the profile down again. See
+         [Running the Exchange](040-running-the-exchange.md#starting-the-stack-with-pm-opctl-cli).
+     4. Start remaining optional observers/tools as needed (`pm-board`, `pm-viewer`, `pm-ticker`).
 
 
 

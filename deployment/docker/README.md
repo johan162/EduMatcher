@@ -270,7 +270,7 @@ one specific interface.
 Precedence for a service listener, first match wins:
 
 ```text
---host flag  →  EDUMATCHER_GATEWAY_BIND_HOST  →  bind_address:/host: in YAML  →  0.0.0.0
+--bind / --host flag  →  EDUMATCHER_GATEWAY_BIND_HOST  →  bind_address:/host: in YAML  →  0.0.0.0
 ```
 
 Earlier versions shipped loopback-bound examples and had the entrypoint rewrite

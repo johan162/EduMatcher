@@ -18,6 +18,11 @@ You will practice:
 
  
 
+
+!!! abstract "Pre-reading in the User Guide"
+    - [API Gateway](../user-guide/260-api-gateway.md)
+    - [REST API Reference](../user-guide/950-app-REST-API-reference.md)
+
 ## Prerequisites
 
 - Chapters 01-23 completed.

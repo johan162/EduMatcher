@@ -4,7 +4,8 @@
     After reading this page you will understand:
 
     - What EduMatcher is, and why it is split into many `pm-*` processes
-    - The smallest useful path from installation to a first trade
+    - The smallest useful path from installation to a first trade, whether you
+      installed the containers or the Python package
     - The handful of concepts that make the rest of the guide easier to read
     - How configuration, data files, market data, logs and reports fit together
     - Which chapters to read next for your role
@@ -31,6 +32,13 @@ That makes it useful for three different kinds of learning:
 The project is intentionally bigger than a toy. The User Guide is long because
 the system covers the whole exchange surface, not because you must learn every
 chapter before typing your first order. This page is the map.
+
+!!! tip "If you would rather be told exactly what to do next"
+    This page is the **map**: what the system is and how the pieces relate.
+    If you want a **route** instead — a staged path with exact commands and a
+    checkpoint at every step — go to
+    [A Path Through the Guide](001-learning-path.md). It gets you to a running
+    exchange in about fifteen minutes and a matched trade in about an hour.
 
 !!! tip "If you are new to exchanges"
     Read [How an Exchange Works](../how-exchange-works.md) before the rest of
@@ -71,6 +79,7 @@ flowchart LR
         DC["pm-dc-gwy\ndrop-copy TCP"]
         TERM["TapeDeck / pm-terminal\ntrader information terminal"]
         LOG["pm-log-srv / pm-log-ui\ncentral logs"]
+        TRD["trader-gui\nbrowser trading terminal"]
     end
 
     ALF --> ENG
@@ -88,6 +97,7 @@ flowchart LR
     ENG --> DC
     CALF --> TERM
     API --> TERM
+    API --> TRD
     LOG -. receives logs from .- ENG
     LOG -. receives logs from .- external
 ```
@@ -149,14 +159,25 @@ containers from a checkout, the Multipass VM, `pipx` and a Poetry checkout —
 together with the container networking, every build flag, and every directory
 the system uses.
 
-The short version, if you just want a running exchange with all four web
-applications:
+Two of them matter for this page, because they lead to different first steps.
+
+**Containers — the whole system, four browser applications included:**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash
+cd ~/.edumatcher && ./edumatcher.sh start
 ```
 
-Or, to run the processes yourself as the rest of this chapter shows:
+The exchange is now running on a bundled configuration. Open
+<http://localhost:8090> for the trading terminal and <http://localhost:8091>
+for the log console. The `pm-*` commands used throughout this guide live
+*inside* the container:
+
+```bash
+./edumatcher.sh shell        # then pm-admin, pm-alf-console, pm-stats-cli, ...
+```
+
+**Python package — the processes on your own machine:**
 
 ```bash
 pipx install edumatcher
@@ -164,13 +185,27 @@ mkdir edumatcher-session && cd edumatcher-session
 pm-setup
 ```
 
-The commands in this chapter are shown in installed mode. In a Poetry
-checkout, prefix every `pm-*` command with `poetry run`.
+Here you start each process yourself. That is slower, and it is the better way
+to *learn* the system: you see what each process does, and what breaks when one
+is missing.
+
+| | Containers | `pipx` / Poetry |
+|---|---|---|
+| Time to a running exchange | one command | a few, plus `pm-setup` |
+| Web applications | four, already wired to the exchange | started separately |
+| Where `pm-*` commands run | inside the container, after `./edumatcher.sh shell` | your own shell |
+| Data on disk | `~/.edumatcher/data` | `~/.local/share/edumatcher` |
+| Best for | seeing the whole system; classrooms and demos | learning the pieces; developing against them |
+
+Commands in this chapter are shown in installed form. In a Poetry checkout,
+prefix every `pm-*` command with `poetry run`. In a container, run them after
+`./edumatcher.sh shell`, where they are already on `PATH` and the data
+directory is already set.
 
 
 ## Environment variables
 
-EduMatcher has one runtime location variable:
+EduMatcher has one variable that decides *where everything lives*:
 
 | Variable | Default in installed mode | Default in source checkout | Purpose |
 |---|---|---|---|
@@ -212,6 +247,14 @@ compiled artifact and its copied source under the selected data directory:
 Configured relative runtime paths such as `data/stats.db` are also resolved
 under `<DATA_DIR>`, so they refer to the same files regardless of the command's
 working directory. Absolute paths remain explicit overrides.
+
+A container sets this for you: `EDUMATCHER_DATA_DIR` is `/data` inside, bind-
+mounted from `~/.edumatcher/data` (or `deployment/docker/data` from a
+checkout), so the databases and logs are ordinary files on your disk.
+
+Other environment variables exist — which network interface each process binds,
+where the log failover directory goes — but none of them are needed for a first
+session. They are all in [Installation](005-installation.md).
 
 
 ## Configuration: edit YAML, deploy artifact
@@ -259,6 +302,23 @@ This path uses the sample configuration installed by `pm-setup`. It has
 immediately.
 
 Open three terminals in the same session environment.
+
+!!! tip "Using the container install?"
+    The exchange is already running — skip Terminal 1. Open two shells inside
+    the container instead of two on your host:
+
+    ```bash
+    cd ~/.edumatcher
+    ./edumatcher.sh shell        # in each of two terminals
+    ```
+
+    Then run the `pm-alf-console` commands below in those. The container's
+    default configuration is `three-basic`, which has the same symbols
+    (`AAPL`, `MSFT`, `TSLA`) and the same gateways (`TRADER01`, `TRADER02`,
+    `OPS01`, `MM01`) as the `pm-setup` sample, so every command below works
+    unchanged. `pm-config-show` prints what is actually deployed if you want to
+    confirm. You can also watch the trade land in the browser terminal on
+    <http://localhost:8090>.
 
 ### Terminal 1 - start the engine
 
@@ -341,8 +401,17 @@ time.
 | Open the browser trader terminal | TapeDeck / `pm-terminal` stack | [Trader Information Terminal](290-trader-info-terminal.md) |
 | Collect logs from all processes | `pm-log-srv`, then `pm-log-cli` or `pm-log-ui` | [Centralized Log Server](280-log-srv.md), [Log Operator Console](285-log-srv-gui.md) |
 
+| Open the browser trading terminal, log console or config builder | the container stack, or `make dev` in `web-apps/<app>` | [Installation](005-installation.md), [Trader Information Terminal](290-trader-info-terminal.md), [Log Operator Console](285-log-srv-gui.md) |
+
 The full process catalog is in [Processes](170-processes.md). Use that chapter
 when you want exact command-line flags and startup dependencies.
+
+Once you know which processes you want, you do not have to start them one at a
+time forever. `pm-opctl-cli start` brings up a whole named profile — `micro`,
+`mini` or `default` — writes each process's log to a file, and reports the lot
+with `pm-opctl-cli list`. It is what the container runs internally, and it works
+the same on the host. See
+[Running the Exchange](040-running-the-exchange.md#starting-the-stack-with-pm-opctl-cli).
 
 
 ## What the major feature areas are for
@@ -423,7 +492,8 @@ that way. Pick the path that matches what you are trying to do.
 | **Operator / supervisor** | [Running the Exchange](040-running-the-exchange.md) -> [Risk Controls](120-risk-controls.md) -> [Exchange Commands](160-exchange-commands.md) -> [Centralized Log Server](280-log-srv.md) |
 | **Analyst / auditor** | [P&L & Clearing](130-pnl-clearing.md) -> [Statistics and Reporting](140-statistics-and-reporting.md) -> [Audit Trail](190-audit.md) -> [Persistence](180-persistence.md) |
 | **Dashboard or feed developer** | [External Protocols Overview](210-protocols-overview.md) -> [CALF](240-calf-gateway.md) or [API Gateway](260-api-gateway.md) -> protocol appendices |
-| **Core developer** | Developer install -> [Architecture](../architecture/01-architecture.md) -> [Developer Practice](../developer/01-dev-practice.md) -> tests for the subsystem you are changing |
+| **Core developer** | Developer install -> [Architecture](../architecture/01-architecture.md) -> [Developer Practice](../developer/01-dev-practice.md) -> [The Development Loop](../developer/08-dev-workflow.md) -> tests for the subsystem you are changing |
+| **Web application developer** | [Installation](005-installation.md) -> [The Development Loop](../developer/08-dev-workflow.md) -> the app's own `README.md` -> [API Gateway](260-api-gateway.md) or [CALF](240-calf-gateway.md) |
 
 
 ## Three details worth knowing early
@@ -487,10 +557,16 @@ For the full vocabulary, see the [Glossary](../glossary.md).
 
 ## Where to go next
 
-If you want a guided path, go to [Training](../training/index.md). If you want
-to build your own session, go to [Configuration](010-configuration.md) and then
-[Running the Exchange](040-running-the-exchange.md). If you want the complete
-runtime map, go to [Processes](170-processes.md).
+| If you want to... | Go to |
+|---|---|
+| Be told what to do next, step by step | [A Path Through the Guide](001-learning-path.md) |
+| Follow a guided, hands-on lab with exercises | [Training](../training/index.md) |
+| Get the whole system running, GUIs included | [Installation](005-installation.md) |
+| Build your own session configuration | [Configuration](010-configuration.md) |
+| Operate a session — start, monitor, troubleshoot, shut down | [Running the Exchange](040-running-the-exchange.md) |
+| See the complete runtime map | [Processes](170-processes.md) |
+| Write a client against a protocol | [External Protocols Overview](210-protocols-overview.md) |
+| Work on EduMatcher itself | [Developer Practice](../developer/01-dev-practice.md) |
 
 The rest of the guide is large, but it is not a wall. It is a map of a whole
 exchange. Start with one process, one symbol and one trade; then add the next

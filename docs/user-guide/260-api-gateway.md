@@ -862,7 +862,7 @@ Behaviour notes:
 - The circuit-breaker, kill-switch, and rebalance endpoints accept an
   optional `reason` field — a free-text note. For the engine-backed
   endpoints (everything except rebalance) it is carried through to the
-  corresponding [`admin.action` monitor event](#admin-action-monitor-events)
+  corresponding [`admin.action` monitor event](#adminaction-monitor-events)
   under the key `note`; it is not otherwise interpreted by the engine or
   `pm-index`.
 - Write endpoints (`POST`) are subject to the same per-key write rate limit as

@@ -107,7 +107,7 @@ The complete structure at a glance. Annotations: `!` = REQUIRED key, `?` =
 OPTIONAL key, `=` = default, `∈` = domain/constraint. Types are from §1.3–§2.
 This tree is normative for *shape*; §4–§6 are normative for *field law*.
 
-```yaml
+```text
 # ── ENGINE (read by pm-engine) ──────────────────────────────────────────────
 symbols:                    ! Map<Symbol, SymbolSpec>          # ≥0 entries; key required
 gateways:                   ! Map

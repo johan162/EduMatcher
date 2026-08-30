@@ -9,6 +9,11 @@ configuration, and a clear picture of which directory holds your trades and
 logs.
 
 
+
+!!! abstract "Pre-reading in the User Guide"
+    - [Installation](../user-guide/005-installation.md)
+    - [A Path Through the Guide](../user-guide/001-learning-path.md)
+
 ## Exercise 0: Read [How an Exchange Works](../how-exchange-works.md)
 
 Not strictly required, but it gives you a mental model of the core components
@@ -219,7 +224,7 @@ verify it, then bootstrap:
 ```bash
 multipass version
 
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | bash -s -- --version 0.27.0
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | bash -s -- --version 0.27.1
 ```
 
 This launches a VM (default name `ems`), installs the runtime inside it, runs

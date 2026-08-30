@@ -264,7 +264,7 @@ Optional observers you will often add:
 ```bash
 poetry run pm-orders
 poetry run pm-stats
-poetry run pm-ticker --interval 15
+poetry run pm-ticker --db-interval 15
 poetry run pm-board
 ```
 

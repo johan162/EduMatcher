@@ -8,6 +8,11 @@ and does not exist in the current EduMatcher runtime.
 
  
 
+
+!!! abstract "Pre-reading in the User Guide"
+    - [Drop Copy](../user-guide/200-drop-copy.md)
+    - [DC Gateway](../user-guide/201-dc-gateway.md)
+
 ## Prerequisites
 
 - Chapters 01-19 completed.
@@ -97,9 +102,49 @@ for _ in range(30):
 PY
 ```
 
-Interrupt/restart the subscriber while trades are flowing to simulate missed events.
+!!! warning "Restarting the subscriber will *not* show you a gap"
+    A restart resets `last` to `None`, and the guard `if last is not None`
+    exempts the first message after every restart. That is correct behaviour
+    for a real consumer — on a cold start it has no expectation to violate —
+    but it means the obvious experiment cannot produce a `GAP detected` line.
 
-:material-checkbox-blank-outline: **Checkpoint:** you can explain how consumer-side gap detection works.
+To actually see the detector fire, drop messages *inside* a single run. This
+version discards every fifth event it receives, simulating lost datagrams:
+
+```bash
+python - <<'EOF'
+import json
+import zmq
+
+last = None
+seen = 0
+ctx = zmq.Context()
+sock = ctx.socket(zmq.SUB)
+sock.connect("tcp://127.0.0.1:5557")
+sock.subscribe(b"drop_copy.event.")
+
+print("watching for gaps (deliberately dropping every 5th event)")
+for _ in range(30):
+    topic, payload = sock.recv_multipart()
+    seen += 1
+    if seen % 5 == 0:          # simulate a lost message
+        continue
+    msg = json.loads(payload)
+    seq = msg.get("seq")
+    if last is not None and seq is not None and seq != last + 1:
+        print(f"GAP detected: expected {last + 1}, got {seq}")
+    last = seq
+EOF
+```
+
+With trades flowing you should now see a `GAP detected` line roughly every
+fifth event. That is the whole mechanism: the **consumer**, not the publisher,
+notices the discontinuity — which is why every consumer you write needs this
+check.
+
+:material-checkbox-blank-outline: **Checkpoint:** you have seen at least one
+`GAP detected` line, and can explain why a subscriber restart does not produce
+one.
 
  
 
@@ -138,7 +183,10 @@ Operational implication:
 
 When a gap is detected, run a practical recovery checklist:
 
-1. Use `pm-audit --terminal --log-file ...` to keep an append-only event trail.
+1. Use `pm-audit --terminal --audit-log-file ...` to keep an append-only event
+   trail. Note the flag: `--audit-log-file` sets the *audit trail* path;
+   `--log-file` is the process's own operational log and will not contain
+   trade events.
 2. Use `pm-stats-cli trades --symbol <sym>` for post-gap trade verification.
 3. Reconnect subscriber and continue from latest observed sequence.
 

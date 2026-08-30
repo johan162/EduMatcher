@@ -277,7 +277,7 @@ QUOTE|SYM=<symbol>|BID=<price>|ASK=<price>|BID_QTY=<n>|ASK_QTY=<n>[|TIF=<DAY|GTC
 Example:
 
 ```text
-MM01> QUOTE|SYM=AAPL|BID=209.80|ASK=210.20|BID_QTY=500|ASK_QTY=500|QUOTE_ID=Q1
+[MM01]> QUOTE|SYM=AAPL|BID=209.80|ASK=210.20|BID_QTY=500|ASK_QTY=500|QUOTE_ID=Q1
 [09:30:00.101] QUOTE ACK   Q1  bid=7c4a91e2 ask=be2170fd
 [09:30:00.102] QUOTE ACTIVE  Q1
 ```
@@ -334,40 +334,40 @@ Output columns:
 1. Show only currently active quote legs across all symbols:
 
 ```text
-MM01> QLEGS
+[MM01]> QLEGS
 ```
 
 2. Show active legs for one symbol while managing a live quote:
 
 ```text
-MM01> QLEGS|SYM=AAPL
+[MM01]> QLEGS|SYM=AAPL
 ```
 
 3. Show recent completed/cancelled legs to understand what just happened:
 
 ```text
-MM01> QLEGS|SHOW=RECENT
+[MM01]> QLEGS|SHOW=RECENT
 ```
 
 4. Full audit-style view (active + recent) for one symbol:
 
 ```text
-MM01> QLEGS|SYM=AAPL|SHOW=ALL
+[MM01]> QLEGS|SYM=AAPL|SHOW=ALL
 ```
 
 #### Example workflow (manual MM session)
 
 ```text
-MM01> QUOTE|SYM=AAPL|BID=209.80|ASK=210.20|BID_QTY=500|ASK_QTY=500|QUOTE_ID=Q123
+[MM01]> QUOTE|SYM=AAPL|BID=209.80|ASK=210.20|BID_QTY=500|ASK_QTY=500|QUOTE_ID=Q123
 [09:30:00.101] QUOTE ACK   Q123  bid=7c4a91e2 ask=be2170fd
 [09:30:00.102] QUOTE ACTIVE  Q123
 
-MM01> QLEGS|SYM=AAPL
+[MM01]> QLEGS|SYM=AAPL
 # shows BUY leg 7c4a91e2 and SELL leg be2170fd as active, Filled?=NO
 
 [09:31:02.417] FILL      7c4a91e2  qty=100 @209.8  remaining=400  [PARTIAL]
 
-MM01> QLEGS|SYM=AAPL|SHOW=ALL
+[MM01]> QLEGS|SYM=AAPL|SHOW=ALL
 # BUY leg now shows Filled=100, Filled?=YES, status=PARTIAL
 # SELL leg state reflects remaining quote lifecycle events
 ```
@@ -392,10 +392,10 @@ QBOOT[|SYM=<symbol>]
 Examples:
 
 ```text
-MM_AAPL_01> QBOOT
+[MM_AAPL_01]> QBOOT
 # prints all active quote bootstrap entries owned by MM_AAPL_01
 
-MM_AAPL_01> QBOOT|SYM=AAPL
+[MM_AAPL_01]> QBOOT|SYM=AAPL
 # prints only AAPL bootstrap quote state for MM_AAPL_01
 ```
 
@@ -452,10 +452,10 @@ nothing.
 Example:
 
 ```text
-TRADER01> INDEX
+[TRADER01]> INDEX
 [09:31:00.512] TECH100  4213.55 [green]+12.30 +0.29%[/green] [dim]O=4201.25 H=4220.10 L=4198.00[/dim] OPEN
 
-TRADER01> INDEX|HISTORY|INDEX=TECH100|FROM=2026-06-01|TO=2026-07-01
+[TRADER01]> INDEX|HISTORY|INDEX=TECH100|FROM=2026-06-01|TO=2026-07-01
 # prints a "Index structural history" table of corporate-action-style records
 ```
 
@@ -483,7 +483,7 @@ line, in addition to (not instead of) the usual `FILL` line driven by
 `order.fill.{GW_ID}` on the main event bus.
 
 ```text
-GW01> DC|STATE=ON
+[GW01]> DC|STATE=ON
 [dim]DC ON[/dim]
 ...
 [09:31:02.417] DC_FILL   7c4a91e2  AAPL  qty=100 @150.05  [TAKER]  #42  (drop_copy.event.GW01)
@@ -817,7 +817,7 @@ This is the fastest way to discover the current phase immediately after
 connecting or reconnecting.
 
 ```
-SC01> SESSION
+[SC01]> SESSION
 [09:31:02.104] SESSION  CONTINUOUS  (normal continuous matching)
 ```
 
@@ -825,7 +825,7 @@ If session-phase enforcement is disabled for this engine, an additional note
 is printed:
 
 ```
-SC01> SESSION
+[SC01]> SESSION
 [09:31:02.104] SESSION  CONTINUOUS  (normal continuous matching)
   [sessions gating disabled]
 ```
@@ -952,27 +952,27 @@ This transcript shows a realistic manual session from connect to disconnect.
 # Start terminal
 $ poetry run pm-alf-console --id TRADER01
 
-TRADER01> SYMBOLS
+[TRADER01]> SYMBOLS
 # confirms AAPL/MSFT active
 
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
 [09:30:00.100] ACK  7c4a91e2  order accepted
 
-TRADER01> ORDERS
+[TRADER01]> ORDERS
 # copy full UUID from table if you plan to amend/cancel
 
-TRADER01> AMEND|ID=7c4a91e2-...|PRICE=150.10
+[TRADER01]> AMEND|ID=7c4a91e2-...|PRICE=150.10
 [09:30:01.500] AMENDED  7c4a91e2  price=150.1 qty=100 remaining=100
 
 [09:30:02.200] FILL  7c4a91e2  qty=40 @150.10  remaining=60  [PARTIAL]
 
-TRADER01> POS
+[TRADER01]> POS
 # exposure now reflects partial fill
 
-TRADER01> CANCEL|ID=7c4a91e2-...
+[TRADER01]> CANCEL|ID=7c4a91e2-...
 [09:30:03.000] CANCELLED  7c4a91e2
 
-TRADER01> EXIT
+[TRADER01]> EXIT
 ```
 
 Recommended habits:

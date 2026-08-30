@@ -7,6 +7,10 @@ IOC, ICEBERG, and TRAILING_STOP — through practical exercises.
 
  
 
+
+!!! abstract "Pre-reading in the User Guide"
+    - [Order Types](../user-guide/060-order-types.md)
+
 ## Prerequisites
 
 - Chapters 01–04 completed.
@@ -21,22 +25,25 @@ through their trigger price. Vague instructions like "sell aggressively" can
 leave the trigger price behind by chance rather than by design. Use this
 procedure before each stop exercise so the trigger is guaranteed:
 
-1. Check the current best bid/offer with `BOOK|SYM=AAPL` from any gateway.
-2. Set your stop's `STOP` price **inside** the current spread, close to (but
-   not past) the best bid — for example, if the best bid is 149.80, use
-   `STOP=149.50` so it will not trigger immediately but is easy to reach.
+1. Check the current best bid/offer with `BOOK|SYM=AAPL` in the **operator
+   console** (`pm-admin`).
+2. Set your sell stop's `STOP` price **below the last traded price**, so it
+   does not trigger the moment you submit it — for example, if the last trade
+   was 149.80, use `STOP=149.50`. A sell stop fires when the last trade price
+   falls to or below the stop price, so this is close enough to reach with one
+   aggressive sell but not already triggered.
 3. Place the stop order (Exercise 1/2 below).
 4. From `TRADER02`, place a **marketable limit sell** priced below your stop
    trigger, sized to exceed available resting bids down to that level, e.g.:
 
    ```
-   TRADER02> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=500|PRICE=149.00|TIF=DAY
+   [TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=500|PRICE=149.00|TIF=DAY
    ```
 
    This guarantees the trade prints at or below 149.50, deterministically
    triggering your stop — rather than hoping an "aggressive" sell happens to
    cross it.
-5. Re-check `BOOK|SYM=AAPL` to confirm the last trade price is at/below your
+5. Re-check `BOOK|SYM=AAPL` in the operator console to confirm the last trade price is at/below your
    stop level before concluding the exercise.
 
  
@@ -48,7 +55,7 @@ A stop order becomes a market order when the trigger price is reached.
 Place a stop-sell (protect a long position if price drops):
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=SELL|TYPE=STOP|QTY=100|STOP=149.50|TIF=DAY
+[TRADER01]> NEW|SYM=AAPL|SIDE=SELL|TYPE=STOP|QTY=100|STOP=149.50|TIF=DAY
 ```
 
 The order is dormant until AAPL trades at or below 149.50. Once triggered, it
@@ -70,7 +77,7 @@ trigger level.
 Like a stop, but becomes a limit order (not market) when triggered:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=SELL|TYPE=STOP_LIMIT|QTY=100|STOP=149.50|PRICE=149.40|TIF=DAY
+[TRADER01]> NEW|SYM=AAPL|SIDE=SELL|TYPE=STOP_LIMIT|QTY=100|STOP=149.50|PRICE=149.40|TIF=DAY
 ```
 
 When the stop triggers at 149.50, a limit sell at 149.40 is placed. If the
@@ -90,10 +97,10 @@ book trades through both the stop and the limit level.
 
 ## Exercise 3: Fill-or-Kill (FOK)
 
-FOK demands the entire quantity in a single fill or cancels:
+FOK demands the entire quantity in a single all-or-nothing execution (which may sweep several resting orders) or cancels:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=FOK|QTY=1000|PRICE=150.10
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=FOK|QTY=1000|PRICE=150.10
 ```
 
 If the ask side doesn't have 1000 shares at or below 150.10, the order is
@@ -102,7 +109,7 @@ immediately cancelled.
 Try with a smaller qty that the MM can fill:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=FOK|QTY=100|PRICE=150.10
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=FOK|QTY=100|PRICE=150.10
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** large FOK cancelled; small FOK filled.
@@ -114,7 +121,7 @@ TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=FOK|QTY=100|PRICE=150.10
 IOC fills as much as possible immediately, then cancels the rest:
 
 ```
-TRADER01> NEW|SYM=MSFT|SIDE=BUY|TYPE=IOC|QTY=1000|PRICE=420.20
+[TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=IOC|QTY=1000|PRICE=420.20
 ```
 
 If only 300 are available at the ask, you get 300 filled and 700 cancelled.
@@ -128,7 +135,7 @@ If only 300 are available at the ask, you get 300 filled and 700 cancelled.
 An iceberg shows only a visible "peak" quantity while hiding the reserve:
 
 ```
-TRADER01> NEW|SYM=TSLA|SIDE=BUY|TYPE=ICEBERG|QTY=1000|PRICE=249.75|VISIBLE=100|TIF=DAY
+[TRADER01]> NEW|SYM=TSLA|SIDE=BUY|TYPE=ICEBERG|QTY=1000|PRICE=249.75|VISIBLE=100|TIF=DAY
 ```
 
 The book shows only 100 visible. When those 100 fill, another 100 automatically
@@ -137,7 +144,7 @@ appears until the full 1000 is done.
 Check the book:
 
 ```
-TRADER01> BOOK|SYM=TSLA
+[GW_ADMIN|ADMIN]> BOOK|SYM=TSLA
 ```
 
 You should see a 100-lot bid, not 1000.
@@ -151,7 +158,7 @@ You should see a 100-lot bid, not 1000.
 A trailing stop follows the market by a fixed offset:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=SELL|TYPE=TRAILING_STOP|QTY=100|TRAIL=0.20|TIF=DAY
+[TRADER01]> NEW|SYM=AAPL|SIDE=SELL|TYPE=TRAILING_STOP|QTY=100|TRAIL=0.20|TIF=DAY
 ```
 
 No `STOP=` is given here, so the engine derives the initial trigger from the

@@ -7,6 +7,10 @@ and how to use the scheduler to drive the exchange through a full trading day.
 
  
 
+
+!!! abstract "Pre-reading in the User Guide"
+    - [Auctions & Scheduling](../user-guide/080-session-scheduling.md)
+
 ## Prerequisites
 
 - Chapters 01–05 completed.
@@ -41,12 +45,20 @@ Start the scheduler in rapid-fire mode to see all transitions quickly:
 pm-scheduler --now
 ```
 
-From your gateway, observe session state notifications:
+Watch the transitions. The trader console does **not** subscribe to session
+broadcasts — it only answers an explicit `SESSION` query — so use the operator
+console, which does:
 
 ```
-[SESSION] state=PRE_OPEN
-[SESSION] state=OPENING_AUCTION
-[SESSION] state=CONTINUOUS
+[GW_ADMIN|ADMIN]> SESSION_STATUS
+```
+
+Run it after each transition, or watch `pm-audit --terminal` in another
+terminal for the live `session.state` events:
+
+```
+session.state  PRE_OPEN -> OPENING_AUCTION
+session.state  OPENING_AUCTION -> CONTINUOUS
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** you see at least one session state transition.
@@ -61,19 +73,22 @@ by timing luck. Instead of running `pm-scheduler` continuously, use the admin
 gateway to freeze on a phase and advance only when you are ready:
 
 1. Do **not** start `pm-scheduler --now` (which free-runs through all phases).
-   Start the engine and gateways as usual, but leave the scheduler stopped —
-   the session then stays in `PRE_OPEN` until told otherwise.
+   Start the engine and gateways as usual, but leave the scheduler stopped.
+   With `sessions_enabled: true` and no scheduler, the engine starts in
+   **`CLOSED`** and stays there — so every order is rejected with
+   "Market is closed" until you move it yourself in step 2. That is expected,
+   not a fault.
 2. From the admin gateway, force the exact phase you need for the next
    exercise:
 
    ```
-   ADMIN01> SESSION|STATE=CONTINUOUS
+   [GW_ADMIN|ADMIN]> SESSION|STATE=CONTINUOUS
    ```
 
 3. Confirm the change took effect with:
 
    ```
-   ADMIN01> SESSION_STATUS
+   [GW_ADMIN|ADMIN]> SESSION_STATUS
    ```
 
 4. Run the TIF exercise's orders while frozen in that phase.
@@ -81,8 +96,8 @@ gateway to freeze on a phase and advance only when you are ready:
    or `ATO`/`ATC` at auction phases), advance deliberately:
 
    ```
-   ADMIN01> SESSION|STATE=CLOSING_AUCTION
-   ADMIN01> SESSION|STATE=CLOSED
+   [GW_ADMIN|ADMIN]> SESSION|STATE=CLOSING_AUCTION
+   [GW_ADMIN|ADMIN]> SESSION|STATE=CLOSED
    ```
 
 Using `SESSION|STATE=` this way means each exercise below runs in a
@@ -96,7 +111,7 @@ During CONTINUOUS (freeze there with `SESSION|STATE=CONTINUOUS` per the
 procedure above), place a DAY order:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=148.00|TIF=DAY
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=148.00|TIF=DAY
 ```
 
 When you advance the session to CLOSED (`SESSION|STATE=CLOSED`), the order is
@@ -116,7 +131,7 @@ must not persist.
 Place a GTC order:
 
 ```
-TRADER01> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=415.00|TIF=GTC
+[TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=415.00|TIF=GTC
 ```
 
 This order survives the CLOSED phase and will still be resting when the next
@@ -136,7 +151,7 @@ PRE_OPEN, this is a valid direct transition), then place an At-The-Open
 order:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=150.50|TIF=ATO
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=150.50|TIF=ATO
 ```
 
 !!! warning "ATO is rejected during PRE_OPEN, not just outside auction hours"
@@ -160,7 +175,7 @@ auction, it is cancelled the moment the session leaves `OPENING_AUCTION`
 During CONTINUOUS, place an At-The-Close order:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.00|TIF=ATC
+[TRADER01]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.00|TIF=ATC
 ```
 
 This order is held until the closing auction. It only matches during that phase.
@@ -174,11 +189,13 @@ This order is held until the closing auction. It only matches during that phase.
 Try submitting an ATO order during CONTINUOUS:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=ATO
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=ATO
 ```
 
-Expected: rejection — ATO orders are only accepted during PRE_OPEN or
-OPENING_AUCTION phase.
+Expected: rejection — `ATO orders only accepted during opening auction`. The
+phase must be **exactly** `OPENING_AUCTION`; `PRE_OPEN` is not enough, even
+though `PRE_OPEN` accepts orders generally. This matches the note in the
+summary below and the rule you saw in Exercise 4.
 
 :material-checkbox-blank-outline: **Checkpoint:** engine rejects out-of-phase TIF correctly.
 
@@ -189,13 +206,17 @@ OPENING_AUCTION phase.
 | Phase | Accepts | Cancels on **entry** |
 |-------|---------|---------|
 | PRE_OPEN | DAY, GTC (not ATO — see Exercise 4) | — |
+
 | OPENING_AUCTION | DAY, GTC, ATO | ATO (unfilled, on **exit** to any other phase) |
-| CONTINUOUS | DAY, GTC, IOC, FOK (not ATO or ATC) | — |
+| CONTINUOUS | DAY, GTC (not ATO or ATC) | — |
 | CLOSING_AUCTION | DAY, GTC, ATC | ATC (unfilled, on **exit** to CLOSED) |
 | CLOSED | — (no new orders accepted) | DAY (all, on entry to CLOSED) |
 
 Notes:
 
+- The four values above are the whole of `TIF=`: **DAY, GTC, ATO, ATC**.
+  `IOC` and `FOK` are *order types* (`TYPE=`), not time-in-force values —
+  a common confusion, since all six describe "how long does this live".
 - `ATO` is only accepted while the session state is exactly
   `OPENING_AUCTION` — not during `PRE_OPEN`, even though `PRE_OPEN` accepts
   orders generally.

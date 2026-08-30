@@ -1,3 +1,111 @@
+## [v0.27.1] - 2026-08-29
+
+Release Type: minor
+
+### 📋 Summary
+A major overhaul of the documentation to make sure it aligns with the updated 
+deployment methods. Alongside it the User Guide gets a staged learning path.
+The accompanying training material was also significantly revised, updated and
+corrected.
+
+### 📚 Documentation
+- Added `docs/developer/08-dev-workflow.md` — the development inner loop:
+rebuilding a web-app image, running an application on the host against the
+containerised exchange, and which loop suits which change.
+- Reworked `000-getting-started.md` and `040-running-the-exchange.md` around the
+container install: both previously assumed a bare-metal, one-terminal-per-process
+setup. Adds the three ways to run the exchange, documents `pm-opctl-cli` and its
+three profiles in the User Guide for the first time, and gives container
+equivalents for preflight, verification, monitoring, troubleshooting and shutdown.
+- The training material have been split in several logical sections
+- Reworked the Training Guide. The plan is now grouped into five parts, links to
+the lessons (it previously linked every chapter title to the user guide instead),
+and every chapter gained a "Pre-reading in the User Guide" block. Chapter 01 now
+introduces `pm-admin` and the trader/operator console split explicitly.
+- Restructured training chapter 12 (P&L & Clearing) around the three states the
+subsystem actually has. End-of-day marks only exist after the engine broadcasts
+`system.eod` on graceful shutdown, which the chapter never said — so a new
+Interlude closes the trading day between Part A and Part B, each part is labelled
+with the engine state it requires, and a new final exercise restarts the exchange
+to show which numbers are settled and which are live. The verb reference now
+classifies every command as live, historical or settled.
+- Normalised all 165 console prompts in the training and user guides to the real
+strings (`[TRADER01]>` and `[GW_ADMIN|ADMIN]>`), so a reader can no longer
+mistake a documentation shorthand for a version difference.
+- Replaced the invented `QLEGS` and `QBOOT` output in training chapter 09 with
+the columns those commands actually render, and added an exercise that compares
+the three `quote_refresh_policy` values by observing a partial fill under each.
+- Corrected training chapter 10's claim that a combo means "either all legs fill
+or none do". The all-or-none check runs at submission only: if any leg is short,
+every leg rests as an ordinary order and can then be hit individually, moving the
+combo to `PARTIALLY_MATCHED`. A new exercise demonstrates that leg risk returns
+once a combo rests.
+- Fixed the capstone (chapter 17), which regenerated the configuration with
+`--force` and silently dropped `MM_MANUAL_01` (chapter 09) and `AI01`–`AI03`
+(chapter 14); it also omitted the market-maker seeds, so the configuration it
+produced would have been refused by `pm-config-deploy` with error M001 — and it
+never deployed the configuration at all before starting the engine. All three are
+fixed, the AI traders are now used in the trade-generation exercise, and a backup
+step warns before the overwrite.
+
+### 🐛 Bug Fixes
+- Corrected the documented bind-host precedence: the four protocol gateways take
+`--bind`, not `--host` (only `pm-log-srv` and `pm-api-gwy` use `--host`).
+- Fixed 11 broken cross-references in the User Guide whose target headings had
+been renamed.
+- Corrected the trader GUI chapter, which documented ports `4173` and `5173`
+throughout; both are `8093` (container) and `8193` (dev server).
+- Corrected the TapeDeck chapter's dev-server ports (`5179` → `8190`/`5190`) and
+its `API_GATEWAY_URL` examples, which pointed at `8080` — the read-only history
+key is only valid on the `dashboards` instance at `8081`, so every one of those
+examples produced a live book with empty history panels.
+- Corrected the log console chapter's dev-server ports (`5178` → `8191`/`5191`)
+and the `make dist` target name (`cdist`).
+- Fixed a `pm-ticker --interval` example in the training guide; that flag does
+not exist.
+- All three web-application chapters now lead with the container stack rather
+than the retired per-app `host.docker.internal` workflow.
+- Fixed stale `pm-emo` command names and an outdated profile description in
+`src/edumatcher/emo/README.md`, and two `lisgt` typos in `170-processes.md`.
+- Fixed 28 documented commands that placed a global option (`--format`,
+`--yes`, `--data-dir`) after the subcommand, where argparse rejects it with
+"unrecognized arguments". Affected `pm-audit-cli`, `pm-log-cli`, `pm-stats-cli`,
+`pm-index-cli` and `pm-index-admin-cli` across the user guide and training.
+- Corrected every `pm-index-admin-cli` example: the flags were documented as
+`--symbol`, `--ratio-numerator`, `--dividend-per-share`, `--shares-outstanding`
+and `--initial-price`; the real ones are `--sym`, `--ratio N:M`, `--amount`,
+`--shares` and `--price`.
+- Corrected the BALF `ORDER_ACK` reject-code table, which was wrong in both the
+training chapter and the protocol appendix (e.g. symbol-not-configured is
+`0x03`, not `0x01`; invalid quantity is `0x0C`, not `0x02`).
+- Fixed ~25 training exercises that showed operator commands (`BOOK`,
+`SESSION|STATE=`, `CANCEL_SYM`, `KILL|GW=`) under a trader-console prompt. Those
+commands do not exist in `pm-alf-console` and the exercises could not work.
+- Added the missing `pm-config-deploy` step to training chapters 02, 09, 11 and
+14, which told the reader to edit YAML and restart the engine — a no-op, since
+processes read the compiled artifact.
+- Fixed `pm-ticker --interval` (the flag is `--db-interval`), `pm-audit
+--log-file` for the audit trail (it is `--audit-log-file`), and
+`pm-scheduler --immediate` (it is `--now`).
+- Corrected training chapter 01's symbol configuration, which used
+`tick_size`/`last_price`/`description` — keys the engine silently ignores —
+instead of `tick_decimals`/`last_buy_price`/`last_sell_price`.
+
+### 🛠 Internal
+- `scripts/checkdocs.py` verifies the documentation against the code: every
+relative link and anchor, every `pm-*` command and `--flag` shown in a code
+block (checked against the real argparse output, including subcommand flags and
+global-option ordering), and every embedded engine configuration (run through
+`pm-cverifier`). Runs in CI; `poetry run python scripts/checkdocs.py` for all
+three. A block that deliberately shows wrong usage opts out with
+`# checkdocs: ignore`.
+- `make build-guis [GUI=<app>]` and `make up-all BUILD=1` in `deployment/docker`
+— until now no target rebuilt a web-app image, so a change in `web-apps/` was
+silently invisible after `make up-all`.
+- `make dev-env GUI=<app>` prints the environment needed to run one web
+application on the host against the running backend container.
+
+
 ## [v0.27.0] - 2026-08-29
 
 Release Type: major
@@ -26,11 +134,9 @@ a whole install. Container installs are unaffected — the namespace, and
 `ZMQ=1` / `EM_ZMQ=1`).
 
 ### ✨ Additions
-- `make build-guis [GUI=<app>]` and `make up-all BUILD=1` in `deployment/docker`
-— until now no target rebuilt a web-app image, so a change in `web-apps/` was
-silently invisible after `make up-all`.
-- `make dev-env GUI=<app>` prints the environment needed to run one web
-application on the host against the running backend container.
+- New User Guide chapter `001-learning-path.md` — a staged route through the
+documentation, from a running exchange in fifteen minutes to a venue of your own,
+with exact commands and a checkpoint at every step.
 
 ### 🚀 Improvements
 - Added `EDUMATCHER_GATEWAY_BIND_HOST`, a single deployment-wide override for
@@ -45,9 +151,6 @@ than the literal in the YAML.
 ### 📚 Documentation
 - Rewrote the networking sections of the installation guide and the container
 and networks developer chapter around the two-plane model.
-- Added `docs/developer/08-dev-workflow.md` — the development inner loop:
-rebuilding a web-app image, running an application on the host against the
-containerised exchange, and which loop suits which change.
 
 ### 🐛 Bug Fixes
 - Fixed `web-apps/trader-gui/Makefile`: `build-debug` was indented with spaces,
@@ -85,7 +188,6 @@ This patch release fixes the container image publishing workflow.
 
 ### 📚 Documentation
 - Added note on the alternative handling of matching image names.
-
 
 
 ## [v0.26.1] - 2026-08-28

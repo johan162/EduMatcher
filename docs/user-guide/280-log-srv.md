@@ -589,7 +589,7 @@ for the authoritative table.
 | Server refuses to start, port error | `port`, `pub_port` and `pull_port` are not all distinct | Give each a different port |
 
 For the complete normative field tables of every LALF-PS message, see
-[Message Reference — LALF-PS messages](270-message-reference.md#lalf-ps-messages-log-subscriber-pm-log-srv).
+[Message Reference — LALF-PS messages](270-message-reference.md#family-log).
 
 
 
@@ -683,7 +683,7 @@ pm-log-cli query --process pm-api-gwy --logger "edumatcher.api_gateway.%"
 pm-log-cli query --since 2026-07-28T09:30:00.000Z --until 2026-07-28T09:35:00.000Z --reverse
 
 # Export as JSON for further processing
-pm-log-cli query --process pm-engine --format json --limit 5000 > engine_log.json
+pm-log-cli --format json query --process pm-engine --limit 5000 > engine_log.json
 ```
 
 
@@ -717,7 +717,7 @@ pm-log-cli tail
 pm-log-cli tail --process pm-md-gwy --level WARNING,ERROR,CRITICAL
 
 # Follow as JSON for piping into another tool
-pm-log-cli tail --format json | jq .
+pm-log-cli --format json tail | jq .
 ```
 
 Stop with Ctrl-C.
@@ -752,7 +752,7 @@ pm-log-cli processes
 pm-log-cli processes --active
 
 # Export as JSON for a dashboard
-pm-log-cli processes --format json
+pm-log-cli --format json processes
 ```
 
 
@@ -795,7 +795,7 @@ pm-log-srv Statistics
 pm-log-cli stats
 
 # Machine-readable for monitoring/automation
-pm-log-cli stats --format json
+pm-log-cli --format json stats
 ```
 
 
@@ -865,7 +865,7 @@ pm-log-cli diagnose --process pm-md-gwy
 pm-log-cli diagnose --since 2026-07-28T13:00:00.000Z
 
 # Scripted health check — non-zero exit means something was flagged
-pm-log-cli diagnose --format json || echo "logging issues detected, see above"
+pm-log-cli --format json diagnose || echo "logging issues detected, see above"
 ```
 
 
@@ -936,7 +936,7 @@ pm-log-cli query --level ERROR,CRITICAL --since 2026-07-28T13:00:00.000Z
 pm-log-cli query --has-exception
 
 # Full traceback text for one specific event, exported for a support ticket
-pm-log-cli query --process pm-md-gwy --has-exception --format json --limit 1
+pm-log-cli --format json query --process pm-md-gwy --has-exception --limit 1
 ```
 
 ### Checking whether every process is still reporting in
@@ -966,12 +966,12 @@ pm-log-cli query --grep "timeout" --logger "edumatcher.api_gateway.%"
 
 ```bash
 # Export a whole day's logging for one process
-pm-log-cli query --process pm-engine \
+pm-log-cli --format json query --process pm-engine \
   --since 2026-07-28T00:00:00.000Z --until 2026-07-28T23:59:59.000Z \
-  --format json --limit 100000 > pm-engine_2026-07-28.json
+  --limit 100000 > pm-engine_2026-07-28.json
 
 # Export the full stats snapshot for a dashboard
-pm-log-cli stats --format json > log_stats.json
+pm-log-cli --format json stats > log_stats.json
 ```
 
 ### Routine maintenance
@@ -1005,7 +1005,7 @@ subcommand reads (or, for `prune`, writes) it directly.
 ## See Also
 
 - [LALF Protocol Reference](940-app-lalf-protocol.md) — normative wire specification for anyone implementing a LALF client
-- [Message Reference — LALF-PS messages](270-message-reference.md#lalf-ps-messages-log-subscriber-pm-log-srv) — normative field tables for every LALF-PS message
+- [Message Reference — LALF-PS messages](270-message-reference.md#family-log) — normative field tables for every LALF-PS message
 - [Processes — pm-log-srv / pm-log-cli](170-processes.md#pm-log-srv-centralized-log-server) — startup reference tables in the process overview
 - [Configuration — Configuring pm-log-srv](010-configuration.md#configuring-pm-log-srv) — the `log_server:` config block field reference
 - [Audit Trail](190-audit.md) — the equivalent dedicated-collector pattern for trading events (`pm-audit`/`pm-audit-cli`)

@@ -451,11 +451,11 @@ the MM disconnects.
 #   gateways.MM01.quote_refresh_policy = INACTIVATE_ON_ANY_FILL
 
 # 1. MM01 posts a quote
-MM01> QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|QUOTE_ID=q1
+[MM01]> QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|QUOTE_ID=q1
 [14:30:00] QUOTE ACK  q1  bid=ord-001 ask=ord-002
 
 # 2. GW02 buys 200 at market — hits the ASK leg
-GW02> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=200
+[GW02]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=200
 [14:30:01] FILL  ord-003  AAPL BUY  200@150.05
 
 # MM01 sees:
@@ -463,7 +463,7 @@ GW02> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=200
 [14:30:01] QUOTE INACTIVE_ASK_FILLED  q1          (bid leg auto-cancelled)
 
 # 3. MM01 re-quotes
-MM01> QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=300|QUOTE_ID=q2
+[MM01]> QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=300|QUOTE_ID=q2
 [14:30:01] QUOTE ACK  q2  bid=ord-004 ask=ord-005
 ```
 
@@ -794,7 +794,7 @@ Assume:
 #### MM submits quote
 
 ```text
-MM01> QUOTE|SYM=AAPL|BID=209.80|ASK=210.20|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q123
+[MM01]> QUOTE|SYM=AAPL|BID=209.80|ASK=210.20|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q123
 ```
 
 #### Engine accepts and returns mapping
@@ -889,7 +889,7 @@ If the MM wants a fresh two-sided quote immediately, it has two valid options:
 #### Option A: explicit cancel then new quote
 
 ```text
-MM01> QUOTE_CANCEL|SYM=AAPL
+[MM01]> QUOTE_CANCEL|SYM=AAPL
 ```
 
 Typical resulting events:
@@ -905,7 +905,7 @@ Then the MM submits a new quote.
 #### Option B: direct replacement quote
 
 ```text
-MM01> QUOTE|SYM=AAPL|BID=209.70|ASK=210.10|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q124
+[MM01]> QUOTE|SYM=AAPL|BID=209.70|ASK=210.10|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q124
 ```
 
 The engine will:
@@ -1029,7 +1029,7 @@ Assume the MM operator is connected as `MM01` and wants to quote `AAPL`.
 Operator input:
 
 ```text
-MM01> QUOTE|SYM=AAPL|BID=209.80|ASK=210.20|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q123
+[MM01]> QUOTE|SYM=AAPL|BID=209.80|ASK=210.20|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q123
 ```
 
 Typical gateway output when the quote rests normally:
@@ -1081,7 +1081,7 @@ that would mean the ask side of `Q123` traded.
 With `QLEGS`, this becomes a direct read:
 
 ```text
-MM01> QLEGS|SYM=AAPL|SHOW=ALL
+[MM01]> QLEGS|SYM=AAPL|SHOW=ALL
 ```
 
 Interpretation pattern:
@@ -1163,7 +1163,7 @@ Operator action choices:
 If the operator wants to cancel the current active quote for `AAPL`:
 
 ```text
-MM01> QUOTE_CANCEL|SYM=AAPL
+[MM01]> QUOTE_CANCEL|SYM=AAPL
 ```
 
 Typical output:
@@ -1191,7 +1191,7 @@ already supports replace-by-new-quote semantics.
 Example:
 
 ```text
-MM01> QUOTE|SYM=AAPL|BID=209.70|ASK=210.10|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q124
+[MM01]> QUOTE|SYM=AAPL|BID=209.70|ASK=210.10|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q124
 ```
 
 Typical interpretation:
@@ -1250,7 +1250,7 @@ To re-issue a usable two-sided quote, the operator or MM logic must know:
 Typical re-quote command:
 
 ```text
-MM01> QUOTE|SYM=AAPL|BID=209.75|ASK=210.15|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q124
+[MM01]> QUOTE|SYM=AAPL|BID=209.75|ASK=210.15|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q124
 ```
 
 Operationally, the MM also needs to know whether the old quote is actually gone.
@@ -1352,7 +1352,7 @@ To issue a new quote, the MM must compute and send:
 Example:
 
 ```text
-MM01> QUOTE|SYM=AAPL|BID=209.70|ASK=210.10|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q124
+[MM01]> QUOTE|SYM=AAPL|BID=209.70|ASK=210.10|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q124
 ```
 
 #### What the MM should normally do before re-issuing

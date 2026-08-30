@@ -88,6 +88,7 @@ nav:
     - Implied Orders: concepts/07-concepts-implied-orders.md
   - User Guide:
     - Getting Started: user-guide/000-getting-started.md
+    - A Path Through the Guide: user-guide/001-learning-path.md
     - Installation: user-guide/005-installation.md
     - Engine Configuration: user-guide/010-configuration.md
     - Config Verifier: user-guide/020-config-verifier.md
@@ -138,34 +139,39 @@ nav:
     - "Appendix: Engine Config Specification": user-guide/990-app-config-spec.md
   - Training:
     - Overview: training/index.md
-    - "00 — Installation & Setup": training/00-installation.md
-    - "01 — Configuring & Starting Up": training/01-configuring-startup.md
-    - "02 — Setting Up Market-Maker Liquidity": training/02-setting-up-MM-bots.md
-    - "03 — The First Trade": training/03-the-first-trade.md
-    - "04 — Amending Orders": training/04-amending-orders.md
-    - "05 — Order Types Deep Dive": training/05-order-types.md
-    - "06 — Time-in-Force & Sessions": training/06-time-in-force-sessions.md
-    - "07 — Auctions": training/07-auctions.md
-    - "08 — Cancelling & Managing Orders": training/08-cancelling-orders.md
-    - "09 — Market Making": training/09-market-making.md
-    - "10 — Combo Orders": training/10-combo-orders.md
-    - "11 — Risk Controls": training/11-risk-controls.md
-    - "12 — P&L & Clearing": training/12-pnl-clearing.md
-    - "13 — Market Data & Drop Copy": training/13-market-data-drop-copy.md
-    - "14 — AI Traders & Swarm": training/14-ai-traders.md
-    - "15 — Statistics & Reporting": training/15-statistics-reporting.md
-    - "16 — Persistence & Recovery": training/16-persistence-recovery.md
-    - "17 — Capstone Scenario": training/17-capstone-scenario.md
-    - "18 — Exchange Observer Processes": training/18-exchange-observer-processes.md
-    - "19 — Advanced Admin Operations": training/19-advanced-admin-operations.md
-    - "20 — Drop-Copy Replay & Recovery Patterns": training/20-drop-copy-replay-recovery.md
-    - "21 — Automation with CommandClient & MM Bot Tuning": training/21-automation-commandclient-mm-bot.md
-    - "22 — RALF Post-Trade Gateway Protocol": training/22-ralf.md
-    - "23 — CALF Market-Data Gateway Protocol": training/23-calf.md
-    - "24 — API Gateway (REST/WebSocket)": training/24-api-gwy.md
-    - "25 — Market Index (pm-index)": training/25-index.md
-    - "26 - ALF TCP Gateway (pm-alf-gwy)": training/26-alf-gwy.md
-    - "27 - BALF TCP Gateway (pm-balf-gwy)": training/27-balf-gwy.md
+    - Part 1 — Foundations:
+      - "00 — Installation & Setup": training/00-installation.md
+      - "01 — Configuring & Starting Up": training/01-configuring-startup.md
+      - "02 — Setting Up Market-Maker Liquidity": training/02-setting-up-MM-bots.md
+      - "03 — The First Trade": training/03-the-first-trade.md
+      - "18 — Exchange Observer Processes": training/18-exchange-observer-processes.md
+    - Part 2 — Trading mechanics:
+      - "04 — Amending Orders": training/04-amending-orders.md
+      - "08 — Cancelling & Managing Orders": training/08-cancelling-orders.md
+      - "05 — Order Types Deep Dive": training/05-order-types.md
+      - "06 — Time-in-Force & Sessions": training/06-time-in-force-sessions.md
+      - "07 — Auctions": training/07-auctions.md
+      - "10 — Combo Orders": training/10-combo-orders.md
+    - Part 3 — Liquidity and automation:
+      - "09 — Market Making": training/09-market-making.md
+      - "14 — AI Traders & Swarm": training/14-ai-traders.md
+      - "21 — Automation & MM Bot Tuning": training/21-automation-commandclient-mm-bot.md
+    - Part 4 — Operating the exchange:
+      - "11 — Risk Controls": training/11-risk-controls.md
+      - "19 — Advanced Admin Operations": training/19-advanced-admin-operations.md
+      - "12 — P&L & Clearing": training/12-pnl-clearing.md
+      - "15 — Statistics & Reporting": training/15-statistics-reporting.md
+      - "25 — Market Index (pm-index)": training/25-index.md
+      - "16 — Persistence & Recovery": training/16-persistence-recovery.md
+      - "17 — Capstone Scenario": training/17-capstone-scenario.md
+    - Part 5 — External connectivity:
+      - "13 — Market Data & Drop Copy": training/13-market-data-drop-copy.md
+      - "20 — Drop-Copy Replay & Recovery": training/20-drop-copy-replay-recovery.md
+      - "26 — ALF TCP Gateway (pm-alf-gwy)": training/26-alf-gwy.md
+      - "27 — BALF TCP Gateway (pm-balf-gwy)": training/27-balf-gwy.md
+      - "23 — CALF Market-Data Gateway": training/23-calf.md
+      - "22 — RALF Post-Trade Gateway": training/22-ralf.md
+      - "24 — API Gateway (REST/WebSocket)": training/24-api-gwy.md
   - Architecture: 
     - Overview: architecture/01-architecture.md
     - Detailed Walkthrough: architecture/02-architecture-guide.md

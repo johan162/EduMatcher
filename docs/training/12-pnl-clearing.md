@@ -4,13 +4,44 @@
 
 Understand how the DB-backed clearing process tracks positions, computes VWAP
 average cost, and reports realized and unrealized P&L per trader per symbol.
-Gain hands-on proficiency with every `pm-clearing-cli` command verb through
-intraday, end-of-day, and operational exercises.
+Gain hands-on proficiency with every `pm-clearing-cli` command verb — during
+the trading day, at the close, and afterwards — and learn which of them are
+meaningful in which of those three states.
+
+!!! important "This chapter has three phases — check which one you are in"
+    Clearing is the one subsystem whose most important behaviour only happens
+    when the exchange **stops**. End-of-day marks are applied when the engine
+    broadcasts `system.eod`, and it broadcasts that exactly once, during a
+    graceful shutdown. So this chapter deliberately runs the exchange, then
+    closes it, then keeps working on the data it left behind.
+
+    Each part below is labelled with the state it needs. If an exercise returns
+    nothing, the first thing to check is whether the engine is in the state
+    that part assumes.
+
+    | Part | Engine | Why |
+    |---|---|---|
+    | **A** — Intraday (Ex 1–10) | **Running**, with trading activity | You are watching positions and P&L change as trades arrive |
+    | **B** — End of day (Ex 12–16) | **Stopped** — cleanly | The EOD sentinel and the official daily rollup only exist after `system.eod` |
+    | **C** — Ongoing operations (Ex 17–18) | Either | Retention and restart behaviour are independent of a live session |
+
+    `pm-clearing` itself keeps running throughout — it is the *engine* that
+    stops between Part A and Part B.
+
+
+!!! abstract "Pre-reading in the User Guide"
+    - [P&L & Clearing](../user-guide/130-pnl-clearing.md)
 
 ## Prerequisites
 
 - Chapters 01–11 completed.
 - Live trading activity available (manual trading, AI traders, or both).
+
+
+!!! note "Dates in this chapter"
+    The commands use `$(date +%F)` — today's date — rather than a fixed one,
+    so they return your own session's rows. If a query comes back empty, check
+    with `pm-clearing-cli dates` which trading dates actually have data.
 
 ## Background
 
@@ -55,6 +86,12 @@ the fill price for the newly-opened side.
 
 ## Part A — Intraday exercises
 
+!!! info "Engine: **running**"
+    Everything in Part A assumes a live exchange with trades flowing. If your
+    book is quiet, start `pm-mm-bot` or the AI traders from Chapter 14 so there
+    is something to clear.
+
+
 ### Exercise 1: Start the clearing service
 
 ```bash
@@ -93,8 +130,8 @@ Run `health` again after a few trades to see the row counts grow.
 From TRADER01:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=200
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=200
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 ```
 
 Query the position:
@@ -138,7 +175,7 @@ pm-clearing-cli --format json trades --gateway TRADER01 --symbol AAPL --limit 3
 Export all trades for a date to CSV for a spreadsheet:
 
 ```bash
-pm-clearing-cli --format csv trades --date 2026-07-05 > trades_today.csv
+pm-clearing-cli --format csv trades --date "$(date +%F)" > trades_today.csv
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** you can retrieve fills in table, JSON, and CSV formats.
@@ -150,7 +187,7 @@ pm-clearing-cli --format csv trades --date 2026-07-05 > trades_today.csv
 Sell part of the AAPL position:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=100
+[TRADER01]> NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=100
 ```
 
 Expected accounting:
@@ -183,7 +220,7 @@ pm-clearing-cli pnl
 This is the most complex accounting path. Starting from the 200-share AAPL long:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=300
+[TRADER01]> NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=300
 ```
 
 This single order closes all 200 long shares **and** opens a 100-share short.
@@ -206,7 +243,7 @@ pm-clearing-cli pnl      --gateway TRADER01 --symbol AAPL
 Close the short:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 ```
 
 ```bash
@@ -310,7 +347,7 @@ pm-clearing-cli --raw-output positions --gateway TRADER01 --symbol AAPL
 ```
 
 Rules:
-- `avg_cost` is **never** raw-normalized (it is already computed as a REAL ratio)
+- `avg_cost` **is** normalized like the other price columns. It holds fractional ticks, so without normalization it would render 100x off next to `mark_price`
 - Fields like `mark_price`, `realized_pnl`, `unrealized_pnl`, `buy_notional`, `sell_notional` are normalized by default
 
 Use `--raw-output` when piping into scripts that expect tick integers, or when
@@ -320,7 +357,75 @@ debugging a suspected normalization issue.
 
 ---
 
+## Interlude — Closing the trading day
+
+Everything in Part A was a *running* view: positions and unrealized P&L that
+change with the next trade. Part B is about the *official* numbers — the ones a
+clearing house would settle on. Those do not exist yet, and this section is how
+you create them.
+
+### Why the engine has to stop
+
+The engine broadcasts `system.eod` from its **graceful shutdown path** and
+nowhere else. There is no "run EOD now" command: closing the session moves the
+phase to `CLOSED`, but the end-of-day marks are applied when the engine exits
+cleanly. That single message is what turns a live position into a settled one.
+
+```mermaid
+flowchart LR
+    A["Part A
+Engine running
+live positions, moving P&L"]
+    B["Ctrl+C on pm-engine
+system.eod broadcast"]
+    C["Part B
+Engine stopped
+official marks, daily rollup"]
+    A --> B --> C
+```
+
+### Exercise 11: Close the day
+
+Do these in order. The order matters: `pm-clearing` must still be running when
+the engine sends `system.eod`, or the message has nobody to receive it.
+
+**1. Note your open positions**, so you can compare them with the settled
+numbers afterwards:
+
+```bash
+pm-clearing-cli positions > /tmp/positions-before-eod.txt
+cat /tmp/positions-before-eod.txt
+```
+
+**2. Close the session** from the operator console:
+
+```
+[GW_ADMIN|ADMIN]> SESSION|STATE=CLOSED
+```
+
+**3. Stop the engine cleanly.** Press `Ctrl+C` in the `pm-engine` terminal —
+**not** `kill -9`. Wait for the shutdown messages; the engine saves GTC state,
+book statistics, and then broadcasts EOD.
+
+**4. Leave `pm-clearing` running.** It receives `system.eod` and applies the
+marks. Watch its terminal: you should see it flush and write.
+
+!!! warning "A hard kill skips EOD entirely"
+    `kill -9` gives the engine no chance to run its shutdown path, so no
+    `system.eod` is ever sent, no marks are applied, and every exercise in Part
+    B returns nothing. If that happens, restart the engine, generate a trade or
+    two, and close it properly this time.
+
+:material-checkbox-blank-outline: **Checkpoint:** the engine has exited cleanly,
+`pm-clearing` is still running, and its log shows it handled the EOD message.
+
+---
+
 ## Part B — End-of-day exercises
+
+!!! info "Engine: **stopped** (cleanly). `pm-clearing` still running."
+    If you skipped the Interlude, go back and do it — none of the rows these
+    exercises query exist until the engine has broadcast `system.eod`.
 
 End-of-day (EOD) is when the clearing house finalizes marks, settles daily P&L,
 and prepares tomorrow's opening state. `pm-clearing` handles this automatically
@@ -340,9 +445,10 @@ When `pm-clearing` receives `system.eod`:
 
 ---
 
-### Exercise 11: Verify EOD sentinel
+### Exercise 12: Verify the EOD sentinel
 
-After a session is closed (engine shut down gracefully):
+The sentinel is your proof that marks were applied — the first thing to check
+before trusting any settled number:
 
 ```bash
 pm-clearing-cli eod --limit 5
@@ -355,18 +461,35 @@ applied. The `eod` sentinel is proof that marks were applied.
 
 ---
 
-### Exercise 12: Inspect daily rollup
+### Exercise 13: Inspect the daily rollup, and compare it with Part A
 
 Query the official daily summary for today:
 
 ```bash
-pm-clearing-cli daily --date 2026-07-05
+pm-clearing-cli daily --date "$(date +%F)"
 ```
+
+Now compare `end_unrealized_pnl` here with the `unrealized_pnl` you saved in
+Exercise 11:
+
+```bash
+pm-clearing-cli positions
+diff /tmp/positions-before-eod.txt <(pm-clearing-cli positions) || true
+```
+
+The numbers may differ, and understanding *why* is the point of this part.
+Before EOD, `unrealized_pnl` was marked against whatever the last trade
+happened to be at that instant. After EOD it is marked against the official
+close — the last trade of the session, or the mid if the symbol never traded.
+Only the second one is a number a clearing house would settle on.
+
+:material-checkbox-blank-outline: **Checkpoint:** you can point at one position
+whose mark changed at EOD, and say which price each version was marked against.
 
 Filter to one gateway:
 
 ```bash
-pm-clearing-cli daily --date 2026-07-05 --gateway TRADER01
+pm-clearing-cli daily --date "$(date +%F)" --gateway TRADER01
 ```
 
 Key fields:
@@ -377,20 +500,20 @@ Key fields:
 Export the day's summary for settlement reporting:
 
 ```bash
-pm-clearing-cli --format csv daily --date 2026-07-05 > daily_settlement_2026-07-05.csv
+pm-clearing-cli --format csv daily --date "$(date +%F)" > daily_settlement_$(date +%F).csv
 ```
 
 Query across multiple days:
 
 ```bash
-pm-clearing-cli daily --from 2026-07-01 --to 2026-07-05 --gateway TRADER01
+pm-clearing-cli daily --from "$(date +%F)" --to "$(date +%F)" --gateway TRADER01
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** daily rollup contains `end_*` fields populated by the EOD mark pass.
 
 ---
 
-### Exercise 13: Browse available trading dates
+### Exercise 14: Browse available trading dates
 
 ```bash
 pm-clearing-cli dates
@@ -412,12 +535,12 @@ pm-clearing-cli dates --symbol AAPL
 
 ---
 
-### Exercise 14: Reconciliation check
+### Exercise 15: Reconciliation check
 
 After EOD, verify that raw `trade_events` aggregates match `gateway_daily_summary`:
 
 ```bash
-pm-clearing-cli reconcile --from 2026-07-05 --to 2026-07-05
+pm-clearing-cli reconcile --from "$(date +%F)" --to "$(date +%F)"
 ```
 
 Expected:
@@ -427,7 +550,7 @@ Expected:
 Reconcile across the whole week:
 
 ```bash
-pm-clearing-cli reconcile --from 2026-07-01 --to 2026-07-05
+pm-clearing-cli reconcile --from "$(date +%F)" --to "$(date +%F)"
 ```
 
 If discrepancies appear, use `trades` to investigate the affected gateway/symbol/date.
@@ -436,7 +559,7 @@ If discrepancies appear, use `trades` to investigate the affected gateway/symbol
 
 ---
 
-### Exercise 15: Session history
+### Exercise 16: Session history
 
 Query gateway connect and disconnect events recorded during the session:
 
@@ -459,7 +582,11 @@ they disconnected cleanly or the engine was killed unexpectedly.
 
 ## Part C — Ongoing operations
 
-### Exercise 16: Data retention and pruning
+!!! info "Engine: **either**"
+    Retention and restart behaviour do not depend on a live session. You can do
+    these with the exchange still down, or after restarting it.
+
+### Exercise 17: Data retention and pruning
 
 `pm-clearing` prunes old `trade_events` rows on startup. The default window is
 90 days. Control it with `--retention-days`:
@@ -486,6 +613,48 @@ Use `--dry-run` first to avoid unintended data loss.
 
 ---
 
+### Exercise 18: Reopen the exchange and confirm the settled day survives
+
+The last thing a clearing operator needs to trust is that yesterday's settled
+numbers are still there tomorrow, and that a new session does not disturb them.
+
+**1. Restart the exchange** — engine, scheduler, gateways and market makers, as
+in Chapter 01. `pm-clearing` can keep running throughout, or be restarted; both
+work, because the state lives in `clearing.db`, not in memory.
+
+**2. Confirm the closed day is intact:**
+
+```bash
+pm-clearing-cli dates
+pm-clearing-cli daily --date "$(date +%F)"
+```
+
+The row you inspected in Exercise 13 should be unchanged.
+
+**3. Trade once, then look again.** Submit a single order from a trader console
+and let it fill, then:
+
+```bash
+pm-clearing-cli positions
+pm-clearing-cli daily --date "$(date +%F)"
+```
+
+`positions` moves — that is the new session's live state. The settled
+`end_unrealized_pnl` from the closed day does not change retroactively; the
+rollup accumulates the new activity into the current trading date.
+
+:material-checkbox-blank-outline: **Checkpoint:** the settled daily row survives
+the restart, and you can explain which numbers are historical (fixed) and which
+are live (moving).
+
+!!! tip "This is the whole mental model of the chapter"
+    `positions` and `pnl` answer *"where do we stand right now?"* and change
+    with every fill. `daily`, `eod` and `sessions` answer *"what did we settle
+    for that day?"* and are written once. Knowing which question a verb answers
+    tells you whether the engine needs to be running for it to mean anything.
+
+---
+
 ## Key Formulas
 
 | Metric | Formula |
@@ -500,24 +669,38 @@ Use `--dry-run` first to avoid unintended data loss.
 
 ## pm-clearing-cli verb reference
 
-| Verb | What it returns | Key options |
-|---|---|---|
-| `gateways` | One row per gateway: total realized, unrealized, total P&L | `--gateway`, `--limit` |
-| `positions` | Full live position state per gateway/symbol | `--gateway`, `--symbol`, `--limit` |
-| `pnl` | Focused P&L view (no qty/notional detail) | `--gateway`, `--symbol`, `--limit` |
-| `trades` | Raw trade-level audit log | `--gateway`, `--symbol`, `--date`, `--from`, `--to`, `--limit` |
-| `exposure` | Net/gross notional exposure, sorted by size | `--gateway`, `--symbol`, `--sort`, `--limit` |
-| `symbols` | Symbol-level volume, notional, P&L | `--date`, `--from`, `--to`, `--sort` |
-| `daily` | Daily rollup + EOD snapshots | `--gateway`, `--symbol`, `--date`, `--from`, `--to` |
-| `dates` | Available trading dates | `--gateway`, `--symbol`, `--from`, `--to`, `--with-totals` |
-| `health` | DB row counts, last flush, WAL mode | — |
-| `reconcile` | Raw vs summary discrepancies | `--gateway`, `--symbol`, `--from`, `--to` |
-| `sessions` | Gateway connect/disconnect history | `--gateway`, `--from`, `--to`, `--connected-only` |
-| `eod` | EOD sentinel rows with mark prices | `--from`, `--to`, `--limit` |
-| `prune` | Delete old `trade_events` + VACUUM (**writes**) | `--days`, `--dry-run` |
+The **Answers** column is the one to internalise: a *live* verb changes with
+the next fill, a *settled* verb is written once and then never moves.
 
-Global options apply to all verbs: `--format table|json|csv`, `--no-header`,
-`--raw-output`, `--datapath PATH`, `--db-name NAME`.
+| Verb | Answers | What it returns | Key options |
+|---|---|---|---|
+| `gateways` | live | One row per gateway: total realized, unrealized, total P&L | `--gateway`, `--limit` |
+| `positions` | live | Full live position state per gateway/symbol | `--gateway`, `--symbol`, `--limit` |
+| `pnl` | live | Focused P&L view (no qty/notional detail) | `--gateway`, `--symbol`, `--limit` |
+| `exposure` | live | Net/gross notional exposure, sorted by size | `--gateway`, `--symbol`, `--sort`, `--limit` |
+| `health` | live | DB row counts, last flush, WAL mode | — |
+| `trades` | historical | Raw trade-level audit log | `--gateway`, `--symbol`, `--date`, `--from`, `--to`, `--limit` |
+| `symbols` | historical | Symbol-level volume, notional, P&L | `--date`, `--from`, `--to`, `--sort`, `--limit` |
+| `dates` | historical | Available trading dates | `--gateway`, `--symbol`, `--from`, `--to`, `--limit`, `--with-totals` |
+| `sessions` | historical | Gateway connect/disconnect history | `--gateway`, `--from`, `--to`, `--limit`, `--connected-only` |
+| `daily` | **settled** | Daily rollup + EOD snapshots | `--gateway`, `--symbol`, `--date`, `--from`, `--to`, `--limit` |
+| `eod` | **settled** | EOD sentinel rows with mark prices | `--from`, `--to`, `--limit` |
+| `reconcile` | historical | Raw vs summary discrepancies | `--gateway`, `--symbol`, `--from`, `--to`, `--retention-days` |
+| `prune` | maintenance | Delete old `trade_events` + VACUUM (**writes**) | `--days`, `--dry-run` |
+
+The two **settled** verbs are the ones that return nothing until the engine has
+shut down cleanly at least once — that is the whole reason this chapter has an
+Interlude in the middle.
+
+Global options apply to all verbs and must be given **before** the verb:
+`--format table|json|csv`, `--no-header`, `--raw-output`, `--datapath PATH`,
+`--db-name NAME`.
+
+```bash
+# checkdocs: ignore  — the second line is a deliberate counter-example
+pm-clearing-cli --format json positions      # correct
+pm-clearing-cli positions --format json      # argparse error: unrecognized arguments
+```
 
 ---
 
@@ -531,6 +714,11 @@ and not the new opening portion?
 At end-of-day, which three `pm-clearing-cli` commands would you run in order
 to: (1) confirm the EOD mark was applied, (2) export the official daily
 settlement file, and (3) check the audit integrity of the day's clearing?
+
+An operator reports that `daily` returns no rows for yesterday, even though
+`trades` clearly shows yesterday's activity. Give two different explanations
+that are both consistent with that evidence, and say which command you would
+run to tell them apart.
 
 ---
 

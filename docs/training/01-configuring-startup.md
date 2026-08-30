@@ -12,6 +12,12 @@ In addition you have become familiar with the three tools:
 
  
 
+
+!!! abstract "Pre-reading in the User Guide"
+    - [Configuration](../user-guide/010-configuration.md)
+    - [Config Verifier](../user-guide/020-config-verifier.md)
+    - [Running the Exchange](../user-guide/040-running-the-exchange.md)
+
 ## Prerequisites
 
 - EduMatcher installed and `pm-setup` completed (see [00 — Installation & Setup](00-installation.md)).
@@ -42,17 +48,17 @@ Create a file called `engine_config.yaml` in your working directory:
 ```yaml
 symbols:
   AAPL:
-    description: "Apple Inc."
-    tick_size: 0.01
-    last_price: 150.00
+    tick_decimals: 2
+    last_buy_price: 150.00
+    last_sell_price: 150.00
   MSFT:
-    description: "Microsoft Corp."
-    tick_size: 0.01
-    last_price: 420.00
+    tick_decimals: 2
+    last_buy_price: 420.00
+    last_sell_price: 420.00
   TSLA:
-    description: "Tesla Inc."
-    tick_size: 0.05
-    last_price: 250.00
+    tick_decimals: 2
+    last_buy_price: 250.00
+    last_sell_price: 250.00
 
 gateways:
   alf:
@@ -66,6 +72,22 @@ gateways:
       description: "Exchange operator"
       role: ADMIN
 ```
+
+!!! note "Why `tick_decimals`, not `tick_size`"
+    A symbol's price granularity is given as a **number of decimal places**,
+    not a tick size: `tick_decimals: 2` means prices move in units of 0.01.
+    The engine matches on integer ticks internally, which is why it is
+    expressed this way.
+
+    `last_buy_price` / `last_sell_price` seed the reference price used by the
+    price-collar checks. Without them a symbol has no reference and its collar
+    is never enforced — which is exactly the trap Chapter 11 Exercise 2 depends
+    on avoiding.
+
+    Keys the engine does not recognise — `tick_size`, `last_price`,
+    `description` on a *symbol* — are silently ignored rather than rejected, so
+    a typo here fails quietly. `pm-cverifier` in Exercise 3 is how you catch
+    that.
 
 :material-checkbox-blank-outline: **Checkpoint:** file saved, YAML is valid (no tabs!).
 
@@ -288,7 +310,15 @@ Expected output (illustrative):
 ```
 
 The scheduler will transition through PRE_OPEN → OPENING_AUCTION → CONTINUOUS
-automatically (or you can trigger immediate continuous with `--immediate`).
+automatically, following the timetable in the deployed configuration. To skip
+the wait and drive the sequence immediately, restart it with `--now`:
+
+```bash
+pm-scheduler --now --delay 5
+```
+
+`--now` starts the day's sequence from this moment instead of the configured
+wall-clock times; `--delay 5` gives you five seconds between phases.
 
 !!! note "If nothing was deployed"
     `pm-scheduler` refuses to guess a schedule the engine has never seen. If
@@ -327,7 +357,7 @@ From the gateway prompt, confirm the three symbols are available by attempting
 a tiny limit order:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=0.01|TIF=DAY
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=0.01|TIF=DAY
 ```
 
 You should see an acknowledgement (the order rests since no matching ask exists).
@@ -338,23 +368,61 @@ Repeat for `MSFT` and `TSLA` to confirm all three books are active.
 
  
 
-## Exercise 10: Connect the Admin Gateway
+## Exercise 10: Connect the Operator Console
 
-In a **fourth terminal**:
+!!! important "Two different consoles — this trips everyone up once"
+    EduMatcher has **two** interactive consoles, and they accept different
+    commands. Mixing them up is the most common early mistake, because the
+    error is just `Unknown command`.
+
+    | | `pm-alf-console` | `pm-admin` |
+    |---|---|---|
+    | Who it is | A **trader** | The **exchange operator** |
+    | Prompt | `[TRADER01]> ` | `[GW_ADMIN|ADMIN]> ` |
+    | Commands | `NEW`, `AMEND`, `CANCEL`, `STATUS`, `ORDERS`, `POS`, `QUOTE`, `QLEGS`, `SYMBOLS`, `SESSION`, `INDEX` | `BOOK`, `ORDERS|GW=`, `HALT`, `HALT_SYM`, `RESUME_SYM`, `CANCEL_SYM`, `KILL|GW=`, `KICK`, `QCANCEL`, `SESSION|STATE=`, `SESSION_STATUS`, `SCHEDULE`, `GATEWAYS`, `VOLUME` |
+    | Sees the whole book? | No — only its own orders | Yes |
+
+    A trader cannot inspect the order book, halt a symbol, or move the session.
+    Those are operator powers, and they live in `pm-admin`.
+
+    Throughout this guide, a prompt of `[GW_ADMIN|ADMIN]>` means "type this in
+    the `pm-admin` terminal"; anything else means the trader console.
+
+In a **fourth terminal**, start the operator console. Note this is
+`pm-admin`, **not** `pm-alf-console`:
 
 ```bash
-pm-alf-console --id GW_ADMIN
+pm-admin --id GW_ADMIN
 ```
 
-Try an admin command:
+`GW_ADMIN` must be a gateway with `role: ADMIN` in your configuration — that
+is what Exercise 2 created.
+
+Now look at the order book, which no trader console can do:
 
 ```
-GW_ADMIN> BOOK|SYM=AAPL
+[GW_ADMIN|ADMIN]> BOOK|SYM=AAPL
 ```
 
 You should see a book snapshot (possibly with the 1-lot bid from Exercise 9).
 
-:material-checkbox-blank-outline: **Checkpoint:** admin gateway works; BOOK command shows data.
+Try two more operator queries:
+
+```
+[GW_ADMIN|ADMIN]> GATEWAYS
+[GW_ADMIN|ADMIN]> SESSION_STATUS
+```
+
+`GATEWAYS` lists every configured gateway and whether it is connected;
+`SESSION_STATUS` reports the current trading phase.
+
+:material-checkbox-blank-outline: **Checkpoint:** `pm-admin` is connected, `BOOK|SYM=AAPL`
+shows the book, and you can state which of the two consoles a given command
+belongs to.
+
+!!! tip "Keep both terminals open from here on"
+    Every later chapter assumes you have a trader console *and* an operator
+    console available. Leaving both running saves restarting them constantly.
 
  
 
@@ -363,7 +431,7 @@ You should see a book snapshot (possibly with the 1-lot bid from Exercise 9).
 From any connected gateway:
 
 ```
-TRADER01> SYMBOLS
+[TRADER01]> SYMBOLS
 ```
 
 In addition to symbol IDs, inspect metadata fields exposed by the gateway view,

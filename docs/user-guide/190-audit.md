@@ -337,10 +337,10 @@ pm-audit-cli events --topic session.state
 pm-audit-cli events --topic order.ack --symbol AAPL
 
 # Export all trade events as JSON for analysis
-pm-audit-cli events --topic trade.executed --format json --limit 5000 > trades.json
+pm-audit-cli --format json events --topic trade.executed --limit 5000 > trades.json
 
 # Order submissions from a specific gateway in CSV format
-pm-audit-cli events --topic order.new --gateway GW01 --format csv > gw01_orders.csv
+pm-audit-cli --format csv events --topic order.new --gateway GW01 > gw01_orders.csv
 ```
 
 
@@ -383,7 +383,7 @@ pm-audit-cli orders [options]
 !!! warning "`qty` does not show the fill quantity for order.fill events"
     The `qty` column looks for a `filled_qty` key as its second choice, but
     `order.fill.{GW_ID}` payloads actually use the key `fill_qty` (see
-    [Messages — order.fill](270-message-reference.md#orderfillgw_id)). Since neither
+    [Messages — order.fill](270-message-reference.md#orderfillgateway_id)). Since neither
     `quantity` nor `filled_qty` is present on a fill event, `qty` falls
     through to `remaining_qty` instead — the quantity left on the order, not
     the quantity filled in that event. Use `timeline` (which shows the full
@@ -406,10 +406,10 @@ pm-audit-cli orders --gateway GW01 --date 2026-07-08 --limit 50
 pm-audit-cli orders --symbol AAPL --from 2026-07-08T09:30:00+00:00
 
 # Export one order's lifecycle as JSON for a support ticket
-pm-audit-cli orders --id ORD-GW01-00142 --format json
+pm-audit-cli --format json orders --id ORD-GW01-00142
 
 # Order activity for market-maker in CSV
-pm-audit-cli orders --gateway MM_AAPL_01 --format csv > mm_orders.csv
+pm-audit-cli --format csv orders --gateway MM_AAPL_01 > mm_orders.csv
 ```
 
 
@@ -472,10 +472,10 @@ pm-audit-cli trades --symbol MSFT --min-price 410.0 --max-price 420.0
 pm-audit-cli trades --limit 20 --reverse
 
 # Export full day as CSV for post-trade analysis
-pm-audit-cli trades --date 2026-07-08 --format csv --limit 10000 > day_trades.csv
+pm-audit-cli --format csv trades --date 2026-07-08 --limit 10000 > day_trades.csv
 
 # All trades involving market maker
-pm-audit-cli trades --gateway MM_AAPL_01 --format json
+pm-audit-cli --format json trades --gateway MM_AAPL_01
 ```
 
 
@@ -525,7 +525,7 @@ pm-audit-cli topics --prefix order. --sort alpha
 pm-audit-cli topics --from 2026-07-08T09:00:00+00:00 --to 2026-07-08T09:30:00+00:00
 
 # Export all topic stats as JSON
-pm-audit-cli topics --format json
+pm-audit-cli --format json topics
 
 # Check that trades were produced today
 pm-audit-cli topics --prefix trade. --date 2026-07-08
@@ -581,7 +581,7 @@ pm-audit-cli gateways --min-events 10
 pm-audit-cli gateways --from 2026-07-08T09:30:00+00:00 --to 2026-07-08T10:30:00+00:00
 
 # Export as JSON for automation
-pm-audit-cli gateways --format json
+pm-audit-cli --format json gateways
 
 # Check which gateways connected during the closing auction
 pm-audit-cli gateways \
@@ -648,9 +648,9 @@ pm-audit-cli timeline --topic trade. \
   --from 2026-07-08T15:30:00+00:00 --to 2026-07-08T16:00:00+00:00
 
 # Export for external replay tooling
-pm-audit-cli timeline \
+pm-audit-cli --format json timeline \
   --from 2026-07-08T09:30:00+00:00 --to 2026-07-08T16:00:00+00:00 \
-  --format json --limit 100000 > session_replay.json
+  --limit 100000 > session_replay.json
 ```
 
 
@@ -813,7 +813,7 @@ pm-audit-cli --use-index /tmp/session_idx.db \
 pm-audit-cli orders --id ORD-GW01-00142
 
 # Same as JSON (attach to support ticket)
-pm-audit-cli orders --id ORD-GW01-00142 --format json
+pm-audit-cli --format json orders --id ORD-GW01-00142
 
 # Find by gateway and time window (when order ID is not known)
 pm-audit-cli orders --gateway GW01 \
@@ -862,11 +862,11 @@ pm-audit-cli topics --date 2026-07-08 --sort count | head -10
 pm-audit-cli index --rebuild
 
 # Export all trades
-pm-audit-cli trades --date 2026-07-08 --format csv --limit 50000 > trades.csv
+pm-audit-cli --format csv trades --date 2026-07-08 --limit 50000 > trades.csv
 
 # Export all order events for gateway GW01
-pm-audit-cli events --topic order. --gateway GW01 \
-  --date 2026-07-08 --format json --limit 50000 > gw01_orders.json
+pm-audit-cli --format json events --topic order. --gateway GW01 \
+  --date 2026-07-08 --limit 50000 > gw01_orders.json
 ```
 
 ### Filter across rotated log backups

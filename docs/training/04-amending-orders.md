@@ -7,6 +7,11 @@ understand how amendments affect queue priority.
 
  
 
+
+!!! abstract "Pre-reading in the User Guide"
+    - [Order Amendment (AMEND)](../user-guide/060-order-types.md#order-amendment-amend)
+    - [ALF Console](../user-guide/055-alf-console.md)
+
 ## Prerequisites
 
 - Exchange running with two-sided liquidity from previous chapters
@@ -18,7 +23,7 @@ understand how amendments affect queue priority.
 ## Exercise 1: Place a Resting Order to Amend
 
 ```
-TRADER01> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=300|PRICE=419.50|TIF=DAY
+[TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=300|PRICE=419.50|TIF=DAY
 ```
 
 Note the `order_id` returned.
@@ -32,7 +37,7 @@ Note the `order_id` returned.
 Reduce the order to 200 shares:
 
 ```
-TRADER01> AMEND|ID=<order_id>|QTY=200
+[TRADER01]> AMEND|ID=<order_id>|QTY=200
 ```
 
 Expected: amendment accepted; new qty=200.
@@ -53,7 +58,7 @@ Expected: amendment accepted; new qty=200.
 Move the order to a more aggressive price:
 
 ```
-TRADER01> AMEND|ID=<order_id>|PRICE=419.70
+[TRADER01]> AMEND|ID=<order_id>|PRICE=419.70
 ```
 
 Expected: amendment accepted; new price=419.70.
@@ -72,7 +77,7 @@ Expected: amendment accepted; new price=419.70.
 ## Exercise 4: Amend Both Price and Quantity
 
 ```
-TRADER01> AMEND|ID=<order_id>|PRICE=419.60|QTY=150
+[TRADER01]> AMEND|ID=<order_id>|PRICE=419.60|QTY=150
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** both fields updated in one command.
@@ -84,7 +89,7 @@ TRADER01> AMEND|ID=<order_id>|PRICE=419.60|QTY=150
 Try setting quantity to zero:
 
 ```
-TRADER01> AMEND|ID=<order_id>|QTY=0
+[TRADER01]> AMEND|ID=<order_id>|QTY=0
 ```
 
 Expected: rejection — quantity must be positive.
@@ -92,7 +97,7 @@ Expected: rejection — quantity must be positive.
 Try amending a non-existent order:
 
 ```
-TRADER01> AMEND|ID=INVALID123|PRICE=100.00
+[TRADER01]> AMEND|ID=INVALID123|PRICE=100.00
 ```
 
 Expected: rejection — order not found.
@@ -105,31 +110,88 @@ Expected: rejection — order not found.
 
 1. Place a large buy:
    ```
-   TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=500|PRICE=150.10|TIF=DAY
+   [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=500|PRICE=150.10|TIF=DAY
    ```
    (This may immediately fill partially against the MM ask.)
 
 2. If partially filled, amend the remaining quantity:
    ```
-    TRADER01> AMEND|ID=<order_id>|QTY=200
+    [TRADER01]> AMEND|ID=<order_id>|QTY=200
    ```
 
 !!! note
-    The new qty must be ≥ already-filled quantity. You cannot amend below
+    The new qty must be **strictly greater than** the already-filled quantity. Setting it equal to the filled quantity is rejected — use `CANCEL` if you want the remainder gone. You cannot amend below
     what has already been executed.
 
 :material-checkbox-blank-outline: **Checkpoint:** amendment accepted on partially filled order.
 
  
 
+## Exercise 7: See Queue Priority Change
+
+The rules below are easy to state and easy to disbelieve. This exercise makes
+them visible, using two traders queued at the same price.
+
+**Step 1 — build a queue.** From `TRADER01`, then `TRADER02`, place the same
+buy at the same price. `TRADER01` is now *ahead* in the queue because it
+arrived first:
+
+```
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.50|TIF=DAY
+[TRADER02]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.50|TIF=DAY
+```
+
+Confirm both are resting at 149.50 in the operator console:
+
+```
+[GW_ADMIN|ADMIN]> BOOK|SYM=AAPL
+```
+
+**Step 2 — reduce quantity and prove priority survives.** From `TRADER01`,
+amend *down* to 50:
+
+```
+[TRADER01]> AMEND|ID=<TRADER01 order id>|QTY=50
+```
+
+Now have a third party sell 50 into the bid. Because `TRADER01` kept its
+place, `TRADER01` is filled and `TRADER02` is untouched:
+
+```
+[TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=50|PRICE=149.50|TIF=DAY
+```
+
+Check who filled with `STATUS` on each trader console.
+
+**Step 3 — increase quantity and prove priority is lost.** Rebuild the queue
+as in step 1, then amend `TRADER01` *up*:
+
+```
+[TRADER01]> AMEND|ID=<TRADER01 order id>|QTY=200
+```
+
+Sell 100 into the bid again. This time `TRADER02` fills first, because
+`TRADER01`'s increase sent it to the back of the queue at that price.
+
+:material-checkbox-blank-outline: **Checkpoint:** in step 2 `TRADER01` filled;
+in step 3 `TRADER02` filled. You have now *observed* the rule in the table
+below rather than taking it on trust.
+
+!!! tip "Use the full order ID"
+    `ORDERS` truncates the order ID for display. `AMEND` and `CANCEL` need the
+    **complete** ID — copy it from the acknowledgement you received when the
+    order was placed, not from the truncated column.
+
+ 
+
 ## Key Rules
 
-| Change | Priority Impact |
-|--------|----------------|
-| Quantity down | Priority preserved |
-| Quantity up | Priority lost |
-| Price change (any direction) | Priority lost |
-| Both price and qty | Priority lost |
+| Change | Priority Impact | Why |
+|--------|----------------|-----|
+| Quantity down | Priority preserved | You are asking for less; nobody behind you is disadvantaged |
+| Quantity up | Priority lost | The extra quantity never queued — keeping your slot would jump it ahead of orders that arrived earlier |
+| Price change (any direction) | Priority lost | A different price is a different queue |
+| Both price and qty | Priority lost | As above |
 
  
 

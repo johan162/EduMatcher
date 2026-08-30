@@ -14,6 +14,11 @@ replay checkpoints, and recovery/error behavior.
 
  
 
+
+!!! abstract "Pre-reading in the User Guide"
+    - [RALF Gateway](../user-guide/250-ralf-gateway.md)
+    - [RALF Protocol](../user-guide/930-app-ralf-protocol.md)
+
 ## Prerequisites
 
 - Chapters 01-21 completed.

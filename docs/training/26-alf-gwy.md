@@ -7,7 +7,7 @@ CLI tools, the example parser libraries, and the interactive example clients.
 
 You will practise:
 
-- generating an `alf_gateway:` config with `pm-config-gen`
+- hand-writing an `alf_gateway:` config section (`pm-config-gen` has no `--alf-gateway` flag)
 - starting `pm-alf-gwy` and verifying the port is listening using OS tools
 - testing connectivity and the full session lifecycle manually with `nc` and `telnet`
 - submitting, amending, and cancelling orders over a raw TCP session
@@ -17,6 +17,11 @@ You will practise:
 - diagnosing error conditions from the `ERR|CODE=...` vocabulary
 
  
+
+
+!!! abstract "Pre-reading in the User Guide"
+    - [ALF Gateway](../user-guide/220-alf-gateway.md)
+    - [ALF Protocol](../user-guide/900-app-alf-protocol.md)
 
 ## Prerequisites
 
@@ -513,7 +518,7 @@ and read newline-delimited text.
 
 You can now:
 
-- Generate an `alf_gateway:` config with `pm-config-gen` and start `pm-alf-gwy`.
+- Hand-write the `alf_gateway:` config section and start `pm-alf-gwy`.
 - Verify a TCP port is listening using `lsof`, `ss`, and `netstat` on macOS and Linux.
 - Test the complete ALF session lifecycle manually with `nc` and `telnet` before writing any code.
 - Submit, amend, and cancel orders over a raw TCP session and read `ACK`, `AMENDED`, and `CANCELLED` responses.

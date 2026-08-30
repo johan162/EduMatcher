@@ -1,36 +1,36 @@
 # EduMatcher Operational Scripts
 
 This directory contains operational scripts for starting and stopping a named
-EduMatcher process profile. The main entry point is `pm-emo`.
+EduMatcher process profile. The main entry point is `pm-opctl-cli`.
 
-## `pm-emo`
+## `pm-opctl-cli`
 
 Run it from the repository checkout with Python or Poetry:
 
 ```bash
-poetry run python emo-scripts/pm-emo start
-poetry run python emo-scripts/pm-emo start micro
-poetry run python emo-scripts/pm-emo list
-poetry run python emo-scripts/pm-emo health
-poetry run python emo-scripts/pm-emo stop
-poetry run python emo-scripts/pm-emo init
+poetry run pm-opctl-cli start
+poetry run pm-opctl-cli start micro
+poetry run pm-opctl-cli list
+poetry run pm-opctl-cli health
+poetry run pm-opctl-cli stop
+poetry run pm-opctl-cli init
 ```
 
 When installed as an executable, the same commands are:
 
 ```bash
-pm-emo start
-pm-emo start micro
-pm-emo list
-pm-emo health
-pm-emo stop
-pm-emo kill
-pm-emo init
+pm-opctl-cli start
+pm-opctl-cli start micro
+pm-opctl-cli list
+pm-opctl-cli health
+pm-opctl-cli stop
+pm-opctl-cli kill
+pm-opctl-cli init
 ```
 
 `start` without a name starts the `default` profile. When no
-`<DATA-DIR>/emo-config.yaml` exists, built-in `default` and `micro` profiles
-are available. When the file exists, its profiles replace the built-ins and a
+`<DATA-DIR>/emo-config.yaml` exists, the built-in `default`, `mini` and
+`micro` profiles are available. When the file exists, its profiles replace the built-ins and a
 missing `default` profile is supplied from the built-in nominal profile.
 
 `init` writes all built-in profiles (`default`, `micro`, and `mini`) to
@@ -38,13 +38,14 @@ missing `default` profile is supplied from the built-in nominal profile.
 to overwrite an existing file and returns a nonzero exit code; remove or move
 the existing file explicitly before creating a fresh one.
 
-The default profile starts a full nominal exchange stack. The `micro` profile
-starts only centralized logging, the engine.
+The `default` profile starts a full nominal exchange stack. The `mini` profile
+starts a trading-capable subset with external access but no audit or clearing.
+The `micro` profile starts only centralized logging and the engine.
 Processes are launched from the repository root, inherit the
 current environment (including `EDUMATCHER_DATA_DIR`), and write their combined
 stdout/stderr to `<DATA-DIR>/emo/<process>.log`. PID files are kept beside them.
 
-`stop` stops only processes that `pm-emo` recorded in its PID directory. It
+`stop` stops only processes that `pm-opctl-cli` recorded in its PID directory. It
 does not search for or terminate unrelated processes with the same executable
 name.
 
@@ -55,9 +56,9 @@ pkill -15 -f -i -l 'pm-'
 ```
 
 This sends signal 15 (`SIGTERM`) to every process whose full command line
-contains `pm-`, including processes not started by `pm-emo`. Use it only when
+contains `pm-`, including processes not started by `pm-opctl-cli`. Use it only when
 you intentionally want to stop the entire EduMatcher process group. It also
-clears `pm-emo`'s persisted PID and active-profile state. A result with no
+clears `pm-opctl-cli`'s persisted PID and active-profile state. A result with no
 matching processes is treated as success.
 
 `list` reads the active profile recorded by `start` and prints one status row
@@ -77,7 +78,7 @@ to suppress all output and rely on the exit code alone, e.g. in a monitoring
 cron job:
 
 ```bash
-poetry run python emo-scripts/pm-emo health -q || alert "pm-emo profile unhealthy"
+poetry run pm-opctl-cli health -q || alert "pm-opctl-cli profile unhealthy"
 ```
 
 There is no generic, reliable way to determine whether an arbitrary process is
@@ -85,7 +86,7 @@ internally hung. Two optional per-process checks upgrade the liveness report
 from "PID exists" to something closer to "is responding":
 
 - `tcp: "host:port"` — the cheapest useful check for a process that binds a
-  ZMQ or TCP socket (engine, log server, gateways). `pm-emo` attempts a plain
+  ZMQ or TCP socket (engine, log server, gateways). `pm-opctl-cli` attempts a plain
   `socket.create_connection()` with a short (0.3s) timeout and immediately
   closes it; a successful connect is reported as `running`, a refused or
   timed-out connect as `not responding`. **Caveat:** libzmq's I/O thread
@@ -175,7 +176,7 @@ Each process entry has:
 
 The command must be available on `PATH`. Use `poetry run` explicitly in a
 command when the profile is launched with plain Python, or run the script as
-`poetry run python emo-scripts/pm-emo ...` so installed project commands are
+`poetry run pm-opctl-cli ...` so installed project commands are
 available from the Poetry environment.
 
 The profile format is deliberately small so future commands can reuse the same
@@ -184,7 +185,7 @@ compare them with the selected profile without changing the YAML format.
 
 ## Data directory
 
-`pm-emo` follows the project data-directory convention:
+`pm-opctl-cli` follows the project data-directory convention:
 
 1. `EDUMATCHER_DATA_DIR`, when set.
 2. `<repo>/src/data` when this script is in a source checkout.
@@ -195,6 +196,6 @@ the configuration before starting a profile:
 
 ```bash
 poetry run pm-config-deploy engine_config.yaml
-poetry run python emo-scripts/pm-emo start micro
+poetry run pm-opctl-cli start micro
 ```
 
