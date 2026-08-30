@@ -18,10 +18,16 @@ mapping (e.g. ``three-basic`` ->
 ``docs/examples/ref_data/three-books-basic-setup/engine_config.yaml``). When
 ``--config`` is omitted, ``three-basic`` is installed.
 
+Any example name also accepts an optional trailing ``-nomm`` to select the
+no-market-maker-quotes variant of that example (e.g. ``three-basic-nomm`` ->
+``docs/examples/ref_data/three-books-basic-nomm-setup/engine_config.yaml``)
+— see docs/concepts/03-concepts-mm-quotes.md.
+
 Usage
 -----
   pm-setup                          # use all defaults (three-basic)
   pm-setup --config one-basic       # install a specific bundled example
+  pm-setup --config one-basic-nomm  # same example with an empty order book
   pm-setup --data-dir ~/my-session  # explicit data directory
   pm-setup --force                  # replace an already-deployed config
   pm-setup --no-config              # only create the data dir
@@ -94,6 +100,8 @@ def main() -> None:
             "Bundled example config to deploy, e.g. 'one-basic', 'three-nominal', "
             "'ten-complex' (resolves to "
             "docs/examples/ref_data/<count>-book(s)-<profile>-setup/engine_config.yaml; "
+            "append '-nomm' for the no-market-maker-quotes variant, e.g. "
+            "'one-basic-nomm'; "
             f"default: {DEFAULT_EXAMPLE_CONFIG!r})"
         ),
     )

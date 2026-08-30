@@ -143,6 +143,7 @@ class ConfigSpec:
     random_seed: int | None = None
     seed_mm_mid_range: tuple[float, float] | None = None
     seed_last_prices_from_mm: bool = False
+    require_mm_seed_quotes: bool = True
     emit_schedule: bool = True
     pre_open: str = "09:00"
     opening_auction: str = "09:25"
@@ -313,6 +314,7 @@ class ConfigBuilder:
             "sessions_enabled": self.spec.sessions_enabled,
             "enforce_collars": self.spec.enforce_collars,
             "enforce_circuit_breakers": self.spec.enforce_circuit_breakers,
+            "require_mm_seed_quotes": self.spec.require_mm_seed_quotes,
         }
 
         if self.spec.emit_engine_tuning:
@@ -778,7 +780,9 @@ class ConfigBuilder:
                     cb_payload["reopening"] = sym_reopening
                 payload["circuit_breaker"] = cb_payload
 
-            if mm_gateways:
+            if mm_gateways and (
+                seeded_midpoint is not None or self.spec.require_mm_seed_quotes
+            ):
                 payload["market_maker_quotes"] = [
                     self._build_mm_quote_seed(
                         gateway_id=gateway_id,

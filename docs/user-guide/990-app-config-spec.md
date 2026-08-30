@@ -115,6 +115,7 @@ gateways:                   ! Map
 sessions_enabled:           ? Bool = true
 enforce_collars:            ? Bool = true
 enforce_circuit_breakers:   ? Bool = true
+require_mm_seed_quotes:     ? Bool = true
 snapshot_interval_sec:      ? Float = 0.5     ∈ > 0
 mm_obligation_defaults:     ? MMObligationDefaultsSpec
 risk_controls:              ? RiskControlsSpec
@@ -268,6 +269,7 @@ gateway's orders **when the order itself doesn't specify one**:
 | `sessions_enabled` | `Bool` | – | `true` | when `true`, engine starts `CLOSED` and honours `schedule`/session transitions; when `false`, starts and stays `CONTINUOUS` |
 | `enforce_collars` | `Bool` | – | `true` | global collar enforcement toggle |
 | `enforce_circuit_breakers` | `Bool` | – | `true` | global circuit-breaker enforcement toggle |
+| `require_mm_seed_quotes` | `Bool` | – | `true` | when `true`, CV3 applies; when `false`, a `MARKET_MAKER` gateway may exist with no `market_maker_quotes` entries, for a genuinely empty book at startup |
 | `snapshot_interval_sec` | `Float` | – | `0.5` | `> 0`; per-symbol book snapshot throttle |
 
 > NOTE — `sessions_enabled` default: the engine loader applies `true` when the key
@@ -539,7 +541,7 @@ rejected at load.
 |---|------|
 | CV1 | `symbols` is present and a mapping; `gateways.alf` is present and a list with ≥ 1 entry. |
 | CV2 | `gateways.alf[].id` values are unique (after upper-casing). |
-| CV3 | If **any** gateway has `role: MARKET_MAKER`, then **every** symbol MUST define at least one `market_maker_quotes` entry. |
+| CV3 | If **any** gateway has `role: MARKET_MAKER`, then **every** symbol MUST define at least one `market_maker_quotes` entry, unless `require_mm_seed_quotes: false`. |
 | CV4 | Every `market_maker_quotes[].gateway_id` references a configured gateway whose role is `MARKET_MAKER`. |
 | CV5 | For each MM quote seed, `bid_price < ask_price` and `bid_qty, ask_qty > 0`. |
 | CV6 | A symbol's `level` (explicit, else `risk_controls.default_level`) MUST be a key of `risk_controls.levels`, when any level is in effect. |
@@ -599,7 +601,7 @@ symbols:
 ```
 
 If a `MARKET_MAKER` gateway is added, CV3 then requires a `market_maker_quotes`
-block on every symbol.
+block on every symbol, unless `require_mm_seed_quotes: false` is also set.
 
 ---
 

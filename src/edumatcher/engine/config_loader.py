@@ -309,6 +309,15 @@ class EngineConfig:
     country: str = DEFAULT_COUNTRY
     enforce_collars: bool = True
     enforce_circuit_breakers: bool = True
+    #: When True (default), the engine refuses to start any symbol that has
+    #: a MARKET_MAKER gateway but no market_maker_quotes seed (see
+    #: docs/concepts/03-concepts-mm-quotes.md). Set to False to allow a
+    #: MARKET_MAKER gateway to exist with a genuinely empty book at startup.
+    #: When True (default), the engine refuses to start any symbol that has
+    #: a MARKET_MAKER gateway but no market_maker_quotes seed (see
+    #: docs/concepts/03-concepts-mm-quotes.md). Set to False to allow a
+    #: MARKET_MAKER gateway to exist with a genuinely empty book at startup.
+    require_mm_seed_quotes: bool = True
     #: Seeds the generator that picks each reopening call phase's random end.
     #: Engine-wide, so it lives here rather than on any one symbol. ``None``
     #: seeds from OS entropy; set an integer for reproducible demos and tests.
@@ -1156,6 +1165,10 @@ def load_engine_config(path: Path) -> EngineConfig:
         for gw_id, gw_cfg in fix_gateways.items()
         if gw_cfg.role == ParticipantRole.MARKET_MAKER
     }
+
+    require_mm_seed_quotes_raw = raw.get("require_mm_seed_quotes", True)
+    if not isinstance(require_mm_seed_quotes_raw, bool):
+        raise ValueError("Engine config 'require_mm_seed_quotes' must be a boolean")
     for sym in mm_global_symbol_policies:
         if sym not in symbols:
             raise ValueError(
@@ -1163,9 +1176,15 @@ def load_engine_config(path: Path) -> EngineConfig:
             )
 
     for sym, sym_cfg in symbols.items():
-        if mm_gateway_ids and not sym_cfg.market_maker_quotes:
+        if (
+            mm_gateway_ids
+            and require_mm_seed_quotes_raw
+            and not sym_cfg.market_maker_quotes
+        ):
             raise ValueError(
-                f"Symbol '{sym}': at least one market_maker_quotes entry is required when MARKET_MAKER gateways are configured"
+                f"Symbol '{sym}': at least one market_maker_quotes entry is required when "
+                "MARKET_MAKER gateways are configured (set require_mm_seed_quotes: false to "
+                "allow an empty book)"
             )
         for i, quote_seed in enumerate(sym_cfg.market_maker_quotes):
             if quote_seed.gateway_id not in fix_gateways:
@@ -1322,6 +1341,7 @@ def load_engine_config(path: Path) -> EngineConfig:
         country=country,
         enforce_collars=enforce_collars_raw,
         enforce_circuit_breakers=enforce_cb_raw,
+        require_mm_seed_quotes=require_mm_seed_quotes_raw,
         reopening_random_seed=_parse_reopening(
             (
                 cb_defaults_raw.get("reopening")

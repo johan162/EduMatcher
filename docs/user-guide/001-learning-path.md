@@ -51,11 +51,23 @@ Node, or a clone of the repository.
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash
 cd ~/.edumatcher
+./edumatcher.sh config three-basic-nomm
 ./edumatcher.sh start
 ```
 
 The first start pulls five container images and takes a few minutes. Later
 starts take seconds.
+
+**Explanation:** `edumatcher.sh` is the simplified control surface for a container installed
+exchange. The first subcommand `config three-basic-nomm` installs an exchange config file (also known as reference data)
+with three symbols (order-books) with some very basic exchange config and no-market-maker quotes in any of the
+order books. 
+
+This is however not realistic as in a real exchange an order book would never be truly empty (even directly after an IPO there would be investment banks that guarantees some initial quotes to provide liquidity) but it makes for good start point
+for learning about exchnages to start with empty books.
+
+The last subcommmand `start` does what you think; starts the exchange!
+
 
 ### Checkpoint
 

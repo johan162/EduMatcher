@@ -1679,6 +1679,23 @@ def _check_runtime_flags(raw: dict[str, Any], results: list[CheckResult]) -> Non
             )
         )
 
+    require_mm_seed_quotes = raw.get("require_mm_seed_quotes")
+    if require_mm_seed_quotes is not None and not isinstance(
+        require_mm_seed_quotes, bool
+    ):
+        results.append(
+            CheckResult(
+                code="S113",
+                severity=Severity.ERROR,
+                message=(
+                    "'require_mm_seed_quotes' must be a boolean when provided. "
+                    f"Got '{require_mm_seed_quotes}'."
+                ),
+                suggestion="Set require_mm_seed_quotes to true or false.",
+                path="require_mm_seed_quotes",
+            )
+        )
+
     schedule = raw.get("schedule")
     if schedule is not None and not isinstance(schedule, dict):
         results.append(

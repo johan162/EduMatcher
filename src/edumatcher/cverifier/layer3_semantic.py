@@ -74,6 +74,7 @@ def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
 def _check_mm_seeds(raw: dict[str, Any], results: list[CheckResult]) -> None:
     mm_gateways = gateway_ids_by_role(raw, "MARKET_MAKER")
     all_ids = all_gateway_ids(raw)
+    require_mm_seed_quotes = bool(raw.get("require_mm_seed_quotes", True))
     gateways_by_role: dict[str, str] = {}
     gateways = raw.get("gateways")
     if isinstance(gateways, dict):
@@ -112,7 +113,7 @@ def _check_mm_seeds(raw: dict[str, Any], results: list[CheckResult]) -> None:
             mm_quotes = []
 
         # M001: MM gateway present but symbol has no seeds
-        if mm_gateways and not mm_quotes:
+        if mm_gateways and require_mm_seed_quotes and not mm_quotes:
             gw_list = ", ".join(mm_gateways)
             results.append(
                 CheckResult(
