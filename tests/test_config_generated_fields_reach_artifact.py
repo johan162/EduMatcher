@@ -42,6 +42,7 @@ KEY_LANDINGS: dict[str, object] = {
     "country": lambda c: c.engine.country,
     "enforce_collars": lambda c: c.engine.enforce_collars,
     "enforce_circuit_breakers": lambda c: c.engine.enforce_circuit_breakers,
+    "require_mm_seed_quotes": lambda c: c.engine.require_mm_seed_quotes,
     "engine_tuning": lambda c: c.engine.snapshot_interval_sec,
     "mm_obligation_defaults": lambda c: c.engine.global_mm_obligation_policy,
     "risk_controls": lambda c: c.engine.risk_control_levels,
