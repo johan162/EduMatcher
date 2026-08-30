@@ -7,6 +7,11 @@ state across restart scenarios.
 
  
 
+
+!!! abstract "Pre-reading in the User Guide"
+    - [Persistence](../user-guide/180-persistence.md)
+    - [Audit Trail](../user-guide/190-audit.md)
+
 ## Prerequisites
 
 - Chapters 01–15 completed.
@@ -44,13 +49,13 @@ and run `pm-setup`.
 Start the exchange and place a GTC order away from the market:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=140.00|TIF=GTC
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=140.00|TIF=GTC
 ```
 
 Check the order is resting:
 
 ```
-TRADER01> ORDERS
+[TRADER01]> ORDERS
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** the GTC order is resting and visible.
@@ -62,9 +67,11 @@ TRADER01> ORDERS
 GTC persistence in EduMatcher is unconditional — there is no config flag to
 enable/disable it — but it only works correctly under these conditions:
 
-- **Stop the engine cleanly** (`Ctrl+C` / SIGINT), not `kill -9`. The engine
-  writes `gtc_orders.json` during its graceful shutdown handler; a hard kill
-  skips that write entirely and no orders will be restored.
+- **Prefer a clean stop** (`Ctrl+C` / SIGINT) over `kill -9`. The engine
+  writes `gtc_orders.json` in its graceful shutdown handler. A hard kill skips
+  that write, but the engine *also* checkpoints GTC state periodically while
+  running, so a `kill -9` loses only the orders placed since the last
+  checkpoint — not all of them.
 - **Restart with the same `EDUMATCHER_DATA_DIR`** (and thus the same
   `gtc_orders.json` path) used in Exercise 2 — a different data directory has
   nothing to restore from.
@@ -82,7 +89,7 @@ pm-engine
 Reconnect `TRADER01` and inspect orders:
 
 ```
-TRADER01> ORDERS
+[TRADER01]> ORDERS
 ```
 
 The GTC order should be restored — the engine also prints a line at shutdown
@@ -105,8 +112,8 @@ Compare explicitly after restart:
 Place one DAY and one GTC order at non-marketable prices:
 
 ```
-TRADER01> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=400.00|TIF=DAY
-TRADER01> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=399.00|TIF=GTC
+[TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=400.00|TIF=DAY
+[TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=399.00|TIF=GTC
 ```
 
 Move the session to CLOSED, then restart and inspect `ORDERS`. DAY orders should
@@ -138,7 +145,7 @@ recorded.
 Start audit logging to a file:
 
 ```bash
-pm-audit --log-file "$EDUMATCHER_DATA_DIR/audit.log" --terminal
+pm-audit --audit-log-file "$EDUMATCHER_DATA_DIR/audit.log" --terminal
 ```
 
 Execute a trade, then inspect the log:

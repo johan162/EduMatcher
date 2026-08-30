@@ -8,6 +8,10 @@ orders, ticker tape, market board, audit trail, statistics, and clearing/P&L.
 
  
 
+
+!!! abstract "Pre-reading in the User Guide"
+    - [Processes](../user-guide/170-processes.md)
+
 ## Prerequisites
 
 - Chapters 01–03 completed, with `pm-engine`, `pm-scheduler`, and at least
@@ -57,7 +61,7 @@ pm-alf-console --id TRADER02
 Create one resting order so observers have a visible book update:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.80|TIF=DAY
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.80|TIF=DAY
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** `TRADER01` receives an acknowledgement and `ORDERS` shows the order.
@@ -75,7 +79,7 @@ pm-viewer --symbol AAPL --depth 10
 From `TRADER01`, add or cancel another resting order:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=50|PRICE=150.20|TIF=DAY
+[TRADER01]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=50|PRICE=150.20|TIF=DAY
 ```
 
 `pm-viewer` should update the bid/ask depth and recent trade area when market
@@ -102,8 +106,8 @@ pm-orders --gateway TRADER01
 Place one order from each trader:
 
 ```
-TRADER01> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=25|PRICE=419.00|TIF=DAY
-TRADER02> NEW|SYM=TSLA|SIDE=SELL|TYPE=LIMIT|QTY=10|PRICE=252.00|TIF=DAY
+[TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=25|PRICE=419.00|TIF=DAY
+[TRADER02]> NEW|SYM=TSLA|SIDE=SELL|TYPE=LIMIT|QTY=10|PRICE=252.00|TIF=DAY
 ```
 
 Compare this process with the gateway-local `ORDERS` command. `ORDERS` is useful
@@ -124,13 +128,13 @@ pm-audit --terminal
 To also write the log to a known file:
 
 ```bash
-pm-audit --terminal --log-file "$EDUMATCHER_DATA_DIR/audit.log"
+pm-audit --terminal --audit-log-file "$EDUMATCHER_DATA_DIR/audit.log"
 ```
 
 Execute a trade:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=25
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=25
 ```
 
 Watch the raw topics and payloads printed by `pm-audit`. This is the most direct
@@ -182,7 +186,7 @@ are available. If no symbols appear yet, create a book update or trade in a
 gateway.
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=20|PRICE=149.70|TIF=DAY
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=20|PRICE=149.70|TIF=DAY
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-ticker` prints periodic lines with symbols, last price or best bid/ask, and statistics when available.
@@ -216,8 +220,8 @@ pm-clearing
 Create a trade between two gateways:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=150.00|TIF=DAY
-TRADER02> NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=50
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=150.00|TIF=DAY
+[TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=50
 ```
 
 `pm-clearing` consumes `trade.executed` events and maintains per-gateway position

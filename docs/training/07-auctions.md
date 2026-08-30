@@ -7,6 +7,11 @@ observe how auction orders are collected and matched in a single uncrossing even
 
  
 
+
+!!! abstract "Pre-reading in the User Guide"
+    - [Equilibrium price](../user-guide/080-session-scheduling.md#equilibrium-price)
+    - [What are auctions?](../user-guide/080-session-scheduling.md#what-are-auctions)
+
 ## Prerequisites
 
 - Chapters 01–06 completed.
@@ -39,21 +44,21 @@ while the session state is exactly `OPENING_AUCTION` and rejects them during
 `PRE_OPEN`, transition directly:
 
 ```
-ADMIN01> SESSION|STATE=OPENING_AUCTION
+[GW_ADMIN|ADMIN]> SESSION|STATE=OPENING_AUCTION
 ```
 
 From two gateways, enter orders while in `OPENING_AUCTION`:
 
 **TRADER01:**
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=300|PRICE=150.50|TIF=ATO
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=150.20|TIF=ATO
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=300|PRICE=150.50|TIF=ATO
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=150.20|TIF=ATO
 ```
 
 **TRADER02:**
 ```
-TRADER02> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=400|PRICE=149.80|TIF=ATO
-TRADER02> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.30|TIF=ATO
+[TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=400|PRICE=149.80|TIF=ATO
+[TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.30|TIF=ATO
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** orders accepted, resting in auction book.
@@ -102,7 +107,7 @@ it is cancelled when CONTINUOUS begins.
 Place:
 
 ```
-TRADER01> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=400.00|TIF=ATO
+[TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=400.00|TIF=ATO
 ```
 
 After auction uncrossing, this should be cancelled (no sell at 400.00).
@@ -116,8 +121,8 @@ After auction uncrossing, this should be cancelled (no sell at 400.00).
 When the session reaches CLOSING_AUCTION:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.80|TIF=ATC
-TRADER02> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.60|TIF=ATC
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.80|TIF=ATC
+[TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.60|TIF=ATC
 ```
 
 On transition to CLOSED, the auction uncrosses and fills are generated.
@@ -131,7 +136,7 @@ On transition to CLOSED, the auction uncrosses and fills are generated.
 GTC orders participate in auctions alongside ATO/ATC orders:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=150.00|TIF=GTC
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=150.00|TIF=GTC
 ```
 
 This order participates in both opening and closing auctions, and rests during

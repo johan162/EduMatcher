@@ -10,6 +10,11 @@ consumption, heartbeats, replay checkpoints, and recovery/error behavior.
 
  
 
+
+!!! abstract "Pre-reading in the User Guide"
+    - [CALF Gateway](../user-guide/240-calf-gateway.md)
+    - [CALF Protocol](../user-guide/920-app-calf-protocol.md)
+
 ## Prerequisites
 
 - Chapters 01-22 completed.
@@ -223,7 +228,7 @@ Expected behavior:
   CH=STATE,SYM=AAPL (that symbol's own halt/resume stream)
 - STATE updates when session phase or halt/resume transitions occur
 
-:material-checkbox-blank-outline: Checkpoint: you can explain why wildcard symbols are valid only for STATE.
+:material-checkbox-blank-outline: Checkpoint: you can name the four wildcard-eligible channels (STATE, TOP, TRADE, AUCTION) and explain why DEPTH, INDEX and CB are not.
 
 Note: as of CALF `1.0.0`, `SYM=*` is also valid for `TOP` and `TRADE` (see
 Exercise 7 below); as of the `AUCTION`/`CB` extension, `SYM=*` is valid for

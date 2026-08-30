@@ -7,6 +7,11 @@ practice advanced `pm-mm-bot` runtime tuning for startup and reconciliation.
 
  
 
+
+!!! abstract "Pre-reading in the User Guide"
+    - [Exchange Commands](../user-guide/160-exchange-commands.md)
+    - [Market-Maker Bot](../user-guide/100-mm-bot.md)
+
 ## Prerequisites
 
 - Chapters 01-20 completed.
@@ -213,4 +218,4 @@ engineer reruns a non-idempotent halt/clear/resume script by mistake?
 - [Market-Maker Bot CLI Reference](../user-guide/100-mm-bot.md#cli-reference)
 - [Processes](../user-guide/170-processes.md)
 
-You have completed the full training curriculum, including advanced operations.
+You have completed the operator track. The remaining chapters (22–27) cover the external protocols — RALF, CALF, the REST/WebSocket API, the market index, and the ALF/BALF TCP gateways.

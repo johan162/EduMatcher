@@ -7,6 +7,11 @@ state, inspecting resting orders, and managing the order lifecycle.
 
  
 
+
+!!! abstract "Pre-reading in the User Guide"
+    - [ALF Console](../user-guide/055-alf-console.md)
+    - [Exchange Commands](../user-guide/160-exchange-commands.md)
+
 ## Prerequisites
 
 - Chapters 01–07 completed.
@@ -19,13 +24,13 @@ state, inspecting resting orders, and managing the order lifecycle.
 Place an order and then cancel it:
 
 ```
-TRADER01> NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=248.00|TIF=DAY
+[TRADER01]> NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=248.00|TIF=DAY
 ```
 
 Note the `order_id`, then:
 
 ```
-TRADER01> CANCEL|ID=<order_id>
+[TRADER01]> CANCEL|ID=<order_id>
 ```
 
 Expected: cancellation confirmed.
@@ -38,12 +43,12 @@ Expected: cancellation confirmed.
 
 1. Place a large limit buy at an aggressive price (to get a partial fill from the MM):
    ```
-   TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1000|PRICE=150.10|TIF=DAY
+   [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1000|PRICE=150.10|TIF=DAY
    ```
 
 2. After partial fill, cancel the remainder:
    ```
-   TRADER01> CANCEL|ID=<order_id>
+   [TRADER01]> CANCEL|ID=<order_id>
    ```
 
 Expected: the unfilled portion is cancelled; the filled portion remains executed.
@@ -57,13 +62,13 @@ Expected: the unfilled portion is cancelled; the filled portion remains executed
 Place a fresh resting order so the gateway has something to inspect:
 
 ```
-TRADER01> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=25|PRICE=419.00|TIF=DAY
+[TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=25|PRICE=419.00|TIF=DAY
 ```
 
 First run `STATUS`:
 
 ```
-TRADER01> STATUS
+[TRADER01]> STATUS
 ```
 
 `STATUS` gives a quick gateway/session summary: gateway ID, known symbols,
@@ -73,7 +78,7 @@ It is useful for a fast health check, but it is not the detailed order table.
 Now inspect the actual orders:
 
 ```
-TRADER01> ORDERS
+[TRADER01]> ORDERS
 ```
 
 `ORDERS` is the gateway command for detailed order inspection. It displays order
@@ -90,7 +95,7 @@ debugging one specific order lifecycle.
 ## Exercise 4: Inspect Resting Order Details
 
 ```
-TRADER01> ORDERS
+[TRADER01]> ORDERS
 ```
 
 Find your order in the table. The response includes:
@@ -107,7 +112,7 @@ Find your order in the table. The response includes:
 ## Exercise 5: Cancel a Non-Existent Order
 
 ```
-TRADER01> CANCEL|ID=DOES_NOT_EXIST
+[TRADER01]> CANCEL|ID=DOES_NOT_EXIST
 ```
 
 Expected: rejection — order not found.
@@ -121,7 +126,7 @@ Expected: rejection — order not found.
 Try cancelling an order belonging to TRADER02:
 
 ```
-TRADER01> CANCEL|ID=<trader02_order_id>
+[TRADER01]> CANCEL|ID=<trader02_order_id>
 ```
 
 Expected: rejection — you can only cancel your own orders.
@@ -135,7 +140,7 @@ Expected: rejection — you can only cancel your own orders.
 From the admin gateway, cancel all orders for a specific gateway:
 
 ```
-GW_ADMIN> KILL|GW=TRADER01
+[GW_ADMIN|ADMIN]> KILL|GW=TRADER01
 ```
 
 All of TRADER01's resting orders are cancelled.
@@ -143,7 +148,7 @@ All of TRADER01's resting orders are cancelled.
 Or cancel all orders for a specific symbol across all gateways:
 
 ```
-GW_ADMIN> CANCEL_SYM|SYM=TSLA
+[GW_ADMIN|ADMIN]> CANCEL_SYM|SYM=TSLA
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** admin commands successfully cancel orders.
@@ -155,7 +160,7 @@ GW_ADMIN> CANCEL_SYM|SYM=TSLA
 Request the symbol catalog:
 
 ```
-TRADER01> SYMBOLS
+[TRADER01]> SYMBOLS
 ```
 
 Look for metadata fields exposed in the gateway output (for example
@@ -181,7 +186,7 @@ stateDiagram-v2
 
 ## Reflection
 
-Why does `KILL|GW=<gateway_id>` cancel every order for an entire gateway
+Why does the operator's `KILL|GW=<gateway_id>` cancel every order for an entire gateway
 rather than requiring one CANCEL per order? In what operational scenario
 (think: a runaway bot or a disconnected trader) does that bulk-kill behavior
 matter most?

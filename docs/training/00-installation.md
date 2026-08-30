@@ -9,6 +9,11 @@ configuration, and a clear picture of which directory holds your trades and
 logs.
 
 
+
+!!! abstract "Pre-reading in the User Guide"
+    - [Installation](../user-guide/005-installation.md)
+    - [A Path Through the Guide](../user-guide/001-learning-path.md)
+
 ## Exercise 0: Read [How an Exchange Works](../how-exchange-works.md)
 
 Not strictly required, but it gives you a mental model of the core components

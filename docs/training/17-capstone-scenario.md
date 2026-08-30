@@ -7,6 +7,11 @@ trading, risk controls, clearing, market data, persistence, and reporting.
 
  
 
+
+!!! abstract "Pre-reading in the User Guide"
+    - [Running the Exchange](../user-guide/040-running-the-exchange.md)
+    - [Processes](../user-guide/170-processes.md)
+
 ## Prerequisites
 
 - Chapters 01–16 completed.
@@ -65,7 +70,7 @@ Open gateway terminals:
 ```bash
 pm-alf-console --id TRADER01
 pm-alf-console --id TRADER02
-pm-alf-console --id GW_ADMIN
+pm-admin --id GW_ADMIN
 pm-alf-console --id MM_AAPL_01
 pm-alf-console --id MM_MSFT_01
 pm-alf-console --id MM_TSLA_01
@@ -80,12 +85,12 @@ pm-alf-console --id MM_TSLA_01
 Submit quotes:
 
 ```
-MM_AAPL_01> QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=AAPL-CAP-001
-MM_MSFT_01> QUOTE|SYM=MSFT|BID=419.90|ASK=420.10|BID_QTY=300|ASK_QTY=300|TIF=DAY|QUOTE_ID=MSFT-CAP-001
-MM_TSLA_01> QUOTE|SYM=TSLA|BID=249.75|ASK=250.25|BID_QTY=200|ASK_QTY=200|TIF=DAY|QUOTE_ID=TSLA-CAP-001
+[MM_AAPL_01]> QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=AAPL-CAP-001
+[MM_MSFT_01]> QUOTE|SYM=MSFT|BID=419.90|ASK=420.10|BID_QTY=300|ASK_QTY=300|TIF=DAY|QUOTE_ID=MSFT-CAP-001
+[MM_TSLA_01]> QUOTE|SYM=TSLA|BID=249.75|ASK=250.25|BID_QTY=200|ASK_QTY=200|TIF=DAY|QUOTE_ID=TSLA-CAP-001
 ```
 
-Verify with `QLEGS|SHOW=ALL` on each MM gateway and `BOOK|SYM=...` from a trader.
+Verify with `QLEGS|SHOW=ALL` on each MM gateway (trader console) and `BOOK|SYM=...` in the operator console.
 
 :material-checkbox-blank-outline: **Checkpoint:** every symbol has a live two-sided market.
 
@@ -96,16 +101,16 @@ Verify with `QLEGS|SHOW=ALL` on each MM gateway and `BOOK|SYM=...` from a trader
 From `TRADER01`:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
-TRADER01> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=419.50|TIF=DAY
-TRADER01> ORDERS
-TRADER01> AMEND|ID=<msft_order_id>|PRICE=419.70
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
+[TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=419.50|TIF=DAY
+[TRADER01]> ORDERS
+[TRADER01]> AMEND|ID=<msft_order_id>|PRICE=419.70
 ```
 
 From `TRADER02`:
 
 ```
-TRADER02> NEW|SYM=MSFT|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=419.70|TIF=DAY
+[TRADER02]> NEW|SYM=MSFT|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=419.70|TIF=DAY
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** you have at least one market fill, one amended order, and one cross-trader fill.
@@ -117,13 +122,13 @@ TRADER02> NEW|SYM=MSFT|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=419.70|TIF=DAY
 From the admin gateway:
 
 ```
-GW_ADMIN> HALT_SYM|SYM=TSLA
+[GW_ADMIN|ADMIN]> HALT_SYM|SYM=TSLA
 ```
 
 Try to trade TSLA from a trader gateway and confirm it is rejected. Then resume:
 
 ```
-GW_ADMIN> RESUME_SYM|SYM=TSLA
+[GW_ADMIN|ADMIN]> RESUME_SYM|SYM=TSLA
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** symbol halt blocks trading and resume restores it.
@@ -159,13 +164,13 @@ Explain what each observer showed:
 Place a GTC order, restart the engine, and confirm whether it restores:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=140.00|TIF=GTC
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=140.00|TIF=GTC
 ```
 
 Restart `pm-engine`, reconnect `TRADER01`, then run:
 
 ```
-TRADER01> ORDERS
+[TRADER01]> ORDERS
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** you can explain what persisted and what expired.

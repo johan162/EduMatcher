@@ -8,6 +8,10 @@ manual session overrides via `SESSION|STATE=...`.
 
  
 
+
+!!! abstract "Pre-reading in the User Guide"
+    - [Exchange Commands](../user-guide/160-exchange-commands.md)
+
 ## Prerequisites
 
 - Chapters 01-18 completed.
@@ -79,7 +83,7 @@ pm-admin-cli --id GW_ADMIN qcancel --gw MM_AAPL_01 --sym AAPL
 Verify from MM gateway:
 
 ```
-MM_AAPL_01> QLEGS|SYM=AAPL|SHOW=ALL
+[MM_AAPL_01]> QLEGS|SYM=AAPL|SHOW=ALL
 ```
 
 You should see the prior quote legs no longer active.

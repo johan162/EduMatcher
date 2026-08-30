@@ -7,6 +7,12 @@ where the engine's drop-copy feed fits into the architecture.
 
  
 
+
+!!! abstract "Pre-reading in the User Guide"
+    - [Drop Copy](../user-guide/200-drop-copy.md)
+    - [DC Gateway](../user-guide/201-dc-gateway.md)
+    - [DC Spy CLI](../user-guide/202-dc-spy-cli.md)
+
 ## Prerequisites
 
 - Chapters 01–12 completed.
@@ -38,7 +44,7 @@ pm-viewer --symbol AAPL --depth 10
 In a trader gateway, place or cancel a resting order and watch the viewer update:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.80|TIF=DAY
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.80|TIF=DAY
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-viewer` changes when the book changes.
@@ -71,7 +77,7 @@ pm-audit --terminal
 Execute a trade:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 ```
 
 Watch `pm-audit` print the resulting events. This is the easiest training-safe
@@ -97,11 +103,35 @@ risk/compliance subscribers and publishes topics such as
 
  
 
-## Exercise 5: Subscribe to the Drop-Copy Feed Directly
+## Exercise 5: Watch the Drop-Copy Feed with `pm-dc-spy`
 
-`pm-audit`/`pm-viewer`/`pm-orders` all read the *public* feed on port 5556.
-None of them show you the drop-copy feed itself. To see it, connect a minimal
-ZMQ subscriber:
+`pm-audit`, `pm-viewer` and `pm-orders` all read the *public* feed on port
+5556 — none of them show the drop-copy feed. EduMatcher ships two tools for
+that, and it is worth knowing both:
+
+| Tool | What it is | Use it for |
+|---|---|---|
+| `pm-dc-spy` | A CLI that subscribes to the engine's drop-copy PUB socket (5557) | Looking at the feed yourself, right now |
+| `pm-dc-gwy` | A **gateway process** serving the DCLF protocol over TCP 5590 | Letting an *external* system consume drop copy, the way a real back office would |
+
+Start the spy:
+
+```bash
+pm-dc-spy --format human
+```
+
+Then submit a trade from a trader console and watch the fill events appear.
+
+:material-checkbox-blank-outline: **Checkpoint:** `pm-dc-spy` prints a fill
+event for a trade you caused, and you can say why an external consumer would
+use `pm-dc-gwy` on 5590 instead of subscribing to 5557 directly.
+
+ 
+
+## Exercise 5b: Subscribe to the Raw Socket
+
+Understanding what the tools do for you is worth one level down. Connect a
+minimal ZMQ subscriber to the same socket `pm-dc-spy` reads:
 
 ```bash
 python - <<'PY'
@@ -125,7 +155,7 @@ PY
 While this is running, execute a trade from `TRADER01` in another terminal:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 ```
 
 You should see one `drop_copy.event.<gateway_id>` message per participant on
@@ -189,6 +219,8 @@ high-volume book/viewer traffic?
 
 - [Messages](../user-guide/270-message-reference.md)
 - [Drop Copy](../user-guide/200-drop-copy.md)
+- [Drop-Copy Gateway (`pm-dc-gwy`)](../user-guide/201-dc-gateway.md)
+- [Drop-Copy Spy CLI (`pm-dc-spy`)](../user-guide/202-dc-spy-cli.md)
 - [Processes](../user-guide/170-processes.md)
 - [CALF Protocol Reference](../user-guide/920-app-calf-protocol.md)
 - [Market Data Feed](../concepts/06-concepts-market-data-feed.md)

@@ -7,6 +7,10 @@ trade history for analysis and reporting.
 
  
 
+
+!!! abstract "Pre-reading in the User Guide"
+    - [Statistics and Reporting](../user-guide/140-statistics-and-reporting.md)
+
 ## Prerequisites
 
 - Chapters 01–14 completed.
@@ -59,9 +63,9 @@ ls -la "$EDUMATCHER_DATA_DIR/stats.db"
 Ensure MMs and (optionally) AI traders are running. Execute a few manual trades:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
-TRADER01> NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=50
-TRADER01> NEW|SYM=MSFT|SIDE=BUY|TYPE=MARKET|QTY=200
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
+[TRADER01]> NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=50
+[TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=MARKET|QTY=200
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** trades executed and recorded by stats service.
@@ -124,9 +128,10 @@ pm-stats-cli trades --symbol AAPL --limit 20
 ```
 
 Shows the last 20 trades from `trade_log`: `ts`, `trade_id`, `symbol`,
-`price`, `quantity`, `buy_gateway_id`, `sell_gateway_id`. Note this is buyer
-and seller gateway, not an `aggressor_side` flag — `trade_log` does not
-record which side was the aggressor.
+`price`, `quantity`, `buy_gateway_id`, `sell_gateway_id`. Alongside the two
+gateway columns, `trade_log` also records `aggressor_side`: `BUY` or `SELL`
+for a continuous match, and `AUCTION` for an uncross print — so you can
+classify trades by which side crossed the spread.
 
 :material-checkbox-blank-outline: **Checkpoint:** trade log visible.
 
@@ -145,7 +150,7 @@ Each row shows, per symbol: `open_price`, `high_price`, `low_price`,
 `close_price`, `volume`, `trade_count`, and `vwap` for the day. This does
 **not** include current spread (best bid/ask) — for that, use `snapshots`
 (most recent row per symbol) or query the live book directly with
-`BOOK|SYM=<symbol>` from a gateway.
+`BOOK|SYM=<symbol>` in the operator console (`pm-admin`).
 
 :material-checkbox-blank-outline: **Checkpoint:** `daily` with no `--symbol` filter returns one row per active symbol.
 
@@ -154,7 +159,7 @@ Each row shows, per symbol: `open_price`, `high_price`, `low_price`,
 ## Exercise 7: Export Data
 
 ```bash
-pm-stats-cli trades --symbol AAPL --format csv > aapl_trades.csv
+pm-stats-cli --format csv trades --symbol AAPL > aapl_trades.csv
 ```
 
 The CSV can be imported into Excel or a Jupyter notebook for further analysis.

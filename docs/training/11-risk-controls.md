@@ -8,6 +8,11 @@ breakers, symbol halts, and the kill switch. You will use both the interactive
 
  
 
+
+!!! abstract "Pre-reading in the User Guide"
+    - [Risk Controls](../user-guide/120-risk-controls.md)
+    - [Exchange Commands](../user-guide/160-exchange-commands.md)
+
 ## Prerequisites
 
 - Chapters 01–10 completed.
@@ -56,11 +61,28 @@ symbols:
 ```
 
 Both fields are fractions in `(0, 1)`, not whole percentages — `0.10` means
-10%. If omitted, the built-in defaults are `static_band_pct: 0.20`,
-`dynamic_band_pct: 0.02`. `enforce_collars` (top-level, defaults to `true`)
-must also not be set to `false`.
+10%. Those built-in defaults (`static_band_pct: 0.20`, `dynamic_band_pct:
+0.02`) fill in a field that is *missing from a `collar:` block that is
+present*. Leave the whole `collar:` section out and the symbol gets **no
+collar at all** — not a default one. `enforce_collars` (top-level, defaults to
+`true`) must also not be set to `false`.
 
-Restart the engine.
+!!! warning "A collar needs a reference price to compare against"
+    The engine only registers a collar for a symbol once a reference price
+    resolves — from `last_buy_price`/`last_sell_price` in the configuration, or
+    from persisted `book_stats.json`. If those are unset, the collar is
+    silently never enforced and the rejection below will not fire. Chapter 01's
+    configuration seeds them; if you generated yours with `pm-config-gen`, pass
+    `--seed-last-prices-from-mm` or set the two fields by hand.
+
+Deploy the change, then restart the engine — editing the YAML alone changes
+nothing, because every process reads the compiled artifact:
+
+```bash
+pm-config-deploy engine_config.yaml
+```
+
+Then restart `pm-engine`.
 
 :material-checkbox-blank-outline: **Checkpoint:** engine loads risk control configuration.
 
@@ -71,7 +93,7 @@ Restart the engine.
 Place an order far outside the allowed range:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=200.00|TIF=DAY
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=200.00|TIF=DAY
 ```
 
 If the reference price is 150.00 and the static collar is ±10%, anything
@@ -103,7 +125,14 @@ circuit_breaker_defaults:
 `enforce_circuit_breakers` (top-level, defaults to `true`) must also not be
 set to `false`.
 
-Restart the engine.
+Deploy the change, then restart the engine — editing the YAML alone changes
+nothing, because every process reads the compiled artifact:
+
+```bash
+pm-config-deploy engine_config.yaml
+```
+
+Then restart `pm-engine`.
 
 :material-checkbox-blank-outline: **Checkpoint:** circuit breaker config loaded.
 
@@ -122,11 +151,13 @@ literal log line. Illustratively:
 [HALT] AAPL — circuit breaker triggered (~5% move)
 ```
 
-All resting orders on AAPL are preserved but no new matching occurs.
+Ordinary resting limit orders on AAPL are preserved and no new matching occurs — but **market-maker quote legs are cancelled** by the halt. If the only liquidity was MM quotes, the book will look empty.
 
 Verification drill:
 
-1. Run `BOOK|SYM=AAPL` and confirm resting orders remain visible.
+1. Run `BOOK|SYM=AAPL` in the operator console and confirm ordinary limit
+   orders remain visible. Any market-maker quote legs will be gone — the halt
+   cancels them.
 2. Submit a fresh AAPL order and confirm rejection while halted.
 
 :material-checkbox-blank-outline: **Checkpoint:** AAPL halted by circuit breaker.
@@ -171,7 +202,7 @@ From the `pm-admin` console:
 Try trading MSFT from TRADER01:
 
 ```
-TRADER01> NEW|SYM=MSFT|SIDE=BUY|TYPE=MARKET|QTY=100
+[TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=MARKET|QTY=100
 ```
 
 Expected: rejection — symbol halted.

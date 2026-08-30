@@ -8,6 +8,11 @@ workflow with `pm-mm-bot`, which automates the same lifecycle.
 
  
 
+
+!!! abstract "Pre-reading in the User Guide"
+    - [Market Making](../user-guide/090-market-maker.md)
+    - [Market-Maker Bot](../user-guide/100-mm-bot.md)
+
 ## Prerequisites
 
 - Chapters 00–01 completed.
@@ -56,9 +61,44 @@ gateways:
       quote_refresh_policy: INACTIVATE_ON_ANY_FILL
 ```
 
-Restart `pm-engine` to pick up the new gateways.
+Declaring a `MARKET_MAKER` gateway obliges you to seed a quote for every
+symbol it makes a market in. Add a `market_maker_quotes` entry under each
+symbol naming its market maker:
 
-:material-checkbox-blank-outline: **Checkpoint:** engine logs show 6 gateways loaded.
+```yaml
+symbols:
+  AAPL:
+    tick_decimals: 2
+    last_buy_price: 150.00
+    last_sell_price: 150.00
+    market_maker_quotes:
+      - gateway_id: MM_AAPL_01
+        bid_price: 149.95
+        ask_price: 150.05
+        bid_qty: 500
+        ask_qty: 500
+  # ... the same shape for MSFT/MM_MSFT_01 and TSLA/MM_TSLA_01
+```
+
+!!! warning "Skip the seeds and the deploy is refused"
+    Without them the verifier raises **M001 (ERROR)** — *"Symbol 'AAPL' has no
+    market_maker_quotes entry for MARKET_MAKER gateway(s) MM_AAPL_01"* — and
+    `pm-config-deploy` refuses to install a configuration with any error. This
+    is the verifier doing its job: a market maker with nothing to quote is a
+    configuration mistake, not a runtime one.
+
+Check, deploy, then restart the engine — editing the YAML alone changes
+nothing, because every process reads the compiled artifact:
+
+```bash
+pm-cverifier engine_config.yaml       # expect 0 errors
+pm-config-deploy engine_config.yaml
+```
+
+Then restart `pm-engine` to pick up the new gateways.
+
+:material-checkbox-blank-outline: **Checkpoint:** `pm-cverifier` reports 0 errors,
+the deploy succeeds, and the engine logs show 6 gateways loaded.
 
  
 
@@ -73,7 +113,7 @@ pm-alf-console --id MM_AAPL_01
 At the prompt, submit a two-sided quote:
 
 ```
-MM_AAPL_01> QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=AAPL-MM-001
+[MM_AAPL_01]> QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=AAPL-MM-001
 ```
 
 Expected output should include a quote acknowledgement and active status.
@@ -94,8 +134,8 @@ pm-alf-console --id MM_TSLA_01
 Submit quotes:
 
 ```
-MM_MSFT_01> QUOTE|SYM=MSFT|BID=419.90|ASK=420.10|BID_QTY=300|ASK_QTY=300|TIF=DAY|QUOTE_ID=MSFT-MM-001
-MM_TSLA_01> QUOTE|SYM=TSLA|BID=249.75|ASK=250.25|BID_QTY=200|ASK_QTY=200|TIF=DAY|QUOTE_ID=TSLA-MM-001
+[MM_MSFT_01]> QUOTE|SYM=MSFT|BID=419.90|ASK=420.10|BID_QTY=300|ASK_QTY=300|TIF=DAY|QUOTE_ID=MSFT-MM-001
+[MM_TSLA_01]> QUOTE|SYM=TSLA|BID=249.75|ASK=250.25|BID_QTY=200|ASK_QTY=200|TIF=DAY|QUOTE_ID=TSLA-MM-001
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** all three market makers report active quotes.
@@ -107,14 +147,14 @@ MM_TSLA_01> QUOTE|SYM=TSLA|BID=249.75|ASK=250.25|BID_QTY=200|ASK_QTY=200|TIF=DAY
 From `TRADER01`:
 
 ```
-TRADER01> BOOK|SYM=AAPL
+[GW_ADMIN|ADMIN]> BOOK|SYM=AAPL
 ```
 
 You should see a two-sided book with the MM's bid and ask. Repeat for MSFT and TSLA.
 
 ```
-TRADER01> BOOK|SYM=MSFT
-TRADER01> BOOK|SYM=TSLA
+[GW_ADMIN|ADMIN]> BOOK|SYM=MSFT
+[GW_ADMIN|ADMIN]> BOOK|SYM=TSLA
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** all three books show two-sided liquidity.
@@ -126,9 +166,9 @@ TRADER01> BOOK|SYM=TSLA
 From each market-maker gateway, inspect quote legs:
 
 ```
-MM_AAPL_01> QLEGS|SYM=AAPL|SHOW=ALL
-MM_MSFT_01> QLEGS|SYM=MSFT|SHOW=ALL
-MM_TSLA_01> QLEGS|SYM=TSLA|SHOW=ALL
+[MM_AAPL_01]> QLEGS|SYM=AAPL|SHOW=ALL
+[MM_MSFT_01]> QLEGS|SYM=MSFT|SHOW=ALL
+[MM_TSLA_01]> QLEGS|SYM=TSLA|SHOW=ALL
 ```
 
 `QLEGS` shows the bid and ask leg order IDs, prices, remaining quantities, and

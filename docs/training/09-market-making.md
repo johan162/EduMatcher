@@ -7,6 +7,10 @@ lifecycle, inactivation policies, QLEGS inspection, and MM obligations.
 
  
 
+
+!!! abstract "Pre-reading in the User Guide"
+    - [Market Making](../user-guide/090-market-maker.md)
+
 ## Prerequisites
 
 Add a manual MM gateway to your config:
@@ -19,7 +23,14 @@ Add a manual MM gateway to your config:
       quote_refresh_policy: INACTIVATE_ON_ANY_FILL
 ```
 
-Restart the engine and connect:
+Deploy the change, then restart the engine — editing the YAML alone changes
+nothing, because every process reads the compiled artifact:
+
+```bash
+pm-config-deploy engine_config.yaml
+```
+
+Then restart `pm-engine` and connect:
 
 ```bash
 pm-alf-console --id MM_MANUAL_01
@@ -30,7 +41,7 @@ pm-alf-console --id MM_MANUAL_01
 ## Exercise 1: Submit a Two-Sided Quote
 
 ```
-MM_MANUAL_01> QUOTE|SYM=AAPL|BID=149.90|ASK=150.10|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q001
+[MM_MANUAL_01]> QUOTE|SYM=AAPL|BID=149.90|ASK=150.10|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q001
 ```
 
 Expected:
@@ -49,7 +60,7 @@ Note both leg IDs — you'll need them to identify fills.
 ## Exercise 2: Inspect Quote Legs with QLEGS
 
 ```
-MM_MANUAL_01> QLEGS|SYM=AAPL|SHOW=ALL
+[MM_MANUAL_01]> QLEGS|SYM=AAPL|SHOW=ALL
 ```
 
 Expected: a table showing both legs with prices, quantities, and fill status.
@@ -77,7 +88,7 @@ How to read it:
 From TRADER01, buy into the MM's ask:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 ```
 
 Back at MM_MANUAL_01, you should see:
@@ -99,7 +110,7 @@ Under `INACTIVATE_ON_ANY_FILL`, both legs are pulled after any fill.
 Submit a fresh quote:
 
 ```
-MM_MANUAL_01> QUOTE|SYM=AAPL|BID=149.92|ASK=150.08|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q002
+[MM_MANUAL_01]> QUOTE|SYM=AAPL|BID=149.92|ASK=150.08|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q002
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** new quote active; QLEGS shows fresh legs.
@@ -111,7 +122,7 @@ MM_MANUAL_01> QUOTE|SYM=AAPL|BID=149.92|ASK=150.08|BID_QTY=500|ASK_QTY=500|TIF=D
 You can replace directly — the engine handles the swap:
 
 ```
-MM_MANUAL_01> QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q003
+[MM_MANUAL_01]> QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q003
 ```
 
 Expected:
@@ -129,7 +140,7 @@ QUOTE ACTIVE  Q003
 ## Exercise 6: Explicit Cancel
 
 ```
-MM_MANUAL_01> QUOTE_CANCEL|SYM=AAPL
+[MM_MANUAL_01]> QUOTE_CANCEL|SYM=AAPL
 ```
 
 Expected:
@@ -152,7 +163,7 @@ QUOTE CANCELLED  Q003
 After submitting a quote, inspect the bootstrap state:
 
 ```
-MM_MANUAL_01> QBOOT|SYM=AAPL
+[MM_MANUAL_01]> QBOOT|SYM=AAPL
 ```
 
 This shows the current active quote slot for your gateway+symbol — useful for
@@ -166,14 +177,14 @@ instead of creating duplicates.
 Typical outcomes:
 
 ```
-MM_MANUAL_01> QBOOT|SYM=AAPL
+[MM_MANUAL_01]> QBOOT|SYM=AAPL
 QBOOT SYM=AAPL active=true quote_id=Q003 bid_id=<bid_id> ask_id=<ask_id>
 ```
 
 or
 
 ```
-MM_MANUAL_01> QBOOT|SYM=AAPL
+[MM_MANUAL_01]> QBOOT|SYM=AAPL
 QBOOT SYM=AAPL active=false
 ```
 
@@ -198,7 +209,7 @@ QBOOT SYM=AAPL active=false
 - QLEGS inspects current leg state; QBOOT inspects the active slot.
 - Use QBOOT first during startup, then QLEGS for leg-level reconciliation.
 - Replacement quotes don't require explicit cancel first.
-- `order.fill` does **not** include `quote_id` — correlate via leg order IDs.
+- `order.fill` **does** include `quote_id` for a quote-leg fill, so you can correlate a fill back to the quote directly as well as via the leg order IDs.
 
  
 

@@ -7,6 +7,10 @@ demonstrations, classroom sessions, and stress testing.
 
  
 
+
+!!! abstract "Pre-reading in the User Guide"
+    - [AI Traders](../user-guide/110-ai-traders.md)
+
 ## Prerequisites
 
 - Chapters 01–13 completed.
@@ -58,7 +62,14 @@ so the bots can authenticate:
     If your engine is started with no `engine_config.yaml` gateway restrictions,
     any gateway ID can connect — this step can be skipped for a quick demo.
 
-Restart the engine.
+Deploy the change, then restart the engine — editing the YAML alone changes
+nothing, because every process reads the compiled artifact:
+
+```bash
+pm-config-deploy engine_config.yaml
+```
+
+Then restart `pm-engine`.
 
 :material-checkbox-blank-outline: **Checkpoint:** 3 additional gateways loaded (`AI01`–`AI03`).
 
@@ -104,7 +115,7 @@ With MMs and AI traders running, the exchange simulates a realistic market.
 From your trader gateway:
 
 ```
-TRADER01> BOOK|SYM=AAPL
+[GW_ADMIN|ADMIN]> BOOK|SYM=AAPL
 ```
 
 Run it repeatedly — you'll see the book evolving as AI traders interact with
@@ -119,7 +130,7 @@ the MMs.
 With AI traders providing diverse order flow, practice manual trading:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.90|TIF=DAY
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.90|TIF=DAY
 ```
 
 Your order interacts naturally with both MM quotes and AI trader orders.

@@ -8,6 +8,11 @@ lifecycle.
 
  
 
+
+!!! abstract "Pre-reading in the User Guide"
+    - [ALF Console](../user-guide/055-alf-console.md)
+    - [Order Types](../user-guide/060-order-types.md)
+
 ## Prerequisites
 
 - Engine and scheduler running from chapters 01–02.
@@ -40,7 +45,7 @@ this chapter.
 From `TRADER01`, send a market buy order for AAPL:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 ```
 
 Expected output:
@@ -62,7 +67,7 @@ sold AAPL, and positions/P&L are updated from the execution price.
 ## Exercise 3: Sell at Market — Hit the Bid
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=100
+[TRADER01]> NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=100
 ```
 
 Expected output:
@@ -80,15 +85,15 @@ Expected output:
 Place a buy order below the current bid — it should rest on the book:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=149.80|TIF=DAY
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=149.80|TIF=DAY
 ```
 
 Expected: order acknowledged, status=NEW (resting).
 
-Verify with:
+Verify in the **operator console** — a trader cannot see the whole book:
 
 ```
-TRADER01> BOOK|SYM=AAPL
+[GW_ADMIN|ADMIN]> BOOK|SYM=AAPL
 ```
 
 You should see your 200-lot bid at 149.80 below the MM's bid.
@@ -106,7 +111,7 @@ pm-alf-console --id TRADER02
 ```
 
 ```
-TRADER02> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=50|PRICE=149.80|TIF=DAY
+[TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=50|PRICE=149.80|TIF=DAY
 ```
 
 This sell crosses TRADER01's resting bid at 149.80 → immediate fill.
@@ -125,7 +130,7 @@ Both gateways receive fill notifications:
 From TRADER01, inspect the partially filled order:
 
 ```
-TRADER01> ORDERS
+[TRADER01]> ORDERS
 ```
 
 Expected: the order from Exercise 4 appears with filled and remaining quantity
@@ -141,10 +146,11 @@ showing the partial fill.
 ## Exercise 7 (Optional): Observe Automatic Re-Quoting with pm-mm-bot
 
 If you are running `pm-mm-bot` for AAPL (instead of manual quoting), your
-market order in Exercise 2 should trigger automatic re-quoting. Run BOOK again:
+market order in Exercise 2 should trigger automatic re-quoting. Run `BOOK`
+again in the operator console:
 
 ```
-TRADER01> BOOK|SYM=AAPL
+[GW_ADMIN|ADMIN]> BOOK|SYM=AAPL
 ```
 
 The MM should have a fresh two-sided quote (possibly at a slightly different
