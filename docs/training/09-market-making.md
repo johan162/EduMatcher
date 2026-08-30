@@ -63,23 +63,47 @@ Note both leg IDs — you'll need them to identify fills.
 [MM_MANUAL_01]> QLEGS|SYM=AAPL|SHOW=ALL
 ```
 
-Expected: a table showing both legs with prices, quantities, and fill status.
+Expected: a `Quote legs` table with one row per leg. The columns are:
 
-Representative shape:
+| Column | Meaning |
+|---|---|
+| `Symbol` | The instrument |
+| `Quote` | Your `QUOTE_ID` — the label you chose when submitting |
+| `Leg` | `BID` or `ASK` |
+| `Order` | The leg's order ID, **truncated to 8 characters** for display |
+| `Qty` | Original quantity of the leg |
+| `Rem` | Still resting |
+| `Filled` | Already executed |
+| `Filled?` | `YES` / `NO` — a quick scan column |
+| `Leg status` | The order status of that leg |
+| `Quote status` | The parent quote's state |
+| `Time` | Last event time for the leg |
+
+Two things are worth noticing straight away, because they are the ones people
+misread:
+
+- **`Leg status` and `Quote status` are different enums.** A leg is `NEW`,
+  `PARTIAL`, `FILLED`, `CANCELLED`, `EXPIRED` or `PENDING`. The *quote* is
+  `ACTIVE`, `INACTIVE_BID_FILLED`, `INACTIVE_ASK_FILLED` or `CANCELLED`.
+  There is no `ACTIVE` leg status — a resting, untouched leg shows `NEW`.
+- **The `Order` column is truncated.** `AMEND` and `CANCEL` need the *full*
+  order ID; take it from the `QUOTE ACK` line, not from this column.
+
+Try the filters — `SHOW=` accepts `ALL`, `ACTIVE` or `RECENT`:
 
 ```
-leg_id             side  price   qty  remaining  filled  status
-ord_abc_bid_001    BUY   149.90  500  500        0       ACTIVE
-ord_abc_ask_001    SELL  150.10  500  400        100     PARTIAL
+[MM_MANUAL_01]> QLEGS|SYM=AAPL|SHOW=ACTIVE
+[MM_MANUAL_01]> QLEGS|SYM=AAPL|SHOW=RECENT
 ```
 
-How to read it:
+`ACTIVE` keeps legs that are still working (an active status, or any remaining
+quantity); `RECENT` shows the complement — legs that are done. Right now
+`ACTIVE` should list both of your legs and `RECENT` should be empty; after
+Exercise 3 that flips.
 
-- `remaining` tells you what is still resting.
-- `filled` tells you what already executed.
-- `status` helps classify lifecycle (`ACTIVE`, `PARTIAL`, `FILLED`, etc.).
-
-:material-checkbox-blank-outline: **Checkpoint:** QLEGS shows both bid and ask legs.
+:material-checkbox-blank-outline: **Checkpoint:** `QLEGS` shows both a BID and an
+ASK row for `Q001`, each with `Leg status` `NEW` and `Quote status` `ACTIVE`,
+and you can say why no leg shows a status of `ACTIVE`.
 
  
 
@@ -174,31 +198,89 @@ left an active quote in the book. `QBOOT` prevents blind re-quoting by showing
 whether a slot is already active so the new process can adopt or replace safely
 instead of creating duplicates.
 
-Typical outcomes:
+The reply is a `Quote bootstrap` table, one row per active quote:
+
+| Column | Meaning |
+|---|---|
+| `Symbol` | The instrument |
+| `Quote` | The `QUOTE_ID` of the quote occupying the slot |
+| `State` | The quote state — `ACTIVE`, `INACTIVE_BID_FILLED`, `INACTIVE_ASK_FILLED` or `CANCELLED` |
+| `Bid` / `Ask` | The two quoted prices, or `-` if that side has none |
+| `BidRem` / `AskRem` | Remaining quantity on each leg |
+
+When there is nothing to report — no active quote for that gateway and symbol
+— you get a single dim line instead of a table:
 
 ```
-[MM_MANUAL_01]> QBOOT|SYM=AAPL
-QBOOT SYM=AAPL active=true quote_id=Q003 bid_id=<bid_id> ask_id=<ask_id>
+No active quote bootstrap entries returned.
 ```
 
-or
+That empty response is the useful one on startup: it means the slot is free
+and you can quote without first cancelling something.
 
-```
-[MM_MANUAL_01]> QBOOT|SYM=AAPL
-QBOOT SYM=AAPL active=false
-```
+Run it in both states to see the difference. With `Q001` still active from
+Exercise 1 you get a row; after Exercise 3's fill inactivates the quote, run it
+again and compare the `State` column with what `QLEGS` reports for the legs.
 
-:material-checkbox-blank-outline: **Checkpoint:** QBOOT shows active quote or empty slot.
+!!! note "`SYM=` is optional"
+    `QBOOT` on its own asks about every symbol you have a quote on; `QBOOT|SYM=AAPL`
+    narrows it to one. Use the bare form on a bot restart, when you do not yet
+    know which slots are occupied.
+
+:material-checkbox-blank-outline: **Checkpoint:** you have seen both responses —
+a table with a `State` of `ACTIVE`, and the "No active quote bootstrap entries"
+line — and can say which one tells a restarting bot it is safe to quote.
 
  
 
-## Exercise 8: Understand Inactivation Policies
+## Exercise 8: Compare Inactivation Policies
 
 | Policy | Behaviour |
 |--------|-----------|
 | `INACTIVATE_ON_ANY_FILL` | Sibling cancelled on any fill (even partial) |
-| `INACTIVATE_ON_FULL_FILL` | Sibling cancelled only when filled leg fully consumed |
-| `NEVER_INACTIVATE` | No automatic sibling cancel; MM must manage manually |
+| `INACTIVATE_ON_FULL_FILL` | Sibling cancelled only when the filled leg is fully consumed |
+| `NEVER_INACTIVATE` | No automatic sibling cancel; the MM manages both legs itself |
+
+Reading the table is not the same as believing it. Change the policy and watch
+the difference — this is the exercise that makes the three names mean
+something.
+
+**1.** Edit `MM_MANUAL_01` in your configuration to
+`quote_refresh_policy: INACTIVATE_ON_FULL_FILL`, then deploy and restart:
+
+```bash
+pm-config-deploy engine_config.yaml
+```
+
+**2.** Quote again, then take only *part* of one leg:
+
+```
+[MM_MANUAL_01]> QUOTE|SYM=AAPL|BID=149.90|ASK=150.10|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q010
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.10|TIF=DAY
+```
+
+**3.** Inspect both views:
+
+```
+[MM_MANUAL_01]> QLEGS|SYM=AAPL|SHOW=ALL
+[MM_MANUAL_01]> QBOOT|SYM=AAPL
+```
+
+Under `INACTIVATE_ON_ANY_FILL` (Exercise 3) this partial fill would have pulled
+the bid and inactivated the quote. Under `INACTIVATE_ON_FULL_FILL` the ask leg
+shows `PARTIAL` with `Rem` 400, the bid leg is still `NEW`, and the quote is
+still `ACTIVE`.
+
+**4.** Now consume the rest of the ask (another 400) and watch the quote flip
+to `INACTIVE_ASK_FILLED`.
+
+:material-checkbox-blank-outline: **Checkpoint:** you can state, for each of the
+three policies, what happens to the sibling leg on a *partial* fill — and you
+have observed at least two of them.
+
+!!! tip "Set the policy back"
+    Later chapters assume `INACTIVATE_ON_ANY_FILL`. Restore it and redeploy
+    before moving on, or note that you changed it.
 
  
 
@@ -206,7 +288,9 @@ QBOOT SYM=AAPL active=false
 
 - The QUOTE command creates two linked limit orders (bid + ask).
 - `quote_id` identifies the logical quote; legs are separate order IDs.
-- QLEGS inspects current leg state; QBOOT inspects the active slot.
+- `QLEGS` inspects leg-level state; `QBOOT` inspects the quote slot. They
+  report different enums: legs are `NEW`/`PARTIAL`/`FILLED`/…, quotes are
+  `ACTIVE`/`INACTIVE_*_FILLED`/`CANCELLED`.
 - Use QBOOT first during startup, then QLEGS for leg-level reconciliation.
 - Replacement quotes don't require explicit cancel first.
 - `order.fill` **does** include `quote_id` for a quote-leg fill, so you can correlate a fill back to the quote directly as well as via the leg order IDs.
