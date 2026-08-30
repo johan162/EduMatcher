@@ -301,13 +301,8 @@ if ! grep -Eq "^## \[v${VERSION}\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$" CHANGELOG.md; 
 fi
 print_success "Found CHANGELOG entry for v$VERSION"
 
-# 1.8: Validate that the Python artifacts for this version have been built and are valid
-run_command "poetry run twine check dist/edumatcher-${VERSION}*.whl dist/edumatcher-${VERSION}*.tar.gz" "Verifying built packages..."
-
-if [[ "$DRY_RUN" == "false" && $? -ne 0 ]]; then
-    print_error_colored "Distribution package validation failed"
-    exit 1
-fi
+# 1.8: Confirm the Python artifacts for this version were built (validated already by mkbld.sh)
+check_condition '[[ -n $(ls dist/edumatcher-${VERSION}*.whl 2>/dev/null) && -n $(ls dist/edumatcher-${VERSION}*.tar.gz 2>/dev/null) ]]' "Built artifacts for v$VERSION not found in dist/ -- run ./scripts/mkbld.sh first"
 
 
 # =====================================
@@ -368,6 +363,7 @@ Changelog: See CHANGELOG.md for detailed changes"
 fi
 
 # 2.4: Push main branch and tags
+MAIN_RELEASE_SHA="$(git rev-parse main)"
 run_command "git push origin main" "Pushing main branch..."
 run_command "git push origin \"v$VERSION\"" "Pushing release tag..."
 
@@ -409,35 +405,51 @@ else
 fi
 
 # =====================================
-# PHASE 4: TRIGGER CI/CD WORKFLOWS
+# PHASE 4: PUSH DEVELOP AND WAIT FOR CI
 # =====================================
 
 print_step_colored ""
-print_step_colored " ⌛ PHASE 4: TRIGGER AND WAIT FOR CI/CD WORKFLOWS"
+print_step_colored " ⌛ PHASE 4: PUSH DEVELOP AND WAIT FOR CI"
 print_step_colored ""
 
 # 4.1: Push synced develop branch
+# ci.yml only runs on pushes to main (plus pull requests), so this push does
+# not trigger a workflow -- develop is kept in sync, nothing to wait for here.
 run_command "git push origin develop" "Pushing updated develop..."
 
-echo -e "${BLUE}🕐${NC} Monitoring GitHub Actions..."
+echo -e "${BLUE}🕐${NC} Waiting for CI on main (v$VERSION, ${MAIN_RELEASE_SHA:0:7})..."
 echo ""
 
-# Sometime some extra time is needed for GitHub to register the new push and trigger the workflow, so we wait a bit before watching the runs
-sleep 3
-
 if [[ "$DRY_RUN" == "false" ]]; then
-    # Watch the latest workflow run triggered by the push
-    gh run watch --exit-status
-    
-    if [[ $? -eq 0 ]]; then
+    # Match the run triggered by the 2.4 push to main by commit SHA rather than
+    # trusting "the latest run" -- ci.yml can also be running a PR check at the
+    # same time, and a bare `gh run watch` has no way to tell them apart.
+    RUN_ID=""
+    for _ in $(seq 1 30); do
+        RUN_ID=$(gh run list --workflow ci.yml --branch main --limit 20 \
+                    --json databaseId,headSha \
+                    --jq "[.[] | select(.headSha == \"$MAIN_RELEASE_SHA\")] | .[0].databaseId" \
+                    2>/dev/null || true)
+        [[ -n "$RUN_ID" && "$RUN_ID" != "null" ]] && break
+        sleep 5
+    done
+
+    if [[ -z "$RUN_ID" || "$RUN_ID" == "null" ]]; then
+        print_error "No ci.yml run appeared for v$VERSION (${MAIN_RELEASE_SHA:0:7}) on main."
+        echo "Check: gh run list --workflow ci.yml --branch main"
+        exit 1
+    fi
+
+    print_sub_step "Watching run $RUN_ID"
+    if gh run watch "$RUN_ID" --exit-status; then
         print_success "CI workflows completed successfully!"
     else
         print_error "CI workflows failed!"
-        echo "View logs: gh run view --log-failed"
+        echo "View logs: gh run view $RUN_ID --log-failed"
         exit 1
     fi
 else
-    echo "  [DRY-RUN] Would watch: gh run watch --exit-status"
+    echo "  [DRY-RUN] Would locate and watch the ci.yml run for main @ ${MAIN_RELEASE_SHA:0:7}"
 fi
 
 # =====================================
