@@ -305,6 +305,7 @@ these codes cover the per-symbol equivalents.
 | `S062` | `enforce_collars` present but not a boolean                 |
 | `S063` | `enforce_circuit_breakers` present but not a boolean        |
 | `S064` | `schedule` present but not a mapping                        |
+| `S113` | `require_mm_seed_quotes` present but not a boolean          |
 
 **Reopening / Automated Corridor Expansion (`circuit_breaker.reopening`)**
 
@@ -448,7 +449,7 @@ is validated while parsing `circuit_breaker_defaults`.
 
 | Code   | Severity | Condition                                                     |
 |--------|----------|---------------------------------------------------------------|
-| `M001` | ERROR    | MM gateway present but a symbol has no seed quotes            |
+| `M001` | ERROR    | MM gateway present but a symbol has no seed quotes (skipped when `require_mm_seed_quotes: false`) |
 | `M002` | ERROR    | MM seed references a gateway ID not in `gateways.alf`         |
 | `M003` | WARN     | MM seed spread exceeds `mm_max_spread_ticks`                  |
 | `M004` | ERROR    | `sessions_enabled: true` but no `schedule`                    |

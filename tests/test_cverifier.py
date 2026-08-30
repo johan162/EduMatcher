@@ -467,6 +467,15 @@ class TestLayer2RuntimeAndMMDefaults:
         results = layer2_schema.check(raw, Path("x.yaml"))
         assert "S063" in _codes(results)
 
+    def test_s113_require_mm_seed_quotes_not_bool(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "require_mm_seed_quotes: maybe\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S113" in _codes(results)
+
     def test_s064_schedule_not_mapping(self) -> None:
         raw = _raw(
             "symbols:\n  AAPL: {}\n"
@@ -2262,6 +2271,28 @@ class TestM001SinglePerSymbol:
         m001 = [r for r in results if r.code == "M001"]
         assert len(m001) == 1
         assert "MM01" in m001[0].message and "MM02" in m001[0].message
+
+
+class TestM001RequireMmSeedQuotesGate:
+    def test_m001_not_raised_when_require_mm_seed_quotes_false(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL:\n    tick_decimals: 2\n"
+            "gateways:\n  alf:\n"
+            "    - id: MM01\n      role: MARKET_MAKER\n"
+            "require_mm_seed_quotes: false\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert "M001" not in _codes(results)
+
+    def test_m001_still_raised_when_require_mm_seed_quotes_true(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL:\n    tick_decimals: 2\n"
+            "gateways:\n  alf:\n"
+            "    - id: MM01\n      role: MARKET_MAKER\n"
+            "require_mm_seed_quotes: true\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert "M001" in _codes(results)
 
 
 class TestM003Gating:

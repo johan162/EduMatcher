@@ -50,6 +50,34 @@ If at least one `MARKET_MAKER` gateway is configured, the engine **requires**
 each symbol to define at least one quote seed — the config loader rejects the
 file otherwise.
 
+### Opting out: `require_mm_seed_quotes: false`
+
+In a real market, this requirement is not a training-wheel restriction: even
+on a company's IPO day, an exchange lines up a designated market maker with
+an agreed opening quote before the first trade, precisely so the book is
+never empty. EduMatcher's default mirrors that — it is the realistic
+behaviour, not an artificial one.
+
+EduMatcher is a teaching exchange, though, and one of the things worth
+teaching is what goes wrong *without* that guarantee: how wide the first
+trade's spread can be, how a thin book reacts to the first aggressive order,
+what a circuit breaker does when there is no reference price to measure
+against. To run that exercise you need a `MARKET_MAKER` gateway present (so
+a market maker can connect and quote once the session is under way) but
+**no** startup seed — a truly empty book at the opening bell.
+
+Set the top-level flag:
+
+```yaml
+require_mm_seed_quotes: false
+```
+
+to allow exactly that: a `MARKET_MAKER` gateway configured with zero
+`market_maker_quotes` entries for one, some, or all symbols. Everything else
+about seeding is unchanged — a symbol that *does* define quote seeds still
+has them validated and injected the normal way. `pm-config-gen
+--no-mm-seed-quotes` generates this shape (see [Configuration](../user-guide/010-configuration.md)).
+
 ### Exact startup sequence
 
 ```

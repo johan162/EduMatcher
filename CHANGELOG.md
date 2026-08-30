@@ -1,3 +1,29 @@
+## [v0.27.3] - 2026-08-31
+
+Release Type: minor
+
+### 📋 Summary
+This release adds supported configurations for starting order books without
+market-maker seed quotes while preserving the existing seeded-book default.
+
+### ✨ Additions
+- Added the `require_mm_seed_quotes` configuration setting to allow market-maker gateways with genuinely empty books at startup
+- Added `--no-mm-seed-quotes` to `pm-config-gen` for generating configurations without market-maker quote seeds
+- Added twelve bundled `-nomm` example configurations covering every existing book-count and complexity profile
+
+### 🐛 Bug Fixes
+- Test of invalid sessions was dependent on the current engine config
+
+### 🚀 Improvements
+- Extended `pm-setup`, `pm-config-deploy`, and the container helper to select bundled `-nomm` configurations
+- Updated `pm-cverifier` and engine configuration loading to validate and honour the new setting while retaining the previous default
+
+### 📚 Documentation
+- Documented empty-book startup, market-maker seed roles, the new configuration options, and data-directory resolution
+
+### 🛠 Internal
+- Added test coverage for no-seed configuration generation, validation, deployment, loading, and scheduler configuration selection
+
 ## [v0.27.2] - 2026-08-30
 
 Release Type: patch

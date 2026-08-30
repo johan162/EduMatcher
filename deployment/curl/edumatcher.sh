@@ -253,7 +253,9 @@ cmd_mounts() {
 }
 
 EXAMPLES="one-basic one-nominal one-complex three-basic three-nominal three-complex
-ten-basic ten-nominal ten-complex thirty-basic thirty-nominal thirty-complex"
+ten-basic ten-nominal ten-complex thirty-basic thirty-nominal thirty-complex
+one-basic-nomm one-nominal-nomm one-complex-nomm three-basic-nomm three-nominal-nomm three-complex-nomm
+ten-basic-nomm ten-nominal-nomm ten-complex-nomm thirty-basic-nomm thirty-nominal-nomm thirty-complex-nomm"
 
 cmd_config() {
     [[ $# -eq 1 ]] || die "Usage: ./edumatcher.sh config <example-name | path/to/engine_config.yaml>"

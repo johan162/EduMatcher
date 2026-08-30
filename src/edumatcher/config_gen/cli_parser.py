@@ -309,6 +309,16 @@ def build_parser() -> argparse.ArgumentParser:
             "midpoint used for the generated quote."
         ),
     )
+    parser.add_argument(
+        "--no-mm-seed-quotes",
+        action="store_true",
+        help=(
+            "Set require_mm_seed_quotes: false. Allows a MARKET_MAKER gateway to be "
+            "configured with no market_maker_quotes seed for any symbol, so the book "
+            "starts genuinely empty. Without --seed-mm-mid-range, no market_maker_quotes "
+            "entries are emitted at all."
+        ),
+    )
 
     parser.add_argument(
         "--post-trade-gateway",

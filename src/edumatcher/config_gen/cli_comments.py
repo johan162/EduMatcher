@@ -94,6 +94,18 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
         ]
     )
 
+    # require_mm_seed_quotes
+    lines.extend(
+        [
+            "require_mm_seed_quotes: true",
+            "  When true (default), every symbol must define at least one",
+            "  market_maker_quotes entry once any MARKET_MAKER gateway is configured.",
+            "  Set to false to allow a MARKET_MAKER gateway with a genuinely empty",
+            "  book at startup (see docs/concepts/03-concepts-mm-quotes.md).",
+            "",
+        ]
+    )
+
     # mm_obligation_defaults
     lines.extend(
         [
@@ -570,7 +582,8 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
             "  0 makes reopen times exactly predictable.",
             "market_maker_quotes:",
             "  Startup quote seeds used to initialize liquidity for this symbol.",
-            "  Required when MARKET_MAKER gateways are configured.",
+            "  Required when MARKET_MAKER gateways are configured, unless the",
+            "  top-level require_mm_seed_quotes is set to false.",
             "  gateway_id must reference a configured MARKET_MAKER gateway.",
             "",
         ]

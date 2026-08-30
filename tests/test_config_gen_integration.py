@@ -285,6 +285,34 @@ def test_market_maker_seeded_quotes_are_emitted(
     assert "Fill all market_maker_quotes" not in captured.err
 
 
+def test_no_mm_seed_quotes_omits_quotes_and_warnings(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "TRADER01",
+            "MM01:MARKET_MAKER",
+            "--no-mm-seed-quotes",
+            "--dry-run",
+        ],
+    )
+
+    captured = capsys.readouterr()
+    assert "market_maker_quotes" not in captured.out
+    assert "require_mm_seed_quotes: false" in captured.out
+    assert "[WARN] MARKET_MAKER gateway MM01" not in captured.err
+    assert "Fill all market_maker_quotes" not in captured.err
+    assert (
+        "WARNING: pm-config-gen cannot set prices. Fill these in before starting."
+        not in captured.out
+    )
+
+
 def test_output_refuses_overwrite_without_force(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

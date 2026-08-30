@@ -89,7 +89,9 @@ def evaluate_diagnostics(
 
     mm_gateways = [g for g in spec.gateways if g.role == ParticipantRole.MARKET_MAKER]
     if mm_gateways:
-        if spec.seed_mm_mid_range is None:
+        if spec.seed_mm_mid_range is None and not spec.require_mm_seed_quotes:
+            pass  # require_mm_seed_quotes: false — no stubs emitted, nothing to fill in
+        elif spec.seed_mm_mid_range is None:
             for gw in mm_gateways:
                 messages.append(
                     Diagnostic(

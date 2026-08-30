@@ -304,6 +304,7 @@ production `make build` does compile them.
 | Hybrid app works, containerised one does not | Almost always a bind address or a hostname: the hybrid path uses `127.0.0.1`, the container path uses the service name `edumatcher`. This is exactly the class of bug the hybrid loop cannot see |
 | `make dev` fails on a missing module | `make install` has not run since a dependency changed |
 | Backend change has no effect | The image was built from PyPI, not your checkout |
+| `pytest` fails with `ArtifactError: compiled config has been modified since it was compiled` | Your checkout's data directory is `src/data/`, not `~/.local/share/edumatcher/` — its compiled `ref_data/engine_config.json` is stale relative to the code you just pulled. Recompile it: `poetry run pm-config-deploy --example <name>` (or `pm-setup --force`). See [Where your data directory actually is](01-dev-practice.md#where-your-data-directory-actually-is) |
 
 !!! tip "Two exchanges, one set of ports"
     `deployment/curl/` uses the same container names and host ports as

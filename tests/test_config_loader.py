@@ -467,6 +467,61 @@ class TestConfigLoaderFileErrors:
         with pytest.raises(ValueError, match="enforce_circuit_breakers"):
             load_engine_config(_write_yaml(tmp_path, yaml))
 
+    def test_require_mm_seed_quotes_defaults_to_true(self, tmp_path: Path) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateways:
+          alf:
+            - id: GW01
+        """
+        cfg = load_engine_config(_write_yaml(tmp_path, yaml))
+        assert cfg.require_mm_seed_quotes is True
+
+    def test_mm_gateway_without_seed_quotes_raises_by_default(
+        self, tmp_path: Path
+    ) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateways:
+          alf:
+            - id: MM01
+              role: MARKET_MAKER
+        """
+        with pytest.raises(
+            ValueError, match="at least one market_maker_quotes entry is required"
+        ):
+            load_engine_config(_write_yaml(tmp_path, yaml))
+
+    def test_require_mm_seed_quotes_false_allows_empty_book(
+        self, tmp_path: Path
+    ) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateways:
+          alf:
+            - id: MM01
+              role: MARKET_MAKER
+        require_mm_seed_quotes: false
+        """
+        cfg = load_engine_config(_write_yaml(tmp_path, yaml))
+        assert cfg.require_mm_seed_quotes is False
+        assert cfg.symbols["AAPL"].market_maker_quotes == []
+
+    def test_require_mm_seed_quotes_non_bool_raises(self, tmp_path: Path) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateways:
+          alf:
+            - id: GW01
+        require_mm_seed_quotes: "yes"
+        """
+        with pytest.raises(ValueError, match="require_mm_seed_quotes"):
+            load_engine_config(_write_yaml(tmp_path, yaml))
+
 
 # ---------------------------------------------------------------------------
 # Symbol validation errors

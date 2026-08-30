@@ -195,6 +195,54 @@ the web applications instead, the fastest loop is the exchange in containers
 with the app running locally against it — see
 [The Development Loop](08-dev-workflow.md).
 
+### Where your data directory actually is
+
+Every process — `pm-engine`, `pm-setup`, `pm-config-deploy`, the test suite,
+all of them — resolves one shared `DATA_DIR` (`edumatcher.config.DATA_DIR`)
+and reads/writes everything under it: `ref_data/engine_config.yaml`,
+the compiled `ref_data/engine_config.json`, `gtc_orders.json`, the audit and
+stats databases, and so on. Which directory that is depends on how
+EduMatcher is running, and mixing the two up is a common source of
+"why doesn't my change do anything" / "why does pytest suddenly fail"
+confusion:
+
+| You are | `DATA_DIR` resolves to |
+|---|---|
+| Running from a source checkout (`poetry run ...`, or any test you run with `pytest`) | `<repo>/src/data/` — this is the **default in a dev environment** |
+| Running an installed build (`pipx install edumatcher`, no source checkout) | `~/.local/share/edumatcher` |
+| Either of the above, with `EDUMATCHER_DATA_DIR` set | Whatever that variable points at — always wins |
+
+The detection is automatic and based on where `edumatcher/config.py` itself
+lives on disk (inside a `src/` directory means "source checkout"), not on
+how you invoke a command. So in this repository's normal poetry workflow,
+`src/data/ref_data/engine_config.json` is **the** compiled artifact every
+local process and every test that loads real config reads — there is no
+separate "test data dir" or "dev data dir" to keep in sync.
+
+**Customizing the location:** export `EDUMATCHER_DATA_DIR=/some/path` before
+running any EduMatcher process; every process that reads `DATA_DIR` will
+follow it consistently as long as the variable stays set for all of them
+(e.g. in your shell profile, or in a `.env` a launcher script sources).
+This is the same variable `pm-setup --data-dir` and the containerized
+`edumatcher.sh` deployments use, so a single override applies everywhere.
+See the `Runtime configuration` docstring at the top of
+`src/edumatcher/config.py` for the full priority order, including the
+host/container-split fallback to `./data` in the current directory.
+
+**Why this matters for `pm-config-deploy` / `pm-setup`:** these compile a
+source YAML into `<DATA_DIR>/ref_data/engine_config.json`, and every process
+refuses to start against a stale or hand-edited copy of that file (it
+verifies a content digest recorded at compile time). If you change something
+about the compiled config's shape — add a field to `EngineConfig`, for
+instance — an artifact compiled by older code will fail that check under the
+new code with `ArtifactError: compiled config has been modified since it was
+compiled`. That is not corruption; it means `src/data/ref_data/engine_config.json`
+in your checkout needs recompiling: run `poetry run pm-config-deploy --example
+<name>` (or `pm-setup --force`) again so it's rebuilt under the current code.
+This is *exactly* the situation a full local `pytest` run will hit right
+after pulling a change that touches the compiled config's shape — the
+failures are pointing at `src/data/`, not at the test files.
+
 ### Minimal reference data
 
 EduMatcher uses `engine_config.yaml` for reference data. A one-symbol minimal
@@ -615,6 +663,16 @@ before pushing a real release.
 
 
 ##  Common pitfalls for new developers
+
+### Forgetting which data directory is live
+
+In a source checkout, `src/data/` — not `~/.local/share/edumatcher/` — is the
+data directory every local process and every test reads and writes. A
+"compiled config has been modified since it was compiled" error from
+`pytest`, or a `pm-config-deploy` you ran that doesn't seem to take effect,
+is almost always this. See
+[Where your data directory actually is](#where-your-data-directory-actually-is)
+above.
 
 ### Starting clients before the engine
 

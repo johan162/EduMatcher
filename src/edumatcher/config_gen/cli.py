@@ -1714,6 +1714,7 @@ def main() -> None:
             random_seed=args.seed,
             seed_mm_mid_range=seed_mm_mid_range,
             seed_last_prices_from_mm=bool(args.seed_last_prices_from_mm),
+            require_mm_seed_quotes=not args.no_mm_seed_quotes,
             emit_schedule=_resolve_emit_schedule(args),
             pre_open=str(args.pre_open),
             opening_auction=str(args.opening_auction),
@@ -1768,9 +1769,12 @@ def main() -> None:
 
     _print_diagnostics(diagnostics)
 
+    mm_quotes_pending_fill = (
+        has_mm_gateway and seed_mm_mid_range is None and not args.no_mm_seed_quotes
+    )
     validation_line = _validate_generated_when_possible(
         content=rendered,
-        skip_validation=has_mm_gateway and seed_mm_mid_range is None,
+        skip_validation=mm_quotes_pending_fill,
     )
     if validation_line:
         print(validation_line, file=sys.stderr)
@@ -1787,7 +1791,7 @@ def main() -> None:
     _write_output(output_path=output_path, content=rendered, force=bool(args.force))
     print(f"[INFO] Wrote generated config to {output_path}", file=sys.stderr)
 
-    if has_mm_gateway and seed_mm_mid_range is None:
+    if mm_quotes_pending_fill:
         print(
             "[HINT] Fill all market_maker_quotes bid_price/ask_price values before "
             "starting pm-engine.",

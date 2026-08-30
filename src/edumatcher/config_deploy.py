@@ -30,6 +30,7 @@ Usage
   pm-config-deploy --check engine_config.yaml   # validate only, install nothing
   pm-config-deploy --show                   # print the deployed paths
   pm-config-deploy --example three-basic    # deploy a bundled example config
+  pm-config-deploy --example three-basic-nomm   # same, with an empty order book
 """
 
 from __future__ import annotations
@@ -87,20 +88,37 @@ def _examples_root() -> Path:
 def resolve_example(name: str) -> Path:
     """Resolve an ``--example`` shorthand (e.g. ``three-basic``) to its YAML.
 
+    An optional trailing ``-nomm`` selects the no-market-maker-quotes variant
+    of the same example (e.g. ``three-basic-nomm`` ->
+    ``docs/examples/ref_data/three-books-basic-nomm-setup/engine_config.yaml``)
+    — see docs/concepts/03-concepts-mm-quotes.md.
+
     Raises ``ValueError`` with the available names when *name* is not one of
     the bundled examples.
     """
-    count, _, profile = name.partition("-")
+    base = name
+    nomm = False
+    if base.endswith("-nomm"):
+        nomm = True
+        base = base[: -len("-nomm")]
+
+    count, _, profile = base.partition("-")
     unit = _EXAMPLE_COUNTS.get(count)
     if unit is None or profile not in _EXAMPLE_PROFILES:
         available = ", ".join(
-            f"{count}-{profile}"
+            f"{count}-{profile}{suffix}"
             for count in _EXAMPLE_COUNTS
             for profile in _EXAMPLE_PROFILES
+            for suffix in ("", "-nomm")
         )
         raise ValueError(f"Unknown example {name!r}. Available: {available}")
 
-    path = _examples_root() / f"{count}-{unit}-{profile}-setup" / "engine_config.yaml"
+    nomm_suffix = "-nomm" if nomm else ""
+    path = (
+        _examples_root()
+        / f"{count}-{unit}-{profile}{nomm_suffix}-setup"
+        / "engine_config.yaml"
+    )
     if not path.is_file():
         raise ValueError(f"Example {name!r} not found (expected {path})")
     return path
@@ -232,7 +250,9 @@ def main() -> None:
         metavar="NAME",
         help=(
             "Use a bundled example config instead of SOURCE, e.g. 'three-basic' "
-            "for docs/examples/ref_data/three-books-basic-setup/engine_config.yaml"
+            "for docs/examples/ref_data/three-books-basic-setup/engine_config.yaml; "
+            "append '-nomm' for the no-market-maker-quotes variant, e.g. "
+            "'three-basic-nomm'"
         ),
     )
     parser.add_argument(
@@ -288,3 +308,7 @@ def main() -> None:
     print(f"      to {COMPILED_CONFIG_FILE}")
     print(f"   {symbols} symbol(s), {gateways} gateway(s).")
     print("   Restart any running processes to pick it up.")
+
+
+if __name__ == "__main__":
+    main()

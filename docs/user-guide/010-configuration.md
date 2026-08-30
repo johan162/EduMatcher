@@ -210,7 +210,13 @@ pm-config-gen \
 - If you pass `--seed-mm-mid-range`, MM quotes are emitted with concrete prices
   on the configured tick grid.
 - Loader validation is skipped only in the MM-stub case above. It runs
-  automatically for non-MM configs and MM configs with seeded midpoints.
+  automatically for non-MM configs, MM configs with seeded midpoints, and
+  `--no-mm-seed-quotes` configs (see below).
+- `--no-mm-seed-quotes` sets `require_mm_seed_quotes: false`. A `MARKET_MAKER`
+  gateway may then exist with no `market_maker_quotes` entries at all — a
+  genuinely empty book at startup — instead of the null-priced stub. See
+  [MM Quotes](../concepts/03-concepts-mm-quotes.md#opting-out-require_mm_seed_quotes-false)
+  for why this differs from real-market practice and when to use it.
 
 MM quote generation decision matrix:
 
@@ -219,6 +225,7 @@ MM quote generation decision matrix:
 | No `MARKET_MAKER` gateway configured | No MM quote section emitted | Only emitted if `--seed-last-prices` is set (as `null` placeholders) |
 | `MARKET_MAKER` present, no `--seed-mm-mid-range` | Stub quotes with `bid_price: null`, `ask_price: null` | `null` placeholders only if `--seed-last-prices` is set |
 | `MARKET_MAKER` present, with `--seed-mm-mid-range MIN:MAX` | Concrete bid/ask quote prices generated on tick grid | If `--seed-last-prices-from-mm` is set, both are set to the same midpoint used for seeded quotes |
+| `MARKET_MAKER` present, with `--no-mm-seed-quotes`, no `--seed-mm-mid-range` | No MM quote section emitted (`require_mm_seed_quotes: false` recorded instead) | Only emitted if `--seed-last-prices` is set (as `null` placeholders) |
 
 In this guide, "MM stub" means a quote row exists but prices are `null` and must
 be filled manually. "Full MM setup" means concrete bid/ask prices are generated
@@ -278,6 +285,7 @@ Market-maker and symbol defaults:
 | `--seed-last-prices` | Flag | off | Emit `last_buy_price`/`last_sell_price` placeholders |
 | `--seed N` | int | random source default | Deterministic RNG seed for generated training values |
 | `--seed-mm-mid-range MIN:MAX` | string | none | Seed MM quotes from a random midpoint in the inclusive price range |
+| `--no-mm-seed-quotes` | flag | off | Set `require_mm_seed_quotes: false` — allow a `MARKET_MAKER` gateway with no seeded quotes |
 | `--seed-last-prices-from-mm` | Flag | off | Set `last_buy_price`/`last_sell_price` to the same midpoint used for seeded MM quotes |
 
 Output and safety options:
@@ -1017,24 +1025,45 @@ supplied as examples in an easy way.
 
 The available examples are all located in the directory `docs/examples/ref_data/<SPEC>/engine_config.yaml` and are as follows
 
-| Directory | `--example` shorthand | Profile | Number of symbols | Session enabled |
-|---|---|---|---|---|
-| `one-book-basic-setup` | `one-basic` | basic | 1 | no |
-| `one-book-nominal-setup` | `one-nominal` | nominal | 1 | yes |
-| `one-book-complex-setup` | `one-complex` | complex | 1 | yes |
-| `three-books-basic-setup` | `three-basic` | basic | 3 | no |
-| `three-books-nominal-setup` | `three-nominal` | nominal | 3 | yes |
-| `three-books-complex-setup` | `three-complex` | complex | 3 | yes |
-| `ten-books-basic-setup` | `ten-basic` | basic | 10 | no |
-| `ten-books-nominal-setup` | `ten-nominal` | nominal | 10 | yes |
-| `ten-books-complex-setup` | `ten-complex` | complex | 10 | yes |
-| `thirty-books-basic-setup` | `thirty-basic` | basic | 30 | no |
-| `thirty-books-nominal-setup` | `thirty-nominal` | nominal | 30 | yes |
-| `thirty-books-complex-setup` | `thirty-complex` | complex | 30 | yes |
+| Directory | `--example` shorthand | Profile | Number of symbols | Session enabled | MM seed quotes |
+|---|---|---|---|---|---|
+| `one-book-basic-setup` | `one-basic` | basic | 1 | no | yes |
+| `one-book-nominal-setup` | `one-nominal` | nominal | 1 | yes | yes |
+| `one-book-complex-setup` | `one-complex` | complex | 1 | yes | yes |
+| `three-books-basic-setup` | `three-basic` | basic | 3 | no | yes |
+| `three-books-nominal-setup` | `three-nominal` | nominal | 3 | yes | yes |
+| `three-books-complex-setup` | `three-complex` | complex | 3 | yes | yes |
+| `ten-books-basic-setup` | `ten-basic` | basic | 10 | no | yes |
+| `ten-books-nominal-setup` | `ten-nominal` | nominal | 10 | yes | yes |
+| `ten-books-complex-setup` | `ten-complex` | complex | 10 | yes | yes |
+| `thirty-books-basic-setup` | `thirty-basic` | basic | 30 | no | yes |
+| `thirty-books-nominal-setup` | `thirty-nominal` | nominal | 30 | yes | yes |
+| `thirty-books-complex-setup` | `thirty-complex` | complex | 30 | yes | yes |
+| `one-book-basic-nomm-setup` | `one-basic-nomm` | basic | 1 | no | no |
+| `one-book-nominal-nomm-setup` | `one-nominal-nomm` | nominal | 1 | yes | no |
+| `one-book-complex-nomm-setup` | `one-complex-nomm` | complex | 1 | yes | no |
+| `three-books-basic-nomm-setup` | `three-basic-nomm` | basic | 3 | no | no |
+| `three-books-nominal-nomm-setup` | `three-nominal-nomm` | nominal | 3 | yes | no |
+| `three-books-complex-nomm-setup` | `three-complex-nomm` | complex | 3 | yes | no |
+| `ten-books-basic-nomm-setup` | `ten-basic-nomm` | basic | 10 | no | no |
+| `ten-books-nominal-nomm-setup` | `ten-nominal-nomm` | nominal | 10 | yes | no |
+| `ten-books-complex-nomm-setup` | `ten-complex-nomm` | complex | 10 | yes | no |
+| `thirty-books-basic-nomm-setup` | `thirty-basic-nomm` | basic | 30 | no | no |
+| `thirty-books-nominal-nomm-setup` | `thirty-nominal-nomm` | nominal | 30 | yes | no |
+| `thirty-books-complex-nomm-setup` | `thirty-complex-nomm` | complex | 30 | yes | no |
 
 The shorthand is always `<count>-<profile>`, where `<count>` is one of `one`,
 `three`, `ten`, or `thirty` and `<profile>` is one of `basic`, `nominal`, or
-`complex`. The three profiles differ as follows:
+`complex`. Any shorthand also accepts an optional trailing `-nomm`
+(`<count>-<profile>-nomm`, e.g. `three-basic-nomm`) to deploy the
+no-market-maker-quotes variant of that same example — the `MARKET_MAKER`
+gateway is still present so a market maker can connect and quote, but the
+book starts with no seeded `market_maker_quotes` at all, so the very first
+order rests on an empty book instead of matching immediately. See
+[docs/concepts/03-concepts-mm-quotes.md](../concepts/03-concepts-mm-quotes.md)
+for why real markets always need an opening quote (even on IPO day) while
+this teaching exchange lets you opt out of one. The three profiles differ as
+follows:
 
 | Profile | Gateways | Sessions and schedule | Auxiliary blocks | Risk controls |
 |---|---|---|---|---|
@@ -1056,7 +1085,11 @@ pm-config-deploy --example three-basic
 will validate, compile, and install
 `docs/examples/ref_data/three-books-basic-setup/engine_config.yaml` as the
 deployed `ref_data/engine_config.json` artifact, exactly as if you had passed
-that path as `SOURCE`.
+that path as `SOURCE`. The same shorthand works with `pm-setup --config`.
+Appending `-nomm`, as in `pm-config-deploy --example three-basic-nomm` or
+`pm-setup --config three-basic-nomm`, deploys
+`docs/examples/ref_data/three-books-basic-nomm-setup/engine_config.yaml`
+instead.
 
 ### What the artifact records about itself
 

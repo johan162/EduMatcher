@@ -261,6 +261,18 @@ class TestExamples:
             ("thirty-basic", "thirty-books-basic-setup"),
             ("thirty-nominal", "thirty-books-nominal-setup"),
             ("thirty-complex", "thirty-books-complex-setup"),
+            ("one-basic-nomm", "one-book-basic-nomm-setup"),
+            ("one-nominal-nomm", "one-book-nominal-nomm-setup"),
+            ("one-complex-nomm", "one-book-complex-nomm-setup"),
+            ("three-basic-nomm", "three-books-basic-nomm-setup"),
+            ("three-nominal-nomm", "three-books-nominal-nomm-setup"),
+            ("three-complex-nomm", "three-books-complex-nomm-setup"),
+            ("ten-basic-nomm", "ten-books-basic-nomm-setup"),
+            ("ten-nominal-nomm", "ten-books-nominal-nomm-setup"),
+            ("ten-complex-nomm", "ten-books-complex-nomm-setup"),
+            ("thirty-basic-nomm", "thirty-books-basic-nomm-setup"),
+            ("thirty-nominal-nomm", "thirty-books-nominal-nomm-setup"),
+            ("thirty-complex-nomm", "thirty-books-complex-nomm-setup"),
         ],
     )
     def test_resolves_every_bundled_example(self, name: str, folder: str) -> None:
@@ -271,6 +283,20 @@ class TestExamples:
     def test_rejects_an_unknown_example(self) -> None:
         with pytest.raises(ValueError, match="Unknown example"):
             resolve_example("five-basic")
+
+    def test_rejects_an_unknown_example_with_nomm_suffix(self) -> None:
+        # The "-nomm" suffix is stripped before the count/profile are
+        # validated, so an invalid base name must still be rejected.
+        with pytest.raises(ValueError, match="Unknown example"):
+            resolve_example("five-basic-nomm")
+
+    def test_nomm_suffix_does_not_change_the_non_nomm_resolution(self) -> None:
+        # Backward compatibility: existing shorthand (no "-nomm") must keep
+        # resolving to the original directory, unaffected by the new suffix
+        # handling.
+        path = resolve_example("three-basic")
+        assert path.parts[-2:] == ("three-books-basic-setup", "engine_config.yaml")
+        assert path.is_file()
 
     def test_every_resolved_example_compiles(self) -> None:
         # These are the files shown to newcomers; one that fails to compile
