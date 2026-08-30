@@ -4666,6 +4666,10 @@ these codes cover the per-symbol equivalents.</p>
 <td><code>S064</code></td>
 <td><code>schedule</code> present but not a mapping</td>
 </tr>
+<tr>
+<td><code>S113</code></td>
+<td><code>require_mm_seed_quotes</code> present but not a boolean</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Reopening / Automated Corridor Expansion (<code>circuit_breaker.reopening</code>)</strong></p>
@@ -4974,7 +4978,7 @@ is validated while parsing <code>circuit_breaker_defaults</code>.</p>
 <tr>
 <td><code>M001</code></td>
 <td>ERROR</td>
-<td>MM gateway present but a symbol has no seed quotes</td>
+<td>MM gateway present but a symbol has no seed quotes (skipped when <code>require_mm_seed_quotes: false</code>)</td>
 </tr>
 <tr>
 <td><code>M002</code></td>

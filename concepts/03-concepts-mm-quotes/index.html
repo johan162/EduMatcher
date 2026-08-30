@@ -703,6 +703,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#opting-out-require_mm_seed_quotes-false" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Opting out: require_mm_seed_quotes: false
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#exact-startup-sequence" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4117,28 +4128,49 @@ first moment of the trading day while preserving prior-session time priority.</p
 <p>If at least one <code>MARKET_MAKER</code> gateway is configured, the engine <strong>requires</strong>
 each symbol to define at least one quote seed — the config loader rejects the
 file otherwise.</p>
+<h3 id="opting-out-require_mm_seed_quotes-false">Opting out: <code>require_mm_seed_quotes: false</code><a class="headerlink" href="#opting-out-require_mm_seed_quotes-false" title="Permanent link">&para;</a></h3>
+<p>In a real market, this requirement is not a training-wheel restriction: even
+on a company's IPO day, an exchange lines up a designated market maker with
+an agreed opening quote before the first trade, precisely so the book is
+never empty. EduMatcher's default mirrors that — it is the realistic
+behaviour, not an artificial one.</p>
+<p>EduMatcher is a teaching exchange, though, and one of the things worth
+teaching is what goes wrong <em>without</em> that guarantee: how wide the first
+trade's spread can be, how a thin book reacts to the first aggressive order,
+what a circuit breaker does when there is no reference price to measure
+against. To run that exercise you need a <code>MARKET_MAKER</code> gateway present (so
+a market maker can connect and quote once the session is under way) but
+<strong>no</strong> startup seed — a truly empty book at the opening bell.</p>
+<p>Set the top-level flag:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">require_mm_seed_quotes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</code></pre></div>
+<p>to allow exactly that: a <code>MARKET_MAKER</code> gateway configured with zero
+<code>market_maker_quotes</code> entries for one, some, or all symbols. Everything else
+about seeding is unchanged — a symbol that <em>does</em> define quote seeds still
+has them validated and injected the normal way. <code>pm-config-gen
+--no-mm-seed-quotes</code> generates this shape (see <a href="../../user-guide/010-configuration/">Configuration</a>).</p>
 <h3 id="exact-startup-sequence">Exact startup sequence<a class="headerlink" href="#exact-startup-sequence" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>1.  Engine parses config / allowlists and binds the main PULL/PUB sockets
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>2.  Restore data/book_stats.json  → last_buy_price / last_sell_price per symbol
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>3.  Restore data/gtc_orders.json  → re-inject GTC orders with original timestamps
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>4.  Restore data/gtc_combos.json  → rebuild parent-child combo maps
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>5.  Inject market_maker_quotes    → one quote (bid + ask) per configured entry
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>        • quote legs posted with origin=QUOTE, quote_id=&lt;configured or generated&gt;
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>        • matching is enabled — a GTC resting order could cross a seed quote here
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>        • trades and fill messages are published immediately
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>6.  Inject market_maker_combos    → seeded combo orders at top level
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>7.  Bind drop-copy PUB :5557 if available
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>8.  Publish initial book snapshots for all symbols
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>9.  Begin accepting gateway connections
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>1.  Engine parses config / allowlists and binds the main PULL/PUB sockets
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>2.  Restore data/book_stats.json  → last_buy_price / last_sell_price per symbol
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>3.  Restore data/gtc_orders.json  → re-inject GTC orders with original timestamps
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>4.  Restore data/gtc_combos.json  → rebuild parent-child combo maps
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>5.  Inject market_maker_quotes    → one quote (bid + ask) per configured entry
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>        • quote legs posted with origin=QUOTE, quote_id=&lt;configured or generated&gt;
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>        • matching is enabled — a GTC resting order could cross a seed quote here
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>        • trades and fill messages are published immediately
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>6.  Inject market_maker_combos    → seeded combo orders at top level
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>7.  Bind drop-copy PUB :5557 if available
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>8.  Publish initial book snapshots for all symbols
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>9.  Begin accepting gateway connections
 </code></pre></div>
 <p>For a clean first run, clear persisted files so no stale state competes with
 your seeds:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>rm<span class="w"> </span>-f<span class="w"> </span>data/gtc_orders.json<span class="w"> </span>data/book_stats.json<span class="w"> </span>data/gtc_combos.json
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine<span class="w"> </span>--verbose
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>rm<span class="w"> </span>-f<span class="w"> </span>data/gtc_orders.json<span class="w"> </span>data/book_stats.json<span class="w"> </span>data/gtc_combos.json
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine<span class="w"> </span>--verbose
 </code></pre></div>
 <p>The engine will print one line per injected quote:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>[ENGINE] MM quote SEED-MM01-AAPL-1 AAPL bid=209.00x2000 ask=211.00x2000 gw=MM01
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>[ENGINE] Injected 3 market-maker quote(s) and 0 combo(s).
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[ENGINE] MM quote SEED-MM01-AAPL-1 AAPL bid=209.00x2000 ask=211.00x2000 gw=MM01
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>[ENGINE] Injected 3 market-maker quote(s) and 0 combo(s).
 </code></pre></div>
 <h3 id="gateway_id-is-an-accounting-identity-not-a-connectivity-check"><code>gateway_id</code> is an accounting identity, not a connectivity check<a class="headerlink" href="#gateway_id-is-an-accounting-identity-not-a-connectivity-check" title="Permanent link">&para;</a></h3>
 <p>The <code>gateway_id</code> field in a seed quote serves two purposes:</p>
@@ -4235,20 +4267,20 @@ The seeded quote may be:</p>
 </ul>
 <p>The MM gateway should query book state on connect and submit a fresh quote for
 every symbol where no active quote exists:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>QUOTE|SYM=AAPL|BID=209.80|ASK=210.20|BID_QTY=2000|ASK_QTY=2000|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>QUOTE|SYM=AAPL|BID=209.80|ASK=210.20|BID_QTY=2000|ASK_QTY=2000|TIF=DAY
 </code></pre></div>
 <p>If the seed is still active this replace-and-cancel is safe — the existing
 quote is cancelled and the new one is registered atomically.</p>
 <h2 id="gateway-commands">Gateway Commands<a class="headerlink" href="#gateway-commands" title="Permanent link">&para;</a></h2>
 <p>Submit or replace a quote:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>QUOTE|SYM=AAPL|BID=209.80|ASK=210.20|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=MM-AAPL-1
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>QUOTE|SYM=AAPL|BID=209.80|ASK=210.20|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=MM-AAPL-1
 </code></pre></div>
 <p>Cancel active quote for one symbol:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>QUOTE_CANCEL|SYM=AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>QUOTE_CANCEL|SYM=AAPL
 </code></pre></div>
 <p>Trigger kill-switch for your gateway (optional symbol scope):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>KILL
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>KILL|SYM=AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>KILL
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>KILL|SYM=AAPL
 </code></pre></div>
 <h2 id="message-flow">Message Flow<a class="headerlink" href="#message-flow" title="Permanent link">&para;</a></h2>
 <p>Gateway to engine:</p>

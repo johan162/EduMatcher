@@ -3815,6 +3815,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#where-your-data-directory-actually-is" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where your data directory actually is
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#minimal-reference-data" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4157,6 +4168,17 @@
   
     <nav class="md-nav" aria-label="Common pitfalls for new developers">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#forgetting-which-data-directory-is-live" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Forgetting which data directory is live
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#starting-clients-before-the-engine" class="md-nav__link">
@@ -4775,6 +4797,65 @@ flow mistakes early.</p>
 the web applications instead, the fastest loop is the exchange in containers
 with the app running locally against it — see
 <a href="../08-dev-workflow/">The Development Loop</a>.</p>
+<h3 id="where-your-data-directory-actually-is">Where your data directory actually is<a class="headerlink" href="#where-your-data-directory-actually-is" title="Permanent link">&para;</a></h3>
+<p>Every process — <code>pm-engine</code>, <code>pm-setup</code>, <code>pm-config-deploy</code>, the test suite,
+all of them — resolves one shared <code>DATA_DIR</code> (<code>edumatcher.config.DATA_DIR</code>)
+and reads/writes everything under it: <code>ref_data/engine_config.yaml</code>,
+the compiled <code>ref_data/engine_config.json</code>, <code>gtc_orders.json</code>, the audit and
+stats databases, and so on. Which directory that is depends on how
+EduMatcher is running, and mixing the two up is a common source of
+"why doesn't my change do anything" / "why does pytest suddenly fail"
+confusion:</p>
+<table>
+<thead>
+<tr>
+<th>You are</th>
+<th><code>DATA_DIR</code> resolves to</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Running from a source checkout (<code>poetry run ...</code>, or any test you run with <code>pytest</code>)</td>
+<td><code>&lt;repo&gt;/src/data/</code> — this is the <strong>default in a dev environment</strong></td>
+</tr>
+<tr>
+<td>Running an installed build (<code>pipx install edumatcher</code>, no source checkout)</td>
+<td><code>~/.local/share/edumatcher</code></td>
+</tr>
+<tr>
+<td>Either of the above, with <code>EDUMATCHER_DATA_DIR</code> set</td>
+<td>Whatever that variable points at — always wins</td>
+</tr>
+</tbody>
+</table>
+<p>The detection is automatic and based on where <code>edumatcher/config.py</code> itself
+lives on disk (inside a <code>src/</code> directory means "source checkout"), not on
+how you invoke a command. So in this repository's normal poetry workflow,
+<code>src/data/ref_data/engine_config.json</code> is <strong>the</strong> compiled artifact every
+local process and every test that loads real config reads — there is no
+separate "test data dir" or "dev data dir" to keep in sync.</p>
+<p><strong>Customizing the location:</strong> export <code>EDUMATCHER_DATA_DIR=/some/path</code> before
+running any EduMatcher process; every process that reads <code>DATA_DIR</code> will
+follow it consistently as long as the variable stays set for all of them
+(e.g. in your shell profile, or in a <code>.env</code> a launcher script sources).
+This is the same variable <code>pm-setup --data-dir</code> and the containerized
+<code>edumatcher.sh</code> deployments use, so a single override applies everywhere.
+See the <code>Runtime configuration</code> docstring at the top of
+<code>src/edumatcher/config.py</code> for the full priority order, including the
+host/container-split fallback to <code>./data</code> in the current directory.</p>
+<p><strong>Why this matters for <code>pm-config-deploy</code> / <code>pm-setup</code>:</strong> these compile a
+source YAML into <code>&lt;DATA_DIR&gt;/ref_data/engine_config.json</code>, and every process
+refuses to start against a stale or hand-edited copy of that file (it
+verifies a content digest recorded at compile time). If you change something
+about the compiled config's shape — add a field to <code>EngineConfig</code>, for
+instance — an artifact compiled by older code will fail that check under the
+new code with <code>ArtifactError: compiled config has been modified since it was
+compiled</code>. That is not corruption; it means <code>src/data/ref_data/engine_config.json</code>
+in your checkout needs recompiling: run <code>poetry run pm-config-deploy --example
+&lt;name&gt;</code> (or <code>pm-setup --force</code>) again so it's rebuilt under the current code.
+This is <em>exactly</em> the situation a full local <code>pytest</code> run will hit right
+after pulling a change that touches the compiled config's shape — the
+failures are pointing at <code>src/data/</code>, not at the test files.</p>
 <h3 id="minimal-reference-data">Minimal reference data<a class="headerlink" href="#minimal-reference-data" title="Permanent link">&para;</a></h3>
 <p>EduMatcher uses <code>engine_config.yaml</code> for reference data. A one-symbol minimal
 configuration can look like this:</p>
@@ -5184,6 +5265,14 @@ references. Always sanity-check:</p>
 </ul>
 <p>before pushing a real release.</p>
 <h2 id="common-pitfalls-for-new-developers">Common pitfalls for new developers<a class="headerlink" href="#common-pitfalls-for-new-developers" title="Permanent link">&para;</a></h2>
+<h3 id="forgetting-which-data-directory-is-live">Forgetting which data directory is live<a class="headerlink" href="#forgetting-which-data-directory-is-live" title="Permanent link">&para;</a></h3>
+<p>In a source checkout, <code>src/data/</code> — not <code>~/.local/share/edumatcher/</code> — is the
+data directory every local process and every test reads and writes. A
+"compiled config has been modified since it was compiled" error from
+<code>pytest</code>, or a <code>pm-config-deploy</code> you ran that doesn't seem to take effect,
+is almost always this. See
+<a href="#where-your-data-directory-actually-is">Where your data directory actually is</a>
+above.</p>
 <h3 id="starting-clients-before-the-engine">Starting clients before the engine<a class="headerlink" href="#starting-clients-before-the-engine" title="Permanent link">&para;</a></h3>
 <p>Most processes assume the engine sockets already exist. Start <code>pm-engine</code> first.</p>
 <h3 id="using-a-gateway-id-that-is-not-in-engine_configyaml">Using a gateway ID that is not in <code>engine_config.yaml</code><a class="headerlink" href="#using-a-gateway-id-that-is-not-in-engine_configyaml" title="Permanent link">&para;</a></h3>

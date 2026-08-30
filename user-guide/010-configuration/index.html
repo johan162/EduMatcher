@@ -5105,7 +5105,13 @@ contains — not just the first one the engine would encounter.</p>
 <li>If you pass <code>--seed-mm-mid-range</code>, MM quotes are emitted with concrete prices
   on the configured tick grid.</li>
 <li>Loader validation is skipped only in the MM-stub case above. It runs
-  automatically for non-MM configs and MM configs with seeded midpoints.</li>
+  automatically for non-MM configs, MM configs with seeded midpoints, and
+  <code>--no-mm-seed-quotes</code> configs (see below).</li>
+<li><code>--no-mm-seed-quotes</code> sets <code>require_mm_seed_quotes: false</code>. A <code>MARKET_MAKER</code>
+  gateway may then exist with no <code>market_maker_quotes</code> entries at all — a
+  genuinely empty book at startup — instead of the null-priced stub. See
+  <a href="../../concepts/03-concepts-mm-quotes/#opting-out-require_mm_seed_quotes-false">MM Quotes</a>
+  for why this differs from real-market practice and when to use it.</li>
 </ul>
 <p>MM quote generation decision matrix:</p>
 <table>
@@ -5131,6 +5137,11 @@ contains — not just the first one the engine would encounter.</p>
 <td><code>MARKET_MAKER</code> present, with <code>--seed-mm-mid-range MIN:MAX</code></td>
 <td>Concrete bid/ask quote prices generated on tick grid</td>
 <td>If <code>--seed-last-prices-from-mm</code> is set, both are set to the same midpoint used for seeded quotes</td>
+</tr>
+<tr>
+<td><code>MARKET_MAKER</code> present, with <code>--no-mm-seed-quotes</code>, no <code>--seed-mm-mid-range</code></td>
+<td>No MM quote section emitted (<code>require_mm_seed_quotes: false</code> recorded instead)</td>
+<td>Only emitted if <code>--seed-last-prices</code> is set (as <code>null</code> placeholders)</td>
 </tr>
 </tbody>
 </table>
@@ -5381,6 +5392,12 @@ for each MM quote seed at generation time.</p>
 <td>string</td>
 <td>none</td>
 <td>Seed MM quotes from a random midpoint in the inclusive price range</td>
+</tr>
+<tr>
+<td><code>--no-mm-seed-quotes</code></td>
+<td>flag</td>
+<td>off</td>
+<td>Set <code>require_mm_seed_quotes: false</code> — allow a <code>MARKET_MAKER</code> gateway with no seeded quotes</td>
 </tr>
 <tr>
 <td><code>--seed-last-prices-from-mm</code></td>
@@ -6696,6 +6713,7 @@ supplied as examples in an easy way. </p>
 <th>Profile</th>
 <th>Number of symbols</th>
 <th>Session enabled</th>
+<th>MM seed quotes</th>
 </tr>
 </thead>
 <tbody>
@@ -6705,12 +6723,14 @@ supplied as examples in an easy way. </p>
 <td>basic</td>
 <td>1</td>
 <td>no</td>
+<td>yes</td>
 </tr>
 <tr>
 <td><code>one-book-nominal-setup</code></td>
 <td><code>one-nominal</code></td>
 <td>nominal</td>
 <td>1</td>
+<td>yes</td>
 <td>yes</td>
 </tr>
 <tr>
@@ -6719,6 +6739,7 @@ supplied as examples in an easy way. </p>
 <td>complex</td>
 <td>1</td>
 <td>yes</td>
+<td>yes</td>
 </tr>
 <tr>
 <td><code>three-books-basic-setup</code></td>
@@ -6726,12 +6747,14 @@ supplied as examples in an easy way. </p>
 <td>basic</td>
 <td>3</td>
 <td>no</td>
+<td>yes</td>
 </tr>
 <tr>
 <td><code>three-books-nominal-setup</code></td>
 <td><code>three-nominal</code></td>
 <td>nominal</td>
 <td>3</td>
+<td>yes</td>
 <td>yes</td>
 </tr>
 <tr>
@@ -6740,6 +6763,7 @@ supplied as examples in an easy way. </p>
 <td>complex</td>
 <td>3</td>
 <td>yes</td>
+<td>yes</td>
 </tr>
 <tr>
 <td><code>ten-books-basic-setup</code></td>
@@ -6747,12 +6771,14 @@ supplied as examples in an easy way. </p>
 <td>basic</td>
 <td>10</td>
 <td>no</td>
+<td>yes</td>
 </tr>
 <tr>
 <td><code>ten-books-nominal-setup</code></td>
 <td><code>ten-nominal</code></td>
 <td>nominal</td>
 <td>10</td>
+<td>yes</td>
 <td>yes</td>
 </tr>
 <tr>
@@ -6761,6 +6787,7 @@ supplied as examples in an easy way. </p>
 <td>complex</td>
 <td>10</td>
 <td>yes</td>
+<td>yes</td>
 </tr>
 <tr>
 <td><code>thirty-books-basic-setup</code></td>
@@ -6768,12 +6795,14 @@ supplied as examples in an easy way. </p>
 <td>basic</td>
 <td>30</td>
 <td>no</td>
+<td>yes</td>
 </tr>
 <tr>
 <td><code>thirty-books-nominal-setup</code></td>
 <td><code>thirty-nominal</code></td>
 <td>nominal</td>
 <td>30</td>
+<td>yes</td>
 <td>yes</td>
 </tr>
 <tr>
@@ -6782,12 +6811,118 @@ supplied as examples in an easy way. </p>
 <td>complex</td>
 <td>30</td>
 <td>yes</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>one-book-basic-nomm-setup</code></td>
+<td><code>one-basic-nomm</code></td>
+<td>basic</td>
+<td>1</td>
+<td>no</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>one-book-nominal-nomm-setup</code></td>
+<td><code>one-nominal-nomm</code></td>
+<td>nominal</td>
+<td>1</td>
+<td>yes</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>one-book-complex-nomm-setup</code></td>
+<td><code>one-complex-nomm</code></td>
+<td>complex</td>
+<td>1</td>
+<td>yes</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>three-books-basic-nomm-setup</code></td>
+<td><code>three-basic-nomm</code></td>
+<td>basic</td>
+<td>3</td>
+<td>no</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>three-books-nominal-nomm-setup</code></td>
+<td><code>three-nominal-nomm</code></td>
+<td>nominal</td>
+<td>3</td>
+<td>yes</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>three-books-complex-nomm-setup</code></td>
+<td><code>three-complex-nomm</code></td>
+<td>complex</td>
+<td>3</td>
+<td>yes</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>ten-books-basic-nomm-setup</code></td>
+<td><code>ten-basic-nomm</code></td>
+<td>basic</td>
+<td>10</td>
+<td>no</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>ten-books-nominal-nomm-setup</code></td>
+<td><code>ten-nominal-nomm</code></td>
+<td>nominal</td>
+<td>10</td>
+<td>yes</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>ten-books-complex-nomm-setup</code></td>
+<td><code>ten-complex-nomm</code></td>
+<td>complex</td>
+<td>10</td>
+<td>yes</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>thirty-books-basic-nomm-setup</code></td>
+<td><code>thirty-basic-nomm</code></td>
+<td>basic</td>
+<td>30</td>
+<td>no</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>thirty-books-nominal-nomm-setup</code></td>
+<td><code>thirty-nominal-nomm</code></td>
+<td>nominal</td>
+<td>30</td>
+<td>yes</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>thirty-books-complex-nomm-setup</code></td>
+<td><code>thirty-complex-nomm</code></td>
+<td>complex</td>
+<td>30</td>
+<td>yes</td>
+<td>no</td>
 </tr>
 </tbody>
 </table>
 <p>The shorthand is always <code>&lt;count&gt;-&lt;profile&gt;</code>, where <code>&lt;count&gt;</code> is one of <code>one</code>,
 <code>three</code>, <code>ten</code>, or <code>thirty</code> and <code>&lt;profile&gt;</code> is one of <code>basic</code>, <code>nominal</code>, or
-<code>complex</code>. The three profiles differ as follows:</p>
+<code>complex</code>. Any shorthand also accepts an optional trailing <code>-nomm</code>
+(<code>&lt;count&gt;-&lt;profile&gt;-nomm</code>, e.g. <code>three-basic-nomm</code>) to deploy the
+no-market-maker-quotes variant of that same example — the <code>MARKET_MAKER</code>
+gateway is still present so a market maker can connect and quote, but the
+book starts with no seeded <code>market_maker_quotes</code> at all, so the very first
+order rests on an empty book instead of matching immediately. See
+<a href="../../concepts/03-concepts-mm-quotes/">docs/concepts/03-concepts-mm-quotes.md</a>
+for why real markets always need an opening quote (even on IPO day) while
+this teaching exchange lets you opt out of one. The three profiles differ as
+follows:</p>
 <table>
 <thead>
 <tr>
@@ -6832,7 +6967,11 @@ makers, startup combo seeds, and explicit collar/circuit-breaker policy.</p>
 <p>will validate, compile, and install
 <code>docs/examples/ref_data/three-books-basic-setup/engine_config.yaml</code> as the
 deployed <code>ref_data/engine_config.json</code> artifact, exactly as if you had passed
-that path as <code>SOURCE</code>.</p>
+that path as <code>SOURCE</code>. The same shorthand works with <code>pm-setup --config</code>.
+Appending <code>-nomm</code>, as in <code>pm-config-deploy --example three-basic-nomm</code> or
+<code>pm-setup --config three-basic-nomm</code>, deploys
+<code>docs/examples/ref_data/three-books-basic-nomm-setup/engine_config.yaml</code>
+instead.</p>
 <h3 id="what-the-artifact-records-about-itself">What the artifact records about itself<a class="headerlink" href="#what-the-artifact-records-about-itself" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a><span class="nt">"meta"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 <a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a><span class="w">  </span><span class="nt">"schema_version"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span>
