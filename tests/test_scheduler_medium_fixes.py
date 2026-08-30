@@ -15,6 +15,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from edumatcher.engine.config_loader import DEFAULT_COUNTRY, ScheduleConfig
 from edumatcher.models.message import make_session_state_msg
 from edumatcher.scheduler.main import (
     DEFAULT_SCHEDULE,
@@ -56,13 +57,28 @@ class TestM1ValidateSchedule:
         "edumatcher.scheduler.main._schedule_from_config",
         return_value=[("09:30", "CONTINUOUS")],
     )
+    @patch("edumatcher.config_artifact.load_compiled_config")
     def test_main_refuses_to_start_on_invalid_schedule(
         self,
+        mock_compiled: MagicMock,
         mock_load: MagicMock,
         mock_sleep: MagicMock,
         mock_pusher: MagicMock,
     ) -> None:
         from edumatcher.scheduler.main import main
+
+        # `main` takes the mocked `_schedule_from_config` branch only when
+        # the compiled config actually has a schedule (`engine.schedule is
+        # not None`); a real deployment's schedule may or may not be set
+        # (e.g. the "basic" example profiles ship with sessions disabled and
+        # schedule=None), so this cannot rely on whatever happens to be
+        # deployed to $EDUMATCHER_DATA_DIR while the suite runs. Without this
+        # mock, a schedule=None deployment sends `main` down the
+        # DEFAULT_SCHEDULE path, `_validate_schedule` finds nothing wrong
+        # with it, `sys.exit` is never called, and the test hangs inside the
+        # real `_run_forever` loop instead of failing.
+        mock_compiled.return_value.engine.schedule = ScheduleConfig()
+        mock_compiled.return_value.engine.country = DEFAULT_COUNTRY
 
         with patch("sys.argv", ["pm-scheduler"]):
             with pytest.raises(SystemExit) as exc:
