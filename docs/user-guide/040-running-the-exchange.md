@@ -443,7 +443,7 @@ commands require a gateway with `role: ADMIN`.
 pm-viewer --symbol AAPL
 pm-orders
 pm-board
-pm-ticker --interval 15
+pm-ticker --db-interval 15
 ```
 
 `pm-board` and `pm-ticker` become much more useful when `pm-stats` is already
@@ -1064,7 +1064,7 @@ Goal: run a session with complete audit, stats and clearing records.
     pm-viewer --symbol AAPL
     pm-orders
     pm-board
-    pm-ticker --interval 15
+    pm-ticker --db-interval 15
     ```
 
 5. During the session, check:

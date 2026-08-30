@@ -283,9 +283,9 @@ Use [`pm-index-admin-cli`](152-index-admin-cli.md) to apply corporate actions
 to a running `pm-index` process:
 
 ```bash
-pm-index-admin-cli --id OPS01 split    --index EDU100 --symbol AAPL --ratio-numerator 2 --ratio-denominator 1
-pm-index-admin-cli --id OPS01 dividend --index EDU100 --symbol MSFT --dividend-per-share 2.50
-pm-index-admin-cli --id OPS01 shares   --index EDU100 --symbol TSLA --new-shares 3500000000
+pm-index-admin-cli --id OPS01 split    --index EDU100 --sym AAPL --ratio 2:1
+pm-index-admin-cli --id OPS01 dividend --index EDU100 --sym MSFT --amount 2.50
+pm-index-admin-cli --id OPS01 shares   --index EDU100 --sym TSLA --new-shares 3500000000
 ```
 
 Each subcommand prints a confirmation prompt before sending (skip it with
@@ -343,8 +343,8 @@ Constituents can be added or removed without restarting `pm-index`, also via
 [`pm-index-admin-cli`](152-index-admin-cli.md):
 
 ```bash
-pm-index-admin-cli --id OPS01 add    --index EDU100 --symbol AMZN --shares-outstanding 10500000000 --initial-price 195.00
-pm-index-admin-cli --id OPS01 delist --index EDU100 --symbol TSLA
+pm-index-admin-cli --id OPS01 add    --index EDU100 --sym AMZN --shares 10500000000 --price 195.00
+pm-index-admin-cli --id OPS01 delist --index EDU100 --sym TSLA
 ```
 
 Adding a constituent adjusts the divisor so the index level does not change at

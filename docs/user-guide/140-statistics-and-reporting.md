@@ -1515,7 +1515,7 @@ before trusting it, since `close_level` is updated on every tick and is a
 live "last level so far" until the session closes:
 
 ```bash
-pm-stats-cli index-daily --index-id EDU100 --format json \
+pm-stats-cli --format json index-daily --index-id EDU100 \
   | python3 -c "import json,sys; r=json.load(sys.stdin)[0]; print(r['close_level'], r['close_session_state'])"
 ```
 
@@ -1527,7 +1527,7 @@ after the close, or wait for `close_session_state` to flip to `CLOSED`.
 For scripting, JSON output makes this a one-line check:
 
 ```bash
-pm-stats-cli index-daily --date 2026-06-14 --index-id EDU100 --format json \
+pm-stats-cli --format json index-daily --date 2026-06-14 --index-id EDU100 \
   | python3 -c "
 import json, sys
 row = json.load(sys.stdin)[0]

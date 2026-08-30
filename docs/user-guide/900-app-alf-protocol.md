@@ -1112,16 +1112,16 @@ Operational usage pattern:
 Examples:
 
 ```text
-MM_AAPL_01> QLEGS
+[MM_AAPL_01]> QLEGS
 # show currently active quote legs across all symbols
 
-MM_AAPL_01> QLEGS|SYM=AAPL
+[MM_AAPL_01]> QLEGS|SYM=AAPL
 # show currently active quote legs for AAPL only
 
-MM_AAPL_01> QLEGS|SYM=AAPL|SHOW=ALL
+[MM_AAPL_01]> QLEGS|SYM=AAPL|SHOW=ALL
 # show both active and recently completed/cancelled AAPL quote legs
 
-MM_AAPL_01> QLEGS|SHOW=RECENT
+[MM_AAPL_01]> QLEGS|SHOW=RECENT
 # show recent completed quote legs across all symbols
 ```
 

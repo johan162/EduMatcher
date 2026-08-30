@@ -338,19 +338,22 @@ Offset 27  |  reason           |  u8[25]  |  Rejection reason string (ASCII); ze
 
 **Reject codes:**
 
-| Code | Meaning |
-|------|---------|
-| `0x00` | Accepted |
-| `0x01` | Symbol not configured |
-| `0x02` | Invalid quantity (zero or negative) |
-| `0x03` | Price required but missing |
-| `0x04` | FOK - insufficient liquidity |
-| `0x05` | Market closed / phase rejection |
-| `0x06` | Unknown order type |
-| `0x07` | ICEBERG visible_qty >= quantity |
-| `0x08` | TRAILING_STOP - no prior trade price |
-| `0x0C` | Invalid field / gateway validation failure |
-| `0xFF` | Other (see `reason` field) |
+| Code | Constant | Meaning |
+|------|----------|---------|
+| `0x00` | `RC_ACCEPTED` | Accepted |
+| `0x01` | `RC_GW_NOT_CONFIGURED` | Gateway ID not configured in the engine |
+| `0x02` | `RC_GW_NOT_CONNECTED` | Gateway not connected |
+| `0x03` | `RC_SYMBOL_NOT_CONFIGURED` | Symbol not configured |
+| `0x04` | `RC_MARKET_CLOSED` | Market closed |
+| `0x05` | `RC_ATO_OUTSIDE_OPENING` | ATO order outside the opening auction |
+| `0x06` | `RC_ATC_OUTSIDE_CLOSING` | ATC order outside the closing auction |
+| `0x07` | `RC_HALT_REJECTION` | Symbol halted |
+| `0x08` | `RC_PHASE_REJECTION` | Rejected by the current session phase |
+| `0x09` | `RC_TRAILING_STOP_NO_PRICE` | TRAILING_STOP with no prior trade price |
+| `0x0A` | `RC_INSUFFICIENT_LIQUIDITY` | FOK could not be filled in full |
+| `0x0B` | `RC_PRICE_COLLAR` | Rejected by a price collar |
+| `0x0C` | `RC_INVALID_FIELD` | Invalid field — bad quantity, missing LIMIT price, etc. |
+| `0xFF` | `RC_OTHER` | Other; inspect the `reason` string |
 
 ### `CANCEL_ORDER` (0x12) - Client -> Server
 

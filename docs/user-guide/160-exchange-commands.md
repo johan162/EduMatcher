@@ -666,13 +666,13 @@ pm-index-cli --config engine_config.yaml events --type CORP_ACTION --index EDU10
 **Events as CSV for spreadsheet import:**
 
 ```bash
-pm-index-cli --config engine_config.yaml events --format csv > index_events.csv
+pm-index-cli --config engine_config.yaml --format csv events > index_events.csv
 ```
 
 **Events as JSON for scripting:**
 
 ```bash
-pm-index-cli --config engine_config.yaml events --index EDU100 --format json \
+pm-index-cli --config engine_config.yaml --format json events --index EDU100 \
   | python3 -c "import json,sys; [print(r['ts'], r['type'], r['detail']) for r in json.load(sys.stdin)]"
 ```
 
@@ -705,9 +705,8 @@ TECH2  | Technology pair          | data/indexes/TECH2_history.jsonl        | da
 **Without a config file (direct path):**
 
 ```bash
-pm-index-cli --format table events \
+pm-index-cli --format table --data-dir /var/edumatcher/indexes events \
   --index EDU100 \
-  --data-dir /var/edumatcher/indexes \
   --days 30
 ```
 
@@ -771,12 +770,21 @@ pm-index-admin-cli --id OPS01 COMMAND [options]
 
 | Subcommand | Purpose                                                        |
 |------------|-----------------------------------------------------------------|
-| `split`    | Apply a stock split (`--ratio-numerator`, `--ratio-denominator`) |
-| `dividend` | Apply a cash dividend (`--dividend-per-share`)                  |
-| `shares`   | Set shares outstanding — issuance or buy-back (`--new-shares` or `--delta`) |
-| `add`      | Add a constituent (`--shares-outstanding`, `--initial-price`)   |
-| `delist`   | Remove a constituent                                             |
-| `history`  | Show recent structural/corp-action history for an index         |
+| `split`    | Apply a stock split (`--index`, `--sym`, `--ratio N:M`)          |
+| `dividend` | Apply a cash dividend (`--index`, `--sym`, `--amount`)           |
+| `shares`   | Set shares outstanding — issuance or buy-back (`--index`, `--sym`, then `--new-shares` or `--delta`) |
+| `add`      | Add a constituent (`--index`, `--sym`, `--shares`, `--price`)    |
+| `delist`   | Remove a constituent (`--index`, `--sym`)                        |
+| `history`  | Show recent structural/corp-action history for an index          |
+
+Every subcommand takes `--index` and `--sym`. The global options below —
+`--id`, `--format`, `--dry-run`, `--yes`, `--push`, `--sub`, `--timeout` —
+belong to `pm-index-admin-cli` itself and must be given **before** the
+subcommand name:
+
+```bash
+pm-index-admin-cli --id OPS01 --yes split --index EDU100 --sym AAPL --ratio 2:1
+```
 
 ### Global options
 

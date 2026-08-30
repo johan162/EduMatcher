@@ -10,6 +10,9 @@ Three independent checks, all against ground truth rather than a word list:
   config   every YAML block that looks like an engine configuration is run
            through pm-cverifier and must produce no schema errors
 
+A fenced block that deliberately shows wrong usage can opt out of the `cli`
+check with a `# checkdocs: ignore` comment inside it.
+
 Run it from the repository root:
 
     poetry run python scripts/checkdocs.py            # all checks
@@ -113,7 +116,11 @@ def help_text(cmd: str, spec: str, args: list[str]) -> str:
 
 
 FLAG = re.compile(r"(?<![\w-])(--[a-z][a-z0-9-]*)")
-CODE = re.compile(r"(?ms)^```(?:bash|console|sh|shell)?\n(.*?)^```")
+# Match EVERY fenced block and filter by language afterwards. Matching only
+# shell fences mis-pairs the delimiters: the closing fence of a ```yaml block
+# then reads as an opener, and everything after it is scanned inside out.
+CODE = re.compile(r"(?ms)^```([A-Za-z0-9_+-]*)[^\n]*\n(.*?)^```")
+SHELLISH = {"", "bash", "console", "sh", "shell", "shell-session", "zsh"}
 
 
 def subcommands(t: str) -> set[str]:
@@ -127,25 +134,56 @@ def subcommands(t: str) -> set[str]:
     return out
 
 
+def join_continuations(block: str) -> list[tuple[int, str]]:
+    """Yield (line-offset, logical line), joining trailing-backslash continuations."""
+    out: list[tuple[int, str]] = []
+    buf, start = "", 0
+    for i, raw in enumerate(block.split("\n")):
+        line = raw.strip()
+        if not buf:
+            start = i
+        if line.endswith("\\"):
+            buf += line[:-1].rstrip() + " "
+            continue
+        out.append((start, (buf + line).strip()))
+        buf = ""
+    if buf:
+        out.append((start, buf.strip()))
+    return out
+
+
 def check_cli() -> list[str]:
     ep = entry_points()
-    known: dict[str, set[str]] = {}
+    known: dict[str, set[str]] = {}      # every flag the command accepts anywhere
+    top_only: dict[str, set[str]] = {}   # flags accepted ONLY before the subcommand
+    subs: dict[str, set[str]] = {}
     for cmd, spec in ep.items():
         top = help_text(cmd, spec, [])
         if not top:
             continue
-        flags = set(FLAG.findall(top))
-        for sub in sorted(subcommands(top)):
-            flags |= set(FLAG.findall(help_text(cmd, spec, [sub])))
-        known[cmd] = flags
+        top_flags = set(FLAG.findall(top))
+        sub_flags: set[str] = set()
+        sc = subcommands(top)
+        for sub in sorted(sc):
+            sub_flags |= set(FLAG.findall(help_text(cmd, spec, [sub])))
+        known[cmd] = top_flags | sub_flags
+        subs[cmd] = sc
+        # argparse hands everything after the subcommand to the subparser, so a
+        # global-only option placed after it is an "unrecognized arguments" error.
+        top_only[cmd] = (top_flags - sub_flags) - {"--help", "--version"}
 
     problems = []
     for p in doc_files():
         text = Path(p).read_text(encoding="utf-8")
         for cb in CODE.finditer(text):
+            if cb.group(1).lower() not in SHELLISH:
+                continue
+            # A block may deliberately show wrong usage. Opt out with a
+            # `# checkdocs: ignore` comment anywhere inside it.
+            if "checkdocs: ignore" in cb.group(2):
+                continue
             base = text[: cb.start()].count("\n") + 1
-            for i, raw in enumerate(cb.group(1).split("\n")):
-                line = raw.strip()
+            for off, line in join_continuations(cb.group(2)):
                 if line.startswith("$ "):
                     line = line[2:]
                 if not line or line.startswith("#"):
@@ -154,7 +192,7 @@ def check_cli() -> list[str]:
                 if not m:
                     continue
                 cmd, rest = m.group(1), m.group(2)
-                ln = base + i + 1
+                ln = base + off + 1
                 if cmd not in ep:
                     problems.append(f"{p}:{ln}: no such command {cmd!r}")
                     continue
@@ -163,6 +201,15 @@ def check_cli() -> list[str]:
                 for fl in FLAG.findall(rest):
                     if fl not in known[cmd]:
                         problems.append(f"{p}:{ln}: {cmd} has no flag {fl}  ({line})")
+                # a global-only option must come before the subcommand
+                tokens = rest.split()
+                sub_at = next((i for i, t in enumerate(tokens) if t in subs.get(cmd, ())), None)
+                if sub_at is not None:
+                    for i, t in enumerate(tokens):
+                        if i > sub_at and t in top_only.get(cmd, ()):
+                            problems.append(
+                                f"{p}:{ln}: {cmd} {t} is a global option and must come "
+                                f"before the subcommand  ({line})")
     return problems
 
 

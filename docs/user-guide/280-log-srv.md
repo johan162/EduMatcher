@@ -683,7 +683,7 @@ pm-log-cli query --process pm-api-gwy --logger "edumatcher.api_gateway.%"
 pm-log-cli query --since 2026-07-28T09:30:00.000Z --until 2026-07-28T09:35:00.000Z --reverse
 
 # Export as JSON for further processing
-pm-log-cli query --process pm-engine --format json --limit 5000 > engine_log.json
+pm-log-cli --format json query --process pm-engine --limit 5000 > engine_log.json
 ```
 
 
@@ -717,7 +717,7 @@ pm-log-cli tail
 pm-log-cli tail --process pm-md-gwy --level WARNING,ERROR,CRITICAL
 
 # Follow as JSON for piping into another tool
-pm-log-cli tail --format json | jq .
+pm-log-cli --format json tail | jq .
 ```
 
 Stop with Ctrl-C.
@@ -752,7 +752,7 @@ pm-log-cli processes
 pm-log-cli processes --active
 
 # Export as JSON for a dashboard
-pm-log-cli processes --format json
+pm-log-cli --format json processes
 ```
 
 
@@ -795,7 +795,7 @@ pm-log-srv Statistics
 pm-log-cli stats
 
 # Machine-readable for monitoring/automation
-pm-log-cli stats --format json
+pm-log-cli --format json stats
 ```
 
 
@@ -865,7 +865,7 @@ pm-log-cli diagnose --process pm-md-gwy
 pm-log-cli diagnose --since 2026-07-28T13:00:00.000Z
 
 # Scripted health check — non-zero exit means something was flagged
-pm-log-cli diagnose --format json || echo "logging issues detected, see above"
+pm-log-cli --format json diagnose || echo "logging issues detected, see above"
 ```
 
 
@@ -936,7 +936,7 @@ pm-log-cli query --level ERROR,CRITICAL --since 2026-07-28T13:00:00.000Z
 pm-log-cli query --has-exception
 
 # Full traceback text for one specific event, exported for a support ticket
-pm-log-cli query --process pm-md-gwy --has-exception --format json --limit 1
+pm-log-cli --format json query --process pm-md-gwy --has-exception --limit 1
 ```
 
 ### Checking whether every process is still reporting in
@@ -966,12 +966,12 @@ pm-log-cli query --grep "timeout" --logger "edumatcher.api_gateway.%"
 
 ```bash
 # Export a whole day's logging for one process
-pm-log-cli query --process pm-engine \
+pm-log-cli --format json query --process pm-engine \
   --since 2026-07-28T00:00:00.000Z --until 2026-07-28T23:59:59.000Z \
-  --format json --limit 100000 > pm-engine_2026-07-28.json
+  --limit 100000 > pm-engine_2026-07-28.json
 
 # Export the full stats snapshot for a dashboard
-pm-log-cli stats --format json > log_stats.json
+pm-log-cli --format json stats > log_stats.json
 ```
 
 ### Routine maintenance

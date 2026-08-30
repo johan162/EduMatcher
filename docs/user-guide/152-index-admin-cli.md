@@ -125,7 +125,7 @@ method and raises immediately instead of waiting out the full `--timeout`
 for an ack that will never arrive:
 
 ```bash
-$ pm-index-admin-cli --id OPS01 split --index NOPE --sym AAPL --ratio 2:1 --yes
+$ pm-index-admin-cli --id OPS01 --yes split --index NOPE --sym AAPL --ratio 2:1
 REJECTED  Unknown index_id 'NOPE'
 ```
 
@@ -133,7 +133,7 @@ REJECTED  Unknown index_id 'NOPE'
 consistent with every other rejection:
 
 ```bash
-$ pm-index-admin-cli --id OPS01 --format json split --index NOPE --sym AAPL --ratio 2:1 --yes
+$ pm-index-admin-cli --id OPS01 --format json --yes split --index NOPE --sym AAPL --ratio 2:1
 {
   "accepted": false,
   "reason": "Unknown index_id 'NOPE'",
@@ -155,7 +155,7 @@ A genuine unreachable-`pm-index` timeout (no reply of any kind) is
 unaffected and still produces the original timeout message:
 
 ```bash
-$ pm-index-admin-cli --id OPS01 --push tcp://127.0.0.1:59999 split --index TECH10 --sym AAPL --ratio 4:1 --yes
+$ pm-index-admin-cli --id OPS01 --push tcp://127.0.0.1:59999 --yes split --index TECH10 --sym AAPL --ratio 4:1
 Timed out waiting for pm-index: No ack with prefix 'index.corp_action_ack.OPS01' within 3000 ms
 Is pm-index running and reachable at tcp://127.0.0.1:59999?
 ```
@@ -222,7 +222,7 @@ pm-index-admin-cli --id OPS01 dividend --index TECH10 --sym MSFT --amount 0.75
 | `--amount` | Yes | Dividend per share, in price units. Must be `> 0` (checked locally; `pm-index` separately rejects if the resulting price would be non-positive). |
 
 ```bash
-$ pm-index-admin-cli --id OPS01 dividend --index TECH10 --sym MSFT --amount 500 --yes
+$ pm-index-admin-cli --id OPS01 --yes dividend --index TECH10 --sym MSFT --amount 500
 REJECTED  Resulting price for MSFT would be non-positive (-88.50)
 ```
 
@@ -293,7 +293,7 @@ Delisting the last remaining constituent of an index is rejected by
 `pm-index` (it would zero out the index's aggregate market cap):
 
 ```bash
-$ pm-index-admin-cli --id OPS01 delist --index TECH10 --sym AAPL --yes
+$ pm-index-admin-cli --id OPS01 --yes delist --index TECH10 --sym AAPL
 REJECTED  Cannot delist AAPL: index TECH10 would have no remaining constituents
 ```
 
@@ -346,7 +346,7 @@ the raw ack payload (or, for `history`, a JSON array of records) instead,
 for scripting:
 
 ```bash
-$ pm-index-admin-cli --id OPS01 --format json split --index TECH10 --sym AAPL --ratio 4:1 --yes
+$ pm-index-admin-cli --id OPS01 --format json --yes split --index TECH10 --sym AAPL --ratio 4:1
 {
   "accepted": true,
   "divisor": 118.3352,
