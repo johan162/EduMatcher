@@ -279,7 +279,6 @@ For strict endpoint-by-endpoint access rules, see
 | `READ_ONLY` | `403` | A `gateway_id: null` credential called a trading-only endpoint |
 | `ROLE_DENIED` | `403` | Credential's gateway lacks the `ADMIN` role on an `/admin/*` call |
 | `RATE_LIMIT` | `429` | Per-key write rate limit exceeded |
-| `DUPLICATE` | `409` | `client_order_id` already active for the session |
 | `VALIDATION` | `422`/`400` | Malformed request body or query parameters |
 | `STATS_DB` | `503` | `pm-stats`' SQLite file doesn't exist yet |
 | `AUDIT_INDEX_UNAVAILABLE` | `503` | No `pm-audit` index — only affects `GET /admin/orders/{order_id}` |
@@ -360,7 +359,7 @@ Content-Type: application/json
   "tif": "DAY",
   "price": 150.50,
   "smp_action": "NONE",
-  "client_order_id": "ui-42"
+  "client_tag": "ui-42"
 }
 ```
 
@@ -376,13 +375,14 @@ Content-Type: application/json
 | `visible_qty`  | conditional | Required for `ICEBERG`, less than `quantity`                                      |
 | `trail_offset` | conditional | Required for `TRAILING_STOP`                                                      |
 | `smp_action`   | no          | Self-match prevention action                                                      |
+| `client_tag`   | no          | Opaque client correlation tag, echoed on order lifecycle events                    |
 
 Default write calls return immediately with `202 Accepted`. Add `?wait=ack` to
 wait for the matching engine ACK until the configured timeout. The wait filters
 by `order_id` so concurrent requests on the same gateway receive their own ack.
 
-Submitting an order with a `client_order_id` that already exists in the session
-cache returns `409 Conflict`.
+`client_tag` is not an idempotency key. It is optional, opaque, and not checked
+for uniqueness by the gateway or engine.
 
 
 ### Cancel, amend, and replace
@@ -1315,8 +1315,8 @@ indistinguishable from a slow engine.
 !!! note "Why not a `command_id` on everything"
     A second identifier alongside a working one adds ambiguity rather than
     removing it — particularly on `POST /orders`, which already accepts
-    `client_order_id` as its idempotency key. The ack correlation is where the
-    value is; echoing a `command_id` through every downstream event a command
+  `client_tag` for client correlation. The order lifecycle echo is where the
+  value is; echoing a `command_id` through every downstream event a command
     causes (a mass cancel produces one `order.cancelled` per affected order)
     is a much larger change for much less benefit, and the
     [group identifiers](#the-event-envelope) already let a client attribute
@@ -1755,7 +1755,6 @@ curl -v --no-buffer \
 | `{"ok": false}` from `/healthz` | Gateway `enabled: false` in config, or its engine-listener thread crashed | Check `enabled` in the config block and the gateway's own logs — restarting `pm-engine` alone will not fix an already-`false` result, since `/healthz` doesn't actually probe engine liveness |
 | `401 Unauthorized` | Missing/wrong `Authorization` header (`AUTH`), or the engine rejected the gateway's own handshake for that `gateway_id` (`ENGINE_AUTH`, `403`) | Use `Authorization: Bearer <key>` with a key listed in `credentials`; if you get `403 ENGINE_AUTH` instead, check that the `gateway_id` is allowed by the engine's `gateways.alf` list |
 | `403 Forbidden` | Credential has no `gateway_id` (`READ_ONLY`); or lacks the ADMIN role on an `/admin/*` call (`ROLE_DENIED`) | Use a credential with a non-null `gateway_id` for order-entry endpoints, or one whose engine gateway has `role: ADMIN` for admin endpoints |
-| `409 Conflict` (`DUPLICATE`) | `POST /orders` reused a `client_order_id` already active in the session cache | Use a fresh `client_order_id` per order |
 | `429 Too Many Requests` (`RATE_LIMIT`) | Per-key write rate limit (`rate_limit.writes_per_second`/`burst`) exceeded | Slow down write requests for that API key |
 | `404` on all endpoints | Wrong base path or wrong `--instance` flag | Check `pm-api-gwy --instance NAME` matches the config block name |
 | Swagger UI not loading | `swagger_enabled: false` | Set `swagger_enabled: true` in the config block and restart |

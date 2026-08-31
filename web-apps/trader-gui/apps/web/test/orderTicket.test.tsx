@@ -10,7 +10,7 @@ vi.mock("sonner", () => ({
 
 const apiFetchMock = vi.fn(async () => ({
   order_id: "ord-abcdef123456",
-  client_order_id: null,
+  client_tag: null,
   status: "ACKED",
   accepted: true,
   event: null,
@@ -208,6 +208,16 @@ describe("OrderTicket submit side (§12.9)", () => {
     fireEvent.click(screen.getByRole("button", { name: "BUY" }));
     await waitFor(() => expect(apiFetchMock).toHaveBeenCalled());
     expect(lastBody()).not.toHaveProperty("smp_action");
+  });
+
+  it("posts client_tag when the optional correlation field is filled", async () => {
+    renderTicket();
+    fireEvent.change(screen.getByLabelText("Price"), { target: { value: "150.25" } });
+    fireEvent.change(screen.getByLabelText("Client tag"), { target: { value: "ui-42" } });
+    fireEvent.click(screen.getByRole("button", { name: "BUY" }));
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalled());
+    expect(lastBody()).toMatchObject({ client_tag: "ui-42" });
+    expect(lastBody()).not.toHaveProperty("client_order_id");
   });
 
   it("treats a wait=ack timeout (503) as awaiting-confirmation, not a rejection", async () => {

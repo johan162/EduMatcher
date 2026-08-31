@@ -1449,7 +1449,7 @@ const orderSchema = z.object({
   visible_qty: z.coerce.number().int().positive().optional(),
   trail_offset: z.coerce.number().positive().optional(),
   smp_action: z.enum(["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"]).optional(),
-  client_order_id: z.string().max(64).optional(),
+  client_tag: z.string().max(64).optional(),
 }).superRefine((data, ctx) => {
   if (["LIMIT", "FOK", "IOC", "STOP_LIMIT"].includes(data.order_type) && !data.price) {
     ctx.addIssue({ code: "custom", path: ["price"], message: "Price required for this order type" });
@@ -1566,7 +1566,7 @@ The resulting combo is shown as a group in the blotter ([§13.3](#133-oco-and-co
    - `202 Accepted` — the order reached the engine. Insert a local **PENDING** row keyed on the
      returned `order_id` and toast `"Order submitted — pending ACK"`. `202` means *submitted*, not
      *accepted*.
-   - `4xx` (`422` validation, `409` duplicate `client_order_id`, `429` rate limit) — an immediate,
+   - `4xx` (`422` validation, `429` rate limit) — an immediate,
      **synchronous rejection**: no order exists, so create **no PENDING row**; toast the error. There
      is no `order.ack` for a `4xx`.
 4. The authoritative outcome then arrives on `/events` as `order.ack` — see the two-ACK model in
@@ -1729,7 +1729,7 @@ any blotter row (double-click / `Enter`) or from a fill toast's "View Order" act
   durable lifecycle from `stats.db`, all events in chronological order).
 - **Contents:** a vertical timeline of events — `ACK`, each `FILL` (qty @ price, remaining), `AMEND`
   (with `priority_reset` flag), `CANCEL`/`EXPIRE`/`REJECT` (with reason) — plus the order's static
-  header (symbol, side, type, TIF, original qty, client_order_id, and any `oco_group_id` /
+  header (symbol, side, type, TIF, original qty, client_tag, and any `oco_group_id` /
   `combo_parent_id`).
 - **Live tail:** while open, new `/events` for that order append to the timeline in real time so the
   drawer stays current even if the history endpoint lags the live stream.
@@ -3309,7 +3309,7 @@ Post-phase-5 review — two wire-contract mismatches found and fixed:
   `OrderDisplay`, whose id key is `id`, timestamp is `timestamp` (epoch seconds), and client tag is
   `client_tag`; a reply-timeout fallback returns a thinner cache row keyed on `order_id`. The client
   now folds both into the canonical `Order` (§ Appendix A) via `normalizeOrder()` in `useOrdersQuery`,
-  so screens read `order_id`/`updated_at`/`client_order_id` uniformly. Without this the compact
+  so screens read `order_id`/`updated_at`/`client_tag` uniformly. Without this the compact
   blotter's cancel button and row keys were driven by an `undefined` id. Appendix A's `Order` type was
   corrected to match (`smp_action`/`updated_at` are now nullable).
 - **The `session.state` broadcast's `next` object uses `state`, not `to_state`.** (`to_state` is the
@@ -4246,7 +4246,7 @@ Canonical interfaces for the main API response shapes and WebSocket event payloa
 > are published as OpenAPI at `/openapi.json` — generate these TS types with `openapi-typescript`
 > rather than hand-maintaining them. **WebSocket `data`** shapes are the engine's pm-msgen
 > `to_dict()` payloads, forwarded verbatim, and use the **engine field names** (`qty`, `client_tag`,
-> `oco_group_id`, …), which differ from the REST resource names (`quantity`, `client_order_id`). The
+> `oco_group_id`, …), which differ from some REST resource names (`quantity`). The
 > per-`type` WS `data` payloads are catalogued in [the WS payload reference](#appendix-a1-websocket-event-data-payloads-pm-msgen-wire)
 > below; the REST resource types follow here. These live in `src/types/`.
 
@@ -4282,11 +4282,11 @@ export interface StatusResponse {
 // makes the gateway fall back to a thinner cache row keyed on `order_id` with
 // no display prices. The client folds BOTH into this shape via
 // `normalizeOrder()` (id||order_id → order_id, timestamp → updated_at ISO,
-// client_tag||client_order_id → client_order_id), so every screen reads
-// `order_id`/`updated_at`/`client_order_id` regardless of which path served it.
+// client_tag preserved), so every screen reads
+// `order_id`/`updated_at`/`client_tag` regardless of which path served it.
 export interface Order {
   order_id: string;
-  client_order_id?: string | null;
+  client_tag?: string | null;
   symbol: string;
   side: Side;
   order_type: OrderType;

@@ -4,6 +4,7 @@ Usage::
 
     python3 submit_market_order.py --side BUY  --symbol AAPL --qty 100
     python3 submit_market_order.py --side SELL --symbol MSFT --qty 50 --wait-ack
+    python3 submit_market_order.py --side BUY  --symbol AAPL --qty 100 --client-tag demo-1
 
 Environment variables:
 
@@ -25,8 +26,8 @@ from api_gateway_client import ApiGatewayClient
 def _print_result(result: dict[str, Any]) -> None:
     print(f"order_id  : {result.get('order_id', '-')}")
     print(f"status    : {result.get('status', '-')}")
-    if result.get("client_order_id"):
-        print(f"client_id : {result['client_order_id']}")
+    if result.get("client_tag"):
+        print(f"client_tag: {result['client_tag']}")
     if result.get("accepted") is not None:
         print(f"accepted  : {result['accepted']}")
     if result.get("event"):
@@ -51,6 +52,11 @@ def main() -> None:
         help="Block until the matching engine ACKs the order",
     )
     parser.add_argument(
+        "--client-tag",
+        default=None,
+        help="Optional opaque client correlation tag",
+    )
+    parser.add_argument(
         "--url",
         default=os.environ.get("EDUMATCHER_API_URL", "http://127.0.0.1:8080"),
         help="API gateway base URL",
@@ -70,6 +76,8 @@ def main() -> None:
         "order_type": "MARKET",
         "quantity": args.qty,
     }
+    if args.client_tag:
+        payload["client_tag"] = args.client_tag
 
     try:
         result = client.post_json(path, payload)

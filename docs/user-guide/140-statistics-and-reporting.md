@@ -625,7 +625,7 @@ Append-only order lifecycle history captured from private engine topics. This ta
 | `fill_qty`        | INTEGER | Executed quantity for fill events                                                                                    |
 | `trade_id`        | TEXT    | Trade identifier linked to a fill event                                                                              |
 | `reason`          | TEXT    | Rejection, cancel, expire, or status reason when provided                                                            |
-| `client_order_id` | TEXT    | Client-supplied order identifier when present                                                                        |
+| `client_tag`      | TEXT    | Client-supplied order correlation tag when present                                                                   |
 | `combo_parent_id` | TEXT    | Parent combo identifier for combo child events                                                                       |
 | `oco_group_id`    | TEXT    | OCO group identifier for linked order events                                                                         |
 | `priority_reset`  | INTEGER | `1` when an amend reset queue priority, `0` when it did not, null when not applicable                                |

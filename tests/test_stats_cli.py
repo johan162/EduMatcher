@@ -51,7 +51,7 @@ def _seed_db(path: Path) -> None:
         conn.execute(
             "INSERT INTO order_events "
             "(ts, event_type, order_id, gateway_id, symbol, side, order_type, tif, "
-            "price, quantity, remaining_qty, status, client_order_id) "
+            "price, quantity, remaining_qty, status, client_tag) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 "2026-06-14T09:00:00.100+00:00",

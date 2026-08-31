@@ -184,6 +184,7 @@ class Order:
         smp_action: Optional[SmpAction] = None,
         trail_offset: Optional[int] = None,
         oco_group_id: Optional[str] = None,
+        client_tag: Optional[str] = None,
     ) -> "Order":
         displayed = visible_qty if order_type == OrderType.ICEBERG else None
         return cls(
@@ -204,6 +205,7 @@ class Order:
             smp_action=smp_action,
             trail_offset=trail_offset,
             oco_group_id=oco_group_id,
+            client_tag=client_tag,
         )
 
     # ------------------------------------------------------------------

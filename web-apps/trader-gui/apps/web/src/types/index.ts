@@ -45,12 +45,12 @@ export interface StatusResponse {
  * `id`, whose timestamp is `timestamp` (epoch seconds), and whose client tag
  * is `client_tag`; the timeout-fallback path returns a thinner row keyed on
  * `order_id`. `normalizeOrder()` (below) folds both into this one shape, so
- * every screen reads `order_id`/`updated_at`/`client_order_id` regardless of
+ * every screen reads `order_id`/`updated_at`/`client_tag` regardless of
  * which path served the data.
  */
 export interface Order {
   order_id: string;
-  client_order_id?: string | null;
+  client_tag?: string | null;
   symbol: string;
   side: Side;
   order_type: OrderType;
@@ -83,7 +83,7 @@ export interface Order {
  */
 export interface OrderAccepted {
   order_id: string;
-  client_order_id?: string | null;
+  client_tag?: string | null;
   status: "PENDING" | "ACKED";
   /** null when not waited-on or the ack timed out; otherwise the ack verdict. */
   accepted: boolean | null;
@@ -120,7 +120,6 @@ export interface RawOrder {
   gateway_id?: string;
   timestamp?: number | null; // OrderDisplay: epoch seconds
   client_tag?: string | null; // OrderDisplay
-  client_order_id?: string | null; // thin cache fallback
   updated_at?: string | null;
 }
 
@@ -144,7 +143,7 @@ export function normalizeOrder(raw: RawOrder): Order {
       : (raw.status ?? "PENDING");
   return {
     order_id: raw.id ?? raw.order_id ?? "",
-    client_order_id: raw.client_order_id ?? raw.client_tag ?? null,
+    client_tag: raw.client_tag ?? null,
     symbol: raw.symbol ?? "",
     side: raw.side ?? "BUY",
     order_type: raw.order_type ?? "LIMIT",
@@ -189,7 +188,7 @@ export interface OrderHistoryEvent {
   fill_qty: number | null;
   trade_id: string | null;
   reason: string | null;
-  client_order_id: string | null;
+  client_tag: string | null;
   combo_parent_id: string | null;
   oco_group_id: string | null;
   priority_reset: number | null;
@@ -244,7 +243,7 @@ export interface Fill {
   tif?: Tif;
   qty?: number; // original order qty (engine name)
   price?: number;
-  client_tag?: string; // engine name for client_order_id
+  client_tag?: string;
   oco_group_id?: string;
   combo_parent_id?: string;
   quote_id?: string;

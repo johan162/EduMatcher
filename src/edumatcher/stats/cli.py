@@ -98,7 +98,7 @@ _ORDER_EVENTS_COLUMNS = [
     "fill_qty",
     "trade_id",
     "reason",
-    "client_order_id",
+    "client_tag",
     "combo_parent_id",
     "oco_group_id",
     "priority_reset",

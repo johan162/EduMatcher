@@ -53,6 +53,7 @@ def build_order(request: OrderRequest, gateway_id: str) -> Order:
             if request.trail_offset is not None
             else None
         ),
+        client_tag=request.client_tag,
     )
 
 
@@ -98,7 +99,7 @@ def _oco_leg_to_payload(leg: OcoLegRequest, symbol: str) -> dict[str, Any]:
 
 def build_oco_payload(request: OcoRequest, gateway_id: str) -> dict[str, Any]:
     """Build the existing order.oco dict payload."""
-    return {
+    payload = {
         "oco_id": request.oco_id,
         "gateway_id": gateway_id,
         "symbol": request.symbol,
@@ -107,6 +108,9 @@ def build_oco_payload(request: OcoRequest, gateway_id: str) -> dict[str, Any]:
         "leg1": _oco_leg_to_payload(request.leg1, request.symbol),
         "leg2": _oco_leg_to_payload(request.leg2, request.symbol),
     }
+    if request.client_tag is not None:
+        payload["client_tag"] = request.client_tag
+    return payload
 
 
 def build_combo_payload(request: ComboRequest, gateway_id: str) -> dict[str, Any]:
@@ -141,4 +145,7 @@ def build_combo_payload(request: ComboRequest, gateway_id: str) -> dict[str, Any
         tif=TIF(request.tif),
         legs=legs,
     )
-    return combo.to_submission_dict()
+    payload = combo.to_submission_dict()
+    if request.client_tag is not None:
+        payload["client_tag"] = request.client_tag
+    return payload

@@ -26,7 +26,7 @@ function historyFill(patch: Partial<OrderHistoryEvent> = {}): OrderHistoryEvent 
     fill_qty: 40,
     trade_id: "t-100",
     reason: null,
-    client_order_id: null,
+    client_tag: null,
     combo_parent_id: null,
     oco_group_id: null,
     priority_reset: null,

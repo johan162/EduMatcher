@@ -878,7 +878,7 @@ class TestOnOrderEvent:
                 "fill_qty": 200,
                 "trade_id": "T002",
                 "reason": None,
-                "client_order_id": "CL001",
+                "client_tag": "CL001",
                 "combo_parent_id": None,
                 "oco_group_id": None,
                 "priority_reset": True,

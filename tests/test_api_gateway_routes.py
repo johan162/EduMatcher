@@ -4,7 +4,6 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from fastapi import HTTPException
 
 from edumatcher.api_gateway.caches import SessionCaches
 from edumatcher.api_gateway.config import ApiCredential, ApiGatewayConfig
@@ -66,7 +65,7 @@ class FakeEngine:
         return self.cache
 
     def send_new_order(self, order: Any) -> None:
-        self.calls.append(("send_new_order", order.id))
+        self.calls.append(("send_new_order", order))
 
     def send_cancel(self, order_id: str, gateway_id: str) -> None:
         self.calls.append(("send_cancel", (order_id, gateway_id)))
@@ -255,6 +254,29 @@ async def test_order_routes_send_engine_messages() -> None:
 
 
 @pytest.mark.anyio
+async def test_d1_client_tag_round_trips_through_rest_order_cache() -> None:
+    engine = FakeEngine()
+    request = fake_request(engine)
+    session = trading_session()
+    order_body = OrderRequest(
+        symbol="AAPL",
+        side=Side.BUY,
+        order_type=OrderType.LIMIT,
+        quantity=10,
+        price=150.0,
+        client_tag="T1-LM001-001",
+    )
+
+    submitted = await orders.submit_order(order_body, request, session)
+    sent_order = next(call[1] for call in engine.calls if call[0] == "send_new_order")
+    stored = await orders.get_order(sent_order.id, request, session)
+
+    assert sent_order.client_tag == "T1-LM001-001"
+    assert submitted.client_tag == "T1-LM001-001"
+    assert stored["client_tag"] == "T1-LM001-001"
+
+
+@pytest.mark.anyio
 async def test_replace_order_and_error_paths() -> None:
     request = fake_request(FakeEngine())
     session = trading_session()
@@ -333,36 +355,19 @@ async def test_reference_routes() -> None:
 
 
 @pytest.mark.anyio
-async def test_duplicate_client_order_id_returns_409() -> None:
-    engine = FakeEngine()
-    engine.cache.orders["existing"] = {
-        "order_id": "existing",
-        "client_order_id": "dup-1",
-        "status": "NEW",
-    }
-    request = fake_request(engine)
-    session = trading_session()
-    body = OrderRequest(
-        symbol="AAPL",
-        side=Side.BUY,
-        order_type=OrderType.LIMIT,
-        quantity=10,
-        price=150.0,
-        client_order_id="dup-1",
-    )
-    with pytest.raises(HTTPException) as exc_info:
-        await orders.submit_order(body, request, session)
-    assert exc_info.value.status_code == 409
-
-
-@pytest.mark.anyio
 async def test_list_orders_timeout_falls_back_to_cache() -> None:
     engine = TimeoutEngine()
     engine.cache.orders["ORD1"] = {"order_id": "ORD1", "status": "NEW"}
     request = fake_request(engine)
     session = trading_session()
     result = await orders.list_orders(request, session)
-    assert result["orders"] == [{"order_id": "ORD1", "status": "NEW"}]
+    assert result["orders"] == [
+        {
+            "order_id": "ORD1",
+            "status": "NEW",
+            "client_tag": None,
+        }
+    ]
 
 
 @pytest.mark.anyio

@@ -1370,19 +1370,12 @@ EduMatcher's field is an opaque, unenforced, non-chaining correlation tag
 and the first integrator to assume FIX semantics files a bug that is really a
 naming failure. `client_tag` promises exactly what it delivers.
 
-**Migration — additive, reversible, two releases:**
-
-1. `OrderRequest` accepts **both** `client_tag` and `client_order_id`;
-   `client_order_id` is marked deprecated in the OpenAPI schema. Supplying
-   both with *different* values is a `400` / `INVALID_VALUE` — never a silent
-   precedence rule, which would just replace one ambiguity with another.
-2. Responses and WS events emit **both** keys with the same value for one
-   release.
-3. The GUI switches to `client_tag`; the `useOrderStore.ts` mapping line
-   disappears rather than being edited.
-4. Next release: drop `client_order_id` from responses. The *input* alias
-   survives one release longer than the output alias — inbound compatibility
-   is cheap to keep, outbound duplication is not.
+**Pre-release decision: no compatibility alias.** EduMatcher is not released,
+so do not carry `client_order_id` forward as an alias. `OrderRequest` accepts
+`client_tag` only, responses expose `client_tag` only, and the GUI switches to
+`client_tag`. Unknown `client_order_id` fields are rejected by the REST schema's
+existing `extra="forbid"` policy. This is cleaner than shipping an alias whose
+semantics we already know are misleading.
 
 Also add the field to the `GET /orders` and `GET /orders/{id}` response models
 so a reconnecting client can rebuild its mapping without having replayed the
@@ -1619,7 +1612,7 @@ uniqueness when building the label map.
 |---|---|
 | `test_alf_gwy_protocol.py` | `TAG=`/`RTAG=` parsed; over-length and illegal-character tags rejected with `INVALID_VALUE`; absent tag → `None`; `TAG=` on a `CANCEL` rejected with `UNSUPPORTED_FIELD` |
 | `test_alf_gwy_gateway_unit.py` | `TAG` echoed on `ACK`/`FILL`/`CANCELLED`/`EXPIRED`/`AMENDED` and on gateway-local `ERR`; `RTAG` echoed on `CANCELLED`/`AMENDED`/`ACK` |
-| `test_api_gateway_core.py` | `client_tag` in `POST /orders` reaches `Order.client_tag` (**D1** regression test); deprecated `client_order_id` alias still works; supplying both with different values is a `400` |
+| `test_api_gateway_core.py` | `client_tag` in `POST /orders` reaches `Order.client_tag` (**D1** regression test); `client_order_id` is not part of the REST contract |
 | `test_api_gateway_ws_sequencing.py` | `client_tag` present on every private WS event; `request_tag` on cancel/amend events |
 | `test_engine_handlers.py` | **every** rejection ack carries `client_tag` (**D2** regression test) — parameterised over all reject paths |
 | new `test_request_tag.py` | `request_tag` round-trips on cancel and amend, including the not-found and not-owner rejections; engine-initiated cancels (halt, kill switch, OCO sibling, expiry) carry `request_tag=None` |
@@ -1937,7 +1930,7 @@ The gateway also forwards `reject_code` from `order.ack` into the `ACK` line
 Rejections surface in two places and **both** must carry the code:
 
 1. **Synchronous 4xx** for request-shape failures — error body becomes
-   `{"reject_code": "...", "reason": "...", "client_order_id": "..."}`.
+  `{"reject_code": "...", "reason": "...", "client_tag": "..."}`.
    Introduce a single exception type and one FastAPI exception handler rather
    than constructing the body at each raise site.
 2. **Asynchronous WS `order.ack`** with `accepted: false` for engine-side
@@ -2220,7 +2213,7 @@ sites, and doing them separately means editing each twice.
 
 | Step | Work | Rationale |
 |---|---|---|
-| 1 | **D1** — REST honours the tag; add `client_tag` as the canonical name with `client_order_id` as a deprecated alias | Fixes a live bug. The rename window is open only until someone starts using the field. |
+| 1 | **D1** — REST honours the tag; add `client_tag` as the only REST name | Fixes a live bug. The rename window is open because the system has not been released. |
 | 2 | `reject_code` inline on `order_ack`; `models/reject.py` re-export; regenerate | Spec-first; unblocks 3–6. **No generator change** (A.2.4). |
 | 3 | Engine `_reject()` helper with no-default keyword args: **D2 + G4 together** | One pass over the reject sites, fixing dropped tags and adding codes at once. The no-default signature is what prevents recurrence. |
 | 4 | `request_tag` on `order_amend` / `order_cancel` / `order_ack` / `order_amended` / `order_cancelled`; engine threading | Spec + engine. Do before the gateways so both consume a finished contract. |
@@ -2243,7 +2236,7 @@ required for the fan-out matrix (LM-100 to LM-106) and the restart scenario
 |---|---|---|
 | `client_tag` on reject acks | No | Field already declared; was always `null` |
 | REST honours the tag | No | Was accepted and ignored; now it works |
-| REST `client_order_id` → `client_tag` | **Staged** | Input alias and dual-key output for one release; only the *output* key is eventually removed. GUI updated in the same cycle. |
+| REST `client_order_id` → `client_tag` | **Yes, deliberately** | No compatibility alias: the system is not released, and `client_order_id` advertised semantics EduMatcher does not implement. GUI updated in the same cycle. |
 | ALF `TAG=` / `RTAG=` | No | New optional inbound fields; new outbound fields ignored by old parsers |
 | `request_tag` | No | New optional field on commands and events |
 | `TAG=` on `CANCEL` now rejected | **Yes, deliberately** | Previously ignored along with all unknown keys. Rejecting teaches the `TAG`/`RTAG` distinction at the boundary. No known client sends it. |
@@ -2277,9 +2270,8 @@ unwound later at higher cost.
 ## A.5 Combined Acceptance Criteria
 
 - [ ] **D1** — a REST order with `client_tag` produces an `Order` whose
-      `client_tag` matches, and the value is returned on `GET /orders/{id}`;
-      the deprecated `client_order_id` alias still works; supplying both with
-      different values is rejected.
+  `client_tag` matches, and the value is returned on `GET /orders/{id}`;
+  `client_order_id` is rejected as an unknown REST field.
 - [ ] **D2** — every engine rejection ack carries `client_tag` when the
       submission supplied one, proven by a parameterised sweep over all
       rejection paths, not by sampled examples; `_reject()`'s keyword-only
@@ -2529,9 +2521,9 @@ Consequences, all favourable:
   "pass `reject_code` through the event projection" item is already satisfied
   — downgrade it to *verify with a test* rather than *implement*.
 
-**This also explains the GUI's mapping line and independently supports the
-A.1.4 rename.** The WS `data` uses engine field names (`client_tag`) while the
-REST HTTP schema declares `client_order_id`; `useOrderStore.ts` exists to
+**This also explains the GUI's old mapping line and independently supports the
+A.1.4 rename.** The WS `data` used engine field names (`client_tag`) while the
+REST HTTP schema declared `client_order_id`; `useOrderStore.ts` existed to
 bridge the two:
 
 ```ts
@@ -2675,17 +2667,16 @@ Work:
 
 1. `build_order` passes the tag to `Order.create`. Same for
    `build_oco_payload`, `build_combo_payload`.
-2. `OrderRequest` gains `client_tag`; `client_order_id` becomes a deprecated
-   alias. Both present with different values → `400` / `INVALID_VALUE`.
-3. Responses and WS events emit both keys for one release.
+2. `OrderRequest` gains `client_tag`; `client_order_id` is not accepted.
+3. Responses and WS events emit `client_tag` only.
 4. Add the field to `GET /orders` and `GET /orders/{id}` response models.
 
 **Done when:** a `POST /orders` carrying `client_tag` round-trips it through
-`GET /orders/{id}` and every private WS event; the deprecated alias still
-works; the conflict case returns `400`. Regression test named for D1.
+`GET /orders/{id}` and every private WS event. Regression test named for D1.
 
-**Risk:** low. The only trap is a Pydantic alias that silently prefers one
-field — assert the conflict case explicitly rather than trusting the default.
+**Risk:** low. The only trap is accidentally reintroducing an alias; assert
+that `client_order_id` is rejected by the REST schema's `extra="forbid"`
+policy.
 
 ---
 
@@ -2950,15 +2941,14 @@ on an unmerged predecessor.
 | # | Commit | Fixes |
 |---|---|---|
 | 1 | `feat(api): honour client_tag on order submission` | **D1** |
-| 2 | `feat(api): accept client_tag, deprecate client_order_id` | D1 rename |
-| 3 | `feat(spec): add reject_code to order_ack` | G4 spec |
-| 4 | `refactor(engine): require client_tag on every ack builder` | **D2** structural |
-| 5 | `feat(engine): route all rejections through _reject with reject_code` | **D2** + G4 |
-| 6 | `fix(engine): emit client_tag from _cancel_order_by_id` | **L8** |
-| 7 | `feat(spec): add request_tag to amend/cancel commands and events` | A.1.7 spec |
-| 8 | `feat(engine): thread request_tag through cancel and amend` | A.1.7 engine |
-| 9 | `feat(alf): accept and echo TAG, RTAG and REJECT_CODE` | G1/G4 ALF |
-| 10 | `feat(api): emit reject_code and accept request_tag` | G1/G4 REST |
+| 2 | `feat(spec): add reject_code to order_ack` | G4 spec |
+| 3 | `refactor(engine): require client_tag on every ack builder` | **D2** structural |
+| 4 | `feat(engine): route all rejections through _reject with reject_code` | **D2** + G4 |
+| 5 | `fix(engine): emit client_tag from _cancel_order_by_id` | **L8** |
+| 6 | `feat(spec): add request_tag to amend/cancel commands and events` | A.1.7 spec |
+| 7 | `feat(engine): thread request_tag through cancel and amend` | A.1.7 engine |
+| 8 | `feat(alf): accept and echo TAG, RTAG and REJECT_CODE` | G1/G4 ALF |
+| 9 | `feat(api): emit reject_code and accept request_tag` | G1/G4 REST |
 | 11 | `test: assert ALF and REST agree on reject_code` | **gate** |
 | 12 | `refactor(gui): use client_tag directly` | D1 cleanup |
 | 13 | `feat(engine): durable run sequence for globally unique trade ids` | **D3** |

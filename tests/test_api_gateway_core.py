@@ -43,6 +43,33 @@ def test_build_order_converts_display_price_to_ticks() -> None:
     assert order.gateway_id == "GW01"
 
 
+def test_d1_rest_client_tag_reaches_order() -> None:
+    request = OrderRequest(
+        symbol="AAPL",
+        side=Side.BUY,
+        order_type=OrderType.LIMIT,
+        quantity=10,
+        price=150.25,
+        client_tag="T1-LM001-001",
+    )
+    order = build_order(request, "GW01")
+    assert order.client_tag == "T1-LM001-001"
+
+
+def test_d1_client_order_id_is_not_a_rest_field() -> None:
+    with pytest.raises(ValueError, match="Extra inputs are not permitted"):
+        OrderRequest.model_validate(
+            {
+                "symbol": "AAPL",
+                "side": Side.BUY,
+                "order_type": OrderType.LIMIT,
+                "quantity": 10,
+                "price": 150.25,
+                "client_order_id": "legacy-1",
+            }
+        )
+
+
 def test_quote_payload_uses_wire_values() -> None:
     request = QuoteRequest(
         symbol="aapl",
@@ -86,7 +113,7 @@ CREATE TABLE order_events (
     fill_qty INTEGER,
     trade_id TEXT,
     reason TEXT,
-    client_order_id TEXT,
+    client_tag TEXT,
     combo_parent_id TEXT,
     oco_group_id TEXT,
     priority_reset INTEGER

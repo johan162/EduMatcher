@@ -70,24 +70,11 @@ async def _await_order_event(
         ) from exc
 
 
-def _check_duplicate_client_order_id(
-    request: Request, gateway_id: str, client_order_id: str | None
-) -> None:
-    """Raise 409 if client_order_id already exists in the session cache."""
-    if not client_order_id:
-        return
-    for cached in request.app.state.engine.get_caches(gateway_id).orders.values():
-        if cached.get("client_order_id") == client_order_id:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail={
-                    "error": {
-                        "code": "DUPLICATE",
-                        "message": "Duplicate client_order_id in session",
-                        "field": "client_order_id",
-                    }
-                },
-            )
+def _with_client_tag(order: dict[str, Any]) -> dict[str, Any]:
+    """Return an order response carrying the canonical tag key."""
+    result = dict(order)
+    result.setdefault("client_tag", None)
+    return result
 
 
 @router.post(
@@ -101,11 +88,10 @@ async def submit_order(
 ) -> OrderAccepted:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
-    _check_duplicate_client_order_id(request, gateway_id, body.client_order_id)
     order = build_order(body, gateway_id)
     request.app.state.engine.get_caches(gateway_id).orders[order.id] = {
         "order_id": order.id,
-        "client_order_id": body.client_order_id,
+        "client_tag": body.client_tag,
         "symbol": body.symbol,
         "side": wire_value(body.side),
         "order_type": wire_value(body.order_type),
@@ -118,7 +104,7 @@ async def submit_order(
     )
     return OrderAccepted(
         order_id=order.id,
-        client_order_id=body.client_order_id,
+        client_tag=body.client_tag,
         status="PENDING" if event is None else "ACKED",
         accepted=None if event is None else bool(event.get("accepted")),
         event=event,
@@ -203,18 +189,27 @@ async def list_orders(
     gateway_id = require_trading(session)
     request.app.state.engine.request_orders(gateway_id)
     try:
-        return cast(
+        response = cast(
             dict[str, Any],
             await request.app.state.engine.await_topic(
                 topic_orders(gateway_id),
                 request.app.state.config.timeouts.engine_reply_sec,
             ),
         )
+        response["orders"] = [
+            _with_client_tag(order)
+            for order in response.get("orders", [])
+            if isinstance(order, dict)
+        ]
+        return response
     except TimeoutError:
         return {
-            "orders": list(
-                request.app.state.engine.get_caches(gateway_id).orders.values()
-            )
+            "orders": [
+                _with_client_tag(order)
+                for order in request.app.state.engine.get_caches(
+                    gateway_id
+                ).orders.values()
+            ]
         }
 
 
@@ -228,7 +223,7 @@ async def get_order(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Unknown order"
         )
-    return cast(dict[str, Any], order)
+    return _with_client_tag(cast(dict[str, Any], order))
 
 
 @router.post(

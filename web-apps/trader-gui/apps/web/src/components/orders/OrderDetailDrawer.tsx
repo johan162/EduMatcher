@@ -133,7 +133,7 @@ export function OrderDetailDrawer({ orderId, onClose }: OrderDetailDrawerProps) 
             <div className="mt-1 text-[11px] text-[#9090b0]">
               <span className={order.side === "BUY" ? "text-bid" : "text-ask"}>{order.side}</span>{" "}
               {order.order_type} · {order.tif} · qty {order.quantity}
-              {order.client_order_id ? ` · cid ${order.client_order_id}` : ""}
+              {order.client_tag ? ` · tag ${order.client_tag}` : ""}
               {order.oco_group_id ? ` · OCO ${order.oco_group_id}` : ""}
               {order.combo_parent_id ? ` · combo ${order.combo_parent_id}` : ""}
             </div>

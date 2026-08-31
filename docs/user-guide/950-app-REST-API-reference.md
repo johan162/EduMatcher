@@ -155,7 +155,6 @@ How to get a key:
 | `READ_ONLY` | `403` | Read-only key used on a trading endpoint |
 | `ROLE_DENIED` | `403` | Non-admin key used on an admin endpoint |
 | `VALIDATION` | `400`, `422` | Request body or parameters failed validation |
-| `DUPLICATE` | `409` | `client_order_id` already active |
 | `RATE_LIMIT` | `429` | Per-key write limit exceeded |
 | `ENGINE_TIMEOUT` | `503` | No engine reply in time |
 | `STATS_DB` | `503` | `pm-stats` database not present |
@@ -222,15 +221,16 @@ Endpoints that support pagination use keyset cursoring with these rules:
   only for the same endpoint and compatible filter set.
 - A malformed, stale, or cross-endpoint cursor returns `422 VALIDATION`.
 
-### Idempotency and `client_order_id`
+### Order correlation with `client_tag`
 
-Order submit supports `client_order_id` as an optional client-supplied id.
+Order submit supports `client_tag` as an optional client-supplied correlation
+tag.
 
-- Scope: deduplication is per gateway session cache.
-- Behavior: submitting a currently-active `client_order_id` returns
-  `409 DUPLICATE`.
-- Lifetime: duplicates are detected while matching cached orders remain in
-  cache. After cache eviction, the same id MAY be reused.
+- Scope: the tag is client-scoped and opaque.
+- Behavior: the gateway and engine do not enforce uniqueness.
+- Lifetime: when supplied, the tag is echoed on order lifecycle events and on
+  cached order reads so clients can map exchange-assigned `order_id` values
+  back to their own submissions.
 
 ### Category examples
 
@@ -262,7 +262,7 @@ Full request:
   "price": 187.25,
   "tif": "DAY",
   "smp_action": "CANCEL_AGGRESSOR",
-  "client_order_id": "desk1-aapl-00042"
+  "client_tag": "desk1-aapl-00042"
 }
 ```
 
@@ -280,7 +280,7 @@ Full response:
 ```json
 {
   "order_id": "ORD-20260806-00042",
-  "client_order_id": "desk1-aapl-00042",
+  "client_tag": "desk1-aapl-00042",
   "status": "ACKED",
   "accepted": true,
   "event": {
@@ -633,7 +633,7 @@ Purpose: submit one order for the caller's gateway.
 | `visible_qty` | `Qty` | conditional | Required for iceberg orders |
 | `trail_offset` | `Ticks` | conditional | Required for trailing-stop orders |
 | `smp_action` | `SmpAction` | no | Self-match prevention action |
-| `client_order_id` | `Str` | no | Optional idempotency key in the session cache |
+| `client_tag` | `Str` | no | Optional opaque client correlation tag |
 
 **Reply**
 
@@ -641,7 +641,6 @@ Purpose: submit one order for the caller's gateway.
 |---|---|---|
 | `202 Accepted` | `{"order_id": "...", "status": "PENDING"}` | Default immediate reply |
 | `200 OK` | engine ACK payload | Returned when `?wait=ack` waits for the matching ACK |
-| `409 Conflict` | error envelope | `client_order_id` already active |
 
 **Errors**
 
@@ -651,7 +650,6 @@ Purpose: submit one order for the caller's gateway.
 | `READ_ONLY` | Read-only credential used |
 | `ROLE_DENIED` | ADMIN-only restriction violated |
 | `VALIDATION` | Body does not match the order type |
-| `DUPLICATE` | `client_order_id` already active |
 | `RATE_LIMIT` | Write limit exceeded |
 | `ENGINE_TIMEOUT` | Engine did not ACK in time |
 

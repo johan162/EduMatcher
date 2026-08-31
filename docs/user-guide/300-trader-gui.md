@@ -1426,7 +1426,6 @@ Anything else that comes back from `pm-api-gwy` is shown as
 | `ROLE_DENIED` | 403 | An `/admin/*` endpoint called by a non-ADMIN key |
 | `ROLE_UNSUPPORTED` | — | Client-side: `/status` reported a role this app cannot use (i.e. `READ_ONLY`) |
 | `VALIDATION` | 400 | Malformed request or bad query parameter |
-| `DUPLICATE` | 409 | A repeated `client_order_id` |
 | `RATE_LIMIT` | 429 | Write rate exceeded |
 | `TRANSITION_REJECTED` | 409 | Session transition refused by the engine |
 | `ENGINE_TIMEOUT` | 503 | See class C above |

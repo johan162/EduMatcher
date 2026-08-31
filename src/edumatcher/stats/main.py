@@ -332,7 +332,9 @@ class _IndexDayAccum:
 #:     computed, dimensionless number, not a price on a tick grid.
 #: 5 — added ``instruments`` reference data (tick scale per symbol, plus a
 #:     reserved ``currency`` column).
-SCHEMA_VERSION = 5
+#: 6 — ``order_events.client_order_id`` renamed to ``client_tag`` to match the
+#:     engine/REST correlation field and avoid implying FIX-style idempotency.
+SCHEMA_VERSION = 6
 
 #: Stream name recorded in ``feed_gaps.stream`` for engine trade prints.
 #: Taken from the generated binding rather than retyped, so a topic rename in
@@ -507,7 +509,7 @@ CREATE TABLE IF NOT EXISTS order_events (
     fill_qty        INTEGER,
     trade_id        TEXT,
     reason          TEXT,
-    client_order_id TEXT,
+    client_tag      TEXT,
     combo_parent_id TEXT,
     oco_group_id    TEXT,
     priority_reset  INTEGER
@@ -621,7 +623,7 @@ INSERT_ORDER_EVENT = """
 INSERT INTO order_events
     (ts, event_type, order_id, gateway_id, symbol, side, order_type, tif, price,
      quantity, remaining_qty, status, fill_price, fill_qty, trade_id, reason,
-     client_order_id, combo_parent_id, oco_group_id, priority_reset)
+    client_tag, combo_parent_id, oco_group_id, priority_reset)
 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 """
 
@@ -1623,7 +1625,7 @@ class StatsProcess:
                     payload.get("fill_qty"),
                     payload.get("trade_id"),
                     payload.get("reason"),
-                    payload.get("client_order_id"),
+                    payload.get("client_tag"),
                     payload.get("combo_parent_id"),
                     payload.get("oco_group_id"),
                     (
