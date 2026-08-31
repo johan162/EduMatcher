@@ -885,9 +885,9 @@ class TestOnOrderEvent:
             },
         )
         rows = sp._conn.execute(
-            "SELECT fill_price, fill_qty, priority_reset FROM order_events"
+            "SELECT fill_price, fill_qty, client_tag, priority_reset FROM order_events"
         ).fetchall()
-        assert rows == [(250.0, 200, 1)]
+        assert rows == [(250.0, 200, "CL001", 1)]
 
 
 # ---------------------------------------------------------------------------

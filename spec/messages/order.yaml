@@ -370,6 +370,53 @@ messages:
       - { name: accepted, type: bool }
       - { name: reason, type: string, required: false, default: "",
           doc: "Rejection detail; empty when accepted.", validate: { max_len: 256 } }
+      - name: reject_code
+        type: enum
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: >
+          Machine-readable rejection classification, stable across every
+          order-entry transport (ALF, BALF, REST) and every layer
+          (gateway-local validation and engine-side business rules). Absent
+          when accepted; present on every rejection. The human-readable detail
+          rides in reason; this field never carries data values. New members
+          may be added; existing members are never removed or renamed. A
+          client must treat an unrecognised code as UNKNOWN.
+        values:
+          - MALFORMED_MESSAGE
+          - MISSING_FIELD
+          - INVALID_VALUE
+          - UNSUPPORTED_FIELD
+          - AUTH_REQUIRED
+          - AUTH_FAILED
+          - ROLE_DENIED
+          - NOT_OWNER
+          - RATE_LIMITED
+          - GATEWAY_NOT_CONFIGURED
+          - UNKNOWN_SYMBOL
+          - SYMBOL_NOT_READY
+          - TICK_VIOLATION
+          - LOT_VIOLATION
+          - PRICE_OUT_OF_RANGE
+          - QTY_OUT_OF_RANGE
+          - COLLAR_BREACH
+          - MAX_ORDER_QTY
+          - MAX_ORDER_VALUE
+          - POSITION_LIMIT
+          - KILL_SWITCH_ACTIVE
+          - MARKET_CLOSED
+          - SESSION_NOT_PERMITTED
+          - INSTRUMENT_HALTED
+          - CIRCUIT_BREAKER_ACTIVE
+          - ORDER_NOT_FOUND
+          - ORDER_ALREADY_TERMINAL
+          - AMEND_NOT_PERMITTED
+          - DUPLICATE_ORDER
+          - INSUFFICIENT_LIQUIDITY
+          - SELF_MATCH_PREVENTED
+          - INTERNAL_ERROR
+          - UNKNOWN
       - { name: symbol, type: string, required: false, nullable: true,
           omit_when_none: true, validate: { max_len: 16 } }
       - { name: side, type: string, required: false, nullable: true,

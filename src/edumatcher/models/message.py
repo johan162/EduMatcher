@@ -207,6 +207,8 @@ def make_ack_msg(
     order_id: str,
     accepted: bool,
     reason: str = "",
+    *,
+    reject_code: _gen_order.OrderAckRejectCode | None = None,
     order: dict[str, Any] | None = None,
 ) -> list[bytes]:
     """Generated from ``spec/messages/order.yaml``.
@@ -222,6 +224,7 @@ def make_ack_msg(
         order_id=order_id,
         accepted=accepted,
         reason=reason,
+        reject_code=reject_code,
         symbol=detail.get("symbol"),
         side=detail.get("side"),
         order_type=detail.get("order_type"),

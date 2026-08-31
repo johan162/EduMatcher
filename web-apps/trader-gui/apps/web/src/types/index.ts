@@ -28,6 +28,41 @@ export type GatewayRole = "TRADER" | "MARKET_MAKER" | "ADMIN";
 
 export type ResumptionMode = "AUCTION" | "CONTINUOUS";
 
+export type RejectCode =
+  | "MALFORMED_MESSAGE"
+  | "MISSING_FIELD"
+  | "INVALID_VALUE"
+  | "UNSUPPORTED_FIELD"
+  | "AUTH_REQUIRED"
+  | "AUTH_FAILED"
+  | "ROLE_DENIED"
+  | "NOT_OWNER"
+  | "RATE_LIMITED"
+  | "GATEWAY_NOT_CONFIGURED"
+  | "UNKNOWN_SYMBOL"
+  | "SYMBOL_NOT_READY"
+  | "TICK_VIOLATION"
+  | "LOT_VIOLATION"
+  | "PRICE_OUT_OF_RANGE"
+  | "QTY_OUT_OF_RANGE"
+  | "COLLAR_BREACH"
+  | "MAX_ORDER_QTY"
+  | "MAX_ORDER_VALUE"
+  | "POSITION_LIMIT"
+  | "KILL_SWITCH_ACTIVE"
+  | "MARKET_CLOSED"
+  | "SESSION_NOT_PERMITTED"
+  | "INSTRUMENT_HALTED"
+  | "CIRCUIT_BREAKER_ACTIVE"
+  | "ORDER_NOT_FOUND"
+  | "ORDER_ALREADY_TERMINAL"
+  | "AMEND_NOT_PERMITTED"
+  | "DUPLICATE_ORDER"
+  | "INSUFFICIENT_LIQUIDITY"
+  | "SELF_MATCH_PREVENTED"
+  | "INTERNAL_ERROR"
+  | "UNKNOWN";
+
 // ── REST: status ──────────────────────────────────────────────────────────────
 export interface StatusResponse {
   orders: number;
@@ -869,6 +904,7 @@ export interface OrderAckData {
   order_id: string;
   accepted: boolean;
   reason: string;
+  reject_code?: RejectCode | null;
   symbol?: string;
   side?: Side;
   order_type?: OrderType;

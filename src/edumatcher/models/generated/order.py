@@ -960,6 +960,76 @@ def parse_execution_report_balf(frame: bytes) -> "ExecutionReport":
 TOPIC_ORDER_ACK = "order.ack.{gateway_id}"
 PREFIX_ORDER_ACK = "order.ack."
 _ORDER_ACK_RE = re.compile("order\\.ack\\.(?P<gateway_id>[^.]+)")
+_ORDER_ACK_REJECT_CODE_VALUES = (
+    "MALFORMED_MESSAGE",
+    "MISSING_FIELD",
+    "INVALID_VALUE",
+    "UNSUPPORTED_FIELD",
+    "AUTH_REQUIRED",
+    "AUTH_FAILED",
+    "ROLE_DENIED",
+    "NOT_OWNER",
+    "RATE_LIMITED",
+    "GATEWAY_NOT_CONFIGURED",
+    "UNKNOWN_SYMBOL",
+    "SYMBOL_NOT_READY",
+    "TICK_VIOLATION",
+    "LOT_VIOLATION",
+    "PRICE_OUT_OF_RANGE",
+    "QTY_OUT_OF_RANGE",
+    "COLLAR_BREACH",
+    "MAX_ORDER_QTY",
+    "MAX_ORDER_VALUE",
+    "POSITION_LIMIT",
+    "KILL_SWITCH_ACTIVE",
+    "MARKET_CLOSED",
+    "SESSION_NOT_PERMITTED",
+    "INSTRUMENT_HALTED",
+    "CIRCUIT_BREAKER_ACTIVE",
+    "ORDER_NOT_FOUND",
+    "ORDER_ALREADY_TERMINAL",
+    "AMEND_NOT_PERMITTED",
+    "DUPLICATE_ORDER",
+    "INSUFFICIENT_LIQUIDITY",
+    "SELF_MATCH_PREVENTED",
+    "INTERNAL_ERROR",
+    "UNKNOWN",
+)
+OrderAckRejectCode = Literal[
+    "MALFORMED_MESSAGE",
+    "MISSING_FIELD",
+    "INVALID_VALUE",
+    "UNSUPPORTED_FIELD",
+    "AUTH_REQUIRED",
+    "AUTH_FAILED",
+    "ROLE_DENIED",
+    "NOT_OWNER",
+    "RATE_LIMITED",
+    "GATEWAY_NOT_CONFIGURED",
+    "UNKNOWN_SYMBOL",
+    "SYMBOL_NOT_READY",
+    "TICK_VIOLATION",
+    "LOT_VIOLATION",
+    "PRICE_OUT_OF_RANGE",
+    "QTY_OUT_OF_RANGE",
+    "COLLAR_BREACH",
+    "MAX_ORDER_QTY",
+    "MAX_ORDER_VALUE",
+    "POSITION_LIMIT",
+    "KILL_SWITCH_ACTIVE",
+    "MARKET_CLOSED",
+    "SESSION_NOT_PERMITTED",
+    "INSTRUMENT_HALTED",
+    "CIRCUIT_BREAKER_ACTIVE",
+    "ORDER_NOT_FOUND",
+    "ORDER_ALREADY_TERMINAL",
+    "AMEND_NOT_PERMITTED",
+    "DUPLICATE_ORDER",
+    "INSUFFICIENT_LIQUIDITY",
+    "SELF_MATCH_PREVENTED",
+    "INTERNAL_ERROR",
+    "UNKNOWN",
+]
 
 
 _ORDER_ACK_FIELDS: tuple[dict[str, Any], ...] = (
@@ -993,6 +1063,14 @@ _ORDER_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "required": False,
         "doc": "Rejection detail; empty when accepted.",
         "constraints": {"max_len": 256},
+    },
+    {
+        "name": "reject_code",
+        "type": "enum",
+        "unit": None,
+        "required": False,
+        "doc": "Machine-readable rejection classification, stable across every order-entry transport (ALF, BALF, REST) and every layer (gateway-local validation and engine-side business rules). Absent when accepted; present on every rejection. The human-readable detail rides in reason; this field never carries data values. New members may be added; existing members are never removed or renamed. A client must treat an unrecognised code as UNKNOWN.",
+        "values": _ORDER_ACK_REJECT_CODE_VALUES,
     },
     {
         "name": "symbol",
@@ -1095,6 +1173,7 @@ class OrderAck:
     order_id: str
     accepted: bool
     reason: str = ""
+    reject_code: OrderAckRejectCode | None = None
     symbol: str | None = None
     side: str | None = None
     order_type: str | None = None
@@ -1126,6 +1205,11 @@ class OrderAck:
             raise MessageValidationError(
                 f"reason: length {len(self.reason)} exceeds max_len 256"
             )
+        if self.reject_code is not None:
+            if self.reject_code not in _ORDER_ACK_REJECT_CODE_VALUES:
+                raise MessageValidationError(
+                    f"reject_code: {self.reject_code!r} is not one of {_ORDER_ACK_REJECT_CODE_VALUES!r}"
+                )
         if self.symbol is not None:
             if len(self.symbol) > 16:
                 raise MessageValidationError(
@@ -1180,6 +1264,10 @@ class OrderAck:
             order_id=str(p["order_id"]),
             accepted=bool(p["accepted"]),
             reason=str(p.get("reason", "")),
+            reject_code=cast(
+                OrderAckRejectCode | None,
+                None if p.get("reject_code") is None else str(p["reject_code"]),
+            ),
             symbol=None if p.get("symbol") is None else str(p["symbol"]),
             side=None if p.get("side") is None else str(p["side"]),
             order_type=None if p.get("order_type") is None else str(p["order_type"]),
@@ -1204,6 +1292,8 @@ class OrderAck:
             "accepted": self.accepted,
             "reason": self.reason,
         }
+        if self.reject_code is not None:
+            payload["reject_code"] = self.reject_code
         if self.symbol is not None:
             payload["symbol"] = self.symbol
         if self.side is not None:
@@ -1261,6 +1351,7 @@ def make_order_ack_unchecked(
     order_id: str,
     accepted: bool,
     reason: str = "",
+    reject_code: OrderAckRejectCode | None = None,
     symbol: str | None = None,
     side: str | None = None,
     order_type: str | None = None,
@@ -1288,6 +1379,8 @@ def make_order_ack_unchecked(
         "accepted": bool(accepted),
         "reason": str(reason),
     }
+    if reject_code is not None:
+        payload["reject_code"] = str(reject_code)
     if symbol is not None:
         payload["symbol"] = str(symbol)
     if side is not None:
