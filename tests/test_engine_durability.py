@@ -16,9 +16,11 @@ import pytest
 
 from edumatcher.engine.persistence import (
     _atomic_write_text,
+    load_and_bump_run_seq,
     load_gtc_orders,
     save_gtc_orders,
 )
+from edumatcher.models.trade import reset_trade_ids_for_tests
 from edumatcher.models.message import decode
 from edumatcher.models.order import Order, OrderStatus, OrderType, Side, TIF
 
@@ -186,6 +188,56 @@ def test_atomic_write_leaves_no_temp_file_on_success(tmp_path: Path) -> None:
     _atomic_write_text(target, '{"a": 1}')
     assert target.read_text() == '{"a": 1}'
     assert [p.name for p in tmp_path.iterdir()] == ["x.json"]
+
+
+def test_load_and_bump_run_seq_persists_before_return(tmp_path: Path) -> None:
+    path = tmp_path / "engine_run_seq.json"
+
+    assert load_and_bump_run_seq(path) == 1
+    assert json.loads(path.read_text())["run_seq"] == 1
+    assert load_and_bump_run_seq(path) == 2
+    assert json.loads(path.read_text())["run_seq"] == 2
+
+
+def test_load_and_bump_run_seq_fails_loud_on_corruption(tmp_path: Path) -> None:
+    path = tmp_path / "engine_run_seq.json"
+    path.write_text("not json")
+
+    with pytest.raises(RuntimeError, match="Corrupt run-sequence file"):
+        load_and_bump_run_seq(path)
+
+
+def test_run_sets_run_seq_before_gtc_restore(tmp_path: Path) -> None:
+    """Recovery uncross can mint trades, so run_seq must exist first."""
+    reset_trade_ids_for_tests()
+    engine = _engine_without_sockets(tmp_path)
+    run_seq_file = tmp_path / "engine_run_seq.json"
+
+    def _stop_at_restore() -> None:
+        from edumatcher.models.trade import Trade
+
+        trade = Trade.create(
+            symbol="AAPL",
+            buy_order_id="B1",
+            sell_order_id="S1",
+            buy_gateway_id="GW01",
+            sell_gateway_id="GW02",
+            price=15000,
+            quantity=100,
+            aggressor_side="AUCTION",
+        )
+        assert trade.id == "000001-000000001"
+        engine._running = False
+        raise RuntimeError("stop after restore")
+
+    with (
+        patch("edumatcher.engine.main.RUN_SEQ_FILE", run_seq_file),
+        patch.object(engine, "_restore_gtc", side_effect=_stop_at_restore),
+        pytest.raises(RuntimeError, match="stop after restore"),
+    ):
+        engine.run()
+
+    assert json.loads(run_seq_file.read_text())["run_seq"] == 1
 
 
 # ---------------------------------------------------------------------------

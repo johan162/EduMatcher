@@ -469,7 +469,8 @@ class TestMarketDataMessages:
         topic, payload = _rt(
             make_trade_msg(
                 {
-                    "id": "1",
+                    "id": "000000-000000001",
+                    "run_seq": 0,
                     "symbol": "AAPL",
                     "buy_order_id": "B1",
                     "sell_order_id": "S1",
@@ -488,7 +489,8 @@ class TestMarketDataMessages:
 
     def test_make_trade_msg_matches_feed_schema(self) -> None:
         typed = TradeExecutedPayload(
-            id="1",
+            id="000000-000000001",
+            run_seq=0,
             symbol="AAPL",
             buy_order_id="B1",
             sell_order_id="S1",

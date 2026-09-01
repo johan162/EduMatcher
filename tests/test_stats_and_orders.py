@@ -200,7 +200,8 @@ class TestQueryDailyStats:
 class TestOnTrade:
     def test_trade_recorded_in_db(self, sp: StatsProcess) -> None:
         payload = {
-            "id": "T001",
+            "id": "000001-000000001",
+            "run_seq": 1,
             "symbol": "AAPL",
             "price": 150.0,
             "quantity": 100,

@@ -224,18 +224,17 @@ re-opened safely across process restarts.
 Append-only audit log. Populated by `pm-clearing` from `trade.executed` using
 `INSERT OR IGNORE`, idempotent on the composite key `(id, ts_ns)`.
 
-The engine's trade `id` is a per-process counter that restarts from `1` on
-every engine launch, so it is **not** globally unique — a second engine run
-re-issues ids `1, 2, 3, …`. Keying the archive on `(id, ts_ns)` keeps every
-execution: a genuine duplicate delivery repeats both fields and is de-duplicated,
-while a reused id from a later run carries a different timestamp and is preserved
-as a distinct row. When an incoming id collides with an already-stored row that
-has a *different* timestamp, `pm-clearing` also writes an `ID_COLLISION` alarm
-to `session_events` rather than silently dropping the row.
+The engine's trade `id` is durable across restarts, formatted as
+`run_seq-counter` (for example, `000042-000000001`). The archive still keys on
+`(id, ts_ns)` as defense-in-depth: a genuine duplicate delivery repeats both
+fields and is de-duplicated, while old short ids or malformed upstream input
+cannot silently discard distinct executions. When an incoming id collides with
+an already-stored row that has a *different* timestamp, `pm-clearing` writes an
+`ID_COLLISION` alarm to `session_events`.
 
 | Column | Type | Description |
 |---|---|---|
-| `id` | TEXT | Engine trade id — unique only *within* one engine run (part of the composite primary key `(id, ts_ns)`) |
+| `id` | TEXT | Durable engine trade id, formatted as `run_seq-counter` (part of the composite primary key `(id, ts_ns)`) |
 | `ts_ns` | INTEGER | Engine event timestamp in nanoseconds (part of the composite primary key) |
 | `trade_date` | TEXT | Session-timezone date (`YYYY-MM-DD`) derived from `ts_ns` (default UTC; see `--timezone`) |
 | `symbol` | TEXT | Instrument symbol |
@@ -310,8 +309,8 @@ Append-only log of clearing-significant events. Four event types are written:
 |---|---|---|
 | `EOD` | `system.eod` received on graceful engine shutdown | `{"eod_marks": {symbol: price_ticks, ...}, "symbols_count": N}` |
 | `PHASE` | `session.state` received (session phase transition) | `{"state": ..., "prev_state": ...}` |
-| `GAP` | The engine's trade-id sequence jumps forward, i.e. the lossy PUB feed dropped one or more trades | `{"last_seq": L, "next_seq": N, "missing_trades": M}` |
-| `ID_COLLISION` | An incoming trade id matches a stored row with a *different* timestamp (engine-restart id reuse) | `{"id": ..., "new_ts_ns": ..., "existing_ts_ns": [...]}` |
+| `GAP` | The engine's trade-id suffix jumps forward within a run, i.e. the lossy PUB feed dropped one or more trades | `{"run_seq": R, "last_seq": L, "next_seq": N, "missing_trades": M}` |
+| `ID_COLLISION` | An incoming trade id matches a stored row with a *different* timestamp | `{"id": ..., "new_ts_ns": ..., "existing_ts_ns": [...]}` |
 
 | Column | Type | Description |
 |---|---|---|

@@ -325,8 +325,8 @@ class _IndexDayAccum:
 #:     holding both the old collapsed values and the new ones would filter
 #:     inconsistently, so old files are refused rather than appended to.
 #: 3 — added ``feed_gaps``; ``trade_log``'s primary key widened from
-#:     ``trade_id`` to ``(trade_id, ts)`` so post-restart id reuse is no longer
-#:     silently discarded.
+#:     ``trade_id`` to ``(trade_id, ts)``. Trade ids are now durable, but the
+#:     composite key still protects old short ids and duplicate deliveries.
 #: 4 — prices are stored as INTEGER ticks with a per-row ``tick_decimals``,
 #:     replacing REAL display floats. Index levels stay REAL: a level is a
 #:     computed, dimensionless number, not a price on a tick grid.
@@ -450,15 +450,10 @@ CREATE TABLE IF NOT EXISTS price_snapshots (
 CREATE INDEX IF NOT EXISTS idx_ps_symbol_ts ON price_snapshots(symbol, ts);
 
 CREATE TABLE IF NOT EXISTS trade_log (
-    -- Composite identity (trade_id, ts). The engine's trade id is only unique
-    -- *within a single engine run* — models/trade.py numbers trades with a
-    -- per-process counter that restarts from 1 on every launch — so trade_id
-    -- alone is NOT safe as a key. Keyed on trade_id alone, a run-2 trade "1"
-    -- collides with a run-1 trade "1" and is silently discarded by INSERT OR
-    -- IGNORE, understating volume for the rest of the day. Adding ts keeps a
-    -- post-restart id reuse as a distinct row while still deduplicating a
-    -- genuine duplicate delivery, which repeats both fields. This is the same
-    -- defect clearing/store.py records as CL-C1.
+    -- Composite identity (trade_id, ts). The engine's trade id is now durable
+    -- across restarts; the timestamp remains in the key to preserve old short
+    -- ids safely and deduplicate genuine duplicate deliveries, which repeat
+    -- both fields.
     ts              TEXT NOT NULL,
     trade_id        TEXT NOT NULL,
     symbol          TEXT NOT NULL,
@@ -881,10 +876,11 @@ class StatsProcess:
         # index_id → _IndexDayAccum for current calendar date
         self._index_accum: dict[str, _IndexDayAccum] = {}
 
-        # Last engine trade id seen, for gap detection. None until the first
-        # trade; _trade_seq_disabled latches when ids are not the engine's
-        # numeric counter so the warning is logged once rather than per trade.
-        self._last_trade_id: int | None = None
+        # Last engine trade id seen, split as (run_seq, suffix), for gap
+        # detection. None until the first trade; _trade_seq_disabled latches
+        # when ids are not in the engine's durable id format so the warning is
+        # logged once rather than per trade.
+        self._last_trade_id: tuple[int, int] | None = None
         self._trade_seq_disabled = False
 
         # topic -> last publisher sequence seen, for detecting drops on every
@@ -1040,25 +1036,19 @@ class StatsProcess:
     def _check_trade_sequence(self, raw_id: str, ts: str) -> None:
         """Detect trades the recorder never received.
 
-        The engine numbers trades with a monotonic counter starting at 1
-        (``models/trade.py``), so a jump in the id means messages were lost
-        between the engine and here — ZMQ PUB/SUB drops silently once a
-        subscriber falls behind its high-water mark, and nothing else in the
-        pipeline would reveal it. Recording the gap is what lets a reader
-        distinguish "this is the whole session" from "this is what survived".
-
-        The counter restarts at 1 on every engine run, so an id that moves
-        *backwards* is a restart rather than a gap. Callers must hold the lock.
+        Trade ids are ``run_seq-counter``. The suffix is dense within a run;
+        the prefix changes at engine restart. Callers must hold the lock.
         """
         try:
-            received = int(raw_id)
+            run_text, suffix_text = raw_id.split("-", 1)
+            received = (int(run_text), int(suffix_text))
         except (TypeError, ValueError):
-            # Not the engine's counter — a synthetic or gateway-supplied id.
+            # Not the engine's durable counter — a synthetic or legacy id.
             # Sequence checking does not apply; say so once, not per trade.
             if not self._trade_seq_disabled:
                 self._trade_seq_disabled = True
                 log.warning(
-                    "trade id %r is not the engine's numeric counter; "
+                    "trade id %r is not the engine's durable counter; "
                     "trade-gap detection disabled for this run",
                     raw_id,
                 )
@@ -1068,26 +1058,36 @@ class StatsProcess:
         self._last_trade_id = received
         if last is None:
             return
-        if received <= last:
+        last_run, last_suffix = last
+        run_seq, suffix = received
+        if run_seq != last_run:
             log.info(
-                "trade id went from %d to %d — engine restart; "
-                "resuming gap detection from the new sequence",
-                last,
-                received,
+                "trade run sequence changed from %d to %d — engine restart; "
+                "resuming gap detection from the new run",
+                last_run,
+                run_seq,
             )
             return
-        missing = received - last - 1
+        if suffix <= last_suffix:
+            log.info(
+                "trade id suffix went from %d to %d within run %d — duplicate or replay",
+                last_suffix,
+                suffix,
+                run_seq,
+            )
+            return
+        missing = suffix - last_suffix - 1
         if not missing:
             return
 
         log.error(
             "detected %d missing trade(s): expected id %d, received %d",
             missing,
-            last + 1,
-            received,
+            last_suffix + 1,
+            suffix,
         )
         self._conn.execute(
-            INSERT_FEED_GAP, (ts, TRADE_STREAM, last + 1, received, missing)
+            INSERT_FEED_GAP, (ts, TRADE_STREAM, last_suffix + 1, suffix, missing)
         )
         self._dbg_count("trades_missing", missing)
 

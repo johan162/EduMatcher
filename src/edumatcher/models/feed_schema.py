@@ -43,12 +43,14 @@ class TradeExecutedPayload:
     quantity: int
     aggressor_side: str
     timestamp: float
+    run_seq: int = 0
     tick_decimals: int = 2
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "TradeExecutedPayload":
         return cls(
             id=str(payload["id"]),
+            run_seq=int(payload.get("run_seq", 0)),
             symbol=str(payload["symbol"]),
             buy_order_id=str(payload["buy_order_id"]),
             sell_order_id=str(payload["sell_order_id"]),
@@ -64,6 +66,7 @@ class TradeExecutedPayload:
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
+            "run_seq": self.run_seq,
             "symbol": self.symbol,
             "buy_order_id": self.buy_order_id,
             "sell_order_id": self.sell_order_id,

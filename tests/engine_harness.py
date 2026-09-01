@@ -24,6 +24,7 @@ from edumatcher.models.message import decode
 from edumatcher.models.order import Order, OrderType, Side, SmpAction, TIF
 from edumatcher.models.participant import ParticipantRole
 from edumatcher.models.price import to_ticks
+from edumatcher.models.trade import reset_trade_ids_for_tests, set_run_seq
 
 SYMBOL = "AAPL"  # 2 tick decimals by default → 100.00 == 10000 ticks
 
@@ -95,6 +96,8 @@ def make_engine(
     book_stats: dict[str, Any] | None = None,
 ) -> tuple[Engine, FakeSock]:
     """Build an Engine wired to fake sockets and a synthetic config."""
+    reset_trade_ids_for_tests()
+    set_run_seq(1)
     pull_sock = FakeSock()
     pub_sock = FakeSock()
 

@@ -38,6 +38,7 @@ from edumatcher.config import (
     GTC_ORDERS_FILE,
     GTC_COMBOS_FILE,
     BOOK_STATS_FILE,
+    RUN_SEQ_FILE,
     ENGINE_CONFIG_FILE,
     DATA_DIR,
 )
@@ -59,6 +60,7 @@ from edumatcher.engine.persistence import (
     save_book_stats,
     load_gtc_combos,
     save_gtc_combos,
+    load_and_bump_run_seq,
 )
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
@@ -148,6 +150,7 @@ from edumatcher.models.order import (
 )
 from edumatcher.models.price import from_ticks, to_ticks
 from edumatcher.models.price import get_tick_decimals, register_tick_decimals
+from edumatcher.models.trade import set_run_seq
 from edumatcher.models.quote import (
     QuoteEntry,
     QuoteIndex,
@@ -2511,6 +2514,7 @@ class Engine:
         self.pub_sock.send_multipart(
             make_trade_executed_unchecked(
                 id=trade.id,
+                run_seq=trade.run_seq,
                 symbol=trade.symbol,
                 buy_order_id=trade.buy_order_id,
                 sell_order_id=trade.sell_order_id,
@@ -5515,6 +5519,7 @@ class Engine:
                 )
 
     def run(self) -> None:
+        set_run_seq(load_and_bump_run_seq(RUN_SEQ_FILE))
         self._restore_gtc()
         self._load_config()  # seed stats + MM orders (after GTC restore)
 

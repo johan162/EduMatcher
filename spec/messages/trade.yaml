@@ -37,10 +37,19 @@ messages:
         type: string
         required: true
         doc: >
-          Engine trade counter, unique **within one engine run only** - it
-          restarts at 1 on every launch. Assigned by
-          models/trade.py::Trade.create from a process-local itertools.count.
-        validate: { max_len: 64, pattern: '^[0-9]+$' }
+          Durable, sortable trade id. The prefix is the persisted engine-run
+          sequence and the suffix is the per-run trade counter.
+        validate: { max_len: 64, pattern: '^\d{6}-\d{9}$' }
+
+      - name: run_seq
+        type: int
+        required: false
+        default: 0
+        unit: dimensionless
+        doc: >
+          Durable engine-run sequence used as the trade id prefix. A change in
+          run_seq marks an engine restart explicitly for consumers.
+        validate: { ge: 0 }
 
       - name: symbol
         type: string

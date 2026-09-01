@@ -59,14 +59,10 @@ PRAGMA temp_store = MEMORY;
 # ---------------------------------------------------------------------------
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS trade_events (
-  -- Composite identity (id, ts_ns).  The engine's trade ``id`` is only unique
-  -- *within a single engine run* (models/trade.py uses a per-process counter
-  -- that restarts from 1 on every launch), so ``id`` alone is NOT safe as the
-  -- archive's key.  A run-2 trade "1" would otherwise collide with a run-1
-  -- trade "1" and be silently dropped by INSERT OR IGNORE (finding CL-C1).
-  -- Keying on (id, ts_ns) means a genuine duplicate delivery repeats both and
-  -- is deduped, while a post-restart id reuse carries a different timestamp and
-  -- is preserved as a distinct row.
+  -- Composite identity (id, ts_ns).  The engine's trade ``id`` is now durable
+  -- across restarts, so ``id`` alone should be unique; keeping ts_ns in the key
+  -- is belt-and-braces protection for old short ids and any future bad input.
+  -- A genuine duplicate delivery repeats both fields and is deduped.
   id               TEXT    NOT NULL,
   ts_ns            INTEGER NOT NULL,
   trade_date       TEXT    NOT NULL,
@@ -515,11 +511,10 @@ def _record_id_collisions(
     Write a ``session_events`` row of type ``ID_COLLISION`` for every incoming
     trade whose ``id`` already exists in the archive under a *different* ts_ns.
 
-    This is the loud counterpart to the old silent ``INSERT OR IGNORE`` drop:
-    the row is still archived (the surrogate PK + ``UNIQUE (id, ts_ns)`` key
-    guarantee that), and the operator gets a durable, queryable alert that the
-    engine reused a trade id across a restart.  Must be called inside the flush
-    transaction, before the trade INSERT, so ``existing`` reflects prior state.
+    New engine ids should not collide across restarts, so this is now a
+    belt-and-braces alarm for old short ids or malformed upstream input. Must
+    be called inside the flush transaction, before the trade INSERT, so
+    ``existing`` reflects prior state.
     """
     if not trades:
         return

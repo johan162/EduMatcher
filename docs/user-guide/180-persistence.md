@@ -467,7 +467,7 @@ One row per individual trade execution. Written on every `trade.executed` event.
 ```sql
 CREATE TABLE IF NOT EXISTS trade_log (
     ts              TEXT NOT NULL,       -- ISO datetime string
-    trade_id        TEXT NOT NULL PRIMARY KEY,  -- engine-assigned UUID
+    trade_id        TEXT NOT NULL PRIMARY KEY,  -- durable engine trade id
     symbol          TEXT NOT NULL,       -- e.g. 'AAPL'
     price           REAL NOT NULL,       -- execution price as display decimal
     quantity        INTEGER NOT NULL,    -- executed quantity
@@ -476,7 +476,9 @@ CREATE TABLE IF NOT EXISTS trade_log (
 );
 ```
 
-`INSERT OR IGNORE` on `trade_id` makes replayed or duplicate events safe.
+`INSERT OR IGNORE` on `trade_id` makes replayed or duplicate events safe. Modern
+engine ids are durable strings such as `000042-000000001`, where the prefix is
+the engine run sequence and the suffix is the trade counter within that run.
 
 **Example queries**:
 

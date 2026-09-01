@@ -55,6 +55,27 @@ def _atomic_write_text(path: Path, text: str) -> None:
         raise
 
 
+def load_and_bump_run_seq(path: Path) -> int:
+    """Return the next durable engine-run sequence, persisting it first.
+
+    Corruption is fatal. Continuing after a lost or malformed run-sequence
+    file would reissue trade ids that downstream stores treat as durable.
+    """
+    if path.exists():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            current = int(data["run_seq"])
+        except Exception as exc:
+            raise RuntimeError(f"Corrupt run-sequence file {path}: {exc}") from exc
+    else:
+        current = 0
+    next_seq = current + 1
+    if next_seq > 999_999:
+        raise RuntimeError(f"Engine run sequence exhausted at {next_seq}")
+    _atomic_write_text(path, json.dumps({"run_seq": next_seq}, indent=2))
+    return next_seq
+
+
 def save_gtc_orders(orders: list[Order], path: Path) -> None:
     """Serialize resting GTC orders to *path*."""
     gtc = [

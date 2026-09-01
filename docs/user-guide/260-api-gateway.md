@@ -629,8 +629,8 @@ Authorization: Bearer key-readonly-demo
 ```json
 {
   "trades": [
-    { "ts": "2026-06-14T09:00:00.000+00:00", "trade_id": "T000", "symbol": "EDU100", "price": 100.0, "quantity": 10, "buy_gateway_id": "GW1", "sell_gateway_id": "GW2" },
-    { "ts": "2026-06-14T09:01:00.000+00:00", "trade_id": "T001", "symbol": "EDU100", "price": 100.0, "quantity": 10, "buy_gateway_id": "GW1", "sell_gateway_id": "GW2" }
+    { "ts": "2026-06-14T09:00:00.000+00:00", "trade_id": "000042-000000001", "symbol": "EDU100", "price": 100.0, "quantity": 10, "buy_gateway_id": "GW1", "sell_gateway_id": "GW2" },
+    { "ts": "2026-06-14T09:01:00.000+00:00", "trade_id": "000042-000000002", "symbol": "EDU100", "price": 100.0, "quantity": 10, "buy_gateway_id": "GW1", "sell_gateway_id": "GW2" }
   ],
   "count": 2,
   "has_more": true,

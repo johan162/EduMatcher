@@ -264,8 +264,14 @@ class TestPersistenceLoaders:
 
 class TestTradeFromDict:
     def test_from_dict_roundtrip(self) -> None:
-        from edumatcher.models.trade import Trade
+        from edumatcher.models.trade import (
+            Trade,
+            reset_trade_ids_for_tests,
+            set_run_seq,
+        )
 
+        reset_trade_ids_for_tests()
+        set_run_seq(1)
         trade = Trade.create(
             symbol="AAPL",
             buy_order_id="B1",

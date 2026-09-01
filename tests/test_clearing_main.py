@@ -33,7 +33,7 @@ from edumatcher.clearing.store import (
     query_sessions,
     query_trades,
 )
-from edumatcher.models.trade import Trade
+from edumatcher.models.trade import Trade, reset_trade_ids_for_tests, set_run_seq
 from edumatcher.models.message import make_trade_msg, decode
 
 # ---------------------------------------------------------------------------
@@ -50,6 +50,8 @@ def _make_trade(
     sell_gw: str = "GW_SELL",
 ) -> Trade:
     """Create a Trade with a fixed id (bypassing the counter)."""
+    reset_trade_ids_for_tests()
+    set_run_seq(1)
     t = Trade.create(
         symbol=symbol,
         buy_order_id="O_BUY",
@@ -135,6 +137,8 @@ class TestToTradeEventRow:
         assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", row.trade_date)
 
     def test_empty_order_ids_become_none(self) -> None:
+        reset_trade_ids_for_tests()
+        set_run_seq(1)
         t = Trade.create(
             symbol="MSFT",
             buy_order_id="",
@@ -844,7 +848,8 @@ class TestPayloadParsing:
     def test_trade_builder_payload_parses_with_declared_units(self) -> None:
         frames = make_trade_msg(
             {
-                "id": "7",
+                "id": "000000-000000007",
+                "run_seq": 0,
                 "symbol": "AAPL",
                 "buy_order_id": "B1",
                 "sell_order_id": "S1",

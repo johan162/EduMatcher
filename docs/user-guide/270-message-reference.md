@@ -3781,7 +3781,8 @@ Public print of a completed match. The authoritative record of what traded, cons
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
-| `id` | `string` | required | max_len 64, pattern `^[0-9]+$` | Engine trade counter, unique **within one engine run only** - it restarts at 1 on every launch. Assigned by models/trade.py::Trade.create from a process-local itertools.count. |
+| `id` | `string` | required | max_len 64, pattern `^\d{6}-\d{9}$` | Durable, sortable trade id. The prefix is the persisted engine-run sequence and the suffix is the per-run trade counter. |
+| `run_seq` | `int` | defaults to `0` | ge 0, unit `dimensionless` | Durable engine-run sequence used as the trade id prefix. A change in run_seq marks an engine restart explicitly for consumers. |
 | `symbol` | `string` | required | max_len 16, pattern `^[A-Z0-9._]+$` | Instrument the match occurred in. |
 | `buy_order_id` | `string` | required | max_len 64 | Resting or aggressing order id on the buy side. |
 | `sell_order_id` | `string` | required | max_len 64 | Resting or aggressing order id on the sell side. |

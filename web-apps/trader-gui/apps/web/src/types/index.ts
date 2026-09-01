@@ -290,6 +290,7 @@ export interface Fill {
 // ── REST: Trade (public print) ────────────────────────────────────────────────
 export interface Trade {
   id: string;
+  run_seq?: number;
   symbol: string;
   price: number;
   quantity: number;
@@ -1039,6 +1040,7 @@ export interface DepthData {
 /** Public print (pm-msgen TradeExecuted). */
 export interface TradeData {
   id: string;
+  run_seq: number;
   symbol: string;
   buy_order_id: string;
   sell_order_id: string;
