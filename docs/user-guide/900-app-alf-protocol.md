@@ -275,6 +275,11 @@ ALF commands fall into five groups:
 If you are writing another interface that wants to submit orders, the most
 important commands are the **trading commands**.
 
+Rejected order acknowledgements carry two diagnostics:
+`REJECT_CODE=<code>` is the canonical machine-readable code, and `REASON=<text>`
+is the human-readable explanation. Use `REJECT_CODE` for branching, metrics,
+and tests; log `REASON` for operators.
+
 !!! note "`QLEGS` behaves differently in each client"
     Every other command in the "trading commands" row above is a genuine
     engine round trip in **both** `pm-alf-console` and `pm-alf-gwy`. `QLEGS`
@@ -468,43 +473,44 @@ engine-generated order ID.
 ### Formal syntax
 
 ```text
-AMEND|ID=<order-id>[|PRICE=<new-price>][|QTY=<new-total-quantity>]
+AMEND|ID=<order-id>[|PRICE=<new-price>][|QTY=<new-total-quantity>][|RTAG=<request-tag>]
 ```
 
-At least one of `PRICE` or `QTY` must be present.
+At least one of `PRICE` or `QTY` must be present. `RTAG` is optional and is
+echoed on the corresponding `AMENDED` event or rejected `ACK`.
 
 ### Supported amendment forms
 
-| Form                             | Meaning                        |
-|----------------------------------|--------------------------------|
-| `AMEND|ID=...|PRICE=...`         | Price-only amendment           |
-| `AMEND|ID=...|QTY=...`           | Quantity-only amendment        |
-| `AMEND|ID=...|PRICE=...|QTY=...` | Change both price and quantity |
+| Form                                | Meaning                        |
+|-------------------------------------|--------------------------------|
+| `AMEND|ID=...|PRICE=...[|RTAG=...]`         | Price-only amendment           |
+| `AMEND|ID=...|QTY=...[|RTAG=...]`           | Quantity-only amendment        |
+| `AMEND|ID=...|PRICE=...|QTY=...[|RTAG=...]` | Change both price and quantity |
 
 ### Examples
 
 Price only:
 
 ```text
-AMEND|ID=ORD-12345678|PRICE=151.00
+AMEND|ID=ORD-12345678|PRICE=151.00|RTAG=AMD-001
 ```
 
 Quantity only, lower quantity:
 
 ```text
-AMEND|ID=ORD-12345678|QTY=80
+AMEND|ID=ORD-12345678|QTY=80|RTAG=AMD-002
 ```
 
 Quantity only, higher quantity:
 
 ```text
-AMEND|ID=ORD-12345678|QTY=200
+AMEND|ID=ORD-12345678|QTY=200|RTAG=AMD-003
 ```
 
 Change both:
 
 ```text
-AMEND|ID=ORD-12345678|PRICE=151.00|QTY=200
+AMEND|ID=ORD-12345678|PRICE=151.00|QTY=200|RTAG=AMD-004
 ```
 
 ### Amendment semantics
@@ -529,9 +535,9 @@ The engine follows exchange-style amendment priority rules:
 Example:
 
 1. `NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00`
-2. `AMEND|ID=...|QTY=80` keeps queue priority if the price stays `150.00`
-3. `AMEND|ID=...|PRICE=150.10` loses queue priority
-4. `AMEND|ID=...|QTY=120` also loses queue priority
+2. `AMEND|ID=...|QTY=80|RTAG=AMD-KEEP` keeps queue priority if the price stays `150.00`
+3. `AMEND|ID=...|PRICE=150.10|RTAG=AMD-PRICE` loses queue priority
+4. `AMEND|ID=...|QTY=120|RTAG=AMD-UP` also loses queue priority
 
 ### Important identifier rule
 
@@ -546,14 +552,18 @@ requires the full internal ID.
 ###  Single order cancel
 
 ```text
-CANCEL|ID=<order-id>
+CANCEL|ID=<order-id>[|RTAG=<request-tag>]
 ```
 
 Example:
 
 ```text
-CANCEL|ID=ORD-12345678
+CANCEL|ID=ORD-12345678|RTAG=CXL-001
 ```
+
+`RTAG` is optional on single-order cancels and is echoed on the resulting
+`CANCELLED` event or rejected `ACK`. Engine-initiated cancels have no client
+request behind them and therefore omit `RTAG`.
 
 ###  Combo cancel
 

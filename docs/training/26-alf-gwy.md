@@ -237,22 +237,25 @@ Expected behavior:
 - `ORDERS` shows the resting order with `STATUS=NEW` and `REMAINING=100`
 - If `MM01` is quoting, the order may fill immediately and `ORDERS` returns `COUNT=0`
 
-Cancel the resting order using the UUID from the `ACK`:
+Cancel the resting order using the UUID from the `ACK` and a request tag:
 
 ```text
-CANCEL|ID=<uuid>
+CANCEL|ID=<uuid>|RTAG=NC-CXL-001
 ```
 
-Expected: `CANCELLED|ORDER_ID=<uuid>`.
+Expected: `CANCELLED|ORDER_ID=<uuid>|RTAG=NC-CXL-001`.
 
 Try amending before cancelling to see priority rules in action:
 
 ```text
 NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=149.00
-AMEND|ID=<uuid>|PRICE=149.50|QTY=150
+AMEND|ID=<uuid>|PRICE=149.50|QTY=150|RTAG=NC-AMD-001
 ```
 
-Expected: `AMENDED|ORDER_ID=...|PRICE=149.50|QTY=150|REMAINING=150|PRIORITY_RESET=TRUE`
+Expected: `AMENDED|ORDER_ID=...|PRICE=149.50|QTY=150|REMAINING=150|PRIORITY_RESET=TRUE|RTAG=NC-AMD-001`
+
+`RTAG` is optional, but it is the easiest way to prove which amend or cancel a
+later TCP response belongs to.
 
 :material-checkbox-blank-outline: Checkpoint: you can submit, confirm, amend, and cancel an order using only raw TCP and a terminal.
 
@@ -309,9 +312,9 @@ python3 - <<'EOF'
 from alf_parser import parse_alf_line, build_alf_line, AlfSession, AlfMessage
 
 # Parse a line received from the gateway
-msg: AlfMessage = parse_alf_line("ACK|ORDER_ID=abc|ACCEPTED=TRUE|SYMBOL=AAPL")
+msg: AlfMessage = parse_alf_line("ACK|ORDER_ID=abc|ACCEPTED=FALSE|REJECT_CODE=ORDER_NOT_FOUND|REASON=missing")
 print(msg.msg_type)   # ACK
-print(msg.fields)     # {"ORDER_ID": "abc", "ACCEPTED": "TRUE", ...}
+print(msg.fields)     # {"ORDER_ID": "abc", "ACCEPTED": "FALSE", "REJECT_CODE": "ORDER_NOT_FOUND", ...}
 
 # Build a line to send
 line = build_alf_line("NEW", {

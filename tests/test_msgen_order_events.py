@@ -71,6 +71,19 @@ class TestByteIdenticalToTheHandWrittenBuilders:
             reject_code="UNKNOWN_SYMBOL",
         )
 
+    def test_ack_rejected_carries_the_request_tag(self) -> None:
+        _topic, payload = M.decode(
+            M.make_ack_msg(
+                "GW1",
+                "O1",
+                False,
+                "not yours",
+                reject_code="NOT_OWNER",
+                request_tag="RT-CXL-001",
+            )
+        )
+        assert payload["request_tag"] == "RT-CXL-001"
+
     def test_ack_with_a_limit_order_tag_and_group(self) -> None:
         assert M.make_ack_msg("GW1", "O1", True, "", order=_LIMIT) == (
             G.make_order_ack_unchecked(
@@ -118,6 +131,12 @@ class TestByteIdenticalToTheHandWrittenBuilders:
             )
         )
 
+    def test_cancelled_carries_the_request_tag(self) -> None:
+        _topic, payload = M.decode(
+            M.make_cancelled_msg("GW1", "O1", request_tag="RT-CXL-002")
+        )
+        assert payload["request_tag"] == "RT-CXL-002"
+
     def test_expired(self) -> None:
         assert M.make_expired_msg("GW1", "O1", "t9") == G.make_order_expired_unchecked(
             gateway_id="GW1", order_id="O1", client_tag="t9"
@@ -135,6 +154,12 @@ class TestByteIdenticalToTheHandWrittenBuilders:
                 priority_reset=True,
             )
         )
+
+    def test_amended_carries_the_request_tag(self) -> None:
+        _topic, payload = M.decode(
+            M.make_amended_msg("GW1", "O1", 9.5, 10, 4, True, request_tag="RT-AMD-001")
+        )
+        assert payload["request_tag"] == "RT-AMD-001"
 
 
 class TestPresenceSemantics:

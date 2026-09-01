@@ -57,7 +57,7 @@ HELP_TEXT = """
 
   NEW|SYM=<sym>|SIDE=BUY|SELL|TYPE=<type>|QTY=<n>[|PRICE=<p>][|STOP=<p>][|TRAIL=<offset>][|TIF=DAY|GTC][|VISIBLE=<n>][|SMP=<action>]
 
-  AMEND|ID=<order-id>[|PRICE=<new-price>][|QTY=<new-qty>]
+    AMEND|ID=<order-id>[|PRICE=<new-price>][|QTY=<new-qty>][|RTAG=<request-tag>]
     • Amend a resting LIMIT or ICEBERG order in-place (no cancel+resubmit needed)
     • At least one of PRICE= or QTY= must be specified
     • Quantity decrease only (same price): priority is PRESERVED
@@ -91,7 +91,7 @@ HELP_TEXT = """
     • Child orders are posted to books and fill independently
     • If any leg is cancelled/expires, all remaining legs are cascade-cancelled
 
-  CANCEL|ID=<order-id>
+    CANCEL|ID=<order-id>[|RTAG=<request-tag>]
   CANCEL|COMBO_ID=<combo-label>   — cancel a combo and all its legs
     QUOTE|SYM=<sym>|BID=<p>|ASK=<p>|BID_QTY=<n>|ASK_QTY=<n>[|TIF=DAY|GTC][|QUOTE_ID=<label>]
     QUOTE_CANCEL|SYM=<sym>          — cancel active quote for a symbol

@@ -227,7 +227,7 @@ flowchart TD
 Cancel it like any other order while the engine is running:
 
 ```
-CANCEL|ID=<full-order-id>
+CANCEL|ID=<full-order-id>|RTAG=gtc-cxl-001
 ```
 
 Cancelled orders are **not** included in the GTC save at shutdown — they are

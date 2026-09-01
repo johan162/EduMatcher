@@ -393,8 +393,8 @@ for uniqueness by the gateway or engine.
 
 | Operation                         | Payload                                               |
 |-----------------------------------|-------------------------------------------------------|
-| `DELETE /orders/{order_id}`       | no body                                               |
-| `PATCH /orders/{order_id}`        | `{ "price": 151.00 }`, `{ "quantity": 200 }`, or both |
+| `DELETE /orders/{order_id}`       | no body; optional `?request_tag=...` query            |
+| `PATCH /orders/{order_id}`        | `{ "price": 151.00 }`, `{ "quantity": 200, "request_tag": "req-1" }`, or both |
 | `POST /orders/{order_id}/replace` | same shape as `POST /orders`                          |
 
 `?wait=ack` is not limited to `POST /orders` — both `DELETE /orders/{order_id}`
@@ -403,6 +403,11 @@ and `PATCH /orders/{order_id}` also accept it, waiting on the matching
 /orders/{order_id}/replace` has no `wait` parameter; it always waits
 synchronously for the cancel to be acknowledged before submitting the
 replacement (see [Implementation notes](#implementation-notes-and-design-deviations)).
+
+For cancel and amend, `request_tag` identifies one request against an order.
+When supplied, the API forwards it to the engine, uses it to match `?wait=ack`
+responses, and echoes it in the pending response and resulting event. It is
+different from `client_tag`, which identifies the original order.
 
 
 ### OCO, combos, quotes, and mass cancel

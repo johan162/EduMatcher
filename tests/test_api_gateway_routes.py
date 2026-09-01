@@ -26,6 +26,7 @@ from edumatcher.api_gateway.schemas import (
     QuoteRequest,
 )
 from edumatcher.api_gateway.sessions import Session, SessionRegistry, require_trading
+from edumatcher.models.generated.order import topic_order_amended, topic_order_cancelled
 from edumatcher.models.order import OrderType, Side
 
 
@@ -67,13 +68,22 @@ class FakeEngine:
     def send_new_order(self, order: Any) -> None:
         self.calls.append(("send_new_order", order))
 
-    def send_cancel(self, order_id: str, gateway_id: str) -> None:
-        self.calls.append(("send_cancel", (order_id, gateway_id)))
+    def send_cancel(
+        self, order_id: str, gateway_id: str, request_tag: str | None = None
+    ) -> None:
+        self.calls.append(("send_cancel", (order_id, gateway_id, request_tag)))
 
     def send_amend(
-        self, order_id: str, gateway_id: str, price: float | None, qty: int | None
+        self,
+        order_id: str,
+        gateway_id: str,
+        price: float | None,
+        qty: int | None,
+        request_tag: str | None = None,
     ) -> None:
-        self.calls.append(("send_amend", (order_id, gateway_id, price, qty)))
+        self.calls.append(
+            ("send_amend", (order_id, gateway_id, price, qty, request_tag))
+        )
 
     def send_combo(self, payload: dict[str, Any]) -> None:
         self.calls.append(("send_combo", payload))
@@ -251,6 +261,49 @@ async def test_order_routes_send_engine_messages() -> None:
     assert amend["event"] is not None
     assert listed["orders"]
     assert one["order_id"] == "ORD1"
+
+
+@pytest.mark.anyio
+async def test_cancel_and_amend_route_request_tags_are_forwarded() -> None:
+    engine = FakeEngine()
+    request = fake_request(engine)
+    session = trading_session()
+
+    cancel = await orders.cancel_order(
+        "ORD1",
+        request,
+        session,
+        wait="ack",
+        request_tag="RT-CXL-001",
+    )
+    amend = await orders.amend_order(
+        "ORD1",
+        AmendRequest(price=151.0, request_tag="RT-AMD-001"),
+        request,
+        session,
+        wait="ack",
+    )
+
+    assert cancel.request_tag == "RT-CXL-001"
+    assert amend["request_tag"] == "RT-AMD-001"
+    assert ("send_cancel", ("ORD1", "GW01", "RT-CXL-001")) in engine.calls
+    assert ("send_amend", ("ORD1", "GW01", 151.0, None, "RT-AMD-001")) in engine.calls
+    assert (
+        "await_event",
+        (
+            topic_order_cancelled("GW01"),
+            {"order_id": "ORD1", "request_tag": "RT-CXL-001"},
+            request.app.state.config.timeouts.wait_ack_sec,
+        ),
+    ) in engine.calls
+    assert (
+        "await_event",
+        (
+            topic_order_amended("GW01"),
+            {"order_id": "ORD1", "request_tag": "RT-AMD-001"},
+            request.app.state.config.timeouts.wait_ack_sec,
+        ),
+    ) in engine.calls
 
 
 @pytest.mark.anyio

@@ -307,30 +307,38 @@ NEW|TYPE=COMBO|COMBO_ID=spread-1|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAP
 | `TIF` | optional | `DAY` (default), `GTC`, `ATO`, `ATC` |
 | `SMP` | optional | `NONE` (default), `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` |
 
-**Responses:** `ACK|ORDER_ID=...|ACCEPTED=TRUE|...` or `ACK|ORDER_ID=...|ACCEPTED=FALSE|REASON=...`
+**Responses:** `ACK|ORDER_ID=...|ACCEPTED=TRUE|...` or `ACK|ORDER_ID=...|ACCEPTED=FALSE|REJECT_CODE=...|REASON=...`
 followed asynchronously by `FILL|...`, `CANCELLED|...`, or `EXPIRED|...`.
+
+On rejected order ACKs, `REJECT_CODE` is the stable machine-readable rejection
+classification. `REASON` remains the human-readable explanation.
 
 ### `AMEND` — amend resting order
 
 ```text
-AMEND|ID=<order-id>|PRICE=151.00
-AMEND|ID=<order-id>|QTY=200
-AMEND|ID=<order-id>|PRICE=151.00|QTY=200
+AMEND|ID=<order-id>|PRICE=151.00[|RTAG=<request-tag>]
+AMEND|ID=<order-id>|QTY=200[|RTAG=<request-tag>]
+AMEND|ID=<order-id>|PRICE=151.00|QTY=200[|RTAG=<request-tag>]
 ```
 
-At least one of `PRICE` or `QTY` is required.
+At least one of `PRICE` or `QTY` is required. `RTAG` is optional and identifies
+this amend request; when present, the gateway echoes it on `AMENDED` or the
+rejected `ACK`.
 
-**Response:** `AMENDED|ORDER_ID=...|PRICE=...|QTY=...|REMAINING=...|PRIORITY_RESET=TRUE|FALSE`
+**Response:** `AMENDED|ORDER_ID=...|PRICE=...|QTY=...|REMAINING=...|PRIORITY_RESET=TRUE|FALSE[|RTAG=...]`
 
 ### `CANCEL` — cancel order / OCO / combo
 
 ```text
-CANCEL|ID=<order-id>
+CANCEL|ID=<order-id>[|RTAG=<request-tag>]
 CANCEL|OCO_ID=<oco-id>
 CANCEL|COMBO_ID=<combo-id>
 ```
 
-**Response for single order:** `CANCELLED|ORDER_ID=...`  
+`RTAG` is accepted on single-order cancels only. It identifies this cancel
+request and is echoed on `CANCELLED` or the rejected `ACK`.
+
+**Response for single order:** `CANCELLED|ORDER_ID=...[|RTAG=...]`<br>
 **Response for OCO:** `OCO_CANCELLED|OCO_ID=...|CANCELLED_ID=...|REASON=...`  
 **Response for combo:** `COMBO_STATUS|COMBO_ID=...|STATUS=CANCELLED|REASON=...`
 

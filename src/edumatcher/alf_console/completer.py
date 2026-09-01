@@ -52,8 +52,9 @@ _FIELD_COMPLETIONS: dict[str, list[str]] = {
     "TRAIL": [],
     "VISIBLE": [],
     "SMP": ["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"],
-    # after CANCEL|
+    # after CANCEL| / AMEND|
     "ID": [],
+    "RTAG": [],
 }
 
 # Fields that follow each order type (in typical order)
@@ -147,7 +148,7 @@ class GatewayCompleter(Completer):
         if cmd == "CANCEL":
             candidates = [
                 f
-                for f in ["ID=", "COMBO_ID=", "OCO_ID="]
+                for f in ["ID=", "COMBO_ID=", "OCO_ID=", "RTAG="]
                 if f.rstrip("=") not in already_keys
             ]
         elif cmd == "QLEGS":
@@ -159,7 +160,7 @@ class GatewayCompleter(Completer):
         elif cmd == "AMEND":
             candidates = [
                 f
-                for f in ["ID=", "PRICE=", "QTY="]
+                for f in ["ID=", "PRICE=", "QTY=", "RTAG="]
                 if f.rstrip("=") not in already_keys
             ]
         elif cmd == "NEW":

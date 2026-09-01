@@ -841,7 +841,7 @@ recovering and crossed 43, the buy was triggered.
 #### Example 4 — Cancelling a trailing stop before trigger
 
 ```
-CANCEL|ID=<order_id>
+CANCEL|ID=<order_id>|RTAG=trail-cxl-001
 ```
 
 A trailing stop can be cancelled at any time before trigger using its
@@ -931,13 +931,13 @@ make in-place amendment ambiguous (STOP, STOP_LIMIT, TRAILING_STOP).
 
 ```
 # Change price only (priority lost)
-AMEND|ID=<order-id>|PRICE=151.00
+AMEND|ID=<order-id>|PRICE=151.00|RTAG=amd-price-001
 
 # Decrease quantity only (priority preserved)
-AMEND|ID=<order-id>|QTY=50
+AMEND|ID=<order-id>|QTY=50|RTAG=amd-down-001
 
 # Change both price and quantity (priority lost)
-AMEND|ID=<order-id>|PRICE=151.00|QTY=200
+AMEND|ID=<order-id>|PRICE=151.00|QTY=200|RTAG=amd-both-001
 ```
 
 ### Examples
@@ -948,16 +948,16 @@ NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
 # → ACK: order_id = abc123...
 
 # 2. Market moves — improve price (priority lost, back of queue at 151)
-AMEND|ID=abc123...|PRICE=151.00
+AMEND|ID=abc123...|PRICE=151.00|RTAG=amd-price-002
 # → AMENDED: price=151.0 qty=100 remaining=100 (priority reset)
 
 # 3. Reduce size to manage risk (priority preserved at 151)
-AMEND|ID=abc123...|QTY=80
+AMEND|ID=abc123...|QTY=80|RTAG=amd-down-002
 # → AMENDED: price=151.0 qty=80 remaining=80
 
 # 4. After a partial fill of 30, reduce remaining exposure
 #    (original qty was 80, filled 30, so remaining = 50)
-AMEND|ID=abc123...|QTY=60
+AMEND|ID=abc123...|QTY=60|RTAG=amd-partial-001
 # → AMENDED: price=151.0 qty=60 remaining=30
 #    Note: new_qty (60) - filled (30) = 30 remaining
 ```
@@ -967,7 +967,7 @@ AMEND|ID=abc123...|QTY=60
 | Topic                               | Fired When                                                                         |
 |-------------------------------------|------------------------------------------------------------------------------------|
 | `order.amended.{GW}`                | Amendment accepted; contains new `price`, `qty`, `remaining_qty`, `priority_reset` |
-| `order.ack.{GW}` (`accepted=false`) | Amendment rejected; contains `reason`                                              |
+| `order.ack.{GW}` (`accepted=false`) | Amendment rejected; contains stable `reject_code` plus human-readable `reason`     |
 
 ### A price amend can trigger an immediate fill
 
@@ -982,7 +982,7 @@ remainder) rests again. From the caller's point of view this looks like an
 
 ```
 # Resting buy at 149.00; best ask is currently 150.00 (no cross)
-AMEND|ID=<order-id>|PRICE=150.50
+AMEND|ID=<order-id>|PRICE=150.50|RTAG=amd-cross-001
 # → AMENDED: price=150.5 ...   (priority reset)
 # → FILL: ...                    (the amend crossed the book and filled immediately)
 ```

@@ -123,8 +123,8 @@ values.  Command history is persisted to `~/.alf_client_history`.
 
 ```
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
-[TRADER01]> AMEND|ID=<order-id>|PRICE=151.00
-[TRADER01]> CANCEL|ID=<order-id>
+[TRADER01]> AMEND|ID=<order-id>|PRICE=151.00|RTAG=req-001
+[TRADER01]> CANCEL|ID=<order-id>|RTAG=req-002
 [TRADER01]> KILL
 [TRADER01]> SYMBOLS
 [TRADER01]> ORDERS

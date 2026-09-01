@@ -628,6 +628,7 @@ class Engine:
         code: RejectCode,
         reason: str,
         client_tag: str | None,
+        request_tag: str | None,
     ) -> None:
         self.pub_sock.send_multipart(
             make_ack_msg(
@@ -637,6 +638,7 @@ class Engine:
                 reason=reason,
                 reject_code=code,
                 client_tag=client_tag,
+                request_tag=request_tag,
             )
         )
 
@@ -1158,6 +1160,7 @@ class Engine:
                     code=self._gateway_reject_code(reason),
                     reason=reason,
                     client_tag=order.client_tag,
+                    request_tag=None,
                 )
                 log.info(f"REJECTED {order.id[:8]} — {reason}")
                 return
@@ -1172,6 +1175,7 @@ class Engine:
                 code="UNKNOWN_SYMBOL",
                 reason=reason,
                 client_tag=order.client_tag,
+                request_tag=None,
             )
             log.info(f"REJECTED {order.id[:8]} — symbol not configured: {order.symbol}")
             return
@@ -1194,6 +1198,7 @@ class Engine:
                 code=code,
                 reason=validation_error,
                 client_tag=order.client_tag,
+                request_tag=None,
             )
             log.info(f"REJECTED {order.id[:8]} — {validation_error}")
             return
@@ -1207,6 +1212,7 @@ class Engine:
                 code="MARKET_CLOSED",
                 reason="Market is closed",
                 client_tag=order.client_tag,
+                request_tag=None,
             )
             return
 
@@ -1223,6 +1229,7 @@ class Engine:
                 code="SESSION_NOT_PERMITTED",
                 reason="ATO orders only accepted during opening auction",
                 client_tag=order.client_tag,
+                request_tag=None,
             )
             return
 
@@ -1239,6 +1246,7 @@ class Engine:
                 code="SESSION_NOT_PERMITTED",
                 reason="ATC orders only accepted during closing auction",
                 client_tag=order.client_tag,
+                request_tag=None,
             )
             return
 
@@ -1259,6 +1267,7 @@ class Engine:
                     code="INSTRUMENT_HALTED",
                     reason=reason,
                     client_tag=order.client_tag,
+                    request_tag=None,
                 )
                 return
             # LIMIT / ICEBERG: accept and rest without matching (auction interest)
@@ -1277,6 +1286,7 @@ class Engine:
                         code="COLLAR_BREACH",
                         reason=result.reason,
                         client_tag=order.client_tag,
+                        request_tag=None,
                     )
                     return
 
@@ -1293,6 +1303,7 @@ class Engine:
                 code="SESSION_NOT_PERMITTED",
                 reason=f"{order.order_type.value} orders not accepted during {self._session_state.value}",
                 client_tag=order.client_tag,
+                request_tag=None,
             )
             return
 
@@ -1312,6 +1323,7 @@ class Engine:
                         code="MISSING_FIELD",
                         reason="Trailing stop requires STOP= or a prior trade price",
                         client_tag=order.client_tag,
+                        request_tag=None,
                     )
                     return
                 if order.side == Side.SELL:
@@ -1539,6 +1551,7 @@ class Engine:
                     code="INSUFFICIENT_LIQUIDITY",
                     reason="Insufficient liquidity",
                     client_tag=evt.client_tag,
+                    request_tag=None,
                 )
                 # REJECTED event carrying an oco_group_id → cancel the other leg
                 if evt.oco_group_id:
@@ -4000,6 +4013,7 @@ class Engine:
                             code="INSUFFICIENT_LIQUIDITY",
                             reason="Insufficient liquidity",
                             client_tag=evt.client_tag,
+                            request_tag=None,
                         )
                 elif evt.status == OrderStatus.CANCELLED:
                     if evt.id not in _pub_terminal_ids:
@@ -4758,6 +4772,7 @@ class Engine:
                             code="INSUFFICIENT_LIQUIDITY",
                             reason="Insufficient liquidity",
                             client_tag=evt.client_tag,
+                            request_tag=None,
                         )
 
             for trade in trades:
@@ -4851,6 +4866,7 @@ class Engine:
     def _handle_cancel(self, payload: dict[str, Any]) -> None:
         order_id = payload["order_id"]
         gateway_id = str(payload["gateway_id"]).upper()
+        request_tag = payload.get("request_tag")
         self._dbg_count("cancel_requests")
 
         ok, reason = self._gateway_status(gateway_id)
@@ -4862,6 +4878,7 @@ class Engine:
                 code=self._gateway_reject_code(reason),
                 reason=reason,
                 client_tag=None,
+                request_tag=request_tag,
             )
             return
 
@@ -4880,6 +4897,7 @@ class Engine:
                     code="NOT_OWNER",
                     reason="Cannot cancel an order owned by another gateway",
                     client_tag=resting.client_tag,
+                    request_tag=request_tag,
                 )
                 return
 
@@ -4893,6 +4911,7 @@ class Engine:
                     gateway_id,
                     order_id,
                     client_tag=cancelled.client_tag,
+                    request_tag=request_tag,
                     order=cancelled.to_dict(),
                 )
             )
@@ -4913,6 +4932,7 @@ class Engine:
             code="ORDER_NOT_FOUND",
             reason="Order not found",
             client_tag=None,
+            request_tag=request_tag,
         )
         self._dbg_count("cancel_reject_not_found")
 
@@ -4921,6 +4941,7 @@ class Engine:
         gateway_id = str(payload["gateway_id"]).upper()
         new_price = payload.get("price")
         new_qty = payload.get("qty")
+        request_tag = payload.get("request_tag")
         self._dbg_count("amend_requests")
 
         # M12: amend quantity arrives raw from JSON.  Coerce it to int (like
@@ -4937,6 +4958,7 @@ class Engine:
                     code="INVALID_VALUE",
                     reason="Amend quantity must be an integer",
                     client_tag=None,
+                    request_tag=request_tag,
                 )
                 return
 
@@ -4949,6 +4971,7 @@ class Engine:
                 code=self._gateway_reject_code(reason),
                 reason=reason,
                 client_tag=None,
+                request_tag=request_tag,
             )
             return
 
@@ -4960,6 +4983,7 @@ class Engine:
                 code="MISSING_FIELD",
                 reason="Amend requires at least PRICE or QTY",
                 client_tag=None,
+                request_tag=request_tag,
             )
             return
 
@@ -4974,6 +4998,7 @@ class Engine:
                 code="ORDER_NOT_FOUND",
                 reason="Order not found",
                 client_tag=None,
+                request_tag=request_tag,
             )
             return
         assert symbol is not None
@@ -4988,6 +5013,7 @@ class Engine:
                 code="NOT_OWNER",
                 reason="Cannot amend an order owned by another gateway",
                 client_tag=resting.client_tag,
+                request_tag=request_tag,
             )
             return
 
@@ -5007,6 +5033,7 @@ class Engine:
                 code="MARKET_CLOSED",
                 reason="Market is closed",
                 client_tag=resting.client_tag if resting is not None else None,
+                request_tag=request_tag,
             )
             return
 
@@ -5029,6 +5056,7 @@ class Engine:
                         code="COLLAR_BREACH",
                         reason=result.reason,
                         client_tag=resting.client_tag if resting is not None else None,
+                        request_tag=request_tag,
                     )
                     return
 
@@ -5048,6 +5076,7 @@ class Engine:
                 code=self._amend_reject_code(err),
                 reason=err,
                 client_tag=resting.client_tag if resting is not None else None,
+                request_tag=request_tag,
             )
             return
 
@@ -5064,6 +5093,7 @@ class Engine:
                 qty=amended.quantity,
                 remaining_qty=amended.remaining_qty,
                 priority_reset=priority_reset,
+                request_tag=request_tag,
             )
         )
         self._dbg_count("amend_accepted")
@@ -5161,6 +5191,7 @@ class Engine:
                     code="INSUFFICIENT_LIQUIDITY",
                     reason="Insufficient liquidity",
                     client_tag=evt.client_tag,
+                    request_tag=None,
                 )
         for trade in trades:
             self._publish_trade(trade)  # updates positions (H3)
@@ -5430,6 +5461,7 @@ class Engine:
                     if payload.get("client_tag") is not None
                     else None
                 ),
+                request_tag=None,
             )
         except Exception as send_exc:
             # The reject is best-effort: raising here would escape run() and

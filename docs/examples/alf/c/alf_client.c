@@ -403,8 +403,12 @@ static void handle_event(const alf_message_t *msg)  /* NOLINT(readability-functi
                 cache_order(oid, alf_get_field(msg, "SYMBOL"),
                             alf_get_field(msg, "SIDE"), "NEW");
         } else {
-            event_print("[%s] %sREJECTED%s %s  %s",
+            const char *reject_code = alf_get_field(msg, "REJECT_CODE");
+            const char *rtag = alf_get_field(msg, "RTAG");
+            event_print("[%s] %sREJECTED%s %s%s%s%s%s  %s",
                         ts, COL_RED, COL_RESET, short_id,
+                        reject_code ? " code=" : "", reject_code ? reject_code : "",
+                        rtag ? " rtag=" : "", rtag ? rtag : "",
                         alf_get_field(msg, "REASON") ? alf_get_field(msg, "REASON") : "");
         }
         return;
@@ -438,22 +442,26 @@ static void handle_event(const alf_message_t *msg)  /* NOLINT(readability-functi
 
     if (strcmp(t, "AMENDED") == 0) {
         const char *oid = alf_get_field(msg, "ORDER_ID");
+        const char *rtag = alf_get_field(msg, "RTAG");
         char short_id[9] = "?";
         if (oid) snprintf(short_id, sizeof(short_id), "%s", oid);
-        event_print("[%s] %sAMENDED%s  %s  price=%s qty=%s remaining=%s priority_reset=%s",
+        event_print("[%s] %sAMENDED%s  %s  price=%s qty=%s remaining=%s priority_reset=%s%s%s",
                     ts, COL_MAGENTA, COL_RESET, short_id,
                     alf_get_field(msg, "PRICE")          ? alf_get_field(msg, "PRICE")          : "-",
                     alf_get_field(msg, "QTY")            ? alf_get_field(msg, "QTY")            : "-",
                     alf_get_field(msg, "REMAINING")      ? alf_get_field(msg, "REMAINING")      : "-",
-                    alf_get_field(msg, "PRIORITY_RESET") ? alf_get_field(msg, "PRIORITY_RESET") : "-");
+                    alf_get_field(msg, "PRIORITY_RESET") ? alf_get_field(msg, "PRIORITY_RESET") : "-",
+                    rtag ? " rtag=" : "", rtag ? rtag : "");
         return;
     }
 
     if (strcmp(t, "CANCELLED") == 0) {
         const char *oid = alf_get_field(msg, "ORDER_ID");
+        const char *rtag = alf_get_field(msg, "RTAG");
         char short_id[9] = "?";
         if (oid) snprintf(short_id, sizeof(short_id), "%s", oid);
-        event_print("[%s] %sCANCELLED%s %s", ts, COL_YELLOW, COL_RESET, short_id);
+        event_print("[%s] %sCANCELLED%s %s%s%s", ts, COL_YELLOW, COL_RESET, short_id,
+                    rtag ? " rtag=" : "", rtag ? rtag : "");
         return;
     }
 
@@ -769,8 +777,8 @@ static char *alf_completion_generator(const char *text, int state)
     /* Field-name completion */
     static const char *new_fields[]    = {"SYM=", "SIDE=", "TYPE=", "QTY=", "PRICE=",
                                           "STOP=", "TRAIL=", "VISIBLE=", "TIF=", "SMP=", NULL};
-    static const char *amend_fields[]  = {"ID=", "PRICE=", "QTY=", NULL};
-    static const char *cancel_fields[] = {"ID=", "COMBO_ID=", "OCO_ID=", NULL};
+    static const char *amend_fields[]  = {"ID=", "PRICE=", "QTY=", "RTAG=", NULL};
+    static const char *cancel_fields[] = {"ID=", "COMBO_ID=", "OCO_ID=", "RTAG=", NULL};
     static const char *quote_fields[]  = {"SYM=", "BID=", "ASK=", "BID_QTY=",
                                           "ASK_QTY=", "TIF=", "QUOTE_ID=", NULL};
     static const char *sym_fields[]    = {"SYM=", NULL};
@@ -860,8 +868,8 @@ static void cmd_help(void)
     puts("  NEW|SYM=<s>|SIDE=BUY|SELL|TYPE=<t>|QTY=<n>[|PRICE=<p>][|STOP=<p>]");
     puts("       [|TRAIL=<n>][|VISIBLE=<n>][|TIF=DAY|GTC|ATO|ATC][|SMP=...]");
     puts("  TYPES: MARKET LIMIT STOP STOP_LIMIT FOK IOC ICEBERG TRAILING_STOP OCO COMBO");
-    puts("  AMEND|ID=<oid>[|PRICE=<p>][|QTY=<n>]");
-    puts("  CANCEL|ID=<oid>  or  CANCEL|COMBO_ID=<id>  or  CANCEL|OCO_ID=<id>");
+    puts("  AMEND|ID=<oid>[|PRICE=<p>][|QTY=<n>][|RTAG=<request-tag>]");
+    puts("  CANCEL|ID=<oid>[|RTAG=<request-tag>]  or  CANCEL|COMBO_ID=<id>  or  CANCEL|OCO_ID=<id>");
     puts("  QUOTE|SYM=<s>|BID=<p>|ASK=<p>|BID_QTY=<n>|ASK_QTY=<n>[|TIF=...|QUOTE_ID=...]");
     puts("  QUOTE_CANCEL|SYM=<s>");
     puts("  KILL[|SYM=<s>]    SYMBOLS    ORDERS    QBOOT[|SYM=<s>]");

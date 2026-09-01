@@ -50,16 +50,20 @@ async def _await_order_event(
     topic: str,
     order_id: str,
     wait: str | None,
+    request_tag: str | None = None,
 ) -> dict[str, Any] | None:
     """Optionally wait for an order-specific ack event matching *order_id*."""
     if wait != "ack":
         return None
     try:
+        match = {"order_id": order_id}
+        if request_tag is not None:
+            match["request_tag"] = request_tag
         return cast(
             dict[str, Any],
             await request.app.state.engine.await_event(
                 topic,
-                match={"order_id": order_id},
+                match=match,
                 timeout=request.app.state.config.timeouts.wait_ack_sec,
             ),
         )
@@ -122,14 +126,24 @@ async def cancel_order(
     request: Request,
     session: Annotated[Session, Depends(auth)],
     wait: Annotated[str | None, Query(pattern="^ack$")] = None,
+    request_tag: Annotated[str | None, Query(max_length=64)] = None,
 ) -> CancelAccepted:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
-    request.app.state.engine.send_cancel(order_id, gateway_id)
+    request.app.state.engine.send_cancel(order_id, gateway_id, request_tag=request_tag)
     event = await _await_order_event(
-        request, topic_order_cancelled(gateway_id), order_id, wait
+        request,
+        topic_order_cancelled(gateway_id),
+        order_id,
+        wait,
+        request_tag=request_tag,
     )
-    return CancelAccepted(order_id=order_id, status="PENDING_CANCEL", event=event)
+    return CancelAccepted(
+        order_id=order_id,
+        request_tag=request_tag,
+        status="PENDING_CANCEL",
+        event=event,
+    )
 
 
 @router.patch("/orders/{order_id}", status_code=status.HTTP_202_ACCEPTED)
@@ -142,11 +156,26 @@ async def amend_order(
 ) -> dict[str, Any]:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
-    request.app.state.engine.send_amend(order_id, gateway_id, body.price, body.quantity)
-    event = await _await_order_event(
-        request, topic_order_amended(gateway_id), order_id, wait
+    request.app.state.engine.send_amend(
+        order_id,
+        gateway_id,
+        body.price,
+        body.quantity,
+        request_tag=body.request_tag,
     )
-    return {"order_id": order_id, "status": "PENDING_AMEND", "event": event}
+    event = await _await_order_event(
+        request,
+        topic_order_amended(gateway_id),
+        order_id,
+        wait,
+        request_tag=body.request_tag,
+    )
+    return {
+        "order_id": order_id,
+        "request_tag": body.request_tag,
+        "status": "PENDING_AMEND",
+        "event": event,
+    }
 
 
 @router.post(

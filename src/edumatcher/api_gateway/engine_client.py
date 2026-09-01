@@ -597,13 +597,28 @@ class EngineClient:
     def send_new_order(self, order: Order) -> None:
         self._send(make_order_new_msg(order.to_dict()))
 
-    def send_cancel(self, order_id: str, gateway_id: str) -> None:
-        self._send(make_order_cancel_msg(order_id, gateway_id))
+    def send_cancel(
+        self, order_id: str, gateway_id: str, request_tag: str | None = None
+    ) -> None:
+        self._send(make_order_cancel_msg(order_id, gateway_id, request_tag=request_tag))
 
     def send_amend(
-        self, order_id: str, gateway_id: str, price: float | None, qty: int | None
+        self,
+        order_id: str,
+        gateway_id: str,
+        price: float | None,
+        qty: int | None,
+        request_tag: str | None = None,
     ) -> None:
-        self._send(make_order_amend_msg(order_id, gateway_id, price=price, qty=qty))
+        self._send(
+            make_order_amend_msg(
+                order_id,
+                gateway_id,
+                price=price,
+                qty=qty,
+                request_tag=request_tag,
+            )
+        )
 
     def send_combo(self, payload: dict[str, Any]) -> None:
         self._send(make_combo_order_msg(payload))

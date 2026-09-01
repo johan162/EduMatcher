@@ -255,6 +255,21 @@ All commands use the ALF pipe-separated key=value format.
 | Monitoring | `STATUS`, `ORDERS`, `POS`, `SYMBOLS`, `SESSION`, `QBOOT`, `QLEGS`, `INDEX` | Inspect live/cached state |
 | Session control | `HELP`, `EXIT`, `QUIT` | Terminal usability |
 
+### Request tags for amend and cancel
+
+`RTAG=<request-tag>` is an optional client-supplied identifier on `AMEND` and
+single-order `CANCEL`. It identifies the **request**, not the order. The engine
+echoes it on the resulting `AMENDED`, `CANCELLED`, or rejected `ACK`, so a
+client can match an asynchronous response back to the exact amend or cancel it
+sent.
+
+This is separate from `client_tag`/`TAG` on `NEW`: an order tag follows one
+order for its whole life, while `RTAG` lasts for one request. Use a different
+`RTAG` for each retry or concurrent amend/cancel against the same order.
+Engine-initiated cancels, such as OCO sibling cancels, combo cascades, kill
+switches, and session expiry, have no originating client request and therefore
+do not carry an `RTAG`.
+
 ### Role entitlements (what each role can do)
 
 | Gateway role | Allowed trading behavior | Disallowed behavior |
@@ -605,16 +620,17 @@ NEW|TYPE=COMBO|COMBO_ID=<label>|COMBO_TYPE=AON|TIF=<DAY|GTC>|LEG_COUNT=<n>|LEG0.
 ### AMEND — Amend a Resting Order
 
 ```
-AMEND|ID=<full-order-id>[|PRICE=<new-price>][|QTY=<new-total-qty>]
+AMEND|ID=<full-order-id>[|PRICE=<new-price>][|QTY=<new-total-qty>][|RTAG=<request-tag>]
 ```
 
 At least one of `PRICE=` or `QTY=` must be present.
 
-| Field   | Required    | Description                                     |
-|---------|-------------|---------------------------------------------------|
-| `ID`    | Yes         | Full order UUID (visible in the `ORDERS` table) |
-| `PRICE` | Conditional | New limit price; omit to keep current price     |
-| `QTY`   | Conditional | New total quantity; must be ≥ filled quantity   |
+| Field   | Required    | Description                                      |
+|---------|-------------|--------------------------------------------------|
+| `ID`    | Yes         | Full order UUID (visible in the `ORDERS` table)  |
+| `PRICE` | Conditional | New limit price; omit to keep current price      |
+| `QTY`   | Conditional | New total quantity; must be >= filled quantity   |
+| `RTAG`  | No          | Request tag echoed on `AMENDED` or rejected ACK  |
 
 **Priority rules:**
 
@@ -624,7 +640,7 @@ At least one of `PRICE=` or `QTY=` must be present.
 | Price change           | **Lost** — the order moves to the back of the queue at the new price |
 | Quantity increase      | **Lost** — the order moves to the back of the queue                  |
 
-Reply: `AMENDED <id>  price=<p> qty=<q> remaining=<r>` on success, or a rejection via `REJECTED` with a reason.
+Reply: `AMENDED <id>  price=<p> qty=<q> remaining=<r> rtag=<request-tag>` on success when `RTAG` was supplied, or a rejection via `REJECTED` with a reason.
 
 
 
@@ -684,12 +700,16 @@ sequenceDiagram
 ### CANCEL — Cancel a Resting Order, Combo, or OCO
 
 ```
-CANCEL|ID=<full-order-id>          # single-leg order
+CANCEL|ID=<full-order-id>[|RTAG=<request-tag>]  # single-leg order
 CANCEL|COMBO_ID=<combo-label>      # combo and all its resting legs
 CANCEL|OCO_ID=<oco-label>          # both legs of an OCO pair
 ```
 
 The full order ID is shown in the `ORDERS` table. Only the first 8 characters appear in inline fill/cancel messages — use `ORDERS` to copy the full UUID.
+
+For a single-order cancel, `RTAG` is echoed on the `CANCELLED` event or rejected
+ACK. Group cancels are identified by `COMBO_ID` or `OCO_ID` and do not use
+`RTAG`.
 
 Cancelling a combo or OCO is atomic: all resting child legs are cancelled, but fills that already occurred are not reversed.
 
@@ -880,7 +900,7 @@ All events are printed inline with a `[HH:MM:SS.mmm]` timestamp prefix. A backgr
 | Message                                               | Meaning                                               |
 |---------------------------------------------------------|---------------------------------------------------------|
 | `ACK  <id>  order accepted`                           | Engine received and registered the order              |
-| `REJECTED  <id>  <reason>`                            | Order was rejected (e.g. FOK: insufficient liquidity) |
+| `REJECTED  <id> code=<reject-code>  <reason>`          | Order was rejected; `code` is stable for automation and `reason` is human-readable |
 | `FILL  <id>  qty=50 @150.50  remaining=50  [PARTIAL]` | Partial fill                                          |
 | `FILL  <id>  qty=100 @150.50  remaining=0  [FILLED]`  | Full fill                                             |
 | `AMENDED  <id>  price=151.0 qty=100 remaining=100`    | Amendment confirmed                                   |

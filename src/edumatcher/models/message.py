@@ -144,8 +144,14 @@ def make_gateway_auth_msg(
     )
 
 
-def make_order_cancel_msg(order_id: str, gateway_id: str) -> list[bytes]:
-    return _gen_order.make_order_cancel(order_id=order_id, gateway_id=gateway_id)
+def make_order_cancel_msg(
+    order_id: str, gateway_id: str, request_tag: str | None = None
+) -> list[bytes]:
+    return _gen_order.make_order_cancel(
+        order_id=order_id,
+        gateway_id=gateway_id,
+        request_tag=request_tag,
+    )
 
 
 def make_order_amend_msg(
@@ -153,11 +159,16 @@ def make_order_amend_msg(
     gateway_id: str,
     price: float | None = None,
     qty: int | None = None,
+    request_tag: str | None = None,
 ) -> list[bytes]:
     # The generated builder omits price/qty when None, matching the former
     # hand-rolled regime-3 conditional exactly (verified byte-identical).
     return _gen_order.make_order_amend(
-        order_id=order_id, gateway_id=gateway_id, price=price, qty=qty
+        order_id=order_id,
+        gateway_id=gateway_id,
+        price=price,
+        qty=qty,
+        request_tag=request_tag,
     )
 
 
@@ -168,6 +179,7 @@ def make_amended_msg(
     qty: int,
     remaining_qty: int,
     priority_reset: bool,
+    request_tag: str | None = None,
 ) -> list[bytes]:
     """Generated from ``spec/messages/order.yaml``. Byte-identical to before."""
     return _gen_order.make_order_amended_unchecked(
@@ -177,6 +189,7 @@ def make_amended_msg(
         qty=qty,
         remaining_qty=remaining_qty,
         priority_reset=priority_reset,
+        request_tag=request_tag,
     )
 
 
@@ -210,6 +223,7 @@ def make_ack_msg(
     *,
     reject_code: _gen_order.OrderAckRejectCode | None = None,
     client_tag: str | None = None,
+    request_tag: str | None = None,
     order: dict[str, Any] | None = None,
 ) -> list[bytes]:
     """Generated from ``spec/messages/order.yaml``.
@@ -236,6 +250,7 @@ def make_ack_msg(
         qty=detail.get("quantity"),
         price=detail.get("price"),
         client_tag=order_client_tag,
+        request_tag=request_tag,
         **group_ids(order),
     )
 
@@ -280,6 +295,7 @@ def make_cancelled_msg(
     gateway_id: str,
     order_id: str,
     client_tag: str | None = None,
+    request_tag: str | None = None,
     order: dict[str, Any] | None = None,
 ) -> list[bytes]:
     """Generated from ``spec/messages/order.yaml``. Byte-identical to before."""
@@ -287,6 +303,7 @@ def make_cancelled_msg(
         gateway_id=gateway_id,
         order_id=order_id,
         client_tag=client_tag,
+        request_tag=request_tag,
         **group_ids(order),
     )
 

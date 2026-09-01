@@ -94,6 +94,7 @@ class OrderAccepted(StrictModel):
 
 class CancelAccepted(StrictModel):
     order_id: str
+    request_tag: str | None = None
     status: str
     event: dict[str, Any] | None = None
 
@@ -101,6 +102,7 @@ class CancelAccepted(StrictModel):
 class AmendRequest(StrictModel):
     price: float | None = None
     quantity: int | None = Field(default=None, gt=0)
+    request_tag: str | None = Field(default=None, max_length=64)
 
     @model_validator(mode="after")
     def require_one_field(self) -> "AmendRequest":

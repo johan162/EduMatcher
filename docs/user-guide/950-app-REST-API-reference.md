@@ -663,12 +663,13 @@ Purpose: cancel one live order in the caller's gateway.
 |---|---|---|---|
 | `order_id` | `Str` | yes (path) | Order to cancel |
 | `wait` | `Bool` | no | `?wait=ack` waits for `order.cancelled.*` |
+| `request_tag` | `Str` | no | Query parameter echoed on `order.cancelled.*` or rejected ACK; max 64 chars |
 
 **Reply**
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `202 Accepted` | `{"order_id": "...", "status": "PENDING"}` | Request accepted |
+| `202 Accepted` | `{"order_id": "...", "request_tag": "...", "status": "PENDING_CANCEL"}` | Request accepted |
 | `200 OK` | cancel ACK payload | Returned when waiting for the ACK |
 
 **Errors**
@@ -691,13 +692,14 @@ Purpose: amend price and/or quantity on one live order.
 | `order_id` | `Str` | yes (path) | Order to amend |
 | `price` | `Price` | conditional | New order price |
 | `quantity` | `Qty` | conditional | New order quantity |
+| `request_tag` | `Str` | no | Body field echoed on `order.amended.*` or rejected ACK; max 64 chars |
 | `wait` | `Bool` | no | `?wait=ack` waits for `order.amended.*` |
 
 **Reply**
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `202 Accepted` | `{"order_id": "...", "status": "PENDING"}` | Request accepted |
+| `202 Accepted` | `{"order_id": "...", "request_tag": "...", "status": "PENDING_AMEND"}` | Request accepted |
 | `200 OK` | amend ACK payload | Returned when waiting for the ACK |
 
 **Errors**

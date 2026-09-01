@@ -907,6 +907,7 @@ export interface OrderAckData {
   accepted: boolean;
   reason: string;
   reject_code?: RejectCode | null;
+  request_tag?: string | null;
   symbol?: string;
   side?: Side;
   order_type?: OrderType;
@@ -927,12 +928,14 @@ export interface OrderAmendedData {
   remaining_qty: number;
   priority_reset: boolean;
   price: number | null;
+  request_tag?: string | null;
 }
 
 export interface OrderTerminalData {
   gateway_id: string;
   order_id: string;
   client_tag?: string;
+  request_tag?: string | null;
   oco_group_id?: string;
   combo_parent_id?: string;
   quote_id?: string;

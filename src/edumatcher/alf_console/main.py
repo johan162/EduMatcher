@@ -19,10 +19,10 @@ Commands
   NEW|SYM=AAPL|SIDE=BUY|TYPE=TRAILING_STOP|QTY=100|TRAIL=0.50
   NEW|TYPE=OCO|OCO_ID=<label>|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=BUY|LEG1_TYPE=LIMIT|LEG1_PRICE=150.00|LEG2_SIDE=SELL|LEG2_TYPE=STOP|LEG2_STOP=148.00
   NEW|TYPE=COMBO|COMBO_ID=<label>|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=300.00
-  AMEND|ID=ORD-xxxx|PRICE=151.00
-  AMEND|ID=ORD-xxxx|QTY=200
-  AMEND|ID=ORD-xxxx|PRICE=151.00|QTY=200
-  CANCEL|ID=ORD-xxxx
+    AMEND|ID=ORD-xxxx|PRICE=151.00[|RTAG=req-1]
+    AMEND|ID=ORD-xxxx|QTY=200[|RTAG=req-2]
+    AMEND|ID=ORD-xxxx|PRICE=151.00|QTY=200[|RTAG=req-3]
+    CANCEL|ID=ORD-xxxx[|RTAG=req-4]
   CANCEL|COMBO_ID=<label>
   CANCEL|OCO_ID=<label>
   QUOTE|SYM=AAPL|BID=150.00|ASK=150.10|BID_QTY=500|ASK_QTY=500
@@ -685,7 +685,13 @@ class Gateway:
                     self.order_cache[full_id]["status"] = "NEW"
             else:
                 reason = payload.get("reason", "")
-                console.print(f"[{ts}] [red]REJECTED[/red]  {oid}  {reason}")
+                code = payload.get("reject_code")
+                code_text = f" code={code}" if code else ""
+                rtag = payload.get("request_tag")
+                rtag_text = f" rtag={rtag}" if rtag else ""
+                console.print(
+                    f"[{ts}] [red]REJECTED[/red]  {oid}{code_text}{rtag_text}  {reason}"
+                )
                 full_id = payload.get("order_id", "?")
                 if full_id in self.order_cache:
                     self.order_cache[full_id]["status"] = "REJECTED"
@@ -728,7 +734,9 @@ class Gateway:
                 )
 
         elif "order.cancelled" in topic:
-            console.print(f"[{ts}] [yellow]CANCELLED[/yellow] {oid}")
+            rtag = payload.get("request_tag")
+            rtag_text = f" rtag={rtag}" if rtag else ""
+            console.print(f"[{ts}] [yellow]CANCELLED[/yellow] {oid}{rtag_text}")
             full_id = payload.get("order_id", "?")
             if full_id in self.order_cache:
                 self.order_cache[full_id]["status"] = "CANCELLED"
@@ -747,6 +755,7 @@ class Gateway:
             console.print(
                 f"[{ts}] [magenta]AMENDED[/magenta]   {oid}  "
                 f"price={new_price} qty={new_qty} remaining={rem}{prio}"
+                f"{f' rtag={payload.get('request_tag')}' if payload.get('request_tag') else ''}"
             )
             full_id = payload.get("order_id", "?")
             if full_id in self.order_cache:
@@ -1177,7 +1186,14 @@ class Gateway:
             if not order_id:
                 console.print("[red]CANCEL requires ID=, COMBO_ID=, or OCO_ID=[/red]")
                 return
-            self._send(self.push_sock, make_order_cancel_msg(order_id, self.gateway_id))
+            self._send(
+                self.push_sock,
+                make_order_cancel_msg(
+                    order_id,
+                    self.gateway_id,
+                    request_tag=kv.get("RTAG"),
+                ),
+            )
             return
 
         if cmd == "AMEND":
@@ -1194,7 +1210,11 @@ class Gateway:
             self._send(
                 self.push_sock,
                 make_order_amend_msg(
-                    order_id, self.gateway_id, price=new_price, qty=new_qty
+                    order_id,
+                    self.gateway_id,
+                    price=new_price,
+                    qty=new_qty,
+                    request_tag=kv.get("RTAG"),
                 ),
             )
             return

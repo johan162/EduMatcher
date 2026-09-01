@@ -207,10 +207,10 @@ curl -X POST http://127.0.0.1:8080/api/v1/orders \
   }'
 ```
 
-Capture the returned `order_id`, then cancel it:
+Capture the returned `order_id`, then cancel it with a request tag:
 
 ```bash
-curl -X DELETE http://127.0.0.1:8080/api/v1/orders/ORDER_ID \
+curl -X DELETE 'http://127.0.0.1:8080/api/v1/orders/ORDER_ID?request_tag=rest-cxl-001' \
   -H 'Authorization: Bearer key-trader-demo'
 ```
 
@@ -218,6 +218,8 @@ Expected behavior:
 
 - the submit call returns an accepted response or an engine validation error
 - a valid cancel request targets the authenticated credential's `gateway_id`
+- `request_tag` is echoed on the cancel response/event and identifies this
+  request, not the original order
 - read-only keys cannot submit or cancel orders
 
 :material-checkbox-blank-outline: Checkpoint: you can submit an order and observe its cancel path or explain the engine-side validation error.

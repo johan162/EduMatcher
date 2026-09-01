@@ -804,7 +804,11 @@ class AlfGateway:
 
         self._send_to_engine(
             make_order_amend_msg(
-                order_id, self._require_gw(session), price=price, qty=qty
+                order_id,
+                self._require_gw(session),
+                price=price,
+                qty=qty,
+                request_tag=self._optional_tag(fields, "RTAG"),
             )
         )
 
@@ -826,7 +830,13 @@ class AlfGateway:
                 "MISSING_FIELD", "CANCEL requires ID, COMBO_ID, or OCO_ID"
             )
 
-        self._send_to_engine(make_order_cancel_msg(order_id, gateway_id))
+        self._send_to_engine(
+            make_order_cancel_msg(
+                order_id,
+                gateway_id,
+                request_tag=self._optional_tag(fields, "RTAG"),
+            )
+        )
 
     def _handle_quote(self, session: ClientSession, fields: dict[str, str]) -> None:
         self._require_role(session, "MARKET_MAKER")
@@ -1318,6 +1328,10 @@ class AlfGateway:
                 "SIDE": str(payload.get("side", "")),
                 "TYPE": str(payload.get("order_type", "")),
             }
+            if payload.get("reject_code") is not None:
+                fields["REJECT_CODE"] = str(payload["reject_code"])
+            if payload.get("request_tag") is not None:
+                fields["RTAG"] = str(payload["request_tag"])
         elif topic.startswith(PREFIX_ORDER_FILL):
             msg_type = "FILL"
             fields = {
@@ -1342,9 +1356,13 @@ class AlfGateway:
                     "TRUE" if bool(payload.get("priority_reset", False)) else "FALSE"
                 ),
             }
+            if payload.get("request_tag") is not None:
+                fields["RTAG"] = str(payload["request_tag"])
         elif topic.startswith(PREFIX_ORDER_CANCELLED):
             msg_type = "CANCELLED"
             fields = {"ORDER_ID": str(payload.get("order_id", ""))}
+            if payload.get("request_tag") is not None:
+                fields["RTAG"] = str(payload["request_tag"])
         elif topic.startswith(PREFIX_ORDER_EXPIRED):
             msg_type = "EXPIRED"
             fields = {"ORDER_ID": str(payload.get("order_id", ""))}
@@ -1461,6 +1479,16 @@ class AlfGateway:
         if default is not None:
             return default
         raise ValidationError("MISSING_FIELD", f"{key} is required")
+
+    def _optional_tag(self, fields: dict[str, str], key: str) -> str | None:
+        if key not in fields:
+            return None
+        value = fields[key].strip()
+        if not value:
+            return None
+        if len(value) > 64:
+            raise ValidationError("INVALID_VALUE", f"{key} exceeds 64 characters")
+        return value
 
     def _parse_side(self, raw: str) -> Side:
         try:

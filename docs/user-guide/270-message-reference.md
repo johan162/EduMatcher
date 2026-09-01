@@ -1823,6 +1823,7 @@ Acknowledge acceptance or rejection of a new order, addressed to the gateway tha
 | `qty` | `int` | omitted when unset | unit `shares` |  |
 | `price` | `float` | omitted when unset | unit `display_price` | Absent for a MARKET order, which has no limit price. |
 | `client_tag` | `string` | omitted when unset | max_len 64 |  |
+| `request_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for this request, echoed on the resulting event or rejection. Distinct from the target order's client_tag, which identifies the order rather than the request acting on it. A client may have several requests outstanding against one order. |
 | `oco_group_id` | `string` | omitted when unset | max_len 64 |  |
 | `combo_parent_id` | `string` | omitted when unset | max_len 64 |  |
 | `quote_id` | `string` | omitted when unset | max_len 64 |  |
@@ -1884,6 +1885,7 @@ Confirm that a resting order has been cancelled.
 | `gateway_id` | `string` | required | max_len 32 |  |
 | `order_id` | `string` | required | max_len 64 |  |
 | `client_tag` | `string` | omitted when unset | max_len 64 |  |
+| `request_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for this cancel request. Engine-initiated cancels publish with request_tag=null. |
 | `oco_group_id` | `string` | omitted when unset | max_len 64 |  |
 | `combo_parent_id` | `string` | omitted when unset | max_len 64 |  |
 | `quote_id` | `string` | omitted when unset | max_len 64 |  |
@@ -1927,6 +1929,7 @@ Confirm an accepted amendment and report the resulting order.
 | `qty` | `int` | required | unit `shares` |  |
 | `remaining_qty` | `int` | required | unit `shares` |  |
 | `priority_reset` | `bool` | required | — | True when the amendment lost the order its time priority. |
+| `request_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for this amend request. Engine-initiated cancels publish with request_tag=null. |
 
 !!! note
 
@@ -1994,6 +1997,7 @@ Request cancellation of one resting order by id.
 |---|---|---|---|---|
 | `order_id` | `string` | required | max_len 64 |  |
 | `gateway_id` | `string` | required | max_len 32 |  |
+| `request_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for this cancel request, echoed on the resulting cancellation event or rejection. |
 
 **See also:** `order.cancelled.{GW_ID}`
 
@@ -2013,6 +2017,7 @@ Request a price and/or quantity change to a resting order.
 | `gateway_id` | `string` | required | max_len 32 |  |
 | `price` | `float` | omitted when unset | unit `display_price` | New limit price; absent means the price is unchanged. |
 | `qty` | `int` | omitted when unset | unit `shares` | New quantity; absent means the quantity is unchanged. |
+| `request_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for this amend request, echoed on the resulting amendment event or rejection. |
 
 !!! note
 

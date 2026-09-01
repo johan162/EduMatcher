@@ -432,6 +432,17 @@ messages:
           doc: "Absent for a MARKET order, which has no limit price." }
       - { name: client_tag, type: string, required: false, nullable: true,
           omit_when_none: true, validate: { max_len: 64 } }
+      - name: request_tag
+        type: string
+        required: false
+        nullable: true
+        omit_when_none: true
+        validate: { max_len: 64 }
+        doc: >
+          Client correlation tag for this request, echoed on the resulting
+          event or rejection. Distinct from the target order's client_tag,
+          which identifies the order rather than the request acting on it.
+          A client may have several requests outstanding against one order.
       - { name: oco_group_id, type: string, required: false, nullable: true,
           omit_when_none: true, validate: { max_len: 64 } }
       - { name: combo_parent_id, type: string, required: false, nullable: true,
@@ -509,6 +520,15 @@ messages:
       - { name: order_id, type: string, validate: { max_len: 64 } }
       - { name: client_tag, type: string, required: false, nullable: true,
           omit_when_none: true, validate: { max_len: 64 } }
+      - name: request_tag
+        type: string
+        required: false
+        nullable: true
+        omit_when_none: true
+        validate: { max_len: 64 }
+        doc: >
+          Client correlation tag for this cancel request. Engine-initiated
+          cancels publish with request_tag=null.
       - { name: oco_group_id, type: string, required: false, nullable: true,
           omit_when_none: true, validate: { max_len: 64 } }
       - { name: combo_parent_id, type: string, required: false, nullable: true,
@@ -568,6 +588,15 @@ messages:
       - { name: remaining_qty, type: int, unit: shares }
       - { name: priority_reset, type: bool,
           doc: "True when the amendment lost the order its time priority." }
+      - name: request_tag
+        type: string
+        required: false
+        nullable: true
+        omit_when_none: true
+        validate: { max_len: 64 }
+        doc: >
+          Client correlation tag for this amend request. Engine-initiated
+          cancels publish with request_tag=null.
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 
@@ -707,6 +736,15 @@ messages:
     fields:
       - { name: order_id, type: string, validate: { max_len: 64 } }
       - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - name: request_tag
+        type: string
+        required: false
+        nullable: true
+        omit_when_none: true
+        validate: { max_len: 64 }
+        doc: >
+          Client correlation tag for this cancel request, echoed on the
+          resulting cancellation event or rejection.
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 
@@ -732,6 +770,15 @@ messages:
       - { name: qty, type: int, unit: shares, required: false, nullable: true,
           omit_when_none: true,
           doc: "New quantity; absent means the quantity is unchanged." }
+      - name: request_tag
+        type: string
+        required: false
+        nullable: true
+        omit_when_none: true
+        validate: { max_len: 64 }
+        doc: >
+          Client correlation tag for this amend request, echoed on the
+          resulting amendment event or rejection.
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 

@@ -55,9 +55,9 @@ VERB|KEY=VALUE|KEY=VALUE\n
 from alf_parser import parse_alf_line, build_alf_line, AlfSession, AlfMessage
 
 # Parse one line received from the gateway
-msg: AlfMessage = parse_alf_line("ACK|ORDER_ID=abc|ACCEPTED=TRUE|SYMBOL=AAPL")
+msg: AlfMessage = parse_alf_line("ACK|ORDER_ID=abc|ACCEPTED=FALSE|REJECT_CODE=ORDER_NOT_FOUND|REASON=missing")
 print(msg.msg_type)    # "ACK"
-print(msg.fields)      # {"ORDER_ID": "ABC", "ACCEPTED": "TRUE", "SYMBOL": "AAPL"}
+print(msg.fields)      # {"ORDER_ID": "ABC", "ACCEPTED": "FALSE", "REJECT_CODE": "ORDER_NOT_FOUND", ...}
 
 # Build a line to send
 line: str = build_alf_line("NEW", {"SYM": "AAPL", "SIDE": "BUY",
@@ -92,7 +92,8 @@ At the prompt:
 
 ```
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
-[TRADER01]> AMEND|ID=<order-id>|PRICE=151.00
+[TRADER01]> AMEND|ID=<order-id>|PRICE=151.00|RTAG=req-001
+[TRADER01]> CANCEL|ID=<order-id>|RTAG=req-002
 [TRADER01]> SYMBOLS
 [TRADER01]> ORDERS
 [TRADER01]> POS

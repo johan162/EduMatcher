@@ -11,7 +11,7 @@ from edumatcher.alf_gwy.config import AlfGatewayConfig
 from edumatcher.alf_gwy.gateway import AlfGateway, ClientSession
 from edumatcher.alf_gwy.protocol import parse_alf_line
 from edumatcher.messaging import bus as bus_mod
-from edumatcher.models.message import encode
+from edumatcher.models.message import decode, encode
 
 
 class _FakePush:
@@ -223,6 +223,28 @@ def test_invalid_combo_type_is_invalid_value(gateway: AlfGateway) -> None:
     peer.close()
 
 
+def test_amend_and_cancel_forward_request_tag(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    session.role = "TRADER"
+    session.rate_tokens = 10.0
+
+    gateway._handle_client_line(session, "AMEND|ID=ORD1|QTY=2|RTAG=RT-AMD-001")
+    session.rate_tokens = 10.0
+    gateway._handle_client_line(session, "CANCEL|ID=ORD1|RTAG=RT-CXL-001")
+
+    fake_push = gateway._push
+    assert isinstance(fake_push, _FakePush)
+    amend_topic, amend_payload = decode(fake_push.sent[-2])
+    cancel_topic, cancel_payload = decode(fake_push.sent[-1])
+    assert amend_topic == "order.amend"
+    assert amend_payload["request_tag"] == "RT-AMD-001"
+    assert cancel_topic == "order.cancel"
+    assert cancel_payload["request_tag"] == "RT-CXL-001"
+    peer.close()
+
+
 def test_engine_event_routing_to_gateway_session(gateway: AlfGateway) -> None:
     session, peer = _make_session()
     session.authenticated = True
@@ -245,6 +267,79 @@ def test_engine_event_routing_to_gateway_session(gateway: AlfGateway) -> None:
     frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
     assert frame.command == "ACK"
     assert frame.fields["ORDER_ID"] == "ABC"
+    peer.close()
+
+
+def test_rejected_order_ack_echoes_reject_code(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    gateway._clients[session.sock.fileno()] = session
+    gateway._active_gateway_sessions["TRADER01"] = session.sock.fileno()
+
+    fake_sub = gateway._sub
+    assert isinstance(fake_sub, _FakeSub)
+    fake_sub._queue.append(
+        encode(
+            "order.ack.TRADER01",
+            {
+                "order_id": "ORD1",
+                "accepted": False,
+                "reason": "Order not found",
+                "reject_code": "ORDER_NOT_FOUND",
+                "request_tag": "RT-CXL-001",
+            },
+        )
+    )
+
+    gateway._poll_engine_events()
+
+    frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    assert frame.command == "ACK"
+    assert frame.fields["ACCEPTED"] == "FALSE"
+    assert frame.fields["REJECT_CODE"] == "ORDER_NOT_FOUND"
+    assert frame.fields["RTAG"] == "RT-CXL-001"
+    peer.close()
+
+
+def test_amended_and_cancelled_events_echo_request_tag(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    gateway._clients[session.sock.fileno()] = session
+    gateway._active_gateway_sessions["TRADER01"] = session.sock.fileno()
+
+    fake_sub = gateway._sub
+    assert isinstance(fake_sub, _FakeSub)
+    fake_sub._queue.append(
+        encode(
+            "order.amended.TRADER01",
+            {
+                "order_id": "ORD1",
+                "price": 101.0,
+                "qty": 2,
+                "remaining_qty": 2,
+                "priority_reset": False,
+                "request_tag": "RT-AMD-001",
+            },
+        )
+    )
+    fake_sub._queue.append(
+        encode(
+            "order.cancelled.TRADER01",
+            {"order_id": "ORD1", "request_tag": "RT-CXL-001"},
+        )
+    )
+
+    gateway._poll_engine_events()
+
+    assert len(session.out_queue) == 2
+    amended = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    cancelled = parse_alf_line(session.out_queue[1].decode("utf-8"))
+    assert amended.command == "AMENDED"
+    assert amended.fields["RTAG"] == "RT-AMD-001"
+    assert cancelled.command == "CANCELLED"
+    assert cancelled.fields["RTAG"] == "RT-CXL-001"
     peer.close()
 
 
