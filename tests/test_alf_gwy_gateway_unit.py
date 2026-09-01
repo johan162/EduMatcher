@@ -398,6 +398,7 @@ def test_order_events_echo_client_tag(gateway: AlfGateway) -> None:
                 "remaining_qty": 1,
                 "status": "PARTIAL",
                 "client_tag": "TAG-001",
+                "trade_ids": ["000001-000000001", "000001-000000002"],
             },
         )
     )
@@ -413,6 +414,7 @@ def test_order_events_echo_client_tag(gateway: AlfGateway) -> None:
     frames = [parse_alf_line(line.decode("utf-8")) for line in session.out_queue]
     assert [frame.command for frame in frames] == ["ACK", "FILL", "EXPIRED"]
     assert all(frame.fields["TAG"] == "TAG-001" for frame in frames)
+    assert frames[1].fields["TRADE_IDS"] == "000001-000000001,000001-000000002"
     peer.close()
 
 

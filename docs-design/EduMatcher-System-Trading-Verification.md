@@ -981,7 +981,7 @@ unverifiable. Anticipated gaps, to be confirmed during Phase 1:
 | **G4** | Three unrelated reject vocabularies: ALF codes, engine free-text English, REST HTTP detail | Cannot assert reject reason cross-transport | Canonical `RejectCode` enum emitted verbatim by both gateways (§A.2) |
 | **G5** | No structured "matching decision" trace | When a match is wrong, the log shows the outcome but not the traversal | Add DEBUG-level structured matching trace behind a flag |
 | **G6** | Audit journal may not record rejected orders | Rejections invisible in E2 | Ensure every reject publishes an auditable event |
-| **G7** | `Trade.id` is a per-process counter restarting at 1; the public CALF tape and drop copy carry no trade id at all | Fan-out matrix must be reconstructed by heuristic joins; ids collide across restarts | Run-scoped unique trade id; `trade_id` on CALF and drop copy (§A.3) |
+| **G7** | **Resolved (2026-09-01):** durable `Trade.id`; CALF and drop copy carry trade identity | Fan-out joins use stable trade IDs rather than field/time heuristics | `run_seq-counter` IDs; CALF `TRADE_ID`/`RUN_SEQ`; private and drop-copy `trade_ids` (§A.3) |
 | **G8** | Stats flush timing unobservable | Test cannot know when it is safe to read `stats.db` | Add a flush/commit marker or an admin "flush now" command |
 | **G9** | No liquidity flag on some paths | Maker/taker attribution unverifiable | Ensure `liquidity_flag` is present in E1, E7 and E2 |
 | **G10** | Session-state matrix had undefined cells (§11.4) | No basis for an assertion | **Resolved by spike S4** — behaviour is fully determined and documented; what remains is rulebook ratification, not discovery |
@@ -1131,12 +1131,27 @@ automation reusing the same scenario files and the same canonicaliser.
 
 # Appendix A — Prerequisite System Changes (G1, G4, G7)
 
-> **Status of this appendix.** Implementation-ready. Every claim below was
-> verified against the code at the commit this document was written on; file
-> and symbol references are given so a developer can start immediately.
-> Line numbers are indicative and will drift — search for the named symbol.
+> **Status of this appendix.** Implemented and audited on 2026-09-01. The
+> sections below preserve the original design and investigation record; the
+> completion status reflects the current tree. Line numbers are indicative and
+> will drift — search for the named symbol.
 
-## A.0 Summary and Survey Results
+> **Completion record (2026-09-01).** G1, G4, and G7 are implemented. The
+> current contract is intentionally strict: `client_order_id` has no REST
+> compatibility alias; `trade.executed.run_seq`, CALF `TRADE_ID`/`RUN_SEQ`, and
+> drop-copy `trade_ids` are required; and generated bindings are regenerated
+> from `spec/messages/*.yaml`. Causal identity is verified across engine
+> `trade.executed`, private `order.fill`, ALF `FILL|TRADE_IDS=`, drop copy, and
+> CALF `TRADE` for every supported engine execution flow.
+>
+> The restart-collision safeguards remain deliberately. Clearing retains
+> `(id, ts_ns)` and stats retains `(trade_id, ts)` as composite primary keys:
+> durable IDs make the timestamp redundant for new engine traffic, but these
+> keys preserve imported/synthetic historical data and make exact duplicate
+> delivery idempotent. They are defense in depth, not substitutes for durable
+> engine trade IDs.
+
+## A.0 Summary and Survey Results (Historical)
 
 A code survey produced one important and one uncomfortable result.
 

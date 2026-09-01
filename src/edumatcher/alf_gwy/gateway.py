@@ -1390,6 +1390,9 @@ class AlfGateway:
                 "FILL_PRICE": str(payload.get("fill_price", "")),
                 "REMAINING": str(payload.get("remaining_qty", "")),
                 "STATUS": str(payload.get("status", "")),
+                "TRADE_IDS": ",".join(
+                    str(trade_id) for trade_id in payload.get("trade_ids", [])
+                ),
             }
             if payload.get("client_tag") is not None:
                 fields["TAG"] = str(payload["client_tag"])

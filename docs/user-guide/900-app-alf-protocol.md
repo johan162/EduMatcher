@@ -280,6 +280,11 @@ Rejected order acknowledgements carry two diagnostics:
 is the human-readable explanation. Use `REJECT_CODE` for branching, metrics,
 and tests; log `REASON` for operators.
 
+`FILL` carries `TRADE_IDS=<id[,id...]>`, the comma-separated durable public
+trade IDs that composed the private fill. A one-level fill has one ID; a
+coalesced sweep has one ID per execution in match order. The field is present
+as `TRADE_IDS=` when no ID is available.
+
 Gateway-local errors use the same canonical field:
 `ERR|CODE=<legacy-code>|REJECT_CODE=<canonical-code>|DETAIL=<text>`. `CODE`
 names the ALF gateway validation condition; `REJECT_CODE` is the

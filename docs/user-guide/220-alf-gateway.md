@@ -311,6 +311,11 @@ NEW|TYPE=COMBO|COMBO_ID=spread-1|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAP
 **Responses:** `ACK|ORDER_ID=...|ACCEPTED=TRUE|...` or `ACK|ORDER_ID=...|ACCEPTED=FALSE|REJECT_CODE=...|REASON=...`
 followed asynchronously by `FILL|...`, `CANCELLED|...`, or `EXPIRED|...`.
 
+`FILL` includes `TRADE_IDS`, a comma-separated list of the durable public trade
+IDs that composed the fill. It normally contains one ID; a swept order can
+contain several in execution order. An empty value means no public trade ID was
+available for that fill.
+
 On rejected order ACKs, `REJECT_CODE` is the stable machine-readable rejection
 classification. `REASON` remains the human-readable explanation.
 Gateway-local validation errors use `ERR|CODE=...|REJECT_CODE=...|DETAIL=...`
@@ -564,7 +569,7 @@ These messages are addressed to your gateway ID and arrive on your session only.
 | Message type | Key fields |
 |---|---|
 | `ACK` | `ORDER_ID`, `ACCEPTED`, `REASON`, `SYMBOL`, `SIDE`, `TYPE` |
-| `FILL` | `ORDER_ID`, `FILL_QTY`, `FILL_PRICE`, `REMAINING`, `STATUS` |
+| `FILL` | `ORDER_ID`, `FILL_QTY`, `FILL_PRICE`, `REMAINING`, `STATUS`, `TRADE_IDS` |
 | `AMENDED` | `ORDER_ID`, `PRICE`, `QTY`, `REMAINING`, `PRIORITY_RESET` |
 | `CANCELLED` | `ORDER_ID` |
 | `EXPIRED` | `ORDER_ID` |

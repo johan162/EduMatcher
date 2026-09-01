@@ -571,6 +571,7 @@ def test_fill_event_delivered_to_client(
                     "fill_price": 150.25,
                     "remaining_qty": 50,
                     "status": "PARTIAL",
+                    "trade_ids": ["000001-000000001", "000001-000000002"],
                 },
             )
         )
@@ -580,6 +581,7 @@ def test_fill_event_delivered_to_client(
         assert msg.fields["ORDER_ID"] == "FILL-ID-999"
         assert msg.fields["FILL_QTY"] == "50"
         assert msg.fields["STATUS"] == "PARTIAL"
+        assert msg.fields["TRADE_IDS"] == "000001-000000001,000001-000000002"
 
 
 def test_session_state_broadcast_delivered(

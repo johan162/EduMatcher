@@ -238,6 +238,11 @@ Expected behavior:
 - `ORDERS` shows the resting order with `STATUS=NEW` and `REMAINING=100`
 - If `MM01` is quoting, the order may fill immediately and `ORDERS` returns `COUNT=0`
 
+When an order fills, its `FILL` event carries `TRADE_IDS=<id[,id...]>`. Keep
+those durable public trade IDs with the order record: a swept order can contain
+several, in match order, and they join the private fill to the public trade
+tape, CALF, and drop copy without matching on price or time.
+
 Cancel the resting order using the UUID from the `ACK` and a request tag:
 
 ```text
@@ -531,6 +536,7 @@ You can now:
 - Verify a TCP port is listening using `lsof`, `ss`, and `netstat` on macOS and Linux.
 - Test the complete ALF session lifecycle manually with `nc` and `telnet` before writing any code.
 - Submit, amend, and cancel orders over a raw TCP session and read `ACK`, `AMENDED`, and `CANCELLED` responses.
+- Correlate an ALF `FILL` to its public executions through `TRADE_IDS`.
 - Use `python3 alf_client.py` for interactive sessions with tab-completion and live event display.
 - Script against the gateway using `AlfSession` from `alf_parser.py`.
 - Build and run the C `alf_client` for a readline-based interactive session with `select()` multiplexing.

@@ -31,6 +31,7 @@ from typing import Any, Callable
 
 import pytest
 
+from edumatcher.md_gateway.normaliser import EngineNormaliser
 from edumatcher.models.combo import ComboLeg, ComboOrder, ComboType
 from edumatcher.models.order import OrderType, Side, TIF
 
@@ -300,6 +301,43 @@ def test_g4_fills_reach_drop_copy(monkeypatch, tmp_path, flow_name) -> None:
         f"[{flow_name}] trade printed but drop copy carries fills only for "
         f"{sorted(fill_gws) or 'nobody'} — clearing/risk feed is incomplete"
     )
+
+
+# ---------------------------------------------------------------------------
+# G4a — every execution has one stable identity through every fill projection.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("flow_name", FLOW_PARAMS)
+def test_g4a_trade_identity_survives_every_fill_projection(
+    monkeypatch, tmp_path, flow_name
+) -> None:
+    _engine, pub, drop, _ = _run_flow(monkeypatch, tmp_path, flow_name)
+    trades = msgs(pub, "trade.executed")
+    assert trades, "precondition"
+
+    expected_ids_by_order: dict[str, list[str]] = {}
+    normaliser = EngineNormaliser()
+    for trade in trades:
+        trade_id = trade["id"]
+        for order_id in (trade["buy_order_id"], trade["sell_order_id"]):
+            expected_ids_by_order.setdefault(order_id, []).append(trade_id)
+
+        _symbol, calf = normaliser.normalise_trade(trade)
+        assert calf["TRADE_ID"] == trade_id
+        assert calf["RUN_SEQ"] == str(trade["run_seq"])
+
+        drop_copies = [
+            event for event in drop.events if event[2]["trade_ids"] == [trade_id]
+        ]
+        assert {event[0] for event in drop_copies} == {
+            trade["buy_gateway_id"],
+            trade["sell_gateway_id"],
+        }
+
+    for gateway_id in ("GW01", "GW02", "GW03"):
+        for fill in msgs(pub, f"order.fill.{gateway_id}"):
+            assert fill["trade_ids"] == expected_ids_by_order[fill["order_id"]]
 
 
 # ---------------------------------------------------------------------------

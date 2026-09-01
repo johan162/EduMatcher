@@ -467,18 +467,21 @@ One row per individual trade execution. Written on every `trade.executed` event.
 ```sql
 CREATE TABLE IF NOT EXISTS trade_log (
     ts              TEXT NOT NULL,       -- ISO datetime string
-    trade_id        TEXT NOT NULL PRIMARY KEY,  -- durable engine trade id
+  trade_id        TEXT NOT NULL,       -- durable engine trade id
     symbol          TEXT NOT NULL,       -- e.g. 'AAPL'
     price           REAL NOT NULL,       -- execution price as display decimal
     quantity        INTEGER NOT NULL,    -- executed quantity
     buy_gateway_id  TEXT,                -- gateway that was the buyer
-    sell_gateway_id TEXT                 -- gateway that was the seller
+    sell_gateway_id TEXT,                -- gateway that was the seller
+    PRIMARY KEY (trade_id, ts)
 );
 ```
 
-`INSERT OR IGNORE` on `trade_id` makes replayed or duplicate events safe. Modern
-engine ids are durable strings such as `000042-000000001`, where the prefix is
-the engine run sequence and the suffix is the trade counter within that run.
+  `INSERT OR IGNORE` on `(trade_id, ts)` makes exact duplicate deliveries safe.
+  Modern engine IDs are durable strings such as `000042-000000001`, where the
+  prefix is the engine run sequence and the suffix is the trade counter within
+  that run. The timestamp remains in the composite key as defense in depth for
+  imported or synthetic historical rows whose IDs are not durable.
 
 **Example queries**:
 

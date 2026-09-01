@@ -230,7 +230,7 @@ AAPL|15025|100|2
 $ pm-stats-cli trades --symbol AAPL --limit 1
 ts                            | trade_id | symbol | price  | quantity | ...
 ------------------------------+----------+--------+--------+----------+----
-2026-06-14T09:00:01.000+00:00 | 1        | AAPL   | 150.25 | 100      | ...
+2026-06-14T09:00:01.000+00:00 | 000042-000000001 | AAPL | 150.25 | 100 | ...
 ```
 
 Same row. `pm-stats-cli` and the API convert for you; raw SQL does not.
@@ -1026,9 +1026,9 @@ pm-stats-cli trades --limit 50
 ```
 ts                            | trade_id | symbol | price | quantity | aggressor_side | buy_gateway_id | sell_gateway_id
 ------------------------------+----------+--------+-------+----------+----------------+----------------+----------------
-2026-06-14T09:00:01.000+00:00 | 1        | AAPL   | 150   | 100      | BUY            | TRADER01       | MM01
-2026-06-14T09:00:05.123+00:00 | 2        | AAPL   | 150.5 | 50       | AUCTION        | MM01           | TRADER02
-2026-06-14T09:00:10.456+00:00 | 3        | AAPL   | 150.2 | 200      | SELL           | TRADER02       | TRADER01
+2026-06-14T09:00:01.000+00:00 | 000042-000000001 | AAPL   | 150   | 100      | BUY            | TRADER01       | MM01
+2026-06-14T09:00:05.123+00:00 | 000042-000000002 | AAPL   | 150.5 | 50       | AUCTION        | MM01           | TRADER02
+2026-06-14T09:00:10.456+00:00 | 000042-000000003 | AAPL   | 150.2 | 200      | SELL           | TRADER02       | TRADER01
 ```
 
 #### `order-events` — Private Order Lifecycle Events
