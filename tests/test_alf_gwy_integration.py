@@ -260,6 +260,55 @@ def test_welcome_followed_by_symbols_response(
         assert parse_alf_line(end).fields["TYPE"] == "SYMBOLS"
 
 
+def test_tagged_order_flow_echoes_reject_metadata(
+    running_gateway: tuple[AlfGateway, zmq.Socket[bytes], zmq.Socket[bytes], int],
+) -> None:
+    """TCP ALF client -> gateway -> engine -> gateway -> TCP client."""
+    _, pull, pub, port = running_gateway
+
+    with socket.create_connection(("127.0.0.1", port), timeout=3) as cli:
+        lb = _LineBuffer(cli)
+        _authenticate(cli, lb, pull, pub)
+
+        _drain_pull_until(pull, "system.symbols_request", timeout=2.0)
+        time.sleep(0.1)
+        pub.send_multipart(
+            encode(
+                "system.symbols.TRADER01",
+                {"symbols": [{"symbol": "AAPL", "tick_decimals": 2}]},
+            )
+        )
+        lb.recv_until(lambda ln: ln.startswith("END") and "TYPE=SYMBOLS" in ln)
+
+        cli.sendall(
+            b"NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=10|PRICE=100|TAG=T1-LM001-001\n"
+        )
+        _topic, order_payload = _drain_pull_until(pull, "order.new", timeout=3.0)
+        order_id = str(order_payload["id"])
+        assert order_payload["client_tag"] == "T1-LM001-001"
+
+        time.sleep(0.1)
+        pub.send_multipart(
+            encode(
+                "order.ack.TRADER01",
+                {
+                    "order_id": order_id,
+                    "accepted": False,
+                    "reason": "collar breach",
+                    "reject_code": "COLLAR_BREACH",
+                    "client_tag": "T1-LM001-001",
+                    "request_tag": "RT-REJECT-001",
+                },
+            )
+        )
+
+        ack = parse_alf_line(lb.recv_until(lambda ln: ln.startswith("ACK")))
+        assert ack.fields["ACCEPTED"] == "FALSE"
+        assert ack.fields["REJECT_CODE"] == "COLLAR_BREACH"
+        assert ack.fields["TAG"] == "T1-LM001-001"
+        assert ack.fields["RTAG"] == "RT-REJECT-001"
+
+
 def test_hello_bad_proto_rejected(
     running_gateway: tuple[AlfGateway, zmq.Socket[bytes], zmq.Socket[bytes], int],
 ) -> None:

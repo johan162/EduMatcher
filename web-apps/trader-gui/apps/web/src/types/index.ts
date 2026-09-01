@@ -928,6 +928,7 @@ export interface OrderAmendedData {
   remaining_qty: number;
   priority_reset: boolean;
   price: number | null;
+  client_tag?: string | null;
   request_tag?: string | null;
 }
 

@@ -61,8 +61,8 @@ print(msg.fields)      # {"ORDER_ID": "ABC", "ACCEPTED": "FALSE", "REJECT_CODE":
 
 # Build a line to send
 line: str = build_alf_line("NEW", {"SYM": "AAPL", "SIDE": "BUY",
-                                    "TYPE": "LIMIT", "QTY": "100", "PRICE": "150.00"})
-# → "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00\n"
+                                    "TYPE": "LIMIT", "QTY": "100", "PRICE": "150.00", "TAG": "ORDER-001"})
+# → "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001\n"
 
 # Full session: connect, HELLO/WELCOME handshake, send/recv
 session = AlfSession.connect("127.0.0.1", 5565, "TRADER01")
@@ -91,7 +91,7 @@ python3 alf_client.py --id MM01 --client "my-mm-bot"
 At the prompt:
 
 ```
-[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=order-001
 [TRADER01]> AMEND|ID=<order-id>|PRICE=151.00|RTAG=req-001
 [TRADER01]> CANCEL|ID=<order-id>|RTAG=req-002
 [TRADER01]> SYMBOLS
@@ -145,10 +145,10 @@ printf("%s\n", alf_get_field(&msg, "ACCEPTED"));    /* "TRUE" */
 
 /* Build */
 const char *kv[] = {"SYM", "AAPL", "SIDE", "BUY",
-                    "TYPE", "LIMIT", "QTY", "100", "PRICE", "150.00", NULL};
+                    "TYPE", "LIMIT", "QTY", "100", "PRICE", "150.00", "TAG", "ORDER-001", NULL};
 char buf[4096];
 alf_build_line(buf, sizeof(buf), "NEW", kv);
-/* → "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00\n" */
+/* → "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001\n" */
 write(sockfd, buf, strlen(buf));
 ```
 

@@ -385,9 +385,13 @@ static void handle_event(const alf_message_t *msg)  /* NOLINT(readability-functi
     }
 
     if (strcmp(t, "ERR") == 0) {
-        event_print("[%s] %sERR%s  [%s]  %s",
+        const char *reject_code = alf_get_field(msg, "REJECT_CODE");
+        const char *tag = alf_get_field(msg, "TAG");
+        event_print("[%s] %sERR%s [%s]%s%s%s%s  %s",
                     ts, COL_RED, COL_RESET,
                     alf_get_field(msg, "CODE")   ? alf_get_field(msg, "CODE")   : "?",
+                    reject_code ? " reject_code=" : "", reject_code ? reject_code : "",
+                    tag ? " tag=" : "", tag ? tag : "",
                     alf_get_field(msg, "DETAIL") ? alf_get_field(msg, "DETAIL") : "");
         return;
     }
@@ -398,16 +402,20 @@ static void handle_event(const alf_message_t *msg)  /* NOLINT(readability-functi
         char short_id[9] = "?";
         if (oid) snprintf(short_id, sizeof(short_id), "%s", oid);
         if (accepted && strcmp(accepted, "TRUE") == 0) {
-            event_print("[%s] %sACK%s      %s  order accepted", ts, COL_GREEN, COL_RESET, short_id);
+            const char *tag = alf_get_field(msg, "TAG");
+            event_print("[%s] %sACK%s      %s%s%s  order accepted", ts, COL_GREEN, COL_RESET, short_id,
+                        tag ? " tag=" : "", tag ? tag : "");
             if (oid)
                 cache_order(oid, alf_get_field(msg, "SYMBOL"),
                             alf_get_field(msg, "SIDE"), "NEW");
         } else {
             const char *reject_code = alf_get_field(msg, "REJECT_CODE");
+            const char *tag = alf_get_field(msg, "TAG");
             const char *rtag = alf_get_field(msg, "RTAG");
-            event_print("[%s] %sREJECTED%s %s%s%s%s%s  %s",
+            event_print("[%s] %sREJECTED%s %s%s%s%s%s%s%s  %s",
                         ts, COL_RED, COL_RESET, short_id,
                         reject_code ? " code=" : "", reject_code ? reject_code : "",
+                        tag ? " tag=" : "", tag ? tag : "",
                         rtag ? " rtag=" : "", rtag ? rtag : "",
                         alf_get_field(msg, "REASON") ? alf_get_field(msg, "REASON") : "");
         }
@@ -420,15 +428,17 @@ static void handle_event(const alf_message_t *msg)  /* NOLINT(readability-functi
         const char *px   = alf_get_field(msg, "FILL_PRICE");
         const char *rem  = alf_get_field(msg, "REMAINING");
         const char *st   = alf_get_field(msg, "STATUS");
+        const char *tag  = alf_get_field(msg, "TAG");
         char short_id[9] = "?";
         if (oid) snprintf(short_id, sizeof(short_id), "%s", oid);
-        event_print("[%s] %sFILL%s     %s  qty=%s @%s  remaining=%s  [%s]",
+        event_print("[%s] %sFILL%s     %s  qty=%s @%s  remaining=%s  [%s]%s%s",
                     ts, COL_CYAN, COL_RESET,
                     short_id,
                     qty ? qty : "?",
                     px  ? px  : "?",
                     rem ? rem : "?",
-                    st  ? st  : "?");
+                    st  ? st  : "?",
+                    tag ? " tag=" : "", tag ? tag : "");
         /* Update position */
         if (oid && qty && px) {
             OrderEntry *e = find_order(oid);
@@ -442,34 +452,40 @@ static void handle_event(const alf_message_t *msg)  /* NOLINT(readability-functi
 
     if (strcmp(t, "AMENDED") == 0) {
         const char *oid = alf_get_field(msg, "ORDER_ID");
+        const char *tag = alf_get_field(msg, "TAG");
         const char *rtag = alf_get_field(msg, "RTAG");
         char short_id[9] = "?";
         if (oid) snprintf(short_id, sizeof(short_id), "%s", oid);
-        event_print("[%s] %sAMENDED%s  %s  price=%s qty=%s remaining=%s priority_reset=%s%s%s",
+        event_print("[%s] %sAMENDED%s  %s  price=%s qty=%s remaining=%s priority_reset=%s%s%s%s%s",
                     ts, COL_MAGENTA, COL_RESET, short_id,
                     alf_get_field(msg, "PRICE")          ? alf_get_field(msg, "PRICE")          : "-",
                     alf_get_field(msg, "QTY")            ? alf_get_field(msg, "QTY")            : "-",
                     alf_get_field(msg, "REMAINING")      ? alf_get_field(msg, "REMAINING")      : "-",
                     alf_get_field(msg, "PRIORITY_RESET") ? alf_get_field(msg, "PRIORITY_RESET") : "-",
+                    tag ? " tag=" : "", tag ? tag : "",
                     rtag ? " rtag=" : "", rtag ? rtag : "");
         return;
     }
 
     if (strcmp(t, "CANCELLED") == 0) {
         const char *oid = alf_get_field(msg, "ORDER_ID");
+        const char *tag = alf_get_field(msg, "TAG");
         const char *rtag = alf_get_field(msg, "RTAG");
         char short_id[9] = "?";
         if (oid) snprintf(short_id, sizeof(short_id), "%s", oid);
-        event_print("[%s] %sCANCELLED%s %s%s%s", ts, COL_YELLOW, COL_RESET, short_id,
+        event_print("[%s] %sCANCELLED%s %s%s%s%s%s", ts, COL_YELLOW, COL_RESET, short_id,
+                    tag ? " tag=" : "", tag ? tag : "",
                     rtag ? " rtag=" : "", rtag ? rtag : "");
         return;
     }
 
     if (strcmp(t, "EXPIRED") == 0) {
         const char *oid = alf_get_field(msg, "ORDER_ID");
+        const char *tag = alf_get_field(msg, "TAG");
         char short_id[9] = "?";
         if (oid) snprintf(short_id, sizeof(short_id), "%s", oid);
-        event_print("[%s] %sEXPIRED%s  %s", ts, COL_DIM, COL_RESET, short_id);
+        event_print("[%s] %sEXPIRED%s  %s%s%s", ts, COL_DIM, COL_RESET, short_id,
+                    tag ? " tag=" : "", tag ? tag : "");
         return;
     }
 
@@ -776,7 +792,7 @@ static char *alf_completion_generator(const char *text, int state)
 
     /* Field-name completion */
     static const char *new_fields[]    = {"SYM=", "SIDE=", "TYPE=", "QTY=", "PRICE=",
-                                          "STOP=", "TRAIL=", "VISIBLE=", "TIF=", "SMP=", NULL};
+                                          "STOP=", "TRAIL=", "VISIBLE=", "TIF=", "SMP=", "TAG=", NULL};
     static const char *amend_fields[]  = {"ID=", "PRICE=", "QTY=", "RTAG=", NULL};
     static const char *cancel_fields[] = {"ID=", "COMBO_ID=", "OCO_ID=", "RTAG=", NULL};
     static const char *quote_fields[]  = {"SYM=", "BID=", "ASK=", "BID_QTY=",
@@ -866,7 +882,7 @@ static void cmd_help(void)
 {
     printf("\n%sALF Gateway Client%s — commands\n\n", COL_BOLD, COL_RESET);
     puts("  NEW|SYM=<s>|SIDE=BUY|SELL|TYPE=<t>|QTY=<n>[|PRICE=<p>][|STOP=<p>]");
-    puts("       [|TRAIL=<n>][|VISIBLE=<n>][|TIF=DAY|GTC|ATO|ATC][|SMP=...]");
+    puts("       [|TRAIL=<n>][|VISIBLE=<n>][|TIF=DAY|GTC|ATO|ATC][|SMP=...][|TAG=<order-tag>]");
     puts("  TYPES: MARKET LIMIT STOP STOP_LIMIT FOK IOC ICEBERG TRAILING_STOP OCO COMBO");
     puts("  AMEND|ID=<oid>[|PRICE=<p>][|QTY=<n>][|RTAG=<request-tag>]");
     puts("  CANCEL|ID=<oid>[|RTAG=<request-tag>]  or  CANCEL|COMBO_ID=<id>  or  CANCEL|OCO_ID=<id>");

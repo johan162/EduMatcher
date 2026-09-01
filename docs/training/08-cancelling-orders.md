@@ -24,7 +24,7 @@ state, inspecting resting orders, and managing the order lifecycle.
 Place an order and then cancel it:
 
 ```
-[TRADER01]> NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=248.00|TIF=DAY
+[TRADER01]> NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=248.00|TIF=DAY|TAG=CXL-ORDER-001
 ```
 
 Note the `order_id`, then:
@@ -38,6 +38,8 @@ Expected: cancellation confirmed.
 `RTAG` identifies this cancel request. The engine echoes it on the `CANCELLED`
 response or rejected ACK, which makes retries and concurrent cancel tests easier
 to audit.
+The original order `TAG` is echoed separately, so a client can tell which order
+was acted on and which cancel request completed.
 
 :material-checkbox-blank-outline: **Checkpoint:** order cancelled; `ORDERS` no longer lists it as resting.
 

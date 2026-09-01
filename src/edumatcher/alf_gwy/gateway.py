@@ -54,6 +54,7 @@ from edumatcher.models.message import (
 )
 from edumatcher.models.order import Order, OrderType, Side, SmpAction, TIF
 from edumatcher.models.price import register_tick_decimals, to_ticks
+from edumatcher.models.reject import RejectCode
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.generated.order import (
     PREFIX_ORDER_ACK,
@@ -113,6 +114,7 @@ _MAX_DC_EVENTS_PER_LOOP = 1000
 # Topic prefix used by edumatcher.engine.drop_copy.DropCopyPublisher for live
 # (non-replay) fill events -- see docs/user-guide/200-drop-copy.md.
 _DC_EVENT_TOPIC_PREFIX = PREFIX_DROP_COPY_EVENT
+_TAG_ALLOWED = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.")
 
 log = logging.getLogger(__name__)
 
@@ -319,6 +321,7 @@ class AlfGateway:
                     "BAD_MESSAGE",
                     "Line exceeds 4096 bytes",
                     close_connection=False,
+                    reject_code="MALFORMED_MESSAGE",
                 )
                 continue
 
@@ -339,6 +342,7 @@ class AlfGateway:
                     "BAD_MESSAGE",
                     "Line exceeds 4096 bytes",
                     close_connection=False,
+                    reject_code="MALFORMED_MESSAGE",
                 )
                 continue
 
@@ -350,6 +354,7 @@ class AlfGateway:
                     "BAD_MESSAGE",
                     "Line is not valid UTF-8",
                     close_connection=False,
+                    reject_code="MALFORMED_MESSAGE",
                 )
                 continue
             try:
@@ -411,6 +416,7 @@ class AlfGateway:
                     "HELLO_ALREADY_PENDING",
                     "HELLO already received; awaiting auth result",
                     close_connection=False,
+                    reject_code="AUTH_REQUIRED",
                 )
                 return
 
@@ -420,6 +426,8 @@ class AlfGateway:
                     "RATE_LIMITED",
                     "Too many commands per second",
                     close_connection=False,
+                    reject_code="RATE_LIMITED",
+                    tag=self._error_tag_for(cmd, fields),
                 )
                 return
             if cmd != "HELLO":
@@ -428,6 +436,8 @@ class AlfGateway:
                     "AUTH_REQUIRED",
                     "HELLO must be the first message",
                     close_connection=True,
+                    reject_code="AUTH_REQUIRED",
+                    tag=self._error_tag_for(cmd, fields),
                 )
                 return
             try:
@@ -438,7 +448,12 @@ class AlfGateway:
                     "HELLO_ALREADY_PENDING",
                 }
                 self._register_error(
-                    session, exc.code, exc.detail, close_connection=close_conn
+                    session,
+                    exc.code,
+                    exc.detail,
+                    close_connection=close_conn,
+                    reject_code=exc.reject_code,
+                    tag=self._error_tag_for(cmd, fields),
                 )
             return
 
@@ -460,6 +475,8 @@ class AlfGateway:
                 "RATE_LIMITED",
                 "Too many commands per second",
                 close_connection=False,
+                reject_code="RATE_LIMITED",
+                tag=self._error_tag_for(cmd, fields),
             )
             return
 
@@ -467,7 +484,14 @@ class AlfGateway:
             self._dispatch_authenticated(session, cmd, fields)
         except ValidationError as exc:
             self._global_stats["commands_rejected_total"] += 1
-            self._register_error(session, exc.code, exc.detail, close_connection=False)
+            self._register_error(
+                session,
+                exc.code,
+                exc.detail,
+                close_connection=False,
+                reject_code=exc.reject_code,
+                tag=self._error_tag_for(cmd, fields),
+            )
         except Exception:
             self._global_stats["commands_rejected_total"] += 1
             self._register_error(
@@ -475,6 +499,8 @@ class AlfGateway:
                 "INTERNAL_ERROR",
                 "unexpected error",
                 close_connection=False,
+                reject_code="INTERNAL_ERROR",
+                tag=self._error_tag_for(cmd, fields),
             )
 
     def _dispatch_authenticated(
@@ -581,6 +607,8 @@ class AlfGateway:
         session.connect_emitted = True
 
     def _handle_new(self, session: ClientSession, fields: dict[str, str]) -> None:
+        if "RTAG" in fields:
+            raise ValidationError("UNSUPPORTED_FIELD", "NEW uses TAG, not RTAG")
         req_type = fields.get("TYPE", "LIMIT")
         if req_type == "OCO":
             self._handle_new_oco(session, fields)
@@ -667,6 +695,7 @@ class AlfGateway:
                 to_ticks(trail_offset, symbol) if trail_offset is not None else None
             ),
             oco_group_id=None,
+            client_tag=self._optional_tag(fields, "TAG"),
         )
 
         self._send_to_engine(make_order_new_msg(order.to_dict()))
@@ -717,6 +746,9 @@ class AlfGateway:
             "leg1": leg1,
             "leg2": leg2,
         }
+        client_tag = self._optional_tag(fields, "TAG")
+        if client_tag is not None:
+            payload["client_tag"] = client_tag
         self._send_to_engine(make_oco_order_msg(payload))
 
     def _handle_new_combo(self, session: ClientSession, fields: dict[str, str]) -> None:
@@ -793,9 +825,15 @@ class AlfGateway:
             tif=tif,
             legs=legs,
         )
-        self._send_to_engine(make_combo_order_msg(combo.to_submission_dict()))
+        payload = combo.to_submission_dict()
+        client_tag = self._optional_tag(fields, "TAG")
+        if client_tag is not None:
+            payload["client_tag"] = client_tag
+        self._send_to_engine(make_combo_order_msg(payload))
 
     def _handle_amend(self, session: ClientSession, fields: dict[str, str]) -> None:
+        if "TAG" in fields:
+            raise ValidationError("UNSUPPORTED_FIELD", "AMEND uses RTAG, not TAG")
         order_id = self._required_str(fields, "ID")
         price = safe_float(fields["PRICE"], "PRICE") if "PRICE" in fields else None
         qty = safe_int(fields["QTY"], "QTY", min_value=1) if "QTY" in fields else None
@@ -814,13 +852,23 @@ class AlfGateway:
 
     def _handle_cancel(self, session: ClientSession, fields: dict[str, str]) -> None:
         gateway_id = self._require_gw(session)
+        if "TAG" in fields:
+            raise ValidationError("UNSUPPORTED_FIELD", "CANCEL uses RTAG, not TAG")
         combo_id = fields.get("COMBO_ID")
         if combo_id:
+            if "RTAG" in fields:
+                raise ValidationError(
+                    "UNSUPPORTED_FIELD", "RTAG is only supported for CANCEL|ID"
+                )
             self._send_to_engine(make_combo_cancel_msg(combo_id, gateway_id))
             return
 
         oco_id = fields.get("OCO_ID")
         if oco_id:
+            if "RTAG" in fields:
+                raise ValidationError(
+                    "UNSUPPORTED_FIELD", "RTAG is only supported for CANCEL|ID"
+                )
             self._send_to_engine(make_oco_cancel_msg(oco_id, gateway_id))
             return
 
@@ -1330,6 +1378,8 @@ class AlfGateway:
             }
             if payload.get("reject_code") is not None:
                 fields["REJECT_CODE"] = str(payload["reject_code"])
+            if payload.get("client_tag") is not None:
+                fields["TAG"] = str(payload["client_tag"])
             if payload.get("request_tag") is not None:
                 fields["RTAG"] = str(payload["request_tag"])
         elif topic.startswith(PREFIX_ORDER_FILL):
@@ -1341,6 +1391,8 @@ class AlfGateway:
                 "REMAINING": str(payload.get("remaining_qty", "")),
                 "STATUS": str(payload.get("status", "")),
             }
+            if payload.get("client_tag") is not None:
+                fields["TAG"] = str(payload["client_tag"])
         elif topic.startswith(PREFIX_ORDER_AMENDED):
             msg_type = "AMENDED"
             fields = {
@@ -1356,16 +1408,22 @@ class AlfGateway:
                     "TRUE" if bool(payload.get("priority_reset", False)) else "FALSE"
                 ),
             }
+            if payload.get("client_tag") is not None:
+                fields["TAG"] = str(payload["client_tag"])
             if payload.get("request_tag") is not None:
                 fields["RTAG"] = str(payload["request_tag"])
         elif topic.startswith(PREFIX_ORDER_CANCELLED):
             msg_type = "CANCELLED"
             fields = {"ORDER_ID": str(payload.get("order_id", ""))}
+            if payload.get("client_tag") is not None:
+                fields["TAG"] = str(payload["client_tag"])
             if payload.get("request_tag") is not None:
                 fields["RTAG"] = str(payload["request_tag"])
         elif topic.startswith(PREFIX_ORDER_EXPIRED):
             msg_type = "EXPIRED"
             fields = {"ORDER_ID": str(payload.get("order_id", ""))}
+            if payload.get("client_tag") is not None:
+                fields["TAG"] = str(payload["client_tag"])
         elif topic.startswith(PREFIX_QUOTE_ACK):
             msg_type = "QUOTE_ACK"
             fields = {
@@ -1488,7 +1546,17 @@ class AlfGateway:
             return None
         if len(value) > 64:
             raise ValidationError("INVALID_VALUE", f"{key} exceeds 64 characters")
+        if any(ch not in _TAG_ALLOWED for ch in value):
+            raise ValidationError("INVALID_VALUE", f"{key} contains illegal character")
         return value
+
+    @staticmethod
+    def _error_tag_for(cmd: str, fields: dict[str, str]) -> str | None:
+        key = "RTAG" if cmd in {"AMEND", "CANCEL"} else "TAG"
+        value = fields.get(key)
+        if value is None:
+            return None
+        return value[:64] or None
 
     def _parse_side(self, raw: str) -> Side:
         try:
@@ -1620,10 +1688,21 @@ class AlfGateway:
         detail: str,
         *,
         close_connection: bool,
+        reject_code: RejectCode | None = None,
+        tag: str | None = None,
     ) -> None:
         self._global_stats["errors_total"] += 1
         session.errors += 1
-        self._queue_line(session, "ERR", {"CODE": code, "DETAIL": detail})
+        fields = {
+            "CODE": code,
+            "REJECT_CODE": str(
+                reject_code or ValidationError(code, detail).reject_code
+            ),
+            "DETAIL": detail,
+        }
+        if tag:
+            fields["TAG"] = tag
+        self._queue_line(session, "ERR", fields)
 
         now = time.monotonic()
         session.error_times.append(now)

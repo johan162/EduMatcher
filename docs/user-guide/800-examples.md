@@ -87,16 +87,16 @@ Segments without `=` are silently skipped.  Duplicate keys: last value wins.
 from alf_parser import parse_alf_line, build_alf_line, AlfSession, AlfMessage
 
 # Parse one line received from the gateway
-msg: AlfMessage = parse_alf_line("ACK|ORDER_ID=abc|ACCEPTED=TRUE|SYMBOL=AAPL")
+msg: AlfMessage = parse_alf_line("ACK|ORDER_ID=abc|ACCEPTED=TRUE|SYMBOL=AAPL|TAG=ORDER-001")
 print(msg.msg_type)   # "ACK"
 print(msg.fields)     # {"ORDER_ID": "abc", "ACCEPTED": "TRUE", "SYMBOL": "AAPL"}
 
 # Build a line to send
 line: str = build_alf_line("NEW", {
     "SYM": "AAPL", "SIDE": "BUY", "TYPE": "LIMIT",
-    "QTY": "100", "PRICE": "150.00",
+    "QTY": "100", "PRICE": "150.00", "TAG": "ORDER-001",
 })
-# → "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00\n"
+  # → "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001\n"
 
 # Full session: connect, perform HELLO/WELCOME handshake, send and receive
 session = AlfSession.connect("127.0.0.1", 5565, "TRADER01")
@@ -122,7 +122,7 @@ At the prompt, tab-completion is available for commands, field names, and enum
 values.  Command history is persisted to `~/.alf_client_history`.
 
 ```
-[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001
 [TRADER01]> AMEND|ID=<order-id>|PRICE=151.00|RTAG=req-001
 [TRADER01]> CANCEL|ID=<order-id>|RTAG=req-002
 [TRADER01]> KILL
@@ -163,11 +163,11 @@ printf("%s\n", alf_get_field(&msg, "ACCEPTED")); /* "TRUE" */
 /* Build */
 const char *kv[] = {
     "SYM", "AAPL", "SIDE", "BUY",
-    "TYPE", "LIMIT", "QTY", "100", "PRICE", "150.00", NULL,
+    "TYPE", "LIMIT", "QTY", "100", "PRICE", "150.00", "TAG", "ORDER-001", NULL,
 };
 char buf[4096];
 alf_build_line(buf, sizeof(buf), "NEW", kv);
-/* → "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00\n" */
+/* → "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001\n" */
 ```
 
 ### Build and run C client

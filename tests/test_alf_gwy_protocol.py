@@ -42,6 +42,21 @@ def test_safe_int_rejects_out_of_range() -> None:
         safe_int("9999999999999", "QTY")
 
 
+@pytest.mark.parametrize(
+    ("code", "reject_code"),
+    [
+        ("BAD_MESSAGE", "MALFORMED_MESSAGE"),
+        ("MISSING_FIELD", "MISSING_FIELD"),
+        ("SYMBOL_NOT_CONFIGURED", "UNKNOWN_SYMBOL"),
+        ("SYMBOLS_NOT_READY", "SYMBOL_NOT_READY"),
+        ("RATE_LIMITED", "RATE_LIMITED"),
+        ("UNKNOWN_COMMAND", "UNSUPPORTED_FIELD"),
+    ],
+)
+def test_validation_error_maps_to_reject_code(code: str, reject_code: str) -> None:
+    assert ValidationError(code, "bad").reject_code == reject_code
+
+
 @pytest.mark.parametrize("value", ["NAN", "INF", "-INF"])
 def test_safe_float_rejects_non_finite(value: str) -> None:
     with pytest.raises(ValidationError):

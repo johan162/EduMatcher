@@ -703,6 +703,19 @@ class TestGatewayParseAndSend:
         gw._parse_and_send("NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00")
         assert gw.push_sock.send_multipart.called
 
+    def test_new_limit_order_forwards_client_tag(self) -> None:
+        from edumatcher.models.message import decode
+
+        gw = _make_gateway()
+        gw._parse_and_send(
+            "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=100.00|TAG=T1-LM001-001"
+        )
+
+        frames = gw.push_sock.send_multipart.call_args.args[0]
+        topic, payload = decode(frames)
+        assert topic == "order.new"
+        assert payload["client_tag"] == "T1-LM001-001"
+
     def test_new_combo_order(self) -> None:
         gw = _make_gateway()
         gw._parse_and_send(

@@ -2415,6 +2415,14 @@ _ORDER_AMENDED_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "True when the amendment lost the order its time priority.",
     },
     {
+        "name": "client_tag",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Client correlation tag for the amended order.",
+        "constraints": {"max_len": 64},
+    },
+    {
         "name": "request_tag",
         "type": "string",
         "unit": None,
@@ -2441,6 +2449,7 @@ class OrderAmended:
     remaining_qty: int  # unit: shares
     priority_reset: bool
     price: float | None = None  # unit: display_price
+    client_tag: str | None = None
     request_tag: str | None = None
 
     def validate(self) -> None:
@@ -2458,6 +2467,11 @@ class OrderAmended:
             raise MessageValidationError(
                 f"order_id: length {len(self.order_id)} exceeds max_len 64"
             )
+        if self.client_tag is not None:
+            if len(self.client_tag) > 64:
+                raise MessageValidationError(
+                    f"client_tag: length {len(self.client_tag)} exceeds max_len 64"
+                )
         if self.request_tag is not None:
             if len(self.request_tag) > 64:
                 raise MessageValidationError(
@@ -2479,6 +2493,7 @@ class OrderAmended:
             qty=int(p["qty"]),
             remaining_qty=int(p["remaining_qty"]),
             priority_reset=bool(p["priority_reset"]),
+            client_tag=None if p.get("client_tag") is None else str(p["client_tag"]),
             request_tag=None if p.get("request_tag") is None else str(p["request_tag"]),
         )
 
@@ -2491,6 +2506,8 @@ class OrderAmended:
             "remaining_qty": self.remaining_qty,
             "priority_reset": self.priority_reset,
         }
+        if self.client_tag is not None:
+            payload["client_tag"] = self.client_tag
         if self.request_tag is not None:
             payload["request_tag"] = self.request_tag
         return payload
@@ -2530,6 +2547,7 @@ def make_order_amended_unchecked(
     remaining_qty: int,
     priority_reset: bool,
     price: float | None = None,
+    client_tag: str | None = None,
     request_tag: str | None = None,
 ) -> list[bytes]:
     """Identical frames to ``make_order_amended``, without ``validate()``.
@@ -2549,6 +2567,8 @@ def make_order_amended_unchecked(
         "remaining_qty": int(remaining_qty),
         "priority_reset": bool(priority_reset),
     }
+    if client_tag is not None:
+        payload["client_tag"] = str(client_tag)
     if request_tag is not None:
         payload["request_tag"] = str(request_tag)
     return [
@@ -3611,6 +3631,14 @@ _ORDER_COMBO_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "The child orders. The bounds below were previously enforced only by api_gateway's pydantic schema, which left the ALF console and gateway free to submit a one-legged combo.",
         "constraints": {"max_items": 10},
     },
+    {
+        "name": "client_tag",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Client correlation tag for this combo submission.",
+        "constraints": {"max_len": 64},
+    },
 )
 
 
@@ -3632,6 +3660,7 @@ class OrderCombo:
     combo_type: OrderComboComboType
     tif: OrderComboTif
     legs: list[ComboLeg]
+    client_tag: str | None = None
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -3662,6 +3691,11 @@ class OrderCombo:
             raise MessageValidationError("legs: more than 10 item(s)")
         for legs_item in self.legs:
             legs_item.validate()
+        if self.client_tag is not None:
+            if len(self.client_tag) > 64:
+                raise MessageValidationError(
+                    f"client_tag: length {len(self.client_tag)} exceeds max_len 64"
+                )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "OrderCombo":
@@ -3677,17 +3711,21 @@ class OrderCombo:
             combo_type=cast(OrderComboComboType, str(p["combo_type"])),
             tif=cast(OrderComboTif, str(p["tif"])),
             legs=[ComboLeg.from_dict(item) for item in p["legs"]],
+            client_tag=None if p.get("client_tag") is None else str(p["client_tag"]),
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Return the bus payload, in the spec's declared field order."""
-        return {
+        payload: dict[str, Any] = {
             "combo_id": self.combo_id,
             "gateway_id": self.gateway_id,
             "combo_type": self.combo_type,
             "tif": self.tif,
             "legs": [item.to_dict() for item in self.legs],
         }
+        if self.client_tag is not None:
+            payload["client_tag"] = self.client_tag
+        return payload
 
 
 def is_order_combo(topic: str) -> bool:
@@ -3787,6 +3825,14 @@ _ORDER_OCO_FIELDS: tuple[dict[str, Any], ...] = (
         "required": True,
         "doc": "",
     },
+    {
+        "name": "client_tag",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Client correlation tag for this OCO submission.",
+        "constraints": {"max_len": 64},
+    },
 )
 
 
@@ -3808,6 +3854,7 @@ class OrderOco:
     symbol: str = ""
     quantity: int = 0  # unit: shares
     tif: OrderOcoTif = "DAY"
+    client_tag: str | None = None
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -3834,6 +3881,11 @@ class OrderOco:
             )
         self.leg1.validate()
         self.leg2.validate()
+        if self.client_tag is not None:
+            if len(self.client_tag) > 64:
+                raise MessageValidationError(
+                    f"client_tag: length {len(self.client_tag)} exceeds max_len 64"
+                )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "OrderOco":
@@ -3851,11 +3903,12 @@ class OrderOco:
             tif=cast(OrderOcoTif, str(p.get("tif", "DAY"))),
             leg1=OcoLeg.from_dict(p["leg1"]),
             leg2=OcoLeg.from_dict(p["leg2"]),
+            client_tag=None if p.get("client_tag") is None else str(p["client_tag"]),
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Return the bus payload, in the spec's declared field order."""
-        return {
+        payload: dict[str, Any] = {
             "oco_id": self.oco_id,
             "gateway_id": self.gateway_id,
             "symbol": self.symbol,
@@ -3864,6 +3917,9 @@ class OrderOco:
             "leg1": self.leg1.to_dict(),
             "leg2": self.leg2.to_dict(),
         }
+        if self.client_tag is not None:
+            payload["client_tag"] = self.client_tag
+        return payload
 
 
 def is_order_oco(topic: str) -> bool:

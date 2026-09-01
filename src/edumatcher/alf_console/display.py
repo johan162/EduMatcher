@@ -55,7 +55,7 @@ PROMPT_STYLE = Style.from_dict(
 HELP_TEXT = """
 [bold]FIX-like command reference[/bold]
 
-  NEW|SYM=<sym>|SIDE=BUY|SELL|TYPE=<type>|QTY=<n>[|PRICE=<p>][|STOP=<p>][|TRAIL=<offset>][|TIF=DAY|GTC][|VISIBLE=<n>][|SMP=<action>]
+    NEW|SYM=<sym>|SIDE=BUY|SELL|TYPE=<type>|QTY=<n>[|PRICE=<p>][|STOP=<p>][|TRAIL=<offset>][|TIF=DAY|GTC][|VISIBLE=<n>][|SMP=<action>][|TAG=<order-tag>]
 
     AMEND|ID=<order-id>[|PRICE=<new-price>][|QTY=<new-qty>][|RTAG=<request-tag>]
     • Amend a resting LIMIT or ICEBERG order in-place (no cancel+resubmit needed)

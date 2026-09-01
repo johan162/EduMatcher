@@ -8,7 +8,7 @@ Accepts FIX-like text commands on stdin, sends to engine, prints responses.
 
 Commands
 --------
-  NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.50
+    NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.50|TAG=demo-1
   NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.50|TIF=GTC
   NEW|SYM=MSFT|SIDE=SELL|TYPE=MARKET|QTY=50
   NEW|SYM=AAPL|SIDE=BUY|TYPE=STOP|QTY=100|STOP=148.00
@@ -1257,6 +1257,7 @@ class Gateway:
             # explicit SMP=NONE. See SmpAction's docstring in
             # models/order.py.
             smp_action = SmpAction(kv["SMP"]) if "SMP" in kv else None
+            client_tag = kv.get("TAG")
         except (KeyError, ValueError) as exc:
             log.warning(
                 "NEW parse error gateway_id=%s input=%s error=%s",
@@ -1313,6 +1314,7 @@ class Gateway:
             trail_offset=(
                 to_ticks(float(kv["TRAIL"]), symbol) if "TRAIL" in kv else None
             ),
+            client_tag=client_tag,
         )
 
         # Pre-register in cache before ACK arrives
@@ -1327,6 +1329,7 @@ class Gateway:
             "price": price,
             "stop_price": stop_price,
             "status": "PENDING",
+            "client_tag": client_tag,
             "time": datetime.now().strftime("%H:%M:%S"),
         }
 
@@ -1442,6 +1445,8 @@ class Gateway:
             "leg1": leg1,
             "leg2": leg2,
         }
+        if kv.get("TAG"):
+            payload["client_tag"] = kv["TAG"]
         self._send(self.push_sock, make_oco_order_msg(payload))
         self._dbg_count("oco_submitted")
 
@@ -1541,7 +1546,10 @@ class Gateway:
             legs=legs,
         )
 
-        self._send(self.push_sock, make_combo_order_msg(combo.to_submission_dict()))
+        payload = combo.to_submission_dict()
+        if kv.get("TAG"):
+            payload["client_tag"] = kv["TAG"]
+        self._send(self.push_sock, make_combo_order_msg(payload))
         self._dbg_count("combo_submitted")
 
     @staticmethod

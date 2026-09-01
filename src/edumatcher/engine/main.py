@@ -3950,6 +3950,7 @@ class Engine:
                 stop_price=leg.stop_price,
                 visible_qty=None,
                 smp_action=leg_smp_action,
+                client_tag=combo.client_tag,
             )
             child.combo_parent_id = combo.id
             child.leg_index = i
@@ -4599,6 +4600,11 @@ class Engine:
                     price=_leg_ticks(raw, "price"),
                     stop_price=_leg_ticks(raw, "stop_price"),
                     trail_offset=_leg_ticks(raw, "trail_offset"),
+                    client_tag=(
+                        str(payload["client_tag"])
+                        if payload.get("client_tag") is not None
+                        else None
+                    ),
                 )
             except (KeyError, ValueError):
                 return None
@@ -5093,6 +5099,7 @@ class Engine:
                 qty=amended.quantity,
                 remaining_qty=amended.remaining_qty,
                 priority_reset=priority_reset,
+                client_tag=amended.client_tag,
                 request_tag=request_tag,
             )
         )

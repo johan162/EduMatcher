@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from edumatcher.models.reject import RejectCode
 
 
 class AlfProtocolError(ValueError):
@@ -14,10 +15,13 @@ class AlfProtocolError(ValueError):
 class ValidationError(ValueError):
     """Raised for command validation problems with a stable error code."""
 
-    def __init__(self, code: str, detail: str) -> None:
+    def __init__(
+        self, code: str, detail: str, reject_code: RejectCode | None = None
+    ) -> None:
         super().__init__(detail)
         self.code = code
         self.detail = detail
+        self.reject_code: RejectCode = reject_code or _reject_code_for_error(code)
 
 
 @dataclass(frozen=True)
@@ -30,6 +34,28 @@ class AlfFrame:
 
 _ALLOWED_COMMAND_CHARS = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
 _MAX_CLIENT_NAME_LEN = 32
+
+
+def _reject_code_for_error(code: str) -> RejectCode:
+    mapping: dict[str, RejectCode] = {
+        "BAD_MESSAGE": "MALFORMED_MESSAGE",
+        "MISSING_FIELD": "MISSING_FIELD",
+        "INVALID_VALUE": "INVALID_VALUE",
+        "UNSUPPORTED_FIELD": "UNSUPPORTED_FIELD",
+        "SYMBOL_NOT_CONFIGURED": "UNKNOWN_SYMBOL",
+        "SYMBOLS_NOT_READY": "SYMBOL_NOT_READY",
+        "AUTH_REQUIRED": "AUTH_REQUIRED",
+        "AUTH_TIMEOUT": "AUTH_REQUIRED",
+        "PROTO_MISMATCH": "AUTH_FAILED",
+        "GATEWAY_ALREADY_CONNECTED": "AUTH_FAILED",
+        "HELLO_ALREADY_PENDING": "AUTH_REQUIRED",
+        "ROLE_DENIED": "ROLE_DENIED",
+        "RATE_LIMITED": "RATE_LIMITED",
+        "ENGINE_UNAVAILABLE": "INTERNAL_ERROR",
+        "INTERNAL_ERROR": "INTERNAL_ERROR",
+        "UNKNOWN_COMMAND": "UNSUPPORTED_FIELD",
+    }
+    return mapping.get(code, "UNKNOWN")
 
 
 def iso_utc(ts_seconds: float) -> str:

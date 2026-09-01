@@ -588,6 +588,9 @@ messages:
       - { name: remaining_qty, type: int, unit: shares }
       - { name: priority_reset, type: bool,
           doc: "True when the amendment lost the order its time priority." }
+      - { name: client_tag, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 },
+          doc: "Client correlation tag for the amended order." }
       - name: request_tag
         type: string
         required: false
@@ -856,6 +859,9 @@ messages:
           api_gateway's pydantic schema, which left the ALF console and gateway
           free to submit a one-legged combo.
         validate: { min_items: 2, max_items: 10 }
+      - { name: client_tag, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 },
+          doc: "Client correlation tag for this combo submission." }
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 
@@ -893,6 +899,9 @@ messages:
       # rejects the OCO. Required is the honest description of the behaviour.
       - { name: leg1, type: nested, ref: OcoLeg }
       - { name: leg2, type: nested, ref: OcoLeg }
+      - { name: client_tag, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 },
+          doc: "Client correlation tag for this OCO submission." }
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 

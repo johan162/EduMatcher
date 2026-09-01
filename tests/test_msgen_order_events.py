@@ -155,6 +155,12 @@ class TestByteIdenticalToTheHandWrittenBuilders:
             )
         )
 
+    def test_amended_carries_the_client_tag(self) -> None:
+        _topic, payload = M.decode(
+            M.make_amended_msg("GW1", "O1", 9.5, 10, 4, True, client_tag="t1")
+        )
+        assert payload["client_tag"] == "t1"
+
     def test_amended_carries_the_request_tag(self) -> None:
         _topic, payload = M.decode(
             M.make_amended_msg("GW1", "O1", 9.5, 10, 4, True, request_tag="RT-AMD-001")

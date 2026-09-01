@@ -23,10 +23,13 @@ understand how amendments affect queue priority.
 ## Exercise 1: Place a Resting Order to Amend
 
 ```
-[TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=300|PRICE=419.50|TIF=DAY
+[TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=300|PRICE=419.50|TIF=DAY|TAG=AMD-ORDER-001
 ```
 
 Note the `order_id` returned.
+
+`TAG` identifies the order and is echoed on later lifecycle events. `RTAG` is
+different: it identifies one amend request against that order.
 
 `AMEND` accepts an optional `RTAG=<request-tag>`. The tag identifies this one
 amend request and is echoed on the `AMENDED` response or rejected ACK, which is

@@ -280,6 +280,11 @@ Rejected order acknowledgements carry two diagnostics:
 is the human-readable explanation. Use `REJECT_CODE` for branching, metrics,
 and tests; log `REASON` for operators.
 
+Gateway-local errors use the same canonical field:
+`ERR|CODE=<legacy-code>|REJECT_CODE=<canonical-code>|DETAIL=<text>`. `CODE`
+names the ALF gateway validation condition; `REJECT_CODE` is the
+transport-independent order rejection class used for ALF/REST comparison.
+
 !!! note "`QLEGS` behaves differently in each client"
     Every other command in the "trading commands" row above is a genuine
     engine round trip in **both** `pm-alf-console` and `pm-alf-gwy`. `QLEGS`
@@ -306,6 +311,11 @@ and tests; log `REASON` for operators.
 NEW|SYM=<symbol>|SIDE=<BUY|SELL>|TYPE=<order-type>|QTY=<quantity>[|...]
 ```
 
+`TAG=<order-tag>` is optional on every `NEW` form. It identifies the order and
+is echoed on `ACK`, `FILL`, `AMENDED`, `CANCELLED`, and `EXPIRED` when known.
+Do not use `TAG` on `AMEND` or `CANCEL`; those request-scoped commands use
+`RTAG` instead.
+
 ### Formal grammar
 
 ```text
@@ -316,6 +326,7 @@ new-single =
     "|TYPE=" order-type
     "|QTY=" quantity
     *( "|" option )
+    [ "|TAG=" tag ]
 ```
 
 Where `option` depends on the selected order type.

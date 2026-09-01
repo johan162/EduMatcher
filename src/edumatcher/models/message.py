@@ -179,6 +179,7 @@ def make_amended_msg(
     qty: int,
     remaining_qty: int,
     priority_reset: bool,
+    client_tag: str | None = None,
     request_tag: str | None = None,
 ) -> list[bytes]:
     """Generated from ``spec/messages/order.yaml``. Byte-identical to before."""
@@ -189,6 +190,7 @@ def make_amended_msg(
         qty=qty,
         remaining_qty=remaining_qty,
         priority_reset=priority_reset,
+        client_tag=client_tag,
         request_tag=request_tag,
     )
 
