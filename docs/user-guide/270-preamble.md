@@ -62,16 +62,17 @@ message looks like:
 
 **Hardcoded structures**
 : The simplest approach — message shape is implicit in the code that creates
-  and reads it.  No IDL, no registry, no generator.  Fast to build, but
-  schema drift is invisible until something breaks at runtime.
+  and reads it. No IDL, no registry, no generator. Fast to build, but schema
+  drift is invisible until something breaks at runtime.
 
-EduMatcher uses the **hardcoded approach**.  Each message type is created
-by a helper function in `src/edumatcher/models/message.py` (e.g.
-`make_order_new_msg`, `make_gateway_connect_msg`) and decoded by `decode()`.
-Every field documented on this page is exactly what those functions produce.
-This is ideal for a learning system — you can read the code and immediately
-see the message — but a real exchange would use Protobuf or Avro to enforce
-schema contracts across teams and languages.
+EduMatcher uses a small, repository-local **IDL and code-generation** workflow.
+The YAML definitions in `spec/messages/*.yaml` are the canonical message
+contracts. `pm-msgen generate` produces the Python bindings, applicable C
+artifacts, and the generated sections of this reference; `pm-msgen check`
+fails when any generated output diverges from its specification. Message
+producers and consumers still exchange ordinary two-frame JSON over ZeroMQ,
+so the generated bindings remain readable alongside the wire format they
+enforce.
 
 ### What ZeroMQ requires of a message
 
