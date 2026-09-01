@@ -20,6 +20,7 @@ from edumatcher.api_gateway.config import ApiGatewayConfig
 from edumatcher.api_gateway.caches import SessionCaches
 from edumatcher.api_gateway.rate_limit import RateLimiter
 from edumatcher.api_gateway.routers import bootstrap
+from edumatcher.api_gateway.schemas import OrderAccepted
 from edumatcher.api_gateway.sessions import Session
 
 _REFERENCE_REPLY: dict[str, Any] = {
@@ -162,6 +163,21 @@ def _fills_ok(monkeypatch: pytest.MonkeyPatch) -> None:
 # ---------------------------------------------------------------------------
 # /bootstrap/trader
 # ---------------------------------------------------------------------------
+
+
+def test_order_accepted_exposes_reject_code() -> None:
+    ack = OrderAccepted(
+        order_id="O-1",
+        status="ACKED",
+        accepted=False,
+        reject_code="COLLAR_BREACH",
+        event={
+            "accepted": False,
+            "reason": "collar breach",
+            "reject_code": "COLLAR_BREACH",
+        },
+    )
+    assert ack.reject_code == "COLLAR_BREACH"
 
 
 @pytest.mark.anyio

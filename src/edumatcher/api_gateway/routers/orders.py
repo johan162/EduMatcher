@@ -107,6 +107,7 @@ async def submit_order(
         client_tag=body.client_tag,
         status="PENDING" if event is None else "ACKED",
         accepted=None if event is None else bool(event.get("accepted")),
+        reject_code=None if event is None else event.get("reject_code"),
         event=event,
     )
 

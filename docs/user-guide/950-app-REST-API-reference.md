@@ -640,7 +640,7 @@ Purpose: submit one order for the caller's gateway.
 | Status | Shape | Meaning |
 |---|---|---|
 | `202 Accepted` | `{"order_id": "...", "status": "PENDING"}` | Default immediate reply |
-| `200 OK` | engine ACK payload | Returned when `?wait=ack` waits for the matching ACK; rejected ACKs include `reject_code` and `reason` |
+| `200 OK` | `{"order_id": "...", "status": "ACKED", "accepted": false, "reject_code": "COLLAR_BREACH", "reason": "collar breach"}` | Returned when `?wait=ack` waits for the matching ACK; rejected ACKs include a stable machine-readable `reject_code` and the human-readable `reason` |
 
 **Errors**
 

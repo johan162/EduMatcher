@@ -209,6 +209,7 @@ def make_ack_msg(
     reason: str = "",
     *,
     reject_code: _gen_order.OrderAckRejectCode | None = None,
+    client_tag: str | None = None,
     order: dict[str, Any] | None = None,
 ) -> list[bytes]:
     """Generated from ``spec/messages/order.yaml``.
@@ -219,6 +220,9 @@ def make_ack_msg(
     readers, which all use ``.get`` - see design section B.7.2.
     """
     detail = order or {}
+    order_client_tag = (
+        client_tag if client_tag is not None else detail.get("client_tag")
+    )
     return _gen_order.make_order_ack_unchecked(
         gateway_id=gateway_id,
         order_id=order_id,
@@ -231,7 +235,7 @@ def make_ack_msg(
         tif=detail.get("tif"),
         qty=detail.get("quantity"),
         price=detail.get("price"),
-        client_tag=detail.get("client_tag"),
+        client_tag=order_client_tag,
         **group_ids(order),
     )
 

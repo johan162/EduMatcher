@@ -88,6 +88,7 @@ class OrderAccepted(StrictModel):
     client_tag: str | None = None
     status: str
     accepted: bool | None = None
+    reject_code: str | None = None
     event: dict[str, Any] | None = None
 
 

@@ -122,6 +122,8 @@ export interface OrderAccepted {
   status: "PENDING" | "ACKED";
   /** null when not waited-on or the ack timed out; otherwise the ack verdict. */
   accepted: boolean | null;
+  /** Stable machine-readable rejection code, if the wait-on-ack resolved with a reject. */
+  reject_code?: RejectCode | null;
   /** Raw `order.ack` payload when `wait=ack` resolved, else null. */
   event: OrderAckData | null;
 }

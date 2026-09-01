@@ -40,11 +40,13 @@ export function classifyMonitorEnvelope(env: WsEnvelope<unknown>): MonitorClassi
     case "order.ack": {
       const accepted = Boolean(d.accepted);
       const symbol = str(d.symbol);
+      const rejectCode = str(d.reject_code);
+      const reason = str(d.reason);
       const detail = accepted
         ? [str(d.side), numOrDash(d.qty ?? d.quantity), symbol]
             .filter((p) => p && p !== "—")
             .join(" ") + (typeof d.price === "number" ? ` @ ${d.price}` : "")
-        : str(d.reason) ?? "rejected";
+        : [rejectCode, reason].filter(Boolean).join(" — ") || "rejected";
       return {
         kind: accepted ? "ACK" : "REJECT",
         order_id: str(d.order_id),

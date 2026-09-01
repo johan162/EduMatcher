@@ -381,7 +381,9 @@ Default write calls return immediately with `202 Accepted`. Add `?wait=ack` to
 wait for the matching engine ACK until the configured timeout. The wait filters
 by `order_id` so concurrent requests on the same gateway receive their own ack.
 Rejected ACK payloads include `reject_code`, a stable machine-readable
-classification, alongside the human-readable `reason`.
+classification, alongside the human-readable `reason`. For example, a collar
+breach is surfaced as `"reject_code": "COLLAR_BREACH"` with the matching
+`reason` text such as `"collar breach"`.
 
 `client_tag` is not an idempotency key. It is optional, opaque, and not checked
 for uniqueness by the gateway or engine.
