@@ -222,20 +222,18 @@ re-opened safely across process restarts.
 ### `trade_events`
 
 Append-only audit log. Populated by `pm-clearing` from `trade.executed` using
-`INSERT OR IGNORE`, idempotent on the composite key `(id, ts_ns)`.
+`INSERT OR IGNORE`, idempotent on the durable trade ID `id`.
 
 The engine's trade `id` is durable across restarts, formatted as
-`run_seq-counter` (for example, `000042-000000001`). The archive still keys on
-`(id, ts_ns)` as defense-in-depth: a genuine duplicate delivery repeats both
-fields and is de-duplicated, while old short ids or malformed upstream input
-cannot silently discard distinct executions. When an incoming id collides with
-an already-stored row that has a *different* timestamp, `pm-clearing` writes an
-`ID_COLLISION` alarm to `session_events`.
+`run_seq-counter` (for example, `000042-000000001`), and is the sole database
+identity. A genuine duplicate delivery is therefore de-duplicated even if its
+delivery timestamp differs. Databases created before durable IDs are rejected
+and must be recreated; the system does not migrate historical short IDs.
 
 | Column | Type | Description |
 |---|---|---|
-| `id` | TEXT | Durable engine trade id, formatted as `run_seq-counter` (part of the composite primary key `(id, ts_ns)`) |
-| `ts_ns` | INTEGER | Engine event timestamp in nanoseconds (part of the composite primary key) |
+| `id` | TEXT (PK) | Durable engine trade id, formatted as `run_seq-counter` |
+| `ts_ns` | INTEGER | Engine event timestamp in nanoseconds |
 | `trade_date` | TEXT | Session-timezone date (`YYYY-MM-DD`) derived from `ts_ns` (default UTC; see `--timezone`) |
 | `symbol` | TEXT | Instrument symbol |
 | `quantity` | INTEGER | Matched trade size |

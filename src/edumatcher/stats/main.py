@@ -324,9 +324,7 @@ class _IndexDayAccum:
 #:     values for combo, OCO and quote events. The DDL is unchanged, but a file
 #:     holding both the old collapsed values and the new ones would filter
 #:     inconsistently, so old files are refused rather than appended to.
-#: 3 — added ``feed_gaps``; ``trade_log``'s primary key widened from
-#:     ``trade_id`` to ``(trade_id, ts)``. Trade ids are now durable, but the
-#:     composite key still protects old short ids and duplicate deliveries.
+#: 3 — added ``feed_gaps``.
 #: 4 — prices are stored as INTEGER ticks with a per-row ``tick_decimals``,
 #:     replacing REAL display floats. Index levels stay REAL: a level is a
 #:     computed, dimensionless number, not a price on a tick grid.
@@ -334,7 +332,9 @@ class _IndexDayAccum:
 #:     reserved ``currency`` column).
 #: 6 — ``order_events.client_order_id`` renamed to ``client_tag`` to match the
 #:     engine/REST correlation field and avoid implying FIX-style idempotency.
-SCHEMA_VERSION = 6
+#: 7 — ``trade_log`` uses the durable engine ``trade_id`` as its sole primary
+#:     key. Existing database files are deliberately refused, not migrated.
+SCHEMA_VERSION = 7
 
 #: Stream name recorded in ``feed_gaps.stream`` for engine trade prints.
 #: Taken from the generated binding rather than retyped, so a topic rename in
@@ -450,10 +450,7 @@ CREATE TABLE IF NOT EXISTS price_snapshots (
 CREATE INDEX IF NOT EXISTS idx_ps_symbol_ts ON price_snapshots(symbol, ts);
 
 CREATE TABLE IF NOT EXISTS trade_log (
-    -- Composite identity (trade_id, ts). The engine's trade id is now durable
-    -- across restarts; the timestamp remains in the key to preserve old short
-    -- ids safely and deduplicate genuine duplicate deliveries, which repeat
-    -- both fields.
+    -- The durable engine trade id is the sole execution identity.
     ts              TEXT NOT NULL,
     trade_id        TEXT NOT NULL,
     symbol          TEXT NOT NULL,
@@ -468,7 +465,7 @@ CREATE TABLE IF NOT EXISTS trade_log (
     -- cannot support trade classification or order-flow imbalance, and
     -- auction prints are indistinguishable from continuous ones.
     aggressor_side  TEXT,
-    PRIMARY KEY (trade_id, ts)
+    PRIMARY KEY (trade_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_tl_symbol_ts ON trade_log(symbol, ts);

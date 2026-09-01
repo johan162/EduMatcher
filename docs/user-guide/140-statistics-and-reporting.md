@@ -493,18 +493,19 @@ Intraday mid-price, bid/ask, and percentage-change history, recorded at most onc
 
 Append-only record of every matched trade — no aggregation, one row per trade.
 
-**Primary key**: `(trade_id, ts)`. Inserts are `OR IGNORE`, so a repeated delivery of the same trade — same id *and* same timestamp — is deduplicated.
+**Primary key**: `trade_id`. Inserts are `OR IGNORE`, so a repeated delivery
+of the same durable trade is deduplicated regardless of its delivery timestamp.
 
-!!! note "Why the key is composite"
-    `trade_id` is now durable across engine restarts, formatted as
-    `run_seq-counter` (for example, `000042-000000001`). Including `ts` in the
-    key is retained as defense-in-depth for old short ids and malformed input,
-    while still deduplicating a genuine duplicate delivery of the same event.
+!!! note "Durable trade identity"
+  `trade_id` is durable across engine restarts, formatted as
+  `run_seq-counter` (for example, `000042-000000001`), so it is sufficient
+  as the sole key. Older statistics database schemas are rejected and must
+  be recreated; historical short IDs are not migrated.
 
 | Column            | Type    | Null? | Description                                                          |
 |-------------------|---------|-------|----------------------------------------------------------------------|
 | `ts`              | TEXT    | no    | ISO-8601 UTC instant, **millisecond** precision. This is the **engine's** trade timestamp |
-| `trade_id`        | TEXT    | no    | Durable engine trade id, formatted as `run_seq-counter`               |
+| `trade_id`        | TEXT (PK) | no  | Durable engine trade id, formatted as `run_seq-counter`               |
 | `symbol`          | TEXT    | no    | Instrument ticker                                                    |
 | `price`           | INTEGER | no    | Execution price, **in ticks** — divide by `10^tick_decimals`         |
 | `quantity`        | INTEGER | no    | Matched quantity                                                     |

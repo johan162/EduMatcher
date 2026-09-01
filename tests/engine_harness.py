@@ -96,10 +96,11 @@ def make_engine(
     symbol_configs: dict[str, SymbolConfig] | None = None,
     gtc_orders: list[Order] | None = None,
     book_stats: dict[str, Any] | None = None,
+    run_seq: int = 1,
 ) -> tuple[Engine, FakeSock]:
     """Build an Engine wired to fake sockets and a synthetic config."""
     reset_trade_ids_for_tests()
-    set_run_seq(1)
+    set_run_seq(run_seq)
     pull_sock = FakeSock()
     pub_sock = FakeSock()
 

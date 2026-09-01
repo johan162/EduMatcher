@@ -1144,12 +1144,11 @@ automation reusing the same scenario files and the same canonicaliser.
 > `trade.executed`, private `order.fill`, ALF `FILL|TRADE_IDS=`, drop copy, and
 > CALF `TRADE` for every supported engine execution flow.
 >
-> The restart-collision safeguards remain deliberately. Clearing retains
-> `(id, ts_ns)` and stats retains `(trade_id, ts)` as composite primary keys:
-> durable IDs make the timestamp redundant for new engine traffic, but these
-> keys preserve imported/synthetic historical data and make exact duplicate
-> delivery idempotent. They are defense in depth, not substitutes for durable
-> engine trade IDs.
+> Clearing `trade_events.id` and stats `trade_log.trade_id` are now sole
+> primary keys. Exact duplicate delivery is idempotent on that durable ID. No
+> compatibility or data migration is provided for pre-durable database files:
+> clearing rejects its old composite-key layout, while stats rejects older
+> schema versions.
 
 ## A.0 Summary and Survey Results (Historical)
 

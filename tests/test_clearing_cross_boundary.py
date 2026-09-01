@@ -14,18 +14,16 @@ asserts SYSTEM-level truths rather than per-module behaviour:
           kept as the permanent cross-system agreement guard)
     XB6  hostile frames — garbage on the wire never stops ingestion
 
-  EXPECTED FAILURES (each mapped to an open review finding):
-    XB2  duplicate delivery must not double positions        (CL-M1)
-    XB7  the "day two of class" compound scenario            (CL-C1 x CL-C4)
+    EXPECTED FAILURES (each mapped to an open review finding):
+        XB2  duplicate delivery must not double positions        (CL-M1)
 
-XB7 deserves a note: it is the literal second morning of a classroom
-deployment — engine restarted, clearing restarted, same database — and it
-currently gets BOTH the archive and the positions wrong at once.
+XB7 is the literal second morning of a classroom deployment: engine restarted,
+clearing restarted, same database. It proves both the durable trade identity
+and clearing's persisted position warm start survive that boundary.
 """
 
 from __future__ import annotations
 
-import itertools
 import random
 import sqlite3
 from contextlib import contextmanager
@@ -404,7 +402,7 @@ class TestXB6HostileFrames:
 
 
 # ---------------------------------------------------------------------------
-# XB7 — day two of class (EXPECTED FAIL: CL-C1 x CL-C4 compound)
+# XB7 — day two of class: restart-safe archive and position continuity
 # ---------------------------------------------------------------------------
 
 
@@ -417,17 +415,14 @@ class TestXB7DayTwoOfClass:
         both start fresh on the same database and one more trade prints.
 
         Ground truth afterwards: GW01 is long 140 (100 + 40) and the archive
-        holds two trades.  Today BOTH are wrong at once: the position table
-        is overwritten from flat (CL-C4 → 40) and the day-2 trade collides
-        with day-1's trade id and vanishes from the archive (CL-C1 → 1 row).
+        holds two trades. The durable run sequence gives day two a distinct
+        trade ID, while clearing restores the first day's position before
+        applying the second day's fill.
         """
         db_path = tmp_path / "clearing.db"
 
         # ---- day 1 ----
-        monkeypatch.setattr(
-            "edumatcher.models.trade._trade_counter", itertools.count(1)
-        )
-        engine1, pub1 = _new_engine(monkeypatch, tmp_path, "day1")
+        engine1, pub1 = _new_engine(monkeypatch, tmp_path, "day1", run_seq=1)
         _cross(engine1, buyer="GW01", seller="GW02", qty=100, price=150.0)
         cut1 = start_clearing(db_path)
         try:
@@ -442,10 +437,7 @@ class TestXB7DayTwoOfClass:
             cut1.stop()
 
         # ---- day 2: both processes restart ----
-        monkeypatch.setattr(
-            "edumatcher.models.trade._trade_counter", itertools.count(1)
-        )
-        engine2, pub2 = _new_engine(monkeypatch, tmp_path, "day2")
+        engine2, pub2 = _new_engine(monkeypatch, tmp_path, "day2", run_seq=2)
         _cross(engine2, buyer="GW01", seller="GW02", qty=40, price=152.0)
         cut2 = start_clearing(db_path)
         try:
@@ -469,7 +461,7 @@ class TestXB7DayTwoOfClass:
         if archived != 2:
             problems.append(
                 f"archive holds {archived} trade(s) instead of 2 (CL-C1: "
-                f"day-2 trade id collided with day-1 and was dropped)"
+                f"a durable day-2 trade was dropped)"
             )
         if net != 140:
             problems.append(
