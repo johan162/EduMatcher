@@ -271,7 +271,7 @@ uppercase before parsing.
 Single-leg order:
 
 ```text
-NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
+NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001
 NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=50
 NEW|SYM=AAPL|SIDE=BUY|TYPE=STOP|QTY=100|STOP=148.00
 NEW|SYM=AAPL|SIDE=BUY|TYPE=STOP_LIMIT|QTY=100|STOP=148.00|PRICE=147.50
@@ -306,31 +306,47 @@ NEW|TYPE=COMBO|COMBO_ID=spread-1|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAP
 | `TRAIL` | conditional | Required for `TRAILING_STOP` |
 | `TIF` | optional | `DAY` (default), `GTC`, `ATO`, `ATC` |
 | `SMP` | optional | `NONE` (default), `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` |
+| `TAG` | optional | Client order tag, max 64 chars; echoed on order lifecycle responses |
 
-**Responses:** `ACK|ORDER_ID=...|ACCEPTED=TRUE|...` or `ACK|ORDER_ID=...|ACCEPTED=FALSE|REASON=...`
+**Responses:** `ACK|ORDER_ID=...|ACCEPTED=TRUE|...` or `ACK|ORDER_ID=...|ACCEPTED=FALSE|REJECT_CODE=...|REASON=...`
 followed asynchronously by `FILL|...`, `CANCELLED|...`, or `EXPIRED|...`.
+
+`FILL` includes `TRADE_IDS`, a comma-separated list of the durable public trade
+IDs that composed the fill. It normally contains one ID; a swept order can
+contain several in execution order. An empty value means no public trade ID was
+available for that fill.
+
+On rejected order ACKs, `REJECT_CODE` is the stable machine-readable rejection
+classification. `REASON` remains the human-readable explanation.
+Gateway-local validation errors use `ERR|CODE=...|REJECT_CODE=...|DETAIL=...`
+and echo `TAG=...` when the rejected command carried a correlating tag.
 
 ### `AMEND` — amend resting order
 
 ```text
-AMEND|ID=<order-id>|PRICE=151.00
-AMEND|ID=<order-id>|QTY=200
-AMEND|ID=<order-id>|PRICE=151.00|QTY=200
+AMEND|ID=<order-id>|PRICE=151.00[|RTAG=<request-tag>]
+AMEND|ID=<order-id>|QTY=200[|RTAG=<request-tag>]
+AMEND|ID=<order-id>|PRICE=151.00|QTY=200[|RTAG=<request-tag>]
 ```
 
-At least one of `PRICE` or `QTY` is required.
+At least one of `PRICE` or `QTY` is required. `RTAG` is optional and identifies
+this amend request; when present, the gateway echoes it on `AMENDED` or the
+rejected `ACK`.
 
-**Response:** `AMENDED|ORDER_ID=...|PRICE=...|QTY=...|REMAINING=...|PRIORITY_RESET=TRUE|FALSE`
+**Response:** `AMENDED|ORDER_ID=...|PRICE=...|QTY=...|REMAINING=...|PRIORITY_RESET=TRUE|FALSE[|RTAG=...]`
 
 ### `CANCEL` — cancel order / OCO / combo
 
 ```text
-CANCEL|ID=<order-id>
+CANCEL|ID=<order-id>[|RTAG=<request-tag>]
 CANCEL|OCO_ID=<oco-id>
 CANCEL|COMBO_ID=<combo-id>
 ```
 
-**Response for single order:** `CANCELLED|ORDER_ID=...`  
+`RTAG` is accepted on single-order cancels only. It identifies this cancel
+request and is echoed on `CANCELLED` or the rejected `ACK`.
+
+**Response for single order:** `CANCELLED|ORDER_ID=...[|RTAG=...]`<br>
 **Response for OCO:** `OCO_CANCELLED|OCO_ID=...|CANCELLED_ID=...|REASON=...`  
 **Response for combo:** `COMBO_STATUS|COMBO_ID=...|STATUS=CANCELLED|REASON=...`
 
@@ -553,7 +569,7 @@ These messages are addressed to your gateway ID and arrive on your session only.
 | Message type | Key fields |
 |---|---|
 | `ACK` | `ORDER_ID`, `ACCEPTED`, `REASON`, `SYMBOL`, `SIDE`, `TYPE` |
-| `FILL` | `ORDER_ID`, `FILL_QTY`, `FILL_PRICE`, `REMAINING`, `STATUS` |
+| `FILL` | `ORDER_ID`, `FILL_QTY`, `FILL_PRICE`, `REMAINING`, `STATUS`, `TRADE_IDS` |
 | `AMENDED` | `ORDER_ID`, `PRICE`, `QTY`, `REMAINING`, `PRIORITY_RESET` |
 | `CANCELLED` | `ORDER_ID` |
 | `EXPIRED` | `ORDER_ID` |
@@ -570,7 +586,9 @@ These messages are addressed to your gateway ID and arrive on your session only.
 
 ## Error codes
 
-Every error arrives as `ERR|CODE=<CODE>|DETAIL=<message>`.
+Every error arrives as `ERR|CODE=<CODE>|REJECT_CODE=<canonical-code>|DETAIL=<message>`.
+When the rejected command carried `TAG` or `RTAG`, the gateway also echoes it as
+`TAG` so the client can correlate the error with the submitted line.
 
 | Code | When it occurs | Connection kept? |
 |------|---------------|-----------------|
@@ -623,14 +641,14 @@ examples/alf/
 from alf_parser import parse_alf_line, build_alf_line, AlfSession, AlfMessage
 
 # Parse one line received from the gateway
-msg: AlfMessage = parse_alf_line("ACK|ORDER_ID=abc|ACCEPTED=TRUE|SYMBOL=AAPL")
+msg: AlfMessage = parse_alf_line("ACK|ORDER_ID=abc|ACCEPTED=TRUE|SYMBOL=AAPL|TAG=ORDER-001")
 print(msg.msg_type)    # "ACK"
 print(msg.fields)      # {"ORDER_ID": "ABC", "ACCEPTED": "TRUE", ...}
 
 # Build a line to send
 line = build_alf_line("NEW", {"SYM": "AAPL", "SIDE": "BUY",
-                               "TYPE": "LIMIT", "QTY": "100", "PRICE": "150.00"})
-# → "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00\n"
+                               "TYPE": "LIMIT", "QTY": "100", "PRICE": "150.00", "TAG": "ORDER-001"})
+# → "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001\n"
 
 # High-level session: connect, HELLO/WELCOME, send/recv
 session = AlfSession.connect("127.0.0.1", 5565, "TRADER01")
@@ -659,8 +677,8 @@ Background receive thread displays fills, acks, and broadcast events while you t
 History is saved to `~/.alf_client_history`.
 
 ```
-[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
-[09:30:01.234] ACK      xxxxxxxx  order accepted
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001
+[09:30:01.234] ACK      xxxxxxxx tag=ORDER-001  order accepted
 [TRADER01]> ORDERS
 [TRADER01]> POS
 [TRADER01]> HELP
@@ -693,8 +711,8 @@ events display immediately while you are typing.  Readline provides tab
 completion and history.
 
 ```
-[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
-[09:30:01.234] ACK      xxxxxxxx  order accepted
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-002
+[09:30:01.234] ACK      xxxxxxxx tag=ORDER-002  order accepted
 [TRADER01]> ORDERS
 [TRADER01]> POS
 [TRADER01]> HELP
@@ -714,7 +732,7 @@ puts(alf_get_field(&msg, "ACCEPTED"));   /* "TRUE" */
 
 /* Build */
 const char *kv[] = {"SYM", "AAPL", "SIDE", "BUY",
-                    "TYPE", "LIMIT", "QTY", "100", "PRICE", "150.00", NULL};
+                    "TYPE", "LIMIT", "QTY", "100", "PRICE", "150.00", "TAG", "ORDER-003", NULL};
 char buf[4096];
 alf_build_line(buf, sizeof(buf), "NEW", kv);
 write(sockfd, buf, strlen(buf));
@@ -759,7 +777,7 @@ def alf_connect(host: str, port: int, gateway_id: str, client_name: str = "bot")
 
 
 sock, send, recv_line = alf_connect("127.0.0.1", 5565, "TRADER01")
-send("NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00")
+send("NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-004")
 
 # Read events until ACK arrives — HB/SESSION/TRADE may arrive first
 while True:

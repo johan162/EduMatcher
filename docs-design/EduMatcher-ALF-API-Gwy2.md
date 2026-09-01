@@ -355,7 +355,7 @@ response modes are offered on write endpoints:
   "visible_qty": null,
   "trail_offset": null,
   "smp_action": "NONE",
-  "client_order_id": "ui-42"
+  "client_tag": "ui-42"
 }
 ```
 
@@ -375,7 +375,7 @@ response modes are offered on write endpoints:
 ```jsonc
 {
   "order_id": "ORD-7f3c...",
-  "client_order_id": "ui-42",
+  "client_tag": "ui-42",
   "status": "PENDING",
   "accepted": null
 }
@@ -508,7 +508,6 @@ This call is **synchronous** -- it awaits the engine ack and returns counts:
 | `401` | Missing or invalid API key |
 | `403` | Engine rejected the gateway_id |
 | `404` | Unknown order/combo/oco in cache |
-| `409` | Duplicate `client_order_id` in session |
 | `429` | Rate limit exceeded |
 | `503` | Engine reply timeout |
 
@@ -751,7 +750,7 @@ CREATE TABLE IF NOT EXISTS order_events (
     fill_qty        INTEGER,
     trade_id        TEXT,
     reason          TEXT,
-    client_order_id TEXT,
+    client_tag      TEXT,
     combo_parent_id TEXT,
     oco_group_id    TEXT,
     priority_reset  INTEGER

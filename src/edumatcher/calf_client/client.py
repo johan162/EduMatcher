@@ -171,6 +171,7 @@ class CalfClient:
         self._sequence = SequenceTracker()
         self._reference = ReferenceData()
         self._state = MarketState() if self._opts.track_state else None
+        self._seen_trade_ids: set[str] = set()
 
         self._welcome: CalfFrame | None = None
         self._supported: set[str] = set()
@@ -515,6 +516,12 @@ class CalfClient:
             # A duplicate the gateway replayed and this client already
             # handled. Dropped here so it can never be applied twice.
             return False
+
+        if frame.msg_type == "TRADE":
+            trade_id = frame.fields["TRADE_ID"]
+            if trade_id in self._seen_trade_ids:
+                return False
+            self._seen_trade_ids.add(trade_id)
 
         if gap is not None:
             self._on_gap_detected(gap, frame.fields.get("TS", ""), on_gap)

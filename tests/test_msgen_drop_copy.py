@@ -32,6 +32,7 @@ def _fill(**overrides: object) -> dict:
         "gateway_id": "TRADER01",
         "event_type": "order.fill",
         "order_id": "ord-001",
+        "trade_ids": ["000001-000000042"],
         "symbol": "MSFT",
         "fill_qty": 100,
         "fill_price": 420.0,
@@ -91,6 +92,7 @@ class TestThePublisherIsTyped:
             gateway_id=msg.gateway_id,
             event_type=msg.event_type,
             order_id=msg.order_id,
+            trade_ids=msg.trade_ids,
             symbol=msg.symbol,
             fill_qty=msg.fill_qty,
             fill_price=msg.fill_price,
@@ -127,6 +129,7 @@ class TestThePublisherIsTyped:
         assert passed == {
             "gateway_id",
             "order_id",
+            "trade_ids",
             "symbol",
             "fill_qty",
             "fill_price",
@@ -159,6 +162,7 @@ class TestTheReadersStillSeeWhatTheySaw:
         for key in (
             "seq",
             "order_id",
+            "trade_ids",
             "symbol",
             "fill_qty",
             "fill_price",
@@ -176,6 +180,10 @@ class TestValidation:
         """0 means "no events yet", so it is not a legal sequence number."""
         with pytest.raises(MessageValidationError, match="seq"):
             G.make_drop_copy_event(**_fill(seq=0))
+
+    def test_trade_ids_must_not_be_empty(self) -> None:
+        with pytest.raises(MessageValidationError, match="trade_ids"):
+            G.make_drop_copy_event(**_fill(trade_ids=[]))
 
     def test_the_price_is_display_money(self) -> None:
         """Not ticks — `_publish_trade` converts once and hands the same float

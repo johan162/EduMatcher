@@ -128,7 +128,8 @@ pm-stats-cli trades --symbol AAPL --limit 20
 ```
 
 Shows the last 20 trades from `trade_log`: `ts`, `trade_id`, `symbol`,
-`price`, `quantity`, `buy_gateway_id`, `sell_gateway_id`. Alongside the two
+`price`, `quantity`, `buy_gateway_id`, `sell_gateway_id`. `trade_id` is a
+durable `run_seq-counter` string such as `000042-000000001`. Alongside the two
 gateway columns, `trade_log` also records `aggressor_side`: `BUY` or `SELL`
 for a continuous match, and `AUCTION` for an uncross print — so you can
 classify trades by which side crossed the spread.

@@ -21,6 +21,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import pytest
+
 
 from edumatcher.engine.config_loader import (
     EngineConfig,
@@ -104,6 +106,7 @@ def _make_order_payload(
     gateway_id="GW01",
     tif=TIF.DAY,
     stop_price=None,
+    client_tag=None,
 ) -> dict:
     o = Order.create(
         symbol=symbol,
@@ -114,6 +117,7 @@ def _make_order_payload(
         tif=tif,
         price=price,
         stop_price=stop_price,
+        client_tag=client_tag,
     )
     return o.to_dict()
 
@@ -177,10 +181,18 @@ class TestHandleAmend:
         _, ack = decode(pub_sock.sent[-1])
         order_id = ack.get("order_id") or _get_last_ack_id(pub_sock)
         pub_sock.sent.clear()
-        engine._handle_amend({"order_id": order_id, "gateway_id": "GW01", "qty": 80})
+        engine._handle_amend(
+            {
+                "order_id": order_id,
+                "gateway_id": "GW01",
+                "qty": 80,
+                "request_tag": "RT-AMD-OK",
+            }
+        )
         topic, msg = decode(pub_sock.sent[-1])
         assert "amended" in topic
         assert msg["qty"] == 80
+        assert msg["request_tag"] == "RT-AMD-OK"
 
     def test_amend_requires_price_or_qty(self, monkeypatch, tmp_path) -> None:
         engine, pub_sock = _make_engine(monkeypatch, tmp_path)
@@ -204,6 +216,22 @@ class TestHandleAmend:
         topic, msg = decode(pub_sock.sent[-1])
         assert msg["accepted"] is False
 
+    def test_amend_unauthorized_gateway_carries_request_tag(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        engine, pub_sock = _make_engine(monkeypatch, tmp_path)
+        engine._handle_amend(
+            {
+                "order_id": "x",
+                "gateway_id": "UNKNOWN",
+                "qty": 50,
+                "request_tag": "RT-AMD-001",
+            }
+        )
+        msg = _last_rejected_ack(pub_sock)
+        assert msg["accepted"] is False
+        assert msg["request_tag"] == "RT-AMD-001"
+
 
 def _get_last_ack_id(pub_sock: _FakeSock) -> str:
     for frames in reversed(pub_sock.sent):
@@ -211,6 +239,14 @@ def _get_last_ack_id(pub_sock: _FakeSock) -> str:
         if "ack" in topic and payload.get("accepted"):
             return str(payload.get("order_id", ""))
     return ""
+
+
+def _last_rejected_ack(pub_sock: _FakeSock) -> dict:
+    for frames in reversed(pub_sock.sent):
+        topic, payload = decode(frames)
+        if "order.ack" in topic and payload.get("accepted") is False:
+            return payload
+    raise AssertionError("no rejected order ack published")
 
 
 # ---------------------------------------------------------------------------
@@ -225,9 +261,16 @@ class TestHandleCancel:
         engine._handle_new_order(_make_order_payload())
         order_id = _get_last_ack_id(pub_sock)
         pub_sock.sent.clear()
-        engine._handle_cancel({"order_id": order_id, "gateway_id": "GW01"})
-        topic, _ = decode(pub_sock.sent[-1])
+        engine._handle_cancel(
+            {
+                "order_id": order_id,
+                "gateway_id": "GW01",
+                "request_tag": "RT-CXL-OK",
+            }
+        )
+        topic, msg = decode(pub_sock.sent[-1])
         assert "cancelled" in topic
+        assert msg["request_tag"] == "RT-CXL-OK"
 
     def test_cancel_nonexistent_order_rejected(self, monkeypatch, tmp_path) -> None:
         engine, pub_sock = _make_engine(monkeypatch, tmp_path)
@@ -235,12 +278,54 @@ class TestHandleCancel:
         engine._handle_cancel({"order_id": "NONE", "gateway_id": "GW01"})
         topic, msg = decode(pub_sock.sent[-1])
         assert msg["accepted"] is False
+        assert msg.get("request_tag") is None
 
     def test_cancel_unauthorized_gateway(self, monkeypatch, tmp_path) -> None:
         engine, pub_sock = _make_engine(monkeypatch, tmp_path)
         engine._handle_cancel({"order_id": "x", "gateway_id": "UNKNOWN"})
         topic, msg = decode(pub_sock.sent[-1])
         assert msg["accepted"] is False
+
+    def test_rejected_cancel_carries_code_and_order_tag(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        engine, pub_sock = _make_engine(
+            monkeypatch, tmp_path, gateways=("GW01", "GW02")
+        )
+        _connect(engine, "GW01")
+        _connect(engine, "GW02")
+        engine._handle_new_order(_make_order_payload(client_tag="T1-CANCEL"))
+        order_id = _get_last_ack_id(pub_sock)
+        pub_sock.sent.clear()
+
+        engine._handle_cancel({"order_id": order_id, "gateway_id": "GW02"})
+        msg = _last_rejected_ack(pub_sock)
+
+        assert msg["reject_code"] == "NOT_OWNER"
+        assert msg["client_tag"] == "T1-CANCEL"
+
+    def test_rejected_cancel_carries_request_tag(self, monkeypatch, tmp_path) -> None:
+        engine, pub_sock = _make_engine(
+            monkeypatch, tmp_path, gateways=("GW01", "GW02")
+        )
+        _connect(engine, "GW01")
+        _connect(engine, "GW02")
+        engine._handle_new_order(_make_order_payload(client_tag="T1-CANCEL-REQ"))
+        order_id = _get_last_ack_id(pub_sock)
+        pub_sock.sent.clear()
+
+        engine._handle_cancel(
+            {
+                "order_id": order_id,
+                "gateway_id": "GW02",
+                "request_tag": "RT-REQ-001",
+            }
+        )
+        msg = _last_rejected_ack(pub_sock)
+
+        assert msg["reject_code"] == "NOT_OWNER"
+        assert msg["client_tag"] == "T1-CANCEL-REQ"
+        assert msg["request_tag"] == "RT-REQ-001"
 
 
 # ---------------------------------------------------------------------------
@@ -399,6 +484,61 @@ class TestNewOrderSessionGating:
         engine._handle_new_order(payload)
         _, msg = decode(pub_sock.sent[-1])
         assert msg["accepted"] is True
+
+    @pytest.mark.parametrize(
+        "setup,payload,code",
+        [
+            (
+                lambda engine: None,
+                _make_order_payload(gateway_id="UNKNOWN", client_tag="T1-GW"),
+                "GATEWAY_NOT_CONFIGURED",
+            ),
+            (
+                lambda engine: _connect(engine),
+                _make_order_payload(symbol="MSFT", client_tag="T1-SYM"),
+                "UNKNOWN_SYMBOL",
+            ),
+            (
+                lambda engine: _connect(engine),
+                _make_order_payload(qty=0, client_tag="T1-QTY"),
+                "QTY_OUT_OF_RANGE",
+            ),
+            (
+                lambda engine: _connect(engine),
+                _make_order_payload(
+                    order_type=OrderType.LIMIT, price=None, client_tag="T1-PX"
+                ),
+                "PRICE_OUT_OF_RANGE",
+            ),
+        ],
+    )
+    def test_rejected_new_order_carries_code_and_client_tag(
+        self, monkeypatch, tmp_path, setup, payload, code
+    ) -> None:
+        engine, pub_sock = _make_engine(monkeypatch, tmp_path)
+        setup(engine)
+
+        engine._handle_new_order(payload)
+        msg = _last_rejected_ack(pub_sock)
+
+        assert msg["reject_code"] == code
+        assert msg["client_tag"] == payload["client_tag"]
+
+    def test_insufficient_liquidity_reject_carries_code_and_client_tag(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        engine, pub_sock = _make_engine(monkeypatch, tmp_path)
+        _connect(engine)
+        engine._handle_new_order(
+            _make_order_payload(
+                order_type=OrderType.FOK, price=100.0, client_tag="T1-FOK"
+            )
+        )
+
+        msg = _last_rejected_ack(pub_sock)
+
+        assert msg["reject_code"] == "INSUFFICIENT_LIQUIDITY"
+        assert msg["client_tag"] == "T1-FOK"
 
 
 # ---------------------------------------------------------------------------

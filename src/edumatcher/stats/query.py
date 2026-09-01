@@ -544,10 +544,10 @@ def query_trades(
 ) -> tuple[list[dict[str, Any]], str | None]:
     """Return up to *limit* trades plus a next-page cursor (or ``None``).
 
-    ``trade_log``'s primary key is ``trade_id`` alone (not ordered by time),
-    so SQLite's implicit ``rowid`` (insertion order) is used as the
-    tiebreaker for same-``ts`` rows, exposed as ``_rowid`` in each result
-    row and consumed via the opaque ``after`` cursor on the next call.
+    ``trade_log`` rows are ordered by event time; SQLite's implicit ``rowid``
+    (insertion order) is used as the tiebreaker for same-``ts`` rows, exposed
+    as ``_rowid`` in each result row and consumed via the opaque ``after``
+    cursor on the next call.
     """
     sql = (
         "SELECT rowid AS _rowid, ts, trade_id, symbol, price, quantity, "

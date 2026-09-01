@@ -43,7 +43,8 @@ from edumatcher.models.generated.trade import (
 from edumatcher.models.message import decode, make_trade_msg
 
 _SAMPLE: dict[str, Any] = {
-    "id": "42",
+    "id": "000001-000000042",
+    "run_seq": 1,
     "symbol": "ACME",
     "buy_order_id": "b-1",
     "sell_order_id": "s-1",
@@ -65,7 +66,8 @@ def _engine_inline_payload(**over: Any) -> dict[str, Any]:
     from the engine would make the two move together silently.
     """
     payload = {
-        "id": "42",
+        "id": "000001-000000042",
+        "run_seq": 1,
         "symbol": "ACME",
         "buy_order_id": "b-1",
         "sell_order_id": "s-1",
@@ -106,7 +108,7 @@ class TestByteIdenticalToHandWrittenFactory:
             {"price": 0.01},
             {"quantity": 1},
             {"symbol": "A.B_C1"},
-            {"id": "999999"},
+            {"id": "000001-000999999"},
         ],
     )
     def test_frames_match_across_the_value_space(
@@ -228,7 +230,7 @@ class TestUncheckedMatchesChecked:
             {"tick_decimals": 0},
             {"aggressor_side": "AUCTION"},
             {"timestamp": 1_700_000_000},
-            {"id": "1"},
+            {"id": "000001-000000001"},
         ],
     )
     def test_identical_frames_across_the_value_space(

@@ -134,7 +134,7 @@ fields:
 | Channel | Incremental msg | Baseline `SNAP`? | `SYM=*`? | Payload fields | Primary use |
 |---------|-----------------|------------------|----------|----------------|-------------|
 | `TOP` | `MD` | Yes (one per symbol when `SYM=*`) | Yes (1.0.0+) | `BID BIDSZ ASK ASKSZ LAST LASTSZ` | best bid/ask/last, price widgets, algos |
-| `TRADE` | `TRADE` | No | Yes (1.0.0+) | `PX QTY SIDE` | time-and-sales tape, VWAP/OHLCV |
+| `TRADE` | `TRADE` | No | Yes (1.0.0+) | `TRADE_ID RUN_SEQ PX QTY SIDE` | time-and-sales tape, VWAP/OHLCV |
 | `STATE` | `STATE` | Yes | Yes | `SESSION PREV` | halt gating, session-phase display |
 | `INDEX` | `IDX` | Yes (1.0.0+) | No | `LEVEL SESSION OPEN CHG PCTCHG HIGH LOW AGGCAP` | index trackers, benchmarks |
 | `DEPTH` | `DEPTH` | Yes | No | `LEVELS BIDS ASKS` | order-book (DOM) widgets, Level-2 teaching |
@@ -376,7 +376,8 @@ per-symbol state object seeded from the `SNAP`.
 
 ### Channel `TRADE` — every trade print
 
-`TRADE` carries one line per matched trade: price, quantity, and aggressor side.
+`TRADE` carries one line per matched trade: its durable trade identity, price,
+quantity, and aggressor side.
 There is **no baseline `SNAP`** — the stream starts from events that occur after
 the subscription becomes active.
 
@@ -390,16 +391,24 @@ attribution.
 **Wire example:**
 
 ```text
-TRADE|CH=TRADE|SYM=AAPL|SEQ=44|TS=2026-06-30T09:30:01.100Z|PX=150.12|QTY=200|SIDE=BUY
+TRADE|CH=TRADE|SYM=AAPL|SEQ=44|TS=2026-06-30T09:30:01.100Z|TRADE_ID=000042-000000123|RUN_SEQ=42|PX=150.12|QTY=200|SIDE=BUY
 ```
 
 **Fields:**
 
 | Field | Type | Meaning |
 |-------|------|---------|
+| `TRADE_ID` | string | Durable public trade ID; unique across engine restarts |
+| `RUN_SEQ` | integer | Persisted engine-run sequence encoded in `TRADE_ID`'s prefix |
 | `PX` | decimal | Execution price |
 | `QTY` | integer | Executed quantity |
 | `SIDE` | enum | Aggressor side — `BUY` or `SELL` (empty when the engine did not report one) |
+
+`TRADE_ID` is the reconciliation key for the public tape. It also makes
+reconnect overlap safe: consumers should retain a seen-ID set and ignore a
+replayed print whose `TRADE_ID` was already processed. `SEQ` still detects
+gaps in the `(TRADE, SYM)` stream; `TRADE_ID` answers whether two deliveries
+name the same execution.
 
 ---
 

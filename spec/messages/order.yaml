@@ -370,6 +370,53 @@ messages:
       - { name: accepted, type: bool }
       - { name: reason, type: string, required: false, default: "",
           doc: "Rejection detail; empty when accepted.", validate: { max_len: 256 } }
+      - name: reject_code
+        type: enum
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: >
+          Machine-readable rejection classification, stable across every
+          order-entry transport (ALF, BALF, REST) and every layer
+          (gateway-local validation and engine-side business rules). Absent
+          when accepted; present on every rejection. The human-readable detail
+          rides in reason; this field never carries data values. New members
+          may be added; existing members are never removed or renamed. A
+          client must treat an unrecognised code as UNKNOWN.
+        values:
+          - MALFORMED_MESSAGE
+          - MISSING_FIELD
+          - INVALID_VALUE
+          - UNSUPPORTED_FIELD
+          - AUTH_REQUIRED
+          - AUTH_FAILED
+          - ROLE_DENIED
+          - NOT_OWNER
+          - RATE_LIMITED
+          - GATEWAY_NOT_CONFIGURED
+          - UNKNOWN_SYMBOL
+          - SYMBOL_NOT_READY
+          - TICK_VIOLATION
+          - LOT_VIOLATION
+          - PRICE_OUT_OF_RANGE
+          - QTY_OUT_OF_RANGE
+          - COLLAR_BREACH
+          - MAX_ORDER_QTY
+          - MAX_ORDER_VALUE
+          - POSITION_LIMIT
+          - KILL_SWITCH_ACTIVE
+          - MARKET_CLOSED
+          - SESSION_NOT_PERMITTED
+          - INSTRUMENT_HALTED
+          - CIRCUIT_BREAKER_ACTIVE
+          - ORDER_NOT_FOUND
+          - ORDER_ALREADY_TERMINAL
+          - AMEND_NOT_PERMITTED
+          - DUPLICATE_ORDER
+          - INSUFFICIENT_LIQUIDITY
+          - SELF_MATCH_PREVENTED
+          - INTERNAL_ERROR
+          - UNKNOWN
       - { name: symbol, type: string, required: false, nullable: true,
           omit_when_none: true, validate: { max_len: 16 } }
       - { name: side, type: string, required: false, nullable: true,
@@ -385,6 +432,17 @@ messages:
           doc: "Absent for a MARKET order, which has no limit price." }
       - { name: client_tag, type: string, required: false, nullable: true,
           omit_when_none: true, validate: { max_len: 64 } }
+      - name: request_tag
+        type: string
+        required: false
+        nullable: true
+        omit_when_none: true
+        validate: { max_len: 64 }
+        doc: >
+          Client correlation tag for this request, echoed on the resulting
+          event or rejection. Distinct from the target order's client_tag,
+          which identifies the order rather than the request acting on it.
+          A client may have several requests outstanding against one order.
       - { name: oco_group_id, type: string, required: false, nullable: true,
           omit_when_none: true, validate: { max_len: 64 } }
       - { name: combo_parent_id, type: string, required: false, nullable: true,
@@ -462,6 +520,15 @@ messages:
       - { name: order_id, type: string, validate: { max_len: 64 } }
       - { name: client_tag, type: string, required: false, nullable: true,
           omit_when_none: true, validate: { max_len: 64 } }
+      - name: request_tag
+        type: string
+        required: false
+        nullable: true
+        omit_when_none: true
+        validate: { max_len: 64 }
+        doc: >
+          Client correlation tag for this cancel request. Engine-initiated
+          cancels publish with request_tag=null.
       - { name: oco_group_id, type: string, required: false, nullable: true,
           omit_when_none: true, validate: { max_len: 64 } }
       - { name: combo_parent_id, type: string, required: false, nullable: true,
@@ -521,6 +588,18 @@ messages:
       - { name: remaining_qty, type: int, unit: shares }
       - { name: priority_reset, type: bool,
           doc: "True when the amendment lost the order its time priority." }
+      - { name: client_tag, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 },
+          doc: "Client correlation tag for the amended order." }
+      - name: request_tag
+        type: string
+        required: false
+        nullable: true
+        omit_when_none: true
+        validate: { max_len: 64 }
+        doc: >
+          Client correlation tag for this amend request. Engine-initiated
+          cancels publish with request_tag=null.
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 
@@ -660,6 +739,15 @@ messages:
     fields:
       - { name: order_id, type: string, validate: { max_len: 64 } }
       - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - name: request_tag
+        type: string
+        required: false
+        nullable: true
+        omit_when_none: true
+        validate: { max_len: 64 }
+        doc: >
+          Client correlation tag for this cancel request, echoed on the
+          resulting cancellation event or rejection.
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 
@@ -685,6 +773,15 @@ messages:
       - { name: qty, type: int, unit: shares, required: false, nullable: true,
           omit_when_none: true,
           doc: "New quantity; absent means the quantity is unchanged." }
+      - name: request_tag
+        type: string
+        required: false
+        nullable: true
+        omit_when_none: true
+        validate: { max_len: 64 }
+        doc: >
+          Client correlation tag for this amend request, echoed on the
+          resulting amendment event or rejection.
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 
@@ -762,6 +859,9 @@ messages:
           api_gateway's pydantic schema, which left the ALF console and gateway
           free to submit a one-legged combo.
         validate: { min_items: 2, max_items: 10 }
+      - { name: client_tag, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 },
+          doc: "Client correlation tag for this combo submission." }
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 
@@ -799,6 +899,9 @@ messages:
       # rejects the OCO. Required is the honest description of the behaviour.
       - { name: leg1, type: nested, ref: OcoLeg }
       - { name: leg2, type: nested, ref: OcoLeg }
+      - { name: client_tag, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 },
+          doc: "Client correlation tag for this OCO submission." }
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 

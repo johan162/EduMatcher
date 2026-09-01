@@ -203,6 +203,7 @@ def resolve_data_path(path: str | os.PathLike[str] | Path) -> Path:
 GTC_ORDERS_FILE = DATA_DIR / "gtc_orders.json"
 GTC_COMBOS_FILE = DATA_DIR / "gtc_combos.json"
 BOOK_STATS_FILE = DATA_DIR / "book_stats.json"
+RUN_SEQ_FILE = DATA_DIR / "engine_run_seq.json"
 AUDIT_LOG_FILE = DATA_DIR / "audit.log"
 AUDIT_INDEX_DB_FILE = DATA_DIR / "audit_index.db"
 CLEARING_REPORT_FILE = DATA_DIR / "clearing_report.csv"

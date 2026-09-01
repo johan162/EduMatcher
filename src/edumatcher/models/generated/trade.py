@@ -25,7 +25,7 @@ FAMILY_VERSION = 1
 
 TOPIC_TRADE_EXECUTED = "trade.executed"
 _TOPIC_TRADE_EXECUTED_BYTES = "trade.executed".encode()
-_TRADE_EXECUTED_ID_RE = re.compile("^[0-9]+$")
+_TRADE_EXECUTED_ID_RE = re.compile("^\\d{6}-\\d{9}$")
 _TRADE_EXECUTED_SYMBOL_RE = re.compile("^[A-Z0-9._]+$")
 _TRADE_EXECUTED_AGGRESSOR_SIDE_VALUES = ("BUY", "SELL", "AUCTION")
 
@@ -36,8 +36,16 @@ _TRADE_EXECUTED_FIELDS: tuple[dict[str, Any], ...] = (
         "type": "string",
         "unit": None,
         "required": True,
-        "doc": "Engine trade counter, unique **within one engine run only** - it restarts at 1 on every launch. Assigned by models/trade.py::Trade.create from a process-local itertools.count.",
-        "constraints": {"max_len": 64, "pattern": "^[0-9]+$"},
+        "doc": "Durable, sortable trade id. The prefix is the persisted engine-run sequence and the suffix is the per-run trade counter.",
+        "constraints": {"max_len": 64, "pattern": "^\\d{6}-\\d{9}$"},
+    },
+    {
+        "name": "run_seq",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": True,
+        "doc": "Durable engine-run sequence used as the trade id prefix. A change in run_seq marks an engine restart explicitly for consumers.",
+        "constraints": {"ge": 0},
     },
     {
         "name": "symbol",
@@ -131,6 +139,7 @@ class TradeExecuted:
     """
 
     id: str
+    run_seq: int  # unit: dimensionless
     symbol: str
     buy_order_id: str
     sell_order_id: str
@@ -157,6 +166,8 @@ class TradeExecuted:
             raise MessageValidationError(
                 f"id: {self.id!r} does not match {_TRADE_EXECUTED_ID_RE.pattern!r}"
             )
+        if self.run_seq < 0:
+            raise MessageValidationError(f"run_seq: {self.run_seq!r} must be >= 0")
         if len(self.symbol) > 16:
             raise MessageValidationError(
                 f"symbol: length {len(self.symbol)} exceeds max_len 16"
@@ -208,6 +219,7 @@ class TradeExecuted:
         """
         return cls(
             id=str(p["id"]),
+            run_seq=int(p["run_seq"]),
             symbol=str(p["symbol"]),
             buy_order_id=str(p["buy_order_id"]),
             sell_order_id=str(p["sell_order_id"]),
@@ -224,6 +236,7 @@ class TradeExecuted:
         """Return the bus payload, in the spec's declared field order."""
         return {
             "id": self.id,
+            "run_seq": self.run_seq,
             "symbol": self.symbol,
             "buy_order_id": self.buy_order_id,
             "sell_order_id": self.sell_order_id,
@@ -260,6 +273,7 @@ def make_trade_executed(**kw: Any) -> list[bytes]:
 def make_trade_executed_unchecked(
     *,
     id: str,
+    run_seq: int,
     symbol: str,
     buy_order_id: str,
     sell_order_id: str,
@@ -286,6 +300,7 @@ def make_trade_executed_unchecked(
         _msg.dumps(
             {
                 "id": str(id),
+                "run_seq": int(run_seq),
                 "symbol": str(symbol),
                 "buy_order_id": str(buy_order_id),
                 "sell_order_id": str(sell_order_id),
@@ -336,6 +351,8 @@ def project_trade_executed_calf(
     not payload keys.
     """
     return {
+        "TRADE_ID": str(payload["id"]),
+        "RUN_SEQ": str(int(payload["run_seq"])),
         "PX": str(float(payload["price"])),
         "QTY": str(int(payload["quantity"])),
         "SIDE": str(payload.get("aggressor_side", "")).upper(),
@@ -352,7 +369,8 @@ def parse_trade_executed_calf(
     section 5.1.1).
     """
     return TradeExecuted(
-        id="",
+        id=str(fields["TRADE_ID"]),
+        run_seq=int(fields["RUN_SEQ"]),
         symbol="",
         buy_order_id="",
         sell_order_id="",

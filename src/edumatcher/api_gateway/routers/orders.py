@@ -50,16 +50,20 @@ async def _await_order_event(
     topic: str,
     order_id: str,
     wait: str | None,
+    request_tag: str | None = None,
 ) -> dict[str, Any] | None:
     """Optionally wait for an order-specific ack event matching *order_id*."""
     if wait != "ack":
         return None
     try:
+        match = {"order_id": order_id}
+        if request_tag is not None:
+            match["request_tag"] = request_tag
         return cast(
             dict[str, Any],
             await request.app.state.engine.await_event(
                 topic,
-                match={"order_id": order_id},
+                match=match,
                 timeout=request.app.state.config.timeouts.wait_ack_sec,
             ),
         )
@@ -70,24 +74,11 @@ async def _await_order_event(
         ) from exc
 
 
-def _check_duplicate_client_order_id(
-    request: Request, gateway_id: str, client_order_id: str | None
-) -> None:
-    """Raise 409 if client_order_id already exists in the session cache."""
-    if not client_order_id:
-        return
-    for cached in request.app.state.engine.get_caches(gateway_id).orders.values():
-        if cached.get("client_order_id") == client_order_id:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail={
-                    "error": {
-                        "code": "DUPLICATE",
-                        "message": "Duplicate client_order_id in session",
-                        "field": "client_order_id",
-                    }
-                },
-            )
+def _with_client_tag(order: dict[str, Any]) -> dict[str, Any]:
+    """Return an order response carrying the canonical tag key."""
+    result = dict(order)
+    result.setdefault("client_tag", None)
+    return result
 
 
 @router.post(
@@ -101,11 +92,10 @@ async def submit_order(
 ) -> OrderAccepted:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
-    _check_duplicate_client_order_id(request, gateway_id, body.client_order_id)
     order = build_order(body, gateway_id)
     request.app.state.engine.get_caches(gateway_id).orders[order.id] = {
         "order_id": order.id,
-        "client_order_id": body.client_order_id,
+        "client_tag": body.client_tag,
         "symbol": body.symbol,
         "side": wire_value(body.side),
         "order_type": wire_value(body.order_type),
@@ -118,9 +108,10 @@ async def submit_order(
     )
     return OrderAccepted(
         order_id=order.id,
-        client_order_id=body.client_order_id,
+        client_tag=body.client_tag,
         status="PENDING" if event is None else "ACKED",
         accepted=None if event is None else bool(event.get("accepted")),
+        reject_code=None if event is None else event.get("reject_code"),
         event=event,
     )
 
@@ -135,14 +126,24 @@ async def cancel_order(
     request: Request,
     session: Annotated[Session, Depends(auth)],
     wait: Annotated[str | None, Query(pattern="^ack$")] = None,
+    request_tag: Annotated[str | None, Query(max_length=64)] = None,
 ) -> CancelAccepted:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
-    request.app.state.engine.send_cancel(order_id, gateway_id)
+    request.app.state.engine.send_cancel(order_id, gateway_id, request_tag=request_tag)
     event = await _await_order_event(
-        request, topic_order_cancelled(gateway_id), order_id, wait
+        request,
+        topic_order_cancelled(gateway_id),
+        order_id,
+        wait,
+        request_tag=request_tag,
     )
-    return CancelAccepted(order_id=order_id, status="PENDING_CANCEL", event=event)
+    return CancelAccepted(
+        order_id=order_id,
+        request_tag=request_tag,
+        status="PENDING_CANCEL",
+        event=event,
+    )
 
 
 @router.patch("/orders/{order_id}", status_code=status.HTTP_202_ACCEPTED)
@@ -155,11 +156,26 @@ async def amend_order(
 ) -> dict[str, Any]:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
-    request.app.state.engine.send_amend(order_id, gateway_id, body.price, body.quantity)
-    event = await _await_order_event(
-        request, topic_order_amended(gateway_id), order_id, wait
+    request.app.state.engine.send_amend(
+        order_id,
+        gateway_id,
+        body.price,
+        body.quantity,
+        request_tag=body.request_tag,
     )
-    return {"order_id": order_id, "status": "PENDING_AMEND", "event": event}
+    event = await _await_order_event(
+        request,
+        topic_order_amended(gateway_id),
+        order_id,
+        wait,
+        request_tag=body.request_tag,
+    )
+    return {
+        "order_id": order_id,
+        "request_tag": body.request_tag,
+        "status": "PENDING_AMEND",
+        "event": event,
+    }
 
 
 @router.post(
@@ -203,18 +219,27 @@ async def list_orders(
     gateway_id = require_trading(session)
     request.app.state.engine.request_orders(gateway_id)
     try:
-        return cast(
+        response = cast(
             dict[str, Any],
             await request.app.state.engine.await_topic(
                 topic_orders(gateway_id),
                 request.app.state.config.timeouts.engine_reply_sec,
             ),
         )
+        response["orders"] = [
+            _with_client_tag(order)
+            for order in response.get("orders", [])
+            if isinstance(order, dict)
+        ]
+        return response
     except TimeoutError:
         return {
-            "orders": list(
-                request.app.state.engine.get_caches(gateway_id).orders.values()
-            )
+            "orders": [
+                _with_client_tag(order)
+                for order in request.app.state.engine.get_caches(
+                    gateway_id
+                ).orders.values()
+            ]
         }
 
 
@@ -228,7 +253,7 @@ async def get_order(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Unknown order"
         )
-    return cast(dict[str, Any], order)
+    return _with_client_tag(cast(dict[str, Any], order))
 
 
 @router.post(

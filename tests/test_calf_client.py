@@ -255,7 +255,9 @@ def test_payloadless_trade_snapshot_is_not_cached_as_a_print() -> None:
     assert state.last_trade("AAPL") is None
 
     state.apply(
-        _frame("TRADE|CH=TRADE|SYM=AAPL|SEQ=9002|TS=t|PX=150.10|QTY=100|SIDE=BUY")
+        _frame(
+            "TRADE|CH=TRADE|SYM=AAPL|SEQ=9002|TS=t|TRADE_ID=000001-000000001|RUN_SEQ=1|PX=150.10|QTY=100|SIDE=BUY"
+        )
     )
     assert state.last_trade("AAPL") is not None
 
@@ -421,11 +423,15 @@ def test_client_resumes_a_gap_and_drops_the_duplicates_replay_returns(
     gateway.wait_ready()
     _wait_for(lambda: gateway.sent_matching("SUB"), label="the SUB")
 
-    gateway.send("TRADE|CH=TRADE|SYM=AAPL|SEQ=1|TS=t1|PX=149.90|QTY=100|SIDE=BUY")
+    gateway.send(
+        "TRADE|CH=TRADE|SYM=AAPL|SEQ=1|TS=t1|TRADE_ID=000001-000000001|RUN_SEQ=1|PX=149.90|QTY=100|SIDE=BUY"
+    )
     _wait_for(lambda: seen == [1], label="the first print")
 
     # SEQ jumps 1 -> 4: two prints were missed.
-    gateway.send("TRADE|CH=TRADE|SYM=AAPL|SEQ=4|TS=t4|PX=150.10|QTY=25|SIDE=BUY")
+    gateway.send(
+        "TRADE|CH=TRADE|SYM=AAPL|SEQ=4|TS=t4|TRADE_ID=000001-000000004|RUN_SEQ=1|PX=150.10|QTY=25|SIDE=BUY"
+    )
     _wait_for(
         lambda: gateway.sent_matching("RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=1"),
         label="the RESUME",
@@ -434,15 +440,43 @@ def test_client_resumes_a_gap_and_drops_the_duplicates_replay_returns(
     # replay_since returns everything past LASTSEQ=1 -- including SEQ=4,
     # which was already delivered live.
     gateway.send(
-        "TRADE|CH=TRADE|SYM=AAPL|SEQ=2|TS=t2|PX=150.00|QTY=50|SIDE=BUY",
-        "TRADE|CH=TRADE|SYM=AAPL|SEQ=3|TS=t3|PX=150.05|QTY=75|SIDE=SELL",
-        "TRADE|CH=TRADE|SYM=AAPL|SEQ=4|TS=t4|PX=150.10|QTY=25|SIDE=BUY",
+        "TRADE|CH=TRADE|SYM=AAPL|SEQ=2|TS=t2|TRADE_ID=000001-000000002|RUN_SEQ=1|PX=150.00|QTY=50|SIDE=BUY",
+        "TRADE|CH=TRADE|SYM=AAPL|SEQ=3|TS=t3|TRADE_ID=000001-000000003|RUN_SEQ=1|PX=150.05|QTY=75|SIDE=SELL",
+        "TRADE|CH=TRADE|SYM=AAPL|SEQ=4|TS=t4|TRADE_ID=000001-000000004|RUN_SEQ=1|PX=150.10|QTY=25|SIDE=BUY",
     )
     _wait_for(lambda: len(seen) == 4, label="the backfill")
     time.sleep(0.05)  # let a duplicate arrive, if one is going to
 
     assert seen == [1, 4, 2, 3]
     assert len(set(seen)) == len(seen), "no print may be delivered twice"
+
+    client.stop()
+    gateway.close()
+    thread.join(timeout=2)
+
+
+def test_client_drops_a_replayed_trade_id_with_a_new_sequence(
+    gateway: StubGateway,
+) -> None:
+    client = _client(gateway)
+    seen: list[str] = []
+
+    def on_frame(frame) -> None:
+        if frame.msg_type == "TRADE":
+            seen.append(frame.fields["TRADE_ID"])
+
+    thread = _run_in_thread(client, on_frame=on_frame)
+    gateway.wait_ready()
+    _wait_for(lambda: gateway.sent_matching("SUB"), label="the SUB")
+
+    gateway.send(
+        "TRADE|CH=TRADE|SYM=AAPL|SEQ=1|TS=t1|TRADE_ID=000001-000000001|RUN_SEQ=1|PX=150.00|QTY=100|SIDE=BUY",
+        "TRADE|CH=TRADE|SYM=AAPL|SEQ=2|TS=t2|TRADE_ID=000001-000000001|RUN_SEQ=1|PX=150.00|QTY=100|SIDE=BUY",
+    )
+    _wait_for(lambda: len(seen) == 1, label="the first trade")
+    time.sleep(0.05)
+
+    assert seen == ["000001-000000001"]
 
     client.stop()
     gateway.close()
@@ -467,9 +501,13 @@ def test_client_drops_the_payloadless_snapshot_after_a_trade_replay_miss(
     gateway.wait_ready()
     _wait_for(lambda: gateway.sent_matching("SUB"), label="the SUB")
 
-    gateway.send("TRADE|CH=TRADE|SYM=AAPL|SEQ=1|TS=t1|PX=149.90|QTY=100|SIDE=BUY")
+    gateway.send(
+        "TRADE|CH=TRADE|SYM=AAPL|SEQ=1|TS=t1|TRADE_ID=000001-000000001|RUN_SEQ=1|PX=149.90|QTY=100|SIDE=BUY"
+    )
     _wait_for(lambda: len(trades) == 1, label="the first print")
-    gateway.send("TRADE|CH=TRADE|SYM=AAPL|SEQ=9|TS=t9|PX=150.10|QTY=25|SIDE=BUY")
+    gateway.send(
+        "TRADE|CH=TRADE|SYM=AAPL|SEQ=9|TS=t9|TRADE_ID=000001-000000009|RUN_SEQ=1|PX=150.10|QTY=25|SIDE=BUY"
+    )
     _wait_for(lambda: gateway.sent_matching("RESUME"), label="the RESUME")
 
     # An older gateway answers with the ERR *and* a snapshot it cannot
@@ -572,9 +610,9 @@ def test_passive_mode_neither_resumes_nor_hides_duplicates(
     _wait_for(lambda: gateway.sent_matching("SUB"), label="the SUB")
 
     gateway.send(
-        "TRADE|CH=TRADE|SYM=AAPL|SEQ=1|TS=t1|PX=1|QTY=1|SIDE=BUY",
-        "TRADE|CH=TRADE|SYM=AAPL|SEQ=4|TS=t4|PX=1|QTY=1|SIDE=BUY",
-        "TRADE|CH=TRADE|SYM=AAPL|SEQ=4|TS=t4|PX=1|QTY=1|SIDE=BUY",
+        "TRADE|CH=TRADE|SYM=AAPL|SEQ=1|TS=t1|TRADE_ID=000001-000000001|RUN_SEQ=1|PX=1|QTY=1|SIDE=BUY",
+        "TRADE|CH=TRADE|SYM=AAPL|SEQ=4|TS=t4|TRADE_ID=000001-000000004|RUN_SEQ=1|PX=1|QTY=1|SIDE=BUY",
+        "TRADE|CH=TRADE|SYM=AAPL|SEQ=4|TS=t4|TRADE_ID=000001-000000004|RUN_SEQ=1|PX=1|QTY=1|SIDE=BUY",
     )
     _wait_for(lambda: len(seen) == 3, label="all three lines")
     time.sleep(0.05)

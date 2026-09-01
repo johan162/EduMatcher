@@ -25,7 +25,7 @@ export const orderSchema = z
     visible_qty: z.coerce.number().int().positive().optional(),
     trail_offset: z.coerce.number().positive().optional(),
     smp_action: z.enum(["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"]).optional(),
-    client_order_id: z.string().max(64).optional(),
+    client_tag: z.string().max(64).optional(),
   })
   .superRefine((data, ctx) => {
     if (["LIMIT", "FOK", "IOC", "STOP_LIMIT"].includes(data.order_type) && !data.price) {

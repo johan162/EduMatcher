@@ -87,6 +87,7 @@ class _FakeDropCopy:
         gateway_id: str,
         *,
         order_id: str,
+        trade_ids: list[str],
         symbol: str,
         fill_qty: int,
         fill_price: float,
@@ -106,6 +107,7 @@ class _FakeDropCopy:
                 "order.fill",
                 {
                     "order_id": order_id,
+                    "trade_ids": trade_ids,
                     "symbol": symbol,
                     "fill_qty": fill_qty,
                     "fill_price": fill_price,
@@ -431,6 +433,9 @@ class TestH4DropCopyCompleteness:
             "H4: a quote-flow fill printed on trade.executed but no order.fill "
             "event was published on the drop-copy feed for either counterparty"
         )
+        assert {event[2]["trade_ids"][0] for event in fill_events} == {
+            trade["id"] for trade in trades
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -448,6 +453,8 @@ class TestH5NoDuplicateFillMessages:
         self, monkeypatch, tmp_path
     ) -> None:
         engine, pub = _make_engine(monkeypatch, tmp_path, mm_gateways=("GW01",))
+        drop = _FakeDropCopy()
+        engine._drop_copy = drop
         _connect(engine)
         engine._handle_new_order(
             _payload(Side.SELL, OrderType.LIMIT, 50, "GW02", price=10000)
@@ -472,6 +479,14 @@ class TestH5NoDuplicateFillMessages:
             f"({len(signatures)} messages, signatures={signatures}) — consumers "
             f"summing fill_qty overcount the execution"
         )
+        drop_fills = [
+            event
+            for event in drop.events
+            if event[0] == "GW01" and event[2]["order_id"] == bid_id
+        ]
+        assert [
+            trade_id for event in drop_fills for trade_id in event[2]["trade_ids"]
+        ] == fills[0]["trade_ids"]
 
 
 # ---------------------------------------------------------------------------

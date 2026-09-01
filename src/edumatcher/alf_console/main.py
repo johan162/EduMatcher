@@ -8,7 +8,7 @@ Accepts FIX-like text commands on stdin, sends to engine, prints responses.
 
 Commands
 --------
-  NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.50
+    NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.50|TAG=demo-1
   NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.50|TIF=GTC
   NEW|SYM=MSFT|SIDE=SELL|TYPE=MARKET|QTY=50
   NEW|SYM=AAPL|SIDE=BUY|TYPE=STOP|QTY=100|STOP=148.00
@@ -19,10 +19,10 @@ Commands
   NEW|SYM=AAPL|SIDE=BUY|TYPE=TRAILING_STOP|QTY=100|TRAIL=0.50
   NEW|TYPE=OCO|OCO_ID=<label>|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=BUY|LEG1_TYPE=LIMIT|LEG1_PRICE=150.00|LEG2_SIDE=SELL|LEG2_TYPE=STOP|LEG2_STOP=148.00
   NEW|TYPE=COMBO|COMBO_ID=<label>|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=300.00
-  AMEND|ID=ORD-xxxx|PRICE=151.00
-  AMEND|ID=ORD-xxxx|QTY=200
-  AMEND|ID=ORD-xxxx|PRICE=151.00|QTY=200
-  CANCEL|ID=ORD-xxxx
+    AMEND|ID=ORD-xxxx|PRICE=151.00[|RTAG=req-1]
+    AMEND|ID=ORD-xxxx|QTY=200[|RTAG=req-2]
+    AMEND|ID=ORD-xxxx|PRICE=151.00|QTY=200[|RTAG=req-3]
+    CANCEL|ID=ORD-xxxx[|RTAG=req-4]
   CANCEL|COMBO_ID=<label>
   CANCEL|OCO_ID=<label>
   QUOTE|SYM=AAPL|BID=150.00|ASK=150.10|BID_QTY=500|ASK_QTY=500
@@ -685,7 +685,13 @@ class Gateway:
                     self.order_cache[full_id]["status"] = "NEW"
             else:
                 reason = payload.get("reason", "")
-                console.print(f"[{ts}] [red]REJECTED[/red]  {oid}  {reason}")
+                code = payload.get("reject_code")
+                code_text = f" code={code}" if code else ""
+                rtag = payload.get("request_tag")
+                rtag_text = f" rtag={rtag}" if rtag else ""
+                console.print(
+                    f"[{ts}] [red]REJECTED[/red]  {oid}{code_text}{rtag_text}  {reason}"
+                )
                 full_id = payload.get("order_id", "?")
                 if full_id in self.order_cache:
                     self.order_cache[full_id]["status"] = "REJECTED"
@@ -728,7 +734,9 @@ class Gateway:
                 )
 
         elif "order.cancelled" in topic:
-            console.print(f"[{ts}] [yellow]CANCELLED[/yellow] {oid}")
+            rtag = payload.get("request_tag")
+            rtag_text = f" rtag={rtag}" if rtag else ""
+            console.print(f"[{ts}] [yellow]CANCELLED[/yellow] {oid}{rtag_text}")
             full_id = payload.get("order_id", "?")
             if full_id in self.order_cache:
                 self.order_cache[full_id]["status"] = "CANCELLED"
@@ -747,6 +755,7 @@ class Gateway:
             console.print(
                 f"[{ts}] [magenta]AMENDED[/magenta]   {oid}  "
                 f"price={new_price} qty={new_qty} remaining={rem}{prio}"
+                f"{f' rtag={payload.get('request_tag')}' if payload.get('request_tag') else ''}"
             )
             full_id = payload.get("order_id", "?")
             if full_id in self.order_cache:
@@ -1177,7 +1186,14 @@ class Gateway:
             if not order_id:
                 console.print("[red]CANCEL requires ID=, COMBO_ID=, or OCO_ID=[/red]")
                 return
-            self._send(self.push_sock, make_order_cancel_msg(order_id, self.gateway_id))
+            self._send(
+                self.push_sock,
+                make_order_cancel_msg(
+                    order_id,
+                    self.gateway_id,
+                    request_tag=kv.get("RTAG"),
+                ),
+            )
             return
 
         if cmd == "AMEND":
@@ -1194,7 +1210,11 @@ class Gateway:
             self._send(
                 self.push_sock,
                 make_order_amend_msg(
-                    order_id, self.gateway_id, price=new_price, qty=new_qty
+                    order_id,
+                    self.gateway_id,
+                    price=new_price,
+                    qty=new_qty,
+                    request_tag=kv.get("RTAG"),
                 ),
             )
             return
@@ -1237,6 +1257,7 @@ class Gateway:
             # explicit SMP=NONE. See SmpAction's docstring in
             # models/order.py.
             smp_action = SmpAction(kv["SMP"]) if "SMP" in kv else None
+            client_tag = kv.get("TAG")
         except (KeyError, ValueError) as exc:
             log.warning(
                 "NEW parse error gateway_id=%s input=%s error=%s",
@@ -1293,6 +1314,7 @@ class Gateway:
             trail_offset=(
                 to_ticks(float(kv["TRAIL"]), symbol) if "TRAIL" in kv else None
             ),
+            client_tag=client_tag,
         )
 
         # Pre-register in cache before ACK arrives
@@ -1307,6 +1329,7 @@ class Gateway:
             "price": price,
             "stop_price": stop_price,
             "status": "PENDING",
+            "client_tag": client_tag,
             "time": datetime.now().strftime("%H:%M:%S"),
         }
 
@@ -1422,6 +1445,8 @@ class Gateway:
             "leg1": leg1,
             "leg2": leg2,
         }
+        if kv.get("TAG"):
+            payload["client_tag"] = kv["TAG"]
         self._send(self.push_sock, make_oco_order_msg(payload))
         self._dbg_count("oco_submitted")
 
@@ -1521,7 +1546,10 @@ class Gateway:
             legs=legs,
         )
 
-        self._send(self.push_sock, make_combo_order_msg(combo.to_submission_dict()))
+        payload = combo.to_submission_dict()
+        if kv.get("TAG"):
+            payload["client_tag"] = kv["TAG"]
+        self._send(self.push_sock, make_combo_order_msg(payload))
         self._dbg_count("combo_submitted")
 
     @staticmethod

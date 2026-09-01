@@ -54,7 +54,7 @@ _HELP_TEXT = f"""
 
 {_BOLD}Order entry{_RESET}
   NEW|SYM=<s>|SIDE=BUY|SELL|TYPE=<t>|QTY=<n>[|PRICE=<p>][|STOP=<p>][|TRAIL=<n>]
-              [|VISIBLE=<n>][|TIF=DAY|GTC|ATO|ATC][|SMP=NONE|CANCEL_AGGRESSOR|...]
+              [|VISIBLE=<n>][|TIF=DAY|GTC|ATO|ATC][|SMP=NONE|CANCEL_AGGRESSOR|...][|TAG=<order-tag>]
   ORDER TYPES: MARKET  LIMIT  STOP  STOP_LIMIT  FOK  IOC  ICEBERG  TRAILING_STOP
   OCO:   NEW|TYPE=OCO|OCO_ID=<id>|SYM=<s>|QTY=<n>|TIF=<t>
               |LEG1_SIDE=BUY|SELL|LEG1_TYPE=<t>[|LEG1_PRICE=<p>][|LEG1_STOP=<p>]
@@ -64,8 +64,8 @@ _HELP_TEXT = f"""
               |LEG1.SYM=<s>|LEG1.SIDE=BUY|SELL|LEG1.QTY=<n>[|LEG1.PRICE=<p>]
 
 {_BOLD}Order management{_RESET}
-  AMEND|ID=<order-id>[|PRICE=<p>][|QTY=<n>]
-  CANCEL|ID=<order-id>          — single order
+    AMEND|ID=<order-id>[|PRICE=<p>][|QTY=<n>][|RTAG=<request-tag>]
+    CANCEL|ID=<order-id>[|RTAG=<request-tag>] — single order
   CANCEL|COMBO_ID=<id>          — combo and all legs
   CANCEL|OCO_ID=<id>            — OCO pair
   QUOTE|SYM=<s>|BID=<p>|ASK=<p>|BID_QTY=<n>|ASK_QTY=<n>[|TIF=...|QUOTE_ID=...]
@@ -120,9 +120,10 @@ _CMD_FIELDS: dict[str, list[str]] = {
         "VISIBLE=",
         "TIF=",
         "SMP=",
+        "TAG=",
     ],
-    "AMEND": ["ID=", "PRICE=", "QTY="],
-    "CANCEL": ["ID=", "COMBO_ID=", "OCO_ID="],
+    "AMEND": ["ID=", "PRICE=", "QTY=", "RTAG="],
+    "CANCEL": ["ID=", "COMBO_ID=", "OCO_ID=", "RTAG="],
     "QUOTE": ["SYM=", "BID=", "ASK=", "BID_QTY=", "ASK_QTY=", "TIF=", "QUOTE_ID="],
     "QUOTE_CANCEL": ["SYM="],
     "QBOOT": ["SYM="],
@@ -368,8 +369,14 @@ class AlfClient:
 
         if t == "ERR":
             code = f.get("CODE", "?")
+            reject_code = f.get("REJECT_CODE")
+            tag = f.get("TAG")
             detail = f.get("DETAIL", "")
-            self._pr(f"[{ts}] {_RED}ERR{_RESET}  [{code}]  {detail}")
+            reject_text = f" reject_code={reject_code}" if reject_code else ""
+            tag_text = f" tag={tag}" if tag else ""
+            self._pr(
+                f"[{ts}] {_RED}ERR{_RESET}  [{code}]{reject_text}{tag_text}  {detail}"
+            )
             return
 
         if t == "ACK":
@@ -378,7 +385,10 @@ class AlfClient:
             reason = f.get("REASON", "")
             short = oid[:8]
             if accepted:
-                self._pr(f"[{ts}] {_GREEN}ACK{_RESET}      {short}  order accepted")
+                tag = f"  tag={f.get('TAG')}" if f.get("TAG") else ""
+                self._pr(
+                    f"[{ts}] {_GREEN}ACK{_RESET}      {short}{tag}  order accepted"
+                )
                 self._orders.setdefault(oid, {}).update(
                     {
                         "id": oid,
@@ -389,7 +399,15 @@ class AlfClient:
                     }
                 )
             else:
-                self._pr(f"[{ts}] {_RED}REJECTED{_RESET} {short}  {reason}")
+                code = f.get("REJECT_CODE")
+                tag = f.get("TAG")
+                rtag = f.get("RTAG")
+                code_text = f" code={code}" if code else ""
+                tag_text = f" tag={tag}" if tag else ""
+                rtag_text = f" rtag={rtag}" if rtag else ""
+                self._pr(
+                    f"[{ts}] {_RED}REJECTED{_RESET} {short}{code_text}{tag_text}{rtag_text}  {reason}"
+                )
             return
 
         if t == "FILL":
@@ -401,6 +419,7 @@ class AlfClient:
             self._pr(
                 f"[{ts}] {_CYAN}FILL{_RESET}     {oid[:8]}  "
                 f"qty={qty} @{price}  remaining={rem}  [{st}]"
+                f"{f'  tag={f.get('TAG')}' if f.get('TAG') else ''}"
             )
             # Position update — use cached order for symbol/side
             order = self._orders.get(oid, {})
@@ -422,6 +441,8 @@ class AlfClient:
                 f"price={f.get('PRICE', '-')}  qty={f.get('QTY', '-')}  "
                 f"remaining={f.get('REMAINING', '-')}  "
                 f"priority_reset={f.get('PRIORITY_RESET', '-')}"
+                f"{f'  tag={f.get('TAG')}' if f.get('TAG') else ''}"
+                f"{f'  rtag={f.get('RTAG')}' if f.get('RTAG') else ''}"
             )
             if oid in self._orders:
                 for k in ("PRICE", "QTY", "REMAINING"):
@@ -431,14 +452,17 @@ class AlfClient:
 
         if t == "CANCELLED":
             oid = f.get("ORDER_ID", "?")
-            self._pr(f"[{ts}] {_YELLOW}CANCELLED{_RESET} {oid[:8]}")
+            tag = f"  tag={f.get('TAG')}" if f.get("TAG") else ""
+            rtag = f"  rtag={f.get('RTAG')}" if f.get("RTAG") else ""
+            self._pr(f"[{ts}] {_YELLOW}CANCELLED{_RESET} {oid[:8]}{tag}{rtag}")
             if oid in self._orders:
                 self._orders[oid]["status"] = "CANCELLED"
             return
 
         if t == "EXPIRED":
             oid = f.get("ORDER_ID", "?")
-            self._pr(f"[{ts}] {_DIM}EXPIRED{_RESET}  {oid[:8]}")
+            tag = f"  tag={f.get('TAG')}" if f.get("TAG") else ""
+            self._pr(f"[{ts}] {_DIM}EXPIRED{_RESET}  {oid[:8]}{tag}")
             if oid in self._orders:
                 self._orders[oid]["status"] = "EXPIRED"
             return
@@ -780,7 +804,7 @@ class AlfClient:
                 f"  Symbols:          {', '.join(syms) if syms else '(none loaded yet)'}"
             )
             print(
-                f"  Open orders:      {sum(1 for o in self._orders.values() if o.get('status') not in ('CANCELLED','FILLED','EXPIRED','REJECTED'))}"
+                f"  Open orders:      {sum(1 for o in self._orders.values() if o.get('status') not in ('CANCELLED', 'FILLED', 'EXPIRED', 'REJECTED'))}"
             )
             print()
 

@@ -79,6 +79,7 @@ class DropCopyMessage:
     gateway_id: str
     event_type: DropCopyEventEventType
     order_id: str
+    trade_ids: list[str]
     symbol: str
     fill_qty: int
     fill_price: float
@@ -119,6 +120,7 @@ class DropCopyPublisher:
         gateway_id: str,
         *,
         order_id: str,
+        trade_ids: list[str],
         symbol: str,
         fill_qty: int,
         fill_price: float,
@@ -143,6 +145,7 @@ class DropCopyPublisher:
         ----------
         gateway_id     : The participant whose order executed.
         order_id       : The order this execution belongs to.
+        trade_ids      : Public trade id for this execution.
         symbol         : Instrument ticker.
         fill_qty       : Executed quantity.
         fill_price     : Display money, not ticks.
@@ -155,6 +158,7 @@ class DropCopyPublisher:
             gateway_id=gateway_id,
             event_type=EVENT_ORDER_FILL,
             order_id=order_id,
+            trade_ids=trade_ids,
             symbol=symbol,
             fill_qty=fill_qty,
             fill_price=fill_price,

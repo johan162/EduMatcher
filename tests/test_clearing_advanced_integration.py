@@ -43,7 +43,7 @@ from edumatcher.models.generated.system import (
 )
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
-from edumatcher.models.trade import Trade
+from edumatcher.models.trade import Trade, reset_trade_ids_for_tests, set_run_seq
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -58,6 +58,8 @@ def _make_trade(
     buy_gw: str = "GW_BUY",
     sell_gw: str = "GW_SELL",
 ) -> Trade:
+    reset_trade_ids_for_tests()
+    set_run_seq(1)
     t = Trade.create(
         symbol=symbol,
         buy_order_id="O_BUY",
@@ -184,13 +186,13 @@ class TestHandleGatewayBye:
 
 
 # ---------------------------------------------------------------------------
-# Unit tests: _check_sequence_gap — non-numeric trade IDs (lines 477-479)
+# Unit tests: _check_sequence_gap — durable trade IDs
 # ---------------------------------------------------------------------------
 
 
 class TestSequenceGapDetection:
     def test_non_numeric_id_disables_sequencing(self, proc: ClearingProcess) -> None:
-        """A non-integer id (e.g. UUID) must not trigger a false gap alarm."""
+        """A legacy/synthetic id must not trigger a false gap alarm."""
         with proc._lock:
             proc._check_sequence_gap(_make_trade("uuid-aabbccdd"))
             proc._check_sequence_gap(_make_trade("uuid-11223344"))
@@ -200,10 +202,10 @@ class TestSequenceGapDetection:
     def test_gap_is_detected_and_increments_counter(
         self, proc: ClearingProcess, db_path: Path
     ) -> None:
-        """Numeric ids with a jump > 1 must increment _gap_count and write a GAP row."""
+        """Suffix jumps within one run must increment _gap_count and write GAP."""
         with proc._lock:
-            proc._check_sequence_gap(_make_trade("100"))
-            proc._check_sequence_gap(_make_trade("105"))  # skipped 101-104
+            proc._check_sequence_gap(_make_trade("000042-000000100"))
+            proc._check_sequence_gap(_make_trade("000042-000000105"))
         assert proc._gap_count == 1
 
         conn = open_writer_connection(db_path)
@@ -211,22 +213,25 @@ class TestSequenceGapDetection:
         conn.close()
         assert len(rows) == 1
         data = json.loads(rows[0]["payload_json"])
+        assert data["run_seq"] == 42
         assert data["missing_trades"] == 4
 
-    def test_backward_move_resets_without_alarm(self, proc: ClearingProcess) -> None:
-        """Backward trade ID (engine restart) must reset _last_seq, not alarm."""
+    def test_run_prefix_change_resets_without_alarm(
+        self, proc: ClearingProcess
+    ) -> None:
+        """A new run prefix is an engine restart, not a transport gap."""
         with proc._lock:
-            proc._check_sequence_gap(_make_trade("200"))
-            proc._check_sequence_gap(_make_trade("100"))  # backward = restart
+            proc._check_sequence_gap(_make_trade("000042-000000200"))
+            proc._check_sequence_gap(_make_trade("000043-000000001"))
         assert proc._gap_count == 0
-        assert proc._last_seq == 100
+        assert proc._last_seq == (43, 1)
 
     def test_consecutive_numeric_ids_produce_no_gap(
         self, proc: ClearingProcess
     ) -> None:
         with proc._lock:
             for i in range(1, 11):
-                proc._check_sequence_gap(_make_trade(str(i)))
+                proc._check_sequence_gap(_make_trade(f"000042-{i:09d}"))
         assert proc._gap_count == 0
 
 

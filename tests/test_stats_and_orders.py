@@ -200,7 +200,8 @@ class TestQueryDailyStats:
 class TestOnTrade:
     def test_trade_recorded_in_db(self, sp: StatsProcess) -> None:
         payload = {
-            "id": "T001",
+            "id": "000001-000000001",
+            "run_seq": 1,
             "symbol": "AAPL",
             "price": 150.0,
             "quantity": 100,
@@ -878,16 +879,16 @@ class TestOnOrderEvent:
                 "fill_qty": 200,
                 "trade_id": "T002",
                 "reason": None,
-                "client_order_id": "CL001",
+                "client_tag": "CL001",
                 "combo_parent_id": None,
                 "oco_group_id": None,
                 "priority_reset": True,
             },
         )
         rows = sp._conn.execute(
-            "SELECT fill_price, fill_qty, priority_reset FROM order_events"
+            "SELECT fill_price, fill_qty, client_tag, priority_reset FROM order_events"
         ).fetchall()
-        assert rows == [(250.0, 200, 1)]
+        assert rows == [(250.0, 200, "CL001", 1)]
 
 
 # ---------------------------------------------------------------------------

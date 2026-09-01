@@ -19,8 +19,8 @@ Design principles (review §8, via tests/clearing_harness.py):
 
 Finding → test map
 ------------------
-  CL-C1  trade-id collision across engine   TestCLC1EngineRestartArchive
-         restarts silently drops trades
+  CL-C1  durable trade identity across      TestCLC1EngineRestartArchive
+      engine restarts preserves trades
   CL-C2  EOD mark-to-market dead on arrival TestCLC2EodMarksApplied
   CL-C3  gateway sessions never recorded    TestCLC3GatewaySessionTracking
   CL-C4  clearing restart corrupts          TestCLC4ClearingRestartWarmStart
@@ -33,7 +33,6 @@ Finding → test map
 
 from __future__ import annotations
 
-import itertools
 import json
 import sqlite3
 from contextlib import contextmanager
@@ -117,26 +116,16 @@ class TestCLC1EngineRestartArchive:
     def test_trades_from_a_restarted_engine_are_all_archived(
         self, monkeypatch, tmp_path
     ) -> None:
-        """Engine run 1 prints a trade; the engine restarts (its trade-id
-        counter restarts with it — models/trade.py PERF #2); run 2 prints a
-        DIFFERENT trade.  Clearing stayed up throughout.  Both executions
-        must exist in trade_events and the archive must agree with the
-        ledger — regardless of what the engine uses for trade ids."""
+        """Two engine runs publish distinct durable IDs to one clearing archive."""
         cut = start_clearing(tmp_path / "clearing.db")
         try:
             # --- engine run 1 ---
-            monkeypatch.setattr(
-                "edumatcher.models.trade._trade_counter", itertools.count(1)
-            )
-            engine1, pub1 = _new_engine(monkeypatch, tmp_path, "run1")
+            engine1, pub1 = _new_engine(monkeypatch, tmp_path, "run1", run_seq=1)
             _cross(engine1, qty=50, price=150.0)
             cut.publish_engine_output(pub1.sent)
 
-            # --- engine restart: fresh process, counter starts over ---
-            monkeypatch.setattr(
-                "edumatcher.models.trade._trade_counter", itertools.count(1)
-            )
-            engine2, pub2 = _new_engine(monkeypatch, tmp_path, "run2")
+            # --- engine restart: sequence persists while counter restarts ---
+            engine2, pub2 = _new_engine(monkeypatch, tmp_path, "run2", run_seq=2)
             _cross(engine2, qty=70, price=151.0)
             cut.publish_engine_output(pub2.sent)
 
@@ -150,9 +139,16 @@ class TestCLC1EngineRestartArchive:
             quantities = sorted(r["quantity"] for r in rows)
             assert quantities == [50, 70], (
                 f"CL-C1: archive holds {quantities} — a trade from the "
-                f"restarted engine silently vanished (id collision + "
-                f"INSERT OR IGNORE); every execution must be archived"
+                "restarted engine silently vanished; every durable execution "
+                "must be archived"
             )
+
+            assert {
+                row["id"] for row in conn.execute("SELECT id FROM trade_events")
+            } == {
+                "000001-000000001",
+                "000002-000000001",
+            }
 
             # Archive and ledger must tell the same story.
             archived_qty = sum(r["quantity"] for r in rows)

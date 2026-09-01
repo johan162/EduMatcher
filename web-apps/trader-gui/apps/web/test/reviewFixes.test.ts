@@ -24,7 +24,7 @@ describe("normalizeOrder", () => {
     };
     const o = normalizeOrder(raw);
     expect(o.order_id).toBe("ORD-123");
-    expect(o.client_order_id).toBe("ui-42");
+    expect(o.client_tag).toBe("ui-42");
     expect(o.remaining_qty).toBe(40);
     expect(o.updated_at).toBe(new Date(1_765_000_000 * 1000).toISOString());
   });
@@ -37,11 +37,11 @@ describe("normalizeOrder", () => {
       order_type: "MARKET",
       quantity: 50,
       status: "PENDING",
-      client_order_id: "cli-7",
+      client_tag: "cli-7",
     };
     const o = normalizeOrder(raw);
     expect(o.order_id).toBe("ORD-999");
-    expect(o.client_order_id).toBe("cli-7");
+    expect(o.client_tag).toBe("cli-7");
     // No engine timestamp on the fallback row → null, not a bogus epoch.
     expect(o.updated_at).toBeNull();
     // remaining_qty defaults to quantity when the thin row omits it.

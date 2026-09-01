@@ -70,7 +70,7 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
   const [trailOffset, setTrailOffset] = useState("");
   const [tif, setTif] = useState<Tif>("DAY");
   const [smp, setSmp] = useState<SmpAction | "">("");
-  const [clientOrderId, setClientOrderId] = useState("");
+  const [clientTag, setClientTag] = useState("");
   const [suggestedSide, setSuggestedSide] = useState<Side | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -149,7 +149,7 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
     // Omit smp_action unless actively chosen — an absent field lets the gateway
     // apply its configured SMP default, distinct from an explicit "NONE" (§12.4).
     if (smp !== "") candidate.smp_action = smp;
-    if (clientOrderId.trim() !== "") candidate.client_order_id = clientOrderId.trim();
+    if (clientTag.trim() !== "") candidate.client_tag = clientTag.trim();
 
     const parsed = orderSchema.safeParse(candidate);
     if (!parsed.success) {
@@ -164,7 +164,7 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
 
     const d = parsed.data;
     // Mirror the gateway's strict model: uppercased symbol, only the fields the
-    // type actually uses, and smp/client_order_id only when present.
+    // type actually uses, and smp/client_tag only when present.
     const body: Record<string, unknown> = {
       symbol: d.symbol.toUpperCase(),
       side: d.side,
@@ -177,7 +177,7 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
     if (fields.visible_qty && d.visible_qty !== undefined) body.visible_qty = d.visible_qty;
     if (fields.trail_offset && d.trail_offset !== undefined) body.trail_offset = d.trail_offset;
     if (d.smp_action !== undefined) body.smp_action = d.smp_action;
-    if (d.client_order_id) body.client_order_id = d.client_order_id;
+    if (d.client_tag) body.client_tag = d.client_tag;
 
     submit.mutate(
       { body, wait: "ack" },
@@ -186,7 +186,7 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
           const id8 = res.order_id.slice(0, 8);
           // Transient fields are cleared; symbol/qty/price stay so the trader
           // can immediately act on the other side (§12.9 step 7).
-          setClientOrderId("");
+          setClientTag("");
           if (res.accepted === false) {
             const reason = res.event?.reason || "order rejected";
             toast.error(`REJECTED: ${reason}`);
@@ -564,16 +564,16 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
 
       {!compact &&
         labelledField(
-          "Client Order ID (optional)",
+          "Client Tag (optional)",
           <input
-            value={clientOrderId}
-            onChange={(e) => setClientOrderId(e.target.value)}
-            aria-label="Client order ID"
+            value={clientTag}
+            onChange={(e) => setClientTag(e.target.value)}
+            aria-label="Client tag"
             maxLength={64}
-            placeholder="optional idempotency key"
+            placeholder="optional correlation tag"
             className={fieldCls}
           />,
-          "client_order_id",
+          "client_tag",
         )}
 
       <div className="flex gap-2">

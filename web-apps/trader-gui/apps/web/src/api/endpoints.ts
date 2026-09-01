@@ -80,8 +80,10 @@ export const submitOrder = (body: Record<string, unknown>, wait?: "ack") =>
     body: JSON.stringify(body),
   });
 
-export const cancelOrder = (orderId: string) =>
-  apiFetch<void>(`/api/v1/orders/${orderId}`, { method: "DELETE" });
+export const cancelOrder = (orderId: string, requestTag?: string) => {
+  const qs = requestTag ? `?${new URLSearchParams({ request_tag: requestTag }).toString()}` : "";
+  return apiFetch<void>(`/api/v1/orders/${orderId}${qs}`, { method: "DELETE" });
+};
 
 export const amendOrder = (orderId: string, body: Record<string, unknown>) =>
   apiFetch<Order>(`/api/v1/orders/${orderId}`, {

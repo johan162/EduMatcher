@@ -34,6 +34,7 @@ class TradeExecutedPayload:
     """
 
     id: str
+    run_seq: int
     symbol: str
     buy_order_id: str
     sell_order_id: str
@@ -49,6 +50,7 @@ class TradeExecutedPayload:
     def from_dict(cls, payload: Mapping[str, Any]) -> "TradeExecutedPayload":
         return cls(
             id=str(payload["id"]),
+            run_seq=int(payload["run_seq"]),
             symbol=str(payload["symbol"]),
             buy_order_id=str(payload["buy_order_id"]),
             sell_order_id=str(payload["sell_order_id"]),
@@ -64,6 +66,7 @@ class TradeExecutedPayload:
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
+            "run_seq": self.run_seq,
             "symbol": self.symbol,
             "buy_order_id": self.buy_order_id,
             "sell_order_id": self.sell_order_id,

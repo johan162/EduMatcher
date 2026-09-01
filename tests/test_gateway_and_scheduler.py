@@ -154,11 +154,21 @@ class TestGatewayHelpers:
         gw = _make_gateway()
         order_id = "ORD-002"
         gw.order_cache[order_id] = {"status": "PENDING"}
-        gw._handle_event(
-            "order.ack.GW01",
-            {"order_id": order_id, "accepted": False, "reason": "bad order"},
-        )
+        with patch("edumatcher.alf_console.main.console.print") as mock_print:
+            gw._handle_event(
+                "order.ack.GW01",
+                {
+                    "order_id": order_id,
+                    "accepted": False,
+                    "reason": "bad order",
+                    "reject_code": "INVALID_VALUE",
+                    "request_tag": "RT-REJ-001",
+                },
+            )
         assert gw.order_cache[order_id]["status"] == "REJECTED"
+        printed = str(mock_print.call_args.args[0])
+        assert "code=INVALID_VALUE" in printed
+        assert "rtag=RT-REJ-001" in printed
 
     def test_handle_event_fill(self) -> None:
         gw = _make_gateway()
@@ -639,6 +649,17 @@ class TestGatewayParseAndSend:
         gw._parse_and_send("CANCEL|ID=ORD-001")
         assert gw.push_sock.send_multipart.called
 
+    def test_cancel_by_id_forwards_request_tag(self) -> None:
+        from edumatcher.models.message import decode
+
+        gw = _make_gateway()
+        gw._parse_and_send("CANCEL|ID=ORD-001|RTAG=REQ-CXL-001")
+
+        frames = gw.push_sock.send_multipart.call_args.args[0]
+        topic, payload = decode(frames)
+        assert topic == "order.cancel"
+        assert payload["request_tag"] == "REQ-CXL-001"
+
     def test_cancel_missing_id(self) -> None:
         gw = _make_gateway()
         gw._parse_and_send("CANCEL")  # No ID — prints error, no send
@@ -658,6 +679,17 @@ class TestGatewayParseAndSend:
         gw._parse_and_send("AMEND|ID=ORD-001|PRICE=105.00")
         assert gw.push_sock.send_multipart.called
 
+    def test_amend_price_forwards_request_tag(self) -> None:
+        from edumatcher.models.message import decode
+
+        gw = _make_gateway()
+        gw._parse_and_send("AMEND|ID=ORD-001|PRICE=105.00|RTAG=REQ-AMD-001")
+
+        frames = gw.push_sock.send_multipart.call_args.args[0]
+        topic, payload = decode(frames)
+        assert topic == "order.amend"
+        assert payload["request_tag"] == "REQ-AMD-001"
+
     def test_amend_missing_id(self) -> None:
         gw = _make_gateway()
         gw._parse_and_send("AMEND|PRICE=105.00")  # No ID — error
@@ -670,6 +702,19 @@ class TestGatewayParseAndSend:
         gw = _make_gateway()
         gw._parse_and_send("NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00")
         assert gw.push_sock.send_multipart.called
+
+    def test_new_limit_order_forwards_client_tag(self) -> None:
+        from edumatcher.models.message import decode
+
+        gw = _make_gateway()
+        gw._parse_and_send(
+            "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=100.00|TAG=T1-LM001-001"
+        )
+
+        frames = gw.push_sock.send_multipart.call_args.args[0]
+        topic, payload = decode(frames)
+        assert topic == "order.new"
+        assert payload["client_tag"] == "T1-LM001-001"
 
     def test_new_combo_order(self) -> None:
         gw = _make_gateway()

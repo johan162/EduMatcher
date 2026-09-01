@@ -28,6 +28,41 @@ export type GatewayRole = "TRADER" | "MARKET_MAKER" | "ADMIN";
 
 export type ResumptionMode = "AUCTION" | "CONTINUOUS";
 
+export type RejectCode =
+  | "MALFORMED_MESSAGE"
+  | "MISSING_FIELD"
+  | "INVALID_VALUE"
+  | "UNSUPPORTED_FIELD"
+  | "AUTH_REQUIRED"
+  | "AUTH_FAILED"
+  | "ROLE_DENIED"
+  | "NOT_OWNER"
+  | "RATE_LIMITED"
+  | "GATEWAY_NOT_CONFIGURED"
+  | "UNKNOWN_SYMBOL"
+  | "SYMBOL_NOT_READY"
+  | "TICK_VIOLATION"
+  | "LOT_VIOLATION"
+  | "PRICE_OUT_OF_RANGE"
+  | "QTY_OUT_OF_RANGE"
+  | "COLLAR_BREACH"
+  | "MAX_ORDER_QTY"
+  | "MAX_ORDER_VALUE"
+  | "POSITION_LIMIT"
+  | "KILL_SWITCH_ACTIVE"
+  | "MARKET_CLOSED"
+  | "SESSION_NOT_PERMITTED"
+  | "INSTRUMENT_HALTED"
+  | "CIRCUIT_BREAKER_ACTIVE"
+  | "ORDER_NOT_FOUND"
+  | "ORDER_ALREADY_TERMINAL"
+  | "AMEND_NOT_PERMITTED"
+  | "DUPLICATE_ORDER"
+  | "INSUFFICIENT_LIQUIDITY"
+  | "SELF_MATCH_PREVENTED"
+  | "INTERNAL_ERROR"
+  | "UNKNOWN";
+
 // ── REST: status ──────────────────────────────────────────────────────────────
 export interface StatusResponse {
   orders: number;
@@ -45,12 +80,12 @@ export interface StatusResponse {
  * `id`, whose timestamp is `timestamp` (epoch seconds), and whose client tag
  * is `client_tag`; the timeout-fallback path returns a thinner row keyed on
  * `order_id`. `normalizeOrder()` (below) folds both into this one shape, so
- * every screen reads `order_id`/`updated_at`/`client_order_id` regardless of
+ * every screen reads `order_id`/`updated_at`/`client_tag` regardless of
  * which path served the data.
  */
 export interface Order {
   order_id: string;
-  client_order_id?: string | null;
+  client_tag?: string | null;
   symbol: string;
   side: Side;
   order_type: OrderType;
@@ -83,10 +118,12 @@ export interface Order {
  */
 export interface OrderAccepted {
   order_id: string;
-  client_order_id?: string | null;
+  client_tag?: string | null;
   status: "PENDING" | "ACKED";
   /** null when not waited-on or the ack timed out; otherwise the ack verdict. */
   accepted: boolean | null;
+  /** Stable machine-readable rejection code, if the wait-on-ack resolved with a reject. */
+  reject_code?: RejectCode | null;
   /** Raw `order.ack` payload when `wait=ack` resolved, else null. */
   event: OrderAckData | null;
 }
@@ -120,7 +157,6 @@ export interface RawOrder {
   gateway_id?: string;
   timestamp?: number | null; // OrderDisplay: epoch seconds
   client_tag?: string | null; // OrderDisplay
-  client_order_id?: string | null; // thin cache fallback
   updated_at?: string | null;
 }
 
@@ -144,7 +180,7 @@ export function normalizeOrder(raw: RawOrder): Order {
       : (raw.status ?? "PENDING");
   return {
     order_id: raw.id ?? raw.order_id ?? "",
-    client_order_id: raw.client_order_id ?? raw.client_tag ?? null,
+    client_tag: raw.client_tag ?? null,
     symbol: raw.symbol ?? "",
     side: raw.side ?? "BUY",
     order_type: raw.order_type ?? "LIMIT",
@@ -189,7 +225,7 @@ export interface OrderHistoryEvent {
   fill_qty: number | null;
   trade_id: string | null;
   reason: string | null;
-  client_order_id: string | null;
+  client_tag: string | null;
   combo_parent_id: string | null;
   oco_group_id: string | null;
   priority_reset: number | null;
@@ -244,7 +280,7 @@ export interface Fill {
   tif?: Tif;
   qty?: number; // original order qty (engine name)
   price?: number;
-  client_tag?: string; // engine name for client_order_id
+  client_tag?: string;
   oco_group_id?: string;
   combo_parent_id?: string;
   quote_id?: string;
@@ -254,6 +290,7 @@ export interface Fill {
 // ── REST: Trade (public print) ────────────────────────────────────────────────
 export interface Trade {
   id: string;
+  run_seq?: number;
   symbol: string;
   price: number;
   quantity: number;
@@ -870,6 +907,8 @@ export interface OrderAckData {
   order_id: string;
   accepted: boolean;
   reason: string;
+  reject_code?: RejectCode | null;
+  request_tag?: string | null;
   symbol?: string;
   side?: Side;
   order_type?: OrderType;
@@ -890,12 +929,15 @@ export interface OrderAmendedData {
   remaining_qty: number;
   priority_reset: boolean;
   price: number | null;
+  client_tag?: string | null;
+  request_tag?: string | null;
 }
 
 export interface OrderTerminalData {
   gateway_id: string;
   order_id: string;
   client_tag?: string;
+  request_tag?: string | null;
   oco_group_id?: string;
   combo_parent_id?: string;
   quote_id?: string;
@@ -998,6 +1040,7 @@ export interface DepthData {
 /** Public print (pm-msgen TradeExecuted). */
 export interface TradeData {
   id: string;
+  run_seq: number;
   symbol: string;
   buy_order_id: string;
   sell_order_id: string;

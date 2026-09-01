@@ -9,6 +9,11 @@ import { normalizeOrder } from "@/types/index.js";
 import { normalizeQuoteLegRows } from "@/lib/quotes.js";
 import type { ActiveQuote, DailyStat, Order, Position, QuoteLeg } from "@/types/index.js";
 
+const newOrderRequestTag = (kind: "amend" | "cancel") => {
+  const random = globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  return `${kind}-${random}`;
+};
+
 // ── Symbols ───────────────────────────────────────────────────────────────────
 export function useSymbolsQuery() {
   return useQuery({
@@ -92,7 +97,7 @@ export function useSubmitOrderMutation() {
 export function useCancelOrderMutation() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: api.cancelOrder,
+    mutationFn: (orderId: string) => api.cancelOrder(orderId, newOrderRequestTag("cancel")),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["orders"] }),
   });
 }
@@ -101,7 +106,7 @@ export function useAmendOrderMutation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ orderId, body }: { orderId: string; body: Record<string, unknown> }) =>
-      api.amendOrder(orderId, body),
+      api.amendOrder(orderId, { ...body, request_tag: body.request_tag ?? newOrderRequestTag("amend") }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["orders"] }),
   });
 }

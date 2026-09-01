@@ -1847,17 +1847,18 @@ _trade_counter = itertools.count(1)
 
 @classmethod
 def create(cls, ...):
+    trade_seq = next(_trade_counter)
     return cls(
-        id=str(next(_trade_counter)),  # ≈50ns
+        id=f"{_run_seq:06d}-{trade_seq:09d}",  # ≈50ns plus formatting
         ...
     )
 ```
 
 `uuid.uuid4()` calls `/dev/urandom` — a system call costing ~1.5-2µs. Trade IDs
-only need to be unique within a single engine run (order IDs, assigned by gateways,
-need global uniqueness). The monotonic counter eliminates the syscall entirely.
-At 57,000 trades per second, this saves ~86ms per second of CPU time on ID
-generation alone.
+combine a persisted engine-run sequence with an in-process monotonic counter,
+so they stay durable and sortable without a syscall in the inner loop. At
+57,000 trades per second, avoiding UUID generation saves roughly 86ms per second
+of CPU time on ID generation alone.
 
 ### Local Variable Caching in the Inner Loop
 

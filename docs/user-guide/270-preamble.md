@@ -62,16 +62,17 @@ message looks like:
 
 **Hardcoded structures**
 : The simplest approach — message shape is implicit in the code that creates
-  and reads it.  No IDL, no registry, no generator.  Fast to build, but
-  schema drift is invisible until something breaks at runtime.
+  and reads it. No IDL, no registry, no generator. Fast to build, but schema
+  drift is invisible until something breaks at runtime.
 
-EduMatcher uses the **hardcoded approach**.  Each message type is created
-by a helper function in `src/edumatcher/models/message.py` (e.g.
-`make_order_new_msg`, `make_gateway_connect_msg`) and decoded by `decode()`.
-Every field documented on this page is exactly what those functions produce.
-This is ideal for a learning system — you can read the code and immediately
-see the message — but a real exchange would use Protobuf or Avro to enforce
-schema contracts across teams and languages.
+EduMatcher uses a small, repository-local **IDL and code-generation** workflow.
+The YAML definitions in `spec/messages/*.yaml` are the canonical message
+contracts. `pm-msgen generate` produces the Python bindings, applicable C
+artifacts, and the generated sections of this reference; `pm-msgen check`
+fails when any generated output diverges from its specification. Message
+producers and consumers still exchange ordinary two-frame JSON over ZeroMQ,
+so the generated bindings remain readable alongside the wire format they
+enforce.
 
 ### What ZeroMQ requires of a message
 
@@ -252,6 +253,7 @@ Sent by a gateway to submit a new order for matching.
 | `trail_offset` | float \| null | Offset from best price for `TRAILING_STOP` orders |
 | `smp_action` | string \| null | Self-match prevention: `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`. `null` when the client omitted `SMP=`, in which case the engine resolves it to the gateway's configured `gateways.alf[].smp_action` default (else `"NONE"`) before the order reaches the book — see [Configuration — Gateway Fields](010-configuration.md#gateway-fields) |
 | `client_tag` | string \| absent | Optional client-supplied tag echoed back on every lifecycle event for this order (ack, fill, cancelled, expired). When present, subscribers can map events back to their submission without a FIFO scheme. |
+| `request_tag` | string \| absent | Optional amend/cancel request tag echoed on the resulting `order.amended`, `order.cancelled`, or rejected `order.ack`. Unlike `client_tag`, it identifies one request against an order, not the order itself. |
 | `arrival_seq` | integer | Engine-assigned monotonic arrival sequence that determines time priority within a price level. Not supplied by the client (`0` on submission); populated by the engine and echoed in outbound order snapshots (see `order.orders.{GW_ID}`). |
 | `oco_group_id` | string \| null | Set once this order is linked into an OCO pair via `order.oco`; `null` on a plain submission |
 | `combo_parent_id` | string \| null | Parent `ComboOrder.id` when this order is a combo child leg; `null` for a standalone order |

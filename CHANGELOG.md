@@ -1,3 +1,43 @@
+## [v0.28.0] - 2026-09-01
+
+Release Type: major
+
+### 📋 Summary
+This release establishes strict, durable identity and correlation contracts
+across order entry, execution, clearing, statistics, drop copy, and CALF.
+It removes pre-release compatibility paths in favor of explicit identifiers,
+machine-readable rejections, and restart-safe persistence.
+
+### ⚠️ Breaking Changes
+- Replaced numeric trade IDs with durable `run_seq-counter` IDs such as `000042-000000001`; `trade.executed.run_seq` is required
+- Made `trade_events.id` and `trade_log.trade_id` the sole database keys; existing clearing and statistics databases must be recreated
+- Replaced the REST `client_order_id` request field with `client_tag`; the former is rejected
+- Required `TRADE_ID` and `RUN_SEQ` on CALF `TRADE` messages, and added required `trade_ids` to drop-copy events
+
+### ✨ Additions
+- Added `client_tag` order correlation and `request_tag` amend/cancel correlation across REST, WebSocket, engine, and ALF `TAG`/`RTAG` fields
+- Added canonical `reject_code` values to order acknowledgements, REST errors, and ALF `ACK`/`ERR` messages
+- Added `trade_ids` to private fills, ALF `FILL`, and drop-copy events for direct trade-to-fill reconciliation
+- Added `TRADE_ID` and `RUN_SEQ` to the CALF public trade tape
+
+### 🚀 Improvements
+- Improved restart safety by persisting the engine run sequence before recovery and using it to create globally unique, sortable trade IDs
+- Improved CALF replay handling by suppressing repeated trade IDs before client callbacks and state updates
+- Improved reconciliation by using durable trade IDs as the sole clearing and statistics execution identity
+
+### 🐛 Bug Fixes
+- Fixed executions disappearing from clearing after an engine restart due to reused trade IDs
+- Fixed ALF `FILL` messages dropping the trade IDs already present on private fills
+- Fixed trade-gap detection to track the dense counter within each durable engine run
+
+### 📚 Documentation
+- Updated ALF, REST, CALF, drop-copy, clearing, statistics, persistence, and generated message-reference documentation for the new contracts
+- Updated Python and C protocol examples and training exercises to use durable trade IDs and replay-safe correlation
+
+### 🛠 Internal
+- Added cross-transport rejection-code coverage and all-flow causal-identity tests spanning orders, quotes, OCOs, combos, stops, and auctions
+- Added strict generated-message, persistence-schema, restart, replay, and TCP gateway regression coverage
+
 ## [v0.27.3] - 2026-08-31
 
 Release Type: minor

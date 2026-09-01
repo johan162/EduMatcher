@@ -85,7 +85,7 @@ function detailPatch(d: OrderAckData | Fill): Partial<Order> {
   if (d.tif != null) p.tif = d.tif;
   if (d.qty != null) p.quantity = d.qty;
   if (d.price != null) p.price = d.price;
-  if (d.client_tag != null) p.client_order_id = d.client_tag;
+  if (d.client_tag != null) p.client_tag = d.client_tag;
   if (d.oco_group_id != null) p.oco_group_id = d.oco_group_id;
   if (d.combo_parent_id != null) p.combo_parent_id = d.combo_parent_id;
   return p;

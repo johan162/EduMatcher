@@ -37,11 +37,13 @@ describe("classifyMonitorEnvelope (§6.9 — uniform envelopes, no monitor.event
     expect(c!.detail).toContain("@ 150");
   });
 
-  it("maps a rejected order.ack to REJECT + REJECTED status with the reason", () => {
+  it("maps a rejected order.ack to REJECT + REJECTED status with the reject code and reason", () => {
     const c = classifyMonitorEnvelope(
-      env({ type: "order.ack", data: { order_id: "o2", accepted: false, reason: "collar breach" } }),
+      env({ type: "order.ack", data: { order_id: "o2", accepted: false, reason: "collar breach", reject_code: "COLLAR_BREACH" } }),
     );
-    expect(c).toMatchObject({ kind: "REJECT", orderStatus: "REJECTED", detail: "collar breach" });
+    expect(c).toMatchObject({ kind: "REJECT", orderStatus: "REJECTED" });
+    expect(c!.detail).toContain("COLLAR_BREACH");
+    expect(c!.detail).toContain("collar breach");
   });
 
   it("maps order.fill to FILL with qty @ price and status", () => {

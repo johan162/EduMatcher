@@ -24,6 +24,7 @@ from edumatcher.models.message import decode
 from edumatcher.models.order import Order, OrderType, Side, SmpAction, TIF
 from edumatcher.models.participant import ParticipantRole
 from edumatcher.models.price import to_ticks
+from edumatcher.models.trade import reset_trade_ids_for_tests, set_run_seq
 
 SYMBOL = "AAPL"  # 2 tick decimals by default → 100.00 == 10000 ticks
 
@@ -53,6 +54,7 @@ class FakeDropCopy:
         gateway_id: str,
         *,
         order_id: str,
+        trade_ids: list[str],
         symbol: str,
         fill_qty: int,
         fill_price: float,
@@ -70,6 +72,7 @@ class FakeDropCopy:
                 "order.fill",
                 {
                     "order_id": order_id,
+                    "trade_ids": trade_ids,
                     "symbol": symbol,
                     "fill_qty": fill_qty,
                     "fill_price": fill_price,
@@ -93,8 +96,11 @@ def make_engine(
     symbol_configs: dict[str, SymbolConfig] | None = None,
     gtc_orders: list[Order] | None = None,
     book_stats: dict[str, Any] | None = None,
+    run_seq: int = 1,
 ) -> tuple[Engine, FakeSock]:
     """Build an Engine wired to fake sockets and a synthetic config."""
+    reset_trade_ids_for_tests()
+    set_run_seq(run_seq)
     pull_sock = FakeSock()
     pub_sock = FakeSock()
 

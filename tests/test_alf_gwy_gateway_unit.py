@@ -11,7 +11,7 @@ from edumatcher.alf_gwy.config import AlfGatewayConfig
 from edumatcher.alf_gwy.gateway import AlfGateway, ClientSession
 from edumatcher.alf_gwy.protocol import parse_alf_line
 from edumatcher.messaging import bus as bus_mod
-from edumatcher.models.message import encode
+from edumatcher.models.message import decode, encode
 
 
 class _FakePush:
@@ -223,6 +223,126 @@ def test_invalid_combo_type_is_invalid_value(gateway: AlfGateway) -> None:
     peer.close()
 
 
+def test_amend_and_cancel_forward_request_tag(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    session.role = "TRADER"
+    session.rate_tokens = 10.0
+
+    gateway._handle_client_line(session, "AMEND|ID=ORD1|QTY=2|RTAG=RT-AMD-001")
+    session.rate_tokens = 10.0
+    gateway._handle_client_line(session, "CANCEL|ID=ORD1|RTAG=RT-CXL-001")
+
+    fake_push = gateway._push
+    assert isinstance(fake_push, _FakePush)
+    amend_topic, amend_payload = decode(fake_push.sent[-2])
+    cancel_topic, cancel_payload = decode(fake_push.sent[-1])
+    assert amend_topic == "order.amend"
+    assert amend_payload["request_tag"] == "RT-AMD-001"
+    assert cancel_topic == "order.cancel"
+    assert cancel_payload["request_tag"] == "RT-CXL-001"
+    peer.close()
+
+
+def test_new_forwards_client_tag(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    session.role = "TRADER"
+    session.rate_tokens = 10.0
+    gateway._symbols_snapshot_loaded = True
+    gateway._known_symbols = {"AAPL"}
+
+    gateway._handle_client_line(
+        session,
+        "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=2|PRICE=100|TAG=T1-LM001-001",
+    )
+
+    fake_push = gateway._push
+    assert isinstance(fake_push, _FakePush)
+    topic, payload = decode(fake_push.sent[-1])
+    assert topic == "order.new"
+    assert payload["client_tag"] == "T1-LM001-001"
+    peer.close()
+
+
+def test_new_oco_and_combo_forward_client_tag(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    session.role = "TRADER"
+    session.rate_tokens = 10.0
+    gateway._symbols_snapshot_loaded = True
+    gateway._known_symbols = {"AAPL", "MSFT"}
+
+    gateway._handle_client_line(
+        session,
+        "NEW|TYPE=OCO|OCO_ID=O1|SYM=AAPL|QTY=2|TAG=OCO-TAG|"
+        "LEG1_SIDE=SELL|LEG1_TYPE=LIMIT|LEG1_PRICE=101|"
+        "LEG2_SIDE=SELL|LEG2_TYPE=STOP|LEG2_STOP=99",
+    )
+    session.rate_tokens = 10.0
+    gateway._handle_client_line(
+        session,
+        "NEW|TYPE=COMBO|COMBO_ID=C1|COMBO_TYPE=AON|LEG_COUNT=2|TAG=COMBO-TAG|"
+        "LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=1|LEG0.PRICE=100|"
+        "LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=1|LEG1.PRICE=200",
+    )
+
+    fake_push = gateway._push
+    assert isinstance(fake_push, _FakePush)
+    oco_topic, oco_payload = decode(fake_push.sent[-2])
+    combo_topic, combo_payload = decode(fake_push.sent[-1])
+    assert oco_topic == "order.oco"
+    assert oco_payload["client_tag"] == "OCO-TAG"
+    assert combo_topic == "order.combo"
+    assert combo_payload["client_tag"] == "COMBO-TAG"
+    peer.close()
+
+
+def test_invalid_new_tag_rejected_with_correlating_error(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    session.role = "TRADER"
+    session.rate_tokens = 10.0
+    gateway._symbols_snapshot_loaded = True
+    gateway._known_symbols = {"AAPL"}
+
+    gateway._handle_client_line(
+        session,
+        "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=2|PRICE=100|TAG=BAD!TAG",
+    )
+
+    frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    assert frame.command == "ERR"
+    assert frame.fields["CODE"] == "INVALID_VALUE"
+    assert frame.fields["REJECT_CODE"] == "INVALID_VALUE"
+    assert frame.fields["TAG"] == "BAD!TAG"
+    peer.close()
+
+
+def test_tag_is_not_allowed_on_amend_or_cancel(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    session.role = "TRADER"
+    session.rate_tokens = 10.0
+
+    gateway._handle_client_line(session, "AMEND|ID=ORD1|QTY=2|TAG=ORDER-TAG")
+    session.rate_tokens = 10.0
+    gateway._handle_client_line(session, "CANCEL|ID=ORD1|TAG=ORDER-TAG")
+
+    first = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    second = parse_alf_line(session.out_queue[1].decode("utf-8"))
+    assert first.fields["CODE"] == "UNSUPPORTED_FIELD"
+    assert first.fields["REJECT_CODE"] == "UNSUPPORTED_FIELD"
+    assert second.fields["CODE"] == "UNSUPPORTED_FIELD"
+    assert second.fields["REJECT_CODE"] == "UNSUPPORTED_FIELD"
+    peer.close()
+
+
 def test_engine_event_routing_to_gateway_session(gateway: AlfGateway) -> None:
     session, peer = _make_session()
     session.authenticated = True
@@ -245,6 +365,138 @@ def test_engine_event_routing_to_gateway_session(gateway: AlfGateway) -> None:
     frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
     assert frame.command == "ACK"
     assert frame.fields["ORDER_ID"] == "ABC"
+    peer.close()
+
+
+def test_order_events_echo_client_tag(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    gateway._clients[session.sock.fileno()] = session
+    gateway._active_gateway_sessions["TRADER01"] = session.sock.fileno()
+
+    fake_sub = gateway._sub
+    assert isinstance(fake_sub, _FakeSub)
+    fake_sub._queue.append(
+        encode(
+            "order.ack.TRADER01",
+            {
+                "order_id": "ORD1",
+                "accepted": True,
+                "reason": "",
+                "client_tag": "TAG-001",
+            },
+        )
+    )
+    fake_sub._queue.append(
+        encode(
+            "order.fill.TRADER01",
+            {
+                "order_id": "ORD1",
+                "fill_qty": 1,
+                "fill_price": 100.0,
+                "remaining_qty": 1,
+                "status": "PARTIAL",
+                "client_tag": "TAG-001",
+                "trade_ids": ["000001-000000001", "000001-000000002"],
+            },
+        )
+    )
+    fake_sub._queue.append(
+        encode(
+            "order.expired.TRADER01",
+            {"order_id": "ORD1", "client_tag": "TAG-001"},
+        )
+    )
+
+    gateway._poll_engine_events()
+
+    frames = [parse_alf_line(line.decode("utf-8")) for line in session.out_queue]
+    assert [frame.command for frame in frames] == ["ACK", "FILL", "EXPIRED"]
+    assert all(frame.fields["TAG"] == "TAG-001" for frame in frames)
+    assert frames[1].fields["TRADE_IDS"] == "000001-000000001,000001-000000002"
+    peer.close()
+
+
+def test_rejected_order_ack_echoes_reject_code(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    gateway._clients[session.sock.fileno()] = session
+    gateway._active_gateway_sessions["TRADER01"] = session.sock.fileno()
+
+    fake_sub = gateway._sub
+    assert isinstance(fake_sub, _FakeSub)
+    fake_sub._queue.append(
+        encode(
+            "order.ack.TRADER01",
+            {
+                "order_id": "ORD1",
+                "accepted": False,
+                "reason": "Order not found",
+                "reject_code": "ORDER_NOT_FOUND",
+                "client_tag": "TAG-001",
+                "request_tag": "RT-CXL-001",
+            },
+        )
+    )
+
+    gateway._poll_engine_events()
+
+    frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    assert frame.command == "ACK"
+    assert frame.fields["ACCEPTED"] == "FALSE"
+    assert frame.fields["REJECT_CODE"] == "ORDER_NOT_FOUND"
+    assert frame.fields["TAG"] == "TAG-001"
+    assert frame.fields["RTAG"] == "RT-CXL-001"
+    peer.close()
+
+
+def test_amended_and_cancelled_events_echo_request_tag(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    gateway._clients[session.sock.fileno()] = session
+    gateway._active_gateway_sessions["TRADER01"] = session.sock.fileno()
+
+    fake_sub = gateway._sub
+    assert isinstance(fake_sub, _FakeSub)
+    fake_sub._queue.append(
+        encode(
+            "order.amended.TRADER01",
+            {
+                "order_id": "ORD1",
+                "price": 101.0,
+                "qty": 2,
+                "remaining_qty": 2,
+                "priority_reset": False,
+                "client_tag": "TAG-001",
+                "request_tag": "RT-AMD-001",
+            },
+        )
+    )
+    fake_sub._queue.append(
+        encode(
+            "order.cancelled.TRADER01",
+            {
+                "order_id": "ORD1",
+                "client_tag": "TAG-001",
+                "request_tag": "RT-CXL-001",
+            },
+        )
+    )
+
+    gateway._poll_engine_events()
+
+    assert len(session.out_queue) == 2
+    amended = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    cancelled = parse_alf_line(session.out_queue[1].decode("utf-8"))
+    assert amended.command == "AMENDED"
+    assert amended.fields["TAG"] == "TAG-001"
+    assert amended.fields["RTAG"] == "RT-AMD-001"
+    assert cancelled.command == "CANCELLED"
+    assert cancelled.fields["TAG"] == "TAG-001"
+    assert cancelled.fields["RTAG"] == "RT-CXL-001"
     peer.close()
 
 
@@ -459,6 +711,7 @@ def test_symbol_commands_require_symbols_snapshot_loaded(gateway: AlfGateway) ->
     frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
     assert frame.command == "ERR"
     assert frame.fields["CODE"] == "SYMBOLS_NOT_READY"
+    assert frame.fields["REJECT_CODE"] == "SYMBOL_NOT_READY"
     peer.close()
 
 
@@ -481,6 +734,7 @@ def test_unknown_symbol_rejected_after_symbols_snapshot(gateway: AlfGateway) -> 
     frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
     assert frame.command == "ERR"
     assert frame.fields["CODE"] == "SYMBOL_NOT_CONFIGURED"
+    assert frame.fields["REJECT_CODE"] == "UNKNOWN_SYMBOL"
     peer.close()
 
 

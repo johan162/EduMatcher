@@ -73,16 +73,17 @@ message looks like:
 
 **Hardcoded structures**
 : The simplest approach — message shape is implicit in the code that creates
-  and reads it.  No IDL, no registry, no generator.  Fast to build, but
-  schema drift is invisible until something breaks at runtime.
+  and reads it. No IDL, no registry, no generator. Fast to build, but schema
+  drift is invisible until something breaks at runtime.
 
-EduMatcher uses the **hardcoded approach**.  Each message type is created
-by a helper function in `src/edumatcher/models/message.py` (e.g.
-`make_order_new_msg`, `make_gateway_connect_msg`) and decoded by `decode()`.
-Every field documented on this page is exactly what those functions produce.
-This is ideal for a learning system — you can read the code and immediately
-see the message — but a real exchange would use Protobuf or Avro to enforce
-schema contracts across teams and languages.
+EduMatcher uses a small, repository-local **IDL and code-generation** workflow.
+The YAML definitions in `spec/messages/*.yaml` are the canonical message
+contracts. `pm-msgen generate` produces the Python bindings, applicable C
+artifacts, and the generated sections of this reference; `pm-msgen check`
+fails when any generated output diverges from its specification. Message
+producers and consumers still exchange ordinary two-frame JSON over ZeroMQ,
+so the generated bindings remain readable alongside the wire format they
+enforce.
 
 ### What ZeroMQ requires of a message
 
@@ -263,6 +264,7 @@ Sent by a gateway to submit a new order for matching.
 | `trail_offset` | float \| null | Offset from best price for `TRAILING_STOP` orders |
 | `smp_action` | string \| null | Self-match prevention: `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`. `null` when the client omitted `SMP=`, in which case the engine resolves it to the gateway's configured `gateways.alf[].smp_action` default (else `"NONE"`) before the order reaches the book — see [Configuration — Gateway Fields](010-configuration.md#gateway-fields) |
 | `client_tag` | string \| absent | Optional client-supplied tag echoed back on every lifecycle event for this order (ack, fill, cancelled, expired). When present, subscribers can map events back to their submission without a FIFO scheme. |
+| `request_tag` | string \| absent | Optional amend/cancel request tag echoed on the resulting `order.amended`, `order.cancelled`, or rejected `order.ack`. Unlike `client_tag`, it identifies one request against an order, not the order itself. |
 | `arrival_seq` | integer | Engine-assigned monotonic arrival sequence that determines time priority within a price level. Not supplied by the client (`0` on submission); populated by the engine and echoed in outbound order snapshots (see `order.orders.{GW_ID}`). |
 | `oco_group_id` | string \| null | Set once this order is linked into an OCO pair via `order.oco`; `null` on a plain submission |
 | `combo_parent_id` | string \| null | Parent `ComboOrder.id` when this order is a combo child leg; `null` for a standalone order |
@@ -917,6 +919,7 @@ Engine to a participant's clearing broker, prime broker or in-house risk system:
 | `gateway_id` | `string` | required | max_len 32 | The participant whose order executed. Carried in the body as well as in the topic, because `drop_copy.replay` names the *recipient* in its topic instead and a replayed event would otherwise not say whose fill it was. |
 | `event_type` | enum: `order.fill` | required | — | One value today. An enum rather than a free string so that a second event type is a spec change with a regenerated binding, rather than a new dict key no reader knows about -- `DropCopyPublisher`'s own docstring promised "every fill and cancel" while only fills existed, which is how the gap went unnoticed. Section 27.3. |
 | `order_id` | `string` | required | max_len 64 | The resting or aggressing order this execution belongs to. |
+| `trade_ids` | list of `string` | required | min_items 1 | Public trade.executed id(s) for this execution. One ID today; kept as a list so consumers can use the same representation as coalesced order.fill messages when an order sweeps multiple price levels. |
 | `symbol` | `string` | required | max_len 16 |  |
 | `fill_qty` | `int` | required | gt 0, unit `shares` |  |
 | `fill_price` | `float` | required | gt 0, unit `display_price` | Display money, not ticks -- converted once in `_publish_trade`. |
@@ -954,6 +957,7 @@ Engine to one named recipient: buffered events re-published on request, so a par
 | `gateway_id` | `string` | required | max_len 32 | Whose fill this was — not the recipient the topic names. |
 | `event_type` | enum: `order.fill` | required | — |  |
 | `order_id` | `string` | required | max_len 64 |  |
+| `trade_ids` | list of `string` | required | min_items 1 |  |
 | `symbol` | `string` | required | max_len 16 |  |
 | `fill_qty` | `int` | required | gt 0, unit `shares` |  |
 | `fill_price` | `float` | required | gt 0, unit `display_price` |  |
@@ -1815,6 +1819,7 @@ Acknowledge acceptance or rejection of a new order, addressed to the gateway tha
 | `order_id` | `string` | required | max_len 64 |  |
 | `accepted` | `bool` | required | — |  |
 | `reason` | `string` | defaults to `''` | max_len 256 | Rejection detail; empty when accepted. |
+| `reject_code` | enum: `MALFORMED_MESSAGE`, `MISSING_FIELD`, `INVALID_VALUE`, `UNSUPPORTED_FIELD`, `AUTH_REQUIRED`, `AUTH_FAILED`, `ROLE_DENIED`, `NOT_OWNER`, `RATE_LIMITED`, `GATEWAY_NOT_CONFIGURED`, `UNKNOWN_SYMBOL`, `SYMBOL_NOT_READY`, `TICK_VIOLATION`, `LOT_VIOLATION`, `PRICE_OUT_OF_RANGE`, `QTY_OUT_OF_RANGE`, `COLLAR_BREACH`, `MAX_ORDER_QTY`, `MAX_ORDER_VALUE`, `POSITION_LIMIT`, `KILL_SWITCH_ACTIVE`, `MARKET_CLOSED`, `SESSION_NOT_PERMITTED`, `INSTRUMENT_HALTED`, `CIRCUIT_BREAKER_ACTIVE`, `ORDER_NOT_FOUND`, `ORDER_ALREADY_TERMINAL`, `AMEND_NOT_PERMITTED`, `DUPLICATE_ORDER`, `INSUFFICIENT_LIQUIDITY`, `SELF_MATCH_PREVENTED`, `INTERNAL_ERROR`, `UNKNOWN` | omitted when unset | — | Machine-readable rejection classification, stable across every order-entry transport (ALF, BALF, REST) and every layer (gateway-local validation and engine-side business rules). Absent when accepted; present on every rejection. The human-readable detail rides in reason; this field never carries data values. New members may be added; existing members are never removed or renamed. A client must treat an unrecognised code as UNKNOWN. |
 | `symbol` | `string` | omitted when unset | max_len 16 |  |
 | `side` | `string` | omitted when unset | max_len 8 |  |
 | `order_type` | `string` | omitted when unset | max_len 16 |  |
@@ -1822,6 +1827,7 @@ Acknowledge acceptance or rejection of a new order, addressed to the gateway tha
 | `qty` | `int` | omitted when unset | unit `shares` |  |
 | `price` | `float` | omitted when unset | unit `display_price` | Absent for a MARKET order, which has no limit price. |
 | `client_tag` | `string` | omitted when unset | max_len 64 |  |
+| `request_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for this request, echoed on the resulting event or rejection. Distinct from the target order's client_tag, which identifies the order rather than the request acting on it. A client may have several requests outstanding against one order. |
 | `oco_group_id` | `string` | omitted when unset | max_len 64 |  |
 | `combo_parent_id` | `string` | omitted when unset | max_len 64 |  |
 | `quote_id` | `string` | omitted when unset | max_len 64 |  |
@@ -1883,6 +1889,7 @@ Confirm that a resting order has been cancelled.
 | `gateway_id` | `string` | required | max_len 32 |  |
 | `order_id` | `string` | required | max_len 64 |  |
 | `client_tag` | `string` | omitted when unset | max_len 64 |  |
+| `request_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for this cancel request. Engine-initiated cancels publish with request_tag=null. |
 | `oco_group_id` | `string` | omitted when unset | max_len 64 |  |
 | `combo_parent_id` | `string` | omitted when unset | max_len 64 |  |
 | `quote_id` | `string` | omitted when unset | max_len 64 |  |
@@ -1926,6 +1933,8 @@ Confirm an accepted amendment and report the resulting order.
 | `qty` | `int` | required | unit `shares` |  |
 | `remaining_qty` | `int` | required | unit `shares` |  |
 | `priority_reset` | `bool` | required | — | True when the amendment lost the order its time priority. |
+| `client_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for the amended order. |
+| `request_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for this amend request. Engine-initiated cancels publish with request_tag=null. |
 
 !!! note
 
@@ -1993,6 +2002,7 @@ Request cancellation of one resting order by id.
 |---|---|---|---|---|
 | `order_id` | `string` | required | max_len 64 |  |
 | `gateway_id` | `string` | required | max_len 32 |  |
+| `request_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for this cancel request, echoed on the resulting cancellation event or rejection. |
 
 **See also:** `order.cancelled.{GW_ID}`
 
@@ -2012,6 +2022,7 @@ Request a price and/or quantity change to a resting order.
 | `gateway_id` | `string` | required | max_len 32 |  |
 | `price` | `float` | omitted when unset | unit `display_price` | New limit price; absent means the price is unchanged. |
 | `qty` | `int` | omitted when unset | unit `shares` | New quantity; absent means the quantity is unchanged. |
+| `request_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for this amend request, echoed on the resulting amendment event or rejection. |
 
 !!! note
 
@@ -2057,6 +2068,7 @@ Submit a combo: two or more orders on different instruments that the engine post
 | `combo_type` | enum: `AON` | required | — | All-or-none: the combo completes only when every leg fills. |
 | `tif` | enum: `DAY`, `GTC`, `ATO`, `ATC` | required | — |  |
 | `legs` | list of [`ComboLeg`](#comboleg) | required | min_items 2, max_items 10 | The child orders. The bounds below were previously enforced only by api_gateway's pydantic schema, which left the ALF console and gateway free to submit a one-legged combo. |
+| `client_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for this combo submission. |
 
 !!! note
 
@@ -2089,6 +2101,7 @@ Submit a One-Cancels-Other pair: two orders on the same instrument, of which a f
 | `tif` | enum: `DAY`, `GTC`, `ATO`, `ATC` | defaults to `'DAY'` | — |  |
 | `leg1` | [`OcoLeg`](#ocoleg) | required | — |  |
 | `leg2` | [`OcoLeg`](#ocoleg) | required | — |  |
+| `client_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for this OCO submission. |
 
 !!! note
 
@@ -3771,7 +3784,8 @@ Public print of a completed match. The authoritative record of what traded, cons
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
-| `id` | `string` | required | max_len 64, pattern `^[0-9]+$` | Engine trade counter, unique **within one engine run only** - it restarts at 1 on every launch. Assigned by models/trade.py::Trade.create from a process-local itertools.count. |
+| `id` | `string` | required | max_len 64, pattern `^\d{6}-\d{9}$` | Durable, sortable trade id. The prefix is the persisted engine-run sequence and the suffix is the per-run trade counter. |
+| `run_seq` | `int` | required | ge 0, unit `dimensionless` | Durable engine-run sequence used as the trade id prefix. A change in run_seq marks an engine restart explicitly for consumers. |
 | `symbol` | `string` | required | max_len 16, pattern `^[A-Z0-9._]+$` | Instrument the match occurred in. |
 | `buy_order_id` | `string` | required | max_len 64 | Resting or aggressing order id on the buy side. |
 | `sell_order_id` | `string` | required | max_len 64 | Resting or aggressing order id on the sell side. |

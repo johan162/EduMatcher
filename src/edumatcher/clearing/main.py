@@ -246,13 +246,11 @@ class ClearingProcess:
         self._dup_count = 0
 
         # Gap detection (finding CL-H1).  trade.executed carries no sequence
-        # number, but the engine's trade id is a per-run monotonic counter, so
-        # a forward jump in it means the lossy PUB/SUB transport dropped one or
-        # more trades.  We can't recover them without a replay feed, but we can
-        # raise a durable, queryable alarm instead of silently carrying a wrong
-        # position.  Reset (not alarmed) on a backward move — that is an engine
-        # restart, not a gap.
-        self._last_seq: int | None = None
+        # number, but the suffix of the durable trade id is a per-run monotonic
+        # counter, so a forward jump in it means the lossy PUB/SUB transport
+        # dropped one or more trades. A run-prefix change is a restart, not a
+        # gap.
+        self._last_seq: tuple[int, int] | None = None
         self._gap_count = 0
 
         self._running = False
@@ -513,23 +511,30 @@ class ClearingProcess:
 
     def _check_sequence_gap(self, trade: Trade) -> None:
         """
-        Detect a dropped-trade gap from the engine's monotonic trade id and
+        Detect a dropped-trade gap from the engine's durable trade id suffix and
         record a durable ``GAP`` alarm in ``session_events`` (must be called
         with ``self._lock`` held).
 
-        Non-numeric ids (e.g. a future UUID scheme) disable sequencing rather
-        than false-alarm.  A backward move resets the tracker without alarming —
-        that is an engine restart (counter reset), not a transport gap.
+        Legacy or synthetic ids disable sequencing rather than false-alarm. A
+        run-prefix change resets the tracker without alarming.
         """
         try:
-            seq = int(trade.id)
+            run_text, seq_text = trade.id.split("-", 1)
+            current = (int(run_text), int(seq_text))
         except (TypeError, ValueError):
             self._last_seq = None
             return
 
         last = self._last_seq
-        if last is not None and seq > last + 1:
-            missing = seq - last - 1
+        self._last_seq = current
+        if last is None:
+            return
+        last_run, last_seq = last
+        run_seq, seq = current
+        if run_seq != last_run or seq <= last_seq:
+            return
+        if seq > last_seq + 1:
+            missing = seq - last_seq - 1
             self._gap_count += 1
             try:
                 record_session_event(
@@ -539,7 +544,8 @@ class ClearingProcess:
                     trade_date=trade_date(trade.timestamp, self._tz),
                     payload_json=json.dumps(
                         {
-                            "last_seq": last,
+                            "run_seq": run_seq,
+                            "last_seq": last_seq,
                             "next_seq": seq,
                             "missing_trades": missing,
                         }
@@ -548,12 +554,11 @@ class ClearingProcess:
                 log.warning(
                     "trade feed gap — %d trade(s) missing between id %s and %s",
                     missing,
-                    last,
+                    last_seq,
                     seq,
                 )
             except Exception as exc:
                 log.warning("failed to record feed gap: %s", exc)
-        self._last_seq = seq
 
     def _flush(self) -> int:
         """Flush the buffer to SQLite. Returns the number of trades written."""

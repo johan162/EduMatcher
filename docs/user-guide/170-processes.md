@@ -1133,7 +1133,7 @@ Append-only record of every individual matched trade.
 | Column            | Type      | Description                                     |
 |-------------------|-----------|-------------------------------------------------|
 | `ts`              | TEXT      | ISO-8601 timestamp (UTC, millisecond precision) |
-| `trade_id`        | TEXT (PK) | UUID from the engine                            |
+| `trade_id`        | TEXT (PK) | Durable engine trade id (`run_seq-counter`); duplicate delivery is idempotent on this key |
 | `symbol`          | TEXT      | Instrument ticker                               |
 | `price`           | REAL      | Execution price                                 |
 | `quantity`        | INTEGER   | Matched quantity                                |

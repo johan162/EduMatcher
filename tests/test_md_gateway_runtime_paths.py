@@ -240,6 +240,8 @@ def test_poll_engine_events_all_topics(
             (
                 "trade.executed",
                 {
+                    "id": "000001-000000001",
+                    "run_seq": 1,
                     "symbol": "AAPL",
                     "price": 100.2,
                     "quantity": 3,
@@ -546,6 +548,8 @@ def test_poll_engine_events_nonfatal_handler_exception(
             (
                 "trade.executed",
                 {
+                    "id": "000001-000000001",
+                    "run_seq": 1,
                     "symbol": "AAPL",
                     "price": 100.2,
                     "quantity": 3,

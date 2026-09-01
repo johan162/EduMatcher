@@ -960,6 +960,76 @@ def parse_execution_report_balf(frame: bytes) -> "ExecutionReport":
 TOPIC_ORDER_ACK = "order.ack.{gateway_id}"
 PREFIX_ORDER_ACK = "order.ack."
 _ORDER_ACK_RE = re.compile("order\\.ack\\.(?P<gateway_id>[^.]+)")
+_ORDER_ACK_REJECT_CODE_VALUES = (
+    "MALFORMED_MESSAGE",
+    "MISSING_FIELD",
+    "INVALID_VALUE",
+    "UNSUPPORTED_FIELD",
+    "AUTH_REQUIRED",
+    "AUTH_FAILED",
+    "ROLE_DENIED",
+    "NOT_OWNER",
+    "RATE_LIMITED",
+    "GATEWAY_NOT_CONFIGURED",
+    "UNKNOWN_SYMBOL",
+    "SYMBOL_NOT_READY",
+    "TICK_VIOLATION",
+    "LOT_VIOLATION",
+    "PRICE_OUT_OF_RANGE",
+    "QTY_OUT_OF_RANGE",
+    "COLLAR_BREACH",
+    "MAX_ORDER_QTY",
+    "MAX_ORDER_VALUE",
+    "POSITION_LIMIT",
+    "KILL_SWITCH_ACTIVE",
+    "MARKET_CLOSED",
+    "SESSION_NOT_PERMITTED",
+    "INSTRUMENT_HALTED",
+    "CIRCUIT_BREAKER_ACTIVE",
+    "ORDER_NOT_FOUND",
+    "ORDER_ALREADY_TERMINAL",
+    "AMEND_NOT_PERMITTED",
+    "DUPLICATE_ORDER",
+    "INSUFFICIENT_LIQUIDITY",
+    "SELF_MATCH_PREVENTED",
+    "INTERNAL_ERROR",
+    "UNKNOWN",
+)
+OrderAckRejectCode = Literal[
+    "MALFORMED_MESSAGE",
+    "MISSING_FIELD",
+    "INVALID_VALUE",
+    "UNSUPPORTED_FIELD",
+    "AUTH_REQUIRED",
+    "AUTH_FAILED",
+    "ROLE_DENIED",
+    "NOT_OWNER",
+    "RATE_LIMITED",
+    "GATEWAY_NOT_CONFIGURED",
+    "UNKNOWN_SYMBOL",
+    "SYMBOL_NOT_READY",
+    "TICK_VIOLATION",
+    "LOT_VIOLATION",
+    "PRICE_OUT_OF_RANGE",
+    "QTY_OUT_OF_RANGE",
+    "COLLAR_BREACH",
+    "MAX_ORDER_QTY",
+    "MAX_ORDER_VALUE",
+    "POSITION_LIMIT",
+    "KILL_SWITCH_ACTIVE",
+    "MARKET_CLOSED",
+    "SESSION_NOT_PERMITTED",
+    "INSTRUMENT_HALTED",
+    "CIRCUIT_BREAKER_ACTIVE",
+    "ORDER_NOT_FOUND",
+    "ORDER_ALREADY_TERMINAL",
+    "AMEND_NOT_PERMITTED",
+    "DUPLICATE_ORDER",
+    "INSUFFICIENT_LIQUIDITY",
+    "SELF_MATCH_PREVENTED",
+    "INTERNAL_ERROR",
+    "UNKNOWN",
+]
 
 
 _ORDER_ACK_FIELDS: tuple[dict[str, Any], ...] = (
@@ -993,6 +1063,14 @@ _ORDER_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "required": False,
         "doc": "Rejection detail; empty when accepted.",
         "constraints": {"max_len": 256},
+    },
+    {
+        "name": "reject_code",
+        "type": "enum",
+        "unit": None,
+        "required": False,
+        "doc": "Machine-readable rejection classification, stable across every order-entry transport (ALF, BALF, REST) and every layer (gateway-local validation and engine-side business rules). Absent when accepted; present on every rejection. The human-readable detail rides in reason; this field never carries data values. New members may be added; existing members are never removed or renamed. A client must treat an unrecognised code as UNKNOWN.",
+        "values": _ORDER_ACK_REJECT_CODE_VALUES,
     },
     {
         "name": "symbol",
@@ -1049,6 +1127,14 @@ _ORDER_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"max_len": 64},
     },
     {
+        "name": "request_tag",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Client correlation tag for this request, echoed on the resulting event or rejection. Distinct from the target order's client_tag, which identifies the order rather than the request acting on it. A client may have several requests outstanding against one order.",
+        "constraints": {"max_len": 64},
+    },
+    {
         "name": "oco_group_id",
         "type": "string",
         "unit": None,
@@ -1095,6 +1181,7 @@ class OrderAck:
     order_id: str
     accepted: bool
     reason: str = ""
+    reject_code: OrderAckRejectCode | None = None
     symbol: str | None = None
     side: str | None = None
     order_type: str | None = None
@@ -1102,6 +1189,7 @@ class OrderAck:
     qty: int | None = None  # unit: shares
     price: float | None = None  # unit: display_price
     client_tag: str | None = None
+    request_tag: str | None = None
     oco_group_id: str | None = None
     combo_parent_id: str | None = None
     quote_id: str | None = None
@@ -1126,6 +1214,11 @@ class OrderAck:
             raise MessageValidationError(
                 f"reason: length {len(self.reason)} exceeds max_len 256"
             )
+        if self.reject_code is not None:
+            if self.reject_code not in _ORDER_ACK_REJECT_CODE_VALUES:
+                raise MessageValidationError(
+                    f"reject_code: {self.reject_code!r} is not one of {_ORDER_ACK_REJECT_CODE_VALUES!r}"
+                )
         if self.symbol is not None:
             if len(self.symbol) > 16:
                 raise MessageValidationError(
@@ -1150,6 +1243,11 @@ class OrderAck:
             if len(self.client_tag) > 64:
                 raise MessageValidationError(
                     f"client_tag: length {len(self.client_tag)} exceeds max_len 64"
+                )
+        if self.request_tag is not None:
+            if len(self.request_tag) > 64:
+                raise MessageValidationError(
+                    f"request_tag: length {len(self.request_tag)} exceeds max_len 64"
                 )
         if self.oco_group_id is not None:
             if len(self.oco_group_id) > 64:
@@ -1180,6 +1278,10 @@ class OrderAck:
             order_id=str(p["order_id"]),
             accepted=bool(p["accepted"]),
             reason=str(p.get("reason", "")),
+            reject_code=cast(
+                OrderAckRejectCode | None,
+                None if p.get("reject_code") is None else str(p["reject_code"]),
+            ),
             symbol=None if p.get("symbol") is None else str(p["symbol"]),
             side=None if p.get("side") is None else str(p["side"]),
             order_type=None if p.get("order_type") is None else str(p["order_type"]),
@@ -1187,6 +1289,7 @@ class OrderAck:
             qty=None if p.get("qty") is None else int(p["qty"]),
             price=None if p.get("price") is None else float(p["price"]),
             client_tag=None if p.get("client_tag") is None else str(p["client_tag"]),
+            request_tag=None if p.get("request_tag") is None else str(p["request_tag"]),
             oco_group_id=(
                 None if p.get("oco_group_id") is None else str(p["oco_group_id"])
             ),
@@ -1204,6 +1307,8 @@ class OrderAck:
             "accepted": self.accepted,
             "reason": self.reason,
         }
+        if self.reject_code is not None:
+            payload["reject_code"] = self.reject_code
         if self.symbol is not None:
             payload["symbol"] = self.symbol
         if self.side is not None:
@@ -1218,6 +1323,8 @@ class OrderAck:
             payload["price"] = self.price
         if self.client_tag is not None:
             payload["client_tag"] = self.client_tag
+        if self.request_tag is not None:
+            payload["request_tag"] = self.request_tag
         if self.oco_group_id is not None:
             payload["oco_group_id"] = self.oco_group_id
         if self.combo_parent_id is not None:
@@ -1261,6 +1368,7 @@ def make_order_ack_unchecked(
     order_id: str,
     accepted: bool,
     reason: str = "",
+    reject_code: OrderAckRejectCode | None = None,
     symbol: str | None = None,
     side: str | None = None,
     order_type: str | None = None,
@@ -1268,6 +1376,7 @@ def make_order_ack_unchecked(
     qty: int | None = None,
     price: float | None = None,
     client_tag: str | None = None,
+    request_tag: str | None = None,
     oco_group_id: str | None = None,
     combo_parent_id: str | None = None,
     quote_id: str | None = None,
@@ -1288,6 +1397,8 @@ def make_order_ack_unchecked(
         "accepted": bool(accepted),
         "reason": str(reason),
     }
+    if reject_code is not None:
+        payload["reject_code"] = str(reject_code)
     if symbol is not None:
         payload["symbol"] = str(symbol)
     if side is not None:
@@ -1302,6 +1413,8 @@ def make_order_ack_unchecked(
         payload["price"] = float(price)
     if client_tag is not None:
         payload["client_tag"] = str(client_tag)
+    if request_tag is not None:
+        payload["request_tag"] = str(request_tag)
     if oco_group_id is not None:
         payload["oco_group_id"] = str(oco_group_id)
     if combo_parent_id is not None:
@@ -1781,6 +1894,14 @@ _ORDER_CANCELLED_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"max_len": 64},
     },
     {
+        "name": "request_tag",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Client correlation tag for this cancel request. Engine-initiated cancels publish with request_tag=null.",
+        "constraints": {"max_len": 64},
+    },
+    {
         "name": "oco_group_id",
         "type": "string",
         "unit": None,
@@ -1821,6 +1942,7 @@ class OrderCancelled:
     gateway_id: str
     order_id: str
     client_tag: str | None = None
+    request_tag: str | None = None
     oco_group_id: str | None = None
     combo_parent_id: str | None = None
     quote_id: str | None = None
@@ -1845,6 +1967,11 @@ class OrderCancelled:
             if len(self.client_tag) > 64:
                 raise MessageValidationError(
                     f"client_tag: length {len(self.client_tag)} exceeds max_len 64"
+                )
+        if self.request_tag is not None:
+            if len(self.request_tag) > 64:
+                raise MessageValidationError(
+                    f"request_tag: length {len(self.request_tag)} exceeds max_len 64"
                 )
         if self.oco_group_id is not None:
             if len(self.oco_group_id) > 64:
@@ -1874,6 +2001,7 @@ class OrderCancelled:
             gateway_id=str(p.get("gateway_id", "")),
             order_id=str(p["order_id"]),
             client_tag=None if p.get("client_tag") is None else str(p["client_tag"]),
+            request_tag=None if p.get("request_tag") is None else str(p["request_tag"]),
             oco_group_id=(
                 None if p.get("oco_group_id") is None else str(p["oco_group_id"])
             ),
@@ -1891,6 +2019,8 @@ class OrderCancelled:
         }
         if self.client_tag is not None:
             payload["client_tag"] = self.client_tag
+        if self.request_tag is not None:
+            payload["request_tag"] = self.request_tag
         if self.oco_group_id is not None:
             payload["oco_group_id"] = self.oco_group_id
         if self.combo_parent_id is not None:
@@ -1933,6 +2063,7 @@ def make_order_cancelled_unchecked(
     gateway_id: str,
     order_id: str,
     client_tag: str | None = None,
+    request_tag: str | None = None,
     oco_group_id: str | None = None,
     combo_parent_id: str | None = None,
     quote_id: str | None = None,
@@ -1953,6 +2084,8 @@ def make_order_cancelled_unchecked(
     }
     if client_tag is not None:
         payload["client_tag"] = str(client_tag)
+    if request_tag is not None:
+        payload["request_tag"] = str(request_tag)
     if oco_group_id is not None:
         payload["oco_group_id"] = str(oco_group_id)
     if combo_parent_id is not None:
@@ -2281,6 +2414,22 @@ _ORDER_AMENDED_FIELDS: tuple[dict[str, Any], ...] = (
         "required": True,
         "doc": "True when the amendment lost the order its time priority.",
     },
+    {
+        "name": "client_tag",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Client correlation tag for the amended order.",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "request_tag",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Client correlation tag for this amend request. Engine-initiated cancels publish with request_tag=null.",
+        "constraints": {"max_len": 64},
+    },
 )
 
 
@@ -2300,6 +2449,8 @@ class OrderAmended:
     remaining_qty: int  # unit: shares
     priority_reset: bool
     price: float | None = None  # unit: display_price
+    client_tag: str | None = None
+    request_tag: str | None = None
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -2316,6 +2467,16 @@ class OrderAmended:
             raise MessageValidationError(
                 f"order_id: length {len(self.order_id)} exceeds max_len 64"
             )
+        if self.client_tag is not None:
+            if len(self.client_tag) > 64:
+                raise MessageValidationError(
+                    f"client_tag: length {len(self.client_tag)} exceeds max_len 64"
+                )
+        if self.request_tag is not None:
+            if len(self.request_tag) > 64:
+                raise MessageValidationError(
+                    f"request_tag: length {len(self.request_tag)} exceeds max_len 64"
+                )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "OrderAmended":
@@ -2332,17 +2493,24 @@ class OrderAmended:
             qty=int(p["qty"]),
             remaining_qty=int(p["remaining_qty"]),
             priority_reset=bool(p["priority_reset"]),
+            client_tag=None if p.get("client_tag") is None else str(p["client_tag"]),
+            request_tag=None if p.get("request_tag") is None else str(p["request_tag"]),
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Return the bus payload, in the spec's declared field order."""
-        return {
+        payload: dict[str, Any] = {
             "order_id": self.order_id,
             "price": self.price,
             "qty": self.qty,
             "remaining_qty": self.remaining_qty,
             "priority_reset": self.priority_reset,
         }
+        if self.client_tag is not None:
+            payload["client_tag"] = self.client_tag
+        if self.request_tag is not None:
+            payload["request_tag"] = self.request_tag
+        return payload
 
 
 def topic_order_amended(gateway_id: str) -> str:
@@ -2379,6 +2547,8 @@ def make_order_amended_unchecked(
     remaining_qty: int,
     priority_reset: bool,
     price: float | None = None,
+    client_tag: str | None = None,
+    request_tag: str | None = None,
 ) -> list[bytes]:
     """Identical frames to ``make_order_amended``, without ``validate()``.
 
@@ -2390,17 +2560,20 @@ def make_order_amended_unchecked(
     Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
     frames.
     """
+    payload: dict[str, Any] = {
+        "order_id": str(order_id),
+        "price": None if price is None else float(price),
+        "qty": int(qty),
+        "remaining_qty": int(remaining_qty),
+        "priority_reset": bool(priority_reset),
+    }
+    if client_tag is not None:
+        payload["client_tag"] = str(client_tag)
+    if request_tag is not None:
+        payload["request_tag"] = str(request_tag)
     return [
         topic_order_amended(gateway_id).encode(),
-        _msg.dumps(
-            {
-                "order_id": str(order_id),
-                "price": None if price is None else float(price),
-                "qty": int(qty),
-                "remaining_qty": int(remaining_qty),
-                "priority_reset": bool(priority_reset),
-            }
-        ),
+        _msg.dumps(payload),
     ]
 
 
@@ -2963,6 +3136,14 @@ _ORDER_CANCEL_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "",
         "constraints": {"max_len": 32},
     },
+    {
+        "name": "request_tag",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Client correlation tag for this cancel request, echoed on the resulting cancellation event or rejection.",
+        "constraints": {"max_len": 64},
+    },
 )
 
 
@@ -2972,6 +3153,7 @@ class OrderCancel:
 
     order_id: str
     gateway_id: str
+    request_tag: str | None = None
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -2988,6 +3170,11 @@ class OrderCancel:
             raise MessageValidationError(
                 f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
             )
+        if self.request_tag is not None:
+            if len(self.request_tag) > 64:
+                raise MessageValidationError(
+                    f"request_tag: length {len(self.request_tag)} exceeds max_len 64"
+                )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "OrderCancel":
@@ -3000,14 +3187,18 @@ class OrderCancel:
         return cls(
             order_id=str(p["order_id"]),
             gateway_id=str(p["gateway_id"]),
+            request_tag=None if p.get("request_tag") is None else str(p["request_tag"]),
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Return the bus payload, in the spec's declared field order."""
-        return {
+        payload: dict[str, Any] = {
             "order_id": self.order_id,
             "gateway_id": self.gateway_id,
         }
+        if self.request_tag is not None:
+            payload["request_tag"] = self.request_tag
+        return payload
 
 
 def is_order_cancel(topic: str) -> bool:
@@ -3034,6 +3225,7 @@ def make_order_cancel_unchecked(
     *,
     order_id: str,
     gateway_id: str,
+    request_tag: str | None = None,
 ) -> list[bytes]:
     """Identical frames to ``make_order_cancel``, without ``validate()``.
 
@@ -3045,14 +3237,15 @@ def make_order_cancel_unchecked(
     Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
     frames.
     """
+    payload: dict[str, Any] = {
+        "order_id": str(order_id),
+        "gateway_id": str(gateway_id),
+    }
+    if request_tag is not None:
+        payload["request_tag"] = str(request_tag)
     return [
         _TOPIC_ORDER_CANCEL_BYTES,
-        _msg.dumps(
-            {
-                "order_id": str(order_id),
-                "gateway_id": str(gateway_id),
-            }
-        ),
+        _msg.dumps(payload),
     ]
 
 
@@ -3108,6 +3301,14 @@ _ORDER_AMEND_FIELDS: tuple[dict[str, Any], ...] = (
         "required": False,
         "doc": "New quantity; absent means the quantity is unchanged.",
     },
+    {
+        "name": "request_tag",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Client correlation tag for this amend request, echoed on the resulting amendment event or rejection.",
+        "constraints": {"max_len": 64},
+    },
 )
 
 
@@ -3125,6 +3326,7 @@ class OrderAmend:
     gateway_id: str
     price: float | None = None  # unit: display_price
     qty: int | None = None  # unit: shares
+    request_tag: str | None = None
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -3141,6 +3343,11 @@ class OrderAmend:
             raise MessageValidationError(
                 f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
             )
+        if self.request_tag is not None:
+            if len(self.request_tag) > 64:
+                raise MessageValidationError(
+                    f"request_tag: length {len(self.request_tag)} exceeds max_len 64"
+                )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "OrderAmend":
@@ -3155,6 +3362,7 @@ class OrderAmend:
             gateway_id=str(p["gateway_id"]),
             price=None if p.get("price") is None else float(p["price"]),
             qty=None if p.get("qty") is None else int(p["qty"]),
+            request_tag=None if p.get("request_tag") is None else str(p["request_tag"]),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -3167,6 +3375,8 @@ class OrderAmend:
             payload["price"] = self.price
         if self.qty is not None:
             payload["qty"] = self.qty
+        if self.request_tag is not None:
+            payload["request_tag"] = self.request_tag
         return payload
 
 
@@ -3196,6 +3406,7 @@ def make_order_amend_unchecked(
     gateway_id: str,
     price: float | None = None,
     qty: int | None = None,
+    request_tag: str | None = None,
 ) -> list[bytes]:
     """Identical frames to ``make_order_amend``, without ``validate()``.
 
@@ -3215,6 +3426,8 @@ def make_order_amend_unchecked(
         payload["price"] = float(price)
     if qty is not None:
         payload["qty"] = int(qty)
+    if request_tag is not None:
+        payload["request_tag"] = str(request_tag)
     return [
         _TOPIC_ORDER_AMEND_BYTES,
         _msg.dumps(payload),
@@ -3418,6 +3631,14 @@ _ORDER_COMBO_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "The child orders. The bounds below were previously enforced only by api_gateway's pydantic schema, which left the ALF console and gateway free to submit a one-legged combo.",
         "constraints": {"max_items": 10},
     },
+    {
+        "name": "client_tag",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Client correlation tag for this combo submission.",
+        "constraints": {"max_len": 64},
+    },
 )
 
 
@@ -3439,6 +3660,7 @@ class OrderCombo:
     combo_type: OrderComboComboType
     tif: OrderComboTif
     legs: list[ComboLeg]
+    client_tag: str | None = None
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -3469,6 +3691,11 @@ class OrderCombo:
             raise MessageValidationError("legs: more than 10 item(s)")
         for legs_item in self.legs:
             legs_item.validate()
+        if self.client_tag is not None:
+            if len(self.client_tag) > 64:
+                raise MessageValidationError(
+                    f"client_tag: length {len(self.client_tag)} exceeds max_len 64"
+                )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "OrderCombo":
@@ -3484,17 +3711,21 @@ class OrderCombo:
             combo_type=cast(OrderComboComboType, str(p["combo_type"])),
             tif=cast(OrderComboTif, str(p["tif"])),
             legs=[ComboLeg.from_dict(item) for item in p["legs"]],
+            client_tag=None if p.get("client_tag") is None else str(p["client_tag"]),
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Return the bus payload, in the spec's declared field order."""
-        return {
+        payload: dict[str, Any] = {
             "combo_id": self.combo_id,
             "gateway_id": self.gateway_id,
             "combo_type": self.combo_type,
             "tif": self.tif,
             "legs": [item.to_dict() for item in self.legs],
         }
+        if self.client_tag is not None:
+            payload["client_tag"] = self.client_tag
+        return payload
 
 
 def is_order_combo(topic: str) -> bool:
@@ -3594,6 +3825,14 @@ _ORDER_OCO_FIELDS: tuple[dict[str, Any], ...] = (
         "required": True,
         "doc": "",
     },
+    {
+        "name": "client_tag",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Client correlation tag for this OCO submission.",
+        "constraints": {"max_len": 64},
+    },
 )
 
 
@@ -3615,6 +3854,7 @@ class OrderOco:
     symbol: str = ""
     quantity: int = 0  # unit: shares
     tif: OrderOcoTif = "DAY"
+    client_tag: str | None = None
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -3641,6 +3881,11 @@ class OrderOco:
             )
         self.leg1.validate()
         self.leg2.validate()
+        if self.client_tag is not None:
+            if len(self.client_tag) > 64:
+                raise MessageValidationError(
+                    f"client_tag: length {len(self.client_tag)} exceeds max_len 64"
+                )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "OrderOco":
@@ -3658,11 +3903,12 @@ class OrderOco:
             tif=cast(OrderOcoTif, str(p.get("tif", "DAY"))),
             leg1=OcoLeg.from_dict(p["leg1"]),
             leg2=OcoLeg.from_dict(p["leg2"]),
+            client_tag=None if p.get("client_tag") is None else str(p["client_tag"]),
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Return the bus payload, in the spec's declared field order."""
-        return {
+        payload: dict[str, Any] = {
             "oco_id": self.oco_id,
             "gateway_id": self.gateway_id,
             "symbol": self.symbol,
@@ -3671,6 +3917,9 @@ class OrderOco:
             "leg1": self.leg1.to_dict(),
             "leg2": self.leg2.to_dict(),
         }
+        if self.client_tag is not None:
+            payload["client_tag"] = self.client_tag
+        return payload
 
 
 def is_order_oco(topic: str) -> bool:

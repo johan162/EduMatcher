@@ -230,7 +230,7 @@ AAPL|15025|100|2
 $ pm-stats-cli trades --symbol AAPL --limit 1
 ts                            | trade_id | symbol | price  | quantity | ...
 ------------------------------+----------+--------+--------+----------+----
-2026-06-14T09:00:01.000+00:00 | 1        | AAPL   | 150.25 | 100      | ...
+2026-06-14T09:00:01.000+00:00 | 000042-000000001 | AAPL | 150.25 | 100 | ...
 ```
 
 Same row. `pm-stats-cli` and the API convert for you; raw SQL does not.
@@ -493,21 +493,19 @@ Intraday mid-price, bid/ask, and percentage-change history, recorded at most onc
 
 Append-only record of every matched trade — no aggregation, one row per trade.
 
-**Primary key**: `(trade_id, ts)`. Inserts are `OR IGNORE`, so a repeated delivery of the same trade — same id *and* same timestamp — is deduplicated.
+**Primary key**: `trade_id`. Inserts are `OR IGNORE`, so a repeated delivery
+of the same durable trade is deduplicated regardless of its delivery timestamp.
 
-!!! note "Why the key is composite"
-    `trade_id` is a counter that **restarts at 1 on every engine run**, not a
-    globally unique identifier. Keyed on `trade_id` alone, the first trade of
-    a restarted engine would collide with the first trade of the previous run
-    and be silently discarded, understating volume for the rest of the day.
-    Including `ts` keeps a post-restart id reuse as a distinct row while still
-    deduplicating a genuine duplicate delivery. `pm-clearing` records the same
-    defect against its own archive as finding CL-C1.
+!!! note "Durable trade identity"
+  `trade_id` is durable across engine restarts, formatted as
+  `run_seq-counter` (for example, `000042-000000001`), so it is sufficient
+  as the sole key. Older statistics database schemas are rejected and must
+  be recreated; historical short IDs are not migrated.
 
 | Column            | Type    | Null? | Description                                                          |
 |-------------------|---------|-------|----------------------------------------------------------------------|
 | `ts`              | TEXT    | no    | ISO-8601 UTC instant, **millisecond** precision. This is the **engine's** trade timestamp |
-| `trade_id`        | TEXT    | no    | Engine trade counter, unique **within one engine run** only           |
+| `trade_id`        | TEXT (PK) | no  | Durable engine trade id, formatted as `run_seq-counter`               |
 | `symbol`          | TEXT    | no    | Instrument ticker                                                    |
 | `price`           | INTEGER | no    | Execution price, **in ticks** — divide by `10^tick_decimals`         |
 | `quantity`        | INTEGER | no    | Matched quantity                                                     |
@@ -557,8 +555,8 @@ Trades the recorder can prove it never received.
 | `seq`           | INTEGER | Monotonic local sequence                                        |
 | `ts`            | TEXT    | UTC instant of the trade that revealed the gap                  |
 | `stream`        | TEXT    | Which feed the gap was detected on (currently `trade.executed`) |
-| `expected_id`   | INTEGER | The trade id expected next                                      |
-| `received_id`   | INTEGER | The trade id that actually arrived                              |
+| `expected_id`   | INTEGER | The durable trade-id suffix expected next                       |
+| `received_id`   | INTEGER | The durable trade-id suffix that actually arrived               |
 | `missing_count` | INTEGER | How many trades are unaccounted for between them                |
 
 ZeroMQ PUB/SUB drops messages silently once a subscriber falls behind its
@@ -575,16 +573,17 @@ Detection works two ways, and both write here:
 | Source | Mechanism | Covers |
 |--------|-----------|--------|
 | Publisher sequence | Every published message carries a per-topic monotonic counter in a third ZeroMQ frame; a jump means messages were dropped | **Every subscribed stream** — `trade.executed`, `book.*`, `order.*`, `combo.*`, `oco.*`, `quote.*`, `index.update` |
-| Engine trade id | Engine trade ids are monotonic within a run, so a jump is independent evidence | `trade.executed` only |
+| Engine trade id | The suffix of the durable trade id is monotonic within a run, so a jump is independent evidence | `trade.executed` only |
 
 The two overlap on trades deliberately: the trade-id check still catches loss
 that happened upstream of the publisher, which a publisher-side counter cannot
 see by construction.
 
 !!! note "What an empty `feed_gaps` does and does not prove"
-    A sequence counter restarts at 1 when its publisher restarts, so the
-    recorder treats a *decrease* as a restart rather than a gap — messages
-    genuinely lost across a publisher restart are not detectable.
+    A sequence counter restarts when its publisher restarts. For trade ids, the
+    run-sequence prefix changes on engine restart, so the recorder treats the
+    new prefix as a restart rather than a gap — messages genuinely lost across
+    a publisher restart are not detectable.
 
     A topic published by a process that does not stamp sequences is reported
     once at `WARNING` ("carries no sequence frame; loss on it cannot be
@@ -625,7 +624,7 @@ Append-only order lifecycle history captured from private engine topics. This ta
 | `fill_qty`        | INTEGER | Executed quantity for fill events                                                                                    |
 | `trade_id`        | TEXT    | Trade identifier linked to a fill event                                                                              |
 | `reason`          | TEXT    | Rejection, cancel, expire, or status reason when provided                                                            |
-| `client_order_id` | TEXT    | Client-supplied order identifier when present                                                                        |
+| `client_tag`      | TEXT    | Client-supplied order correlation tag when present                                                                   |
 | `combo_parent_id` | TEXT    | Parent combo identifier for combo child events                                                                       |
 | `oco_group_id`    | TEXT    | OCO group identifier for linked order events                                                                         |
 | `priority_reset`  | INTEGER | `1` when an amend reset queue priority, `0` when it did not, null when not applicable                                |
@@ -1028,9 +1027,9 @@ pm-stats-cli trades --limit 50
 ```
 ts                            | trade_id | symbol | price | quantity | aggressor_side | buy_gateway_id | sell_gateway_id
 ------------------------------+----------+--------+-------+----------+----------------+----------------+----------------
-2026-06-14T09:00:01.000+00:00 | 1        | AAPL   | 150   | 100      | BUY            | TRADER01       | MM01
-2026-06-14T09:00:05.123+00:00 | 2        | AAPL   | 150.5 | 50       | AUCTION        | MM01           | TRADER02
-2026-06-14T09:00:10.456+00:00 | 3        | AAPL   | 150.2 | 200      | SELL           | TRADER02       | TRADER01
+2026-06-14T09:00:01.000+00:00 | 000042-000000001 | AAPL   | 150   | 100      | BUY            | TRADER01       | MM01
+2026-06-14T09:00:05.123+00:00 | 000042-000000002 | AAPL   | 150.5 | 50       | AUCTION        | MM01           | TRADER02
+2026-06-14T09:00:10.456+00:00 | 000042-000000003 | AAPL   | 150.2 | 200      | SELL           | TRADER02       | TRADER01
 ```
 
 #### `order-events` — Private Order Lifecycle Events

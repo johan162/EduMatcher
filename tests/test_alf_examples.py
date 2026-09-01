@@ -7,6 +7,7 @@ import sys
 import threading
 import time
 import platform
+from types import SimpleNamespace
 from collections.abc import Generator
 from pathlib import Path
 
@@ -269,3 +270,44 @@ def test_c_example_client_builds_connects_and_exits(
     combined = (proc.stdout or "") + "\n" + (proc.stderr or "")
     assert proc.returncode == 0, combined
     assert "Gateway TRADER01 connected." in combined
+
+
+def test_python_example_client_displays_new_ack_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    script_dir = EXAMPLE_DIR / "python"
+    monkeypatch.syspath_prepend(str(script_dir))
+    from alf_client import AlfClient  # type: ignore[import-not-found]
+    from alf_parser import parse_alf_line  # type: ignore[import-not-found]
+
+    client = AlfClient(SimpleNamespace(gateway_id="TRADER01", known_symbols=[]))
+    lines: list[str] = []
+    monkeypatch.setattr(client, "_pr", lines.append)
+    monkeypatch.setattr(client, "_ts", lambda: "09:30:00.000")
+
+    for raw in [
+        "ERR|CODE=SYMBOL_NOT_CONFIGURED|REJECT_CODE=UNKNOWN_SYMBOL|TAG=BAD-TAG|DETAIL=Unknown symbol",
+        "ACK|ORDER_ID=ORD1|ACCEPTED=FALSE|REJECT_CODE=ORDER_NOT_FOUND|TAG=ORDER-001|RTAG=REQ-001|REASON=missing",
+        "ACK|ORDER_ID=ORD1|ACCEPTED=TRUE|TAG=ORDER-001|SYMBOL=AAPL|SIDE=BUY|TYPE=LIMIT",
+        "FILL|ORDER_ID=ORD1|FILL_QTY=1|FILL_PRICE=100|REMAINING=0|STATUS=FILLED|TAG=ORDER-001",
+        "AMENDED|ORDER_ID=ORD1|PRICE=101|QTY=2|REMAINING=2|PRIORITY_RESET=TRUE|TAG=ORDER-001|RTAG=REQ-002",
+        "CANCELLED|ORDER_ID=ORD1|TAG=ORDER-001|RTAG=REQ-003",
+        "EXPIRED|ORDER_ID=ORD1|TAG=ORDER-001",
+    ]:
+        client._handle(parse_alf_line(raw))
+
+    joined = "\n".join(lines)
+    assert "reject_code=UNKNOWN_SYMBOL" in joined
+    assert "code=ORDER_NOT_FOUND" in joined
+    assert "tag=ORDER-001" in joined
+    assert "rtag=REQ-003" in joined
+
+
+def test_c_example_client_handles_new_ack_metadata_in_source() -> None:
+    source = (EXAMPLE_DIR / "c" / "alf_client.c").read_text(encoding="utf-8")
+
+    assert 'alf_get_field(msg, "REJECT_CODE")' in source
+    assert 'alf_get_field(msg, "TAG")' in source
+    assert 'alf_get_field(msg, "RTAG")' in source
+    assert '"TAG="' in source
+    assert '"RTAG="' in source

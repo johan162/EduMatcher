@@ -221,7 +221,8 @@ describe("live volume accumulation", () => {
   beforeEach(() => useBookStore.setState({ books: {} }));
 
   const trade = (symbol: string, quantity: number) => ({
-    id: `t-${symbol}-${quantity}`,
+    id: `000001-000000${quantity.toString().padStart(3, "0")}`,
+    run_seq: 1,
     symbol,
     buy_order_id: "b",
     sell_order_id: "s",

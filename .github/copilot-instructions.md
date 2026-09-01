@@ -14,6 +14,7 @@ If something is unclear, stop. Name what's confusing. Ask.
 Minimum code that solves the problem. Nothing speculative.
 
 No features beyond what was asked.
+No backwards compatibility work unless explicitly requested.
 No abstractions for single-use code.
 No "flexibility" or "configurability" that wasn't requested.
 No error handling for impossible scenarios.

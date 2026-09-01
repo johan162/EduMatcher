@@ -23,10 +23,17 @@ understand how amendments affect queue priority.
 ## Exercise 1: Place a Resting Order to Amend
 
 ```
-[TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=300|PRICE=419.50|TIF=DAY
+[TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=300|PRICE=419.50|TIF=DAY|TAG=AMD-ORDER-001
 ```
 
 Note the `order_id` returned.
+
+`TAG` identifies the order and is echoed on later lifecycle events. `RTAG` is
+different: it identifies one amend request against that order.
+
+`AMEND` accepts an optional `RTAG=<request-tag>`. The tag identifies this one
+amend request and is echoed on the `AMENDED` response or rejected ACK, which is
+useful when several changes are outstanding for the same order.
 
 :material-checkbox-blank-outline: **Checkpoint:** order resting; `ORDERS` confirms qty=300, price=419.50.
 
@@ -37,7 +44,7 @@ Note the `order_id` returned.
 Reduce the order to 200 shares:
 
 ```
-[TRADER01]> AMEND|ID=<order_id>|QTY=200
+[TRADER01]> AMEND|ID=<order_id>|QTY=200|RTAG=AMD-DOWN-001
 ```
 
 Expected: amendment accepted; new qty=200.
@@ -58,7 +65,7 @@ Expected: amendment accepted; new qty=200.
 Move the order to a more aggressive price:
 
 ```
-[TRADER01]> AMEND|ID=<order_id>|PRICE=419.70
+[TRADER01]> AMEND|ID=<order_id>|PRICE=419.70|RTAG=AMD-PRICE-001
 ```
 
 Expected: amendment accepted; new price=419.70.
@@ -77,7 +84,7 @@ Expected: amendment accepted; new price=419.70.
 ## Exercise 4: Amend Both Price and Quantity
 
 ```
-[TRADER01]> AMEND|ID=<order_id>|PRICE=419.60|QTY=150
+[TRADER01]> AMEND|ID=<order_id>|PRICE=419.60|QTY=150|RTAG=AMD-BOTH-001
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** both fields updated in one command.
@@ -89,18 +96,19 @@ Expected: amendment accepted; new price=419.70.
 Try setting quantity to zero:
 
 ```
-[TRADER01]> AMEND|ID=<order_id>|QTY=0
+[TRADER01]> AMEND|ID=<order_id>|QTY=0|RTAG=AMD-BAD-001
 ```
 
-Expected: rejection — quantity must be positive.
+Expected: rejection — quantity must be positive. The rejected ACK includes a
+stable `REJECT_CODE` as well as the text reason.
 
 Try amending a non-existent order:
 
 ```
-[TRADER01]> AMEND|ID=INVALID123|PRICE=100.00
+[TRADER01]> AMEND|ID=INVALID123|PRICE=100.00|RTAG=AMD-MISSING-001
 ```
 
-Expected: rejection — order not found.
+Expected: rejection — order not found, with `REJECT_CODE=ORDER_NOT_FOUND`.
 
 :material-checkbox-blank-outline: **Checkpoint:** both invalid amendments rejected with clear errors.
 
@@ -116,7 +124,7 @@ Expected: rejection — order not found.
 
 2. If partially filled, amend the remaining quantity:
    ```
-    [TRADER01]> AMEND|ID=<order_id>|QTY=200
+    [TRADER01]> AMEND|ID=<order_id>|QTY=200|RTAG=AMD-PARTIAL-001
    ```
 
 !!! note
@@ -151,7 +159,7 @@ Confirm both are resting at 149.50 in the operator console:
 amend *down* to 50:
 
 ```
-[TRADER01]> AMEND|ID=<TRADER01 order id>|QTY=50
+[TRADER01]> AMEND|ID=<TRADER01 order id>|QTY=50|RTAG=AMD-KEEP-001
 ```
 
 Now have a third party sell 50 into the bid. Because `TRADER01` kept its
@@ -167,7 +175,7 @@ Check who filled with `STATUS` on each trader console.
 as in step 1, then amend `TRADER01` *up*:
 
 ```
-[TRADER01]> AMEND|ID=<TRADER01 order id>|QTY=200
+[TRADER01]> AMEND|ID=<TRADER01 order id>|QTY=200|RTAG=AMD-LOSE-001
 ```
 
 Sell 100 into the bid again. This time `TRADER02` fills first, because
@@ -181,6 +189,10 @@ below rather than taking it on trust.
     `ORDERS` truncates the order ID for display. `AMEND` and `CANCEL` need the
     **complete** ID — copy it from the acknowledgement you received when the
     order was placed, not from the truncated column.
+
+!!! tip "Use one RTAG per request"
+    `RTAG` is not the order ID. It is a request label, so use a fresh value for
+    each amend you want to correlate in logs, terminal output, or tests.
 
  
 

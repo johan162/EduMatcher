@@ -24,16 +24,22 @@ state, inspecting resting orders, and managing the order lifecycle.
 Place an order and then cancel it:
 
 ```
-[TRADER01]> NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=248.00|TIF=DAY
+[TRADER01]> NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=248.00|TIF=DAY|TAG=CXL-ORDER-001
 ```
 
 Note the `order_id`, then:
 
 ```
-[TRADER01]> CANCEL|ID=<order_id>
+[TRADER01]> CANCEL|ID=<order_id>|RTAG=CXL-REST-001
 ```
 
 Expected: cancellation confirmed.
+
+`RTAG` identifies this cancel request. The engine echoes it on the `CANCELLED`
+response or rejected ACK, which makes retries and concurrent cancel tests easier
+to audit.
+The original order `TAG` is echoed separately, so a client can tell which order
+was acted on and which cancel request completed.
 
 :material-checkbox-blank-outline: **Checkpoint:** order cancelled; `ORDERS` no longer lists it as resting.
 
@@ -48,7 +54,7 @@ Expected: cancellation confirmed.
 
 2. After partial fill, cancel the remainder:
    ```
-   [TRADER01]> CANCEL|ID=<order_id>
+    [TRADER01]> CANCEL|ID=<order_id>|RTAG=CXL-PARTIAL-001
    ```
 
 Expected: the unfilled portion is cancelled; the filled portion remains executed.
@@ -112,10 +118,10 @@ Find your order in the table. The response includes:
 ## Exercise 5: Cancel a Non-Existent Order
 
 ```
-[TRADER01]> CANCEL|ID=DOES_NOT_EXIST
+[TRADER01]> CANCEL|ID=DOES_NOT_EXIST|RTAG=CXL-MISSING-001
 ```
 
-Expected: rejection — order not found.
+Expected: rejection — order not found, with `REJECT_CODE=ORDER_NOT_FOUND`.
 
 :material-checkbox-blank-outline: **Checkpoint:** error message returned cleanly.
 
@@ -126,10 +132,11 @@ Expected: rejection — order not found.
 Try cancelling an order belonging to TRADER02:
 
 ```
-[TRADER01]> CANCEL|ID=<trader02_order_id>
+[TRADER01]> CANCEL|ID=<trader02_order_id>|RTAG=CXL-NOTOWNER-001
 ```
 
-Expected: rejection — you can only cancel your own orders.
+Expected: rejection — you can only cancel your own orders, with
+`REJECT_CODE=NOT_OWNER`.
 
 :material-checkbox-blank-outline: **Checkpoint:** cross-gateway cancel rejected.
 

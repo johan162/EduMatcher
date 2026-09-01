@@ -479,7 +479,9 @@ def test_gap_in_trade_ids_is_recorded(sp: StatsProcess) -> None:
     evidence a subscriber has that anything went missing.
     """
     base = datetime(2026, 6, 14, 9, 0, tzinfo=timezone.utc).timestamp()
-    for i, tid in enumerate(["1", "2", "6"]):
+    for i, tid in enumerate(
+        ["000001-000000001", "000001-000000002", "000001-000000006"]
+    ):
         sp._on_trade(_trade(tid, base + i))
 
     rows = sp._conn.execute(
@@ -490,28 +492,40 @@ def test_gap_in_trade_ids_is_recorded(sp: StatsProcess) -> None:
 
 def test_contiguous_trade_ids_record_no_gap(sp: StatsProcess) -> None:
     base = datetime(2026, 6, 14, 9, 0, tzinfo=timezone.utc).timestamp()
-    for i, tid in enumerate(["1", "2", "3"]):
+    for i, tid in enumerate(
+        ["000001-000000001", "000001-000000002", "000001-000000003"]
+    ):
         sp._on_trade(_trade(tid, base + i))
     assert sp._conn.execute("SELECT COUNT(*) FROM feed_gaps").fetchone()[0] == 0
 
 
 def test_engine_restart_is_not_reported_as_a_gap(sp: StatsProcess) -> None:
-    """Trade ids restart at 1 each engine run, so a decrease is a restart."""
+    """A changed durable run sequence marks an engine restart."""
     base = datetime(2026, 6, 14, 9, 0, tzinfo=timezone.utc).timestamp()
-    for i, tid in enumerate(["1", "2", "3", "1", "2"]):
+    for i, tid in enumerate(
+        [
+            "000001-000000001",
+            "000001-000000002",
+            "000001-000000003",
+            "000002-000000001",
+            "000002-000000002",
+        ]
+    ):
         sp._on_trade(_trade(tid, base + i))
     assert sp._conn.execute("SELECT COUNT(*) FROM feed_gaps").fetchone()[0] == 0
 
 
 def test_post_restart_trades_are_not_silently_discarded(sp: StatsProcess) -> None:
-    """Trade ids repeat after an engine restart.
-
-    Keyed on ``trade_id`` alone, a run-2 trade "1" collided with the run-1
-    trade "1" and vanished into ``INSERT OR IGNORE``, understating volume for
-    the rest of the day. The same defect clearing records as CL-C1.
-    """
+    """Trades from distinct engine runs must all persist."""
     base = datetime(2026, 6, 14, 9, 0, tzinfo=timezone.utc).timestamp()
-    for i, tid in enumerate(["1", "2", "1", "2"]):
+    for i, tid in enumerate(
+        [
+            "000001-000000001",
+            "000001-000000002",
+            "000002-000000001",
+            "000002-000000002",
+        ]
+    ):
         sp._on_trade(_trade(tid, base + i, qty=10))
 
     assert sp._conn.execute("SELECT COUNT(*) FROM trade_log").fetchone()[0] == 4
@@ -521,8 +535,8 @@ def test_post_restart_trades_are_not_silently_discarded(sp: StatsProcess) -> Non
 def test_genuine_duplicate_delivery_is_still_deduplicated(sp: StatsProcess) -> None:
     """Widening the key must not turn dedup off — same id *and* same ts."""
     base = datetime(2026, 6, 14, 9, 0, tzinfo=timezone.utc).timestamp()
-    sp._on_trade(_trade("1", base, qty=10))
-    sp._on_trade(_trade("1", base, qty=10))
+    sp._on_trade(_trade("000001-000000001", base, qty=10))
+    sp._on_trade(_trade("000001-000000001", base, qty=10))
 
     assert sp._conn.execute("SELECT COUNT(*) FROM trade_log").fetchone()[0] == 1
 
@@ -555,7 +569,7 @@ def test_counters_are_recorded_without_debug_logging(
 
     base = datetime(2026, 6, 14, 9, 0, tzinfo=timezone.utc).timestamp()
     with caplog.at_level(logging.INFO):
-        sp._on_trade(_trade("1", base))
+        sp._on_trade(_trade("000001-000000001", base))
     assert sp._debug_counts["trades_persisted"] == 1
 
 
@@ -806,6 +820,26 @@ def test_gap_on_a_non_trade_stream_is_recorded(sp: StatsProcess) -> None:
         "SELECT stream, expected_id, received_id, missing_count FROM feed_gaps"
     ).fetchall()
     assert rows == [("book.AAPL", 3, 8, 5)]
+
+
+def test_trade_gap_detection_uses_durable_id_suffix(sp: StatsProcess) -> None:
+    sp._check_trade_sequence("000042-000000001", "2026-06-14T09:00:00Z")
+    sp._check_trade_sequence("000042-000000004", "2026-06-14T09:00:01Z")
+
+    rows = sp._conn.execute(
+        "SELECT stream, expected_id, received_id, missing_count FROM feed_gaps"
+    ).fetchall()
+    assert rows == [("trade.executed", 2, 4, 2)]
+
+
+def test_trade_gap_detection_treats_run_prefix_change_as_restart(
+    sp: StatsProcess,
+) -> None:
+    sp._check_trade_sequence("000042-000000010", "2026-06-14T09:00:00Z")
+    sp._check_trade_sequence("000043-000000001", "2026-06-14T09:00:01Z")
+    sp._check_trade_sequence("000043-000000002", "2026-06-14T09:00:02Z")
+
+    assert sp._conn.execute("SELECT COUNT(*) FROM feed_gaps").fetchone()[0] == 0
 
 
 def test_publisher_restart_is_not_reported_as_a_gap(sp: StatsProcess) -> None:

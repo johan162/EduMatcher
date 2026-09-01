@@ -106,6 +106,7 @@ Payloads are serialized with `orjson` when it is installed (the normal case);
 | `gateway_id`         | str    | ID of the gateway that submitted the order                           |
 | `event_type`         | str    | Type of event (currently `"order.fill"`)                             |
 | `order_id`           | str    | The order this execution belongs to                                  |
+| `trade_ids`          | list[str] | Public `trade.executed` ID for this execution                       |
 | `symbol`             | str    | Instrument ticker                                                    |
 | `fill_qty`           | int    | Executed quantity                                                    |
 | `fill_price`         | float  | Display money, not ticks                                             |
@@ -131,6 +132,7 @@ a matched MAKER/TAKER pair, not the whole trade.
   "gateway_id": "TRADER01",
   "event_type": "order.fill",
   "order_id": "ord-001",
+  "trade_ids": ["000042-000000123"],
   "symbol": "MSFT",
   "fill_qty": 100,
   "fill_price": 420.0,
@@ -143,6 +145,15 @@ a matched MAKER/TAKER pair, not the whole trade.
     ticks. `liquidity_flag` is derived from the trade's aggressor side
     (`"TAKER"` for the aggressor, `"MAKER"` for the resting side). The
     payload does not include `remaining_qty`, `side`, or `leaves_qty`.
+
+  ### Trade correlation
+
+  `trade_ids` connects a private fill to the public `trade.executed` tape.
+  Drop-copy events are emitted once per execution, so the list currently has one
+  durable trade ID. An aggressive order that sweeps several price levels instead
+  receives one coalesced private `order.fill` with all of those IDs in execution
+  order; concatenating its corresponding drop-copy `trade_ids` produces the same
+  list. Consumers should treat this as a list, not a scalar.
 
 This is fed from the engine's single trade-publication path (`engine/main.py`,
 `_publish_trade`), so it covers every fill-producing flow — new orders,

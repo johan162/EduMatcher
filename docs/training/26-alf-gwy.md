@@ -14,7 +14,7 @@ You will practise:
 - using the Python `alf_parser.py` / `alf_client.py` examples for scripted and interactive access
 - building and running the C `alf_client` example
 - operating control commands (`PING`, `ORDERS`, `QBOOT`, `KILL`)
-- diagnosing error conditions from the `ERR|CODE=...` vocabulary
+- diagnosing error conditions from `ERR|CODE=...|REJECT_CODE=...`
 
  
 
@@ -54,7 +54,7 @@ In this chapter, the most important operational ideas are:
 - Gateway kill-switch: `KILL` (with optional `SYM=` scope)
 - Bootstrap state recovery: `ORDERS` and `QBOOT`
 - Liveness: `PING`/`PONG` and unsolicited `HB` heartbeat lines
-- Error escalation: per-error `ERR|CODE=...` and sliding-window forced disconnect
+- Error escalation: per-error `ERR|CODE=...|REJECT_CODE=...` and sliding-window forced disconnect
 
  
 
@@ -227,32 +227,41 @@ nc 127.0.0.1 5565
 
 ```text
 HELLO|CLIENT=manual|PROTO=ALF1|ID=TRADER01
-NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
+NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=NC-ORDER-001
 ORDERS
 ```
 
 Expected behavior:
 
 - `ACK|ORDER_ID=<uuid>|ACCEPTED=TRUE|...` arrives immediately after `NEW`
+- the ACK and later lifecycle events echo `TAG=NC-ORDER-001`
 - `ORDERS` shows the resting order with `STATUS=NEW` and `REMAINING=100`
 - If `MM01` is quoting, the order may fill immediately and `ORDERS` returns `COUNT=0`
 
-Cancel the resting order using the UUID from the `ACK`:
+When an order fills, its `FILL` event carries `TRADE_IDS=<id[,id...]>`. Keep
+those durable public trade IDs with the order record: a swept order can contain
+several, in match order, and they join the private fill to the public trade
+tape, CALF, and drop copy without matching on price or time.
+
+Cancel the resting order using the UUID from the `ACK` and a request tag:
 
 ```text
-CANCEL|ID=<uuid>
+CANCEL|ID=<uuid>|RTAG=NC-CXL-001
 ```
 
-Expected: `CANCELLED|ORDER_ID=<uuid>`.
+Expected: `CANCELLED|ORDER_ID=<uuid>|TAG=NC-ORDER-001|RTAG=NC-CXL-001`.
 
 Try amending before cancelling to see priority rules in action:
 
 ```text
-NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=149.00
-AMEND|ID=<uuid>|PRICE=149.50|QTY=150
+NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=149.00|TAG=NC-ORDER-002
+AMEND|ID=<uuid>|PRICE=149.50|QTY=150|RTAG=NC-AMD-001
 ```
 
-Expected: `AMENDED|ORDER_ID=...|PRICE=149.50|QTY=150|REMAINING=150|PRIORITY_RESET=TRUE`
+Expected: `AMENDED|ORDER_ID=...|PRICE=149.50|QTY=150|REMAINING=150|PRIORITY_RESET=TRUE|TAG=NC-ORDER-002|RTAG=NC-AMD-001`
+
+`RTAG` is optional, but it is the easiest way to prove which amend or cancel a
+later TCP response belongs to.
 
 :material-checkbox-blank-outline: Checkpoint: you can submit, confirm, amend, and cancel an order using only raw TCP and a terminal.
 
@@ -272,7 +281,7 @@ At the prompt:
 
 ```text
 [TRADER01]> SYMBOLS
-[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=PY-ORDER-001
 [TRADER01]> ORDERS
 [TRADER01]> POS
 [TRADER01]> STATUS
@@ -309,16 +318,16 @@ python3 - <<'EOF'
 from alf_parser import parse_alf_line, build_alf_line, AlfSession, AlfMessage
 
 # Parse a line received from the gateway
-msg: AlfMessage = parse_alf_line("ACK|ORDER_ID=abc|ACCEPTED=TRUE|SYMBOL=AAPL")
+msg: AlfMessage = parse_alf_line("ACK|ORDER_ID=abc|ACCEPTED=FALSE|REJECT_CODE=ORDER_NOT_FOUND|REASON=missing")
 print(msg.msg_type)   # ACK
-print(msg.fields)     # {"ORDER_ID": "abc", "ACCEPTED": "TRUE", ...}
+print(msg.fields)     # {"ORDER_ID": "abc", "ACCEPTED": "FALSE", "REJECT_CODE": "ORDER_NOT_FOUND", ...}
 
 # Build a line to send
 line = build_alf_line("NEW", {
     "SYM": "AAPL", "SIDE": "BUY",
-    "TYPE": "LIMIT", "QTY": "100", "PRICE": "150.00",
+    "TYPE": "LIMIT", "QTY": "100", "PRICE": "150.00", "TAG": "NC-ORDER-003",
 })
-print(repr(line))  # 'NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00\n'
+print(repr(line))  # 'NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=NC-ORDER-003\n'
 
 # High-level session: connect, HELLO/WELCOME, send/recv
 session = AlfSession.connect("127.0.0.1", 5565, "TRADER01")
@@ -370,7 +379,7 @@ At the prompt:
 
 ```text
 [TRADER01]> SYMBOLS
-[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=C-ORDER-001
 [TRADER01]> ORDERS
 [TRADER01]> EXIT
 ```
@@ -469,7 +478,7 @@ Test typical protocol errors. Start a fresh `nc` session and send each line befo
 completing the `HELLO` handshake, or with invalid content:
 
 ```text
-NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00    (before HELLO)
+NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=BAD-AUTH-001    (before HELLO)
 HELLO|CLIENT=test|PROTO=WRONG|ID=TRADER01
 HELLO|CLIENT=test|PROTO=ALF1|ID=NONEXISTENT
 ```
@@ -477,26 +486,31 @@ HELLO|CLIENT=test|PROTO=ALF1|ID=NONEXISTENT
 After a successful `HELLO`, try:
 
 ```text
-NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100          (missing PRICE for LIMIT)
-NEW|SYM=UNKNOWN|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
+NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|TAG=BAD-MISSING-001          (missing PRICE for LIMIT)
+NEW|SYM=UNKNOWN|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=BAD-SYM-001
 QUOTE|SYM=AAPL|BID=150.00|ASK=150.10|BID_QTY=500|ASK_QTY=500   (TRADER role)
 ```
 
-Map each observed `ERR|CODE=...` to its operator remediation:
+Map each observed `ERR|CODE=...|REJECT_CODE=...` to its operator remediation:
 
-| Code | Practical interpretation |
-|---|---|
-| `AUTH_REQUIRED` | Client sent a non-`HELLO` first line; fix client code ordering |
-| `PROTO_MISMATCH` | Wrong `PROTO=` value; must be exactly `ALF1` |
-| `AUTH_FAILED` | Gateway ID not in `gateways.alf`; add to config and restart engine |
-| `GATEWAY_ALREADY_CONNECTED` | Same ID connected from another session; disconnect it first |
-| `MISSING_FIELD` | Required field absent for this order type; check command reference |
-| `INVALID_VALUE` | Field value fails validation (e.g. `PRICE=NaN`, `QTY=0`); fix client |
-| `SYMBOL_NOT_CONFIGURED` | Unknown symbol; run `SYMBOLS` to see the configured list |
-| `ROLE_DENIED` | Command not allowed for this gateway's role (`QUOTE` requires `MARKET_MAKER`) |
-| `RATE_LIMITED` | Commands arriving faster than `max_commands_per_second`; throttle client |
+| `CODE` | Typical `REJECT_CODE` | Practical interpretation |
+|---|---|---|
+| `AUTH_REQUIRED` | `AUTH_REQUIRED` | Client sent a non-`HELLO` first line; fix client code ordering |
+| `PROTO_MISMATCH` | `AUTH_FAILED` | Wrong `PROTO=` value; must be exactly `ALF1` |
+| `AUTH_FAILED` | `AUTH_FAILED` | Gateway ID not in `gateways.alf`; add to config and restart engine |
+| `GATEWAY_ALREADY_CONNECTED` | `AUTH_FAILED` | Same ID connected from another session; disconnect it first |
+| `MISSING_FIELD` | `MISSING_FIELD` | Required field absent for this order type; check command reference |
+| `INVALID_VALUE` | `INVALID_VALUE` | Field value fails validation (e.g. `PRICE=NaN`, `QTY=0`); fix client |
+| `SYMBOL_NOT_CONFIGURED` | `UNKNOWN_SYMBOL` | Unknown symbol; run `SYMBOLS` to see the configured list |
+| `ROLE_DENIED` | `ROLE_DENIED` | Command not allowed for this gateway's role (`QUOTE` requires `MARKET_MAKER`) |
+| `RATE_LIMITED` | `RATE_LIMITED` | Commands arriving faster than `max_commands_per_second`; throttle client |
 
-:material-checkbox-blank-outline: Checkpoint: you can map each `ERR|CODE` to the correct config or client-code fix.
+`CODE` is the ALF gateway's local validation category. `REJECT_CODE` is the
+canonical order-rejection class used by ALF, REST, and tests. When the rejected
+line carried `TAG` or `RTAG`, the gateway echoes it as `TAG` on the `ERR` so a
+client can correlate the failure.
+
+:material-checkbox-blank-outline: Checkpoint: you can map each `ERR|CODE` and `REJECT_CODE` to the correct config or client-code fix.
 
  
 
@@ -522,11 +536,12 @@ You can now:
 - Verify a TCP port is listening using `lsof`, `ss`, and `netstat` on macOS and Linux.
 - Test the complete ALF session lifecycle manually with `nc` and `telnet` before writing any code.
 - Submit, amend, and cancel orders over a raw TCP session and read `ACK`, `AMENDED`, and `CANCELLED` responses.
+- Correlate an ALF `FILL` to its public executions through `TRADE_IDS`.
 - Use `python3 alf_client.py` for interactive sessions with tab-completion and live event display.
 - Script against the gateway using `AlfSession` from `alf_parser.py`.
 - Build and run the C `alf_client` for a readline-based interactive session with `select()` multiplexing.
 - Operate `PING`, `ORDERS`, `QBOOT`, and `KILL` and interpret their responses.
-- Map `ERR|CODE=...` values to the correct config or client-side fix.
+- Map `ERR|CODE=...|REJECT_CODE=...` values to the correct config or client-side fix.
 
  
 

@@ -52,20 +52,22 @@ _FIELD_COMPLETIONS: dict[str, list[str]] = {
     "TRAIL": [],
     "VISIBLE": [],
     "SMP": ["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"],
-    # after CANCEL|
+    "TAG": [],
+    # after CANCEL| / AMEND|
     "ID": [],
+    "RTAG": [],
 }
 
 # Fields that follow each order type (in typical order)
 _TYPE_FIELDS: dict[str, list[str]] = {
-    "MARKET": ["SYM=", "SIDE=", "QTY=", "TIF=", "SMP="],
-    "LIMIT": ["SYM=", "SIDE=", "QTY=", "PRICE=", "TIF=", "SMP="],
-    "STOP": ["SYM=", "SIDE=", "QTY=", "STOP=", "TIF=", "SMP="],
-    "STOP_LIMIT": ["SYM=", "SIDE=", "QTY=", "STOP=", "PRICE=", "TIF=", "SMP="],
-    "FOK": ["SYM=", "SIDE=", "QTY=", "PRICE=", "SMP="],
-    "ICEBERG": ["SYM=", "SIDE=", "QTY=", "PRICE=", "VISIBLE=", "TIF=", "SMP="],
-    "IOC": ["SYM=", "SIDE=", "QTY=", "PRICE=", "SMP="],
-    "TRAILING_STOP": ["SYM=", "SIDE=", "QTY=", "TRAIL=", "STOP=", "TIF="],
+    "MARKET": ["SYM=", "SIDE=", "QTY=", "TIF=", "SMP=", "TAG="],
+    "LIMIT": ["SYM=", "SIDE=", "QTY=", "PRICE=", "TIF=", "SMP=", "TAG="],
+    "STOP": ["SYM=", "SIDE=", "QTY=", "STOP=", "TIF=", "SMP=", "TAG="],
+    "STOP_LIMIT": ["SYM=", "SIDE=", "QTY=", "STOP=", "PRICE=", "TIF=", "SMP=", "TAG="],
+    "FOK": ["SYM=", "SIDE=", "QTY=", "PRICE=", "SMP=", "TAG="],
+    "ICEBERG": ["SYM=", "SIDE=", "QTY=", "PRICE=", "VISIBLE=", "TIF=", "SMP=", "TAG="],
+    "IOC": ["SYM=", "SIDE=", "QTY=", "PRICE=", "SMP=", "TAG="],
+    "TRAILING_STOP": ["SYM=", "SIDE=", "QTY=", "TRAIL=", "STOP=", "TIF=", "TAG="],
 }
 
 
@@ -147,7 +149,7 @@ class GatewayCompleter(Completer):
         if cmd == "CANCEL":
             candidates = [
                 f
-                for f in ["ID=", "COMBO_ID=", "OCO_ID="]
+                for f in ["ID=", "COMBO_ID=", "OCO_ID=", "RTAG="]
                 if f.rstrip("=") not in already_keys
             ]
         elif cmd == "QLEGS":
@@ -159,7 +161,7 @@ class GatewayCompleter(Completer):
         elif cmd == "AMEND":
             candidates = [
                 f
-                for f in ["ID=", "PRICE=", "QTY="]
+                for f in ["ID=", "PRICE=", "QTY=", "RTAG="]
                 if f.rstrip("=") not in already_keys
             ]
         elif cmd == "NEW":
@@ -235,7 +237,7 @@ class GatewayCompleter(Completer):
     ) -> list[str]:
         """Generate completion candidates for TYPE=COMBO fields."""
         # Top-level combo fields
-        combo_meta = ["COMBO_ID=", "COMBO_TYPE=", "TIF=", "LEG_COUNT=", "SMP="]
+        combo_meta = ["COMBO_ID=", "COMBO_TYPE=", "TIF=", "LEG_COUNT=", "SMP=", "TAG="]
         candidates = [f for f in combo_meta if f.rstrip("=") not in already_keys]
 
         # Determine LEG_COUNT to know how many legs to suggest
@@ -270,6 +272,7 @@ class GatewayCompleter(Completer):
             "SYM=",
             "QTY=",
             "TIF=",
+            "TAG=",
             "LEG1_SIDE=",
             "LEG1_TYPE=",
             "LEG1_PRICE=",

@@ -21,6 +21,10 @@ class ErrorDetail(StrictModel):
     code: str
     message: str
     field: str | None = None
+    reject_code: str | None = None
+    reason: str | None = None
+    client_tag: str | None = None
+    request_tag: str | None = None
 
 
 class ErrorResponse(StrictModel):
@@ -42,7 +46,7 @@ class OrderRequest(StrictModel):
     # explicit "smp_action": "NONE" (deliberately allow self-trades). See
     # SmpAction's docstring in models/order.py.
     smp_action: SmpAction | None = None
-    client_order_id: str | None = None
+    client_tag: str | None = Field(default=None, max_length=64)
 
     @field_validator("symbol")
     @classmethod
@@ -85,14 +89,16 @@ class OrderRequest(StrictModel):
 
 class OrderAccepted(StrictModel):
     order_id: str
-    client_order_id: str | None = None
+    client_tag: str | None = None
     status: str
     accepted: bool | None = None
+    reject_code: str | None = None
     event: dict[str, Any] | None = None
 
 
 class CancelAccepted(StrictModel):
     order_id: str
+    request_tag: str | None = None
     status: str
     event: dict[str, Any] | None = None
 
@@ -100,6 +106,7 @@ class CancelAccepted(StrictModel):
 class AmendRequest(StrictModel):
     price: float | None = None
     quantity: int | None = Field(default=None, gt=0)
+    request_tag: str | None = Field(default=None, max_length=64)
 
     @model_validator(mode="after")
     def require_one_field(self) -> "AmendRequest":
@@ -127,6 +134,7 @@ class OcoRequest(StrictModel):
     symbol: str = Field(min_length=1)
     quantity: int = Field(gt=0)
     tif: TIF = TIF.DAY
+    client_tag: str | None = Field(default=None, max_length=64)
     leg1: OcoLegRequest
     leg2: OcoLegRequest
 
@@ -156,6 +164,7 @@ class ComboRequest(StrictModel):
     tif: TIF = TIF.DAY
     # None means the client omitted smp_action -- see OrderRequest.smp_action.
     smp_action: SmpAction | None = None
+    client_tag: str | None = Field(default=None, max_length=64)
     legs: list[ComboLegRequest] = Field(min_length=2, max_length=10)
 
 

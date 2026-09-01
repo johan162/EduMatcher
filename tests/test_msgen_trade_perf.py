@@ -25,7 +25,8 @@ from edumatcher.models.message import dumps
 pytestmark = pytest.mark.perf
 
 _SAMPLE: dict[str, Any] = {
-    "id": "42",
+    "id": "000000-000000042",
+    "run_seq": 0,
     "symbol": "ACME",
     "buy_order_id": "b-1",
     "sell_order_id": "s-1",
@@ -56,6 +57,7 @@ def _hand_written_baseline() -> list[bytes]:
         dumps(
             {
                 "id": _SAMPLE["id"],
+                "run_seq": _SAMPLE["run_seq"],
                 "symbol": _SAMPLE["symbol"],
                 "buy_order_id": _SAMPLE["buy_order_id"],
                 "sell_order_id": _SAMPLE["sell_order_id"],

@@ -38,6 +38,7 @@ from edumatcher.config import (
     GTC_ORDERS_FILE,
     GTC_COMBOS_FILE,
     BOOK_STATS_FILE,
+    RUN_SEQ_FILE,
     ENGINE_CONFIG_FILE,
     DATA_DIR,
 )
@@ -59,6 +60,7 @@ from edumatcher.engine.persistence import (
     save_book_stats,
     load_gtc_combos,
     save_gtc_combos,
+    load_and_bump_run_seq,
 )
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
@@ -148,6 +150,7 @@ from edumatcher.models.order import (
 )
 from edumatcher.models.price import from_ticks, to_ticks
 from edumatcher.models.price import get_tick_decimals, register_tick_decimals
+from edumatcher.models.trade import set_run_seq
 from edumatcher.models.quote import (
     QuoteEntry,
     QuoteIndex,
@@ -179,6 +182,7 @@ from edumatcher.models.generated.risk import (
     TOPIC_SYMBOL_HALT,
     TOPIC_SYMBOL_RESUME,
 )
+from edumatcher.models.reject import RejectCode
 from edumatcher.models.generated.quote import (
     TOPIC_QUOTE_CANCEL,
     TOPIC_QUOTE_NEW,
@@ -592,6 +596,54 @@ class Engine:
         if not connected:
             return False, f"Gateway not connected: {gw_id}"
         return True, ""
+
+    @staticmethod
+    def _gateway_reject_code(reason: str) -> RejectCode:
+        if reason.startswith("Gateway not configured"):
+            return "GATEWAY_NOT_CONFIGURED"
+        return "AUTH_REQUIRED"
+
+    @staticmethod
+    def _amend_reject_code(reason: str) -> RejectCode:
+        if reason == "Order not found":
+            return "ORDER_NOT_FOUND"
+        if reason.startswith("Cannot amend "):
+            terminal = (
+                "FILLED",
+                "CANCELLED",
+                "REJECTED",
+                "EXPIRED",
+            )
+            if any(reason == f"Cannot amend {status} order" for status in terminal):
+                return "ORDER_ALREADY_TERMINAL"
+            return "AMEND_NOT_PERMITTED"
+        if "quantity" in reason.lower():
+            return "QTY_OUT_OF_RANGE"
+        if "price" in reason.lower():
+            return "PRICE_OUT_OF_RANGE"
+        return "AMEND_NOT_PERMITTED"
+
+    def _reject(
+        self,
+        *,
+        gateway_id: str,
+        order_id: str,
+        code: RejectCode,
+        reason: str,
+        client_tag: str | None,
+        request_tag: str | None,
+    ) -> None:
+        self.pub_sock.send_multipart(
+            make_ack_msg(
+                gateway_id,
+                order_id,
+                accepted=False,
+                reason=reason,
+                reject_code=code,
+                client_tag=client_tag,
+                request_tag=request_tag,
+            )
+        )
 
     def _resolve_smp_action(
         self, gateway_id: str, smp_action: SmpAction | None
@@ -1050,7 +1102,7 @@ class Engine:
     # Message handlers
     # ------------------------------------------------------------------
 
-    def _validate_new_order(self, order: Order) -> str | None:
+    def _validate_new_order(self, order: Order) -> tuple[RejectCode, str] | None:
         """Boundary validation for an inbound order (M7 / A4).
 
         Returns a human-readable rejection reason, or None if the order is
@@ -1060,10 +1112,10 @@ class Engine:
         # A4: a duplicate order id (gateway retry / replay) would overwrite the
         # routing map and rest a second heap entry, doubling liquidity.
         if order.id in self._order_symbol:
-            return f"Duplicate order id {order.id}"
+            return "DUPLICATE_ORDER", f"Duplicate order id {order.id}"
         # M7: quantity must be positive.
         if order.quantity <= 0 or order.remaining_qty <= 0:
-            return "Quantity must be positive"
+            return "QTY_OUT_OF_RANGE", "Quantity must be positive"
         # M7: order types that rest / price-limit must carry a positive price.
         price_required = order.order_type in (
             OrderType.LIMIT,
@@ -1072,13 +1124,19 @@ class Engine:
             OrderType.ICEBERG,
         )
         if price_required and (order.price is None or order.price <= 0):
-            return f"{order.order_type.value} order requires a positive price"
+            return (
+                "PRICE_OUT_OF_RANGE",
+                f"{order.order_type.value} order requires a positive price",
+            )
         # M7: iceberg visible slice must be present and not exceed quantity.
         if order.order_type == OrderType.ICEBERG:
             if order.visible_qty is None or order.visible_qty <= 0:
-                return "ICEBERG order requires a positive visible_qty"
+                return "MISSING_FIELD", "ICEBERG order requires a positive visible_qty"
             if order.visible_qty > order.quantity:
-                return "ICEBERG visible_qty must not exceed quantity"
+                return (
+                    "QTY_OUT_OF_RANGE",
+                    "ICEBERG visible_qty must not exceed quantity",
+                )
         return None
 
     def _handle_new_order(self, payload: dict[str, Any]) -> None:
@@ -1099,10 +1157,13 @@ class Engine:
             ok, reason = self._gateway_status(order.gateway_id)
             if not ok:
                 self._dbg_count("new_order_reject_gateway")
-                self.pub_sock.send_multipart(
-                    make_ack_msg(
-                        order.gateway_id, order.id, accepted=False, reason=reason
-                    )
+                self._reject(
+                    gateway_id=order.gateway_id,
+                    order_id=order.id,
+                    code=self._gateway_reject_code(reason),
+                    reason=reason,
+                    client_tag=order.client_tag,
+                    request_tag=None,
                 )
                 log.info(f"REJECTED {order.id[:8]} — {reason}")
                 return
@@ -1110,13 +1171,14 @@ class Engine:
         # Symbol allowlist check
         if self._allowed_symbols and order.symbol not in self._allowed_symbols:
             self._dbg_count("new_order_reject_symbol")
-            self.pub_sock.send_multipart(
-                make_ack_msg(
-                    order.gateway_id,
-                    order.id,
-                    accepted=False,
-                    reason=f"Symbol not configured: {order.symbol}",
-                )
+            reason = f"Symbol not configured: {order.symbol}"
+            self._reject(
+                gateway_id=order.gateway_id,
+                order_id=order.id,
+                code="UNKNOWN_SYMBOL",
+                reason=reason,
+                client_tag=order.client_tag,
+                request_tag=None,
             )
             log.info(f"REJECTED {order.id[:8]} — symbol not configured: {order.symbol}")
             return
@@ -1129,13 +1191,17 @@ class Engine:
         # positive ACK, so bad values are rejected with a reasoned NACK instead
         # of ACKing accepted=True and then crashing inside the book (swallowed
         # by the blanket handler → order silently lost) or corrupting the index.
-        validation_error = self._validate_new_order(order)
-        if validation_error is not None:
+        validation_result = self._validate_new_order(order)
+        if validation_result is not None:
+            code, validation_error = validation_result
             self._dbg_count("new_order_reject_validation")
-            self.pub_sock.send_multipart(
-                make_ack_msg(
-                    order.gateway_id, order.id, accepted=False, reason=validation_error
-                )
+            self._reject(
+                gateway_id=order.gateway_id,
+                order_id=order.id,
+                code=code,
+                reason=validation_error,
+                client_tag=order.client_tag,
+                request_tag=None,
             )
             log.info(f"REJECTED {order.id[:8]} — {validation_error}")
             return
@@ -1143,13 +1209,13 @@ class Engine:
         # Session state gating
         if self._sessions_enabled and not accepts_orders(self._session_state):
             self._dbg_count("new_order_reject_session")
-            self.pub_sock.send_multipart(
-                make_ack_msg(
-                    order.gateway_id,
-                    order.id,
-                    accepted=False,
-                    reason="Market is closed",
-                )
+            self._reject(
+                gateway_id=order.gateway_id,
+                order_id=order.id,
+                code="MARKET_CLOSED",
+                reason="Market is closed",
+                client_tag=order.client_tag,
+                request_tag=None,
             )
             return
 
@@ -1160,13 +1226,13 @@ class Engine:
             and self._session_state != SessionState.OPENING_AUCTION
         ):
             self._dbg_count("new_order_reject_ato_window")
-            self.pub_sock.send_multipart(
-                make_ack_msg(
-                    order.gateway_id,
-                    order.id,
-                    accepted=False,
-                    reason="ATO orders only accepted during opening auction",
-                )
+            self._reject(
+                gateway_id=order.gateway_id,
+                order_id=order.id,
+                code="SESSION_NOT_PERMITTED",
+                reason="ATO orders only accepted during opening auction",
+                client_tag=order.client_tag,
+                request_tag=None,
             )
             return
 
@@ -1177,13 +1243,13 @@ class Engine:
             and self._session_state != SessionState.CLOSING_AUCTION
         ):
             self._dbg_count("new_order_reject_atc_window")
-            self.pub_sock.send_multipart(
-                make_ack_msg(
-                    order.gateway_id,
-                    order.id,
-                    accepted=False,
-                    reason="ATC orders only accepted during closing auction",
-                )
+            self._reject(
+                gateway_id=order.gateway_id,
+                order_id=order.id,
+                code="SESSION_NOT_PERMITTED",
+                reason="ATC orders only accepted during closing auction",
+                client_tag=order.client_tag,
+                request_tag=None,
             )
             return
 
@@ -1194,16 +1260,17 @@ class Engine:
         if self._halted_symbols.get(order.symbol):
             if order.order_type in (OrderType.MARKET, OrderType.FOK, OrderType.IOC):
                 self._dbg_count("new_order_reject_halt")
-                self.pub_sock.send_multipart(
-                    make_ack_msg(
-                        order.gateway_id,
-                        order.id,
-                        accepted=False,
-                        reason=(
-                            f"{order.symbol} is halted — "
-                            f"{order.order_type.value} orders rejected during circuit breaker halt"
-                        ),
-                    )
+                reason = (
+                    f"{order.symbol} is halted — "
+                    f"{order.order_type.value} orders rejected during circuit breaker halt"
+                )
+                self._reject(
+                    gateway_id=order.gateway_id,
+                    order_id=order.id,
+                    code="INSTRUMENT_HALTED",
+                    reason=reason,
+                    client_tag=order.client_tag,
+                    request_tag=None,
                 )
                 return
             # LIMIT / ICEBERG: accept and rest without matching (auction interest)
@@ -1216,13 +1283,13 @@ class Engine:
                 result = validate_collar(order.price, collar, book.last_trade_price)
                 if result.rejected:
                     self._dbg_count("new_order_reject_collar")
-                    self.pub_sock.send_multipart(
-                        make_ack_msg(
-                            order.gateway_id,
-                            order.id,
-                            accepted=False,
-                            reason=result.reason,
-                        )
+                    self._reject(
+                        gateway_id=order.gateway_id,
+                        order_id=order.id,
+                        code="COLLAR_BREACH",
+                        reason=result.reason,
+                        client_tag=order.client_tag,
+                        request_tag=None,
                     )
                     return
 
@@ -1233,13 +1300,13 @@ class Engine:
             OrderType.IOC,
         ):
             self._dbg_count("new_order_reject_no_match_phase")
-            self.pub_sock.send_multipart(
-                make_ack_msg(
-                    order.gateway_id,
-                    order.id,
-                    accepted=False,
-                    reason=f"{order.order_type.value} orders not accepted during {self._session_state.value}",
-                )
+            self._reject(
+                gateway_id=order.gateway_id,
+                order_id=order.id,
+                code="SESSION_NOT_PERMITTED",
+                reason=f"{order.order_type.value} orders not accepted during {self._session_state.value}",
+                client_tag=order.client_tag,
+                request_tag=None,
             )
             return
 
@@ -1253,13 +1320,13 @@ class Engine:
             book = self._book(order.symbol)
             if order.stop_price is None:
                 if book.last_trade_price is None:
-                    self.pub_sock.send_multipart(
-                        make_ack_msg(
-                            order.gateway_id,
-                            order.id,
-                            accepted=False,
-                            reason="Trailing stop requires STOP= or a prior trade price",
-                        )
+                    self._reject(
+                        gateway_id=order.gateway_id,
+                        order_id=order.id,
+                        code="MISSING_FIELD",
+                        reason="Trailing stop requires STOP= or a prior trade price",
+                        client_tag=order.client_tag,
+                        request_tag=None,
                     )
                     return
                 if order.side == Side.SELL:
@@ -1481,13 +1548,13 @@ class Engine:
                 and evt.id not in _published_terminal_ids
             ):
                 _published_terminal_ids.add(evt.id)
-                _pub.send_multipart(
-                    make_ack_msg(
-                        evt.gateway_id,
-                        evt.id,
-                        accepted=False,
-                        reason="Insufficient liquidity",
-                    )
+                self._reject(
+                    gateway_id=evt.gateway_id,
+                    order_id=evt.id,
+                    code="INSUFFICIENT_LIQUIDITY",
+                    reason="Insufficient liquidity",
+                    client_tag=evt.client_tag,
+                    request_tag=None,
                 )
                 # REJECTED event carrying an oco_group_id → cancel the other leg
                 if evt.oco_group_id:
@@ -2447,6 +2514,7 @@ class Engine:
         self.pub_sock.send_multipart(
             make_trade_executed_unchecked(
                 id=trade.id,
+                run_seq=trade.run_seq,
                 symbol=trade.symbol,
                 buy_order_id=trade.buy_order_id,
                 sell_order_id=trade.sell_order_id,
@@ -2487,6 +2555,7 @@ class Engine:
                 self._drop_copy.publish_fill(
                     gateway_id=_gw,
                     order_id=_oid,
+                    trade_ids=[trade.id],
                     symbol=trade.symbol,
                     fill_qty=trade.quantity,
                     fill_price=_trade_px,
@@ -3886,6 +3955,7 @@ class Engine:
                 stop_price=leg.stop_price,
                 visible_qty=None,
                 smp_action=leg_smp_action,
+                client_tag=combo.client_tag,
             )
             child.combo_parent_id = combo.id
             child.leg_index = i
@@ -3943,13 +4013,13 @@ class Engine:
                 elif evt.status == OrderStatus.REJECTED:
                     if evt.id not in _pub_terminal_ids:
                         _pub_terminal_ids.add(evt.id)
-                        self.pub_sock.send_multipart(
-                            make_ack_msg(
-                                evt.gateway_id,
-                                evt.id,
-                                accepted=False,
-                                reason="Insufficient liquidity",
-                            )
+                        self._reject(
+                            gateway_id=evt.gateway_id,
+                            order_id=evt.id,
+                            code="INSUFFICIENT_LIQUIDITY",
+                            reason="Insufficient liquidity",
+                            client_tag=evt.client_tag,
+                            request_tag=None,
                         )
                 elif evt.status == OrderStatus.CANCELLED:
                     if evt.id not in _pub_terminal_ids:
@@ -4535,6 +4605,11 @@ class Engine:
                     price=_leg_ticks(raw, "price"),
                     stop_price=_leg_ticks(raw, "stop_price"),
                     trail_offset=_leg_ticks(raw, "trail_offset"),
+                    client_tag=(
+                        str(payload["client_tag"])
+                        if payload.get("client_tag") is not None
+                        else None
+                    ),
                 )
             except (KeyError, ValueError):
                 return None
@@ -4702,13 +4777,13 @@ class Engine:
                 elif evt.status == OrderStatus.REJECTED:
                     if evt.id not in _pub_terminal_ids:
                         _pub_terminal_ids.add(evt.id)
-                        self.pub_sock.send_multipart(
-                            make_ack_msg(
-                                evt.gateway_id,
-                                evt.id,
-                                accepted=False,
-                                reason="Insufficient liquidity",
-                            )
+                        self._reject(
+                            gateway_id=evt.gateway_id,
+                            order_id=evt.id,
+                            code="INSUFFICIENT_LIQUIDITY",
+                            reason="Insufficient liquidity",
+                            client_tag=evt.client_tag,
+                            request_tag=None,
                         )
 
             for trade in trades:
@@ -4802,13 +4877,19 @@ class Engine:
     def _handle_cancel(self, payload: dict[str, Any]) -> None:
         order_id = payload["order_id"]
         gateway_id = str(payload["gateway_id"]).upper()
+        request_tag = payload.get("request_tag")
         self._dbg_count("cancel_requests")
 
         ok, reason = self._gateway_status(gateway_id)
         if not ok:
             self._dbg_count("cancel_reject_gateway")
-            self.pub_sock.send_multipart(
-                make_ack_msg(gateway_id, order_id, accepted=False, reason=reason)
+            self._reject(
+                gateway_id=gateway_id,
+                order_id=order_id,
+                code=self._gateway_reject_code(reason),
+                reason=reason,
+                client_tag=None,
+                request_tag=request_tag,
             )
             return
 
@@ -4821,13 +4902,13 @@ class Engine:
             resting = book.get_order(order_id)
             if resting is not None and resting.gateway_id != gateway_id:
                 self._dbg_count("cancel_reject_ownership")
-                self.pub_sock.send_multipart(
-                    make_ack_msg(
-                        gateway_id,
-                        order_id,
-                        accepted=False,
-                        reason="Cannot cancel an order owned by another gateway",
-                    )
+                self._reject(
+                    gateway_id=gateway_id,
+                    order_id=order_id,
+                    code="NOT_OWNER",
+                    reason="Cannot cancel an order owned by another gateway",
+                    client_tag=resting.client_tag,
+                    request_tag=request_tag,
                 )
                 return
 
@@ -4841,6 +4922,7 @@ class Engine:
                     gateway_id,
                     order_id,
                     client_tag=cancelled.client_tag,
+                    request_tag=request_tag,
                     order=cancelled.to_dict(),
                 )
             )
@@ -4855,8 +4937,13 @@ class Engine:
             return
 
         # Order not found — send rejection ack
-        self.pub_sock.send_multipart(
-            make_ack_msg(gateway_id, order_id, accepted=False, reason="Order not found")
+        self._reject(
+            gateway_id=gateway_id,
+            order_id=order_id,
+            code="ORDER_NOT_FOUND",
+            reason="Order not found",
+            client_tag=None,
+            request_tag=request_tag,
         )
         self._dbg_count("cancel_reject_not_found")
 
@@ -4865,6 +4952,7 @@ class Engine:
         gateway_id = str(payload["gateway_id"]).upper()
         new_price = payload.get("price")
         new_qty = payload.get("qty")
+        request_tag = payload.get("request_tag")
         self._dbg_count("amend_requests")
 
         # M12: amend quantity arrives raw from JSON.  Coerce it to int (like
@@ -4875,33 +4963,38 @@ class Engine:
                 new_qty = int(new_qty)
             except (TypeError, ValueError):
                 self._dbg_count("amend_reject_payload")
-                self.pub_sock.send_multipart(
-                    make_ack_msg(
-                        gateway_id,
-                        order_id,
-                        accepted=False,
-                        reason="Amend quantity must be an integer",
-                    )
+                self._reject(
+                    gateway_id=gateway_id,
+                    order_id=order_id,
+                    code="INVALID_VALUE",
+                    reason="Amend quantity must be an integer",
+                    client_tag=None,
+                    request_tag=request_tag,
                 )
                 return
 
         ok, reason = self._gateway_status(gateway_id)
         if not ok:
             self._dbg_count("amend_reject_gateway")
-            self.pub_sock.send_multipart(
-                make_ack_msg(gateway_id, order_id, accepted=False, reason=reason)
+            self._reject(
+                gateway_id=gateway_id,
+                order_id=order_id,
+                code=self._gateway_reject_code(reason),
+                reason=reason,
+                client_tag=None,
+                request_tag=request_tag,
             )
             return
 
         if new_price is None and new_qty is None:
             self._dbg_count("amend_reject_payload")
-            self.pub_sock.send_multipart(
-                make_ack_msg(
-                    gateway_id,
-                    order_id,
-                    accepted=False,
-                    reason="Amend requires at least PRICE or QTY",
-                )
+            self._reject(
+                gateway_id=gateway_id,
+                order_id=order_id,
+                code="MISSING_FIELD",
+                reason="Amend requires at least PRICE or QTY",
+                client_tag=None,
+                request_tag=request_tag,
             )
             return
 
@@ -4910,10 +5003,13 @@ class Engine:
         book = self.books.get(symbol) if symbol else None
         if book is None:
             self._dbg_count("amend_reject_not_found")
-            self.pub_sock.send_multipart(
-                make_ack_msg(
-                    gateway_id, order_id, accepted=False, reason="Order not found"
-                )
+            self._reject(
+                gateway_id=gateway_id,
+                order_id=order_id,
+                code="ORDER_NOT_FOUND",
+                reason="Order not found",
+                client_tag=None,
+                request_tag=request_tag,
             )
             return
         assert symbol is not None
@@ -4922,13 +5018,13 @@ class Engine:
         resting = book.get_order(order_id)
         if resting is not None and resting.gateway_id != gateway_id:
             self._dbg_count("amend_reject_ownership")
-            self.pub_sock.send_multipart(
-                make_ack_msg(
-                    gateway_id,
-                    order_id,
-                    accepted=False,
-                    reason="Cannot amend an order owned by another gateway",
-                )
+            self._reject(
+                gateway_id=gateway_id,
+                order_id=order_id,
+                code="NOT_OWNER",
+                reason="Cannot amend an order owned by another gateway",
+                client_tag=resting.client_tag,
+                request_tag=request_tag,
             )
             return
 
@@ -4942,10 +5038,13 @@ class Engine:
         # Session gating — reject amends while the market does not accept orders.
         if self._sessions_enabled and not accepts_orders(self._session_state):
             self._dbg_count("amend_reject_session")
-            self.pub_sock.send_multipart(
-                make_ack_msg(
-                    gateway_id, order_id, accepted=False, reason="Market is closed"
-                )
+            self._reject(
+                gateway_id=gateway_id,
+                order_id=order_id,
+                code="MARKET_CLOSED",
+                reason="Market is closed",
+                client_tag=resting.client_tag if resting is not None else None,
+                request_tag=request_tag,
             )
             return
 
@@ -4962,10 +5061,13 @@ class Engine:
                 result = validate_collar(new_price_ticks, collar, book.last_trade_price)
                 if result.rejected:
                     self._dbg_count("amend_reject_collar")
-                    self.pub_sock.send_multipart(
-                        make_ack_msg(
-                            gateway_id, order_id, accepted=False, reason=result.reason
-                        )
+                    self._reject(
+                        gateway_id=gateway_id,
+                        order_id=order_id,
+                        code="COLLAR_BREACH",
+                        reason=result.reason,
+                        client_tag=resting.client_tag if resting is not None else None,
+                        request_tag=request_tag,
                     )
                     return
 
@@ -4979,8 +5081,13 @@ class Engine:
 
         if amended is None:
             self._dbg_count("amend_reject_book")
-            self.pub_sock.send_multipart(
-                make_ack_msg(gateway_id, order_id, accepted=False, reason=err)
+            self._reject(
+                gateway_id=gateway_id,
+                order_id=order_id,
+                code=self._amend_reject_code(err),
+                reason=err,
+                client_tag=resting.client_tag if resting is not None else None,
+                request_tag=request_tag,
             )
             return
 
@@ -4997,6 +5104,8 @@ class Engine:
                 qty=amended.quantity,
                 remaining_qty=amended.remaining_qty,
                 priority_reset=priority_reset,
+                client_tag=amended.client_tag,
+                request_tag=request_tag,
             )
         )
         self._dbg_count("amend_accepted")
@@ -5088,13 +5197,13 @@ class Engine:
                 and evt.id not in published_terminal_ids
             ):
                 published_terminal_ids.add(evt.id)
-                self.pub_sock.send_multipart(
-                    make_ack_msg(
-                        evt.gateway_id,
-                        evt.id,
-                        accepted=False,
-                        reason="Insufficient liquidity",
-                    )
+                self._reject(
+                    gateway_id=evt.gateway_id,
+                    order_id=evt.id,
+                    code="INSUFFICIENT_LIQUIDITY",
+                    reason="Insufficient liquidity",
+                    client_tag=evt.client_tag,
+                    request_tag=None,
                 )
         for trade in trades:
             self._publish_trade(trade)  # updates positions (H3)
@@ -5354,8 +5463,17 @@ class Engine:
         else:
             reason = "Internal error processing order"
         try:
-            self.pub_sock.send_multipart(
-                make_ack_msg(gateway_id, str(order_id), accepted=False, reason=reason)
+            self._reject(
+                gateway_id=gateway_id,
+                order_id=str(order_id),
+                code="INTERNAL_ERROR",
+                reason=reason,
+                client_tag=(
+                    str(payload["client_tag"])
+                    if payload.get("client_tag") is not None
+                    else None
+                ),
+                request_tag=None,
             )
         except Exception as send_exc:
             # The reject is best-effort: raising here would escape run() and
@@ -5402,6 +5520,7 @@ class Engine:
                 )
 
     def run(self) -> None:
+        set_run_seq(load_and_bump_run_seq(RUN_SEQ_FILE))
         self._restore_gtc()
         self._load_config()  # seed stats + MM orders (after GTC restore)
 

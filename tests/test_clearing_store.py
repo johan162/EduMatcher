@@ -183,6 +183,16 @@ class TestSchema:
         apply_schema(c)  # second call must not raise
         c.close()
 
+    def test_apply_schema_refuses_composite_trade_identity(self, db_path: Path) -> None:
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            "CREATE TABLE trade_events (id TEXT NOT NULL, ts_ns INTEGER NOT NULL, "
+            "PRIMARY KEY (id, ts_ns))"
+        )
+        with pytest.raises(RuntimeError, match="sole primary key"):
+            apply_schema(conn)
+        conn.close()
+
     def test_schema_constant_contains_key_tables(self) -> None:
         assert "CREATE TABLE IF NOT EXISTS trade_events" in SCHEMA
         assert "CREATE TABLE IF NOT EXISTS gateway_symbol_positions" in SCHEMA
@@ -228,6 +238,14 @@ class TestFlushBatch:
         t = _trade_row(trade_id="DUP")
         flush_batch(conn, [t], [_position_row()], [_daily_row()])
         flush_batch(conn, [t], [_position_row()], [_daily_row()])
+        count = conn.execute("SELECT COUNT(*) FROM trade_events").fetchone()[0]
+        assert count == 1
+
+    def test_idempotent_on_duplicate_trade_id_with_changed_timestamp(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        flush_batch(conn, [_trade_row(trade_id="DUP")], [], [])
+        flush_batch(conn, [_trade_row(trade_id="DUP", ts_ns=2_000_000_000)], [], [])
         count = conn.execute("SELECT COUNT(*) FROM trade_events").fetchone()[0]
         assert count == 1
 

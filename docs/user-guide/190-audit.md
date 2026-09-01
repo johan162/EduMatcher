@@ -445,7 +445,7 @@ pm-audit-cli trades [options]
 | Column | Description |
 |---|---|
 | `timestamp` | Trade execution timestamp |
-| `trade_id` | Trade identifier — a monotonically increasing integer (as a string, e.g. `"42"`), unique within a single engine run. Not a UUID. |
+| `trade_id` | Durable trade identifier, formatted as `run_seq-counter` (for example, `000042-000000001`). The prefix identifies the engine run; the suffix is monotonic within that run. |
 | `symbol` | Instrument symbol |
 | `price` | Execution price |
 | `quantity` | Matched quantity |

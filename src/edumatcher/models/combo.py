@@ -101,6 +101,7 @@ class ComboOrder:
     legs: list[ComboLeg]
     timestamp: int
     status: ComboStatus = ComboStatus.PENDING
+    client_tag: str | None = None
 
     # Populated by the engine after child orders are created
     child_order_ids: list[str] = field(default_factory=list)
@@ -132,6 +133,7 @@ class ComboOrder:
         combo_type: ComboType,
         tif: TIF,
         legs: list[ComboLeg],
+        client_tag: str | None = None,
     ) -> "ComboOrder":
         return cls(
             id=str(uuid.uuid4()),
@@ -141,6 +143,7 @@ class ComboOrder:
             tif=tif,
             legs=legs,
             timestamp=now_ns(),
+            client_tag=client_tag,
         )
 
     # ------------------------------------------------------------------
@@ -162,6 +165,7 @@ class ComboOrder:
             "legs": [leg.to_dict() for leg in self.legs],
             "timestamp": self.timestamp,
             "status": self.status.value,
+            "client_tag": self.client_tag,
             "child_order_ids": self.child_order_ids,
             "leg_fill_qty": {str(k): v for k, v in self.leg_fill_qty.items()},
             "leg_statuses": {str(k): v for k, v in self.leg_statuses.items()},
@@ -181,13 +185,16 @@ class ComboOrder:
         makes ``order.combo`` describable in the message generator's IDL once
         ``nested`` and ``list[T]`` land (design section 15.4).
         """
-        return {
+        payload = {
             "combo_id": self.combo_id,
             "gateway_id": self.gateway_id,
             "combo_type": self.combo_type.value,
             "tif": self.tif.value,
             "legs": [leg.to_dict() for leg in self.legs],
         }
+        if self.client_tag is not None:
+            payload["client_tag"] = self.client_tag
+        return payload
 
     @classmethod
     def from_submission_dict(cls, d: dict[str, Any]) -> "ComboOrder":
@@ -203,6 +210,7 @@ class ComboOrder:
             combo_type=ComboType(d["combo_type"]),
             tif=TIF(d["tif"]),
             legs=[ComboLeg.from_dict(leg) for leg in d["legs"]],
+            client_tag=d.get("client_tag"),
         )
 
     @classmethod
@@ -216,6 +224,7 @@ class ComboOrder:
             legs=[ComboLeg.from_dict(leg) for leg in d["legs"]],
             timestamp=d["timestamp"],
             status=ComboStatus(d["status"]),
+            client_tag=d.get("client_tag"),
             child_order_ids=d.get("child_order_ids", []),
         )
         combo.leg_fill_qty = {int(k): v for k, v in d.get("leg_fill_qty", {}).items()}

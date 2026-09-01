@@ -770,7 +770,9 @@ class MarketDataGateway:
         fields.update(payload_fields)
 
         line = build_line(msg_type, fields)
-        self._replay.append(ch, sym, seq, line)
+        trade_id = payload_fields.get("TRADE_ID") if ch == "TRADE" else None
+        if not self._replay.append(ch, sym, seq, line, trade_id=trade_id):
+            return
         self._dbg_count("stream_events")
 
         for target in self._clients.values():

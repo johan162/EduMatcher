@@ -73,6 +73,13 @@ _DROP_COPY_EVENT_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"max_len": 64},
     },
     {
+        "name": "trade_ids",
+        "type": "list",
+        "unit": None,
+        "required": True,
+        "doc": "Public trade.executed id(s) for this execution. One ID today; kept as a list so consumers can use the same representation as coalesced order.fill messages when an order sweeps multiple price levels.",
+    },
+    {
         "name": "symbol",
         "type": "string",
         "unit": None,
@@ -128,6 +135,7 @@ class DropCopyEvent:
     gateway_id: str
     event_type: DropCopyEventEventType
     order_id: str
+    trade_ids: list[str]
     symbol: str
     fill_qty: int  # unit: shares
     fill_price: float  # unit: display_price
@@ -154,6 +162,8 @@ class DropCopyEvent:
             raise MessageValidationError(
                 f"order_id: length {len(self.order_id)} exceeds max_len 64"
             )
+        if len(self.trade_ids) < 1:
+            raise MessageValidationError("trade_ids: fewer than 1 item(s)")
         if len(self.symbol) > 16:
             raise MessageValidationError(
                 f"symbol: length {len(self.symbol)} exceeds max_len 16"
@@ -181,6 +191,7 @@ class DropCopyEvent:
             gateway_id=str(p["gateway_id"]),
             event_type=cast(DropCopyEventEventType, str(p["event_type"])),
             order_id=str(p["order_id"]),
+            trade_ids=[str(item) for item in p["trade_ids"]],
             symbol=str(p["symbol"]),
             fill_qty=int(p["fill_qty"]),
             fill_price=float(p["fill_price"]),
@@ -195,6 +206,7 @@ class DropCopyEvent:
             "gateway_id": self.gateway_id,
             "event_type": self.event_type,
             "order_id": self.order_id,
+            "trade_ids": self.trade_ids,
             "symbol": self.symbol,
             "fill_qty": self.fill_qty,
             "fill_price": self.fill_price,
@@ -235,6 +247,7 @@ def make_drop_copy_event_unchecked(
     gateway_id: str,
     event_type: DropCopyEventEventType,
     order_id: str,
+    trade_ids: list[str],
     symbol: str,
     fill_qty: int,
     fill_price: float,
@@ -259,6 +272,7 @@ def make_drop_copy_event_unchecked(
                 "gateway_id": str(gateway_id),
                 "event_type": str(event_type),
                 "order_id": str(order_id),
+                "trade_ids": [str(item) for item in trade_ids],
                 "symbol": str(symbol),
                 "fill_qty": int(fill_qty),
                 "fill_price": float(fill_price),
@@ -349,6 +363,13 @@ _DROP_COPY_REPLAY_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"max_len": 64},
     },
     {
+        "name": "trade_ids",
+        "type": "list",
+        "unit": None,
+        "required": True,
+        "doc": "",
+    },
+    {
         "name": "symbol",
         "type": "string",
         "unit": None,
@@ -404,6 +425,7 @@ class DropCopyReplay:
     gateway_id: str
     event_type: DropCopyReplayEventType
     order_id: str
+    trade_ids: list[str]
     symbol: str
     fill_qty: int  # unit: shares
     fill_price: float  # unit: display_price
@@ -434,6 +456,8 @@ class DropCopyReplay:
             raise MessageValidationError(
                 f"order_id: length {len(self.order_id)} exceeds max_len 64"
             )
+        if len(self.trade_ids) < 1:
+            raise MessageValidationError("trade_ids: fewer than 1 item(s)")
         if len(self.symbol) > 16:
             raise MessageValidationError(
                 f"symbol: length {len(self.symbol)} exceeds max_len 16"
@@ -462,6 +486,7 @@ class DropCopyReplay:
             gateway_id=str(p["gateway_id"]),
             event_type=cast(DropCopyReplayEventType, str(p["event_type"])),
             order_id=str(p["order_id"]),
+            trade_ids=[str(item) for item in p["trade_ids"]],
             symbol=str(p["symbol"]),
             fill_qty=int(p["fill_qty"]),
             fill_price=float(p["fill_price"]),
@@ -476,6 +501,7 @@ class DropCopyReplay:
             "gateway_id": self.gateway_id,
             "event_type": self.event_type,
             "order_id": self.order_id,
+            "trade_ids": self.trade_ids,
             "symbol": self.symbol,
             "fill_qty": self.fill_qty,
             "fill_price": self.fill_price,
@@ -517,6 +543,7 @@ def make_drop_copy_replay_unchecked(
     gateway_id: str,
     event_type: DropCopyReplayEventType,
     order_id: str,
+    trade_ids: list[str],
     symbol: str,
     fill_qty: int,
     fill_price: float,
@@ -541,6 +568,7 @@ def make_drop_copy_replay_unchecked(
                 "gateway_id": str(gateway_id),
                 "event_type": str(event_type),
                 "order_id": str(order_id),
+                "trade_ids": [str(item) for item in trade_ids],
                 "symbol": str(symbol),
                 "fill_qty": int(fill_qty),
                 "fill_price": float(fill_price),

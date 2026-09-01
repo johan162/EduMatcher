@@ -255,6 +255,24 @@ All commands use the ALF pipe-separated key=value format.
 | Monitoring | `STATUS`, `ORDERS`, `POS`, `SYMBOLS`, `SESSION`, `QBOOT`, `QLEGS`, `INDEX` | Inspect live/cached state |
 | Session control | `HELP`, `EXIT`, `QUIT` | Terminal usability |
 
+### Request tags for amend and cancel
+
+`TAG=<order-tag>` is an optional client-supplied identifier on `NEW`. It
+identifies the order for its whole lifecycle and is echoed as `TAG` by ALF
+gateway clients, or as `client_tag` on engine, REST, and WebSocket payloads.
+
+`RTAG=<request-tag>` is an optional client-supplied identifier on `AMEND` and
+single-order `CANCEL`. It identifies the **request**, not the order. The engine
+echoes it on the resulting `AMENDED`, `CANCELLED`, or rejected `ACK`, so a
+client can match an asynchronous response back to the exact amend or cancel it
+sent.
+
+An order tag follows one order for its whole life, while `RTAG` lasts for one request. Use a different
+`RTAG` for each retry or concurrent amend/cancel against the same order.
+Engine-initiated cancels, such as OCO sibling cancels, combo cascades, kill
+switches, and session expiry, have no originating client request and therefore
+do not carry an `RTAG`.
+
 ### Role entitlements (what each role can do)
 
 | Gateway role | Allowed trading behavior | Disallowed behavior |
@@ -514,7 +532,7 @@ pm-alf-console --id GW01 --drop-copy
 ### NEW — Submit an Order
 
 ```
-NEW|SYM=<symbol>|SIDE=<BUY|SELL>|TYPE=<order-type>|QTY=<quantity>[|PRICE=<price>][|STOP=<price>][|TRAIL=<offset>][|TIF=<DAY|GTC>][|VISIBLE=<n>][|SMP=<action>]
+NEW|SYM=<symbol>|SIDE=<BUY|SELL>|TYPE=<order-type>|QTY=<quantity>[|PRICE=<price>][|STOP=<price>][|TRAIL=<offset>][|TIF=<DAY|GTC>][|VISIBLE=<n>][|SMP=<action>][|TAG=<order-tag>]
 ```
 
 **SMP** (Self Match Prevention) values: `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`.
@@ -605,16 +623,17 @@ NEW|TYPE=COMBO|COMBO_ID=<label>|COMBO_TYPE=AON|TIF=<DAY|GTC>|LEG_COUNT=<n>|LEG0.
 ### AMEND — Amend a Resting Order
 
 ```
-AMEND|ID=<full-order-id>[|PRICE=<new-price>][|QTY=<new-total-qty>]
+AMEND|ID=<full-order-id>[|PRICE=<new-price>][|QTY=<new-total-qty>][|RTAG=<request-tag>]
 ```
 
 At least one of `PRICE=` or `QTY=` must be present.
 
-| Field   | Required    | Description                                     |
-|---------|-------------|---------------------------------------------------|
-| `ID`    | Yes         | Full order UUID (visible in the `ORDERS` table) |
-| `PRICE` | Conditional | New limit price; omit to keep current price     |
-| `QTY`   | Conditional | New total quantity; must be ≥ filled quantity   |
+| Field   | Required    | Description                                      |
+|---------|-------------|--------------------------------------------------|
+| `ID`    | Yes         | Full order UUID (visible in the `ORDERS` table)  |
+| `PRICE` | Conditional | New limit price; omit to keep current price      |
+| `QTY`   | Conditional | New total quantity; must be >= filled quantity   |
+| `RTAG`  | No          | Request tag echoed on `AMENDED` or rejected ACK  |
 
 **Priority rules:**
 
@@ -624,7 +643,7 @@ At least one of `PRICE=` or `QTY=` must be present.
 | Price change           | **Lost** — the order moves to the back of the queue at the new price |
 | Quantity increase      | **Lost** — the order moves to the back of the queue                  |
 
-Reply: `AMENDED <id>  price=<p> qty=<q> remaining=<r>` on success, or a rejection via `REJECTED` with a reason.
+Reply: `AMENDED <id>  price=<p> qty=<q> remaining=<r> rtag=<request-tag>` on success when `RTAG` was supplied, or a rejection via `REJECTED` with a reason.
 
 
 
@@ -684,12 +703,16 @@ sequenceDiagram
 ### CANCEL — Cancel a Resting Order, Combo, or OCO
 
 ```
-CANCEL|ID=<full-order-id>          # single-leg order
+CANCEL|ID=<full-order-id>[|RTAG=<request-tag>]  # single-leg order
 CANCEL|COMBO_ID=<combo-label>      # combo and all its resting legs
 CANCEL|OCO_ID=<oco-label>          # both legs of an OCO pair
 ```
 
 The full order ID is shown in the `ORDERS` table. Only the first 8 characters appear in inline fill/cancel messages — use `ORDERS` to copy the full UUID.
+
+For a single-order cancel, `RTAG` is echoed on the `CANCELLED` event or rejected
+ACK. Group cancels are identified by `COMBO_ID` or `OCO_ID` and do not use
+`RTAG`.
 
 Cancelling a combo or OCO is atomic: all resting child legs are cancelled, but fills that already occurred are not reversed.
 
@@ -880,7 +903,7 @@ All events are printed inline with a `[HH:MM:SS.mmm]` timestamp prefix. A backgr
 | Message                                               | Meaning                                               |
 |---------------------------------------------------------|---------------------------------------------------------|
 | `ACK  <id>  order accepted`                           | Engine received and registered the order              |
-| `REJECTED  <id>  <reason>`                            | Order was rejected (e.g. FOK: insufficient liquidity) |
+| `REJECTED  <id> code=<reject-code> tag=<order-tag> rtag=<request-tag>  <reason>` | Order was rejected; `code` is stable for automation and tags are present when known |
 | `FILL  <id>  qty=50 @150.50  remaining=50  [PARTIAL]` | Partial fill                                          |
 | `FILL  <id>  qty=100 @150.50  remaining=0  [FILLED]`  | Full fill                                             |
 | `AMENDED  <id>  price=151.0 qty=100 remaining=100`    | Amendment confirmed                                   |
@@ -955,14 +978,14 @@ $ poetry run pm-alf-console --id TRADER01
 [TRADER01]> SYMBOLS
 # confirms AAPL/MSFT active
 
-[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001
 [09:30:00.100] ACK  7c4a91e2  order accepted
 
 [TRADER01]> ORDERS
 # copy full UUID from table if you plan to amend/cancel
 
-[TRADER01]> AMEND|ID=7c4a91e2-...|PRICE=150.10
-[09:30:01.500] AMENDED  7c4a91e2  price=150.1 qty=100 remaining=100
+[TRADER01]> AMEND|ID=7c4a91e2-...|PRICE=150.10|RTAG=AMD-001
+[09:30:01.500] AMENDED  7c4a91e2  price=150.1 qty=100 remaining=100 rtag=AMD-001
 
 [09:30:02.200] FILL  7c4a91e2  qty=40 @150.10  remaining=60  [PARTIAL]
 

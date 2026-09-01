@@ -168,6 +168,7 @@ def test_fill_event_relayed_to_matching_gateway_id(
             pub.publish_fill(
                 "TRADER01",
                 order_id="ord-1",
+                trade_ids=["000001-000000001"],
                 symbol="AAPL",
                 fill_qty=100,
                 fill_price=150.25,
@@ -206,6 +207,7 @@ def test_fill_event_not_relayed_to_other_gateway_id(
             pub.publish_fill(
                 "TRADER01",
                 order_id="ord-x",
+                trade_ids=["000001-000000001"],
                 symbol="MSFT",
                 fill_qty=10,
                 fill_price=1.0,
@@ -282,6 +284,7 @@ def test_two_clients_same_gateway_id_both_receive(
             pub.publish_fill(
                 "TRADER07",
                 order_id="ord-2",
+                trade_ids=["000001-000000001"],
                 symbol="IBM",
                 fill_qty=5,
                 fill_price=1.0,

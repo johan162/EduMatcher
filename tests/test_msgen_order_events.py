@@ -56,6 +56,34 @@ class TestByteIdenticalToTheHandWrittenBuilders:
             )
         )
 
+    def test_ack_rejected_carries_the_reject_code(self) -> None:
+        assert M.make_ack_msg(
+            "GW1",
+            "O1",
+            False,
+            "bad symbol",
+            reject_code="UNKNOWN_SYMBOL",
+        ) == G.make_order_ack_unchecked(
+            gateway_id="GW1",
+            order_id="O1",
+            accepted=False,
+            reason="bad symbol",
+            reject_code="UNKNOWN_SYMBOL",
+        )
+
+    def test_ack_rejected_carries_the_request_tag(self) -> None:
+        _topic, payload = M.decode(
+            M.make_ack_msg(
+                "GW1",
+                "O1",
+                False,
+                "not yours",
+                reject_code="NOT_OWNER",
+                request_tag="RT-CXL-001",
+            )
+        )
+        assert payload["request_tag"] == "RT-CXL-001"
+
     def test_ack_with_a_limit_order_tag_and_group(self) -> None:
         assert M.make_ack_msg("GW1", "O1", True, "", order=_LIMIT) == (
             G.make_order_ack_unchecked(
@@ -103,6 +131,12 @@ class TestByteIdenticalToTheHandWrittenBuilders:
             )
         )
 
+    def test_cancelled_carries_the_request_tag(self) -> None:
+        _topic, payload = M.decode(
+            M.make_cancelled_msg("GW1", "O1", request_tag="RT-CXL-002")
+        )
+        assert payload["request_tag"] == "RT-CXL-002"
+
     def test_expired(self) -> None:
         assert M.make_expired_msg("GW1", "O1", "t9") == G.make_order_expired_unchecked(
             gateway_id="GW1", order_id="O1", client_tag="t9"
@@ -120,6 +154,18 @@ class TestByteIdenticalToTheHandWrittenBuilders:
                 priority_reset=True,
             )
         )
+
+    def test_amended_carries_the_client_tag(self) -> None:
+        _topic, payload = M.decode(
+            M.make_amended_msg("GW1", "O1", 9.5, 10, 4, True, client_tag="t1")
+        )
+        assert payload["client_tag"] == "t1"
+
+    def test_amended_carries_the_request_tag(self) -> None:
+        _topic, payload = M.decode(
+            M.make_amended_msg("GW1", "O1", 9.5, 10, 4, True, request_tag="RT-AMD-001")
+        )
+        assert payload["request_tag"] == "RT-AMD-001"
 
 
 class TestPresenceSemantics:
@@ -207,9 +253,12 @@ class TestRoundTrip:
         assert G.parse_order_cancelled(frames).gateway_id == "GW7"
 
     def test_parse_round_trips_a_full_ack(self) -> None:
-        frames = M.make_ack_msg("GW1", "O1", True, "", order=_LIMIT)
+        frames = M.make_ack_msg(
+            "GW1", "O1", False, "bad symbol", reject_code="UNKNOWN_SYMBOL", order=_LIMIT
+        )
         ack = G.parse_order_ack(frames)
         assert ack.order_id == "O1"
+        assert ack.reject_code == "UNKNOWN_SYMBOL"
         assert ack.symbol == "AAPL"
         assert ack.oco_group_id == "G1"
         assert ack.combo_parent_id is None
@@ -222,3 +271,22 @@ class TestRoundTrip:
         bad = G.OrderCancelled.from_dict({"order_id": "O1", "client_tag": "x" * 65})
         with pytest.raises(MessageValidationError, match="client_tag"):
             bad.validate()
+
+    def test_reject_code_is_validated_when_set(self) -> None:
+        bad = G.OrderAck.from_dict(
+            {"order_id": "O1", "accepted": False, "reject_code": "NOT_A_CODE"}
+        )
+        with pytest.raises(MessageValidationError, match="reject_code"):
+            bad.validate()
+
+    def test_reject_code_is_omitted_when_absent(self) -> None:
+        _topic, payload = M.decode(M.make_ack_msg("GW1", "O1", True, ""))
+        assert "reject_code" not in payload
+
+
+class TestRejectCodeReExport:
+    def test_reject_codes_are_reexported_from_models(self) -> None:
+        from edumatcher.models.reject import REJECT_CODES
+
+        assert "UNKNOWN_SYMBOL" in REJECT_CODES
+        assert "UNKNOWN" in REJECT_CODES

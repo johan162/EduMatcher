@@ -24,7 +24,8 @@ from edumatcher.models.generated.trade import (
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 _SAMPLE: dict[str, Any] = {
-    "id": "42",
+    "id": "000001-000000042",
+    "run_seq": 1,
     "symbol": "ACME",
     "buy_order_id": "b-1",
     "sell_order_id": "s-1",
@@ -58,6 +59,8 @@ class TestProjectionMatchesTheHandWrittenNormaliser:
         payload = {**_SAMPLE, **override}
         generated = project_trade_executed_calf(payload)
         assert generated == {
+            "TRADE_ID": str(payload["id"]),
+            "RUN_SEQ": str(int(payload["run_seq"])),
             "PX": str(payload["price"]),
             "QTY": str(int(payload["quantity"])),
             "SIDE": str(payload["aggressor_side"]).upper(),
@@ -68,10 +71,10 @@ class TestProjectionMatchesTheHandWrittenNormaliser:
         assert symbol == "ACME"
         assert fields == project_trade_executed_calf(_SAMPLE)
 
-    def test_the_projection_carries_exactly_three_keys(self) -> None:
+    def test_the_projection_carries_the_trade_identity_and_values(self) -> None:
         """CH/SYM/SEQ/TS belong to the envelope, not the payload (section 4.6)."""
         fields = project_trade_executed_calf(_SAMPLE)
-        assert sorted(fields) == ["PX", "QTY", "SIDE"]
+        assert sorted(fields) == ["PX", "QTY", "RUN_SEQ", "SIDE", "TRADE_ID"]
 
     def test_enum_rendering_is_idempotent(self) -> None:
         """``.upper()`` reproduces the old literal without changing valid data."""
@@ -108,17 +111,12 @@ class TestStatefulBehaviourIsUnchanged:
 
 
 class TestTheProjectionNeedsOnlyWhatItProjects:
-    """The bug the full suite caught: a projection must depend on a subset.
-
-    The first version of this adoption built a whole ``TradeExecuted`` before
-    projecting, which meant a CALF gateway had to hold ``id``,
-    ``buy_order_id`` and every other bus field in order to emit three. Eight
-    existing tests failed with ``KeyError: 'id'`` and they were right to: they
-    pass exactly what the CALF feed carries.
-    """
+    """The CALF projection reads its five declared fields, not the full bus event."""
 
     def test_a_payload_of_only_the_projected_fields_works(self) -> None:
         minimal = {
+            "id": "000001-000000025",
+            "run_seq": 1,
             "symbol": "AAPL",
             "price": 151.5,
             "quantity": 25,
@@ -126,11 +124,17 @@ class TestTheProjectionNeedsOnlyWhatItProjects:
         }
         symbol, fields = EngineNormaliser().normalise_trade(minimal)
         assert symbol == "AAPL"
-        assert fields == {"PX": "151.5", "QTY": "25", "SIDE": "BUY"}
+        assert fields == {
+            "TRADE_ID": "000001-000000025",
+            "RUN_SEQ": "1",
+            "PX": "151.5",
+            "QTY": "25",
+            "SIDE": "BUY",
+        }
 
     @pytest.mark.parametrize(
         "absent",
-        ["id", "buy_order_id", "sell_order_id", "buy_gateway_id", "timestamp"],
+        ["buy_order_id", "sell_order_id", "buy_gateway_id", "timestamp"],
     )
     def test_fields_calf_drops_are_never_read(self, absent: str) -> None:
         payload = {k: v for k, v in _SAMPLE.items() if k != absent}
@@ -169,11 +173,11 @@ class TestMalformedPayloads:
         assert "except Exception:" in source
         assert "md_gateway handler error on engine topic=%s" in source
 
-    def test_a_missing_aggressor_side_still_projects(self) -> None:
-        """parse_default keeps the archive readable (section B.7.1)."""
-        payload = {k: v for k, v in _SAMPLE.items() if k != "aggressor_side"}
-        _symbol, fields = EngineNormaliser().normalise_trade(payload)
-        assert fields["SIDE"] == ""
+    @pytest.mark.parametrize("missing", ["id", "run_seq"])
+    def test_missing_trade_identity_raises(self, missing: str) -> None:
+        payload = {k: v for k, v in _SAMPLE.items() if k != missing}
+        with pytest.raises(KeyError):
+            EngineNormaliser().normalise_trade(payload)
 
 
 class TestTheCExampleUsesTheGeneratedBinding:

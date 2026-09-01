@@ -106,9 +106,10 @@ Observe:
 
 - WELCOME line parsed by the Python library
 - SNAP for TOP (and STATE, DEPTH) baseline
-- incoming MD and TRADE messages for subscribed symbols
+- incoming MD and TRADE messages for subscribed symbols, including each
+  trade's durable `TRADE_ID` and `RUN_SEQ`
 
-:material-checkbox-blank-outline: Checkpoint: subscriber prints parsed MD/TRADE events with expected symbol and sequence fields.
+:material-checkbox-blank-outline: Checkpoint: subscriber prints parsed MD/TRADE events with expected symbol, sequence, and durable trade ID fields.
 
  
 
@@ -132,6 +133,11 @@ Expected behavior:
 - WELCOME after HELLO
 - SNAP for CH=TOP after SUB
 - live MD and TRADE once market activity occurs
+
+Every `TRADE` line carries a durable `TRADE_ID` and its `RUN_SEQ`. Keep the
+trade ID when recording the tape: a `RESUME` response can overlap live traffic,
+and two lines with the same `TRADE_ID` are the same execution even when their
+delivery sequence differs.
 
 :material-checkbox-blank-outline: Checkpoint: manual nc session can establish, subscribe, and receive at least one live market-data line.
 
@@ -540,6 +546,7 @@ You have now covered major CALF protocol usage patterns:
 - discovering per-symbol display precision via `REF`
 - using control messages and liveness probes
 - recovering with `RESUME`/LASTSEQ semantics, including de-duplicating a replay
+- correlating each public print by its durable `TRADE_ID` across replay overlap
 - diagnosing protocol errors operationally
 
 ## Reflection

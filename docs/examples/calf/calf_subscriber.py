@@ -303,6 +303,7 @@ def _handle_message(
     books: dict[str, TopOfBook],
     seq_tracker: SequenceTracker,
     refdata: ReferenceData,
+    seen_trade_ids: set[str],
 ) -> None:
     channel = msg.fields.get("CH", "")
     symbol = msg.fields.get("SYM", "")
@@ -318,13 +319,20 @@ def _handle_message(
     if msg.msg_type == "SNAP" and channel and channel not in _SNAPSHOT_CHANNELS:
         return
 
+    if msg.msg_type == "TRADE":
+        trade_id = msg.fields["TRADE_ID"]
+        if trade_id in seen_trade_ids:
+            return
+        seen_trade_ids.add(trade_id)
+
     if channel == "TOP" and msg.msg_type in ("SNAP", "MD"):
         book = books.setdefault(symbol, TopOfBook())
         book.apply(msg.fields)
         print(book.render(symbol, refdata))
     elif msg.msg_type == "TRADE":
         print(
-            f"TRADE {symbol:<8} {msg.fields.get('QTY', '?'):>6} @ "
+            f"TRADE {symbol:<8} {msg.fields['TRADE_ID']} "
+            f"{msg.fields.get('QTY', '?'):>6} @ "
             f"{refdata.price(symbol, msg.fields.get('PX')):>10} "
             f"({msg.fields.get('SIDE', '?')})"
         )
@@ -407,6 +415,7 @@ def main() -> None:
 
     books: dict[str, TopOfBook] = {}
     refdata = ReferenceData()
+    seen_trade_ids: set[str] = set()
 
     with socket.create_connection((args.host, args.port), timeout=5) as sock:
         reader = LineReader(sock)
@@ -494,7 +503,11 @@ def main() -> None:
         try:
             while True:
                 _handle_message(
-                    parse_calf_line(reader.recv_line()), books, seq_tracker, refdata
+                    parse_calf_line(reader.recv_line()),
+                    books,
+                    seq_tracker,
+                    refdata,
+                    seen_trade_ids,
                 )
         except KeyboardInterrupt:
             print("\ninterrupted, closing connection", file=sys.stderr)
