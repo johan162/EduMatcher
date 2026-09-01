@@ -41,6 +41,7 @@ def _fill_payload(**overrides: object) -> dict:
         "gateway_id": "TRADER01",
         "event_type": "order.fill",
         "order_id": "ord-001",
+        "trade_ids": ["000001-000000042"],
         "symbol": "MSFT",
         "fill_qty": 100,
         "fill_price": 420.0,
@@ -195,6 +196,7 @@ def test_integration_receives_published_fill(
         pub.publish_fill(
             "TRADER01",
             order_id="ord-1",
+            trade_ids=["000001-000000001"],
             symbol="AAPL",
             fill_qty=100,
             fill_price=150.25,
@@ -215,6 +217,7 @@ def test_integration_receives_published_fill(
     topic, payload = received[0]
     assert topic == "drop_copy.event.TRADER01"
     assert payload["gateway_id"] == "TRADER01"
+    assert payload["trade_ids"] == ["000001-000000001"]
     assert payload["symbol"] == "AAPL"
     assert payload["seq"] >= 1
 
@@ -234,6 +237,7 @@ def test_integration_gateway_filter_excludes_other_gateways(
         pub.publish_fill(
             "TRADER02",
             order_id="ord-2",
+            trade_ids=["000001-000000002"],
             symbol="MSFT",
             fill_qty=10,
             fill_price=1.0,
@@ -242,6 +246,7 @@ def test_integration_gateway_filter_excludes_other_gateways(
         pub.publish_fill(
             "TRADER01",
             order_id="ord-1",
+            trade_ids=["000001-000000001"],
             symbol="AAPL",
             fill_qty=100,
             fill_price=150.25,
@@ -279,6 +284,7 @@ def test_integration_replay_topic_received_when_requested(
         pub.publish_fill(
             "TRADER01",
             order_id="ord-1",
+            trade_ids=["000001-000000001"],
             symbol="AAPL",
             fill_qty=100,
             fill_price=150.25,

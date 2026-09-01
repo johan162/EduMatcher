@@ -59,6 +59,7 @@ def _fill(**overrides: Any) -> dict[str, Any]:
     """
     fill: dict[str, Any] = {
         "order_id": "X1",
+        "trade_ids": ["000001-000000001"],
         "symbol": "AAPL",
         "fill_qty": 100,
         "fill_price": 150.25,
@@ -111,6 +112,7 @@ class TestPublish:
         pub.publish_fill("GW01", **_fill(order_id="X3", fill_qty=50))
         payload = json.loads(sock.sent[0][1])
         assert payload["order_id"] == "X3"
+        assert payload["trade_ids"] == ["000001-000000001"]
         assert payload["fill_qty"] == 50
         assert payload["gateway_id"] == "GW01"
         assert payload["event_type"] == "order.fill"
@@ -186,6 +188,9 @@ class TestReplay:
 
         pub.replay("CLIENT2", from_seq=first_seq)
         assert sock.sent[0][0] == b"drop_copy.replay.CLIENT2"
+        import json
+
+        assert json.loads(sock.sent[0][1])["trade_ids"] == ["000001-000000001"]
 
     def test_replay_from_seq_zero_replays_all(
         self, publisher: tuple[DropCopyPublisher, _FakeSocket]

@@ -97,6 +97,14 @@ messages:
         type: string
         validate: { max_len: 64 }
         doc: "The resting or aggressing order this execution belongs to."
+      - name: trade_ids
+        type: list
+        item: string
+        validate: { min_items: 1 }
+        doc: >
+          Public trade.executed id(s) for this execution. One ID today; kept
+          as a list so consumers can use the same representation as coalesced
+          order.fill messages when an order sweeps multiple price levels.
       - { name: symbol, type: string, validate: { max_len: 16 } }
       - { name: fill_qty, type: int, unit: shares, validate: { gt: 0 } }
       - name: fill_price
@@ -117,7 +125,7 @@ messages:
       # parameters" and would drop it. Section 26.4.
       drop_copy_pub:
         frames: [topic, json_payload]
-        include: [seq, timestamp, gateway_id, event_type, order_id, symbol,
+        include: [seq, timestamp, gateway_id, event_type, order_id, trade_ids, symbol,
                   fill_qty, fill_price, liquidity_flag]
 
   - name: drop_copy_replay
@@ -154,6 +162,7 @@ messages:
           doc: "Whose fill this was — not the recipient the topic names." }
       - { name: event_type, type: enum, values: ["order.fill"] }
       - { name: order_id, type: string, validate: { max_len: 64 } }
+      - { name: trade_ids, type: list, item: string, validate: { min_items: 1 } }
       - { name: symbol, type: string, validate: { max_len: 16 } }
       - { name: fill_qty, type: int, unit: shares, validate: { gt: 0 } }
       - { name: fill_price, type: float, unit: display_price,

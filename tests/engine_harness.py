@@ -54,6 +54,7 @@ class FakeDropCopy:
         gateway_id: str,
         *,
         order_id: str,
+        trade_ids: list[str],
         symbol: str,
         fill_qty: int,
         fill_price: float,
@@ -71,6 +72,7 @@ class FakeDropCopy:
                 "order.fill",
                 {
                     "order_id": order_id,
+                    "trade_ids": trade_ids,
                     "symbol": symbol,
                     "fill_qty": fill_qty,
                     "fill_price": fill_price,

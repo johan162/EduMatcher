@@ -918,6 +918,7 @@ Engine to a participant's clearing broker, prime broker or in-house risk system:
 | `gateway_id` | `string` | required | max_len 32 | The participant whose order executed. Carried in the body as well as in the topic, because `drop_copy.replay` names the *recipient* in its topic instead and a replayed event would otherwise not say whose fill it was. |
 | `event_type` | enum: `order.fill` | required | — | One value today. An enum rather than a free string so that a second event type is a spec change with a regenerated binding, rather than a new dict key no reader knows about -- `DropCopyPublisher`'s own docstring promised "every fill and cancel" while only fills existed, which is how the gap went unnoticed. Section 27.3. |
 | `order_id` | `string` | required | max_len 64 | The resting or aggressing order this execution belongs to. |
+| `trade_ids` | list of `string` | required | min_items 1 | Public trade.executed id(s) for this execution. One ID today; kept as a list so consumers can use the same representation as coalesced order.fill messages when an order sweeps multiple price levels. |
 | `symbol` | `string` | required | max_len 16 |  |
 | `fill_qty` | `int` | required | gt 0, unit `shares` |  |
 | `fill_price` | `float` | required | gt 0, unit `display_price` | Display money, not ticks -- converted once in `_publish_trade`. |
@@ -955,6 +956,7 @@ Engine to one named recipient: buffered events re-published on request, so a par
 | `gateway_id` | `string` | required | max_len 32 | Whose fill this was — not the recipient the topic names. |
 | `event_type` | enum: `order.fill` | required | — |  |
 | `order_id` | `string` | required | max_len 64 |  |
+| `trade_ids` | list of `string` | required | min_items 1 |  |
 | `symbol` | `string` | required | max_len 16 |  |
 | `fill_qty` | `int` | required | gt 0, unit `shares` |  |
 | `fill_price` | `float` | required | gt 0, unit `display_price` |  |

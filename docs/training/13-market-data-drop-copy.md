@@ -148,7 +148,7 @@ for _ in range(10):
     topic, payload = sock.recv_multipart()
     msg = json.loads(payload)
     print(topic.decode(), "seq=", msg.get("seq"), "gateway=", msg.get("gateway_id"),
-          "event_type=", msg.get("event_type"))
+            "event_type=", msg.get("event_type"), "trade_ids=", msg.get("trade_ids"))
 PY
 ```
 
@@ -160,6 +160,8 @@ While this is running, execute a trade from `TRADER01` in another terminal:
 
 You should see one `drop_copy.event.<gateway_id>` message per participant on
 each side of the trade, each with its own monotonically increasing `seq`.
+Each message also carries `trade_ids`, the durable public trade ID that lets a
+risk or clearing consumer correlate its private execution with `trade.executed`.
 
 :material-checkbox-blank-outline: **Checkpoint:** you received at least one drop-copy message directly from port 5557, distinct from anything `pm-audit` printed on port 5556.
 

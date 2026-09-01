@@ -2555,6 +2555,7 @@ class Engine:
                 self._drop_copy.publish_fill(
                     gateway_id=_gw,
                     order_id=_oid,
+                    trade_ids=[trade.id],
                     symbol=trade.symbol,
                     fill_qty=trade.quantity,
                     fill_price=_trade_px,
