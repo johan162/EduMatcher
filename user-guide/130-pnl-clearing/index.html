@@ -2724,7 +2724,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Information Terminal (TapeDeck)
+    GUI: Trading Info Terminal
   
 
     
@@ -2752,7 +2752,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Order Entry Terminal (TraderUI)
+    GUI: Trading platform
   
 
     
@@ -4980,15 +4980,12 @@ re-opened safely across process restarts.</p>
 </table>
 <h3 id="trade_events"><code>trade_events</code><a class="headerlink" href="#trade_events" title="Permanent link">&para;</a></h3>
 <p>Append-only audit log. Populated by <code>pm-clearing</code> from <code>trade.executed</code> using
-<code>INSERT OR IGNORE</code>, idempotent on the composite key <code>(id, ts_ns)</code>.</p>
-<p>The engine's trade <code>id</code> is a per-process counter that restarts from <code>1</code> on
-every engine launch, so it is <strong>not</strong> globally unique — a second engine run
-re-issues ids <code>1, 2, 3, …</code>. Keying the archive on <code>(id, ts_ns)</code> keeps every
-execution: a genuine duplicate delivery repeats both fields and is de-duplicated,
-while a reused id from a later run carries a different timestamp and is preserved
-as a distinct row. When an incoming id collides with an already-stored row that
-has a <em>different</em> timestamp, <code>pm-clearing</code> also writes an <code>ID_COLLISION</code> alarm
-to <code>session_events</code> rather than silently dropping the row.</p>
+<code>INSERT OR IGNORE</code>, idempotent on the durable trade ID <code>id</code>.</p>
+<p>The engine's trade <code>id</code> is durable across restarts, formatted as
+<code>run_seq-counter</code> (for example, <code>000042-000000001</code>), and is the sole database
+identity. A genuine duplicate delivery is therefore de-duplicated even if its
+delivery timestamp differs. Databases created before durable IDs are rejected
+and must be recreated; the system does not migrate historical short IDs.</p>
 <table>
 <thead>
 <tr>
@@ -5000,13 +4997,13 @@ to <code>session_events</code> rather than silently dropping the row.</p>
 <tbody>
 <tr>
 <td><code>id</code></td>
-<td>TEXT</td>
-<td>Engine trade id — unique only <em>within</em> one engine run (part of the composite primary key <code>(id, ts_ns)</code>)</td>
+<td>TEXT (PK)</td>
+<td>Durable engine trade id, formatted as <code>run_seq-counter</code></td>
 </tr>
 <tr>
 <td><code>ts_ns</code></td>
 <td>INTEGER</td>
-<td>Engine event timestamp in nanoseconds (part of the composite primary key)</td>
+<td>Engine event timestamp in nanoseconds</td>
 </tr>
 <tr>
 <td><code>trade_date</code></td>
@@ -5276,12 +5273,12 @@ from the persisted positions rather than overwriting them from flat.</p>
 </tr>
 <tr>
 <td><code>GAP</code></td>
-<td>The engine's trade-id sequence jumps forward, i.e. the lossy PUB feed dropped one or more trades</td>
-<td><code>{"last_seq": L, "next_seq": N, "missing_trades": M}</code></td>
+<td>The engine's trade-id suffix jumps forward within a run, i.e. the lossy PUB feed dropped one or more trades</td>
+<td><code>{"run_seq": R, "last_seq": L, "next_seq": N, "missing_trades": M}</code></td>
 </tr>
 <tr>
 <td><code>ID_COLLISION</code></td>
-<td>An incoming trade id matches a stored row with a <em>different</em> timestamp (engine-restart id reuse)</td>
+<td>An incoming trade id matches a stored row with a <em>different</em> timestamp</td>
 <td><code>{"id": ..., "new_ts_ns": ..., "existing_ts_ns": [...]}</code></td>
 </tr>
 </tbody>

@@ -2188,7 +2188,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Information Terminal (TapeDeck)
+    GUI: Trading Info Terminal
   
 
     
@@ -2216,7 +2216,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Order Entry Terminal (TraderUI)
+    GUI: Trading platform
   
 
     
@@ -4456,7 +4456,7 @@ for the next day, simply delete the file before restarting the engine.</p>
     SIGTERM --&gt; EXP --&gt; CASC --&gt; SAVEGTC --&gt; SAVECMB --&gt; SAVEBST --&gt; EOD --&gt; DONE</code></pre>
 <h2 id="cancelling-a-gtc-order">Cancelling a GTC Order<a class="headerlink" href="#cancelling-a-gtc-order" title="Permanent link">&para;</a></h2>
 <p>Cancel it like any other order while the engine is running:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>CANCEL|ID=&lt;full-order-id&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>CANCEL|ID=&lt;full-order-id&gt;|RTAG=gtc-cxl-001
 </code></pre></div>
 <p>Cancelled orders are <strong>not</strong> included in the GTC save at shutdown — they are
 already marked <code>CANCELLED</code>.</p>
@@ -4654,7 +4654,7 @@ discarded, so re-sending a snapshot for the same timestamp is safe.</p>
 <p>One row per individual trade execution. Written on every <code>trade.executed</code> event.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">trade_log</span><span class="w"> </span><span class="p">(</span>
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">    </span><span class="n">ts</span><span class="w">              </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">       </span><span class="c1">-- ISO datetime string</span>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">    </span><span class="n">trade_id</span><span class="w">        </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span><span class="w">  </span><span class="c1">-- engine-assigned UUID</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span><span class="n">trade_id</span><span class="w">        </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span><span class="w">  </span><span class="c1">-- durable engine trade id</span>
 <a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">    </span><span class="n">symbol</span><span class="w">          </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">       </span><span class="c1">-- e.g. 'AAPL'</span>
 <a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">    </span><span class="n">price</span><span class="w">           </span><span class="nb">REAL</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">       </span><span class="c1">-- execution price as display decimal</span>
 <a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">    </span><span class="n">quantity</span><span class="w">        </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">    </span><span class="c1">-- executed quantity</span>
@@ -4662,7 +4662,10 @@ discarded, so re-sending a snapshot for the same timestamp is safe.</p>
 <a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="w">    </span><span class="n">sell_gateway_id</span><span class="w"> </span><span class="nb">TEXT</span><span class="w">                 </span><span class="c1">-- gateway that was the seller</span>
 <a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="p">);</span>
 </code></pre></div>
-<p><code>INSERT OR IGNORE</code> on <code>trade_id</code> makes replayed or duplicate events safe.</p>
+<p><code>INSERT OR IGNORE</code> on <code>trade_id</code> makes duplicate deliveries safe. Modern engine
+  IDs are durable strings such as <code>000042-000000001</code>, where the prefix is the
+  engine run sequence and the suffix is the trade counter within that run. Older
+  statistics database files are not migrated and must be recreated.</p>
 <p><strong>Example queries</strong>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1">-- Today's OHLCV for all symbols</span>
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">symbol</span><span class="p">,</span><span class="w"> </span><span class="n">open_price</span><span class="p">,</span><span class="w"> </span><span class="n">high_price</span><span class="p">,</span><span class="w"> </span><span class="n">low_price</span><span class="p">,</span><span class="w"> </span><span class="n">close_price</span><span class="p">,</span><span class="w"> </span><span class="n">volume</span>

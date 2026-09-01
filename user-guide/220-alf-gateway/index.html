@@ -2398,7 +2398,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Information Terminal (TapeDeck)
+    GUI: Trading Info Terminal
   
 
     
@@ -2426,7 +2426,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Order Entry Terminal (TraderUI)
+    GUI: Trading platform
   
 
     
@@ -4722,7 +4722,7 @@ Field names are <strong>case-insensitive</strong> — the gateway normalises eve
 uppercase before parsing.</p>
 <h3 id="new-submit-order"><code>NEW</code> — submit order<a class="headerlink" href="#new-submit-order" title="Permanent link">&para;</a></h3>
 <p>Single-leg order:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=50
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=STOP|QTY=100|STOP=148.00
 <a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=STOP_LIMIT|QTY=100|STOP=148.00|PRICE=147.50
@@ -4797,23 +4797,40 @@ uppercase before parsing.</p>
 <td>optional</td>
 <td><code>NONE</code> (default), <code>CANCEL_AGGRESSOR</code>, <code>CANCEL_RESTING</code>, <code>CANCEL_BOTH</code></td>
 </tr>
+<tr>
+<td><code>TAG</code></td>
+<td>optional</td>
+<td>Client order tag, max 64 chars; echoed on order lifecycle responses</td>
+</tr>
 </tbody>
 </table>
-<p><strong>Responses:</strong> <code>ACK|ORDER_ID=...|ACCEPTED=TRUE|...</code> or <code>ACK|ORDER_ID=...|ACCEPTED=FALSE|REASON=...</code>
+<p><strong>Responses:</strong> <code>ACK|ORDER_ID=...|ACCEPTED=TRUE|...</code> or <code>ACK|ORDER_ID=...|ACCEPTED=FALSE|REJECT_CODE=...|REASON=...</code>
 followed asynchronously by <code>FILL|...</code>, <code>CANCELLED|...</code>, or <code>EXPIRED|...</code>.</p>
+<p><code>FILL</code> includes <code>TRADE_IDS</code>, a comma-separated list of the durable public trade
+IDs that composed the fill. It normally contains one ID; a swept order can
+contain several in execution order. An empty value means no public trade ID was
+available for that fill.</p>
+<p>On rejected order ACKs, <code>REJECT_CODE</code> is the stable machine-readable rejection
+classification. <code>REASON</code> remains the human-readable explanation.
+Gateway-local validation errors use <code>ERR|CODE=...|REJECT_CODE=...|DETAIL=...</code>
+and echo <code>TAG=...</code> when the rejected command carried a correlating tag.</p>
 <h3 id="amend-amend-resting-order"><code>AMEND</code> — amend resting order<a class="headerlink" href="#amend-amend-resting-order" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>AMEND|ID=&lt;order-id&gt;|PRICE=151.00
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>AMEND|ID=&lt;order-id&gt;|QTY=200
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>AMEND|ID=&lt;order-id&gt;|PRICE=151.00|QTY=200
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>AMEND|ID=&lt;order-id&gt;|PRICE=151.00[|RTAG=&lt;request-tag&gt;]
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>AMEND|ID=&lt;order-id&gt;|QTY=200[|RTAG=&lt;request-tag&gt;]
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>AMEND|ID=&lt;order-id&gt;|PRICE=151.00|QTY=200[|RTAG=&lt;request-tag&gt;]
 </code></pre></div>
-<p>At least one of <code>PRICE</code> or <code>QTY</code> is required.</p>
-<p><strong>Response:</strong> <code>AMENDED|ORDER_ID=...|PRICE=...|QTY=...|REMAINING=...|PRIORITY_RESET=TRUE|FALSE</code></p>
+<p>At least one of <code>PRICE</code> or <code>QTY</code> is required. <code>RTAG</code> is optional and identifies
+this amend request; when present, the gateway echoes it on <code>AMENDED</code> or the
+rejected <code>ACK</code>.</p>
+<p><strong>Response:</strong> <code>AMENDED|ORDER_ID=...|PRICE=...|QTY=...|REMAINING=...|PRIORITY_RESET=TRUE|FALSE[|RTAG=...]</code></p>
 <h3 id="cancel-cancel-order-oco-combo"><code>CANCEL</code> — cancel order / OCO / combo<a class="headerlink" href="#cancel-cancel-order-oco-combo" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>CANCEL|ID=&lt;order-id&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>CANCEL|ID=&lt;order-id&gt;[|RTAG=&lt;request-tag&gt;]
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>CANCEL|OCO_ID=&lt;oco-id&gt;
 <a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>CANCEL|COMBO_ID=&lt;combo-id&gt;
 </code></pre></div>
-<p><strong>Response for single order:</strong> <code>CANCELLED|ORDER_ID=...</code><br />
+<p><code>RTAG</code> is accepted on single-order cancels only. It identifies this cancel
+request and is echoed on <code>CANCELLED</code> or the rejected <code>ACK</code>.</p>
+<p><strong>Response for single order:</strong> <code>CANCELLED|ORDER_ID=...[|RTAG=...]</code><br>
 <strong>Response for OCO:</strong> <code>OCO_CANCELLED|OCO_ID=...|CANCELLED_ID=...|REASON=...</code><br />
 <strong>Response for combo:</strong> <code>COMBO_STATUS|COMBO_ID=...|STATUS=CANCELLED|REASON=...</code></p>
 <h3 id="quote-submitreplace-two-sided-quote-market_maker-role"><code>QUOTE</code> — submit/replace two-sided quote (MARKET_MAKER role)<a class="headerlink" href="#quote-submitreplace-two-sided-quote-market_maker-role" title="Permanent link">&para;</a></h3>
@@ -5026,7 +5043,7 @@ delivered automatically after <code>WELCOME</code>.</p>
 </tr>
 <tr>
 <td><code>FILL</code></td>
-<td><code>ORDER_ID</code>, <code>FILL_QTY</code>, <code>FILL_PRICE</code>, <code>REMAINING</code>, <code>STATUS</code></td>
+<td><code>ORDER_ID</code>, <code>FILL_QTY</code>, <code>FILL_PRICE</code>, <code>REMAINING</code>, <code>STATUS</code>, <code>TRADE_IDS</code></td>
 </tr>
 <tr>
 <td><code>AMENDED</code></td>
@@ -5079,7 +5096,9 @@ delivered automatically after <code>WELCOME</code>.</p>
 </tbody>
 </table>
 <h2 id="error-codes">Error codes<a class="headerlink" href="#error-codes" title="Permanent link">&para;</a></h2>
-<p>Every error arrives as <code>ERR|CODE=&lt;CODE&gt;|DETAIL=&lt;message&gt;</code>.</p>
+<p>Every error arrives as <code>ERR|CODE=&lt;CODE&gt;|REJECT_CODE=&lt;canonical-code&gt;|DETAIL=&lt;message&gt;</code>.
+When the rejected command carried <code>TAG</code> or <code>RTAG</code>, the gateway also echoes it as
+<code>TAG</code> so the client can correlate the error with the submitted line.</p>
 <table>
 <thead>
 <tr>
@@ -5195,14 +5214,14 @@ ZeroMQ, no <code>edumatcher</code> package import, only a plain socket.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">alf_parser</span><span class="w"> </span><span class="kn">import</span> <span class="n">parse_alf_line</span><span class="p">,</span> <span class="n">build_alf_line</span><span class="p">,</span> <span class="n">AlfSession</span><span class="p">,</span> <span class="n">AlfMessage</span>
 <a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>
 <a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="c1"># Parse one line received from the gateway</span>
-<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="n">msg</span><span class="p">:</span> <span class="n">AlfMessage</span> <span class="o">=</span> <span class="n">parse_alf_line</span><span class="p">(</span><span class="s2">"ACK|ORDER_ID=abc|ACCEPTED=TRUE|SYMBOL=AAPL"</span><span class="p">)</span>
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="n">msg</span><span class="p">:</span> <span class="n">AlfMessage</span> <span class="o">=</span> <span class="n">parse_alf_line</span><span class="p">(</span><span class="s2">"ACK|ORDER_ID=abc|ACCEPTED=TRUE|SYMBOL=AAPL|TAG=ORDER-001"</span><span class="p">)</span>
 <a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">msg_type</span><span class="p">)</span>    <span class="c1"># "ACK"</span>
 <a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="p">)</span>      <span class="c1"># {"ORDER_ID": "ABC", "ACCEPTED": "TRUE", ...}</span>
 <a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a>
 <a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a><span class="c1"># Build a line to send</span>
 <a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a><span class="n">line</span> <span class="o">=</span> <span class="n">build_alf_line</span><span class="p">(</span><span class="s2">"NEW"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"SYM"</span><span class="p">:</span> <span class="s2">"AAPL"</span><span class="p">,</span> <span class="s2">"SIDE"</span><span class="p">:</span> <span class="s2">"BUY"</span><span class="p">,</span>
-<a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a>                               <span class="s2">"TYPE"</span><span class="p">:</span> <span class="s2">"LIMIT"</span><span class="p">,</span> <span class="s2">"QTY"</span><span class="p">:</span> <span class="s2">"100"</span><span class="p">,</span> <span class="s2">"PRICE"</span><span class="p">:</span> <span class="s2">"150.00"</span><span class="p">})</span>
-<a id="__codelineno-29-11" name="__codelineno-29-11" href="#__codelineno-29-11"></a><span class="c1"># → "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00\n"</span>
+<a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a>                               <span class="s2">"TYPE"</span><span class="p">:</span> <span class="s2">"LIMIT"</span><span class="p">,</span> <span class="s2">"QTY"</span><span class="p">:</span> <span class="s2">"100"</span><span class="p">,</span> <span class="s2">"PRICE"</span><span class="p">:</span> <span class="s2">"150.00"</span><span class="p">,</span> <span class="s2">"TAG"</span><span class="p">:</span> <span class="s2">"ORDER-001"</span><span class="p">})</span>
+<a id="__codelineno-29-11" name="__codelineno-29-11" href="#__codelineno-29-11"></a><span class="c1"># → "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001\n"</span>
 <a id="__codelineno-29-12" name="__codelineno-29-12" href="#__codelineno-29-12"></a>
 <a id="__codelineno-29-13" name="__codelineno-29-13" href="#__codelineno-29-13"></a><span class="c1"># High-level session: connect, HELLO/WELCOME, send/recv</span>
 <a id="__codelineno-29-14" name="__codelineno-29-14" href="#__codelineno-29-14"></a><span class="n">session</span> <span class="o">=</span> <span class="n">AlfSession</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">"127.0.0.1"</span><span class="p">,</span> <span class="mi">5565</span><span class="p">,</span> <span class="s2">"TRADER01"</span><span class="p">)</span>
@@ -5225,8 +5244,8 @@ Tab completes command verbs, field names, and enum values.
 Background receive thread displays fills, acks, and broadcast events while you type.
 <code>POS</code> shows tracked positions.  <code>STATUS</code> shows session info.
 History is saved to <code>~/.alf_client_history</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
-<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>[09:30:01.234] ACK      xxxxxxxx  order accepted
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>[09:30:01.234] ACK      xxxxxxxx tag=ORDER-001  order accepted
 <a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>[TRADER01]&gt; ORDERS
 <a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>[TRADER01]&gt; POS
 <a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>[TRADER01]&gt; HELP
@@ -5248,8 +5267,8 @@ History is saved to <code>~/.alf_client_history</code>.</p>
 <p>The C client uses <code>select()</code> to multiplex the TCP socket and stdin, so gateway
 events display immediately while you are typing.  Readline provides tab
 completion and history.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
-<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>[09:30:01.234] ACK      xxxxxxxx  order accepted
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-002
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>[09:30:01.234] ACK      xxxxxxxx tag=ORDER-002  order accepted
 <a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a>[TRADER01]&gt; ORDERS
 <a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a>[TRADER01]&gt; POS
 <a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a>[TRADER01]&gt; HELP
@@ -5266,7 +5285,7 @@ completion and history.</p>
 <a id="__codelineno-35-8" name="__codelineno-35-8" href="#__codelineno-35-8"></a>
 <a id="__codelineno-35-9" name="__codelineno-35-9" href="#__codelineno-35-9"></a><span class="cm">/* Build */</span>
 <a id="__codelineno-35-10" name="__codelineno-35-10" href="#__codelineno-35-10"></a><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">kv</span><span class="p">[]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="s">"SYM"</span><span class="p">,</span><span class="w"> </span><span class="s">"AAPL"</span><span class="p">,</span><span class="w"> </span><span class="s">"SIDE"</span><span class="p">,</span><span class="w"> </span><span class="s">"BUY"</span><span class="p">,</span>
-<a id="__codelineno-35-11" name="__codelineno-35-11" href="#__codelineno-35-11"></a><span class="w">                    </span><span class="s">"TYPE"</span><span class="p">,</span><span class="w"> </span><span class="s">"LIMIT"</span><span class="p">,</span><span class="w"> </span><span class="s">"QTY"</span><span class="p">,</span><span class="w"> </span><span class="s">"100"</span><span class="p">,</span><span class="w"> </span><span class="s">"PRICE"</span><span class="p">,</span><span class="w"> </span><span class="s">"150.00"</span><span class="p">,</span><span class="w"> </span><span class="nb">NULL</span><span class="p">};</span>
+<a id="__codelineno-35-11" name="__codelineno-35-11" href="#__codelineno-35-11"></a><span class="w">                    </span><span class="s">"TYPE"</span><span class="p">,</span><span class="w"> </span><span class="s">"LIMIT"</span><span class="p">,</span><span class="w"> </span><span class="s">"QTY"</span><span class="p">,</span><span class="w"> </span><span class="s">"100"</span><span class="p">,</span><span class="w"> </span><span class="s">"PRICE"</span><span class="p">,</span><span class="w"> </span><span class="s">"150.00"</span><span class="p">,</span><span class="w"> </span><span class="s">"TAG"</span><span class="p">,</span><span class="w"> </span><span class="s">"ORDER-003"</span><span class="p">,</span><span class="w"> </span><span class="nb">NULL</span><span class="p">};</span>
 <a id="__codelineno-35-12" name="__codelineno-35-12" href="#__codelineno-35-12"></a><span class="kt">char</span><span class="w"> </span><span class="n">buf</span><span class="p">[</span><span class="mi">4096</span><span class="p">];</span>
 <a id="__codelineno-35-13" name="__codelineno-35-13" href="#__codelineno-35-13"></a><span class="n">alf_build_line</span><span class="p">(</span><span class="n">buf</span><span class="p">,</span><span class="w"> </span><span class="k">sizeof</span><span class="p">(</span><span class="n">buf</span><span class="p">),</span><span class="w"> </span><span class="s">"NEW"</span><span class="p">,</span><span class="w"> </span><span class="n">kv</span><span class="p">);</span>
 <a id="__codelineno-35-14" name="__codelineno-35-14" href="#__codelineno-35-14"></a><span class="n">write</span><span class="p">(</span><span class="n">sockfd</span><span class="p">,</span><span class="w"> </span><span class="n">buf</span><span class="p">,</span><span class="w"> </span><span class="n">strlen</span><span class="p">(</span><span class="n">buf</span><span class="p">));</span>
@@ -5306,7 +5325,7 @@ completion and history.</p>
 <a id="__codelineno-36-31" name="__codelineno-36-31" href="#__codelineno-36-31"></a>
 <a id="__codelineno-36-32" name="__codelineno-36-32" href="#__codelineno-36-32"></a>
 <a id="__codelineno-36-33" name="__codelineno-36-33" href="#__codelineno-36-33"></a><span class="n">sock</span><span class="p">,</span> <span class="n">send</span><span class="p">,</span> <span class="n">recv_line</span> <span class="o">=</span> <span class="n">alf_connect</span><span class="p">(</span><span class="s2">"127.0.0.1"</span><span class="p">,</span> <span class="mi">5565</span><span class="p">,</span> <span class="s2">"TRADER01"</span><span class="p">)</span>
-<a id="__codelineno-36-34" name="__codelineno-36-34" href="#__codelineno-36-34"></a><span class="n">send</span><span class="p">(</span><span class="s2">"NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00"</span><span class="p">)</span>
+<a id="__codelineno-36-34" name="__codelineno-36-34" href="#__codelineno-36-34"></a><span class="n">send</span><span class="p">(</span><span class="s2">"NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-004"</span><span class="p">)</span>
 <a id="__codelineno-36-35" name="__codelineno-36-35" href="#__codelineno-36-35"></a>
 <a id="__codelineno-36-36" name="__codelineno-36-36" href="#__codelineno-36-36"></a><span class="c1"># Read events until ACK arrives — HB/SESSION/TRADE may arrive first</span>
 <a id="__codelineno-36-37" name="__codelineno-36-37" href="#__codelineno-36-37"></a><span class="k">while</span> <span class="kc">True</span><span class="p">:</span>

@@ -2808,7 +2808,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Information Terminal (TapeDeck)
+    GUI: Trading Info Terminal
   
 
     
@@ -2836,7 +2836,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Order Entry Terminal (TraderUI)
+    GUI: Trading platform
   
 
     
@@ -5066,7 +5066,7 @@ open <code>stats.db</code> in a SQL browser and see <code>15025</code>, that is 
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="gp">$ </span>pm-stats-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--limit<span class="w"> </span><span class="m">1</span>
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="go">ts                            | trade_id | symbol | price  | quantity | ...</span>
 <a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="go">------------------------------+----------+--------+--------+----------+----</span>
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="go">2026-06-14T09:00:01.000+00:00 | 1        | AAPL   | 150.25 | 100      | ...</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="go">2026-06-14T09:00:01.000+00:00 | 000042-000000001 | AAPL | 150.25 | 100 | ...</span>
 </code></pre></div>
 <p>Same row. <code>pm-stats-cli</code> and the API convert for you; raw SQL does not.</p>
 <h3 id="the-conversion-rule">The conversion rule<a class="headerlink" href="#the-conversion-rule" title="Permanent link">&para;</a></h3>
@@ -5561,17 +5561,15 @@ silently spans more than one interval.</p>
 </div>
 <h3 id="trade_log"><code>trade_log</code><a class="headerlink" href="#trade_log" title="Permanent link">&para;</a></h3>
 <p>Append-only record of every matched trade — no aggregation, one row per trade.</p>
-<p><strong>Primary key</strong>: <code>(trade_id, ts)</code>. Inserts are <code>OR IGNORE</code>, so a repeated delivery of the same trade — same id <em>and</em> same timestamp — is deduplicated.</p>
+<p><strong>Primary key</strong>: <code>trade_id</code>. Inserts are <code>OR IGNORE</code>, so a repeated delivery
+of the same durable trade is deduplicated regardless of its delivery timestamp.</p>
 <div class="admonition note">
-<p class="admonition-title">Why the key is composite</p>
-<p><code>trade_id</code> is a counter that <strong>restarts at 1 on every engine run</strong>, not a
-globally unique identifier. Keyed on <code>trade_id</code> alone, the first trade of
-a restarted engine would collide with the first trade of the previous run
-and be silently discarded, understating volume for the rest of the day.
-Including <code>ts</code> keeps a post-restart id reuse as a distinct row while still
-deduplicating a genuine duplicate delivery. <code>pm-clearing</code> records the same
-defect against its own archive as finding CL-C1.</p>
+<p class="admonition-title">Durable trade identity</p>
 </div>
+<p><code>trade_id</code> is durable across engine restarts, formatted as
+  <code>run_seq-counter</code> (for example, <code>000042-000000001</code>), so it is sufficient
+  as the sole key. Older statistics database schemas are rejected and must
+  be recreated; historical short IDs are not migrated.</p>
 <table>
 <thead>
 <tr>
@@ -5590,9 +5588,9 @@ defect against its own archive as finding CL-C1.</p>
 </tr>
 <tr>
 <td><code>trade_id</code></td>
-<td>TEXT</td>
+<td>TEXT (PK)</td>
 <td>no</td>
-<td>Engine trade counter, unique <strong>within one engine run</strong> only</td>
+<td>Durable engine trade id, formatted as <code>run_seq-counter</code></td>
 </tr>
 <tr>
 <td><code>symbol</code></td>
@@ -5708,12 +5706,12 @@ from continuous volume, audit trails.</p>
 <tr>
 <td><code>expected_id</code></td>
 <td>INTEGER</td>
-<td>The trade id expected next</td>
+<td>The durable trade-id suffix expected next</td>
 </tr>
 <tr>
 <td><code>received_id</code></td>
 <td>INTEGER</td>
-<td>The trade id that actually arrived</td>
+<td>The durable trade-id suffix that actually arrived</td>
 </tr>
 <tr>
 <td><code>missing_count</code></td>
@@ -5746,7 +5744,7 @@ volume, VWAP or turnover figure.</p>
 </tr>
 <tr>
 <td>Engine trade id</td>
-<td>Engine trade ids are monotonic within a run, so a jump is independent evidence</td>
+<td>The suffix of the durable trade id is monotonic within a run, so a jump is independent evidence</td>
 <td><code>trade.executed</code> only</td>
 </tr>
 </tbody>
@@ -5756,9 +5754,10 @@ that happened upstream of the publisher, which a publisher-side counter cannot
 see by construction.</p>
 <div class="admonition note">
 <p class="admonition-title">What an empty <code>feed_gaps</code> does and does not prove</p>
-<p>A sequence counter restarts at 1 when its publisher restarts, so the
-recorder treats a <em>decrease</em> as a restart rather than a gap — messages
-genuinely lost across a publisher restart are not detectable.</p>
+<p>A sequence counter restarts when its publisher restarts. For trade ids, the
+run-sequence prefix changes on engine restart, so the recorder treats the
+new prefix as a restart rather than a gap — messages genuinely lost across
+a publisher restart are not detectable.</p>
 <p>A topic published by a process that does not stamp sequences is reported
 once at <code>WARNING</code> ("carries no sequence frame; loss on it cannot be
 detected") and then ignored, so a silent stream cannot masquerade as a
@@ -5872,9 +5871,9 @@ row for the same execution, depending on delivery latency. Within
 <td>Rejection, cancel, expire, or status reason when provided</td>
 </tr>
 <tr>
-<td><code>client_order_id</code></td>
+<td><code>client_tag</code></td>
 <td>TEXT</td>
-<td>Client-supplied order identifier when present</td>
+<td>Client-supplied order correlation tag when present</td>
 </tr>
 <tr>
 <td><code>combo_parent_id</code></td>
@@ -6597,9 +6596,9 @@ verbatim into <code>--from</code>/<code>--to</code>.</p>
 <p><strong>Example output:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>ts                            | trade_id | symbol | price | quantity | aggressor_side | buy_gateway_id | sell_gateway_id
 <a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>------------------------------+----------+--------+-------+----------+----------------+----------------+----------------
-<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>2026-06-14T09:00:01.000+00:00 | 1        | AAPL   | 150   | 100      | BUY            | TRADER01       | MM01
-<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>2026-06-14T09:00:05.123+00:00 | 2        | AAPL   | 150.5 | 50       | AUCTION        | MM01           | TRADER02
-<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>2026-06-14T09:00:10.456+00:00 | 3        | AAPL   | 150.2 | 200      | SELL           | TRADER02       | TRADER01
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>2026-06-14T09:00:01.000+00:00 | 000042-000000001 | AAPL   | 150   | 100      | BUY            | TRADER01       | MM01
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>2026-06-14T09:00:05.123+00:00 | 000042-000000002 | AAPL   | 150.5 | 50       | AUCTION        | MM01           | TRADER02
+<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>2026-06-14T09:00:10.456+00:00 | 000042-000000003 | AAPL   | 150.2 | 200      | SELL           | TRADER02       | TRADER01
 </code></pre></div>
 <h4 id="order-events-private-order-lifecycle-events"><code>order-events</code> — Private Order Lifecycle Events<a class="headerlink" href="#order-events-private-order-lifecycle-events" title="Permanent link">&para;</a></h4>
 <p>Show order lifecycle events from <code>order_events</code> for one gateway. The gateway is

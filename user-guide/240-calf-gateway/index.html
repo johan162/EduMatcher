@@ -2409,7 +2409,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Information Terminal (TapeDeck)
+    GUI: Trading Info Terminal
   
 
     
@@ -2437,7 +2437,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Order Entry Terminal (TraderUI)
+    GUI: Trading platform
   
 
     
@@ -4683,7 +4683,7 @@ fields:</p>
 <td><code>TRADE</code></td>
 <td>No</td>
 <td>Yes (1.0.0+)</td>
-<td><code>PX QTY SIDE</code></td>
+<td><code>TRADE_ID RUN_SEQ PX QTY SIDE</code></td>
 <td>time-and-sales tape, VWAP/OHLCV</td>
 </tr>
 <tr>
@@ -5032,7 +5032,8 @@ that changed</strong>. Fields omitted from an <code>MD</code> are unchanged — 
 per-symbol state object seeded from the <code>SNAP</code>.</p>
 <hr />
 <h3 id="channel-trade-every-trade-print">Channel <code>TRADE</code> — every trade print<a class="headerlink" href="#channel-trade-every-trade-print" title="Permanent link">&para;</a></h3>
-<p><code>TRADE</code> carries one line per matched trade: price, quantity, and aggressor side.
+<p><code>TRADE</code> carries one line per matched trade: its durable trade identity, price,
+quantity, and aggressor side.
 There is <strong>no baseline <code>SNAP</code></strong> — the stream starts from events that occur after
 the subscription becomes active.</p>
 <p><strong>When you get it:</strong> Subscribe with <code>CH=TRADE|SYM=&lt;symbol&gt;</code>, or <code>SYM=*</code>
@@ -5041,7 +5042,7 @@ subscription — handy for a market-wide tape without enumerating tickers.</p>
 <p><strong>Typical use cases:</strong> time-and-sales tape, VWAP/OHLCV calculation, fill
 attribution.</p>
 <p><strong>Wire example:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>TRADE|CH=TRADE|SYM=AAPL|SEQ=44|TS=2026-06-30T09:30:01.100Z|PX=150.12|QTY=200|SIDE=BUY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>TRADE|CH=TRADE|SYM=AAPL|SEQ=44|TS=2026-06-30T09:30:01.100Z|TRADE_ID=000042-000000123|RUN_SEQ=42|PX=150.12|QTY=200|SIDE=BUY
 </code></pre></div>
 <p><strong>Fields:</strong></p>
 <table>
@@ -5053,6 +5054,16 @@ attribution.</p>
 </tr>
 </thead>
 <tbody>
+<tr>
+<td><code>TRADE_ID</code></td>
+<td>string</td>
+<td>Durable public trade ID; unique across engine restarts</td>
+</tr>
+<tr>
+<td><code>RUN_SEQ</code></td>
+<td>integer</td>
+<td>Persisted engine-run sequence encoded in <code>TRADE_ID</code>'s prefix</td>
+</tr>
 <tr>
 <td><code>PX</code></td>
 <td>decimal</td>
@@ -5070,6 +5081,11 @@ attribution.</p>
 </tr>
 </tbody>
 </table>
+<p><code>TRADE_ID</code> is the reconciliation key for the public tape. It also makes
+reconnect overlap safe: consumers should retain a seen-ID set and ignore a
+replayed print whose <code>TRADE_ID</code> was already processed. <code>SEQ</code> still detects
+gaps in the <code>(TRADE, SYM)</code> stream; <code>TRADE_ID</code> answers whether two deliveries
+name the same execution.</p>
 <hr />
 <h3 id="channel-state-session-and-symbol-states">Channel <code>STATE</code> — session and symbol states<a class="headerlink" href="#channel-state-session-and-symbol-states" title="Permanent link">&para;</a></h3>
 <p><code>STATE</code> carries two kinds of transitions:</p>

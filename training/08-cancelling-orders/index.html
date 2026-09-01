@@ -1889,7 +1889,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Information Terminal (TapeDeck)
+    GUI: Trading Info Terminal
   
 
     
@@ -1917,7 +1917,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Order Entry Terminal (TraderUI)
+    GUI: Trading platform
   
 
     
@@ -4103,12 +4103,17 @@ state, inspecting resting orders, and managing the order lifecycle.</p>
 </ul>
 <h2 id="exercise-1-cancel-a-resting-order">Exercise 1: Cancel a Resting Order<a class="headerlink" href="#exercise-1-cancel-a-resting-order" title="Permanent link">&para;</a></h2>
 <p>Place an order and then cancel it:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>[TRADER01]&gt; NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=248.00|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>[TRADER01]&gt; NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=248.00|TIF=DAY|TAG=CXL-ORDER-001
 </code></pre></div>
 <p>Note the <code>order_id</code>, then:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>[TRADER01]&gt; CANCEL|ID=&lt;order_id&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>[TRADER01]&gt; CANCEL|ID=&lt;order_id&gt;|RTAG=CXL-REST-001
 </code></pre></div>
 <p>Expected: cancellation confirmed.</p>
+<p><code>RTAG</code> identifies this cancel request. The engine echoes it on the <code>CANCELLED</code>
+response or rejected ACK, which makes retries and concurrent cancel tests easier
+to audit.
+The original order <code>TAG</code> is echoed separately, so a client can tell which order
+was acted on and which cancel request completed.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> order cancelled; <code>ORDERS</code> no longer lists it as resting.</p>
 <h2 id="exercise-2-cancel-a-partially-filled-order">Exercise 2: Cancel a Partially Filled Order<a class="headerlink" href="#exercise-2-cancel-a-partially-filled-order" title="Permanent link">&para;</a></h2>
 <ol>
@@ -4119,7 +4124,7 @@ state, inspecting resting orders, and managing the order lifecycle.</p>
 </li>
 <li>
 <p>After partial fill, cancel the remainder:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[TRADER01]&gt; CANCEL|ID=&lt;order_id&gt;
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a> [TRADER01]&gt; CANCEL|ID=&lt;order_id&gt;|RTAG=CXL-PARTIAL-001
 </code></pre></div></p>
 </li>
 </ol>
@@ -4156,15 +4161,16 @@ debugging one specific order lifecycle.</p>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>ORDERS</code> returns full details for each resting order.</p>
 <h2 id="exercise-5-cancel-a-non-existent-order">Exercise 5: Cancel a Non-Existent Order<a class="headerlink" href="#exercise-5-cancel-a-non-existent-order" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[TRADER01]&gt; CANCEL|ID=DOES_NOT_EXIST
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[TRADER01]&gt; CANCEL|ID=DOES_NOT_EXIST|RTAG=CXL-MISSING-001
 </code></pre></div>
-<p>Expected: rejection — order not found.</p>
+<p>Expected: rejection — order not found, with <code>REJECT_CODE=ORDER_NOT_FOUND</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> error message returned cleanly.</p>
 <h2 id="exercise-6-cancel-another-gateways-order">Exercise 6: Cancel Another Gateway's Order<a class="headerlink" href="#exercise-6-cancel-another-gateways-order" title="Permanent link">&para;</a></h2>
 <p>Try cancelling an order belonging to TRADER02:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[TRADER01]&gt; CANCEL|ID=&lt;trader02_order_id&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[TRADER01]&gt; CANCEL|ID=&lt;trader02_order_id&gt;|RTAG=CXL-NOTOWNER-001
 </code></pre></div>
-<p>Expected: rejection — you can only cancel your own orders.</p>
+<p>Expected: rejection — you can only cancel your own orders, with
+<code>REJECT_CODE=NOT_OWNER</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> cross-gateway cancel rejected.</p>
 <h2 id="exercise-7-admin-kill-switch">Exercise 7: Admin Kill Switch<a class="headerlink" href="#exercise-7-admin-kill-switch" title="Permanent link">&para;</a></h2>
 <p>From the admin gateway, cancel all orders for a specific gateway:</p>

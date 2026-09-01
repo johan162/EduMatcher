@@ -1889,7 +1889,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Information Terminal (TapeDeck)
+    GUI: Trading Info Terminal
   
 
     
@@ -1917,7 +1917,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Order Entry Terminal (TraderUI)
+    GUI: Trading platform
   
 
     
@@ -4170,7 +4170,8 @@ average price across all of today's trades for that symbol.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pm-stats-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--limit<span class="w"> </span><span class="m">20</span>
 </code></pre></div>
 <p>Shows the last 20 trades from <code>trade_log</code>: <code>ts</code>, <code>trade_id</code>, <code>symbol</code>,
-<code>price</code>, <code>quantity</code>, <code>buy_gateway_id</code>, <code>sell_gateway_id</code>. Alongside the two
+<code>price</code>, <code>quantity</code>, <code>buy_gateway_id</code>, <code>sell_gateway_id</code>. <code>trade_id</code> is a
+durable <code>run_seq-counter</code> string such as <code>000042-000000001</code>. Alongside the two
 gateway columns, <code>trade_log</code> also records <code>aggressor_side</code>: <code>BUY</code> or <code>SELL</code>
 for a continuous match, and <code>AUCTION</code> for an uncross print — so you can
 classify trades by which side crossed the spread.</p>

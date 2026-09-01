@@ -1892,7 +1892,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Information Terminal (TapeDeck)
+    GUI: Trading Info Terminal
   
 
     
@@ -1920,7 +1920,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Order Entry Terminal (TraderUI)
+    GUI: Trading platform
   
 
     
@@ -2380,10 +2380,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#idempotency-and-client_order_id" class="md-nav__link">
+  <a href="#order-correlation-with-client_tag" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Idempotency and client_order_id
+        Order correlation with client_tag
       
     </span>
   </a>
@@ -5332,11 +5332,6 @@ here.</p>
 <td>Request body or parameters failed validation</td>
 </tr>
 <tr>
-<td><code>DUPLICATE</code></td>
-<td style="text-align: right;"><code>409</code></td>
-<td><code>client_order_id</code> already active</td>
-</tr>
-<tr>
 <td><code>RATE_LIMIT</code></td>
 <td style="text-align: right;"><code>429</code></td>
 <td>Per-key write limit exceeded</td>
@@ -5442,16 +5437,43 @@ not exposed.</p>
 <td>no</td>
 <td>Field name when validation pinpoints one input field</td>
 </tr>
+<tr>
+<td><code>error.reject_code</code></td>
+<td><code>String</code></td>
+<td>no</td>
+<td>Canonical order-rejection class for ALF/REST comparison, when applicable</td>
+</tr>
+<tr>
+<td><code>error.reason</code></td>
+<td><code>String</code></td>
+<td>no</td>
+<td>Human-readable rejection reason; usually the same text as <code>message</code> on request-shape errors</td>
+</tr>
+<tr>
+<td><code>error.client_tag</code></td>
+<td><code>String</code></td>
+<td>no</td>
+<td>Echo of the submitted order correlation tag, when available</td>
+</tr>
+<tr>
+<td><code>error.request_tag</code></td>
+<td><code>String</code></td>
+<td>no</td>
+<td>Echo of the amend/cancel request tag, when available</td>
+</tr>
 </tbody>
 </table>
 <p>Canonical example:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">"error"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="nt">"code"</span><span class="p">:</span><span class="w"> </span><span class="s2">"VALIDATION"</span><span class="p">,</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="nt">"message"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Input should be greater than 0"</span><span class="p">,</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="nt">"field"</span><span class="p">:</span><span class="w"> </span><span class="s2">"quantity"</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="p">}</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="p">}</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="nt">"reject_code"</span><span class="p">:</span><span class="w"> </span><span class="s2">"INVALID_VALUE"</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="nt">"message"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Input should be greater than 0"</span><span class="p">,</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="nt">"reason"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Input should be greater than 0"</span><span class="p">,</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span><span class="nt">"field"</span><span class="p">:</span><span class="w"> </span><span class="s2">"quantity"</span><span class="p">,</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="nt">"client_tag"</span><span class="p">:</span><span class="w"> </span><span class="s2">"desk1-aapl-00042"</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="p">}</span>
 </code></pre></div>
 <h3 id="pagination-contract">Pagination contract<a class="headerlink" href="#pagination-contract" title="Permanent link">&para;</a></h3>
 <p>Endpoints that support pagination use keyset cursoring with these rules:</p>
@@ -5464,14 +5486,15 @@ not exposed.</p>
   only for the same endpoint and compatible filter set.</li>
 <li>A malformed, stale, or cross-endpoint cursor returns <code>422 VALIDATION</code>.</li>
 </ul>
-<h3 id="idempotency-and-client_order_id">Idempotency and <code>client_order_id</code><a class="headerlink" href="#idempotency-and-client_order_id" title="Permanent link">&para;</a></h3>
-<p>Order submit supports <code>client_order_id</code> as an optional client-supplied id.</p>
+<h3 id="order-correlation-with-client_tag">Order correlation with <code>client_tag</code><a class="headerlink" href="#order-correlation-with-client_tag" title="Permanent link">&para;</a></h3>
+<p>Order submit supports <code>client_tag</code> as an optional client-supplied correlation
+tag.</p>
 <ul>
-<li>Scope: deduplication is per gateway session cache.</li>
-<li>Behavior: submitting a currently-active <code>client_order_id</code> returns
-  <code>409 DUPLICATE</code>.</li>
-<li>Lifetime: duplicates are detected while matching cached orders remain in
-  cache. After cache eviction, the same id MAY be reused.</li>
+<li>Scope: the tag is client-scoped and opaque.</li>
+<li>Behavior: the gateway and engine do not enforce uniqueness.</li>
+<li>Lifetime: when supplied, the tag is echoed on order lifecycle events and on
+  cached order reads so clients can map exchange-assigned <code>order_id</code> values
+  back to their own submissions.</li>
 </ul>
 <h3 id="category-examples">Category examples<a class="headerlink" href="#category-examples" title="Permanent link">&para;</a></h3>
 <p>The examples below are normative shape examples for each category. Values are
@@ -5495,7 +5518,7 @@ illustrative.</p>
 <a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span><span class="nt">"price"</span><span class="p">:</span><span class="w"> </span><span class="mf">187.25</span><span class="p">,</span>
 <a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span><span class="nt">"tif"</span><span class="p">:</span><span class="w"> </span><span class="s2">"DAY"</span><span class="p">,</span>
 <a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">  </span><span class="nt">"smp_action"</span><span class="p">:</span><span class="w"> </span><span class="s2">"CANCEL_AGGRESSOR"</span><span class="p">,</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span><span class="nt">"client_order_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"desk1-aapl-00042"</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span><span class="nt">"client_tag"</span><span class="p">:</span><span class="w"> </span><span class="s2">"desk1-aapl-00042"</span>
 <a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="p">}</span>
 </code></pre></div>
 <p>Minimal response:</p>
@@ -5507,7 +5530,7 @@ illustrative.</p>
 <p>Full response:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">"order_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ORD-20260806-00042"</span><span class="p">,</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">"client_order_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"desk1-aapl-00042"</span><span class="p">,</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">"client_tag"</span><span class="p">:</span><span class="w"> </span><span class="s2">"desk1-aapl-00042"</span><span class="p">,</span>
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ACKED"</span><span class="p">,</span>
 <a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="nt">"accepted"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
 <a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span><span class="nt">"event"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
@@ -5933,10 +5956,10 @@ frame that the <code>WS /api/v1/admin/monitor</code> socket sends immediately af
 <td>Self-match prevention action</td>
 </tr>
 <tr>
-<td><code>client_order_id</code></td>
+<td><code>client_tag</code></td>
 <td><code>Str</code></td>
 <td>no</td>
-<td>Optional idempotency key in the session cache</td>
+<td>Optional opaque client correlation tag</td>
 </tr>
 </tbody>
 </table>
@@ -5957,13 +5980,8 @@ frame that the <code>WS /api/v1/admin/monitor</code> socket sends immediately af
 </tr>
 <tr>
 <td><code>200 OK</code></td>
-<td>engine ACK payload</td>
-<td>Returned when <code>?wait=ack</code> waits for the matching ACK</td>
-</tr>
-<tr>
-<td><code>409 Conflict</code></td>
-<td>error envelope</td>
-<td><code>client_order_id</code> already active</td>
+<td><code>{"order_id": "...", "status": "ACKED", "accepted": false, "reject_code": "COLLAR_BREACH", "reason": "collar breach"}</code></td>
+<td>Returned when <code>?wait=ack</code> waits for the matching ACK; rejected ACKs include a stable machine-readable <code>reject_code</code> and the human-readable <code>reason</code></td>
 </tr>
 </tbody>
 </table>
@@ -5991,10 +6009,6 @@ frame that the <code>WS /api/v1/admin/monitor</code> socket sends immediately af
 <tr>
 <td><code>VALIDATION</code></td>
 <td>Body does not match the order type</td>
-</tr>
-<tr>
-<td><code>DUPLICATE</code></td>
-<td><code>client_order_id</code> already active</td>
 </tr>
 <tr>
 <td><code>RATE_LIMIT</code></td>
@@ -6031,6 +6045,12 @@ frame that the <code>WS /api/v1/admin/monitor</code> socket sends immediately af
 <td>no</td>
 <td><code>?wait=ack</code> waits for <code>order.cancelled.*</code></td>
 </tr>
+<tr>
+<td><code>request_tag</code></td>
+<td><code>Str</code></td>
+<td>no</td>
+<td>Query parameter echoed on <code>order.cancelled.*</code> or rejected ACK; max 64 chars</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Reply</strong></p>
@@ -6045,7 +6065,7 @@ frame that the <code>WS /api/v1/admin/monitor</code> socket sends immediately af
 <tbody>
 <tr>
 <td><code>202 Accepted</code></td>
-<td><code>{"order_id": "...", "status": "PENDING"}</code></td>
+<td><code>{"order_id": "...", "request_tag": "...", "status": "PENDING_CANCEL"}</code></td>
 <td>Request accepted</td>
 </tr>
 <tr>
@@ -6114,6 +6134,12 @@ frame that the <code>WS /api/v1/admin/monitor</code> socket sends immediately af
 <td>New order quantity</td>
 </tr>
 <tr>
+<td><code>request_tag</code></td>
+<td><code>Str</code></td>
+<td>no</td>
+<td>Body field echoed on <code>order.amended.*</code> or rejected ACK; max 64 chars</td>
+</tr>
+<tr>
 <td><code>wait</code></td>
 <td><code>Bool</code></td>
 <td>no</td>
@@ -6133,7 +6159,7 @@ frame that the <code>WS /api/v1/admin/monitor</code> socket sends immediately af
 <tbody>
 <tr>
 <td><code>202 Accepted</code></td>
-<td><code>{"order_id": "...", "status": "PENDING"}</code></td>
+<td><code>{"order_id": "...", "request_tag": "...", "status": "PENDING_AMEND"}</code></td>
 <td>Request accepted</td>
 </tr>
 <tr>

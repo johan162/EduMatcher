@@ -1892,7 +1892,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Information Terminal (TapeDeck)
+    GUI: Trading Info Terminal
   
 
     
@@ -1920,7 +1920,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Order Entry Terminal (TraderUI)
+    GUI: Trading platform
   
 
     
@@ -5221,6 +5221,18 @@ as-is even if the gateway has a non-<code>NONE</code> default configured.</p>
 </table>
 <p>If you are writing another interface that wants to submit orders, the most
 important commands are the <strong>trading commands</strong>.</p>
+<p>Rejected order acknowledgements carry two diagnostics:
+<code>REJECT_CODE=&lt;code&gt;</code> is the canonical machine-readable code, and <code>REASON=&lt;text&gt;</code>
+is the human-readable explanation. Use <code>REJECT_CODE</code> for branching, metrics,
+and tests; log <code>REASON</code> for operators.</p>
+<p><code>FILL</code> carries <code>TRADE_IDS=&lt;id[,id...]&gt;</code>, the comma-separated durable public
+trade IDs that composed the private fill. A one-level fill has one ID; a
+coalesced sweep has one ID per execution in match order. The field is present
+as <code>TRADE_IDS=</code> when no ID is available.</p>
+<p>Gateway-local errors use the same canonical field:
+<code>ERR|CODE=&lt;legacy-code&gt;|REJECT_CODE=&lt;canonical-code&gt;|DETAIL=&lt;text&gt;</code>. <code>CODE</code>
+names the ALF gateway validation condition; <code>REJECT_CODE</code> is the
+transport-independent order rejection class used for ALF/REST comparison.</p>
 <div class="admonition note">
 <p class="admonition-title"><code>QLEGS</code> behaves differently in each client</p>
 <p>Every other command in the "trading commands" row above is a genuine
@@ -5241,6 +5253,10 @@ print a summary to.</p>
 <h3 id="generic-form">Generic form<a class="headerlink" href="#generic-form" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>NEW|SYM=&lt;symbol&gt;|SIDE=&lt;BUY|SELL&gt;|TYPE=&lt;order-type&gt;|QTY=&lt;quantity&gt;[|...]
 </code></pre></div>
+<p><code>TAG=&lt;order-tag&gt;</code> is optional on every <code>NEW</code> form. It identifies the order and
+is echoed on <code>ACK</code>, <code>FILL</code>, <code>AMENDED</code>, <code>CANCELLED</code>, and <code>EXPIRED</code> when known.
+Do not use <code>TAG</code> on <code>AMEND</code> or <code>CANCEL</code>; those request-scoped commands use
+<code>RTAG</code> instead.</p>
 <h3 id="formal-grammar_1">Formal grammar<a class="headerlink" href="#formal-grammar_1" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>new-single =
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    "NEW"
@@ -5249,6 +5265,7 @@ print a summary to.</p>
 <a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    "|TYPE=" order-type
 <a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>    "|QTY=" quantity
 <a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>    *( "|" option )
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>    [ "|TAG=" tag ]
 </code></pre></div>
 <p>Where <code>option</code> depends on the selected order type.</p>
 <h3 id="supported-single-leg-order-types">Supported single-leg order types<a class="headerlink" href="#supported-single-leg-order-types" title="Permanent link">&para;</a></h3>
@@ -5391,9 +5408,10 @@ prominent in tab completion.</p>
 <p><code>AMEND</code> applies only to <strong>existing single-leg orders</strong> identified by full
 engine-generated order ID.</p>
 <h3 id="formal-syntax">Formal syntax<a class="headerlink" href="#formal-syntax" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>AMEND|ID=&lt;order-id&gt;[|PRICE=&lt;new-price&gt;][|QTY=&lt;new-total-quantity&gt;]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>AMEND|ID=&lt;order-id&gt;[|PRICE=&lt;new-price&gt;][|QTY=&lt;new-total-quantity&gt;][|RTAG=&lt;request-tag&gt;]
 </code></pre></div>
-<p>At least one of <code>PRICE</code> or <code>QTY</code> must be present.</p>
+<p>At least one of <code>PRICE</code> or <code>QTY</code> must be present. <code>RTAG</code> is optional and is
+echoed on the corresponding <code>AMENDED</code> event or rejected <code>ACK</code>.</p>
 <h3 id="supported-amendment-forms">Supported amendment forms<a class="headerlink" href="#supported-amendment-forms" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -5404,31 +5422,31 @@ engine-generated order ID.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>AMEND|ID=...|PRICE=...</code></td>
+<td><code>AMEND|ID=...|PRICE=...[|RTAG=...]</code></td>
 <td>Price-only amendment</td>
 </tr>
 <tr>
-<td><code>AMEND|ID=...|QTY=...</code></td>
+<td><code>AMEND|ID=...|QTY=...[|RTAG=...]</code></td>
 <td>Quantity-only amendment</td>
 </tr>
 <tr>
-<td><code>AMEND|ID=...|PRICE=...|QTY=...</code></td>
+<td><code>AMEND|ID=...|PRICE=...|QTY=...[|RTAG=...]</code></td>
 <td>Change both price and quantity</td>
 </tr>
 </tbody>
 </table>
 <h3 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h3>
 <p>Price only:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>AMEND|ID=ORD-12345678|PRICE=151.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>AMEND|ID=ORD-12345678|PRICE=151.00|RTAG=AMD-001
 </code></pre></div>
 <p>Quantity only, lower quantity:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>AMEND|ID=ORD-12345678|QTY=80
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>AMEND|ID=ORD-12345678|QTY=80|RTAG=AMD-002
 </code></pre></div>
 <p>Quantity only, higher quantity:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>AMEND|ID=ORD-12345678|QTY=200
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>AMEND|ID=ORD-12345678|QTY=200|RTAG=AMD-003
 </code></pre></div>
 <p>Change both:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>AMEND|ID=ORD-12345678|PRICE=151.00|QTY=200
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>AMEND|ID=ORD-12345678|PRICE=151.00|QTY=200|RTAG=AMD-004
 </code></pre></div>
 <h3 id="amendment-semantics">Amendment semantics<a class="headerlink" href="#amendment-semantics" title="Permanent link">&para;</a></h3>
 <p>As implemented today:</p>
@@ -5450,9 +5468,9 @@ engine-generated order ID.</p>
 <p>Example:</p>
 <ol>
 <li><code>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00</code></li>
-<li><code>AMEND|ID=...|QTY=80</code> keeps queue priority if the price stays <code>150.00</code></li>
-<li><code>AMEND|ID=...|PRICE=150.10</code> loses queue priority</li>
-<li><code>AMEND|ID=...|QTY=120</code> also loses queue priority</li>
+<li><code>AMEND|ID=...|QTY=80|RTAG=AMD-KEEP</code> keeps queue priority if the price stays <code>150.00</code></li>
+<li><code>AMEND|ID=...|PRICE=150.10|RTAG=AMD-PRICE</code> loses queue priority</li>
+<li><code>AMEND|ID=...|QTY=120|RTAG=AMD-UP</code> also loses queue priority</li>
 </ol>
 <h3 id="important-identifier-rule">Important identifier rule<a class="headerlink" href="#important-identifier-rule" title="Permanent link">&para;</a></h3>
 <p>Use the <strong>full order ID</strong> from the gateway's order table or acknowledgement
@@ -5460,11 +5478,14 @@ stream. Inline gateway messages often abbreviate IDs visually, but <code>AMEND</
 requires the full internal ID.</p>
 <h2 id="cancel-order-and-group-cancellation"><code>CANCEL</code> - order and group cancellation<a class="headerlink" href="#cancel-order-and-group-cancellation" title="Permanent link">&para;</a></h2>
 <h3 id="single-order-cancel">Single order cancel<a class="headerlink" href="#single-order-cancel" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>CANCEL|ID=&lt;order-id&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>CANCEL|ID=&lt;order-id&gt;[|RTAG=&lt;request-tag&gt;]
 </code></pre></div>
 <p>Example:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>CANCEL|ID=ORD-12345678
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>CANCEL|ID=ORD-12345678|RTAG=CXL-001
 </code></pre></div>
+<p><code>RTAG</code> is optional on single-order cancels and is echoed on the resulting
+<code>CANCELLED</code> event or rejected <code>ACK</code>. Engine-initiated cancels have no client
+request behind them and therefore omit <code>RTAG</code>.</p>
 <h3 id="combo-cancel">Combo cancel<a class="headerlink" href="#combo-cancel" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>CANCEL|COMBO_ID=&lt;combo-label&gt;
 </code></pre></div>

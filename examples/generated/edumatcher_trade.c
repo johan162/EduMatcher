@@ -49,6 +49,18 @@ int edu_trade_executed_calf_parse(const calf_message_t *in, edu_trade_executed_c
     if (strcmp(in->msg_type, EDU_TRADE_EXECUTED_CALF_MSGTYPE) != 0)
         return EDU_MSG_ERR_MSGTYPE;
 
+    raw = calf_get_field(in, "TRADE_ID");
+    if (!raw) return EDU_MSG_ERR_FIELD;
+    if (strlen(raw) > 64) return EDU_MSG_ERR_OVERFLOW;
+    memcpy(out->id, raw, strlen(raw));
+
+    raw = calf_get_field(in, "RUN_SEQ");
+    if (!raw) return EDU_MSG_ERR_FIELD;
+    errno = 0;
+    out->run_seq = (int64_t)strtoll(raw, &end, 10);
+    if (end == raw || *end != '\0' || errno == ERANGE)
+        return EDU_MSG_ERR_FIELD;
+
     raw = calf_get_field(in, "PX");
     if (!raw) return EDU_MSG_ERR_FIELD;
     errno = 0;
@@ -74,6 +86,14 @@ int edu_trade_executed_calf_parse(const calf_message_t *in, edu_trade_executed_c
 int edu_trade_executed_calf_validate(const edu_trade_executed_calf_t *m, char *err, size_t errlen) {
     if (!m) return EDU_MSG_ERR_FIELD;
 
+    if (strlen(m->id) > 64) {
+        if (err && errlen) snprintf(err, errlen, "id exceeds max_len 64");
+        return EDU_MSG_ERR_FIELD;
+    }
+    if (m->run_seq < 0) {
+        if (err && errlen) snprintf(err, errlen, "run_seq must be >= 0");
+        return EDU_MSG_ERR_FIELD;
+    }
     if (m->price <= 0) {
         if (err && errlen) snprintf(err, errlen, "price must be > 0");
         return EDU_MSG_ERR_FIELD;

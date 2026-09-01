@@ -2626,7 +2626,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Information Terminal (TapeDeck)
+    GUI: Trading Info Terminal
   
 
     
@@ -2654,7 +2654,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Order Entry Terminal (TraderUI)
+    GUI: Trading platform
   
 
     
@@ -4932,11 +4932,6 @@ surfaces but cannot submit, cancel, or inspect private orders.</p>
 <td>Per-key write rate limit exceeded</td>
 </tr>
 <tr>
-<td><code>DUPLICATE</code></td>
-<td><code>409</code></td>
-<td><code>client_order_id</code> already active for the session</td>
-</tr>
-<tr>
 <td><code>VALIDATION</code></td>
 <td><code>422</code>/<code>400</code></td>
 <td>Malformed request body or query parameters</td>
@@ -4988,6 +4983,12 @@ surfaces but cannot submit, cancel, or inspect private orders.</p>
 </tr>
 </tbody>
 </table>
+<p>All error envelopes keep the transport-level <code>error.code</code>/<code>error.message</code> pair
+and, where the failure belongs to order entry, also include canonical
+<code>error.reject_code</code> plus <code>error.reason</code>. Validation failures echo
+<code>client_tag</code> or <code>request_tag</code> when the rejected request supplied one, so clients
+can correlate synchronous 4xx responses the same way they correlate asynchronous
+order events.</p>
 <h2 id="rest-endpoints">REST endpoints<a class="headerlink" href="#rest-endpoints" title="Permanent link">&para;</a></h2>
 <p>Base path: <code>/api/v1</code>.</p>
 <table>
@@ -5257,7 +5258,7 @@ surfaces but cannot submit, cancel, or inspect private orders.</p>
 <a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="w">  </span><span class="nt">"tif"</span><span class="p">:</span><span class="w"> </span><span class="s2">"DAY"</span><span class="p">,</span>
 <a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="w">  </span><span class="nt">"price"</span><span class="p">:</span><span class="w"> </span><span class="mf">150.50</span><span class="p">,</span>
 <a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="w">  </span><span class="nt">"smp_action"</span><span class="p">:</span><span class="w"> </span><span class="s2">"NONE"</span><span class="p">,</span>
-<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="w">  </span><span class="nt">"client_order_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ui-42"</span>
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="w">  </span><span class="nt">"client_tag"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ui-42"</span>
 <a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a><span class="p">}</span>
 </code></pre></div>
 <table>
@@ -5319,13 +5320,22 @@ surfaces but cannot submit, cancel, or inspect private orders.</p>
 <td>no</td>
 <td>Self-match prevention action</td>
 </tr>
+<tr>
+<td><code>client_tag</code></td>
+<td>no</td>
+<td>Opaque client correlation tag, echoed on order lifecycle events</td>
+</tr>
 </tbody>
 </table>
 <p>Default write calls return immediately with <code>202 Accepted</code>. Add <code>?wait=ack</code> to
 wait for the matching engine ACK until the configured timeout. The wait filters
-by <code>order_id</code> so concurrent requests on the same gateway receive their own ack.</p>
-<p>Submitting an order with a <code>client_order_id</code> that already exists in the session
-cache returns <code>409 Conflict</code>.</p>
+by <code>order_id</code> so concurrent requests on the same gateway receive their own ack.
+Rejected ACK payloads include <code>reject_code</code>, a stable machine-readable
+classification, alongside the human-readable <code>reason</code>. For example, a collar
+breach is surfaced as <code>"reject_code": "COLLAR_BREACH"</code> with the matching
+<code>reason</code> text such as <code>"collar breach"</code>.</p>
+<p><code>client_tag</code> is not an idempotency key. It is optional, opaque, and not checked
+for uniqueness by the gateway or engine.</p>
 <h3 id="cancel-amend-and-replace">Cancel, amend, and replace<a class="headerlink" href="#cancel-amend-and-replace" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -5337,11 +5347,11 @@ cache returns <code>409 Conflict</code>.</p>
 <tbody>
 <tr>
 <td><code>DELETE /orders/{order_id}</code></td>
-<td>no body</td>
+<td>no body; optional <code>?request_tag=...</code> query</td>
 </tr>
 <tr>
 <td><code>PATCH /orders/{order_id}</code></td>
-<td><code>{ "price": 151.00 }</code>, <code>{ "quantity": 200 }</code>, or both</td>
+<td><code>{ "price": 151.00 }</code>, <code>{ "quantity": 200, "request_tag": "req-1" }</code>, or both</td>
 </tr>
 <tr>
 <td><code>POST /orders/{order_id}/replace</code></td>
@@ -5355,6 +5365,10 @@ and <code>PATCH /orders/{order_id}</code> also accept it, waiting on the matchin
 /orders/{order_id}/replace</code> has no <code>wait</code> parameter; it always waits
 synchronously for the cancel to be acknowledged before submitting the
 replacement (see <a href="#implementation-notes-and-design-deviations">Implementation notes</a>).</p>
+<p>For cancel and amend, <code>request_tag</code> identifies one request against an order.
+When supplied, the API forwards it to the engine, uses it to match <code>?wait=ack</code>
+responses, and echoes it in the pending response and resulting event. It is
+different from <code>client_tag</code>, which identifies the original order.</p>
 <h3 id="oco-combos-quotes-and-mass-cancel">OCO, combos, quotes, and mass cancel<a class="headerlink" href="#oco-combos-quotes-and-mass-cancel" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -5682,8 +5696,8 @@ open-ended list.</p>
 </code></pre></div>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="p">{</span>
 <a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="w">  </span><span class="nt">"trades"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"ts"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-06-14T09:00:00.000+00:00"</span><span class="p">,</span><span class="w"> </span><span class="nt">"trade_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"T000"</span><span class="p">,</span><span class="w"> </span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"EDU100"</span><span class="p">,</span><span class="w"> </span><span class="nt">"price"</span><span class="p">:</span><span class="w"> </span><span class="mf">100.0</span><span class="p">,</span><span class="w"> </span><span class="nt">"quantity"</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="nt">"buy_gateway_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"GW1"</span><span class="p">,</span><span class="w"> </span><span class="nt">"sell_gateway_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"GW2"</span><span class="w"> </span><span class="p">},</span>
-<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"ts"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-06-14T09:01:00.000+00:00"</span><span class="p">,</span><span class="w"> </span><span class="nt">"trade_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"T001"</span><span class="p">,</span><span class="w"> </span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"EDU100"</span><span class="p">,</span><span class="w"> </span><span class="nt">"price"</span><span class="p">:</span><span class="w"> </span><span class="mf">100.0</span><span class="p">,</span><span class="w"> </span><span class="nt">"quantity"</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="nt">"buy_gateway_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"GW1"</span><span class="p">,</span><span class="w"> </span><span class="nt">"sell_gateway_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"GW2"</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"ts"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-06-14T09:00:00.000+00:00"</span><span class="p">,</span><span class="w"> </span><span class="nt">"trade_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"000042-000000001"</span><span class="p">,</span><span class="w"> </span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"EDU100"</span><span class="p">,</span><span class="w"> </span><span class="nt">"price"</span><span class="p">:</span><span class="w"> </span><span class="mf">100.0</span><span class="p">,</span><span class="w"> </span><span class="nt">"quantity"</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="nt">"buy_gateway_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"GW1"</span><span class="p">,</span><span class="w"> </span><span class="nt">"sell_gateway_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"GW2"</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"ts"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-06-14T09:01:00.000+00:00"</span><span class="p">,</span><span class="w"> </span><span class="nt">"trade_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"000042-000000002"</span><span class="p">,</span><span class="w"> </span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"EDU100"</span><span class="p">,</span><span class="w"> </span><span class="nt">"price"</span><span class="p">:</span><span class="w"> </span><span class="mf">100.0</span><span class="p">,</span><span class="w"> </span><span class="nt">"quantity"</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="nt">"buy_gateway_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"GW1"</span><span class="p">,</span><span class="w"> </span><span class="nt">"sell_gateway_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"GW2"</span><span class="w"> </span><span class="p">}</span>
 <a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="w">  </span><span class="p">],</span>
 <a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="w">  </span><span class="nt">"count"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
 <a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a><span class="w">  </span><span class="nt">"has_more"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
@@ -6563,14 +6577,14 @@ indistinguishable from a slow engine.</p>
 <div class="admonition note">
 <p class="admonition-title">Why not a <code>command_id</code> on everything</p>
 <p>A second identifier alongside a working one adds ambiguity rather than
-removing it — particularly on <code>POST /orders</code>, which already accepts
-<code>client_order_id</code> as its idempotency key. The ack correlation is where the
-value is; echoing a <code>command_id</code> through every downstream event a command
-causes (a mass cancel produces one <code>order.cancelled</code> per affected order)
-is a much larger change for much less benefit, and the
-<a href="#the-event-envelope">group identifiers</a> already let a client attribute
-those cascades.</p>
+removing it — particularly on <code>POST /orders</code>, which already accepts</p>
 </div>
+<p><code>client_tag</code> for client correlation. The order lifecycle echo is where the
+  value is; echoing a <code>command_id</code> through every downstream event a command
+    causes (a mass cancel produces one <code>order.cancelled</code> per affected order)
+    is a much larger change for much less benefit, and the
+    <a href="#the-event-envelope">group identifiers</a> already let a client attribute
+    those cascades.</p>
 <h3 id="private-event-recovery">Private event recovery<a class="headerlink" href="#private-event-recovery" title="Permanent link">&para;</a></h3>
 <p><code>/api/v1/events</code> is designed so a reconnecting client needs one socket and no
 REST calls to get back to a correct view.</p>
@@ -7009,11 +7023,6 @@ thread has crashed.</p>
 <td><code>403 Forbidden</code></td>
 <td>Credential has no <code>gateway_id</code> (<code>READ_ONLY</code>); or lacks the ADMIN role on an <code>/admin/*</code> call (<code>ROLE_DENIED</code>)</td>
 <td>Use a credential with a non-null <code>gateway_id</code> for order-entry endpoints, or one whose engine gateway has <code>role: ADMIN</code> for admin endpoints</td>
-</tr>
-<tr>
-<td><code>409 Conflict</code> (<code>DUPLICATE</code>)</td>
-<td><code>POST /orders</code> reused a <code>client_order_id</code> already active in the session cache</td>
-<td>Use a fresh <code>client_order_id</code> per order</td>
 </tr>
 <tr>
 <td><code>429 Too Many Requests</code> (<code>RATE_LIMIT</code>)</td>

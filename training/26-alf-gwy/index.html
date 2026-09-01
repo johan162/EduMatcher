@@ -1889,7 +1889,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Information Terminal (TapeDeck)
+    GUI: Trading Info Terminal
   
 
     
@@ -1917,7 +1917,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Order Entry Terminal (TraderUI)
+    GUI: Trading platform
   
 
     
@@ -4192,7 +4192,7 @@ CLI tools, the example parser libraries, and the interactive example clients.</p
 <li>using the Python <code>alf_parser.py</code> / <code>alf_client.py</code> examples for scripted and interactive access</li>
 <li>building and running the C <code>alf_client</code> example</li>
 <li>operating control commands (<code>PING</code>, <code>ORDERS</code>, <code>QBOOT</code>, <code>KILL</code>)</li>
-<li>diagnosing error conditions from the <code>ERR|CODE=...</code> vocabulary</li>
+<li>diagnosing error conditions from <code>ERR|CODE=...|REJECT_CODE=...</code></li>
 </ul>
 <div class="admonition abstract">
 <p class="admonition-title">Pre-reading in the User Guide</p>
@@ -4228,7 +4228,7 @@ messages used by the interactive <code>pm-alf-console</code> terminal.</p>
 <li>Gateway kill-switch: <code>KILL</code> (with optional <code>SYM=</code> scope)</li>
 <li>Bootstrap state recovery: <code>ORDERS</code> and <code>QBOOT</code></li>
 <li>Liveness: <code>PING</code>/<code>PONG</code> and unsolicited <code>HB</code> heartbeat lines</li>
-<li>Error escalation: per-error <code>ERR|CODE=...</code> and sliding-window forced disconnect</li>
+<li>Error escalation: per-error <code>ERR|CODE=...|REJECT_CODE=...</code> and sliding-window forced disconnect</li>
 </ul>
 <h2 id="exercise-1-generate-a-config-that-enables-pm-alf-gwy">Exercise 1: Generate a Config That Enables pm-alf-gwy<a class="headerlink" href="#exercise-1-generate-a-config-that-enables-pm-alf-gwy" title="Permanent link">&para;</a></h2>
 <p>Unlike <code>post_trade_gateway</code>, <code>market_data_gateway</code>, <code>api_gateways</code>, and
@@ -4338,24 +4338,31 @@ type <code>quit</code> to close.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5565</span>
 </code></pre></div>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>HELLO|CLIENT=manual|PROTO=ALF1|ID=TRADER01
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=NC-ORDER-001
 <a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>ORDERS
 </code></pre></div>
 <p>Expected behavior:</p>
 <ul>
 <li><code>ACK|ORDER_ID=&lt;uuid&gt;|ACCEPTED=TRUE|...</code> arrives immediately after <code>NEW</code></li>
+<li>the ACK and later lifecycle events echo <code>TAG=NC-ORDER-001</code></li>
 <li><code>ORDERS</code> shows the resting order with <code>STATUS=NEW</code> and <code>REMAINING=100</code></li>
 <li>If <code>MM01</code> is quoting, the order may fill immediately and <code>ORDERS</code> returns <code>COUNT=0</code></li>
 </ul>
-<p>Cancel the resting order using the UUID from the <code>ACK</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>CANCEL|ID=&lt;uuid&gt;
+<p>When an order fills, its <code>FILL</code> event carries <code>TRADE_IDS=&lt;id[,id...]&gt;</code>. Keep
+those durable public trade IDs with the order record: a swept order can contain
+several, in match order, and they join the private fill to the public trade
+tape, CALF, and drop copy without matching on price or time.</p>
+<p>Cancel the resting order using the UUID from the <code>ACK</code> and a request tag:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>CANCEL|ID=&lt;uuid&gt;|RTAG=NC-CXL-001
 </code></pre></div>
-<p>Expected: <code>CANCELLED|ORDER_ID=&lt;uuid&gt;</code>.</p>
+<p>Expected: <code>CANCELLED|ORDER_ID=&lt;uuid&gt;|TAG=NC-ORDER-001|RTAG=NC-CXL-001</code>.</p>
 <p>Try amending before cancelling to see priority rules in action:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=149.00
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>AMEND|ID=&lt;uuid&gt;|PRICE=149.50|QTY=150
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=149.00|TAG=NC-ORDER-002
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>AMEND|ID=&lt;uuid&gt;|PRICE=149.50|QTY=150|RTAG=NC-AMD-001
 </code></pre></div>
-<p>Expected: <code>AMENDED|ORDER_ID=...|PRICE=149.50|QTY=150|REMAINING=150|PRIORITY_RESET=TRUE</code></p>
+<p>Expected: <code>AMENDED|ORDER_ID=...|PRICE=149.50|QTY=150|REMAINING=150|PRIORITY_RESET=TRUE|TAG=NC-ORDER-002|RTAG=NC-AMD-001</code></p>
+<p><code>RTAG</code> is optional, but it is the easiest way to prove which amend or cancel a
+later TCP response belongs to.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can submit, confirm, amend, and cancel an order using only raw TCP and a terminal.</p>
 <h2 id="exercise-5-use-the-python-interactive-client">Exercise 5: Use the Python Interactive Client<a class="headerlink" href="#exercise-5-use-the-python-interactive-client" title="Permanent link">&para;</a></h2>
 <p><code>alf_client.py</code> provides an <code>pm-alf-console</code>-style interactive session over
@@ -4365,7 +4372,7 @@ TCP, with tab-completion, background event display, and local P&amp;L tracking.<
 </code></pre></div>
 <p>At the prompt:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>[TRADER01]&gt; SYMBOLS
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=PY-ORDER-001
 <a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>[TRADER01]&gt; ORDERS
 <a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>[TRADER01]&gt; POS
 <a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>[TRADER01]&gt; STATUS
@@ -4392,16 +4399,16 @@ TCP, with tab-completion, background event display, and local P&amp;L tracking.<
 <a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="s">from alf_parser import parse_alf_line, build_alf_line, AlfSession, AlfMessage</span>
 <a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>
 <a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="s"># Parse a line received from the gateway</span>
-<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="s">msg: AlfMessage = parse_alf_line("ACK|ORDER_ID=abc|ACCEPTED=TRUE|SYMBOL=AAPL")</span>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="s">msg: AlfMessage = parse_alf_line("ACK|ORDER_ID=abc|ACCEPTED=FALSE|REJECT_CODE=ORDER_NOT_FOUND|REASON=missing")</span>
 <a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="s">print(msg.msg_type)   # ACK</span>
-<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="s">print(msg.fields)     # {"ORDER_ID": "abc", "ACCEPTED": "TRUE", ...}</span>
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="s">print(msg.fields)     # {"ORDER_ID": "abc", "ACCEPTED": "FALSE", "REJECT_CODE": "ORDER_NOT_FOUND", ...}</span>
 <a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a>
 <a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a><span class="s"># Build a line to send</span>
 <a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a><span class="s">line = build_alf_line("NEW", {</span>
 <a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a><span class="s">    "SYM": "AAPL", "SIDE": "BUY",</span>
-<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a><span class="s">    "TYPE": "LIMIT", "QTY": "100", "PRICE": "150.00",</span>
+<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a><span class="s">    "TYPE": "LIMIT", "QTY": "100", "PRICE": "150.00", "TAG": "NC-ORDER-003",</span>
 <a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a><span class="s">})</span>
-<a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a><span class="s">print(repr(line))  # 'NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00\n'</span>
+<a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a><span class="s">print(repr(line))  # 'NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=NC-ORDER-003\n'</span>
 <a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a>
 <a id="__codelineno-18-17" name="__codelineno-18-17" href="#__codelineno-18-17"></a><span class="s"># High-level session: connect, HELLO/WELCOME, send/recv</span>
 <a id="__codelineno-18-18" name="__codelineno-18-18" href="#__codelineno-18-18"></a><span class="s">session = AlfSession.connect("127.0.0.1", 5565, "TRADER01")</span>
@@ -4433,7 +4440,7 @@ gateway name from <code>WELCOME</code>, and the <code>ORDERS</code> response hea
 </code></pre></div>
 <p>At the prompt:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>[TRADER01]&gt; SYMBOLS
-<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=C-ORDER-001
 <a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>[TRADER01]&gt; ORDERS
 <a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>[TRADER01]&gt; EXIT
 </code></pre></div>
@@ -4489,63 +4496,77 @@ gateway name from <code>WELCOME</code>, and the <code>ORDERS</code> response hea
 <h2 id="exercise-9-error-conditions-and-operational-interpretation">Exercise 9: Error Conditions and Operational Interpretation<a class="headerlink" href="#exercise-9-error-conditions-and-operational-interpretation" title="Permanent link">&para;</a></h2>
 <p>Test typical protocol errors. Start a fresh <code>nc</code> session and send each line before
 completing the <code>HELLO</code> handshake, or with invalid content:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00    (before HELLO)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=BAD-AUTH-001    (before HELLO)
 <a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>HELLO|CLIENT=test|PROTO=WRONG|ID=TRADER01
 <a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>HELLO|CLIENT=test|PROTO=ALF1|ID=NONEXISTENT
 </code></pre></div>
 <p>After a successful <code>HELLO</code>, try:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100          (missing PRICE for LIMIT)
-<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>NEW|SYM=UNKNOWN|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|TAG=BAD-MISSING-001          (missing PRICE for LIMIT)
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>NEW|SYM=UNKNOWN|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=BAD-SYM-001
 <a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a>QUOTE|SYM=AAPL|BID=150.00|ASK=150.10|BID_QTY=500|ASK_QTY=500   (TRADER role)
 </code></pre></div>
-<p>Map each observed <code>ERR|CODE=...</code> to its operator remediation:</p>
+<p>Map each observed <code>ERR|CODE=...|REJECT_CODE=...</code> to its operator remediation:</p>
 <table>
 <thead>
 <tr>
-<th>Code</th>
+<th><code>CODE</code></th>
+<th>Typical <code>REJECT_CODE</code></th>
 <th>Practical interpretation</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>AUTH_REQUIRED</code></td>
+<td><code>AUTH_REQUIRED</code></td>
 <td>Client sent a non-<code>HELLO</code> first line; fix client code ordering</td>
 </tr>
 <tr>
 <td><code>PROTO_MISMATCH</code></td>
+<td><code>AUTH_FAILED</code></td>
 <td>Wrong <code>PROTO=</code> value; must be exactly <code>ALF1</code></td>
 </tr>
 <tr>
+<td><code>AUTH_FAILED</code></td>
 <td><code>AUTH_FAILED</code></td>
 <td>Gateway ID not in <code>gateways.alf</code>; add to config and restart engine</td>
 </tr>
 <tr>
 <td><code>GATEWAY_ALREADY_CONNECTED</code></td>
+<td><code>AUTH_FAILED</code></td>
 <td>Same ID connected from another session; disconnect it first</td>
 </tr>
 <tr>
+<td><code>MISSING_FIELD</code></td>
 <td><code>MISSING_FIELD</code></td>
 <td>Required field absent for this order type; check command reference</td>
 </tr>
 <tr>
 <td><code>INVALID_VALUE</code></td>
+<td><code>INVALID_VALUE</code></td>
 <td>Field value fails validation (e.g. <code>PRICE=NaN</code>, <code>QTY=0</code>); fix client</td>
 </tr>
 <tr>
 <td><code>SYMBOL_NOT_CONFIGURED</code></td>
+<td><code>UNKNOWN_SYMBOL</code></td>
 <td>Unknown symbol; run <code>SYMBOLS</code> to see the configured list</td>
 </tr>
 <tr>
+<td><code>ROLE_DENIED</code></td>
 <td><code>ROLE_DENIED</code></td>
 <td>Command not allowed for this gateway's role (<code>QUOTE</code> requires <code>MARKET_MAKER</code>)</td>
 </tr>
 <tr>
 <td><code>RATE_LIMITED</code></td>
+<td><code>RATE_LIMITED</code></td>
 <td>Commands arriving faster than <code>max_commands_per_second</code>; throttle client</td>
 </tr>
 </tbody>
 </table>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can map each <code>ERR|CODE</code> to the correct config or client-code fix.</p>
+<p><code>CODE</code> is the ALF gateway's local validation category. <code>REJECT_CODE</code> is the
+canonical order-rejection class used by ALF, REST, and tests. When the rejected
+line carried <code>TAG</code> or <code>RTAG</code>, the gateway echoes it as <code>TAG</code> on the <code>ERR</code> so a
+client can correlate the failure.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can map each <code>ERR|CODE</code> and <code>REJECT_CODE</code> to the correct config or client-code fix.</p>
 <h2 id="support-libraries-and-example-clients">Support Libraries and Example Clients<a class="headerlink" href="#support-libraries-and-example-clients" title="Permanent link">&para;</a></h2>
 <p>Reference implementations used in this training chapter:</p>
 <ul>
@@ -4563,11 +4584,12 @@ and read newline-delimited text.</p>
 <li>Verify a TCP port is listening using <code>lsof</code>, <code>ss</code>, and <code>netstat</code> on macOS and Linux.</li>
 <li>Test the complete ALF session lifecycle manually with <code>nc</code> and <code>telnet</code> before writing any code.</li>
 <li>Submit, amend, and cancel orders over a raw TCP session and read <code>ACK</code>, <code>AMENDED</code>, and <code>CANCELLED</code> responses.</li>
+<li>Correlate an ALF <code>FILL</code> to its public executions through <code>TRADE_IDS</code>.</li>
 <li>Use <code>python3 alf_client.py</code> for interactive sessions with tab-completion and live event display.</li>
 <li>Script against the gateway using <code>AlfSession</code> from <code>alf_parser.py</code>.</li>
 <li>Build and run the C <code>alf_client</code> for a readline-based interactive session with <code>select()</code> multiplexing.</li>
 <li>Operate <code>PING</code>, <code>ORDERS</code>, <code>QBOOT</code>, and <code>KILL</code> and interpret their responses.</li>
-<li>Map <code>ERR|CODE=...</code> values to the correct config or client-side fix.</li>
+<li>Map <code>ERR|CODE=...|REJECT_CODE=...</code> values to the correct config or client-side fix.</li>
 </ul>
 <h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
 <p><code>pm-alf-gwy</code> (this chapter) and <code>pm-api-gwy</code> (Chapter 24) both allow

@@ -1889,7 +1889,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Information Terminal (TapeDeck)
+    GUI: Trading Info Terminal
   
 
     
@@ -1917,7 +1917,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Order Entry Terminal (TraderUI)
+    GUI: Trading platform
   
 
     
@@ -4092,13 +4092,18 @@ understand how amendments affect queue priority.</p>
 <li><code>TRADER01</code> connected with at least one resting limit order.</li>
 </ul>
 <h2 id="exercise-1-place-a-resting-order-to-amend">Exercise 1: Place a Resting Order to Amend<a class="headerlink" href="#exercise-1-place-a-resting-order-to-amend" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=300|PRICE=419.50|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=300|PRICE=419.50|TIF=DAY|TAG=AMD-ORDER-001
 </code></pre></div>
 <p>Note the <code>order_id</code> returned.</p>
+<p><code>TAG</code> identifies the order and is echoed on later lifecycle events. <code>RTAG</code> is
+different: it identifies one amend request against that order.</p>
+<p><code>AMEND</code> accepts an optional <code>RTAG=&lt;request-tag&gt;</code>. The tag identifies this one
+amend request and is echoed on the <code>AMENDED</code> response or rejected ACK, which is
+useful when several changes are outstanding for the same order.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> order resting; <code>ORDERS</code> confirms qty=300, price=419.50.</p>
 <h2 id="exercise-2-amend-quantity-down">Exercise 2: Amend Quantity Down<a class="headerlink" href="#exercise-2-amend-quantity-down" title="Permanent link">&para;</a></h2>
 <p>Reduce the order to 200 shares:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>[TRADER01]&gt; AMEND|ID=&lt;order_id&gt;|QTY=200
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>[TRADER01]&gt; AMEND|ID=&lt;order_id&gt;|QTY=200|RTAG=AMD-DOWN-001
 </code></pre></div>
 <p>Expected: amendment accepted; new qty=200.</p>
 <div class="admonition note">
@@ -4111,7 +4116,7 @@ claim at the same price level.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>ORDERS</code> shows qty=200, same price.</p>
 <h2 id="exercise-3-amend-price">Exercise 3: Amend Price<a class="headerlink" href="#exercise-3-amend-price" title="Permanent link">&para;</a></h2>
 <p>Move the order to a more aggressive price:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>[TRADER01]&gt; AMEND|ID=&lt;order_id&gt;|PRICE=419.70
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>[TRADER01]&gt; AMEND|ID=&lt;order_id&gt;|PRICE=419.70|RTAG=AMD-PRICE-001
 </code></pre></div>
 <p>Expected: amendment accepted; new price=419.70.</p>
 <div class="admonition warning">
@@ -4123,18 +4128,19 @@ re-entering at the back.</p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>ORDERS</code> shows price=419.70.</p>
 <h2 id="exercise-4-amend-both-price-and-quantity">Exercise 4: Amend Both Price and Quantity<a class="headerlink" href="#exercise-4-amend-both-price-and-quantity" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[TRADER01]&gt; AMEND|ID=&lt;order_id&gt;|PRICE=419.60|QTY=150
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[TRADER01]&gt; AMEND|ID=&lt;order_id&gt;|PRICE=419.60|QTY=150|RTAG=AMD-BOTH-001
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> both fields updated in one command.</p>
 <h2 id="exercise-5-attempt-an-invalid-amendment">Exercise 5: Attempt an Invalid Amendment<a class="headerlink" href="#exercise-5-attempt-an-invalid-amendment" title="Permanent link">&para;</a></h2>
 <p>Try setting quantity to zero:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[TRADER01]&gt; AMEND|ID=&lt;order_id&gt;|QTY=0
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[TRADER01]&gt; AMEND|ID=&lt;order_id&gt;|QTY=0|RTAG=AMD-BAD-001
 </code></pre></div>
-<p>Expected: rejection — quantity must be positive.</p>
+<p>Expected: rejection — quantity must be positive. The rejected ACK includes a
+stable <code>REJECT_CODE</code> as well as the text reason.</p>
 <p>Try amending a non-existent order:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[TRADER01]&gt; AMEND|ID=INVALID123|PRICE=100.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[TRADER01]&gt; AMEND|ID=INVALID123|PRICE=100.00|RTAG=AMD-MISSING-001
 </code></pre></div>
-<p>Expected: rejection — order not found.</p>
+<p>Expected: rejection — order not found, with <code>REJECT_CODE=ORDER_NOT_FOUND</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> both invalid amendments rejected with clear errors.</p>
 <h2 id="exercise-6-amend-after-partial-fill">Exercise 6: Amend After Partial Fill<a class="headerlink" href="#exercise-6-amend-after-partial-fill" title="Permanent link">&para;</a></h2>
 <ol>
@@ -4146,7 +4152,7 @@ re-entering at the back.</p>
 </li>
 <li>
 <p>If partially filled, amend the remaining quantity:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a> [TRADER01]&gt; AMEND|ID=&lt;order_id&gt;|QTY=200
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a> [TRADER01]&gt; AMEND|ID=&lt;order_id&gt;|QTY=200|RTAG=AMD-PARTIAL-001
 </code></pre></div></p>
 </li>
 </ol>
@@ -4170,7 +4176,7 @@ arrived first:</p>
 </code></pre></div>
 <p><strong>Step 2 — reduce quantity and prove priority survives.</strong> From <code>TRADER01</code>,
 amend <em>down</em> to 50:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[TRADER01]&gt; AMEND|ID=&lt;TRADER01 order id&gt;|QTY=50
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[TRADER01]&gt; AMEND|ID=&lt;TRADER01 order id&gt;|QTY=50|RTAG=AMD-KEEP-001
 </code></pre></div>
 <p>Now have a third party sell 50 into the bid. Because <code>TRADER01</code> kept its
 place, <code>TRADER01</code> is filled and <code>TRADER02</code> is untouched:</p>
@@ -4179,7 +4185,7 @@ place, <code>TRADER01</code> is filled and <code>TRADER02</code> is untouched:</
 <p>Check who filled with <code>STATUS</code> on each trader console.</p>
 <p><strong>Step 3 — increase quantity and prove priority is lost.</strong> Rebuild the queue
 as in step 1, then amend <code>TRADER01</code> <em>up</em>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[TRADER01]&gt; AMEND|ID=&lt;TRADER01 order id&gt;|QTY=200
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[TRADER01]&gt; AMEND|ID=&lt;TRADER01 order id&gt;|QTY=200|RTAG=AMD-LOSE-001
 </code></pre></div>
 <p>Sell 100 into the bid again. This time <code>TRADER02</code> fills first, because
 <code>TRADER01</code>'s increase sent it to the back of the queue at that price.</p>
@@ -4191,6 +4197,11 @@ below rather than taking it on trust.</p>
 <p><code>ORDERS</code> truncates the order ID for display. <code>AMEND</code> and <code>CANCEL</code> need the
 <strong>complete</strong> ID — copy it from the acknowledgement you received when the
 order was placed, not from the truncated column.</p>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Use one RTAG per request</p>
+<p><code>RTAG</code> is not the order ID. It is a request label, so use a fresh value for
+each amend you want to correlate in logs, terminal output, or tests.</p>
 </div>
 <h2 id="key-rules">Key Rules<a class="headerlink" href="#key-rules" title="Permanent link">&para;</a></h2>
 <table>

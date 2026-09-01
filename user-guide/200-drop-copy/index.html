@@ -2188,7 +2188,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Information Terminal (TapeDeck)
+    GUI: Trading Info Terminal
   
 
     
@@ -2216,7 +2216,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Order Entry Terminal (TraderUI)
+    GUI: Trading platform
   
 
     
@@ -4313,6 +4313,11 @@ below), which does enforce per-connection role entitlement.</p>
 <td>The order this execution belongs to</td>
 </tr>
 <tr>
+<td><code>trade_ids</code></td>
+<td>list[str]</td>
+<td>Public <code>trade.executed</code> ID for this execution</td>
+</tr>
+<tr>
 <td><code>symbol</code></td>
 <td>str</td>
 <td>Instrument ticker</td>
@@ -4350,11 +4355,12 @@ a matched MAKER/TAKER pair, not the whole trade.</p>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">"gateway_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"TRADER01"</span><span class="p">,</span>
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">"event_type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"order.fill"</span><span class="p">,</span>
 <a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="nt">"order_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ord-001"</span><span class="p">,</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"MSFT"</span><span class="p">,</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span><span class="nt">"fill_qty"</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span><span class="nt">"fill_price"</span><span class="p">:</span><span class="w"> </span><span class="mf">420.0</span><span class="p">,</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">  </span><span class="nt">"liquidity_flag"</span><span class="p">:</span><span class="w"> </span><span class="s2">"MAKER"</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="p">}</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nt">"trade_ids"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"000042-000000123"</span><span class="p">],</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"MSFT"</span><span class="p">,</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span><span class="nt">"fill_qty"</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">  </span><span class="nt">"fill_price"</span><span class="p">:</span><span class="w"> </span><span class="mf">420.0</span><span class="p">,</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">  </span><span class="nt">"liquidity_flag"</span><span class="p">:</span><span class="w"> </span><span class="s2">"MAKER"</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="p">}</span>
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Price units and fields</p>
@@ -4363,6 +4369,13 @@ ticks. <code>liquidity_flag</code> is derived from the trade's aggressor side
 (<code>"TAKER"</code> for the aggressor, <code>"MAKER"</code> for the resting side). The
 payload does not include <code>remaining_qty</code>, <code>side</code>, or <code>leaves_qty</code>.</p>
 </div>
+<p>### Trade correlation</p>
+<p><code>trade_ids</code> connects a private fill to the public <code>trade.executed</code> tape.
+  Drop-copy events are emitted once per execution, so the list currently has one
+  durable trade ID. An aggressive order that sweeps several price levels instead
+  receives one coalesced private <code>order.fill</code> with all of those IDs in execution
+  order; concatenating its corresponding drop-copy <code>trade_ids</code> produces the same
+  list. Consumers should treat this as a list, not a scalar.</p>
 <p>This is fed from the engine's single trade-publication path (<code>engine/main.py</code>,
 <code>_publish_trade</code>), so it covers every fill-producing flow — new orders,
 quotes, combo legs, OCO legs, auction uncrosses, stop cascades, and

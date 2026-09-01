@@ -1889,7 +1889,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Information Terminal (TapeDeck)
+    GUI: Trading Info Terminal
   
 
     
@@ -1917,7 +1917,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Order Entry Terminal (TraderUI)
+    GUI: Trading platform
   
 
     
@@ -4246,9 +4246,10 @@ the symbols you pass:</p>
 <ul>
 <li>WELCOME line parsed by the Python library</li>
 <li>SNAP for TOP (and STATE, DEPTH) baseline</li>
-<li>incoming MD and TRADE messages for subscribed symbols</li>
+<li>incoming MD and TRADE messages for subscribed symbols, including each
+  trade's durable <code>TRADE_ID</code> and <code>RUN_SEQ</code></li>
 </ul>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: subscriber prints parsed MD/TRADE events with expected symbol and sequence fields.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: subscriber prints parsed MD/TRADE events with expected symbol, sequence, and durable trade ID fields.</p>
 <h2 id="exercise-2b-manual-handshake-probe-with-nc">Exercise 2B: Manual Handshake Probe with nc<a class="headerlink" href="#exercise-2b-manual-handshake-probe-with-nc" title="Permanent link">&para;</a></h2>
 <p>Before continuing with richer clients, validate a minimal manual protocol flow:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5570</span>
@@ -4263,6 +4264,10 @@ the symbols you pass:</p>
 <li>SNAP for CH=TOP after SUB</li>
 <li>live MD and TRADE once market activity occurs</li>
 </ul>
+<p>Every <code>TRADE</code> line carries a durable <code>TRADE_ID</code> and its <code>RUN_SEQ</code>. Keep the
+trade ID when recording the tape: a <code>RESUME</code> response can overlap live traffic,
+and two lines with the same <code>TRADE_ID</code> are the same execution even when their
+delivery sequence differs.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: manual nc session can establish, subscribe, and receive at least one live market-data line.</p>
 <h2 id="exercise-3-use-the-c-example-subscriber">Exercise 3: Use the C Example Subscriber<a class="headerlink" href="#exercise-3-use-the-c-example-subscriber" title="Permanent link">&para;</a></h2>
 <p>Build and run the C subscriber:</p>
@@ -4571,6 +4576,7 @@ manual <code>nc</code> session for those, as this chapter's exercises do.</p>
 <li>discovering per-symbol display precision via <code>REF</code></li>
 <li>using control messages and liveness probes</li>
 <li>recovering with <code>RESUME</code>/LASTSEQ semantics, including de-duplicating a replay</li>
+<li>correlating each public print by its durable <code>TRADE_ID</code> across replay overlap</li>
 <li>diagnosing protocol errors operationally</li>
 </ul>
 <h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>

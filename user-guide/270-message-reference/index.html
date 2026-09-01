@@ -4134,7 +4134,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Information Terminal (TapeDeck)
+    GUI: Trading Info Terminal
   
 
     
@@ -4162,7 +4162,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Order Entry Terminal (TraderUI)
+    GUI: Trading platform
   
 
     
@@ -6189,15 +6189,16 @@ message looks like:</p>
   library.</p>
 <p><strong>Hardcoded structures</strong>
 : The simplest approach — message shape is implicit in the code that creates
-  and reads it.  No IDL, no registry, no generator.  Fast to build, but
-  schema drift is invisible until something breaks at runtime.</p>
-<p>EduMatcher uses the <strong>hardcoded approach</strong>.  Each message type is created
-by a helper function in <code>src/edumatcher/models/message.py</code> (e.g.
-<code>make_order_new_msg</code>, <code>make_gateway_connect_msg</code>) and decoded by <code>decode()</code>.
-Every field documented on this page is exactly what those functions produce.
-This is ideal for a learning system — you can read the code and immediately
-see the message — but a real exchange would use Protobuf or Avro to enforce
-schema contracts across teams and languages.</p>
+  and reads it. No IDL, no registry, no generator. Fast to build, but schema
+  drift is invisible until something breaks at runtime.</p>
+<p>EduMatcher uses a small, repository-local <strong>IDL and code-generation</strong> workflow.
+The YAML definitions in <code>spec/messages/*.yaml</code> are the canonical message
+contracts. <code>pm-msgen generate</code> produces the Python bindings, applicable C
+artifacts, and the generated sections of this reference; <code>pm-msgen check</code>
+fails when any generated output diverges from its specification. Message
+producers and consumers still exchange ordinary two-frame JSON over ZeroMQ,
+so the generated bindings remain readable alongside the wire format they
+enforce.</p>
 <h3 id="what-zeromq-requires-of-a-message">What ZeroMQ requires of a message<a class="headerlink" href="#what-zeromq-requires-of-a-message" title="Permanent link">&para;</a></h3>
 <p>ZeroMQ does not impose a message format.  It sees messages as one or more
 opaque <strong>frames</strong> — byte arrays that are sent and received atomically as a
@@ -6525,6 +6526,11 @@ and received atomically:</p>
 <td><code>client_tag</code></td>
 <td>string | absent</td>
 <td>Optional client-supplied tag echoed back on every lifecycle event for this order (ack, fill, cancelled, expired). When present, subscribers can map events back to their submission without a FIFO scheme.</td>
+</tr>
+<tr>
+<td><code>request_tag</code></td>
+<td>string | absent</td>
+<td>Optional amend/cancel request tag echoed on the resulting <code>order.amended</code>, <code>order.cancelled</code>, or rejected <code>order.ack</code>. Unlike <code>client_tag</code>, it identifies one request against an order, not the order itself.</td>
 </tr>
 <tr>
 <td><code>arrival_seq</code></td>
@@ -8446,6 +8452,13 @@ wire-format specification in the
 <td>The resting or aggressing order this execution belongs to.</td>
 </tr>
 <tr>
+<td><code>trade_ids</code></td>
+<td>list of <code>string</code></td>
+<td>required</td>
+<td>min_items 1</td>
+<td>Public trade.executed id(s) for this execution. One ID today; kept as a list so consumers can use the same representation as coalesced order.fill messages when an order sweeps multiple price levels.</td>
+</tr>
+<tr>
 <td><code>symbol</code></td>
 <td><code>string</code></td>
 <td>required</td>
@@ -8540,6 +8553,13 @@ wire-format specification in the
 <td><code>string</code></td>
 <td>required</td>
 <td>max_len 64</td>
+<td></td>
+</tr>
+<tr>
+<td><code>trade_ids</code></td>
+<td>list of <code>string</code></td>
+<td>required</td>
+<td>min_items 1</td>
 <td></td>
 </tr>
 <tr>
@@ -11286,6 +11306,13 @@ wire-format specification in the
 <td>Rejection detail; empty when accepted.</td>
 </tr>
 <tr>
+<td><code>reject_code</code></td>
+<td>enum: <code>MALFORMED_MESSAGE</code>, <code>MISSING_FIELD</code>, <code>INVALID_VALUE</code>, <code>UNSUPPORTED_FIELD</code>, <code>AUTH_REQUIRED</code>, <code>AUTH_FAILED</code>, <code>ROLE_DENIED</code>, <code>NOT_OWNER</code>, <code>RATE_LIMITED</code>, <code>GATEWAY_NOT_CONFIGURED</code>, <code>UNKNOWN_SYMBOL</code>, <code>SYMBOL_NOT_READY</code>, <code>TICK_VIOLATION</code>, <code>LOT_VIOLATION</code>, <code>PRICE_OUT_OF_RANGE</code>, <code>QTY_OUT_OF_RANGE</code>, <code>COLLAR_BREACH</code>, <code>MAX_ORDER_QTY</code>, <code>MAX_ORDER_VALUE</code>, <code>POSITION_LIMIT</code>, <code>KILL_SWITCH_ACTIVE</code>, <code>MARKET_CLOSED</code>, <code>SESSION_NOT_PERMITTED</code>, <code>INSTRUMENT_HALTED</code>, <code>CIRCUIT_BREAKER_ACTIVE</code>, <code>ORDER_NOT_FOUND</code>, <code>ORDER_ALREADY_TERMINAL</code>, <code>AMEND_NOT_PERMITTED</code>, <code>DUPLICATE_ORDER</code>, <code>INSUFFICIENT_LIQUIDITY</code>, <code>SELF_MATCH_PREVENTED</code>, <code>INTERNAL_ERROR</code>, <code>UNKNOWN</code></td>
+<td>omitted when unset</td>
+<td>—</td>
+<td>Machine-readable rejection classification, stable across every order-entry transport (ALF, BALF, REST) and every layer (gateway-local validation and engine-side business rules). Absent when accepted; present on every rejection. The human-readable detail rides in reason; this field never carries data values. New members may be added; existing members are never removed or renamed. A client must treat an unrecognised code as UNKNOWN.</td>
+</tr>
+<tr>
 <td><code>symbol</code></td>
 <td><code>string</code></td>
 <td>omitted when unset</td>
@@ -11333,6 +11360,13 @@ wire-format specification in the
 <td>omitted when unset</td>
 <td>max_len 64</td>
 <td></td>
+</tr>
+<tr>
+<td><code>request_tag</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>max_len 64</td>
+<td>Client correlation tag for this request, echoed on the resulting event or rejection. Distinct from the target order's client_tag, which identifies the order rather than the request acting on it. A client may have several requests outstanding against one order.</td>
 </tr>
 <tr>
 <td><code>oco_group_id</code></td>
@@ -11553,6 +11587,13 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
+<td><code>request_tag</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>max_len 64</td>
+<td>Client correlation tag for this cancel request. Engine-initiated cancels publish with request_tag=null.</td>
+</tr>
+<tr>
 <td><code>oco_group_id</code></td>
 <td><code>string</code></td>
 <td>omitted when unset</td>
@@ -11706,6 +11747,20 @@ wire-format specification in the
 <td>required</td>
 <td>—</td>
 <td>True when the amendment lost the order its time priority.</td>
+</tr>
+<tr>
+<td><code>client_tag</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>max_len 64</td>
+<td>Client correlation tag for the amended order.</td>
+</tr>
+<tr>
+<td><code>request_tag</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>max_len 64</td>
+<td>Client correlation tag for this amend request. Engine-initiated cancels publish with request_tag=null.</td>
 </tr>
 </tbody>
 </table>
@@ -11930,6 +11985,13 @@ wire-format specification in the
 <td>max_len 32</td>
 <td></td>
 </tr>
+<tr>
+<td><code>request_tag</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>max_len 64</td>
+<td>Client correlation tag for this cancel request, echoed on the resulting cancellation event or rejection.</td>
+</tr>
 </tbody>
 </table>
 <p><strong>See also:</strong> <code>order.cancelled.{GW_ID}</code></p>
@@ -11976,6 +12038,13 @@ wire-format specification in the
 <td>omitted when unset</td>
 <td>unit <code>shares</code></td>
 <td>New quantity; absent means the quantity is unchanged.</td>
+</tr>
+<tr>
+<td><code>request_tag</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>max_len 64</td>
+<td>Client correlation tag for this amend request, echoed on the resulting amendment event or rejection.</td>
 </tr>
 </tbody>
 </table>
@@ -12070,6 +12139,13 @@ wire-format specification in the
 <td>min_items 2, max_items 10</td>
 <td>The child orders. The bounds below were previously enforced only by api_gateway's pydantic schema, which left the ALF console and gateway free to submit a one-legged combo.</td>
 </tr>
+<tr>
+<td><code>client_tag</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>max_len 64</td>
+<td>Client correlation tag for this combo submission.</td>
+</tr>
 </tbody>
 </table>
 <div class="admonition note">
@@ -12144,6 +12220,13 @@ wire-format specification in the
 <td>required</td>
 <td>—</td>
 <td></td>
+</tr>
+<tr>
+<td><code>client_tag</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>max_len 64</td>
+<td>Client correlation tag for this OCO submission.</td>
 </tr>
 </tbody>
 </table>
@@ -16081,8 +16164,15 @@ wire-format specification in the
 <td><code>id</code></td>
 <td><code>string</code></td>
 <td>required</td>
-<td>max_len 64, pattern <code>^[0-9]+$</code></td>
-<td>Engine trade counter, unique <strong>within one engine run only</strong> - it restarts at 1 on every launch. Assigned by models/trade.py::Trade.create from a process-local itertools.count.</td>
+<td>max_len 64, pattern <code>^\d{6}-\d{9}$</code></td>
+<td>Durable, sortable trade id. The prefix is the persisted engine-run sequence and the suffix is the per-run trade counter.</td>
+</tr>
+<tr>
+<td><code>run_seq</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>ge 0, unit <code>dimensionless</code></td>
+<td>Durable engine-run sequence used as the trade id prefix. A change in run_seq marks an engine restart explicitly for consumers.</td>
 </tr>
 <tr>
 <td><code>symbol</code></td>

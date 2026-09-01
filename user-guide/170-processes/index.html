@@ -2634,7 +2634,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Information Terminal (TapeDeck)
+    GUI: Trading Info Terminal
   
 
     
@@ -2662,7 +2662,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Order Entry Terminal (TraderUI)
+    GUI: Trading platform
   
 
     
@@ -7166,7 +7166,7 @@ matched trade pair, using the trade UUID from the engine as the primary key.</p>
 <tr>
 <td><code>trade_id</code></td>
 <td>TEXT (PK)</td>
-<td>UUID from the engine</td>
+<td>Durable engine trade id (<code>run_seq-counter</code>); duplicate delivery is idempotent on this key</td>
 </tr>
 <tr>
 <td><code>symbol</code></td>

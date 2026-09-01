@@ -1194,6 +1194,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#request-tags-for-amend-and-cancel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Request tags for amend and cancel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#role-entitlements-what-each-role-can-do" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2564,7 +2575,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Information Terminal (TapeDeck)
+    GUI: Trading Info Terminal
   
 
     
@@ -2592,7 +2603,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Order Entry Terminal (TraderUI)
+    GUI: Trading platform
   
 
     
@@ -4870,6 +4881,20 @@ catalog, see <a href="../900-app-alf-protocol/">Appendix: ALF Protocol Reference
 </tr>
 </tbody>
 </table>
+<h3 id="request-tags-for-amend-and-cancel">Request tags for amend and cancel<a class="headerlink" href="#request-tags-for-amend-and-cancel" title="Permanent link">&para;</a></h3>
+<p><code>TAG=&lt;order-tag&gt;</code> is an optional client-supplied identifier on <code>NEW</code>. It
+identifies the order for its whole lifecycle and is echoed as <code>TAG</code> by ALF
+gateway clients, or as <code>client_tag</code> on engine, REST, and WebSocket payloads.</p>
+<p><code>RTAG=&lt;request-tag&gt;</code> is an optional client-supplied identifier on <code>AMEND</code> and
+single-order <code>CANCEL</code>. It identifies the <strong>request</strong>, not the order. The engine
+echoes it on the resulting <code>AMENDED</code>, <code>CANCELLED</code>, or rejected <code>ACK</code>, so a
+client can match an asynchronous response back to the exact amend or cancel it
+sent.</p>
+<p>An order tag follows one order for its whole life, while <code>RTAG</code> lasts for one request. Use a different
+<code>RTAG</code> for each retry or concurrent amend/cancel against the same order.
+Engine-initiated cancels, such as OCO sibling cancels, combo cascades, kill
+switches, and session expiry, have no originating client request and therefore
+do not carry an <code>RTAG</code>.</p>
 <h3 id="role-entitlements-what-each-role-can-do">Role entitlements (what each role can do)<a class="headerlink" href="#role-entitlements-what-each-role-can-do" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -5150,7 +5175,7 @@ command for external TCP clients — see
 <a href="../220-alf-gateway/#dc-toggle-drop-copy-relay">ALF TCP Gateway → DC</a>.</p>
 </div>
 <h3 id="new-submit-an-order">NEW — Submit an Order<a class="headerlink" href="#new-submit-an-order" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>NEW|SYM=&lt;symbol&gt;|SIDE=&lt;BUY|SELL&gt;|TYPE=&lt;order-type&gt;|QTY=&lt;quantity&gt;[|PRICE=&lt;price&gt;][|STOP=&lt;price&gt;][|TRAIL=&lt;offset&gt;][|TIF=&lt;DAY|GTC&gt;][|VISIBLE=&lt;n&gt;][|SMP=&lt;action&gt;]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>NEW|SYM=&lt;symbol&gt;|SIDE=&lt;BUY|SELL&gt;|TYPE=&lt;order-type&gt;|QTY=&lt;quantity&gt;[|PRICE=&lt;price&gt;][|STOP=&lt;price&gt;][|TRAIL=&lt;offset&gt;][|TIF=&lt;DAY|GTC&gt;][|VISIBLE=&lt;n&gt;][|SMP=&lt;action&gt;][|TAG=&lt;order-tag&gt;]
 </code></pre></div>
 <p><strong>SMP</strong> (Self Match Prevention) values: <code>NONE</code>, <code>CANCEL_AGGRESSOR</code>, <code>CANCEL_RESTING</code>, <code>CANCEL_BOTH</code>.
 SMP prevents you from accidentally trading against your own resting orders. If
@@ -5369,7 +5394,7 @@ manually: <code>TIF=ATO</code> or <code>TIF=ATC</code>. These orders are only va
 <li>All legs validated against <code>engine_config.yaml</code> symbol allowlist</li>
 </ul>
 <h3 id="amend-amend-a-resting-order">AMEND — Amend a Resting Order<a class="headerlink" href="#amend-amend-a-resting-order" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>AMEND|ID=&lt;full-order-id&gt;[|PRICE=&lt;new-price&gt;][|QTY=&lt;new-total-qty&gt;]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>AMEND|ID=&lt;full-order-id&gt;[|PRICE=&lt;new-price&gt;][|QTY=&lt;new-total-qty&gt;][|RTAG=&lt;request-tag&gt;]
 </code></pre></div>
 <p>At least one of <code>PRICE=</code> or <code>QTY=</code> must be present.</p>
 <table>
@@ -5394,7 +5419,12 @@ manually: <code>TIF=ATO</code> or <code>TIF=ATC</code>. These orders are only va
 <tr>
 <td><code>QTY</code></td>
 <td>Conditional</td>
-<td>New total quantity; must be ≥ filled quantity</td>
+<td>New total quantity; must be &gt;= filled quantity</td>
+</tr>
+<tr>
+<td><code>RTAG</code></td>
+<td>No</td>
+<td>Request tag echoed on <code>AMENDED</code> or rejected ACK</td>
 </tr>
 </tbody>
 </table>
@@ -5421,7 +5451,7 @@ manually: <code>TIF=ATO</code> or <code>TIF=ATC</code>. These orders are only va
 </tr>
 </tbody>
 </table>
-<p>Reply: <code>AMENDED &lt;id&gt;  price=&lt;p&gt; qty=&lt;q&gt; remaining=&lt;r&gt;</code> on success, or a rejection via <code>REJECTED</code> with a reason.</p>
+<p>Reply: <code>AMENDED &lt;id&gt;  price=&lt;p&gt; qty=&lt;q&gt; remaining=&lt;r&gt; rtag=&lt;request-tag&gt;</code> on success when <code>RTAG</code> was supplied, or a rejection via <code>REJECTED</code> with a reason.</p>
 <h3 id="new-oco-submit-a-one-cancels-other-pair">NEW (OCO) — Submit a One-Cancels-Other Pair<a class="headerlink" href="#new-oco-submit-a-one-cancels-other-pair" title="Permanent link">&para;</a></h3>
 <p>An OCO pair links two orders on the same symbol so that when one fills or is cancelled, the engine automatically cancels the other.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>NEW|TYPE=OCO|OCO_ID=&lt;label&gt;|SYM=&lt;symbol&gt;|QTY=&lt;qty&gt;[|TIF=&lt;DAY|GTC&gt;]
@@ -5510,11 +5540,14 @@ manually: <code>TIF=ATO</code> or <code>TIF=ATC</code>. These orders are only va
     Note over GW: [FILL] abc...  qty=100 @148.00 [FILLED]
     Note over GW: [OCO CANCEL]  BRACKET-001  sibling=def...  OCO sibling filled</code></pre>
 <h3 id="cancel-cancel-a-resting-order-combo-or-oco">CANCEL — Cancel a Resting Order, Combo, or OCO<a class="headerlink" href="#cancel-cancel-a-resting-order-combo-or-oco" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>CANCEL|ID=&lt;full-order-id&gt;          # single-leg order
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>CANCEL|ID=&lt;full-order-id&gt;[|RTAG=&lt;request-tag&gt;]  # single-leg order
 <a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>CANCEL|COMBO_ID=&lt;combo-label&gt;      # combo and all its resting legs
 <a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>CANCEL|OCO_ID=&lt;oco-label&gt;          # both legs of an OCO pair
 </code></pre></div>
 <p>The full order ID is shown in the <code>ORDERS</code> table. Only the first 8 characters appear in inline fill/cancel messages — use <code>ORDERS</code> to copy the full UUID.</p>
+<p>For a single-order cancel, <code>RTAG</code> is echoed on the <code>CANCELLED</code> event or rejected
+ACK. Group cancels are identified by <code>COMBO_ID</code> or <code>OCO_ID</code> and do not use
+<code>RTAG</code>.</p>
 <p>Cancelling a combo or OCO is atomic: all resting child legs are cancelled, but fills that already occurred are not reversed.</p>
 <h3 id="status-view-gateway-summary">STATUS — View Gateway Summary<a class="headerlink" href="#status-view-gateway-summary" title="Permanent link">&para;</a></h3>
 <p><code>STATUS</code> prints a quick local summary for the current session.</p>
@@ -5666,8 +5699,8 @@ simply lets you ask for the current state on demand instead of waiting.</p>
 <td>Engine received and registered the order</td>
 </tr>
 <tr>
-<td><code>REJECTED  &lt;id&gt;  &lt;reason&gt;</code></td>
-<td>Order was rejected (e.g. FOK: insufficient liquidity)</td>
+<td><code>REJECTED  &lt;id&gt; code=&lt;reject-code&gt; tag=&lt;order-tag&gt; rtag=&lt;request-tag&gt;  &lt;reason&gt;</code></td>
+<td>Order was rejected; <code>code</code> is stable for automation and tags are present when known</td>
 </tr>
 <tr>
 <td><code>FILL  &lt;id&gt;  qty=50 @150.50  remaining=50  [PARTIAL]</code></td>
@@ -5851,14 +5884,14 @@ simply lets you ask for the current state on demand instead of waiting.</p>
 <a id="__codelineno-37-4" name="__codelineno-37-4" href="#__codelineno-37-4"></a>[TRADER01]&gt; SYMBOLS
 <a id="__codelineno-37-5" name="__codelineno-37-5" href="#__codelineno-37-5"></a># confirms AAPL/MSFT active
 <a id="__codelineno-37-6" name="__codelineno-37-6" href="#__codelineno-37-6"></a>
-<a id="__codelineno-37-7" name="__codelineno-37-7" href="#__codelineno-37-7"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
+<a id="__codelineno-37-7" name="__codelineno-37-7" href="#__codelineno-37-7"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001
 <a id="__codelineno-37-8" name="__codelineno-37-8" href="#__codelineno-37-8"></a>[09:30:00.100] ACK  7c4a91e2  order accepted
 <a id="__codelineno-37-9" name="__codelineno-37-9" href="#__codelineno-37-9"></a>
 <a id="__codelineno-37-10" name="__codelineno-37-10" href="#__codelineno-37-10"></a>[TRADER01]&gt; ORDERS
 <a id="__codelineno-37-11" name="__codelineno-37-11" href="#__codelineno-37-11"></a># copy full UUID from table if you plan to amend/cancel
 <a id="__codelineno-37-12" name="__codelineno-37-12" href="#__codelineno-37-12"></a>
-<a id="__codelineno-37-13" name="__codelineno-37-13" href="#__codelineno-37-13"></a>[TRADER01]&gt; AMEND|ID=7c4a91e2-...|PRICE=150.10
-<a id="__codelineno-37-14" name="__codelineno-37-14" href="#__codelineno-37-14"></a>[09:30:01.500] AMENDED  7c4a91e2  price=150.1 qty=100 remaining=100
+<a id="__codelineno-37-13" name="__codelineno-37-13" href="#__codelineno-37-13"></a>[TRADER01]&gt; AMEND|ID=7c4a91e2-...|PRICE=150.10|RTAG=AMD-001
+<a id="__codelineno-37-14" name="__codelineno-37-14" href="#__codelineno-37-14"></a>[09:30:01.500] AMENDED  7c4a91e2  price=150.1 qty=100 remaining=100 rtag=AMD-001
 <a id="__codelineno-37-15" name="__codelineno-37-15" href="#__codelineno-37-15"></a>
 <a id="__codelineno-37-16" name="__codelineno-37-16" href="#__codelineno-37-16"></a>[09:30:02.200] FILL  7c4a91e2  qty=40 @150.10  remaining=60  [PARTIAL]
 <a id="__codelineno-37-17" name="__codelineno-37-17" href="#__codelineno-37-17"></a>

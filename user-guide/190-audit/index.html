@@ -2315,7 +2315,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Information Terminal (TapeDeck)
+    GUI: Trading Info Terminal
   
 
     
@@ -2343,7 +2343,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Order Entry Terminal (TraderUI)
+    GUI: Trading platform
   
 
     
@@ -5027,7 +5027,7 @@ trade, price ranges, and minimum quantities.</p>
 </tr>
 <tr>
 <td><code>trade_id</code></td>
-<td>Trade identifier — a monotonically increasing integer (as a string, e.g. <code>"42"</code>), unique within a single engine run. Not a UUID.</td>
+<td>Durable trade identifier, formatted as <code>run_seq-counter</code> (for example, <code>000042-000000001</code>). The prefix identifies the engine run; the suffix is monotonic within that run.</td>
 </tr>
 <tr>
 <td><code>symbol</code></td>

@@ -1889,7 +1889,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Information Terminal (TapeDeck)
+    GUI: Trading Info Terminal
   
 
     
@@ -1917,7 +1917,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Order Entry Terminal (TraderUI)
+    GUI: Trading platform
   
 
     
@@ -6488,16 +6488,17 @@ snapshot publishing cost from order throughput.</p>
 <a id="__codelineno-56-3" name="__codelineno-56-3" href="#__codelineno-56-3"></a>
 <a id="__codelineno-56-4" name="__codelineno-56-4" href="#__codelineno-56-4"></a><span class="nd">@classmethod</span>
 <a id="__codelineno-56-5" name="__codelineno-56-5" href="#__codelineno-56-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span>
-<a id="__codelineno-56-6" name="__codelineno-56-6" href="#__codelineno-56-6"></a>    <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
-<a id="__codelineno-56-7" name="__codelineno-56-7" href="#__codelineno-56-7"></a>        <span class="nb">id</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="nb">next</span><span class="p">(</span><span class="n">_trade_counter</span><span class="p">)),</span>  <span class="c1"># ≈50ns</span>
-<a id="__codelineno-56-8" name="__codelineno-56-8" href="#__codelineno-56-8"></a>        <span class="o">...</span>
-<a id="__codelineno-56-9" name="__codelineno-56-9" href="#__codelineno-56-9"></a>    <span class="p">)</span>
+<a id="__codelineno-56-6" name="__codelineno-56-6" href="#__codelineno-56-6"></a>    <span class="n">trade_seq</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">_trade_counter</span><span class="p">)</span>
+<a id="__codelineno-56-7" name="__codelineno-56-7" href="#__codelineno-56-7"></a>    <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+<a id="__codelineno-56-8" name="__codelineno-56-8" href="#__codelineno-56-8"></a>        <span class="nb">id</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">_run_seq</span><span class="si">:</span><span class="s2">06d</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">trade_seq</span><span class="si">:</span><span class="s2">09d</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>  <span class="c1"># ≈50ns plus formatting</span>
+<a id="__codelineno-56-9" name="__codelineno-56-9" href="#__codelineno-56-9"></a>        <span class="o">...</span>
+<a id="__codelineno-56-10" name="__codelineno-56-10" href="#__codelineno-56-10"></a>    <span class="p">)</span>
 </code></pre></div>
 <p><code>uuid.uuid4()</code> calls <code>/dev/urandom</code> — a system call costing ~1.5-2µs. Trade IDs
-only need to be unique within a single engine run (order IDs, assigned by gateways,
-need global uniqueness). The monotonic counter eliminates the syscall entirely.
-At 57,000 trades per second, this saves ~86ms per second of CPU time on ID
-generation alone.</p>
+combine a persisted engine-run sequence with an in-process monotonic counter,
+so they stay durable and sortable without a syscall in the inner loop. At
+57,000 trades per second, avoiding UUID generation saves roughly 86ms per second
+of CPU time on ID generation alone.</p>
 <h3 id="local-variable-caching-in-the-inner-loop">Local Variable Caching in the Inner Loop<a class="headerlink" href="#local-variable-caching-in-the-inner-loop" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-57-1" name="__codelineno-57-1" href="#__codelineno-57-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_sweep</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">aggressor</span><span class="p">,</span> <span class="n">opposite_heap</span><span class="p">,</span> <span class="n">price_limit</span><span class="p">,</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="n">now</span><span class="p">):</span>
 <a id="__codelineno-57-2" name="__codelineno-57-2" href="#__codelineno-57-2"></a>    <span class="c1"># Cache before the loop — not inside it</span>

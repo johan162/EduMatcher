@@ -1892,7 +1892,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Information Terminal (TapeDeck)
+    GUI: Trading Info Terminal
   
 
     
@@ -1920,7 +1920,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Order Entry Terminal (TraderUI)
+    GUI: Trading platform
   
 
     
@@ -4695,7 +4695,7 @@ behavior.</p>
 <p><code>MSGTYPE</code> is the first token and is always uppercase ASCII.</p>
 <p>Examples:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>HELLO|CLIENT=bot01|PROTO=CALF1
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>TRADE|CH=TRADE|SYM=AAPL|SEQ=809|TS=2026-06-07T10:16:00.141Z|PX=150.12|QTY=200|SIDE=BUY
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>TRADE|CH=TRADE|SYM=AAPL|SEQ=809|TS=2026-06-07T10:16:00.141Z|TRADE_ID=000042-000000123|RUN_SEQ=42|PX=150.12|QTY=200|SIDE=BUY
 </code></pre></div>
 <h3 id="parsing-behavior">Parsing behavior<a class="headerlink" href="#parsing-behavior" title="Permanent link">&para;</a></h3>
 <ul>
@@ -5589,6 +5589,16 @@ baked into its original <code>SNAP</code> while a reconnecting client saw the tr
 <td>Trade timestamp</td>
 </tr>
 <tr>
+<td><code>TRADE_ID</code></td>
+<td>Yes</td>
+<td>Durable public trade identifier</td>
+</tr>
+<tr>
+<td><code>RUN_SEQ</code></td>
+<td>Yes</td>
+<td>Persisted engine-run sequence in the identifier prefix</td>
+</tr>
+<tr>
 <td><code>PX</code></td>
 <td>Yes</td>
 <td>Trade price</td>
@@ -5605,7 +5615,7 @@ baked into its original <code>SNAP</code> while a reconnecting client saw the tr
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>TRADE|CH=TRADE|SYM=AAPL|SEQ=809|TS=2026-06-07T10:16:00.141Z|PX=150.12|QTY=200|SIDE=BUY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>TRADE|CH=TRADE|SYM=AAPL|SEQ=809|TS=2026-06-07T10:16:00.141Z|TRADE_ID=000042-000000123|RUN_SEQ=42|PX=150.12|QTY=200|SIDE=BUY
 </code></pre></div>
 <h3 id="state"><code>STATE</code><a class="headerlink" href="#state" title="Permanent link">&para;</a></h3>
 <p><strong>Direction:</strong> Gateway -&gt; Client</p>

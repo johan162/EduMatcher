@@ -1889,7 +1889,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Information Terminal (TapeDeck)
+    GUI: Trading Info Terminal
   
 
     
@@ -1917,7 +1917,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Order Entry Terminal (TraderUI)
+    GUI: Trading platform
   
 
     
@@ -4341,14 +4341,19 @@ read-only key.</p>
 <a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="s1">    "tif": "DAY"</span>
 <a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="s1">  }'</span>
 </code></pre></div>
-<p>Capture the returned <code>order_id</code>, then cancel it:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>DELETE<span class="w"> </span>http://127.0.0.1:8080/api/v1/orders/ORDER_ID<span class="w"> </span><span class="se">\</span>
+<p>Capture the returned <code>order_id</code>, then cancel it with a request tag:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>DELETE<span class="w"> </span><span class="s1">'http://127.0.0.1:8080/api/v1/orders/ORDER_ID?request_tag=rest-cxl-001'</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-trader-demo'</span>
 </code></pre></div>
 <p>Expected behavior:</p>
 <ul>
 <li>the submit call returns an accepted response or an engine validation error</li>
 <li>a valid cancel request targets the authenticated credential's <code>gateway_id</code></li>
+<li><code>request_tag</code> is echoed on the cancel response/event and identifies this
+  request, not the original order</li>
+<li>synchronous validation errors include both API <code>error.code</code> and canonical
+  <code>error.reject_code</code>; when supplied, <code>client_tag</code> or <code>request_tag</code> is echoed
+  in the error body</li>
 <li>read-only keys cannot submit or cancel orders</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can submit an order and observe its cancel path or explain the engine-side validation error.</p>

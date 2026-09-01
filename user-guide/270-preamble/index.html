@@ -1883,7 +1883,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Information Terminal (TapeDeck)
+    GUI: Trading Info Terminal
   
 
     
@@ -1911,7 +1911,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Order Entry Terminal (TraderUI)
+    GUI: Trading platform
   
 
     
@@ -3927,15 +3927,16 @@ message looks like:</p>
   library.</p>
 <p><strong>Hardcoded structures</strong>
 : The simplest approach — message shape is implicit in the code that creates
-  and reads it.  No IDL, no registry, no generator.  Fast to build, but
-  schema drift is invisible until something breaks at runtime.</p>
-<p>EduMatcher uses the <strong>hardcoded approach</strong>.  Each message type is created
-by a helper function in <code>src/edumatcher/models/message.py</code> (e.g.
-<code>make_order_new_msg</code>, <code>make_gateway_connect_msg</code>) and decoded by <code>decode()</code>.
-Every field documented on this page is exactly what those functions produce.
-This is ideal for a learning system — you can read the code and immediately
-see the message — but a real exchange would use Protobuf or Avro to enforce
-schema contracts across teams and languages.</p>
+  and reads it. No IDL, no registry, no generator. Fast to build, but schema
+  drift is invisible until something breaks at runtime.</p>
+<p>EduMatcher uses a small, repository-local <strong>IDL and code-generation</strong> workflow.
+The YAML definitions in <code>spec/messages/*.yaml</code> are the canonical message
+contracts. <code>pm-msgen generate</code> produces the Python bindings, applicable C
+artifacts, and the generated sections of this reference; <code>pm-msgen check</code>
+fails when any generated output diverges from its specification. Message
+producers and consumers still exchange ordinary two-frame JSON over ZeroMQ,
+so the generated bindings remain readable alongside the wire format they
+enforce.</p>
 <h3 id="what-zeromq-requires-of-a-message">What ZeroMQ requires of a message<a class="headerlink" href="#what-zeromq-requires-of-a-message" title="Permanent link">&para;</a></h3>
 <p>ZeroMQ does not impose a message format.  It sees messages as one or more
 opaque <strong>frames</strong> — byte arrays that are sent and received atomically as a
@@ -4263,6 +4264,11 @@ and received atomically:</p>
 <td><code>client_tag</code></td>
 <td>string | absent</td>
 <td>Optional client-supplied tag echoed back on every lifecycle event for this order (ack, fill, cancelled, expired). When present, subscribers can map events back to their submission without a FIFO scheme.</td>
+</tr>
+<tr>
+<td><code>request_tag</code></td>
+<td>string | absent</td>
+<td>Optional amend/cancel request tag echoed on the resulting <code>order.amended</code>, <code>order.cancelled</code>, or rejected <code>order.ack</code>. Unlike <code>client_tag</code>, it identifies one request against an order, not the order itself.</td>
 </tr>
 <tr>
 <td><code>arrival_seq</code></td>

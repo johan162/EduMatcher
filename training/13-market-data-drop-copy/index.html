@@ -1889,7 +1889,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Information Terminal (TapeDeck)
+    GUI: Trading Info Terminal
   
 
     
@@ -1917,7 +1917,7 @@
   <span class="md-ellipsis">
     
   
-    Trader Order Entry Terminal (TraderUI)
+    GUI: Trading platform
   
 
     
@@ -4204,14 +4204,16 @@ minimal ZMQ subscriber to the same socket <code>pm-dc-spy</code> reads:</p>
 <a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="s">    topic, payload = sock.recv_multipart()</span>
 <a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="s">    msg = json.loads(payload)</span>
 <a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="s">    print(topic.decode(), "seq=", msg.get("seq"), "gateway=", msg.get("gateway_id"),</span>
-<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="s">          "event_type=", msg.get("event_type"))</span>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="s">            "event_type=", msg.get("event_type"), "trade_ids=", msg.get("trade_ids"))</span>
 <a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="s">PY</span>
 </code></pre></div>
 <p>While this is running, execute a trade from <code>TRADER01</code> in another terminal:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 </code></pre></div>
 <p>You should see one <code>drop_copy.event.&lt;gateway_id&gt;</code> message per participant on
-each side of the trade, each with its own monotonically increasing <code>seq</code>.</p>
+each side of the trade, each with its own monotonically increasing <code>seq</code>.
+Each message also carries <code>trade_ids</code>, the durable public trade ID that lets a
+risk or clearing consumer correlate its private execution with <code>trade.executed</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you received at least one drop-copy message directly from port 5557, distinct from anything <code>pm-audit</code> printed on port 5556.</p>
 <h2 id="exercise-6-compare-public-events-and-drop-copy-purpose">Exercise 6: Compare Public Events and Drop-Copy Purpose<a class="headerlink" href="#exercise-6-compare-public-events-and-drop-copy-purpose" title="Permanent link">&para;</a></h2>
 <p>Execute another trade and compare what each consumer is for:</p>
