@@ -7,10 +7,11 @@ import asyncio
 import logging
 import sys
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator, cast
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi import HTTPException as FastAPIHTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
@@ -42,6 +43,43 @@ _CLIENT_NAME = "pm-api-gwy"
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
 log = logging.getLogger(__name__)
+
+
+_HTTP_REJECT_CODES = {
+    "AUTH": "AUTH_REQUIRED",
+    "ENGINE_AUTH": "AUTH_FAILED",
+    "READ_ONLY": "ROLE_DENIED",
+    "ROLE_DENIED": "ROLE_DENIED",
+    "RATE_LIMIT": "RATE_LIMITED",
+    "VALIDATION": "INVALID_VALUE",
+    "ENGINE_TIMEOUT": "INTERNAL_ERROR",
+}
+
+
+def _extract_correlation(body: object, request: Request) -> dict[str, str]:
+    tags: dict[str, str] = {}
+    if isinstance(body, dict):
+        for field in ("client_tag", "request_tag"):
+            value = body.get(field)
+            if value is not None:
+                tags[field] = str(value)
+    request_tag = request.query_params.get("request_tag")
+    if request_tag is not None:
+        tags["request_tag"] = request_tag
+    return tags
+
+
+def _validation_reject_code(error_type: str, message: str) -> str:
+    lower_message = message.lower()
+    if (
+        error_type == "missing"
+        or "required" in lower_message
+        or "requires" in lower_message
+    ):
+        return "MISSING_FIELD"
+    if error_type == "extra_forbidden":
+        return "UNSUPPORTED_FIELD"
+    return "INVALID_VALUE"
 
 
 def create_app(config: ApiGatewayConfig) -> FastAPI:
@@ -123,19 +161,53 @@ def create_app(config: ApiGatewayConfig) -> FastAPI:
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(  # pyright: ignore[reportUnusedFunction]
-        _request: object,
+        request: Request,
         exc: RequestValidationError,
     ) -> JSONResponse:
         first = exc.errors()[0] if exc.errors() else {}
         loc = first.get("loc", [])
         field = str(loc[-1]) if loc else None
+        message = str(first.get("msg", "Invalid request"))
+        body = getattr(exc, "body", None)
         return JSONResponse(
             status_code=400,
             content={
                 "error": {
                     "code": "VALIDATION",
-                    "message": str(first.get("msg", "Invalid request")),
+                    "message": message,
                     "field": field,
+                    "reject_code": _validation_reject_code(
+                        str(first.get("type", "")), message
+                    ),
+                    "reason": message,
+                    **_extract_correlation(body, request),
+                }
+            },
+        )
+
+    @app.exception_handler(FastAPIHTTPException)
+    async def http_exception_handler(  # pyright: ignore[reportUnusedFunction]
+        _request: Request,
+        exc: FastAPIHTTPException,
+    ) -> JSONResponse:
+        detail = exc.detail
+        if isinstance(detail, dict) and isinstance(detail.get("error"), dict):
+            detail_dict = cast(dict[str, Any], detail)
+            source_error = cast(dict[str, Any], detail_dict["error"])
+            error = dict(source_error)
+            code = str(error.get("code", "UNKNOWN"))
+            message = str(error.get("message", ""))
+            error.setdefault("reject_code", _HTTP_REJECT_CODES.get(code, "UNKNOWN"))
+            error.setdefault("reason", message)
+            return JSONResponse(status_code=exc.status_code, content={"error": error})
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "error": {
+                    "code": "HTTP_ERROR",
+                    "message": str(detail),
+                    "reject_code": "UNKNOWN",
+                    "reason": str(detail),
                 }
             },
         )

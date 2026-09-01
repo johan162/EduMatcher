@@ -290,6 +290,13 @@ For strict endpoint-by-endpoint access rules, see
 | `INDEX_TIMEOUT` | `503` | No `pm-index` reply within the configured timeout |
 | `INDEX_ERROR` | `502` | `pm-index` rejected the request |
 
+All error envelopes keep the transport-level `error.code`/`error.message` pair
+and, where the failure belongs to order entry, also include canonical
+`error.reject_code` plus `error.reason`. Validation failures echo
+`client_tag` or `request_tag` when the rejected request supplied one, so clients
+can correlate synchronous 4xx responses the same way they correlate asynchronous
+order events.
+
 
 ## REST endpoints
 

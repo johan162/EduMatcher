@@ -21,6 +21,10 @@ class ErrorDetail(StrictModel):
     code: str
     message: str
     field: str | None = None
+    reject_code: str | None = None
+    reason: str | None = None
+    client_tag: str | None = None
+    request_tag: str | None = None
 
 
 class ErrorResponse(StrictModel):

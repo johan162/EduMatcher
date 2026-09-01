@@ -9,6 +9,10 @@ export class ApiError extends Error {
     public readonly code: string,
     message: string,
     public readonly field?: string,
+    public readonly rejectCode?: string,
+    public readonly reason?: string,
+    public readonly clientTag?: string,
+    public readonly requestTag?: string,
   ) {
     super(message);
     this.name = "ApiError";
@@ -53,7 +57,32 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
       typeof err === "object"
         ? ((err as Record<string, unknown>)["field"] as string | undefined)
         : undefined;
-    throw new ApiError(res.status, code, message, field);
+    const rejectCode =
+      typeof err === "object"
+        ? ((err as Record<string, unknown>)["reject_code"] as string | undefined)
+        : undefined;
+    const reason =
+      typeof err === "object"
+        ? ((err as Record<string, unknown>)["reason"] as string | undefined)
+        : undefined;
+    const clientTag =
+      typeof err === "object"
+        ? ((err as Record<string, unknown>)["client_tag"] as string | undefined)
+        : undefined;
+    const requestTag =
+      typeof err === "object"
+        ? ((err as Record<string, unknown>)["request_tag"] as string | undefined)
+        : undefined;
+    throw new ApiError(
+      res.status,
+      code,
+      message,
+      field,
+      rejectCode,
+      reason,
+      clientTag,
+      requestTag,
+    );
   }
 
   // 204 No Content

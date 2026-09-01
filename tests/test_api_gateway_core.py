@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import json
 import sqlite3
+import inspect
 from datetime import timezone
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
+from fastapi.exceptions import RequestValidationError
+from starlette.requests import Request
 
 from edumatcher.api_gateway.config import ApiGatewayConfig
 from edumatcher.api_gateway.main import create_app
@@ -13,6 +18,28 @@ from edumatcher.api_gateway.schemas import OrderRequest, QuoteRequest
 from edumatcher.api_gateway.translate import build_order, build_quote_payload
 from edumatcher.models.order import OrderType, Side
 from edumatcher.stats.query import query_order_events, query_order_lifecycle
+
+
+def _request(query_string: bytes = b"") -> Request:
+    return Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/",
+            "query_string": query_string,
+            "headers": [],
+        }
+    )
+
+
+async def _validation_error_content(
+    errors: list[dict[str, object]], body: dict[str, object], query_string: bytes = b""
+) -> dict[str, Any]:
+    app = create_app(ApiGatewayConfig(swagger_enabled=False))
+    handler = app.exception_handlers[RequestValidationError]
+    result = handler(_request(query_string), RequestValidationError(errors, body=body))
+    response = await result if inspect.isawaitable(result) else result
+    return cast(dict[str, Any], json.loads(bytes(response.body).decode("utf-8")))
 
 
 def test_swagger_can_be_disabled() -> None:
@@ -68,6 +95,65 @@ def test_d1_client_order_id_is_not_a_rest_field() -> None:
                 "client_order_id": "legacy-1",
             }
         )
+
+
+@pytest.mark.anyio
+async def test_rest_validation_error_carries_reject_code_and_client_tag() -> None:
+    content = await _validation_error_content(
+        [
+            {
+                "type": "value_error",
+                "loc": ("body",),
+                "msg": "Value error, LIMIT requires price",
+            }
+        ],
+        {"client_tag": "REST-ORDER-001"},
+    )
+
+    error = cast(dict[str, Any], content["error"])
+    assert error["code"] == "VALIDATION"
+    assert error["reject_code"] == "MISSING_FIELD"
+    assert error["reason"] == error["message"]
+    assert error["client_tag"] == "REST-ORDER-001"
+
+
+@pytest.mark.anyio
+async def test_rest_amend_validation_error_carries_request_tag() -> None:
+    content = await _validation_error_content(
+        [
+            {
+                "type": "value_error",
+                "loc": ("body",),
+                "msg": "Value error, At least one of price or quantity is required",
+            }
+        ],
+        {"request_tag": "REST-AMD-001"},
+    )
+
+    error = cast(dict[str, Any], content["error"])
+    assert error["code"] == "VALIDATION"
+    assert error["reject_code"] == "MISSING_FIELD"
+    assert error["request_tag"] == "REST-AMD-001"
+
+
+@pytest.mark.anyio
+async def test_rest_query_validation_error_carries_request_tag() -> None:
+    content = await _validation_error_content(
+        [
+            {
+                "type": "string_too_long",
+                "loc": ("query", "request_tag"),
+                "msg": "String should have at most 64 characters",
+            }
+        ],
+        {},
+        b"request_tag=REST-CXL-001",
+    )
+
+    error = cast(dict[str, Any], content["error"])
+    assert error["code"] == "VALIDATION"
+    assert error["reject_code"] == "INVALID_VALUE"
+    assert error["request_tag"] == "REST-CXL-001"
 
 
 def test_quote_payload_uses_wire_values() -> None:

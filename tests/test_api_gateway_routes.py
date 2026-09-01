@@ -151,6 +151,20 @@ class TimeoutEngine(FakeEngine):
         raise TimeoutError("no reply")
 
 
+class RejectedAckEngine(FakeEngine):
+    async def await_event(
+        self, topic: str, match: dict[str, str] | None, timeout: float
+    ) -> dict[str, Any]:
+        self.calls.append(("await_event", (topic, match, timeout)))
+        return {
+            "order_id": match.get("order_id", "") if match else "",
+            "accepted": False,
+            "reason": "collar breach",
+            "reject_code": "COLLAR_BREACH",
+            "client_tag": "REST-ORDER-001",
+        }
+
+
 def fake_request(engine: FakeEngine | None = None) -> Any:
     return SimpleNamespace(
         app=SimpleNamespace(
@@ -327,6 +341,30 @@ async def test_d1_client_tag_round_trips_through_rest_order_cache() -> None:
     assert sent_order.client_tag == "T1-LM001-001"
     assert submitted.client_tag == "T1-LM001-001"
     assert stored["client_tag"] == "T1-LM001-001"
+
+
+@pytest.mark.anyio
+async def test_rejected_order_ack_flows_through_rest_wait_response() -> None:
+    engine = RejectedAckEngine()
+    request = fake_request(engine)
+    session = trading_session()
+    order_body = OrderRequest(
+        symbol="AAPL",
+        side=Side.BUY,
+        order_type=OrderType.LIMIT,
+        quantity=10,
+        price=150.0,
+        client_tag="REST-ORDER-001",
+    )
+
+    submitted = await orders.submit_order(order_body, request, session, wait="ack")
+
+    assert submitted.accepted is False
+    assert submitted.reject_code == "COLLAR_BREACH"
+    assert submitted.client_tag == "REST-ORDER-001"
+    assert submitted.event is not None
+    assert submitted.event["reject_code"] == "COLLAR_BREACH"
+    assert submitted.event["client_tag"] == "REST-ORDER-001"
 
 
 @pytest.mark.anyio

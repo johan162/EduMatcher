@@ -220,6 +220,9 @@ Expected behavior:
 - a valid cancel request targets the authenticated credential's `gateway_id`
 - `request_tag` is echoed on the cancel response/event and identifies this
   request, not the original order
+- synchronous validation errors include both API `error.code` and canonical
+  `error.reject_code`; when supplied, `client_tag` or `request_tag` is echoed
+  in the error body
 - read-only keys cannot submit or cancel orders
 
 :material-checkbox-blank-outline: Checkpoint: you can submit an order and observe its cancel path or explain the engine-side validation error.

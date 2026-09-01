@@ -196,6 +196,10 @@ All non-2xx replies MUST use this JSON envelope shape.
 | `error.code` | `String` | yes | Stable machine-readable code (for example `VALIDATION`) |
 | `error.message` | `String` | yes | Human-readable summary |
 | `error.field` | `String` | no | Field name when validation pinpoints one input field |
+| `error.reject_code` | `String` | no | Canonical order-rejection class for ALF/REST comparison, when applicable |
+| `error.reason` | `String` | no | Human-readable rejection reason; usually the same text as `message` on request-shape errors |
+| `error.client_tag` | `String` | no | Echo of the submitted order correlation tag, when available |
+| `error.request_tag` | `String` | no | Echo of the amend/cancel request tag, when available |
 
 Canonical example:
 
@@ -203,8 +207,11 @@ Canonical example:
 {
   "error": {
     "code": "VALIDATION",
+    "reject_code": "INVALID_VALUE",
     "message": "Input should be greater than 0",
-    "field": "quantity"
+    "reason": "Input should be greater than 0",
+    "field": "quantity",
+    "client_tag": "desk1-aapl-00042"
   }
 }
 ```
