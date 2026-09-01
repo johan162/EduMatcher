@@ -9,6 +9,7 @@ from __future__ import annotations
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
+from typing import Optional
 
 StreamKey = tuple[str, str]
 
@@ -20,6 +21,7 @@ class ReplayEvent:
     seq: int
     created_mono: float
     line: bytes
+    trade_id: Optional[str] = None
 
 
 class ReplayMissError(RuntimeError):
@@ -32,13 +34,28 @@ class ReplayBuffer:
     def __init__(self, replay_window_sec: int) -> None:
         self._window_sec = replay_window_sec
         self._events: dict[StreamKey, deque[ReplayEvent]] = defaultdict(deque)
+        self._trade_ids: dict[StreamKey, set[str]] = defaultdict(set)
 
-    def append(self, ch: str, sym: str, seq: int, line: bytes) -> None:
+    def append(
+        self,
+        ch: str,
+        sym: str,
+        seq: int,
+        line: bytes,
+        trade_id: Optional[str] = None,
+    ) -> bool:
         """Append one stream event and prune expired entries."""
         key = (ch, sym)
         now = time.monotonic()
-        self._events[key].append(ReplayEvent(seq=seq, created_mono=now, line=line))
         self._prune_stream(key, now)
+        if trade_id is not None and trade_id in self._trade_ids[key]:
+            return False
+        self._events[key].append(
+            ReplayEvent(seq=seq, created_mono=now, line=line, trade_id=trade_id)
+        )
+        if trade_id is not None:
+            self._trade_ids[key].add(trade_id)
+        return True
 
     def replay_since(self, ch: str, sym: str, last_seq: int) -> list[bytes]:
         """Return events with sequence > ``last_seq`` for stream.
@@ -70,4 +87,6 @@ class ReplayBuffer:
         if q is None:
             return
         while q and q[0].created_mono < cutoff:
-            q.popleft()
+            event = q.popleft()
+            if event.trade_id is not None:
+                self._trade_ids[key].discard(event.trade_id)

@@ -43,7 +43,7 @@ _TRADE_EXECUTED_FIELDS: tuple[dict[str, Any], ...] = (
         "name": "run_seq",
         "type": "int",
         "unit": "dimensionless",
-        "required": False,
+        "required": True,
         "doc": "Durable engine-run sequence used as the trade id prefix. A change in run_seq marks an engine restart explicitly for consumers.",
         "constraints": {"ge": 0},
     },
@@ -139,6 +139,7 @@ class TradeExecuted:
     """
 
     id: str
+    run_seq: int  # unit: dimensionless
     symbol: str
     buy_order_id: str
     sell_order_id: str
@@ -148,7 +149,6 @@ class TradeExecuted:
     quantity: int  # unit: shares
     aggressor_side: str
     timestamp: float  # unit: epoch_seconds
-    run_seq: int = 0  # unit: dimensionless
     tick_decimals: int = 2  # unit: dimensionless
 
     def validate(self) -> None:
@@ -219,7 +219,7 @@ class TradeExecuted:
         """
         return cls(
             id=str(p["id"]),
-            run_seq=int(p.get("run_seq", 0)),
+            run_seq=int(p["run_seq"]),
             symbol=str(p["symbol"]),
             buy_order_id=str(p["buy_order_id"]),
             sell_order_id=str(p["sell_order_id"]),
@@ -273,6 +273,7 @@ def make_trade_executed(**kw: Any) -> list[bytes]:
 def make_trade_executed_unchecked(
     *,
     id: str,
+    run_seq: int,
     symbol: str,
     buy_order_id: str,
     sell_order_id: str,
@@ -282,7 +283,6 @@ def make_trade_executed_unchecked(
     quantity: int,
     aggressor_side: str,
     timestamp: float,
-    run_seq: int = 0,
     tick_decimals: int = 2,
 ) -> list[bytes]:
     """Identical frames to ``make_trade_executed``, without ``validate()``.
@@ -351,6 +351,8 @@ def project_trade_executed_calf(
     not payload keys.
     """
     return {
+        "TRADE_ID": str(payload["id"]),
+        "RUN_SEQ": str(int(payload["run_seq"])),
         "PX": str(float(payload["price"])),
         "QTY": str(int(payload["quantity"])),
         "SIDE": str(payload.get("aggressor_side", "")).upper(),
@@ -367,8 +369,8 @@ def parse_trade_executed_calf(
     section 5.1.1).
     """
     return TradeExecuted(
-        id="",
-        run_seq=0,
+        id=str(fields["TRADE_ID"]),
+        run_seq=int(fields["RUN_SEQ"]),
         symbol="",
         buy_order_id="",
         sell_order_id="",

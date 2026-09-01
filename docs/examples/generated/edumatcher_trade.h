@@ -34,6 +34,8 @@ const char *edu_trade_executed_aggressor_side_to_str(edu_trade_executed_aggresso
 int edu_trade_executed_aggressor_side_from_str(const char *s, edu_trade_executed_aggressor_side_t *out);
 
 typedef struct {
+    char id[65];  /* TRADE_ID */
+    int64_t run_seq;  /* RUN_SEQ, unit: dimensionless */
     double price;  /* PX, unit: display_price */
     int64_t quantity;  /* QTY, unit: shares */
     edu_trade_executed_aggressor_side_t aggressor_side;  /* SIDE */

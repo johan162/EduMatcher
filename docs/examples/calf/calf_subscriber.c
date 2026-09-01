@@ -317,8 +317,9 @@ static void handle_message(int fd, const calf_message_t *msg) {
              * need to know an instrument's tick scale before reformatting its
              * price. calf_subscriber.py shows the path that does parse prices. */
             const char *px = calf_get_field(msg, "PX");
-            printf("TRADE %-8s %6lld @ %10s (%s)\n",
+                 printf("TRADE %-8s %-16s %6lld @ %10s (%s)\n",
                    symbol,
+                     trade.id,
                    (long long)trade.quantity,
                    px ? px : "?",
                    edu_trade_executed_aggressor_side_to_str(trade.aggressor_side));

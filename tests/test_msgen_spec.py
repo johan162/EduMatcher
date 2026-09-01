@@ -109,6 +109,7 @@ class TestRealSpec:
         (msg,) = _trade_family().messages
         hand = TradeExecutedPayload(
             id="1",
+            run_seq=1,
             symbol="A",
             buy_order_id="b",
             sell_order_id="s",
@@ -154,8 +155,10 @@ class TestTextEncoding:
         (msg,) = _trade_family().messages
         calf = msg.text_encoding["calf"]
         assert calf.msg_type == "TRADE"
-        assert calf.include == ("price", "quantity", "aggressor_side")
+        assert calf.include == ("id", "run_seq", "price", "quantity", "aggressor_side")
         assert calf.keys == {
+            "id": ("TRADE_ID",),
+            "run_seq": ("RUN_SEQ",),
             "price": ("PX",),
             "quantity": ("QTY",),
             "aggressor_side": ("SIDE",),
@@ -166,7 +169,8 @@ class TestTextEncoding:
         """Design section 4.6: a projection is a subset, not a rename of all."""
         (msg,) = _trade_family().messages
         carried = set(msg.text_encoding["calf"].include)
-        assert "id" not in carried
+        assert "id" in carried
+        assert "run_seq" in carried
         assert "symbol" not in carried
         assert "tick_decimals" not in carried
 

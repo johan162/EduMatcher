@@ -37,7 +37,8 @@ GENERATED_C = REPO_ROOT / "docs" / "examples" / "generated"
 CALF_C = REPO_ROOT / "docs" / "examples" / "calf"
 
 _SAMPLE: dict[str, Any] = {
-    "id": "42",
+    "id": "000001-000000042",
+    "run_seq": 1,
     "symbol": "ACME",
     "buy_order_id": "b-1",
     "sell_order_id": "s-1",
@@ -84,8 +85,8 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    printf("{\"stage\":\"ok\",\"price\":%.17g,\"quantity\":%lld,\"side\":\"%s\"}\n",
-           trade.price, (long long)trade.quantity,
+        printf("{\"stage\":\"ok\",\"trade_id\":\"%s\",\"run_seq\":%lld,\"price\":%.17g,\"quantity\":%lld,\"side\":\"%s\"}\n",
+            trade.id, (long long)trade.run_seq, trade.price, (long long)trade.quantity,
            edu_trade_executed_aggressor_side_to_str(trade.aggressor_side));
     return 0;
 }
@@ -151,6 +152,17 @@ def _calf_line(fields: dict[str, str], msg_type: str | None = None) -> str:
     return "|".join(parts)
 
 
+def _valid_fields(**overrides: str) -> dict[str, str]:
+    return {
+        "TRADE_ID": "000001-000000001",
+        "RUN_SEQ": "1",
+        "PX": "1.5",
+        "QTY": "10",
+        "SIDE": "BUY",
+        **overrides,
+    }
+
+
 class TestGeneratedCCompiles:
     def test_it_builds_warning_free(self, harness: Path) -> None:
         """-Werror in the fixture; reaching here means it compiled clean."""
@@ -187,6 +199,8 @@ class TestPythonAndCAgree:
         result = _run(harness, _calf_line(projected))
 
         assert result["stage"] == "ok", result
+        assert result["trade_id"] == message.id
+        assert result["run_seq"] == message.run_seq
         assert result["price"] == pytest.approx(message.price, rel=0, abs=0)
         assert result["quantity"] == message.quantity
         assert result["side"] == message.aggressor_side
@@ -220,9 +234,10 @@ class TestPythonAndCAgree:
         assert recovered.aggressor_side == message.aggressor_side
 
     def test_fields_the_projection_drops_are_not_invented(self) -> None:
-        """CALF's TRADE print carries no id or symbol (design section 4.6)."""
+        """CALF's TRADE print carries identity but not internal order detail."""
         recovered = parse_trade_executed_calf(project_trade_executed_calf(_SAMPLE))
-        assert recovered.id == ""
+        assert recovered.id == _SAMPLE["id"]
+        assert recovered.run_seq == _SAMPLE["run_seq"]
         assert recovered.symbol == ""
         assert recovered.buy_order_id == ""
         assert recovered.timestamp == 0.0
@@ -232,16 +247,16 @@ class TestCErrorPaths:
     """The declared rules must be enforced in C, not only in Python."""
 
     def test_wrong_msg_type(self, harness: Path) -> None:
-        line = _calf_line({"PX": "1", "QTY": "1", "SIDE": "BUY"}, msg_type="MD")
+        line = _calf_line(_valid_fields(PX="1", QTY="1"), msg_type="MD")
         assert _run(harness, line) == {
             "stage": "parse",
             "rc": -4,
             "msg": "unknown or unexpected msg_type",
         }
 
-    @pytest.mark.parametrize("missing", ["PX", "QTY", "SIDE"])
+    @pytest.mark.parametrize("missing", ["TRADE_ID", "RUN_SEQ", "PX", "QTY", "SIDE"])
     def test_missing_required_field(self, harness: Path, missing: str) -> None:
-        fields = {"PX": "1.5", "QTY": "10", "SIDE": "BUY"}
+        fields = _valid_fields()
         del fields[missing]
         result = _run(harness, _calf_line(fields))
         assert result["stage"] == "parse"
@@ -250,11 +265,11 @@ class TestCErrorPaths:
     @pytest.mark.parametrize(
         "fields",
         [
-            {"PX": "abc", "QTY": "10", "SIDE": "BUY"},
-            {"PX": "1.5", "QTY": "ten", "SIDE": "BUY"},
-            {"PX": "1.5", "QTY": "10", "SIDE": "SIDEWAYS"},
-            {"PX": "1.5x", "QTY": "10", "SIDE": "BUY"},
-            {"PX": "1.5", "QTY": "10.5", "SIDE": "BUY"},
+            _valid_fields(PX="abc"),
+            _valid_fields(QTY="ten"),
+            _valid_fields(SIDE="SIDEWAYS"),
+            _valid_fields(PX="1.5x"),
+            _valid_fields(QTY="10.5"),
         ],
     )
     def test_unparseable_value(self, harness: Path, fields: dict[str, str]) -> None:
@@ -266,10 +281,10 @@ class TestCErrorPaths:
     @pytest.mark.parametrize(
         "fields, expected",
         [
-            ({"PX": "0", "QTY": "10", "SIDE": "BUY"}, "price must be > 0"),
-            ({"PX": "-1", "QTY": "10", "SIDE": "BUY"}, "price must be > 0"),
-            ({"PX": "1.5", "QTY": "0", "SIDE": "BUY"}, "quantity must be > 0"),
-            ({"PX": "1.5", "QTY": "-3", "SIDE": "BUY"}, "quantity must be > 0"),
+            (_valid_fields(PX="0"), "price must be > 0"),
+            (_valid_fields(PX="-1"), "price must be > 0"),
+            (_valid_fields(QTY="0"), "quantity must be > 0"),
+            (_valid_fields(QTY="-3"), "quantity must be > 0"),
         ],
     )
     def test_validation_rules_are_enforced_in_c(
@@ -303,5 +318,5 @@ class TestEnumHelpers:
     def test_every_declared_value_round_trips_through_c(
         self, harness: Path, side: str
     ) -> None:
-        line = _calf_line({"PX": "1.5", "QTY": "10", "SIDE": side})
+        line = _calf_line(_valid_fields(SIDE=side))
         assert _run(harness, line)["side"] == side

@@ -804,7 +804,8 @@ def _trade_payload(
     price: Any, timestamp: Any, tick_decimals: int = 2
 ) -> dict[str, Any]:
     return {
-        "id": "T1",
+        "id": "000001-000000001",
+        "run_seq": 1,
         "symbol": "AAPL",
         "buy_order_id": "O1",
         "sell_order_id": "O2",

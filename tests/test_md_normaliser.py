@@ -3,6 +3,19 @@ from __future__ import annotations
 from edumatcher.md_gateway.normaliser import EngineNormaliser
 
 
+def _trade(
+    price: float, quantity: int, aggressor_side: str = "BUY"
+) -> dict[str, object]:
+    return {
+        "id": "000001-000000001",
+        "run_seq": 1,
+        "symbol": "AAPL",
+        "price": price,
+        "quantity": quantity,
+        "aggressor_side": aggressor_side,
+    }
+
+
 def test_normalise_book_emits_change_fields() -> None:
     n = EngineNormaliser()
     payload = {
@@ -130,9 +143,7 @@ def test_md_carries_the_new_last_after_a_trade() -> None:
     """
     n = EngineNormaliser()
     n.normalise_book("AAPL", _book(last=150.11))
-    n.normalise_trade(
-        {"symbol": "AAPL", "price": 151.5, "quantity": 25, "aggressor_side": "BUY"}
-    )
+    n.normalise_trade(_trade(151.5, 25))
 
     fields = n.normalise_book("AAPL", _book(last=151.5, last_qty=25))
 
@@ -145,9 +156,7 @@ def test_streamed_and_reconnected_clients_agree_on_last() -> None:
     """The divergence this guards against: same feed, two different prices."""
     n = EngineNormaliser()
     n.normalise_book("AAPL", _book(last=150.11))
-    n.normalise_trade(
-        {"symbol": "AAPL", "price": 151.5, "quantity": 25, "aggressor_side": "BUY"}
-    )
+    n.normalise_trade(_trade(151.5, 25))
     delta = n.normalise_book("AAPL", _book(last=151.5, last_qty=25))
 
     # What a client merging deltas ends up with, versus what a fresh
@@ -160,9 +169,7 @@ def test_snapshot_reports_a_trade_before_the_next_book_republish() -> None:
     """Book snapshots are throttled, so the SNAP path cannot wait for one."""
     n = EngineNormaliser()
     n.normalise_book("AAPL", _book(last=150.11))
-    n.normalise_trade(
-        {"symbol": "AAPL", "price": 151.5, "quantity": 25, "aggressor_side": "BUY"}
-    )
+    n.normalise_trade(_trade(151.5, 25))
 
     assert n.top_snapshot_fields("AAPL")["LAST"] == "151.5"
 
@@ -171,9 +178,7 @@ def test_last_is_not_re_sent_once_delivered() -> None:
     """Fixing the suppression must not turn into re-sending an unchanged field."""
     n = EngineNormaliser()
     n.normalise_book("AAPL", _book(last=150.11))
-    n.normalise_trade(
-        {"symbol": "AAPL", "price": 151.5, "quantity": 25, "aggressor_side": "BUY"}
-    )
+    n.normalise_trade(_trade(151.5, 25))
     n.normalise_book("AAPL", _book(last=151.5, last_qty=25))
 
     assert n.normalise_book("AAPL", _book(last=151.5, last_qty=25)) is None
@@ -196,9 +201,7 @@ def test_several_trades_between_republishes_report_the_latest() -> None:
     n = EngineNormaliser()
     n.normalise_book("AAPL", _book(last=150.11))
     for px in (151.0, 151.25, 151.5):
-        n.normalise_trade(
-            {"symbol": "AAPL", "price": px, "quantity": 5, "aggressor_side": "BUY"}
-        )
+        n.normalise_trade(_trade(px, 5))
 
     fields = n.normalise_book("AAPL", _book(last=151.5, last_qty=5))
 
@@ -208,15 +211,10 @@ def test_several_trades_between_republishes_report_the_latest() -> None:
 
 def test_trade_updates_last_cache() -> None:
     n = EngineNormaliser()
-    sym, fields = n.normalise_trade(
-        {
-            "symbol": "AAPL",
-            "price": 151.0,
-            "quantity": 25,
-            "aggressor_side": "BUY",
-        }
-    )
+    sym, fields = n.normalise_trade(_trade(151.0, 25))
     assert sym == "AAPL"
+    assert fields["TRADE_ID"] == "000001-000000001"
+    assert fields["RUN_SEQ"] == "1"
     assert fields["PX"] == "151.0"
     snap = n.top_snapshot_fields("AAPL")
     assert snap["LAST"] == "151.0"

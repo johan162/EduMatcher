@@ -111,7 +111,7 @@ Examples:
 
 ```text
 HELLO|CLIENT=bot01|PROTO=CALF1
-TRADE|CH=TRADE|SYM=AAPL|SEQ=809|TS=2026-06-07T10:16:00.141Z|PX=150.12|QTY=200|SIDE=BUY
+TRADE|CH=TRADE|SYM=AAPL|SEQ=809|TS=2026-06-07T10:16:00.141Z|TRADE_ID=000042-000000123|RUN_SEQ=42|PX=150.12|QTY=200|SIDE=BUY
 ```
 
 ### Parsing behavior
@@ -637,12 +637,14 @@ baked into its original `SNAP` while a reconnecting client saw the true value.
 | `SYM`  | Yes | Symbol                           |
 | `SEQ`  | Yes | Stream sequence                  |
 | `TS`   | Yes | Trade timestamp                  |
+| `TRADE_ID` | Yes | Durable public trade identifier |
+| `RUN_SEQ` | Yes | Persisted engine-run sequence in the identifier prefix |
 | `PX`   | Yes | Trade price                      |
 | `QTY`  | Yes | Trade quantity                   |
 | `SIDE` | Yes | Aggressor side (`BUY` or `SELL`) |
 
 ```text
-TRADE|CH=TRADE|SYM=AAPL|SEQ=809|TS=2026-06-07T10:16:00.141Z|PX=150.12|QTY=200|SIDE=BUY
+TRADE|CH=TRADE|SYM=AAPL|SEQ=809|TS=2026-06-07T10:16:00.141Z|TRADE_ID=000042-000000123|RUN_SEQ=42|PX=150.12|QTY=200|SIDE=BUY
 ```
 
 ### `STATE`

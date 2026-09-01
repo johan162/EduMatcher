@@ -43,8 +43,7 @@ messages:
 
       - name: run_seq
         type: int
-        required: false
-        default: 0
+        required: true
         unit: dimensionless
         doc: >
           Durable engine-run sequence used as the trade id prefix. A change in
@@ -140,17 +139,18 @@ messages:
 
       calf:
         # Public market-data print on the CALF TRADE channel.
-        # md_gateway/normaliser.py::normalise_trade emits ONLY these three keys;
+        # md_gateway/normaliser.py::normalise_trade emits these keys;
         # CH/SYM/SEQ/TS are added by gateway.py::_emit_stream_event as the frame
-        # envelope, not by the payload projection. The engine trade `id` is
-        # deliberately absent from the public feed.
+        # envelope, not by the payload projection.
         #
         # gateway_injected is documentation only - the generated projection
         # never emits those keys, and their order here carries no meaning
         # (design section B.13, corrected in 1.8.0).
         msg_type: TRADE
-        include: [price, quantity, aggressor_side]
+        include: [id, run_seq, price, quantity, aggressor_side]
         keys:
+          id: TRADE_ID
+          run_seq: RUN_SEQ
           price: PX
           quantity: QTY
           aggressor_side: SIDE
