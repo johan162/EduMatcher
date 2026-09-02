@@ -185,13 +185,67 @@ mkdir edumatcher-session && cd edumatcher-session
 pm-setup
 ```
 
-Here you start each process yourself. That is slower, and it is the better way
+The `pm-setup` command will create a new data-directory and install a default example engine-config file with three symbols.
+
+Here you start each process yourself. That is slower, but it is the better way
 to *learn* the system: you see what each process does, and what breaks when one
-is missing.
+is missing. Starting the system should be done in a particular order for a smooth experience. For example, the engine
+is not actually the first process you should start; that would be the log-server (`pm-log-srv`). The reason being
+that all other processes will automatically send their logs to the log-server if they can find it
+on startup. Having all logs centralized in the log-server is much better for trouble-shooting (and learning!) than having to 
+manually reaad through a lot of different log files.
+
+As an administer the system offers a process management tool called `pm-opctl-cli` that allows you to easily start, stop and check the health of a running system. The tool can start the full system in the optimal order with one command as the example below shows. In this example we have installed the system in a virtual machine (using `Multipass` and `deployment/vm/mknode.sh` utility script)
+
+```
+ubuntu@ems:~$ pm-opctl-cli start
+Starting pm-opctl configuration 'default' from /home/ubuntu/.local/share/edumatcher/emo-config.yaml
+Data directory: /home/ubuntu/.local/share/edumatcher
+  started log (pid 21210): pm-log-srv
+  started audit (pid 21212): pm-audit --verbose
+  started stats (pid 21214): pm-stats --verbose
+  started clearing (pid 21216): pm-clearing --verbose
+  started engine (pid 21218): pm-engine --verbose
+  started scheduler (pid 21220): pm-scheduler --daily --verbose
+  started market-data-gwy (pid 21222): pm-md-gwy --verbose
+  started post-trade-gwy (pid 21224): pm-ralf-gwy --verbose
+  started drop-copy-gwy (pid 21226): pm-dc-gwy --verbose
+  started api-desk-gwy (pid 21228): pm-api-gwy --verbose --instance desk
+  started api-dashboards-gwy (pid 21231): pm-api-gwy --verbose --instance dashboards
+  started alf-gwy (pid 21233): pm-alf-gwy --verbose
+  started balf-gwy (pid 21235): pm-balf-gwy --verbose
+  started index-srv (pid 21239): pm-index --verbose
+```
+
+Later we can check the if all processes are running as expected using the `list` subcommand as in:
+
+```
+ubuntu@ems:~$ pm-opctl-cli list
+pm-opctl profile: default
+data directory: /home/ubuntu/.local/share/edumatcher
+  Process                  PID   Uptime  RSS(MB)  Status          Details
+----------------------------------------------------------------------------------------------
+✅ log                   106208    00:51     40.0  running         tcp connect to 127.0.0.1:5600 ok
+✅ audit                 106210    00:51     38.2  running         no healthcheck or tcp check configured
+✅ stats                 106212    00:51     40.8  running         healthcheck passed
+✅ clearing              106214    00:51     42.5  running         no healthcheck or tcp check configured
+✅ engine                106216    00:51     51.3  running         tcp connect to 127.0.0.1:5555 ok
+✅ scheduler             106218    00:51     49.9  running         no healthcheck or tcp check configured
+✅ market-data-gwy       106220    00:51     37.9  running         tcp connect to 127.0.0.1:5570 ok
+✅ post-trade-gwy        106222    00:51     37.7  running         tcp connect to 127.0.0.1:5580 ok
+✅ drop-copy-gwy         106224    00:51     37.7  running         tcp connect to 127.0.0.1:5590 ok
+✅ api-desk-gwy          106264    00:51     71.9  running         tcp connect to 127.0.0.1:8080 ok
+✅ api-dashboards-gwy    106268    00:51     71.9  running         tcp connect to 127.0.0.1:8081 ok
+✅ alf-gwy               106270    00:51     37.9  running         tcp connect to 127.0.0.1:5565 ok
+✅ balf-gwy              106272    00:51     38.1  running         tcp connect to 127.0.0.1:5560 ok
+✅ ralf-gwy              106222    00:51     37.7  running         tcp connect to 127.0.0.1:5580 ok
+✅ index-srv             106276    00:51     38.3  running         no healthcheck or tcp check configured
+```
+
 
 | | Containers | `pipx` / Poetry |
 |---|---|---|
-| Time to a running exchange | one command | a few, plus `pm-setup` |
+| Time to a running exchange | one command | a few, plus `pm-setup, pm-opctl-cli` |
 | Web applications | four, already wired to the exchange | started separately |
 | Where `pm-*` commands run | inside the container, after `./edumatcher.sh shell` | your own shell |
 | Data on disk | `~/.edumatcher/data` | `~/.local/share/edumatcher` |
@@ -287,6 +341,9 @@ pm-config-deploy engine_config.yaml
 
 # Confirm where the deployed config lives
 pm-config-deploy --show
+
+# Show an overview of the engine config
+pm-config-show
 ```
 
 For the full field reference, see [Configuration](010-configuration.md). For a
@@ -386,11 +443,21 @@ exposes the same activity to other clients.
 
 After the first trade, add observers. This is the safest way to learn the
 system: start with the engine and gateways, then add one new responsibility at a
-time.
+time. 
+
+**Note:** The fundamental structure in an exchange is the *"Order Book"* and it 
+is absolutely crucial to fully understand and internalise what structure this is
+and how it works. To support this learning there are two chapters in the exchange concept
+guide to help:
+
+1. [The Order Book](../concepts/01-concepts-order-book.md)
+2. [The Order Book: Deep Dive](../concepts/02-concepts-order-book-deep-dive.md)
+
+To explore the processes the folling table will be helpful
 
 | When you want to... | Start this | Then read |
 |---|---|---|
-| See one live order book | `pm-viewer --symbol AAPL` | [Order Types](060-order-types.md), [Processes](170-processes.md) |
+| See one live order book | `pm-viewer --symbol AAPL` | [The Order Book](../concepts/01-concepts-order-book.md), [Order Types](060-order-types.md), [Processes](170-processes.md) |
 | See a multi-symbol board or ticker | `pm-board`, `pm-ticker` | [Statistics and Reporting](140-statistics-and-reporting.md) |
 | Record OHLCV, VWAP and mid prices | `pm-stats` | [Statistics and Reporting](140-statistics-and-reporting.md) |
 | Track positions and P&L | `pm-clearing` | [P&L & Clearing](130-pnl-clearing.md) |
@@ -398,10 +465,14 @@ time.
 | Drive opening and closing phases by time | `pm-scheduler` | [Auctions & Scheduling](080-session-scheduling.md) |
 | Run operator commands | `pm-admin` or `pm-admin-cli` | [Risk Controls](120-risk-controls.md), [Exchange Commands](160-exchange-commands.md) |
 | Publish external market data | `pm-md-gwy` | [Market Data Feed (CALF)](240-calf-gateway.md) |
-| Open the browser trader terminal | TapeDeck / `pm-terminal` stack | [Trader Information Terminal](290-trader-info-terminal.md) |
+| Open the browser trader info terminal | `web-apps/terminal-gui/` | [Trader Information Terminal](290-trader-info-terminal.md) |
+| Open the browser trader platform | `web-apps/trader-gui/` | [Trader Information Terminal](./300-trader-gui.md) |
 | Collect logs from all processes | `pm-log-srv`, then `pm-log-cli` or `pm-log-ui` | [Centralized Log Server](280-log-srv.md), [Log Operator Console](285-log-srv-gui.md) |
 
 | Open the browser trading terminal, log console or config builder | the container stack, or `make dev` in `web-apps/<app>` | [Installation](005-installation.md), [Trader Information Terminal](290-trader-info-terminal.md), [Log Operator Console](285-log-srv-gui.md) |
+
+**Note:** Starting the Web-application backends (to be able to use the GUIs) it is easiest to use one of the pre-build containers. See the `README.md` file in respective application catalogue for details. To use
+the trading terminal you will also need to authenticate with an API key that was specified in the `engine_config.yaml` file for the API Gateways.  
 
 The full process catalog is in [Processes](170-processes.md). Use that chapter
 when you want exact command-line flags and startup dependencies.
@@ -534,6 +605,12 @@ market-maker quotes in configuration, or with `pm-mm-bot` / AI traders.
 If a beginner sees no fill, the most common reason is simple: nobody is resting
 on the other side at a price that crosses.
 
+**Tip:** Use the `pm-viewer --s <SYMBOL>` command to view a selected symbols order-boook. 
+This tool sits on the bus so this command will only work if you are running t
+he command on the "inside" of the container/VM with one exception.
+If the container was started with `ZMQ=1` . This makes the bus ports available
+outside the container, for example as `make up ZMQ=1` (in `deployment/docker/`)
+Then you can run the `pm-viewer` directly from the host.
 
 ## Quick glossary
 
@@ -548,9 +625,9 @@ on the other side at a price that crosses.
 | **Market maker** | A participant expected to quote both bid and ask liquidity |
 | **Circuit breaker** | A risk control that halts a symbol after a configured price move |
 | **Drop copy** | A copy of fills sent to compliance, audit or risk systems |
-| **CALF** | EduMatcher's external market-data protocol |
-| **RALF** | EduMatcher's external post-trade dissemination protocol |
-| **LALF** | EduMatcher's centralized log protocol |
+| **CALF** | EduMatcher's external market-data protocol (Channel-ALF)|
+| **RALF** | EduMatcher's external post-trade dissemination protocol (Reconcilliation-ALF)|
+| **LALF** | EduMatcher's centralized log protocol (Logging-ALF) |
 
 For the full vocabulary, see the [Glossary](../glossary.md).
 
@@ -571,3 +648,7 @@ For the full vocabulary, see the [Glossary](../glossary.md).
 The rest of the guide is large, but it is not a wall. It is a map of a whole
 exchange. Start with one process, one symbol and one trade; then add the next
 layer when the previous one makes sense.
+
+If you are new to the trading world it is probably worth reading the included
+["How an Exchange Work"](https://johan162.github.io/EduMatcher/how-exchange-works/) 
+book available both as PDF and HTML in the documentation site. 
