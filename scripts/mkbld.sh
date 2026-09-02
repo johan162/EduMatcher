@@ -134,7 +134,7 @@ run_command() {
 }
 
 # Function to execute two commands in parallel when both are required
-run_parallel_commands() {
+run_parallel_commands2() {
     local cmd1="$1"
     local description1="$2"
     local cmd2="$3"
@@ -177,6 +177,67 @@ run_parallel_commands() {
         exit 1
     fi
 }
+
+# Function to execute three commands in parallel when all are required
+run_parallel_commands3() {
+    local cmd1="$1"
+    local description1="$2"
+    local cmd2="$3"
+    local description2="$4"
+    local cmd3="$5"
+    local description3="$6"
+
+    if [ "$DRY_RUN" = true ]; then
+        echo -e "${YELLOW}[DRY-RUN]${NC} Would execute in parallel: ${cmd1}"
+        echo -e "${YELLOW}[DRY-RUN]${NC} Would execute in parallel: ${cmd2}"
+        echo -e "${YELLOW}[DRY-RUN]${NC} Would execute in parallel: ${cmd3}"
+        return 0
+    fi
+
+    print_sub_step "Running PDF bundle builds in parallel"
+    echo "Executing (background): $cmd1"
+    eval "$cmd1" &
+    local pid1=$!
+
+    echo "Executing (background): $cmd2"
+    eval "$cmd2" &
+    local pid2=$!
+
+    echo "Executing (background): $cmd3"
+    eval "$cmd3" &
+    local pid3=$!
+
+    local status1=0
+    local status2=0
+    local status3=0
+
+    wait "$pid1" || status1=$?
+    wait "$pid2" || status2=$?
+    wait "$pid3" || status3=$?
+
+    if [ "$status1" -eq 0 ]; then
+        print_success_colored "$description1 completed"
+    else
+        print_error_colored "$description1 failed"
+    fi
+
+    if [ "$status2" -eq 0 ]; then
+        print_success_colored "$description2 completed"
+    else
+        print_error_colored "$description2 failed"
+    fi
+
+    if [ "$status3" -eq 0 ]; then
+        print_success_colored "$description3 completed"
+    else
+        print_error_colored "$description3 failed"
+    fi
+
+    if [ "$status1" -ne 0 ] || [ "$status2" -ne 0 ] || [ "$status3" -ne 0 ]; then
+        exit 1
+    fi
+}
+
 
 # Help function
 show_help() {
@@ -414,12 +475,14 @@ run_command "poetry run twine check dist/*" "Validating package with twine"
 # Step 4.4: Build Exchange Intro PDF (optional — requires --intro flag)
 if [ "$NO_DOCS" = false ]; then
     BUILD_EXCHANGE_INTRO_PDF=false
+    BUILD_EXCHANGE_INTRO_EPUB=false
     if [ "$BUILD_INTRO" = true ]; then
         if [ -d "docs-exchange-intro" ]; then
             if [ -f "docs-exchange-intro/version.toml" ]; then
                 EXCHANGE_INTRO_VERSION=$(awk -F'=' '/version/ { gsub(/[ "]/, "", $2); print $2; exit }' docs-exchange-intro/version.toml)
                 print_sub_step "Detected Exchange Intro version: ${EXCHANGE_INTRO_VERSION}"
                 BUILD_EXCHANGE_INTRO_PDF=true
+                BUILD_EXCHANGE_INTRO_EPUB=true
             else
                 print_warning "docs-exchange-intro/version.toml not found; skipping Exchange Intro PDF build"
                 EXCHANGE_INTRO_VERSION="unknown"
@@ -445,26 +508,36 @@ if [ "$NO_DOCS" = false ]; then
     run_command "make -C docs clean" "Cleaning previous PDF artifacts"
     
     if [ "$BUILD_EXCHANGE_INTRO_PDF" = true ] && [ "$BUILD_USER_GUIDE_PDF" = true ]; then
-        run_parallel_commands \
+        run_parallel_commands3 \
             "make -C docs-exchange-intro -j4" \
             "Building Exchange Intro Booklet" \
             "make -C docs -j4 pdf-docs" \
             "Building User Guide PDFs (v${VERSION}) with Makefile" \
             "make -C docs -j4 pdf-training" \
             "Building Training Guide PDFs (v${VERSION}) with Makefile"
+
+        run_parallel_commands3 \
+            "make -C docs -j16 chapters-pdf" "Building User Guide Chapters PDF bundle" \
+            "make -C docs epub-docs" "Building User Guide EPUB" \
+            "make -C docs-exchange-intro epub-docs" "Building Exchange Intro EPUB"
     else
         if [ "$BUILD_EXCHANGE_INTRO_PDF" = true ]; then
             print_sub_step "Building Exchange Intro Booklet"
-            run_command "make -C docs-exchange-intro -j4" "Building Exchange Intro Booklet"
+            run_parallel_commands2 \
+                "make -C docs-exchange-intro -j4" "Building Exchange Intro Booklet" \
+                "make -C docs-exchange-intro epub-docs" "Building Exchange Intro EPUB"
         fi
     
         if [ "$BUILD_USER_GUIDE_PDF" = true ]; then
-            run_parallel_commands \
+            run_parallel_commands3 \
                 "make -C docs -j4 pdf-docs" \
                 "Building User Guide PDFs (v${VERSION}) with Makefile" \
                 "make -C docs -j4 pdf-training" \
-                "Building Training Guide PDFs (v${VERSION}) with Makefile"
-            run_command "make -C docs -j16 chapters-pdf" "Building User Guide Chapters PDF bundle"
+                "Building Training Guide PDFs (v${VERSION}) with Makefile" \
+                "make -C docs -j16 chapters-pdf" \
+                "Building User Guide Chapters PDF bundle"
+                
+            run_command "make -C docs epub-docs" "Building User Guide EPUB"
         fi
     fi
     

@@ -58,10 +58,18 @@ function Header(el)
     return {}
   end
 
-  -- Render Preface as unnumbered front-matter chapter.
+  -- Render Preface as unnumbered front-matter chapter (LaTeX). EPUB has no
+  -- \chapter*/\mainmatter/\part/\backmatter equivalent: a plain Header is
+  -- already a correct, navigable EPUB chapter on its own, so for FORMAT ==
+  -- "epub3" these branches only update state and keep the original Header
+  -- (return nil) instead of replacing it with a raw LaTeX block, which the
+  -- EPUB writer would just silently drop, losing the heading entirely.
   if el.level == 1 and text == "Preface to the Second Edition" then
     preface_started = true
     in_part = false
+    if FORMAT == "epub3" then
+      return nil
+    end
     return {
       emit_raw("\\chapter*{Preface to the Second Edition}"),
       emit_raw("\\addcontentsline{toc}{chapter}{Preface to the Second Edition}")
@@ -72,6 +80,9 @@ function Header(el)
   if el.level == 1 and text == "Preface to the First Edition" then
     preface_started = true
     in_part = false
+    if FORMAT == "epub3" then
+      return nil
+    end
     return {
       emit_raw("\\chapter*{Preface to the First Edition}"),
       emit_raw("\\addcontentsline{toc}{chapter}{Preface to the First Edition}")
@@ -81,11 +92,14 @@ function Header(el)
   -- Start main matter at first part, then render parts explicitly.
   if el.level == 1 and is_part_heading(text) then
     in_part = true
-    local blocks = pandoc.List()
     if not mainmatter_started then
-      blocks:insert(emit_raw("\\mainmatter"))
       mainmatter_started = true
     end
+    if FORMAT == "epub3" then
+      return nil
+    end
+    local blocks = pandoc.List()
+    blocks:insert(emit_raw("\\mainmatter"))
     blocks:insert(emit_raw("\\part{" .. tex_escape(text) .. "}"))
     return blocks
   end
@@ -93,12 +107,15 @@ function Header(el)
   -- Start back matter and render Glossary/References as unnumbered chapters.
   if el.level == 1 and is_glossary_or_references(text) then
     in_part = false
-    local blocks = pandoc.List()
     if not backmatter_started then
-      blocks:insert(emit_raw("\\backmatter"))
-      blocks:insert(emit_raw("\\setcounter{secnumdepth}{-1}"))
       backmatter_started = true
     end
+    if FORMAT == "epub3" then
+      return nil
+    end
+    local blocks = pandoc.List()
+    blocks:insert(emit_raw("\\backmatter"))
+    blocks:insert(emit_raw("\\setcounter{secnumdepth}{-1}"))
     blocks:insert(emit_raw("\\chapter*{" .. tex_escape(text) .. "}"))
     blocks:insert(emit_raw("\\addcontentsline{toc}{chapter}{" .. tex_escape(text) .. "}"))
     return blocks

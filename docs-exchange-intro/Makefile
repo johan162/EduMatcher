@@ -11,6 +11,14 @@ MERMAID_FILTER := ../scripts/mermaid-filter-cached.js
 MERMAID_FILTER_FORMAT ?= pdf
 MERMAID_FILTER_WIDTH ?= 600
 
+# Display width of every figure in the EPUB (a CSS max-width percentage,
+# substituted into epub.css). Figures are Mermaid diagrams rendered to SVG
+# at a fixed pixel width (MERMAID_FILTER_WIDTH) plus the book's real embedded
+# PNG illustrations; this is the separate knob that controls how large they
+# then display on the page. Lower it if figures still run too large on a
+# given e-reader.
+EPUB_FIGURE_MAX_WIDTH ?= 85%
+
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
@@ -19,7 +27,7 @@ else
     PUPPETEER_EXECUTABLE_PATH ?= /usr/bin/google-chrome
 endif
 
-.PHONY: pdf-docs pdf-parts-a4 help clean really-clean check-latex-engine cover bundle-quiz
+.PHONY: pdf-docs pdf-parts-a4 epub-docs epub-docs-verify help clean really-clean check-latex-engine cover bundle-quiz
 
 
 # Makefile itself as a dependency to ensure it is re-evaluated when changed
@@ -109,7 +117,7 @@ NUM_GLOSSARY := $(shell $(LOCAL_SCRIPTS_DIR)/count_gloss.sh)
 # $(info NUM_GLOSSARY: $(NUM_GLOSSARY))
 
 # Project settings
-PROJECT := exchange-intro
+PROJECT := exchange_intro
 VERSION := $(shell grep '^version' version.toml | head -1 | cut -d'"' -f2)
 
 # Temporary build directory for exchange intro PDF generation
@@ -151,6 +159,19 @@ EXCHANGE_INTRO_PDF_DEPS := \
 	$(DOCS_DIR)/template_b5.tex \
 	$(DOCS_DIR)/template_dark_b5.tex 
 
+# Exchange Intro EPUB output path, source CSS template, and generated CSS
+# (EPUB_FIGURE_MAX_WIDTH is substituted into the latter, same @@VAR@@
+# pattern as the LaTeX templates' version-number substitution).
+EXCHANGE_INTRO_EPUB := $(DIST_DIR)/$(PROJECT)-$(VERSION).epub
+EPUB_CSS_IN         := $(DOCS_DIR)/epub.css.in
+EPUB_CSS            := $(EXCHANGE_INTRO_BUILD_DIR)/epub.css
+EPUB_CONCAT_MD      := $(EXCHANGE_INTRO_BUILD_DIR)/exchange_intro_concat-epub.md
+EPUB_EXPANDED_DIR   := $(EXCHANGE_INTRO_BUILD_DIR)/exchange_intro_expanded-epub
+EPUB_COVER          := $(ASSETS_DIR)/cover-exchange-intro.png
+EPUB_DEPS           := \
+	$(EXCHANGE_INTRO_PDF_DEPS) \
+	$(EPUB_CSS_IN)
+
 
 # ============================================================================================
 # Macro: DEFINE_EXCHANGE_INTRO_VARS
@@ -163,7 +184,7 @@ EXCHANGE_INTRO_PDF_DEPS := \
 # ============================================================================================
 define DEFINE_EXCHANGE_INTRO_VARS
 $(1)_TEMPLATE     := $$(DOCS_DIR)/template$(shell printf '%s' '$(patsubst EXCHANGE_INTRO%,%,$(1))' | tr '[:upper:]' '[:lower:]').tex
-$(1)_PDF          := $$(DIST_DIR)/$$(PROJECT)$(shell printf '%s' '$(patsubst EXCHANGE_INTRO%,%,$(1))' | tr '[:upper:]_' '[:lower:]-')-$$(VERSION).pdf
+$(1)_PDF          := $$(DIST_DIR)/$$(PROJECT)$(shell printf '%s' '$(patsubst EXCHANGE_INTRO%,%,$(1))' | tr '[:upper:]_' '[:lower:]_')-$$(VERSION).pdf
 $(1)_CONCAT_MD    := $$(EXCHANGE_INTRO_BUILD_DIR)/exchange_intro_concat$(shell printf '%s' '$(patsubst EXCHANGE_INTRO%,%,$(1))' | tr '[:upper:]_' '[:lower:]-').md
 $(1)_BODY_TEX     := $$(EXCHANGE_INTRO_BUILD_DIR)/exchange_intro_body$(shell printf '%s' '$(patsubst EXCHANGE_INTRO%,%,$(1))' | tr '[:upper:]_' '[:lower:]-').tex
 $(1)_TEX          := $$(EXCHANGE_INTRO_BUILD_DIR)/exchange_intro_report$(shell printf '%s' '$(patsubst EXCHANGE_INTRO%,%,$(1))' | tr '[:upper:]_' '[:lower:]-').tex
@@ -226,7 +247,7 @@ endef
 
 help: ## Show this help message
 	@echo -e "$(DARKYELLOW)OneSelect - Makefile Targets$(NC)"
-	@$(call print_section,Documentation,docs|pdfs|pdf-docs|pdf-parts-a4)
+	@$(call print_section,Documentation,docs|pdfs|pdf-docs|pdf-parts-a4|epub-docs|epub-docs-verify)
 	@echo ""
 
 $(DIST_DIR):
@@ -251,14 +272,14 @@ pdf-docs: check-latex-engine ## Build all PDF documentation variants in parallel
 	@rm -rf $(EXCHANGE_INTRO_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
 	@rm $(DIST_DIR)/$(PROJECT)-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
 	@$(MAKE) -j4 $(EXCHANGE_INTRO_A4_PDF) $(EXCHANGE_INTRO_DARK_A4_PDF) $(EXCHANGE_INTRO_B5_PDF) $(EXCHANGE_INTRO_DARK_B5_PDF)
-	@zip -9 -j -q $(DIST_DIR)/$(PROJECT)-bundle-$(VERSION).zip $(DIST_DIR)/$(PROJECT)-*-$(VERSION).pdf
-	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
+	@zip -9 -j -q $(DIST_DIR)/$(PROJECT)_bundle-$(VERSION).zip $(DIST_DIR)/$(PROJECT)-*-$(VERSION).pdf
+	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)_bundle-$(VERSION).zip\"$(GREEN)$(NC)"
 
 pdf-parts-a4: check-latex-engine ## Build each book part as a separate A4 PDF booklet
 	@rm -f $(PARTS_A4_DIST_DIR)/exchange-intro-part-*-$(VERSION).pdf 2>/dev/null || true
 	@$(MAKE) -j4 $(PART_1_PDF) $(PART_2_PDF) $(PART_3_PDF) $(PART_4_PDF)
-	@zip -9 -j -q $(DIST_DIR)/exchange-intro-parts-a4-bundle-$(VERSION).zip $(PARTS_A4_DIST_DIR)/exchange-intro-part-*-$(VERSION).pdf
-	@echo -e "$(GREEN)✓ Parts A4 bundle built: $(BRIGHTCYAN)\"exchange-intro-parts-a4-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
+	@zip -9 -j -q $(DIST_DIR)/exchange_intro_parts_a4_bundle-$(VERSION).zip $(PARTS_A4_DIST_DIR)/exchange-intro-part-*-$(VERSION).pdf
+	@echo -e "$(GREEN)✓ Parts A4 bundle built: $(BRIGHTCYAN)\"exchange_intro_parts_a4_bundle-$(VERSION).zip\"$(GREEN)$(NC)"
 
 clean: ## Remove all generated files (PDFs, build artifacts, stamps)
 	@rm -rf $(EXCHANGE_INTRO_BUILD_DIR) $(DIST_DIR) $(STAMP_DIR) $(SITE_DIR) mermaid-filter.err
@@ -374,6 +395,85 @@ $(eval $(call BUILD_EXCHANGE_INTRO_PDF,EXCHANGE_INTRO_A4,a4))
 $(eval $(call BUILD_EXCHANGE_INTRO_PDF,EXCHANGE_INTRO_B5,b5))
 $(eval $(call BUILD_EXCHANGE_INTRO_PDF,EXCHANGE_INTRO_DARK_A4,a4))
 $(eval $(call BUILD_EXCHANGE_INTRO_PDF,EXCHANGE_INTRO_DARK_B5,b5))
+
+
+# ============================================================================================
+# Exchange Intro EPUB target
+#
+# One EPUB3 book, reflowable, from the same EXCHANGE_INTRO_MD_SOURCES as the
+# PDF variants above (frontmatter + all four parts + backmatter, manifest-
+# ordered). No paper size and no LaTeX: expand-shell-outputs.py runs with
+# --format a4 purely for the {{!cmd@A4:...}} truncation rules already in the
+# sources (there is no @EPUB spec, so this is equivalent to full output; see
+# epub.css.in's header for the figure-sizing knob). --preserve-paths keeps
+# the expanded copies under their original src/NN-partname/ subdirectories,
+# same as the PDF pipeline, since book_structure.lua and the manifest both
+# depend on that layout.
+#
+# Mermaid diagrams render to SVG here (not PDF, as for the LaTeX builds) so
+# they scale losslessly on any reader; the book's real embedded PNG
+# illustrations (e.g. assets/order-book-illustration-small2.png) pass
+# through untouched, resolved relative to this Makefile's directory exactly
+# as they already are for the PDF/xelatex pipeline. The Mermaid render cache
+# in mermaid-filter-cached.js is keyed on diagram text only, so this shares
+# the same cache directory as the PDF builds without collision (an svg and a
+# pdf render of the same diagram are simply two different cache entries).
+#
+# --from=markdown-raw_html, --mathml, --no-highlight: see docs/Makefile's
+# equivalent EPUB target for why each of these is required; the same content
+# patterns (bare angle-bracket placeholders, 	ext{...}-heavy math, syntax-
+# highlighted code spans emitting duplicate IDs) occur in this book's
+# sources too.
+# ============================================================================================
+$(EPUB_CSS): $(EPUB_CSS_IN)
+	@mkdir -p $(EXCHANGE_INTRO_BUILD_DIR)
+	@sed -e "s/@@EPUB_FIGURE_MAX_WIDTH@@/$(EPUB_FIGURE_MAX_WIDTH)/g" $(EPUB_CSS_IN) > $(EPUB_CSS)
+
+$(EXCHANGE_INTRO_EPUB): $(EXCHANGE_INTRO_MD_SOURCES) $(EPUB_DEPS) $(EPUB_CSS) | $(NODE_MODULES_PATH) $(DIST_DIR)
+	@echo -e "$(DARKYELLOW)- Building $(BRIGHTCYAN)\"$(notdir $(EXCHANGE_INTRO_EPUB))\"$(DARKYELLOW)...$(NC)"
+	@mkdir -p $(EXCHANGE_INTRO_BUILD_DIR)
+	@echo -e "$(DARKYELLOW)  - Expanding shell command outputs in markdown sources...$(NC)"
+	@mkdir -p $(EPUB_EXPANDED_DIR)
+	@printf '%s\0' $(EXCHANGE_INTRO_MD_SOURCES) \
+		| xargs -0 poetry run python $(SCRIPTS_DIR)/expand-shell-outputs.py \
+			--output-dir $(EPUB_EXPANDED_DIR) \
+			--cwd $(SCRIPTS_DIR)/.. \
+			--preserve-paths \
+			--format a4
+	@echo -e "$(DARKYELLOW)  - Concatenating markdown sources...$(NC)"
+	@find $(EPUB_EXPANDED_DIR) -type f -name '*.md' -print0 \
+		| sort -z \
+		| xargs -0 awk 'FNR==1 && NR!=1{print ""; print ""}1' > $(EPUB_CONCAT_MD)
+	@echo -e "$(DARKYELLOW)  - Converting exchange-intro markdown to EPUB3 via pandoc...$(NC)"
+	@mkdir -p $(EPUB_EXPANDED_DIR)/.mermaid-img
+	@PUPPETEER_EXECUTABLE_PATH="$(PUPPETEER_EXECUTABLE_PATH)" \
+	MERMAID_FILTER_FORMAT="svg" \
+	MERMAID_FILTER_WIDTH="$(MERMAID_FILTER_WIDTH)" \
+	MERMAID_FILTER_LOC="$(EPUB_EXPANDED_DIR)/.mermaid-img" \
+	pandoc --from=markdown-raw_html --to=epub3 \
+		--mathml --no-highlight \
+		--toc --toc-depth=2 \
+		--css $(EPUB_CSS) \
+		--epub-cover-image=$(EPUB_COVER) \
+		--metadata title="How a Financial Exchange Works (v$(VERSION))" \
+		--metadata author="J. Persson, 2026 v$(VERSION)" \
+		--metadata lang=en-US \
+		--filter "$(MERMAID_FILTER)" $(EXCHANGE_INTRO_LUA_FILTER_FLAGS) \
+		$(EPUB_CONCAT_MD) -o $(EXCHANGE_INTRO_EPUB) \
+	|| { echo -e "$(RED)✗ pandoc EPUB build failed for $(BRIGHTCYAN)\"$(notdir $(EXCHANGE_INTRO_EPUB))\"$(RED).$(NC)" >&2; exit 1; }
+	@echo -e "$(GREEN)✓ Exchange Intro EPUB built: $(BRIGHTCYAN)\"$(notdir $(EXCHANGE_INTRO_EPUB))\"$(GREEN)$(NC)"
+
+epub-docs: cover $(EXCHANGE_INTRO_EPUB) ## Build the Exchange Intro book as a single reflowable EPUB3 book
+
+epub-docs-verify: epub-docs ## Build the Exchange Intro EPUB and validate it with epubcheck
+	@echo -e "$(DARKYELLOW)- Validating $(BRIGHTCYAN)\"$(notdir $(EXCHANGE_INTRO_EPUB))\"$(DARKYELLOW) with epubcheck...$(NC)"
+	@if ! command -v epubcheck >/dev/null 2>&1; then \
+		echo -e "$(RED)✗ epubcheck not found in PATH.$(NC)" >&2; \
+		echo -e "$(RED)  Install with: brew install epubcheck$(NC)" >&2; \
+		exit 1; \
+	fi
+	@epubcheck $(EXCHANGE_INTRO_EPUB)
+	@echo -e "$(GREEN)✓ EPUB validated: $(BRIGHTCYAN)\"$(notdir $(EXCHANGE_INTRO_EPUB))\"$(GREEN)$(NC)"
 
 
 # ============================================================================================

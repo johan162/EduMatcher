@@ -1,3 +1,32 @@
+## [v0.28.1] - 2026-09-02
+
+Release Type: patch
+
+### 📋 Summary
+This patch release adds EPUB3 editions of the user guide and exchange
+introduction while tightening documentation builds and process-control output.
+
+### ✨ Additions
+- Added EPUB3 generation for the user guide and exchange introduction
+- Added EPUB artifacts to the main build workflow
+
+### 🚀 Improvements
+- Improved documentation builds to avoid unnecessary PDF regeneration
+- Updated project dependencies and bundled example version references
+
+### 🐛 Bug Fixes
+- Fixed duplicated process entries in `pm-opctl-cli`
+- Fixed a duplicated documentation Makefile target
+- Fixed a missing user-guide chapter link in the navigation
+
+### 📚 Documentation
+- Updated the exchange introduction getting-started chapter
+- Documented and integrated the new EPUB outputs
+
+### 🛠 Internal
+- Extended `scripts/mkbld.sh` to build and validate EPUB artifacts
+
+
 ## [v0.28.0] - 2026-09-01
 
 Release Type: major
