@@ -508,6 +508,8 @@ FILE_VERSION_NUMBER=${VERSION_NUMBER//-rc/rc}
 USER_GUIDE_BUNDLE_ZIP="docs/dist/${PROGRAMNAME}_user_guide_bundle-${FILE_VERSION_NUMBER}.zip"
 USER_GUIDE_CHAPTERS_BUNDLE_ZIP="docs/dist/${PROGRAMNAME}_user_guide_as_chapters_a4_bundle-${FILE_VERSION_NUMBER}.zip"
 
+USER_GUIDE_EPUB="docs/dist/${PROGRAMNAME}_user_guide-${FILE_VERSION_NUMBER}.epub"
+
 # 4.4: Fail fast if required release artifacts are missing
 print_sub_step "Checking required release artifacts..."
 
@@ -523,6 +525,13 @@ if [[ ! -f "$USER_GUIDE_CHAPTERS_BUNDLE_ZIP" ]]; then
 fi
 print_success "Required artifacts found: $(basename "$USER_GUIDE_CHAPTERS_BUNDLE_ZIP")"
 
+if [[ ! -f "$USER_GUIDE_EPUB" ]]; then
+    print_error "Required user guide EPUB is missing: $USER_GUIDE_EPUB"
+    exit 1
+fi
+print_success "Required artifacts found: $(basename "$USER_GUIDE_EPUB")"
+
+
 if [ -f "docs-exchange-intro/version.toml" ]; then
     EXCHANGE_INTRO_VERSION=$(awk -F'=' '/version/ { gsub(/[ "]/, "", $2); print $2; exit }' docs-exchange-intro/version.toml)
     print_sub_step "Detected Exchange Intro version: ${EXCHANGE_INTRO_VERSION}"
@@ -534,6 +543,8 @@ fi
 EXCHANGE_INTRO_BUNDLE_ZIP="docs-exchange-intro/dist/exchange_intro_bundle-${EXCHANGE_INTRO_VERSION}.zip"
 EXCHANGE_INTRO_PARTS_A4_BUNDLE_ZIP="docs-exchange-intro/dist/exchange_intro_parts_a4_bundle-${EXCHANGE_INTRO_VERSION}.zip"
 EXCHANGE_INTRO_QUIZZ_BUNDLE_ZIP="docs-exchange-intro/dist/exchange_intro_quiz_bundle-${EXCHANGE_INTRO_VERSION}.zip"
+EXCHANGE_INTRO_EPUB="docs-exchange-intro/dist/exchange_intro-${EXCHANGE_INTRO_VERSION}.epub"
+
 if [[ ! -f "$EXCHANGE_INTRO_BUNDLE_ZIP" ]]; then
     print_error "Exchange Intro bundle not found: $EXCHANGE_INTRO_BUNDLE_ZIP"
     exit 1
@@ -554,6 +565,21 @@ if [[ ! -f "$EXCHANGE_INTRO_QUIZZ_BUNDLE_ZIP" ]]; then
 else
     print_success "Found Exchange Intro quiz bundle: $(basename "$EXCHANGE_INTRO_QUIZZ_BUNDLE_ZIP")"
 fi
+
+if [[ ! -f "$EXCHANGE_INTRO_EPUB" ]]; then
+    print_error "Exchange Intro EPUB not found: $EXCHANGE_INTRO_EPUB"
+    exit 1
+else
+    print_success "Found Exchange Intro EPUB: $(basename "$EXCHANGE_INTRO_EPUB")"
+fi
+
+if [[ ! -f "$USER_GUIDE_EPUB" ]]; then
+    print_error "User Guide EPUB not found: $USER_GUIDE_EPUB"
+    exit 1
+else
+    print_success "Found User Guide EPUB: $(basename "$USER_GUIDE_EPUB")"
+fi
+
 
 TRAINING_GUIDE_BUNDLE_ZIP="docs/dist/${PROGRAMNAME}_training-guide-bundle-${FILE_VERSION_NUMBER}.zip"
 if [[ ! -f "$TRAINING_GUIDE_BUNDLE_ZIP" ]]; then
@@ -661,7 +687,9 @@ GH_RELEASE_CMD="gh release create \"$LATEST_TAG\" \
     \"$WHEEL_FILE\" \
     \"$SDIST_FILE\" \
     \"$USER_GUIDE_BUNDLE_ZIP\" \
+    \"$USER_GUIDE_EPUB\" \
     \"$EXCHANGE_INTRO_BUNDLE_ZIP\" \
+    \"$EXCHANGE_INTRO_EPUB\" \
     \"$EXCHANGE_INTRO_PARTS_A4_BUNDLE_ZIP\" \
     \"$EXCHANGE_INTRO_QUIZZ_BUNDLE_ZIP\" \
     \"$USER_GUIDE_CHAPTERS_BUNDLE_ZIP\" \
