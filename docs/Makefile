@@ -83,15 +83,27 @@ endif
 # ============================================================================================
 # Timestamp file targets
 # ============================================================================================
+# $(DOC_STAMP): $(DOC_FILES)
+# 	@echo -e "$(DARKYELLOW)- Building documentation...$(NC)"
+# 	@if poetry run mkdocs build -q; then \
+# 		touch $(DOC_STAMP); \
+# 		echo -e "$(GREEN)✓ Documentation built successfully$(NC)"; \
+# 	else \
+# 		echo -e "$(RED)✗ Error: Documentation build failed$(NC)"; \
+# 		exit 1; \
+# 	fi
+
+
 $(DOC_STAMP): $(DOC_FILES)
 	@echo -e "$(DARKYELLOW)- Building documentation...$(NC)"
-	@if poetry run mkdocs build -q; then \
+	@if poetry run mkdocs build -f ../mkdocs.yml -q; then \
 		touch $(DOC_STAMP); \
 		echo -e "$(GREEN)✓ Documentation built successfully$(NC)"; \
 	else \
 		echo -e "$(RED)✗ Error: Documentation build failed$(NC)"; \
 		exit 1; \
 	fi
+
 
 # ============================================================================================
 # Variable configurations
@@ -104,6 +116,16 @@ BUILD_DIR := .build
 SCRIPTS_DIR := ../scripts
 SITE_DIR := ../site
 ASSETS_DIR := $(DOCS_DIR)/assets
+
+# Source and Test Files
+DOC_FILES := ../mkdocs.yml $(shell find $(DOCS_DIR) -name '*.md' -o -name '*.yml' -o -name '*.yaml' -o -name '*.lua' -o -name '*.tex') 
+
+# $(info DOC_FILES: $(DOC_FILES))
+
+# Timestamp files
+STAMP_DIR := .makefile-stamps
+$(shell mkdir -p $(STAMP_DIR))
+DOC_STAMP := $(STAMP_DIR)/docs-stamp
 
 # Documentation Container Server configuration
 SERVER_HOST := 0.0.0.0
@@ -157,27 +179,6 @@ TRAINING_GUIDE_PDF_DEPS := \
 	$(DOCS_DIR)/training/template_dark_b5.tex.in \
 	$(DOCS_DIR)/assets/cover-training-guide.png
 
-
-# Source and Test Files
-DOC_FILES := ../mkdocs.yml $(shell find $(DOCS_DIR) -name '*.md' -o -name '*.yml' -o -name '*.yaml' -o -name '*.lua' -o -name '*.tex') 
-
-# $(info DOC_FILES: $(DOC_FILES))
-
-# Timestamp files
-STAMP_DIR := .makefile-stamps
-$(shell mkdir -p $(STAMP_DIR))
-
-DOC_STAMP := $(STAMP_DIR)/docs-stamp
-
-$(DOC_STAMP): $(DOC_FILES)
-	@echo -e "$(DARKYELLOW)- Building documentation...$(NC)"
-	@if poetry run mkdocs build -f ../mkdocs.yml -q; then \
-		touch $(DOC_STAMP); \
-		echo -e "$(GREEN)✓ Documentation built successfully$(NC)"; \
-	else \
-		echo -e "$(RED)✗ Error: Documentation build failed$(NC)"; \
-		exit 1; \
-	fi
 
 # ============================================================================================
 # Help Target
