@@ -146,6 +146,7 @@ RED = "\033[31m"
 YELLOW = "\033[33m"
 RESET = "\033[0m"
 
+# All default processes necessary for a full exchange setup
 DEFAULT_PROCESSES: list[dict[str, Any]] = [
     {"name": "log", "command": ["pm-log-srv"], "tcp": "127.0.0.1:5600"},
     {"name": "audit", "command": ["pm-audit", "--verbose"]},
@@ -158,27 +159,27 @@ DEFAULT_PROCESSES: list[dict[str, Any]] = [
     {"name": "engine", "command": ["pm-engine", "--verbose"], "tcp": "127.0.0.1:5555"},
     {"name": "scheduler", "command": ["pm-scheduler", "--daily", "--verbose"]},
     {
-        "name": "market-data-gwy",
+        "name": "market-data-gwy (md-gwy)",
         "command": ["pm-md-gwy", "--verbose"],
         "tcp": "127.0.0.1:5570",
     },
     {
-        "name": "post-trade-gwy",
+        "name": "post-trade-gwy (ralf-gwy)",
         "command": ["pm-ralf-gwy", "--verbose"],
         "tcp": "127.0.0.1:5580",
     },
     {
-        "name": "drop-copy-gwy",
+        "name": "drop-copy-gwy (dc-gwy)",
         "command": ["pm-dc-gwy", "--verbose"],
         "tcp": "127.0.0.1:5590",
     },
     {
-        "name": "api-desk-gwy",
+        "name": "api-desk-gwy (api-gwy)",
         "command": ["pm-api-gwy", "--verbose", "--instance", "desk"],
         "tcp": "127.0.0.1:8080",
     },
     {
-        "name": "api-dashboards-gwy",
+        "name": "api-dashboards-gwy (api-gwy)",
         "command": ["pm-api-gwy", "--verbose", "--instance", "dashboards"],
         "tcp": "127.0.0.1:8081",
     },
@@ -192,19 +193,16 @@ DEFAULT_PROCESSES: list[dict[str, Any]] = [
         "command": ["pm-balf-gwy", "--verbose"],
         "tcp": "127.0.0.1:5560",
     },
-    {
-        "name": "ralf-gwy",
-        "command": ["pm-ralf-gwy", "--verbose"],
-        "tcp": "127.0.0.1:5580",
-    },
     {"name": "index-srv", "command": ["pm-index", "--verbose"]},
 ]
 
+# Minimal set of processes for micro exchange setup. No Gwys
 MICRO_PROCESSES: list[dict[str, Any]] = [
     {"name": "log", "command": ["pm-log-srv"], "tcp": "127.0.0.1:5600"},
     {"name": "engine", "command": ["pm-engine", "--verbose"], "tcp": "127.0.0.1:5555"},
 ]
 
+# A minimal set of processes for a mini exchange setup that allows external clients to connect
 MINI_PROCESSES: list[dict[str, Any]] = [
     {"name": "log", "command": ["pm-log-srv"], "tcp": "127.0.0.1:5600"},
     {
