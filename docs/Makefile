@@ -88,31 +88,6 @@ ifeq ($(POETRY),)
 endif
 
 # ============================================================================================
-# Timestamp file targets
-# ============================================================================================
-# $(DOC_STAMP): $(DOC_FILES)
-# 	@echo -e "$(DARKYELLOW)- Building documentation...$(NC)"
-# 	@if poetry run mkdocs build -q; then \
-# 		touch $(DOC_STAMP); \
-# 		echo -e "$(GREEN)✓ Documentation built successfully$(NC)"; \
-# 	else \
-# 		echo -e "$(RED)✗ Error: Documentation build failed$(NC)"; \
-# 		exit 1; \
-# 	fi
-
-
-$(DOC_STAMP): $(DOC_FILES)
-	@echo -e "$(DARKYELLOW)- Building documentation...$(NC)"
-	@if poetry run mkdocs build -f ../mkdocs.yml -q; then \
-		touch $(DOC_STAMP); \
-		echo -e "$(GREEN)✓ Documentation built successfully$(NC)"; \
-	else \
-		echo -e "$(RED)✗ Error: Documentation build failed$(NC)"; \
-		exit 1; \
-	fi
-
-
-# ============================================================================================
 # Variable configurations
 # ============================================================================================
 
@@ -124,10 +99,6 @@ SCRIPTS_DIR := ../scripts
 SITE_DIR := ../site
 ASSETS_DIR := $(DOCS_DIR)/assets
 
-# Source and Test Files
-DOC_FILES := ../mkdocs.yml $(shell find $(DOCS_DIR) -name '*.md' -o -name '*.yml' -o -name '*.yaml' -o -name '*.lua' -o -name '*.tex') 
-
-# $(info DOC_FILES: $(DOC_FILES))
 
 # Timestamp files
 STAMP_DIR := .makefile-stamps
@@ -154,8 +125,8 @@ TRAINING_GUIDE_BUILD_DIR := $(BUILD_DIR)/training-guide
 # Variant-specific paths are derived by DEFINE_USER_GUIDE_VARS below.
 # USER_GUIDE_LUA_FILTER is shared across all variants.
 USER_GUIDE_LUA_FILTER := $(DOCS_DIR)/user-guide/pagebreaks.lua
-ADMONITIONS_LUA_FILTER := $(DOCS_DIR)/admonitions.lua
-USER_GUIDE_LUA_FILTER_FLAGS := --lua-filter $(USER_GUIDE_LUA_FILTER) --lua-filter $(ADMONITIONS_LUA_FILTER)
+USER_GUIDE_ADMONITIONS_LUA_FILTER := $(DOCS_DIR)/admonitions.lua
+USER_GUIDE_LUA_FILTER_FLAGS := --lua-filter $(USER_GUIDE_LUA_FILTER) --lua-filter $(USER_GUIDE_ADMONITIONS_LUA_FILTER)
 
 # Markdown sources that are concatenated into the User Guide PDF body.
 # Keep this list markdown-only; non-markdown assets are tracked separately
@@ -166,9 +137,7 @@ USER_GUIDE_MD_SOURCES := \
 # $(info USER_GUIDE_MD_SOURCES: $(USER_GUIDE_MD_SOURCES))
 
 # Non-markdown assets that should still trigger a rebuild when changed.
-USER_GUIDE_PDF_DEPS := \
-	$(DOCS_DIR)/user-guide/pagebreaks.lua \
-	$(DOCS_DIR)/admonitions.lua \
+USER_GUIDE_TEMPLATE_DEPS := \
 	$(DOCS_DIR)/user-guide/template_a4.tex.in \
 	$(DOCS_DIR)/user-guide/template_dark_a4.tex.in \
 	$(DOCS_DIR)/user-guide/template_b5.tex.in \
@@ -191,15 +160,46 @@ EPUB_DEPS           := \
 TRAINING_GUIDE_MD_SOURCES := \
 	$(sort $(wildcard $(DOCS_DIR)/training/[0-9][0-9]-*.md))
 
-TRAINING_GUIDE_PDF_DEPS := \
-	$(DOCS_DIR)/user-guide/pagebreaks.lua \
-	$(DOCS_DIR)/admonitions.lua \
+TRAINING_GUIDE_TEMPLATE_DEPS := \
 	$(DOCS_DIR)/training/template_a4.tex.in \
 	$(DOCS_DIR)/training/template_dark_a4.tex.in \
 	$(DOCS_DIR)/training/template_b5.tex.in \
 	$(DOCS_DIR)/training/template_dark_b5.tex.in \
 	$(DOCS_DIR)/assets/cover-training-guide.png
 
+CONCEPTS_MD_SOURCES := \
+	$(sort $(wildcard $(DOCS_DIR)/concepts/[0-9][0-9]-*.md))
+
+# $(info CONCEPTS_MD_SOURCES: $(CONCEPTS_MD_SOURCES))
+
+ARCHITECTURE_MD_SOURCES := \
+	$(sort $(wildcard $(DOCS_DIR)/architecture/[0-9][0-9]-*.md))
+
+# $(info ARCHITECTURE_MD_SOURCES: $(ARCHITECTURE_MD_SOURCES))
+
+DEVELOPER_MD_SOURCES := \
+	$(sort $(wildcard $(DOCS_DIR)/developer/[0-9][0-9]-*.md))
+
+# $(info DEVELOPER_MD_SOURCES: $(DEVELOPER_MD_SOURCES))
+
+# Source and Test Files for building HTML documentation
+HTML_DOCS_DEPS := ../mkdocs.yml $(USER_GUIDE_MD_SOURCES) $(TRAINING_GUIDE_MD_SOURCES) $(CONCEPTS_MD_SOURCES) $(ARCHITECTURE_MD_SOURCES) $(DEVELOPER_MD_SOURCES)
+
+# $(info HTML_DOCS_DEPS: $(HTML_DOCS_DEPS))
+
+# ============================================================================================
+# Timestamp file targets
+# ============================================================================================
+
+$(DOC_STAMP): $(HTML_DOCS_DEPS)
+	@echo -e "$(DARKYELLOW)- Building documentation...$(NC)"
+	@if poetry run mkdocs build -f ../mkdocs.yml -q; then \
+		touch $(DOC_STAMP); \
+		echo -e "$(GREEN)✓ Documentation built successfully$(NC)"; \
+	else \
+		echo -e "$(RED)✗ Error: Documentation build failed$(NC)"; \
+		exit 1; \
+	fi
 
 # ============================================================================================
 # Help Target
@@ -274,9 +274,10 @@ $(eval $(call DEFINE_TRAINING_GUIDE_VARS,TRAINING_GUIDE_DARK_B5))
 # Note: Make variables used inside recipe lines are escaped as $$(VAR) so they survive
 # $(call) expansion and are resolved at recipe-execution time.
 # # @sed -i.bak -E 's/Version: [0-9]+(\.[0-9]+)*(rc[0-9]{1,2})?/Version: $(VERSION)/g' $$($1_TEMPLATE)
+# $$(USER_GUIDE_PDF_DEPS) $$(USER_GUIDE_LUA_FILTER)
 # ============================================================================================
 define BUILD_USER_GUIDE_PDF
-$$($1_PDF): $$(USER_GUIDE_MD_SOURCES) $$(USER_GUIDE_PDF_DEPS) $$(USER_GUIDE_LUA_FILTER) | $(NODE_MODULES_PATH) $(DIST_DIR) $(BUILD_DIR)
+$$($1_PDF): $$(USER_GUIDE_MD_SOURCES) $$(USER_GUIDE_LUA_FILTER) $$(USER_GUIDE_ADMONITIONS_LUA_FILTER) $$(USER_GUIDE_TEMPLATE_DEPS) | $(NODE_MODULES_PATH) $(DIST_DIR) $(BUILD_DIR)
 	@echo -e "$(DARKYELLOW)- Updating version number $(BRIGHTCYAN)v$(VERSION)$(DARKYELLOW) in LaTeX template $$(BRIGHTCYAN)\"$$(notdir $$($1_TEMPLATE))\"$(DARKYELLOW)...$(NC)"
 	@sed -e "s/@@VERSION@@/v$(VERSION)/g" $$($1_TEMPLATE).in > $$($1_TEMPLATE)
 	@rm -f $$($1_TEMPLATE).bak
@@ -411,7 +412,7 @@ epub-docs-verify: epub-docs ## Build the User Guide EPUB and validate it with ep
 # Shared recipe for every Training Guide PDF variant. Call via $(eval $(call BUILD_TRAINING_GUIDE_PDF,...)).
 # ============================================================================================
 define BUILD_TRAINING_GUIDE_PDF
-$$($1_PDF): $$(TRAINING_GUIDE_MD_SOURCES) $$(TRAINING_GUIDE_PDF_DEPS) $$(USER_GUIDE_LUA_FILTER) | $(NODE_MODULES_PATH) $(DIST_DIR) $(BUILD_DIR)
+$$($1_PDF): $$(TRAINING_GUIDE_MD_SOURCES) $$(TRAINING_GUIDE_TEMPLATE_DEPS) $$(USER_GUIDE_LUA_FILTER) $$(USER_GUIDE_ADMONITIONS_LUA_FILTER) | $(NODE_MODULES_PATH) $(DIST_DIR) $(BUILD_DIR)
 	@echo -e "$(DARKYELLOW)- Updating version number $(BRIGHTCYAN)v$(VERSION)$(DARKYELLOW) in LaTeX template $$(BRIGHTCYAN)\"$$(notdir $$($1_TEMPLATE))\"$(DARKYELLOW)...$(NC)"
 	@sed -e "s/@@VERSION@@/v$(VERSION)/g" $$($1_TEMPLATE).in > $$($1_TEMPLATE)
 	@rm -f $$($1_TEMPLATE).bak
@@ -559,10 +560,11 @@ chapters-pdf: chapters-pdf-a4-bundle  ## Build a zip bundle of all A4 chapter PD
 # $(info USER_GUIDE_DARK_B5_TEX: $(USER_GUIDE_DARK_B5_TEX))
 # $(info USER_GUIDE_DARK_B5_PDF_BUILT: $(USER_GUIDE_DARK_B5_PDF_BUILT))
 
-$(NODE_MODULES_PATH):
+$(NODE_MODULES_PATH): ../build-tools/package.json
 	@echo -e "$(DARKYELLOW)- Installing shared Node dependencies for Mermaid rendering in $(NODE_TOOLS_DIR)...$(NC)"
 	@mkdir -p $(NODE_TOOLS_DIR)
 	@PUPPETEER_SKIP_DOWNLOAD=1 npm install --prefix $(NODE_TOOLS_DIR) --save-dev mermaid-filter @mermaid-js/mermaid-cli
+	@touch $(NODE_MODULES_PATH)
 	@echo -e "$(GREEN)✓ Shared Node dependencies installed$(NC)"
 
 # ============================================================================================
@@ -611,19 +613,28 @@ pdf-training: check-latex-engine  cover-training-guide ## Build the training gui
 	@zip -9 -j $(DIST_DIR)/$(PROJECT)_training-guide-bundle-$(VERSION).zip $(TRAINING_GUIDE_A4_PDF) $(TRAINING_GUIDE_DARK_A4_PDF) $(TRAINING_GUIDE_B5_PDF) $(TRAINING_GUIDE_DARK_B5_PDF)
 	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)_training-guide-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
 
+
+
+# If the VERSION have already before been injectyed in the cover-user-guide.html we avoid rebuilding the image
 cover-user-guide:  ## Build the cover images for all User Guide PDF variants (A4 light/dark, B5 light/dark)
-	@echo -e "$(DARKYELLOW)- Building cover images for user-guide PDF variants...$(NC)"
-	@sed "s/@@VERSION@@/v$(VERSION)/g" $(ASSETS_DIR)/cover-user-guide-template.html > $(ASSETS_DIR)/cover-user-guide.html
-	@${SCRIPTS_DIR}/mkfigs.sh -o $(ASSETS_DIR) -s $(ASSETS_DIR) cover-user-guide
-	@rm -f $(ASSETS_DIR)/cover-user-guide.html
-	@echo -e "$(GREEN)✓ Cover image for user-guide built under $(ASSETS_DIR)$(NC)"
+	@if [ -f "$(ASSETS_DIR)/cover-user-guide.html" ] && grep -q "v$(VERSION)" "$(ASSETS_DIR)/cover-user-guide.html"; then \
+		echo -e "$(GREEN)✓ Cover image for user-guide already up-to-date$(NC)"; \
+	else \
+		echo -e "$(DARKYELLOW)- Building cover images for user-guide PDF variants...$(NC)" && \
+		sed "s/@@VERSION@@/v$(VERSION)/g" $(ASSETS_DIR)/cover-user-guide-template.html > $(ASSETS_DIR)/cover-user-guide.html && \
+		${SCRIPTS_DIR}/mkfigs.sh -o $(ASSETS_DIR) -s $(ASSETS_DIR) cover-user-guide && \
+		echo -e "$(GREEN)✓ Cover image for user-guide built under $(ASSETS_DIR)$(NC)"; \
+	fi
 
 cover-training-guide:  ## Build the cover images for all Training Guide PDF variants (A4 light/dark, B5 light/dark)
-	@echo -e "$(DARKYELLOW)- Building cover images for training-guide PDF variants...$(NC)"
-	@sed "s/@@VERSION@@/v$(VERSION)/g" $(ASSETS_DIR)/cover-training-guide-template.html > $(ASSETS_DIR)/cover-training-guide.html
-	@${SCRIPTS_DIR}/mkfigs.sh -o $(ASSETS_DIR) -s $(ASSETS_DIR) cover-training-guide
-	@rm -f $(ASSETS_DIR)/cover-training-guide.html
-	@echo -e "$(GREEN)✓ Cover image for training-guide built under $(ASSETS_DIR)$(NC)"
+	@if [ -f "$(ASSETS_DIR)/cover-training-guide.html" ] && grep -q "v$(VERSION)" "$(ASSETS_DIR)/cover-training-guide.html"; then \
+		echo -e "$(GREEN)✓ Cover image for training-guide already up-to-date$(NC)"; \
+	else \
+		echo -e "$(DARKYELLOW)- Building cover images for training-guide PDF variants...$(NC)" && \
+		sed "s/@@VERSION@@/v$(VERSION)/g" $(ASSETS_DIR)/cover-training-guide-template.html > $(ASSETS_DIR)/cover-training-guide.html && \
+		${SCRIPTS_DIR}/mkfigs.sh -o $(ASSETS_DIR) -s $(ASSETS_DIR) cover-training-guide && \
+		echo -e "$(GREEN)✓ Cover image for training-guide built under $(ASSETS_DIR)$(NC)"; \
+	fi
 
 _covers: cover-user-guide cover-training-guide  
 	@:
