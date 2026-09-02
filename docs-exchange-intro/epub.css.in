@@ -1,9 +1,9 @@
-/* epub.css.in — stylesheet template for the EduMatcher User Guide EPUB build.
+/* epub.css.in — stylesheet template for the Exchange Intro EPUB build.
  *
- * docs/Makefile's epub-docs target substitutes @@EPUB_FIGURE_MAX_WIDTH@@
- * below into .build/user-guide/epub.css, then loads it via `pandoc --css`.
- * Admonition boxes here are the EPUB counterpart of admonitions.lua's
- * LaTeX tcolorbox output — see that file for the shared parsing logic.
+ * Makefile's epub-docs target substitutes @@EPUB_FIGURE_MAX_WIDTH@@ below
+ * into .build/epub.css, then loads it via `pandoc --css`. Admonition boxes
+ * here are the EPUB counterpart of admonitions.lua's LaTeX tcolorbox
+ * output — see that file for the shared parsing logic.
  */
 
 body {
@@ -29,14 +29,15 @@ pre {
 }
 
 /* ── Figure sizing knob ──────────────────────────────────────────────────
- * Every figure in the User Guide is a Mermaid diagram rendered to SVG by
- * mermaid-filter-cached.js (MERMAID_FILTER_FORMAT=svg for this build). The
- * filter renders at a fixed pixel width (MERMAID_FILTER_WIDTH) but does not
- * set a display size, so without this rule each diagram displays at its
- * native render width — routinely wider than an e-reader page. This single
- * percentage is the tuning knob: lower it if diagrams still run large on a
- * given reader, raise it if they render too small. EPUB_FIGURE_MAX_WIDTH in
- * docs/Makefile substitutes the value below at build time.
+ * Figures in this book are a mix of Mermaid diagrams rendered to SVG by
+ * mermaid-filter-cached.js (MERMAID_FILTER_FORMAT=svg for this build) and
+ * real embedded PNG illustrations (e.g. assets/order-book-illustration-
+ * small2.png). Neither sets its own display size, so without this rule
+ * each image displays at its native width — routinely wider than an
+ * e-reader page. This single percentage is the tuning knob: lower it if
+ * figures still run large on a given reader, raise it if they render too
+ * small. EPUB_FIGURE_MAX_WIDTH in Makefile substitutes the value below at
+ * build time.
  */
 img {
   max-width: @@EPUB_FIGURE_MAX_WIDTH@@;

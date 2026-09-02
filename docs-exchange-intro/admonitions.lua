@@ -119,8 +119,9 @@ local function parse_embedded_markdown_from_codeblock(block)
     return nil
   end
 
+  local read_format = (FORMAT == "epub3") and "markdown-raw_html" or "markdown"
   local ok, parsed = pcall(function()
-    return pandoc.read(block.text, "markdown")
+    return pandoc.read(block.text, read_format)
   end)
   if not ok then
     return nil
@@ -145,6 +146,26 @@ local function latex_from_blocks(blocks)
   local body_doc = pandoc.Pandoc(decolor_codeblocks(blocks))
   local latex = pandoc.write(body_doc, "latex")
   return trim(latex)
+end
+
+local function html_from_blocks(blocks)
+  local body_doc = pandoc.Pandoc(blocks)
+  local html = pandoc.write(body_doc, "html")
+  return trim(html)
+end
+
+local function escape_html(s)
+  return (s:gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"):gsub('"', "&quot;"))
+end
+
+local function build_admonition_div(kind, title, body_html)
+  local safe_title = escape_html(title)
+  return table.concat({
+    '<div class="admonition ' .. kind .. '">',
+    '<p class="admonition-title">' .. safe_title .. '</p>',
+    body_html,
+    '</div>',
+  }, "\n")
 end
 
 local function split_target(target)
@@ -377,7 +398,7 @@ local function is_richcontent_block(block)
 end
 
 function Pandoc(doc)
-  if FORMAT ~= "latex" then
+  if FORMAT ~= "latex" and FORMAT ~= "epub3" then
     return doc
   end
 
@@ -445,8 +466,13 @@ function Pandoc(doc)
 
         if #body_blocks > 0 then
           body_blocks = rewrite_internal_markdown_links(body_blocks, known_anchors, h1_ids_by_title)
-          local body_latex = latex_from_blocks(body_blocks)
-          out:insert(pandoc.RawBlock("latex", build_tcolorbox(header.kind, header.title, body_latex)))
+          if FORMAT == "epub3" then
+            local body_html = html_from_blocks(body_blocks)
+            out:insert(pandoc.RawBlock("html", build_admonition_div(header.kind, header.title, body_html)))
+          else
+            local body_latex = latex_from_blocks(body_blocks)
+            out:insert(pandoc.RawBlock("latex", build_tcolorbox(header.kind, header.title, body_latex)))
+          end
         end
 
         i = i + 1 + collected

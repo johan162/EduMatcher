@@ -505,8 +505,8 @@ VERSION_NUMBER=${LATEST_TAG#v}
 
 # Strip the '-' from the version for pre-releases
 FILE_VERSION_NUMBER=${VERSION_NUMBER//-rc/rc}
-USER_GUIDE_BUNDLE_ZIP="docs/dist/${PROGRAMNAME}_user-guide-bundle-${FILE_VERSION_NUMBER}.zip"
-USER_GUIDE_CHAPTERS_BUNDLE_ZIP="docs/dist/${PROGRAMNAME}_user-guide-as-chapters-a4-bundle-${FILE_VERSION_NUMBER}.zip"
+USER_GUIDE_BUNDLE_ZIP="docs/dist/${PROGRAMNAME}_user_guide_bundle-${FILE_VERSION_NUMBER}.zip"
+USER_GUIDE_CHAPTERS_BUNDLE_ZIP="docs/dist/${PROGRAMNAME}_user_guide_as_chapters_a4_bundle-${FILE_VERSION_NUMBER}.zip"
 
 # 4.4: Fail fast if required release artifacts are missing
 print_sub_step "Checking required release artifacts..."
@@ -531,9 +531,9 @@ else
     exit 1;
 fi
 
-EXCHANGE_INTRO_BUNDLE_ZIP="docs-exchange-intro/dist/exchange-intro-bundle-${EXCHANGE_INTRO_VERSION}.zip"
-EXCHANGE_INTRO_PARTS_A4_BUNDLE_ZIP="docs-exchange-intro/dist/exchange-intro-parts-a4-bundle-${EXCHANGE_INTRO_VERSION}.zip"
-EXCHANGE_INTRO_QUIZZ_BUNDLE_ZIP="docs-exchange-intro/dist/exchange-intro-quiz-bundle-${EXCHANGE_INTRO_VERSION}.zip"
+EXCHANGE_INTRO_BUNDLE_ZIP="docs-exchange-intro/dist/exchange_intro_bundle-${EXCHANGE_INTRO_VERSION}.zip"
+EXCHANGE_INTRO_PARTS_A4_BUNDLE_ZIP="docs-exchange-intro/dist/exchange_intro_parts_a4_bundle-${EXCHANGE_INTRO_VERSION}.zip"
+EXCHANGE_INTRO_QUIZZ_BUNDLE_ZIP="docs-exchange-intro/dist/exchange_intro_quiz_bundle-${EXCHANGE_INTRO_VERSION}.zip"
 if [[ ! -f "$EXCHANGE_INTRO_BUNDLE_ZIP" ]]; then
     print_error "Exchange Intro bundle not found: $EXCHANGE_INTRO_BUNDLE_ZIP"
     exit 1

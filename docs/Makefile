@@ -177,7 +177,7 @@ USER_GUIDE_PDF_DEPS := \
 # User Guide EPUB output path, source CSS template, and generated CSS
 # (EPUB_FIGURE_MAX_WIDTH is substituted into the latter, same @@VAR@@
 # pattern as the LaTeX templates' @@VERSION@@).
-USER_GUIDE_EPUB     := $(DIST_DIR)/$(PROJECT)_user-guide-$(VERSION).epub
+USER_GUIDE_EPUB     := $(DIST_DIR)/$(PROJECT)_user_guide-$(VERSION).epub
 EPUB_CSS_IN         := $(DOCS_DIR)/user-guide/epub.css.in
 EPUB_CSS            := $(USER_GUIDE_BUILD_DIR)/epub.css
 EPUB_CONCAT_MD      := $(USER_GUIDE_BUILD_DIR)/user-guide_concat-epub.md
@@ -232,7 +232,7 @@ help: ## Show this help message
 # ============================================================================================
 define DEFINE_USER_GUIDE_VARS
 $(1)_TEMPLATE     := $$(DOCS_DIR)/user-guide/template$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]' '[:lower:]').tex
-$(1)_PDF          := $$(DIST_DIR)/$$(PROJECT)_user-guide$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-')-$$(VERSION).pdf
+$(1)_PDF          := $$(DIST_DIR)/$$(PROJECT)_user_guide$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]_')-$$(VERSION).pdf
 $(1)_CONCAT_MD    := $$(USER_GUIDE_BUILD_DIR)/user-guide_concat$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-').md
 $(1)_BODY_TEX     := $$(USER_GUIDE_BUILD_DIR)/user-guide_body$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-').tex
 $(1)_TEX          := $$(USER_GUIDE_BUILD_DIR)/user-guide_report$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-').tex
@@ -252,7 +252,7 @@ $(eval $(call DEFINE_USER_GUIDE_VARS,USER_GUIDE_DARK_B5))
 # ============================================================================================
 define DEFINE_TRAINING_GUIDE_VARS
 $(1)_TEMPLATE     := $$(DOCS_DIR)/training/template$(shell printf '%s' '$(patsubst TRAINING_GUIDE%,%,$(1))' | tr '[:upper:]' '[:lower:]').tex
-$(1)_PDF          := $$(DIST_DIR)/$$(PROJECT)_training-guide$(shell printf '%s' '$(patsubst TRAINING_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-')-$$(VERSION).pdf
+$(1)_PDF          := $$(DIST_DIR)/$$(PROJECT)_training-guide$(shell printf '%s' '$(patsubst TRAINING_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]_')-$$(VERSION).pdf
 $(1)_CONCAT_MD    := $$(TRAINING_GUIDE_BUILD_DIR)/training-guide_concat$(shell printf '%s' '$(patsubst TRAINING_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-').md
 $(1)_BODY_TEX     := $$(TRAINING_GUIDE_BUILD_DIR)/training-guide_body$(shell printf '%s' '$(patsubst TRAINING_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-').tex
 $(1)_TEX          := $$(TRAINING_GUIDE_BUILD_DIR)/training-guide_report$(shell printf '%s' '$(patsubst TRAINING_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-').tex
@@ -383,12 +383,12 @@ $(USER_GUIDE_EPUB): $(USER_GUIDE_MD_SOURCES) $(EPUB_DEPS) $(EPUB_CSS) | $(NODE_M
 	MERMAID_FILTER_WIDTH="$(MERMAID_FILTER_WIDTH)" \
 	MERMAID_FILTER_LOC="$(EPUB_EXPANDED_DIR)/.mermaid-img" \
 	pandoc --from=markdown-raw_html --to=epub3 \
-		--mathml --no-highlight \
+		--mathml --syntax-highlighting=none \
 		--toc --toc-depth=2 \
 		--css $(EPUB_CSS) \
 		--epub-cover-image=$(EPUB_COVER) \
-		--metadata title="EduMatcher User Guide" \
-		--metadata author="Johan Persson" \
+		--metadata title="EduMatcher User Guide (v$(VERSION))" \
+		--metadata author="J. Persson, 2026 v$(VERSION)" \
 		--metadata lang=en-US \
 		--filter "$(MERMAID_FILTER)" $(USER_GUIDE_LUA_FILTER_FLAGS) \
 		$(EPUB_CONCAT_MD) -o $(USER_GUIDE_EPUB)
@@ -539,8 +539,8 @@ chapters-pdf-a4: check-latex-engine $(CHAPTERS_A4_PDFS) ## Build a separate A4 P
 	@echo -e "$(GREEN)✓ All $(words $(USER_GUIDE_MD_SOURCES)) chapter PDFs built in $(BRIGHTCYAN)$(CHAPTERS_A4_DIR)$(GREEN)$(NC)"
 	
 chapters-pdf-a4-bundle: chapters-pdf-a4  ## Build a zip bundle of all A4 chapter PDFs into $(DIST_DIR)	
-	@zip -9 -j $(DIST_DIR)/$(PROJECT)_user-guide-as-chapters-a4-bundle-$(VERSION).zip $(CHAPTERS_A4_DIR)/*.pdf
-	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)_user-guide-as-chapters-a4-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
+	@zip -9 -j $(DIST_DIR)/$(PROJECT)_user_guide_as_chapters_a4_bundle-$(VERSION).zip $(CHAPTERS_A4_DIR)/*.pdf
+	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)_user_guide_as_chapters_a4_bundle-$(VERSION).zip\"$(GREEN)$(NC)"
 
 chapters-pdf: chapters-pdf-a4-bundle  ## Build a zip bundle of all A4 chapter PDFs into $(DIST_DIR) (alias for chapters-pdf-a4-bundle)
 	@:
@@ -578,8 +578,8 @@ linux-pdf-docs: check-latex-engine  cover-user-guide  ## Build the user guide in
 	@rm -rf $(USER_GUIDE_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
 	@rm -rf $(DIST_DIR)/$(PROJECT)_user-guide-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
 	@PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome $(MAKE) -j4 $(USER_GUIDE_A4_PDF) $(USER_GUIDE_DARK_A4_PDF) $(USER_GUIDE_B5_PDF) $(USER_GUIDE_DARK_B5_PDF)
-	@zip -9 -j $(DIST_DIR)/$(PROJECT)_user-guide-bundle-$(VERSION).zip $(DIST_DIR)/$(PROJECT)_*-$(VERSION).pdf
-	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)_user-guide-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
+	@zip -9 -j $(DIST_DIR)/$(PROJECT)_user_guide_bundle-$(VERSION).zip $(DIST_DIR)/$(PROJECT)_*-$(VERSION).pdf
+	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)_user_guide_bundle-$(VERSION).zip\"$(GREEN)$(NC)"
 
 linux-docs: $(DOC_STAMP)  ## Build the HTML project documentation with MkDocs on Ubuntu
 	@PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome $(MAKE) docs
@@ -598,10 +598,10 @@ check-latex-engine:
 
 pdf-docs: check-latex-engine  cover-user-guide ## Build the user guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel
 	@rm -rf $(USER_GUIDE_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
-	@rm -rf $(DIST_DIR)/$(PROJECT)_user-guide-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
+	@rm -rf $(DIST_DIR)/$(PROJECT)_user_guide-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
 	@$(MAKE) -j4 $(USER_GUIDE_A4_PDF) $(USER_GUIDE_DARK_A4_PDF) $(USER_GUIDE_B5_PDF) $(USER_GUIDE_DARK_B5_PDF)
-	@zip -9 -j $(DIST_DIR)/$(PROJECT)_user-guide-bundle-$(VERSION).zip $(DIST_DIR)/$(PROJECT)_*-$(VERSION).pdf
-	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)_user-guide-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
+	@zip -9 -j $(DIST_DIR)/$(PROJECT)_user_guide_bundle-$(VERSION).zip $(DIST_DIR)/$(PROJECT)_*-$(VERSION).pdf
+	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)_user_guide_bundle-$(VERSION).zip\"$(GREEN)$(NC)"
 
 pdf-training: check-latex-engine  cover-training-guide ## Build the training guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel
 	@rm -rf $(TRAINING_GUIDE_BUILD_DIR)  # Clean build dir to ensure no stale files interfere

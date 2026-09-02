@@ -309,7 +309,7 @@ end
 
 local function make_link_filter(known_anchors, h1_ids_by_title)
   return function(el)
-    if FORMAT ~= "latex" then
+    if FORMAT ~= "latex" and FORMAT ~= "epub3" then
       return nil
     end
 

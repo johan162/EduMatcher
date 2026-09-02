@@ -224,7 +224,7 @@ ubuntu@ems:~$ pm-opctl-cli list
 pm-opctl profile: default
 data directory: /home/ubuntu/.local/share/edumatcher
   Process                  PID   Uptime  RSS(MB)  Status          Details
-----------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------
 ✅ log                   106208    00:51     40.0  running         tcp connect to 127.0.0.1:5600 ok
 ✅ audit                 106210    00:51     38.2  running         no healthcheck or tcp check configured
 ✅ stats                 106212    00:51     40.8  running         healthcheck passed

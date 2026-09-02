@@ -13,7 +13,7 @@ QUIZ_PDFS := $(wildcard *-exchange-quiz.pdf)
 VERSION_FILE := ../../../docs-exchange-intro/version.toml
 BOOK_VERSION := $(shell awk -F'"' '/^version[[:space:]]*=/{print $$2; exit}' $(VERSION_FILE))
 DIST_DIR := ../../../docs-exchange-intro/dist
-QUIZZ_BUNDLE := $(DIST_DIR)/exchange-intro-quiz-bundle-$(BOOK_VERSION).zip
+QUIZZ_BUNDLE := $(DIST_DIR)/exchange_intro_quiz_bundle-$(BOOK_VERSION).zip
 
 .PHONY: check-env encrypt decrypt encrypt-md encrypt-pdf decrypt-md decrypt-pdf bundle-quizz
 
@@ -61,7 +61,7 @@ decrypt-pdf: check-env
 bundle-quiz: check-env
 	@command -v zip >/dev/null 2>&1 || { echo -e "$(RED_COLOR)✗ Error: zip not found in PATH.$(NC)"; exit 1; }
 	@test -n "$(BOOK_VERSION)" || { echo -e "$(RED_COLOR)✗ Error: Could not read version from $(VERSION_FILE) $(NC)"; exit 1; }
-	@test -n "$(QUIZ_PDFS)" || { echo -e "$(RED_COLOR)✗ Error: No quiz PDFs found matching *-exchange-concepts.pdf $(NC)"; exit 1; }
+	@test -n "$(QUIZ_PDFS)" || { echo -e "$(RED_COLOR)✗ Error: No quiz PDFs found matching *-exchange-quiz-* $(NC)"; exit 1; }
 	@test -f "$(PDF_ENC)" || { echo -e "$(RED_COLOR)✗ Error: Missing $(PDF_ENC) $(NC)"; exit 1; }
 	@mkdir -p "$(DIST_DIR)"
 	@rm -f "$(QUIZZ_BUNDLE)"
