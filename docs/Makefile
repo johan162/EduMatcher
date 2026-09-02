@@ -11,6 +11,13 @@ MERMAID_FILTER := ../scripts/mermaid-filter-cached.js
 MERMAID_FILTER_FORMAT ?= pdf
 MERMAID_FILTER_WIDTH ?= 600
 
+# Display width of every figure in the EPUB (a CSS max-width percentage,
+# substituted into epub.css). Figures are Mermaid diagrams rendered to SVG
+# at a fixed pixel width (MERMAID_FILTER_WIDTH); this is the separate knob
+# that controls how large they then display on the page. Lower it if
+# diagrams still run too large on a given e-reader.
+EPUB_FIGURE_MAX_WIDTH ?= 85%
+
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
     PUPPETEER_EXECUTABLE_PATH ?= /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
@@ -20,7 +27,7 @@ else
 	SED_INPLACE := -i
 endif
 
-.PHONY: docs pdf-docs pdf-training chapters-pdf-a4 clean really-clean serve check-latex-engine \
+.PHONY: docs pdf-docs pdf-training chapters-pdf-a4 epub-docs epub-docs-verify clean really-clean serve check-latex-engine \
 	cover-user-guide cover-training-guide covers \
 	docs-container-build docs-container-start docs-container-stop docs-container-restart docs-container-status docs-container-logs \
 	help _covers covers cover-user-guide cover-training-guide
@@ -167,6 +174,20 @@ USER_GUIDE_PDF_DEPS := \
 	$(DOCS_DIR)/user-guide/template_b5.tex.in \
 	$(DOCS_DIR)/user-guide/template_dark_b5.tex.in
 
+# User Guide EPUB output path, source CSS template, and generated CSS
+# (EPUB_FIGURE_MAX_WIDTH is substituted into the latter, same @@VAR@@
+# pattern as the LaTeX templates' @@VERSION@@).
+USER_GUIDE_EPUB     := $(DIST_DIR)/$(PROJECT)_user-guide-$(VERSION).epub
+EPUB_CSS_IN         := $(DOCS_DIR)/user-guide/epub.css.in
+EPUB_CSS            := $(USER_GUIDE_BUILD_DIR)/epub.css
+EPUB_CONCAT_MD      := $(USER_GUIDE_BUILD_DIR)/user-guide_concat-epub.md
+EPUB_EXPANDED_DIR   := $(USER_GUIDE_BUILD_DIR)/expanded-epub
+EPUB_COVER          := $(ASSETS_DIR)/cover-user-guide.png
+EPUB_DEPS           := \
+	$(DOCS_DIR)/user-guide/pagebreaks.lua \
+	$(DOCS_DIR)/admonitions.lua \
+	$(EPUB_CSS_IN)
+
 TRAINING_GUIDE_MD_SOURCES := \
 	$(sort $(wildcard $(DOCS_DIR)/training/[0-9][0-9]-*.md))
 
@@ -195,7 +216,7 @@ endef
 
 help: ## Show this help message
 	@echo -e "$(DARKYELLOW)OneSelect - Makefile Targets$(NC)"
-	@$(call print_section,Documentation,docs|pdf-docs|chapters-pdf-a4|exchange-intro)
+	@$(call print_section,Documentation,docs|pdf-docs|epub-docs|epub-docs-verify|chapters-pdf-a4|exchange-intro)
 	@$(call print_section,Container,docs-container-build|docs-container-start|docs-container-stop|docs-container-restart|docs-container-status|docs-container-logs)
 	@echo ""
 
@@ -308,6 +329,82 @@ $(eval $(call BUILD_USER_GUIDE_PDF,USER_GUIDE_A4,a4))
 $(eval $(call BUILD_USER_GUIDE_PDF,USER_GUIDE_B5,b5))
 $(eval $(call BUILD_USER_GUIDE_PDF,USER_GUIDE_DARK_A4,a4))
 $(eval $(call BUILD_USER_GUIDE_PDF,USER_GUIDE_DARK_B5,b5))
+
+# ============================================================================================
+# User Guide EPUB target
+#
+# One EPUB3 book, reflowable, from the same USER_GUIDE_MD_SOURCES as the PDF
+# variants above. No paper size and no LaTeX: expand-shell-outputs.py runs
+# with --format a4 purely for the {{!cmd@A4:...}} truncation rules already in
+# the sources (there is no @EPUB spec, so this is equivalent to full output;
+# see epub.css.in's header for the figure-sizing knob).
+#
+# Mermaid diagrams render to SVG here (not PDF, as for the LaTeX builds) so
+# they scale losslessly on any reader. The render cache in
+# mermaid-filter-cached.js is keyed on diagram text only, so this shares the
+# same cache directory as the PDF builds without collision (an svg and a pdf
+# render of the same diagram are simply two different cache entries).
+#
+# --from=markdown-raw_html: several sources use bare angle-bracket
+# placeholders in command syntax, e.g. `SYM=<symbol>`. Pandoc's default
+# reader treats a bare <word> as a raw HTML tag pass-through; EPUB's strict
+# XHTML parser then rejects the resulting document outright (unknown
+# element). Disabling raw_html makes Pandoc escape "<" as "&lt;" instead, so
+# these render as the literal text they are. See admonitions.lua's
+# parse_embedded_markdown_from_codeblock, which mirrors this for embedded
+# code inside admonitions.
+# --mathml: default EPUB math conversion (texmath) fails silently on some
+# of the more complex \text{...}-heavy formulas in this guide, falling back
+# to visible raw TeX source. --mathml renders proper <math> markup instead.
+# --no-highlight: Pandoc's syntax-highlighted code spans can emit duplicate
+# element IDs across chapters, which EPUB (unlike the LaTeX/PDF path) treats
+# as a hard validation error. This guide has no use for the highlighting.
+# ============================================================================================
+$(EPUB_CSS): $(EPUB_CSS_IN)
+	@mkdir -p $(USER_GUIDE_BUILD_DIR)
+	@sed -e "s/@@EPUB_FIGURE_MAX_WIDTH@@/$(EPUB_FIGURE_MAX_WIDTH)/g" $(EPUB_CSS_IN) > $(EPUB_CSS)
+
+$(USER_GUIDE_EPUB): $(USER_GUIDE_MD_SOURCES) $(EPUB_DEPS) $(EPUB_CSS) | $(NODE_MODULES_PATH) $(DIST_DIR) $(BUILD_DIR)
+	@echo -e "$(DARKYELLOW)- Building $(BRIGHTCYAN)\"$(notdir $(USER_GUIDE_EPUB))\"$(DARKYELLOW)...$(NC)"
+	@mkdir -p $(USER_GUIDE_BUILD_DIR)
+	@echo -e "$(DARKYELLOW)  - Expanding shell command outputs in user-guide markdown sources...$(NC)"
+	@mkdir -p $(EPUB_EXPANDED_DIR)
+	@poetry run python $(SCRIPTS_DIR)/expand-shell-outputs.py \
+		--output-dir $(EPUB_EXPANDED_DIR) \
+		--cwd $(SCRIPTS_DIR)/.. \
+		--format a4 \
+		$(USER_GUIDE_MD_SOURCES)
+	@echo -e "$(DARKYELLOW)  - Concatenating user-guide markdown sources...$(NC)"
+	@awk 'FNR==1 && NR!=1{print ""; print ""}1' $(foreach f,$(USER_GUIDE_MD_SOURCES),$(EPUB_EXPANDED_DIR)/$(notdir $f)) > $(EPUB_CONCAT_MD)
+	@echo -e "$(DARKYELLOW)  - Converting user-guide markdown to EPUB3 via pandoc...$(NC)"
+	@mkdir -p $(EPUB_EXPANDED_DIR)/.mermaid-img
+	@PUPPETEER_EXECUTABLE_PATH="$(PUPPETEER_EXECUTABLE_PATH)" \
+	MERMAID_FILTER_FORMAT="svg" \
+	MERMAID_FILTER_WIDTH="$(MERMAID_FILTER_WIDTH)" \
+	MERMAID_FILTER_LOC="$(EPUB_EXPANDED_DIR)/.mermaid-img" \
+	pandoc --from=markdown-raw_html --to=epub3 \
+		--mathml --no-highlight \
+		--toc --toc-depth=2 \
+		--css $(EPUB_CSS) \
+		--epub-cover-image=$(EPUB_COVER) \
+		--metadata title="EduMatcher User Guide" \
+		--metadata author="Johan Persson" \
+		--metadata lang=en-US \
+		--filter "$(MERMAID_FILTER)" $(USER_GUIDE_LUA_FILTER_FLAGS) \
+		$(EPUB_CONCAT_MD) -o $(USER_GUIDE_EPUB)
+	@echo -e "$(GREEN)✓ User guide EPUB built: $(BRIGHTCYAN)\"$(notdir $(USER_GUIDE_EPUB))\"$(GREEN)$(NC)"
+
+epub-docs: cover-user-guide $(USER_GUIDE_EPUB) ## Build the User Guide as a single reflowable EPUB3 book
+
+epub-docs-verify: epub-docs ## Build the User Guide EPUB and validate it with epubcheck
+	@echo -e "$(DARKYELLOW)- Validating $(BRIGHTCYAN)\"$(notdir $(USER_GUIDE_EPUB))\"$(DARKYELLOW) with epubcheck...$(NC)"
+	@if ! command -v epubcheck >/dev/null 2>&1; then \
+		echo -e "$(RED)✗ epubcheck not found in PATH.$(NC)" >&2; \
+		echo -e "$(RED)  Install with: brew install epubcheck$(NC)" >&2; \
+		exit 1; \
+	fi
+	@epubcheck $(USER_GUIDE_EPUB)
+	@echo -e "$(GREEN)✓ EPUB validated: $(BRIGHTCYAN)\"$(notdir $(USER_GUIDE_EPUB))\"$(GREEN)$(NC)"
 
 # ============================================================================================
 # Macro: BUILD_TRAINING_GUIDE_PDF

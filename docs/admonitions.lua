@@ -1,5 +1,6 @@
 -- admonitions.lua
--- Convert MkDocs-style admonitions to LaTeX tcolorbox blocks.
+-- Convert MkDocs-style admonitions to LaTeX tcolorbox blocks, or to styled
+-- <div class="admonition ..."> blocks for EPUB.
 --
 -- Supported syntax:
 --   !!! tip "Title"
@@ -15,8 +16,12 @@
 --       Body text
 --
 -- Notes:
--- - This filter targets LaTeX output only.
--- - Requires \usepackage[most]{tcolorbox} in the LaTeX template preamble.
+-- - This filter targets LaTeX and EPUB3 output only (FORMAT == "latex" or
+--   "epub3"); all other formats (e.g. MkDocs' own HTML build, which already
+--   understands this syntax natively) pass the document through unchanged.
+-- - LaTeX output requires \usepackage[most]{tcolorbox} in the template
+--   preamble.
+-- - EPUB output requires the ".admonition" CSS rules in epub.css.
 
 local STYLE = {
   note = {
@@ -119,8 +124,15 @@ local function parse_embedded_markdown_from_codeblock(block)
     return nil
   end
 
+  -- Match the outer document's reader format: EPUB output disables raw_html
+  -- (see docs/Makefile's epub-docs target) so that bare <placeholder> tokens
+  -- in prose/code, e.g. `SYM=<symbol>`, render as literal text instead of
+  -- being parsed as (invalid, XHTML-breaking) raw HTML tags. This re-parse
+  -- of an admonition's embedded code block must use the same reader format,
+  -- or such placeholders would slip back in through this second parse.
+  local read_format = (FORMAT == "epub3") and "markdown-raw_html" or "markdown"
   local ok, parsed = pcall(function()
-    return pandoc.read(block.text, "markdown")
+    return pandoc.read(block.text, read_format)
   end)
   if not ok then
     return nil
@@ -145,6 +157,12 @@ local function latex_from_blocks(blocks)
   local body_doc = pandoc.Pandoc(decolor_codeblocks(blocks))
   local latex = pandoc.write(body_doc, "latex")
   return trim(latex)
+end
+
+local function html_from_blocks(blocks)
+  local body_doc = pandoc.Pandoc(blocks)
+  local html = pandoc.write(body_doc, "html")
+  return trim(html)
 end
 
 local function split_target(target)
@@ -364,6 +382,19 @@ local function build_tcolorbox(kind, title, body_latex)
   }, "\n")
 end
 
+local function escape_html(s)
+  return (s:gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"))
+end
+
+local function build_admonition_div(kind, title, body_html)
+  return table.concat({
+    '<div class="admonition ' .. kind .. '">',
+    '<p class="admonition-title">' .. escape_html(title) .. "</p>",
+    body_html,
+    "</div>",
+  }, "\n")
+end
+
 local function is_list_block(block)
   return block and (
     block.t == "BulletList" or
@@ -380,7 +411,7 @@ local function is_richcontent_block(block)
 end
 
 function Pandoc(doc)
-  if FORMAT ~= "latex" then
+  if FORMAT ~= "latex" and FORMAT ~= "epub3" then
     return doc
   end
 
@@ -448,8 +479,13 @@ function Pandoc(doc)
 
         if #body_blocks > 0 then
           body_blocks = rewrite_internal_markdown_links(body_blocks, known_anchors, h1_ids_by_title)
-          local body_latex = latex_from_blocks(body_blocks)
-          out:insert(pandoc.RawBlock("latex", build_tcolorbox(header.kind, header.title, body_latex)))
+          if FORMAT == "epub3" then
+            local body_html = html_from_blocks(body_blocks)
+            out:insert(pandoc.RawBlock("html", build_admonition_div(header.kind, header.title, body_html)))
+          else
+            local body_latex = latex_from_blocks(body_blocks)
+            out:insert(pandoc.RawBlock("latex", build_tcolorbox(header.kind, header.title, body_latex)))
+          end
         end
 
         i = i + 1 + collected
