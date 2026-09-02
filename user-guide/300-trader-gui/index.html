@@ -15,6 +15,10 @@
         <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/300-trader-gui/">
       
       
+        <link rel="prev" href="../290-trader-info-terminal/">
+      
+      
+        <link rel="next" href="../800-examples/">
       
       
         
@@ -25,7 +29,7 @@
     
     
       
-        <title>Trading GUI (pm-trading-ui) - EduMatcher — Educational Trading System</title>
+        <title>GUI: Trading platform - EduMatcher — Educational Trading System</title>
       
     
     
@@ -110,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Trading GUI (pm-trading-ui)
+              GUI: Trading platform
             
           </span>
         </div>
@@ -279,10 +283,12 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
+      <li class="md-tabs__item md-tabs__item--active">
         <a href="../000-getting-started/" class="md-tabs__link">
           
   
@@ -755,28 +761,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
-        
-          
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
             
   
   
@@ -794,7 +803,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1901,10 +1910,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../300-trader-order-entry-terminal.md" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GUI: Trading platform
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1920,6 +1956,951 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-trading-gui-is" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the Trading GUI is
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-talks-to-the-exchange" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it talks to the exchange
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-the-application" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running the application
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Running the application">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-whole-stack-recommended" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The whole stack (recommended)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#this-app-alone-in-a-container" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        This app alone, in a container
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#local-dev-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Local dev server
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#production-build-and-serve-without-a-container" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Production build and serve (without a container)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#make-targets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Make targets
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#logging-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Logging in
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#roles-and-access-rights" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Roles and access rights
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-application-shell" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The application shell
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The application shell">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#top-bar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Top bar
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#left-sidebar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Left sidebar
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#connection-banner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connection banner
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#app-level-overlays" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        App-level overlays
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#event-center" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Event Center
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#command-palette" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command palette
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#help-drawer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Help drawer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error-boundary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error boundary
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#screens-available-to-every-role" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Screens available to every role
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Screens available to every role">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#market-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Market Overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#watchlist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Watchlist
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#symbol-detail-overlay" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Symbol Detail overlay
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Symbol Detail overlay">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-depth-ladder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The depth ladder
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-trader-role" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The TRADER role
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The TRADER role">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#trading-workspace" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trading Workspace
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#order-entry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Order Entry
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Order Entry">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ticket-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ticket fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#order-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Order types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#oco-orders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OCO orders
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#combo-orders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Combo orders
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#groups-in-the-blotter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Groups in the blotter
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#submitting-an-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Submitting an order
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#active-orders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Active Orders
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Active Orders">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Columns
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#selecting-rows-and-moving-around" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Selecting rows and moving around
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#amending-an-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Amending an order
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cancel-replace" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cancel-Replace
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cancelling-an-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cancelling an order
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#seeing-whether-an-order-is-resting-or-executed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Seeing whether an order is resting or executed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#order-detail-drawer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Order Detail drawer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#trade-history" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trade History
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#positions-and-flatten" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Positions and Flatten
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-market_maker-role" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The MARKET_MAKER role
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The MARKET_MAKER role">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#quote-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quote Management
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#submitting-a-quote" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Submitting a quote
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#watching-and-reacting-to-fills" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Watching and reacting to fills
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cancelling-a-quote" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cancelling a quote
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quote-bootstrap-legs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quote Bootstrap &amp; Legs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#positions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Positions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-admin-role" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The ADMIN role
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The ADMIN role">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#system-dashboard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        System Dashboard
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#symbol-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Symbol Management
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#index-administration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Index Administration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#session-control" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Session Control
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#risk-controls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Risk Controls
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#circuit-breakers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Circuit Breakers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gateway-management-and-the-kill-switch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gateway Management and the Kill Switch
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#monitor-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Monitor Log
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Monitor Log">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cross-gateway-order-drill-down" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-gateway order drill-down
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#admin-capability-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Admin capability notes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#errors-and-how-to-read-them" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Errors and how to read them
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Errors and how to read them">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#class-a-client-side-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Class A — client-side validation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#class-b-engine-rejections" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Class B — engine rejections
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#class-c-timeouts-which-are-not-rejections" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Class C — timeouts, which are not rejections
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#class-d-gateway-and-http-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Class D — gateway and HTTP errors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#class-e-degraded-data-not-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Class E — degraded data, not errors
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#typical-workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Typical workflows
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Typical workflows">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-trader-session" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A TRADER session
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-market_maker-session" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A MARKET_MAKER session
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#an-admin-session" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An ADMIN session
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#keyboard-shortcuts-and-power-user-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keyboard shortcuts and power-user mode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Keyboard shortcuts and power-user mode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#power-user-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Power-user mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related documentation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 

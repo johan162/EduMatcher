@@ -11,6 +11,13 @@ MERMAID_FILTER := ../scripts/mermaid-filter-cached.js
 MERMAID_FILTER_FORMAT ?= pdf
 MERMAID_FILTER_WIDTH ?= 600
 
+# Display width of every figure in the EPUB (a CSS max-width percentage,
+# substituted into epub.css). Figures are Mermaid diagrams rendered to SVG
+# at a fixed pixel width (MERMAID_FILTER_WIDTH); this is the separate knob
+# that controls how large they then display on the page. Lower it if
+# diagrams still run too large on a given e-reader.
+EPUB_FIGURE_MAX_WIDTH ?= 85%
+
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
     PUPPETEER_EXECUTABLE_PATH ?= /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
@@ -20,7 +27,7 @@ else
 	SED_INPLACE := -i
 endif
 
-.PHONY: docs pdf-docs pdf-training chapters-pdf-a4 clean really-clean serve check-latex-engine \
+.PHONY: docs pdf-docs pdf-training chapters-pdf-a4 epub-docs epub-docs-verify clean really-clean serve check-latex-engine \
 	cover-user-guide cover-training-guide covers \
 	docs-container-build docs-container-start docs-container-stop docs-container-restart docs-container-status docs-container-logs \
 	help _covers covers cover-user-guide cover-training-guide
@@ -81,19 +88,6 @@ ifeq ($(POETRY),)
 endif
 
 # ============================================================================================
-# Timestamp file targets
-# ============================================================================================
-$(DOC_STAMP): $(DOC_FILES)
-	@echo -e "$(DARKYELLOW)- Building documentation...$(NC)"
-	@if poetry run mkdocs build -q; then \
-		touch $(DOC_STAMP); \
-		echo -e "$(GREEN)✓ Documentation built successfully$(NC)"; \
-	else \
-		echo -e "$(RED)✗ Error: Documentation build failed$(NC)"; \
-		exit 1; \
-	fi
-
-# ============================================================================================
 # Variable configurations
 # ============================================================================================
 
@@ -104,6 +98,12 @@ BUILD_DIR := .build
 SCRIPTS_DIR := ../scripts
 SITE_DIR := ../site
 ASSETS_DIR := $(DOCS_DIR)/assets
+
+
+# Timestamp files
+STAMP_DIR := .makefile-stamps
+$(shell mkdir -p $(STAMP_DIR))
+DOC_STAMP := $(STAMP_DIR)/docs-stamp
 
 # Documentation Container Server configuration
 SERVER_HOST := 0.0.0.0
@@ -125,8 +125,8 @@ TRAINING_GUIDE_BUILD_DIR := $(BUILD_DIR)/training-guide
 # Variant-specific paths are derived by DEFINE_USER_GUIDE_VARS below.
 # USER_GUIDE_LUA_FILTER is shared across all variants.
 USER_GUIDE_LUA_FILTER := $(DOCS_DIR)/user-guide/pagebreaks.lua
-ADMONITIONS_LUA_FILTER := $(DOCS_DIR)/admonitions.lua
-USER_GUIDE_LUA_FILTER_FLAGS := --lua-filter $(USER_GUIDE_LUA_FILTER) --lua-filter $(ADMONITIONS_LUA_FILTER)
+USER_GUIDE_ADMONITIONS_LUA_FILTER := $(DOCS_DIR)/admonitions.lua
+USER_GUIDE_LUA_FILTER_FLAGS := --lua-filter $(USER_GUIDE_LUA_FILTER) --lua-filter $(USER_GUIDE_ADMONITIONS_LUA_FILTER)
 
 # Markdown sources that are concatenated into the User Guide PDF body.
 # Keep this list markdown-only; non-markdown assets are tracked separately
@@ -137,39 +137,61 @@ USER_GUIDE_MD_SOURCES := \
 # $(info USER_GUIDE_MD_SOURCES: $(USER_GUIDE_MD_SOURCES))
 
 # Non-markdown assets that should still trigger a rebuild when changed.
-USER_GUIDE_PDF_DEPS := \
-	$(DOCS_DIR)/user-guide/pagebreaks.lua \
-	$(DOCS_DIR)/admonitions.lua \
+USER_GUIDE_TEMPLATE_DEPS := \
 	$(DOCS_DIR)/user-guide/template_a4.tex.in \
 	$(DOCS_DIR)/user-guide/template_dark_a4.tex.in \
 	$(DOCS_DIR)/user-guide/template_b5.tex.in \
 	$(DOCS_DIR)/user-guide/template_dark_b5.tex.in
 
+# User Guide EPUB output path, source CSS template, and generated CSS
+# (EPUB_FIGURE_MAX_WIDTH is substituted into the latter, same @@VAR@@
+# pattern as the LaTeX templates' @@VERSION@@).
+USER_GUIDE_EPUB     := $(DIST_DIR)/$(PROJECT)_user_guide-$(VERSION).epub
+EPUB_CSS_IN         := $(DOCS_DIR)/user-guide/epub.css.in
+EPUB_CSS            := $(USER_GUIDE_BUILD_DIR)/epub.css
+EPUB_CONCAT_MD      := $(USER_GUIDE_BUILD_DIR)/user-guide_concat-epub.md
+EPUB_EXPANDED_DIR   := $(USER_GUIDE_BUILD_DIR)/expanded-epub
+EPUB_COVER          := $(ASSETS_DIR)/cover-user-guide.png
+EPUB_DEPS           := \
+	$(DOCS_DIR)/user-guide/pagebreaks.lua \
+	$(DOCS_DIR)/admonitions.lua \
+	$(EPUB_CSS_IN)
+
 TRAINING_GUIDE_MD_SOURCES := \
 	$(sort $(wildcard $(DOCS_DIR)/training/[0-9][0-9]-*.md))
 
-TRAINING_GUIDE_PDF_DEPS := \
-	$(DOCS_DIR)/user-guide/pagebreaks.lua \
-	$(DOCS_DIR)/admonitions.lua \
+TRAINING_GUIDE_TEMPLATE_DEPS := \
 	$(DOCS_DIR)/training/template_a4.tex.in \
 	$(DOCS_DIR)/training/template_dark_a4.tex.in \
 	$(DOCS_DIR)/training/template_b5.tex.in \
 	$(DOCS_DIR)/training/template_dark_b5.tex.in \
 	$(DOCS_DIR)/assets/cover-training-guide.png
 
+CONCEPTS_MD_SOURCES := \
+	$(sort $(wildcard $(DOCS_DIR)/concepts/[0-9][0-9]-*.md))
 
-# Source and Test Files
-DOC_FILES := ../mkdocs.yml $(shell find $(DOCS_DIR) -name '*.md' -o -name '*.yml' -o -name '*.yaml' -o -name '*.lua' -o -name '*.tex') 
+# $(info CONCEPTS_MD_SOURCES: $(CONCEPTS_MD_SOURCES))
 
-# $(info DOC_FILES: $(DOC_FILES))
+ARCHITECTURE_MD_SOURCES := \
+	$(sort $(wildcard $(DOCS_DIR)/architecture/[0-9][0-9]-*.md))
 
-# Timestamp files
-STAMP_DIR := .makefile-stamps
-$(shell mkdir -p $(STAMP_DIR))
+# $(info ARCHITECTURE_MD_SOURCES: $(ARCHITECTURE_MD_SOURCES))
 
-DOC_STAMP := $(STAMP_DIR)/docs-stamp
+DEVELOPER_MD_SOURCES := \
+	$(sort $(wildcard $(DOCS_DIR)/developer/[0-9][0-9]-*.md))
 
-$(DOC_STAMP): $(DOC_FILES)
+# $(info DEVELOPER_MD_SOURCES: $(DEVELOPER_MD_SOURCES))
+
+# Source and Test Files for building HTML documentation
+HTML_DOCS_DEPS := ../mkdocs.yml $(USER_GUIDE_MD_SOURCES) $(TRAINING_GUIDE_MD_SOURCES) $(CONCEPTS_MD_SOURCES) $(ARCHITECTURE_MD_SOURCES) $(DEVELOPER_MD_SOURCES)
+
+# $(info HTML_DOCS_DEPS: $(HTML_DOCS_DEPS))
+
+# ============================================================================================
+# Timestamp file targets
+# ============================================================================================
+
+$(DOC_STAMP): $(HTML_DOCS_DEPS)
 	@echo -e "$(DARKYELLOW)- Building documentation...$(NC)"
 	@if poetry run mkdocs build -f ../mkdocs.yml -q; then \
 		touch $(DOC_STAMP); \
@@ -194,7 +216,7 @@ endef
 
 help: ## Show this help message
 	@echo -e "$(DARKYELLOW)OneSelect - Makefile Targets$(NC)"
-	@$(call print_section,Documentation,docs|pdf-docs|chapters-pdf-a4|exchange-intro)
+	@$(call print_section,Documentation,docs|pdf-docs|epub-docs|epub-docs-verify|chapters-pdf-a4|exchange-intro)
 	@$(call print_section,Container,docs-container-build|docs-container-start|docs-container-stop|docs-container-restart|docs-container-status|docs-container-logs)
 	@echo ""
 
@@ -210,7 +232,7 @@ help: ## Show this help message
 # ============================================================================================
 define DEFINE_USER_GUIDE_VARS
 $(1)_TEMPLATE     := $$(DOCS_DIR)/user-guide/template$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]' '[:lower:]').tex
-$(1)_PDF          := $$(DIST_DIR)/$$(PROJECT)_user-guide$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-')-$$(VERSION).pdf
+$(1)_PDF          := $$(DIST_DIR)/$$(PROJECT)_user_guide$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]_')-$$(VERSION).pdf
 $(1)_CONCAT_MD    := $$(USER_GUIDE_BUILD_DIR)/user-guide_concat$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-').md
 $(1)_BODY_TEX     := $$(USER_GUIDE_BUILD_DIR)/user-guide_body$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-').tex
 $(1)_TEX          := $$(USER_GUIDE_BUILD_DIR)/user-guide_report$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-').tex
@@ -230,7 +252,7 @@ $(eval $(call DEFINE_USER_GUIDE_VARS,USER_GUIDE_DARK_B5))
 # ============================================================================================
 define DEFINE_TRAINING_GUIDE_VARS
 $(1)_TEMPLATE     := $$(DOCS_DIR)/training/template$(shell printf '%s' '$(patsubst TRAINING_GUIDE%,%,$(1))' | tr '[:upper:]' '[:lower:]').tex
-$(1)_PDF          := $$(DIST_DIR)/$$(PROJECT)_training-guide$(shell printf '%s' '$(patsubst TRAINING_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-')-$$(VERSION).pdf
+$(1)_PDF          := $$(DIST_DIR)/$$(PROJECT)_training-guide$(shell printf '%s' '$(patsubst TRAINING_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]_')-$$(VERSION).pdf
 $(1)_CONCAT_MD    := $$(TRAINING_GUIDE_BUILD_DIR)/training-guide_concat$(shell printf '%s' '$(patsubst TRAINING_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-').md
 $(1)_BODY_TEX     := $$(TRAINING_GUIDE_BUILD_DIR)/training-guide_body$(shell printf '%s' '$(patsubst TRAINING_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-').tex
 $(1)_TEX          := $$(TRAINING_GUIDE_BUILD_DIR)/training-guide_report$(shell printf '%s' '$(patsubst TRAINING_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-').tex
@@ -252,9 +274,10 @@ $(eval $(call DEFINE_TRAINING_GUIDE_VARS,TRAINING_GUIDE_DARK_B5))
 # Note: Make variables used inside recipe lines are escaped as $$(VAR) so they survive
 # $(call) expansion and are resolved at recipe-execution time.
 # # @sed -i.bak -E 's/Version: [0-9]+(\.[0-9]+)*(rc[0-9]{1,2})?/Version: $(VERSION)/g' $$($1_TEMPLATE)
+# $$(USER_GUIDE_PDF_DEPS) $$(USER_GUIDE_LUA_FILTER)
 # ============================================================================================
 define BUILD_USER_GUIDE_PDF
-$$($1_PDF): $$(USER_GUIDE_MD_SOURCES) $$(USER_GUIDE_PDF_DEPS) $$(USER_GUIDE_LUA_FILTER) | $(NODE_MODULES_PATH) $(DIST_DIR) $(BUILD_DIR)
+$$($1_PDF): $$(USER_GUIDE_MD_SOURCES) $$(USER_GUIDE_LUA_FILTER) $$(USER_GUIDE_ADMONITIONS_LUA_FILTER) $$(USER_GUIDE_TEMPLATE_DEPS) | $(NODE_MODULES_PATH) $(DIST_DIR) $(BUILD_DIR)
 	@echo -e "$(DARKYELLOW)- Updating version number $(BRIGHTCYAN)v$(VERSION)$(DARKYELLOW) in LaTeX template $$(BRIGHTCYAN)\"$$(notdir $$($1_TEMPLATE))\"$(DARKYELLOW)...$(NC)"
 	@sed -e "s/@@VERSION@@/v$(VERSION)/g" $$($1_TEMPLATE).in > $$($1_TEMPLATE)
 	@rm -f $$($1_TEMPLATE).bak
@@ -309,11 +332,87 @@ $(eval $(call BUILD_USER_GUIDE_PDF,USER_GUIDE_DARK_A4,a4))
 $(eval $(call BUILD_USER_GUIDE_PDF,USER_GUIDE_DARK_B5,b5))
 
 # ============================================================================================
+# User Guide EPUB target
+#
+# One EPUB3 book, reflowable, from the same USER_GUIDE_MD_SOURCES as the PDF
+# variants above. No paper size and no LaTeX: expand-shell-outputs.py runs
+# with --format a4 purely for the {{!cmd@A4:...}} truncation rules already in
+# the sources (there is no @EPUB spec, so this is equivalent to full output;
+# see epub.css.in's header for the figure-sizing knob).
+#
+# Mermaid diagrams render to SVG here (not PDF, as for the LaTeX builds) so
+# they scale losslessly on any reader. The render cache in
+# mermaid-filter-cached.js is keyed on diagram text only, so this shares the
+# same cache directory as the PDF builds without collision (an svg and a pdf
+# render of the same diagram are simply two different cache entries).
+#
+# --from=markdown-raw_html: several sources use bare angle-bracket
+# placeholders in command syntax, e.g. `SYM=<symbol>`. Pandoc's default
+# reader treats a bare <word> as a raw HTML tag pass-through; EPUB's strict
+# XHTML parser then rejects the resulting document outright (unknown
+# element). Disabling raw_html makes Pandoc escape "<" as "&lt;" instead, so
+# these render as the literal text they are. See admonitions.lua's
+# parse_embedded_markdown_from_codeblock, which mirrors this for embedded
+# code inside admonitions.
+# --mathml: default EPUB math conversion (texmath) fails silently on some
+# of the more complex \text{...}-heavy formulas in this guide, falling back
+# to visible raw TeX source. --mathml renders proper <math> markup instead.
+# --no-highlight: Pandoc's syntax-highlighted code spans can emit duplicate
+# element IDs across chapters, which EPUB (unlike the LaTeX/PDF path) treats
+# as a hard validation error. This guide has no use for the highlighting.
+# ============================================================================================
+$(EPUB_CSS): $(EPUB_CSS_IN)
+	@mkdir -p $(USER_GUIDE_BUILD_DIR)
+	@sed -e "s/@@EPUB_FIGURE_MAX_WIDTH@@/$(EPUB_FIGURE_MAX_WIDTH)/g" $(EPUB_CSS_IN) > $(EPUB_CSS)
+
+$(USER_GUIDE_EPUB): $(USER_GUIDE_MD_SOURCES) $(EPUB_DEPS) $(EPUB_CSS) | $(NODE_MODULES_PATH) $(DIST_DIR) $(BUILD_DIR)
+	@echo -e "$(DARKYELLOW)- Building $(BRIGHTCYAN)\"$(notdir $(USER_GUIDE_EPUB))\"$(DARKYELLOW)...$(NC)"
+	@mkdir -p $(USER_GUIDE_BUILD_DIR)
+	@echo -e "$(DARKYELLOW)  - Expanding shell command outputs in user-guide markdown sources...$(NC)"
+	@mkdir -p $(EPUB_EXPANDED_DIR)
+	@poetry run python $(SCRIPTS_DIR)/expand-shell-outputs.py \
+		--output-dir $(EPUB_EXPANDED_DIR) \
+		--cwd $(SCRIPTS_DIR)/.. \
+		--format a4 \
+		$(USER_GUIDE_MD_SOURCES)
+	@echo -e "$(DARKYELLOW)  - Concatenating user-guide markdown sources...$(NC)"
+	@awk 'FNR==1 && NR!=1{print ""; print ""}1' $(foreach f,$(USER_GUIDE_MD_SOURCES),$(EPUB_EXPANDED_DIR)/$(notdir $f)) > $(EPUB_CONCAT_MD)
+	@echo -e "$(DARKYELLOW)  - Converting user-guide markdown to EPUB3 via pandoc...$(NC)"
+	@mkdir -p $(EPUB_EXPANDED_DIR)/.mermaid-img
+	@PUPPETEER_EXECUTABLE_PATH="$(PUPPETEER_EXECUTABLE_PATH)" \
+	MERMAID_FILTER_FORMAT="svg" \
+	MERMAID_FILTER_WIDTH="$(MERMAID_FILTER_WIDTH)" \
+	MERMAID_FILTER_LOC="$(EPUB_EXPANDED_DIR)/.mermaid-img" \
+	pandoc --from=markdown-raw_html --to=epub3 \
+		--mathml --syntax-highlighting=none \
+		--toc --toc-depth=2 \
+		--css $(EPUB_CSS) \
+		--epub-cover-image=$(EPUB_COVER) \
+		--metadata title="EduMatcher User Guide (v$(VERSION))" \
+		--metadata author="J. Persson, 2026 v$(VERSION)" \
+		--metadata lang=en-US \
+		--filter "$(MERMAID_FILTER)" $(USER_GUIDE_LUA_FILTER_FLAGS) \
+		$(EPUB_CONCAT_MD) -o $(USER_GUIDE_EPUB)
+	@echo -e "$(GREEN)✓ User guide EPUB built: $(BRIGHTCYAN)\"$(notdir $(USER_GUIDE_EPUB))\"$(GREEN)$(NC)"
+
+epub-docs: cover-user-guide $(USER_GUIDE_EPUB) ## Build the User Guide as a single reflowable EPUB3 book
+
+epub-docs-verify: epub-docs ## Build the User Guide EPUB and validate it with epubcheck
+	@echo -e "$(DARKYELLOW)- Validating $(BRIGHTCYAN)\"$(notdir $(USER_GUIDE_EPUB))\"$(DARKYELLOW) with epubcheck...$(NC)"
+	@if ! command -v epubcheck >/dev/null 2>&1; then \
+		echo -e "$(RED)✗ epubcheck not found in PATH.$(NC)" >&2; \
+		echo -e "$(RED)  Install with: brew install epubcheck$(NC)" >&2; \
+		exit 1; \
+	fi
+	@epubcheck $(USER_GUIDE_EPUB)
+	@echo -e "$(GREEN)✓ EPUB validated: $(BRIGHTCYAN)\"$(notdir $(USER_GUIDE_EPUB))\"$(GREEN)$(NC)"
+
+# ============================================================================================
 # Macro: BUILD_TRAINING_GUIDE_PDF
 # Shared recipe for every Training Guide PDF variant. Call via $(eval $(call BUILD_TRAINING_GUIDE_PDF,...)).
 # ============================================================================================
 define BUILD_TRAINING_GUIDE_PDF
-$$($1_PDF): $$(TRAINING_GUIDE_MD_SOURCES) $$(TRAINING_GUIDE_PDF_DEPS) $$(USER_GUIDE_LUA_FILTER) | $(NODE_MODULES_PATH) $(DIST_DIR) $(BUILD_DIR)
+$$($1_PDF): $$(TRAINING_GUIDE_MD_SOURCES) $$(TRAINING_GUIDE_TEMPLATE_DEPS) $$(USER_GUIDE_LUA_FILTER) $$(USER_GUIDE_ADMONITIONS_LUA_FILTER) | $(NODE_MODULES_PATH) $(DIST_DIR) $(BUILD_DIR)
 	@echo -e "$(DARKYELLOW)- Updating version number $(BRIGHTCYAN)v$(VERSION)$(DARKYELLOW) in LaTeX template $$(BRIGHTCYAN)\"$$(notdir $$($1_TEMPLATE))\"$(DARKYELLOW)...$(NC)"
 	@sed -e "s/@@VERSION@@/v$(VERSION)/g" $$($1_TEMPLATE).in > $$($1_TEMPLATE)
 	@rm -f $$($1_TEMPLATE).bak
@@ -441,8 +540,8 @@ chapters-pdf-a4: check-latex-engine $(CHAPTERS_A4_PDFS) ## Build a separate A4 P
 	@echo -e "$(GREEN)✓ All $(words $(USER_GUIDE_MD_SOURCES)) chapter PDFs built in $(BRIGHTCYAN)$(CHAPTERS_A4_DIR)$(GREEN)$(NC)"
 	
 chapters-pdf-a4-bundle: chapters-pdf-a4  ## Build a zip bundle of all A4 chapter PDFs into $(DIST_DIR)	
-	@zip -9 -j $(DIST_DIR)/$(PROJECT)_user-guide-as-chapters-a4-bundle-$(VERSION).zip $(CHAPTERS_A4_DIR)/*.pdf
-	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)_user-guide-as-chapters-a4-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
+	@zip -9 -j $(DIST_DIR)/$(PROJECT)_user_guide_as_chapters_a4_bundle-$(VERSION).zip $(CHAPTERS_A4_DIR)/*.pdf
+	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)_user_guide_as_chapters_a4_bundle-$(VERSION).zip\"$(GREEN)$(NC)"
 
 chapters-pdf: chapters-pdf-a4-bundle  ## Build a zip bundle of all A4 chapter PDFs into $(DIST_DIR) (alias for chapters-pdf-a4-bundle)
 	@:
@@ -461,10 +560,11 @@ chapters-pdf: chapters-pdf-a4-bundle  ## Build a zip bundle of all A4 chapter PD
 # $(info USER_GUIDE_DARK_B5_TEX: $(USER_GUIDE_DARK_B5_TEX))
 # $(info USER_GUIDE_DARK_B5_PDF_BUILT: $(USER_GUIDE_DARK_B5_PDF_BUILT))
 
-$(NODE_MODULES_PATH):
+$(NODE_MODULES_PATH): ../build-tools/package.json
 	@echo -e "$(DARKYELLOW)- Installing shared Node dependencies for Mermaid rendering in $(NODE_TOOLS_DIR)...$(NC)"
 	@mkdir -p $(NODE_TOOLS_DIR)
 	@PUPPETEER_SKIP_DOWNLOAD=1 npm install --prefix $(NODE_TOOLS_DIR) --save-dev mermaid-filter @mermaid-js/mermaid-cli
+	@touch $(NODE_MODULES_PATH)
 	@echo -e "$(GREEN)✓ Shared Node dependencies installed$(NC)"
 
 # ============================================================================================
@@ -480,8 +580,8 @@ linux-pdf-docs: check-latex-engine  cover-user-guide  ## Build the user guide in
 	@rm -rf $(USER_GUIDE_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
 	@rm -rf $(DIST_DIR)/$(PROJECT)_user-guide-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
 	@PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome $(MAKE) -j4 $(USER_GUIDE_A4_PDF) $(USER_GUIDE_DARK_A4_PDF) $(USER_GUIDE_B5_PDF) $(USER_GUIDE_DARK_B5_PDF)
-	@zip -9 -j $(DIST_DIR)/$(PROJECT)_user-guide-bundle-$(VERSION).zip $(DIST_DIR)/$(PROJECT)_*-$(VERSION).pdf
-	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)_user-guide-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
+	@zip -9 -j $(DIST_DIR)/$(PROJECT)_user_guide_bundle-$(VERSION).zip $(DIST_DIR)/$(PROJECT)_*-$(VERSION).pdf
+	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)_user_guide_bundle-$(VERSION).zip\"$(GREEN)$(NC)"
 
 linux-docs: $(DOC_STAMP)  ## Build the HTML project documentation with MkDocs on Ubuntu
 	@PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome $(MAKE) docs
@@ -500,10 +600,10 @@ check-latex-engine:
 
 pdf-docs: check-latex-engine  cover-user-guide ## Build the user guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel
 	@rm -rf $(USER_GUIDE_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
-	@rm -rf $(DIST_DIR)/$(PROJECT)_user-guide-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
+	@rm -rf $(DIST_DIR)/$(PROJECT)_user_guide-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
 	@$(MAKE) -j4 $(USER_GUIDE_A4_PDF) $(USER_GUIDE_DARK_A4_PDF) $(USER_GUIDE_B5_PDF) $(USER_GUIDE_DARK_B5_PDF)
-	@zip -9 -j $(DIST_DIR)/$(PROJECT)_user-guide-bundle-$(VERSION).zip $(DIST_DIR)/$(PROJECT)_*-$(VERSION).pdf
-	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)_user-guide-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
+	@zip -9 -j $(DIST_DIR)/$(PROJECT)_user_guide_bundle-$(VERSION).zip $(DIST_DIR)/$(PROJECT)_*-$(VERSION).pdf
+	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)_user_guide_bundle-$(VERSION).zip\"$(GREEN)$(NC)"
 
 pdf-training: check-latex-engine  cover-training-guide ## Build the training guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel
 	@rm -rf $(TRAINING_GUIDE_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
@@ -513,19 +613,28 @@ pdf-training: check-latex-engine  cover-training-guide ## Build the training gui
 	@zip -9 -j $(DIST_DIR)/$(PROJECT)_training-guide-bundle-$(VERSION).zip $(TRAINING_GUIDE_A4_PDF) $(TRAINING_GUIDE_DARK_A4_PDF) $(TRAINING_GUIDE_B5_PDF) $(TRAINING_GUIDE_DARK_B5_PDF)
 	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)_training-guide-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
 
+
+
+# If the VERSION have already before been injectyed in the cover-user-guide.html we avoid rebuilding the image
 cover-user-guide:  ## Build the cover images for all User Guide PDF variants (A4 light/dark, B5 light/dark)
-	@echo -e "$(DARKYELLOW)- Building cover images for user-guide PDF variants...$(NC)"
-	@sed "s/@@VERSION@@/v$(VERSION)/g" $(ASSETS_DIR)/cover-user-guide-template.html > $(ASSETS_DIR)/cover-user-guide.html
-	@${SCRIPTS_DIR}/mkfigs.sh -o $(ASSETS_DIR) -s $(ASSETS_DIR) cover-user-guide
-	@rm -f $(ASSETS_DIR)/cover-user-guide.html
-	@echo -e "$(GREEN)✓ Cover image for user-guide built under $(ASSETS_DIR)$(NC)"
+	@if [ -f "$(ASSETS_DIR)/cover-user-guide.html" ] && grep -q "v$(VERSION)" "$(ASSETS_DIR)/cover-user-guide.html"; then \
+		echo -e "$(GREEN)✓ Cover image for user-guide already up-to-date$(NC)"; \
+	else \
+		echo -e "$(DARKYELLOW)- Building cover images for user-guide PDF variants...$(NC)" && \
+		sed "s/@@VERSION@@/v$(VERSION)/g" $(ASSETS_DIR)/cover-user-guide-template.html > $(ASSETS_DIR)/cover-user-guide.html && \
+		${SCRIPTS_DIR}/mkfigs.sh -o $(ASSETS_DIR) -s $(ASSETS_DIR) cover-user-guide && \
+		echo -e "$(GREEN)✓ Cover image for user-guide built under $(ASSETS_DIR)$(NC)"; \
+	fi
 
 cover-training-guide:  ## Build the cover images for all Training Guide PDF variants (A4 light/dark, B5 light/dark)
-	@echo -e "$(DARKYELLOW)- Building cover images for training-guide PDF variants...$(NC)"
-	@sed "s/@@VERSION@@/v$(VERSION)/g" $(ASSETS_DIR)/cover-training-guide-template.html > $(ASSETS_DIR)/cover-training-guide.html
-	@${SCRIPTS_DIR}/mkfigs.sh -o $(ASSETS_DIR) -s $(ASSETS_DIR) cover-training-guide
-	@rm -f $(ASSETS_DIR)/cover-training-guide.html
-	@echo -e "$(GREEN)✓ Cover image for training-guide built under $(ASSETS_DIR)$(NC)"
+	@if [ -f "$(ASSETS_DIR)/cover-training-guide.html" ] && grep -q "v$(VERSION)" "$(ASSETS_DIR)/cover-training-guide.html"; then \
+		echo -e "$(GREEN)✓ Cover image for training-guide already up-to-date$(NC)"; \
+	else \
+		echo -e "$(DARKYELLOW)- Building cover images for training-guide PDF variants...$(NC)" && \
+		sed "s/@@VERSION@@/v$(VERSION)/g" $(ASSETS_DIR)/cover-training-guide-template.html > $(ASSETS_DIR)/cover-training-guide.html && \
+		${SCRIPTS_DIR}/mkfigs.sh -o $(ASSETS_DIR) -s $(ASSETS_DIR) cover-training-guide && \
+		echo -e "$(GREEN)✓ Cover image for training-guide built under $(ASSETS_DIR)$(NC)"; \
+	fi
 
 _covers: cover-user-guide cover-training-guide  
 	@:
