@@ -161,3 +161,51 @@ class TestClientCancelStaysNull:
         assert len(cancelled) == 1
         # omit_when_none: absent rather than null on the wire.
         assert "cancel_reason" not in cancelled[0]
+
+
+class TestRestSurface:
+    """cancel_reason reaches REST clients without a schema change.
+
+    The WebSocket projection forwards the engine payload verbatim and the
+    order cache folds it in with ``dict.update``, so the field arrives on both
+    REST surfaces for free. That is worth a test rather than an assumption:
+    it is the reason no response model changed, and a future filter added to
+    either path would silently undo it.
+    """
+
+    _CANCEL = {
+        "order_id": "ORD1",
+        "client_tag": "CT-1",
+        "cancel_reason": "SELF_MATCH_PREVENTED",
+    }
+
+    def test_websocket_event_carries_it(self) -> None:
+        from edumatcher.api_gateway.events import envelope
+
+        event = envelope("order.cancelled.GW01", dict(self._CANCEL))
+        assert event["type"] == "order.cancelled"
+        assert event["data"]["cancel_reason"] == "SELF_MATCH_PREVENTED"
+
+    def test_order_cache_records_it_for_get_orders(self) -> None:
+        from edumatcher.api_gateway.caches import SessionCaches
+
+        caches = SessionCaches()
+        caches.apply(
+            "order.ack.GW01",
+            {"order_id": "ORD1", "accepted": True, "client_tag": "CT-1"},
+        )
+        caches.apply("order.cancelled.GW01", dict(self._CANCEL))
+
+        cached = caches.orders["ORD1"]
+        assert cached["status"] == "CANCELLED"
+        assert cached["cancel_reason"] == "SELF_MATCH_PREVENTED"
+
+    def test_a_client_requested_cancel_leaves_it_out(self) -> None:
+        """DELETE /orders/{id} is the client's own cancel, so this field is
+        always absent there — which is why CancelAccepted does not lift it into
+        a named response field the way OrderAccepted lifts reject_code."""
+        from edumatcher.api_gateway.caches import SessionCaches
+
+        caches = SessionCaches()
+        caches.apply("order.cancelled.GW01", {"order_id": "ORD2"})
+        assert "cancel_reason" not in caches.orders["ORD2"]

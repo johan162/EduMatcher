@@ -347,13 +347,20 @@ Offset 27  |  reason           |  u8[25]  |  Rejection reason string (ASCII); ze
 | `0x04` | `RC_MARKET_CLOSED` | Market closed |
 | `0x05` | `RC_ATO_OUTSIDE_OPENING` | ATO order outside the opening auction |
 | `0x06` | `RC_ATC_OUTSIDE_CLOSING` | ATC order outside the closing auction |
-| `0x07` | `RC_HALT_REJECTION` | Symbol halted |
+| `0x07` | `RC_HALT_REJECTION` | Symbol halted, by a circuit breaker or by an administrator — BALF has one code for both |
 | `0x08` | `RC_PHASE_REJECTION` | Rejected by the current session phase |
 | `0x09` | `RC_TRAILING_STOP_NO_PRICE` | TRAILING_STOP with no prior trade price |
 | `0x0A` | `RC_INSUFFICIENT_LIQUIDITY` | FOK could not be filled in full |
 | `0x0B` | `RC_PRICE_COLLAR` | Rejected by a price collar |
-| `0x0C` | `RC_INVALID_FIELD` | Invalid field — bad quantity, missing LIMIT price, etc. |
+| `0x0C` | `RC_INVALID_FIELD` | Invalid field — bad quantity, missing LIMIT price, or a price that is not on the instrument's tick grid (`reason` = `"price off tick grid"`) |
 | `0xFF` | `RC_OTHER` | Other; inspect the `reason` string |
+
+!!! warning "Prices must land on the tick grid"
+    BALF carries prices as `i64` fixed point at scale 1e8, so a client can
+    express values far finer than any instrument's tick size. A price that is
+    not an exact multiple of the symbol's tick is rejected with
+    `RC_INVALID_FIELD` rather than rounded — rounding would fill you at a price
+    you never sent. `tick_decimals` per symbol comes from the reference data.
 
 ### `CANCEL_ORDER` (0x12) - Client -> Server
 

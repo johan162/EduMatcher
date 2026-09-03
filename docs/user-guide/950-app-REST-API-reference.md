@@ -154,7 +154,8 @@ How to get a key:
 | `ENGINE_AUTH` | `403` | Engine rejected the gateway identity |
 | `READ_ONLY` | `403` | Read-only key used on a trading endpoint |
 | `ROLE_DENIED` | `403` | Non-admin key used on an admin endpoint |
-| `VALIDATION` | `400`, `422` | Request body or parameters failed validation |
+| `VALIDATION` | `400`, `422` | Request body or parameters failed validation. A price off the instrument's tick grid lands here with `reject_code: TICK_VIOLATION` |
+| `SYMBOLS_NOT_READY` | `503` | Order-entry request arrived before the engine's symbol metadata reached the gateway; `reject_code: SYMBOL_NOT_READY`. Transient — retry |
 | `RATE_LIMIT` | `429` | Per-key write limit exceeded |
 | `ENGINE_TIMEOUT` | `503` | No engine reply in time |
 | `STATS_DB` | `503` | `pm-stats` database not present |
@@ -237,7 +238,25 @@ tag.
 - Behavior: the gateway and engine do not enforce uniqueness.
 - Lifetime: when supplied, the tag is echoed on order lifecycle events and on
   cached order reads so clients can map exchange-assigned `order_id` values
-  back to their own submissions.
+  back to their own submissions. That includes events the client did not ask
+  for — an unsolicited cancel, an expiry at the close — which are precisely the
+  ones it cannot correlate any other way.
+
+### Unsolicited cancels and `cancel_reason`
+
+An `order.cancelled` event does not always answer a `DELETE`. When the exchange
+cancels an order itself, `request_tag` is absent and `cancel_reason` says why:
+
+| `cancel_reason` | Meaning |
+|---|---|
+| `SELF_MATCH_PREVENTED` | The order would have traded against another order from the same gateway |
+| `INSUFFICIENT_LIQUIDITY` | A `MARKET` or `IOC` order exhausted the book; this cancels the remainder, which never rests |
+
+Both fields are omitted rather than null when they do not apply, so
+`request_tag` absent with `cancel_reason` absent means the exchange cancelled
+the order for a cause it does not yet classify — a kill switch, a halt cascade,
+an expiry. `cancel_reason` is a separate vocabulary from `reject_code`: a
+cancel is not a rejection. Clients must ignore values they do not recognise.
 
 ### Category examples
 
@@ -656,9 +675,14 @@ Purpose: submit one order for the caller's gateway.
 | `AUTH` | Missing or malformed key |
 | `READ_ONLY` | Read-only credential used |
 | `ROLE_DENIED` | ADMIN-only restriction violated |
-| `VALIDATION` | Body does not match the order type |
+| `VALIDATION` | Body does not match the order type, or a price is not an exact multiple of the instrument's tick size (`reject_code: TICK_VIOLATION`) |
+| `SYMBOLS_NOT_READY` | Symbol metadata has not reached the gateway yet (`reject_code: SYMBOL_NOT_READY`) |
 | `RATE_LIMIT` | Write limit exceeded |
 | `ENGINE_TIMEOUT` | Engine did not ACK in time |
+
+Prices are refused rather than rounded to the nearest tick: rounding would rest
+the order at a price the client never sent. See
+[Tick precision](260-api-gateway.md#tick-precision).
 
 ### `DELETE /api/v1/orders/{order_id}`
 
@@ -1091,7 +1115,7 @@ Purpose: liveness probe for the API gateway.
 
 | Code | When |
 |---|---|
-| none | — | This endpoint does not require auth |
+| none | This endpoint does not require auth |
 
 ### `GET /api/v1/quotes/bootstrap`
 

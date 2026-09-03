@@ -14,6 +14,7 @@ artefacts pass, and a genuinely off-grid price does not.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 from typing import Any
 
@@ -189,3 +190,147 @@ class TestBalfEdge:
         with pytest.raises(BalfValidationError) as exc_info:
             build_engine_new_order(parsed, "GW01", "ORD1")
         assert exc_info.value.reject_code == RC_INVALID_FIELD
+
+
+async def _post(app: Any, path: str, body: dict[str, Any]) -> tuple[int, Any]:
+    """Send one request through the app's full middleware stack.
+
+    Starlette's ``TestClient`` would be the obvious tool, but it needs
+    ``httpx``, which this project does not depend on. Calling the ASGI app
+    directly exercises the same stack — which is the whole point here, since a
+    handler registered for a non-HTTP exception fires from the middleware, not
+    from the route.
+    """
+    payload = json.dumps(body).encode()
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.3"},
+        "http_version": "1.1",
+        "method": "POST",
+        "scheme": "http",
+        "path": path,
+        "raw_path": path.encode(),
+        "root_path": "",
+        "query_string": b"",
+        "headers": [
+            (b"host", b"testserver"),
+            (b"authorization", b"Bearer k"),
+            (b"content-type", b"application/json"),
+            (b"content-length", str(len(payload)).encode()),
+        ],
+        "client": ("testclient", 50000),
+        "server": ("testserver", 80),
+    }
+    status = 0
+    response_body = b""
+    request_body = {"done": False}
+
+    async def receive() -> dict[str, Any]:
+        if request_body["done"]:
+            return {"type": "http.disconnect"}
+        request_body["done"] = True
+        return {"type": "http.request", "body": payload, "more_body": False}
+
+    async def send(message: dict[str, Any]) -> None:
+        nonlocal status, response_body
+        if message["type"] == "http.response.start":
+            status = int(message["status"])
+        elif message["type"] == "http.response.body":
+            response_body += bytes(message.get("body", b""))
+
+    await app(scope, receive, send)
+    return status, json.loads(response_body or b"null")
+
+
+def _app() -> Any:
+    from edumatcher.api_gateway.config import ApiCredential, ApiGatewayConfig
+    from edumatcher.api_gateway.main import create_app
+    from edumatcher.api_gateway.rate_limit import RateLimiter
+    from edumatcher.api_gateway.sessions import SessionRegistry
+
+    config = ApiGatewayConfig(credentials=(ApiCredential("k", "GW01", "desk"),))
+    app = create_app(config)
+
+    class _Engine:
+        def get_caches(self, gateway_id: str) -> Any:
+            _ = gateway_id
+            return type("Caches", (), {"orders": {}})()
+
+        def send_new_order(self, order: Any) -> None:
+            _ = order
+
+        async def await_event(self, *args: Any, **kwargs: Any) -> None:
+            _ = (args, kwargs)
+            return None
+
+        async def authenticate(self, gateway_id: str, timeout: Any = None) -> Any:
+            _ = (gateway_id, timeout)
+            return True, ""
+
+    app.state.config = config
+    app.state.engine = _Engine()
+    app.state.sessions = SessionRegistry.from_config(config)
+    app.state.rate_limiter = RateLimiter(1000, 1000)
+    return app
+
+
+def _order(symbol: str, price: float) -> dict[str, Any]:
+    return {
+        "symbol": symbol,
+        "side": "BUY",
+        "order_type": "LIMIT",
+        "quantity": 10,
+        "price": price,
+        "client_tag": "CT-TICK",
+    }
+
+
+@pytest.fixture
+def anyio_backend() -> str:
+    return "asyncio"
+
+
+class TestRestEndToEnd:
+    """Through the real app, not the handler in isolation.
+
+    ``TickViolation`` is answered by a handler registered on the app rather
+    than raised as an ``HTTPException``, so whether it fires inside a route is
+    a property of the middleware stack, not of the handler. Getting that wrong
+    yields a 500 — which a direct call to the handler would never reveal.
+    """
+
+    @pytest.mark.anyio
+    async def test_off_grid_price_is_a_400_naming_the_code(self) -> None:
+        status, payload = await _post(_app(), "/api/v1/orders", _order("TST2", 100.005))
+        assert status == 400
+        error = payload["error"]
+        assert error["reject_code"] == "TICK_VIOLATION"
+        # The correlation tag survives the rejection, so the client can tell
+        # which submission was refused (G1, on a new reject path).
+        assert error["client_tag"] == "CT-TICK"
+
+    @pytest.mark.anyio
+    async def test_unloaded_symbol_is_a_503_not_a_400(self) -> None:
+        """The client did nothing wrong and should retry."""
+        status, payload = await _post(
+            _app(), "/api/v1/orders", _order("NOTLOADED", 100.00)
+        )
+        assert status == 503
+        assert payload["error"]["reject_code"] == "SYMBOL_NOT_READY"
+
+    @pytest.mark.anyio
+    async def test_an_on_grid_price_still_goes_through(self) -> None:
+        status, _payload = await _post(_app(), "/api/v1/orders", _order("TST2", 100.00))
+        assert status == 202
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("symbol,price", [("TST2", 100.005), ("NOTLOADED", 1.0)])
+    async def test_error_bodies_match_the_documented_schema(
+        self, symbol: str, price: float
+    ) -> None:
+        """Both new error paths build their body by hand, and ErrorResponse is
+        what the user guide documents. The two must not drift."""
+        from edumatcher.api_gateway.schemas import ErrorResponse
+
+        _status, payload = await _post(_app(), "/api/v1/orders", _order(symbol, price))
+        ErrorResponse.model_validate(payload)

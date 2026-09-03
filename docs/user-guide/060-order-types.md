@@ -83,6 +83,22 @@ Use MARKET when:
 - Partial fills are accepted — the unfilled remainder is **discarded** (not rested)
 - No price specified
 
+The discarded remainder is not silently dropped. The order is *accepted*, and
+what could not be filled arrives as a cancellation carrying
+`CANCEL_REASON=INSUFFICIENT_LIQUIDITY` (`cancel_reason` on REST). A `MARKET`
+order into an empty book is therefore an accepted order that immediately
+cancels in full — **not** a rejection, and worth distinguishing when you write
+a client:
+
+| Situation | What you receive |
+|---|---|
+| Book runs out during continuous trading | `ACK ACCEPTED=TRUE`, any `FILL`s, then `CANCELLED` with `INSUFFICIENT_LIQUIDITY` |
+| Symbol halted, or the session is not matching | `ACK ACCEPTED=FALSE` with `INSTRUMENT_HALTED`, `CIRCUIT_BREAKER_ACTIVE` or `SESSION_NOT_PERMITTED` — rejected before the book is touched |
+
+`IOC` behaves identically for its own remainder. `FOK` differs: it is
+all-or-nothing, so an unfillable `FOK` is *rejected* with
+`INSUFFICIENT_LIQUIDITY` rather than accepted and cancelled.
+
 ```
 NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 ```

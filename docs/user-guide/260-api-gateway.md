@@ -279,7 +279,8 @@ For strict endpoint-by-endpoint access rules, see
 | `READ_ONLY` | `403` | A `gateway_id: null` credential called a trading-only endpoint |
 | `ROLE_DENIED` | `403` | Credential's gateway lacks the `ADMIN` role on an `/admin/*` call |
 | `RATE_LIMIT` | `429` | Per-key write rate limit exceeded |
-| `VALIDATION` | `422`/`400` | Malformed request body or query parameters |
+| `VALIDATION` | `422`/`400` | Malformed request body or query parameters. Includes a price that is not on the instrument's tick grid, which carries `reject_code: TICK_VIOLATION` — see [Tick precision](#tick-precision) |
+| `SYMBOLS_NOT_READY` | `503` | An order-entry request arrived before the engine's symbol metadata reached this gateway. Carries `reject_code: SYMBOL_NOT_READY`; retry shortly — see [Tick precision](#tick-precision) |
 | `STATS_DB` | `503` | `pm-stats`' SQLite file doesn't exist yet |
 | `AUDIT_INDEX_UNAVAILABLE` | `503` | No `pm-audit` index — only affects `GET /admin/orders/{order_id}` |
 | `UNKNOWN_ORDER` | `404` | No audited events for that order id |
@@ -394,6 +395,42 @@ breach is surfaced as `"reject_code": "COLLAR_BREACH"` with the matching
 
 `client_tag` is not an idempotency key. It is optional, opaque, and not checked
 for uniqueness by the gateway or engine.
+
+#### Tick precision
+
+`price`, `stop_price` and `trail_offset` must be exact multiples of the
+instrument's tick size, which `GET /reference/symbols` reports per symbol as
+`tick_decimals`. A price that is not is rejected with `400` and
+`reject_code: TICK_VIOLATION`:
+
+```json
+{
+  "error": {
+    "code": "VALIDATION",
+    "message": "100.005 is not a multiple of AAPL's tick size 0.01",
+    "field": "price",
+    "reject_code": "TICK_VIOLATION",
+    "reason": "100.005 is not a multiple of AAPL's tick size 0.01",
+    "client_tag": "CT-1"
+  }
+}
+```
+
+The gateway refuses rather than rounds. Rounding would rest your order at a
+price you never sent and never tell you, and on a 4-decimal instrument the
+difference is not a rounding error at all.
+
+Ordinary floating-point arithmetic is safe: a price computed as
+`100.00 - 3 * 0.01` is `99.97000000000001` in binary floating point and is
+accepted as `99.97`. The check compares against the tick grid with a tolerance,
+not with an exact modulo.
+
+!!! note "`503 SYMBOLS_NOT_READY` right after startup"
+    The gateway learns each instrument's tick precision from the engine when it
+    authenticates. An order submitted in the window before that arrives is
+    answered `503` with `reject_code: SYMBOL_NOT_READY` rather than converted
+    against a default precision that may be wrong for the symbol. It is
+    transient — retry, and note that only order-entry routes are affected.
 
 
 ### Cancel, amend, and replace
@@ -1248,6 +1285,51 @@ structure it belongs to, when it belongs to one:
 They are **omitted rather than null** for an ordinary single order. This lets a
 consumer attribute a fill to its combo or OCO group without joining against its
 own record of the parent order — which after a reconnect it may not have.
+
+#### Unsolicited cancels: `order.cancelled`
+
+Not every `order.cancelled` answers a `DELETE` you sent. The exchange cancels
+orders on its own — self-match prevention, the unfillable remainder of a
+`MARKET` or `IOC` order, a kill switch, an OCO sibling, a `DAY` order at the
+close. Two fields tell you which happened:
+
+| Field | Meaning |
+|---|---|
+| `request_tag` | Present only when *you* asked. Absent means the exchange decided |
+| `cancel_reason` | Why the exchange decided. Absent on your own cancels |
+
+```json
+{
+  "type": "order.cancelled",
+  "topic": "order.cancelled.TRADER01",
+  "gateway_id": "TRADER01",
+  "data": {
+    "order_id": "ORD-7f3a",
+    "client_tag": "CT-1",
+    "cancel_reason": "SELF_MATCH_PREVENTED"
+  }
+}
+```
+
+| `cancel_reason` | Meaning |
+|---|---|
+| `SELF_MATCH_PREVENTED` | The order would have traded against another order from your own gateway. Which order is cancelled — the aggressor, the resting one, or both — depends on the `smp_action` in force |
+| `INSUFFICIENT_LIQUIDITY` | A `MARKET` or `IOC` order ran out of book. Any part that did trade is reported by the preceding `order.fill` events; this cancels the remainder, which never rests |
+
+`cancel_reason` is **absent, not null**, when you requested the cancel yourself.
+It is also absent on exchange-initiated cancels whose cause is not yet
+classified — a kill switch, a halt cascade, an expiry — so `request_tag` absent
+together with `cancel_reason` absent still means *the exchange did this, cause
+unstated*. Treat a value you do not recognise as unstated rather than failing:
+new members may be added, but existing ones are never removed or renamed.
+
+`cancel_reason` deliberately does **not** share the `reject_code` vocabulary. A
+cancel is not a rejection — the order was accepted, and may have traded — and
+almost no reject code could describe one.
+
+The same field is folded into the cached order, so `GET /orders/{order_id}`
+reports it too after the fact. `DELETE /orders/{order_id}` never returns one:
+that is your own cancel by definition.
 
 ### Detecting dropped events
 
