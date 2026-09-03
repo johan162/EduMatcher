@@ -451,12 +451,26 @@ class TestComboEndToEnd:
         assert acks[0]["accepted"] is False
         assert "not found" in acks[0]["reason"].lower()
 
-    def test_combo_day_order_expires_at_shutdown_cascades(self, combo_engine) -> None:
-        """DAY combo children expire at shutdown → cascade-cancel."""
+    def test_combo_day_order_survives_shutdown_pending(self, combo_engine) -> None:
+        """DAY combo children are no longer expired at shutdown.
+
+        A process exit is not a day boundary (see
+        docs-design/EduMatcher-Revised-Quote-Persistence.md §12-§13), so a
+        resting TIF=DAY combo child order is not cancelled here any more —
+        it persists like any other resting DAY order and the combo stays
+        PENDING (nothing cascades, because nothing expired).
+
+        Combos themselves remain out of scope for that persistence design:
+        save_gtc_combos() still only persists TIF=GTC combo parents, so this
+        combo's PENDING record in engine._combos does not itself survive a
+        restart — only its two child legs do, as plain resting orders (see
+        the _shutdown() comment on the resulting dangling combo_parent_id).
+        This test covers the in-memory, pre-restart behaviour only.
+        """
         engine, pub_sock = combo_engine
 
         combo = ComboOrder.create(
-            combo_id="DAY-EXPIRE",
+            combo_id="DAY-SURVIVES",
             gateway_id="TRADER01",
             combo_type=ComboType.AON,
             tif=TIF.DAY,
@@ -480,11 +494,12 @@ class TestComboEndToEnd:
         engine._handle_combo_order(combo.to_dict())
         pub_sock.sent.clear()
 
-        # Simulate shutdown — expire DAY orders
         engine._shutdown()
 
         tracked = list(engine._combos.values())[0]
-        assert tracked.status.value in ("FAILED", "CANCELLED")
+        assert tracked.status.value == "PENDING"
+        expired_topics = [t for t in _messages_by_topic(pub_sock, "order.expired")]
+        assert expired_topics == []
 
     def test_three_leg_combo_all_fill(self, combo_engine) -> None:
         """3-leg combo where all legs find liquidity → MATCHED."""

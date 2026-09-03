@@ -270,9 +270,9 @@ pdfs: ## Build all PDF documentation variants in parallel
 
 pdf-docs: check-latex-engine ## Build all PDF documentation variants in parallel
 	@rm -rf $(EXCHANGE_INTRO_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
-	@rm $(DIST_DIR)/$(PROJECT)-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
+	@rm $(DIST_DIR)/$(PROJECT)_*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
 	@$(MAKE) -j4 $(EXCHANGE_INTRO_A4_PDF) $(EXCHANGE_INTRO_DARK_A4_PDF) $(EXCHANGE_INTRO_B5_PDF) $(EXCHANGE_INTRO_DARK_B5_PDF)
-	@zip -9 -j -q $(DIST_DIR)/$(PROJECT)_bundle-$(VERSION).zip $(DIST_DIR)/$(PROJECT)-*-$(VERSION).pdf
+	@zip -9 -j -q $(DIST_DIR)/$(PROJECT)_bundle-$(VERSION).zip $(DIST_DIR)/$(PROJECT)_*-$(VERSION).pdf
 	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)_bundle-$(VERSION).zip\"$(GREEN)$(NC)"
 
 pdf-parts-a4: check-latex-engine ## Build each book part as a separate A4 PDF booklet

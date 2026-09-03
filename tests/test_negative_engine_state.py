@@ -4,7 +4,10 @@ Negative tests — Group 2: Engine state and startup failures (tests 21-25).
 Covers:
   21. Engine shutdown / persistence errors — documents actual behaviour when
       save_gtc_orders raises (OSError propagates — no silent swallow).
-      Also verifies DAY orders are expired and GTC orders are NOT expired.
+      Also verifies neither DAY nor GTC orders are expired at shutdown — a
+      process exit is not a day boundary; both TIFs are persisted and
+      restored on the next startup (see
+      docs-design/EduMatcher-Revised-Quote-Persistence.md §12-§13).
   22. Corrupted GTC orders file — two layers of coverage:
       a) Persistence layer: load_gtc_orders returns [] for file-level errors
          (truncated JSON, wrong root type, binary garbage, empty file).
@@ -171,17 +174,23 @@ class TestShutdownDuringActiveMatching:
         with pytest.raises(OSError, match="disk full"):
             engine._shutdown()
 
-    def test_shutdown_publishes_expired_for_day_orders(
-        self, monkeypatch, tmp_path
-    ) -> None:
-        """DAY orders must receive an expired event at shutdown."""
+    def test_shutdown_does_not_expire_day_orders(self, monkeypatch, tmp_path) -> None:
+        """DAY orders must NOT be expired at shutdown.
+
+        A process exit (clean or otherwise) is not a day boundary — see
+        docs-design/EduMatcher-Revised-Quote-Persistence.md §12. DAY orders
+        now persist across a restart the same as GTC ones; they are only
+        discarded at restore time if their business day has already passed
+        (Engine._restore_gtc), and only truly expired by the scheduler's
+        transition to CLOSED (Engine._expire_tif).
+        """
         engine, pub_sock = _make_engine(monkeypatch, tmp_path)
         _connect(engine)
         engine._handle_new_order(_make_order_payload(tif=TIF.DAY))
         pub_sock.sent.clear()
         engine._shutdown()
         expired_topics = [decode(f)[0] for f in pub_sock.sent if b"expired" in f[0]]
-        assert len(expired_topics) >= 1
+        assert expired_topics == []
 
     def test_shutdown_does_not_expire_gtc_orders(self, monkeypatch, tmp_path) -> None:
         """GTC orders must NOT be expired at shutdown — they persist to the
@@ -203,6 +212,24 @@ class TestShutdownDuringActiveMatching:
         expired = [decode(f) for f in pub_sock.sent if b"expired" in f[0]]
         for _, msg in expired:
             assert msg.get("tif") != "GTC", "GTC order must not be expired at shutdown"
+
+    def test_shutdown_persists_both_day_and_gtc_orders(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        """Both TIFs are handed to save_gtc_orders — DAY is no longer a
+        special case dropped at shutdown."""
+        saved: list = []
+        engine, pub_sock = _make_engine(monkeypatch, tmp_path)
+        monkeypatch.setattr(
+            "edumatcher.engine.main.save_gtc_orders",
+            lambda orders, _path: saved.extend(orders),
+        )
+        _connect(engine)
+        engine._handle_new_order(_make_order_payload(tif=TIF.DAY, price=99))
+        engine._handle_new_order(_make_order_payload(tif=TIF.GTC, price=98))
+        engine._shutdown()
+        saved_tifs = {o.tif for o in saved}
+        assert saved_tifs == {TIF.DAY, TIF.GTC}
 
     def test_shutdown_closes_sockets(self, monkeypatch, tmp_path) -> None:
         """pub_sock must be closed after a normal _shutdown()."""

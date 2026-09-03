@@ -10,15 +10,18 @@ ZMQ sockets:
                 order.expired, trade.executed, book.{SYMBOL}
 
 Shutdown (SIGINT / Ctrl-C):
-  1. Save resting GTC orders to data/gtc_orders.json
-  2. Publish order.expired for all resting DAY orders
-  3. Clean ZMQ teardown
+  1. Save resting GTC and DAY orders to data/gtc_orders.json — a process
+     exit is not a day boundary; a DAY order is only discarded on the next
+     startup if its business day has passed (see _restore_gtc and
+     docs-design/EduMatcher-Revised-Quote-Persistence.md §12-§13)
+  2. Clean ZMQ teardown
 """
 
 from __future__ import annotations
 
 import argparse
 from collections import defaultdict
+from datetime import datetime
 import hashlib
 import json
 import logging
@@ -815,16 +818,30 @@ class Engine:
         n_mm_quotes = 0
         for sym, sym_cfg in self._engine_config.symbols.items():
             for idx, quote_seed in enumerate(sym_cfg.market_maker_quotes, start=1):
-                # seed_once: skip injection if this symbol already has a book_stats
-                # entry, meaning it has been started at least once before.
-                if quote_seed.seed_once and sym in stats:
+                gateway_id = quote_seed.gateway_id
+
+                # seed_once: skip injection if this (gateway_id, symbol) pair
+                # already has an active, quote-managed entry in QuoteIndex —
+                # i.e. a live quote was restored by _restore_gtc() (GTC
+                # unconditionally, same-day DAY if it survived the business-
+                # day check). This runs after _restore_gtc() (see run()'s
+                # ordering) and after QuoteIndex has been rebuilt from
+                # restored quote-origin orders, so it reflects genuinely live
+                # quote state rather than "this symbol has ever traded"
+                # (the previous book_stats-based check). A quote that was
+                # fully hit through and removed, or that expired as a stale
+                # TIF=DAY order, is correctly treated as absent here, so a
+                # fresh seed fires for it — closing the gap in
+                # docs-design/EduMatcher-Revised-Quote-Persistence.md §3.3.
+                # See §5.4 and the ordering-dependency note in §6.1.
+                already_has_quote = self._quote_index.get(gateway_id, sym) is not None
+                if quote_seed.seed_once and already_has_quote:
                     log.info(
-                        f"Skipping seed quote for {sym} "
-                        f"(seed_once=true, symbol has prior history)"
+                        f"Skipping seed quote for {sym}/{gateway_id} "
+                        f"(seed_once=true, an active quote was restored)"
                     )
                     continue
 
-                gateway_id = quote_seed.gateway_id
                 quote_id = quote_seed.quote_id or f"SEED-{gateway_id}-{sym}-{idx}"
 
                 previous = self._quote_index.remove(
@@ -1052,6 +1069,18 @@ class Engine:
                 register_tick_decimals(sym, sym_cfg.tick_decimals)
 
         orders = load_gtc_orders(GTC_ORDERS_FILE)
+        # Business day for the TIF=DAY staleness check below: machine-local
+        # calendar date, matching pm-scheduler's own notion of "today" (see
+        # docs-design/EduMatcher-Revised-Quote-Persistence.md §13.3 — the
+        # engine has no separate session-timezone config, so local date is
+        # the deliberate simplification for this check).
+        today = datetime.now().date()
+        restored_count = 0
+        # Restored quote-origin orders (origin=QUOTE), collected as we go so
+        # they can be regrouped into QuoteEntry objects after the loop — see
+        # the QuoteIndex rebuild below. See
+        # docs-design/EduMatcher-Revised-Quote-Persistence.md §5.3.
+        restored_quote_legs: list[Order] = []
         for order in orders:
             # Skip GTC orders for symbols no longer in config
             if self._allowed_symbols and order.symbol not in self._allowed_symbols:
@@ -1059,6 +1088,22 @@ class Engine:
                     f"Skipping GTC order {order.id[:8]} for removed symbol {order.symbol}"
                 )
                 continue
+            # A TIF=DAY order only survives a restart within the same
+            # business day — a process exit is not a day boundary (§12), but
+            # a genuine calendar rollover while the process was up (or down)
+            # still ends its validity, same as it always has for TIF=DAY.
+            # TIF=GTC orders are never date-gated. See §13.4.
+            if order.tif == TIF.DAY:
+                order_day = datetime.fromtimestamp(order.timestamp / 1e9).date()
+                if order_day < today:
+                    log.info(
+                        f"Discarding stale TIF=DAY order {order.id[:8]} "
+                        f"({order.symbol}) — order date {order_day} is before "
+                        f"today ({today}); business day has rolled over since "
+                        f"this order was resting"
+                    )
+                    self._dbg_count("stale_day_orders_discarded")
+                    continue
             order.status = OrderStatus.NEW
             book = self._book(order.symbol)
             # match=False: restore resting state only; do not replay execution.
@@ -1077,9 +1122,14 @@ class Engine:
                 )
                 continue
             self._order_symbol[order.id] = order.symbol
+            restored_count += 1
             log.info(f"Restored GTC order {order.id} ({order.symbol})")
-        if orders:
-            log.info(f"Restored {len(orders)} GTC order(s) from previous session.")
+            if order.origin == OrderOrigin.QUOTE and order.quote_id:
+                restored_quote_legs.append(order)
+        if restored_count:
+            log.info(
+                f"Restored {restored_count} resting order(s) from previous session."
+            )
             # M3: restore rests orders without matching, so two crossed GTC
             # orders would leave the book crossed at startup.  Uncross each
             # book at the equilibrium price before continuous trading begins.
@@ -1088,6 +1138,59 @@ class Engine:
             # Publish initial book snapshots immediately on startup
             for symbol, book in self.books.items():
                 self.pub_sock.send_multipart(make_book_msg(symbol, book.snapshot()))
+
+        # Rebuild QuoteIndex from restored quote-origin orders (GTC
+        # unconditionally, same-day DAY per the staleness check above — a
+        # stale DAY leg never reaches restored_quote_legs, since it `continue`s
+        # out of the loop before this point). See
+        # docs-design/EduMatcher-Revised-Quote-Persistence.md §5.3, §13.7.
+        #
+        # Group by (gateway_id, quote_id): a quote's bid and ask legs are
+        # independent Order records in gtc_orders.json, so both, one, or
+        # (if a corrupt record was skipped above) neither may have survived
+        # to this point for a given quote_id.
+        if restored_quote_legs:
+            groups: dict[tuple[str, str], dict[str, Order]] = {}
+            for leg in restored_quote_legs:
+                key = (leg.gateway_id, leg.quote_id or "")
+                groups.setdefault(key, {})[leg.side.value] = leg
+            rebuilt_quotes = 0
+            for (gateway_id, quote_id), legs_by_side in groups.items():
+                bid = legs_by_side.get(Side.BUY.value)
+                ask = legs_by_side.get(Side.SELL.value)
+                if bid is not None and ask is not None:
+                    entry = QuoteEntry(
+                        quote_id=quote_id,
+                        gateway_id=gateway_id,
+                        symbol=bid.symbol,
+                        bid_order_id=bid.id,
+                        ask_order_id=ask.id,
+                    )
+                    self._quote_index.put(entry)
+                    rebuilt_quotes += 1
+                else:
+                    # Single surviving leg: the sibling was filled, cancelled,
+                    # skipped for a removed symbol, or lost to a corrupt
+                    # record before this point. Per §5.3, this leg is not
+                    # quote-managed going forward — it keeps resting as an
+                    # ordinary order (already restored above via book.process)
+                    # but is deliberately not inserted into QuoteIndex, since
+                    # there is no sibling left to manage it against.
+                    surviving = bid or ask
+                    if surviving is not None:
+                        log.info(
+                            f"Restored single-leg quote remnant "
+                            f"{surviving.id[:8]} ({surviving.symbol}) for "
+                            f"quote_id={quote_id!r}, gateway_id={gateway_id!r} "
+                            f"— resting as a plain order, not quote-managed "
+                            f"(sibling leg did not restore)"
+                        )
+                        self._dbg_count("quote_remnants_restored")
+            if rebuilt_quotes:
+                log.info(
+                    f"Rebuilt {rebuilt_quotes} active quote(s) in QuoteIndex "
+                    f"from restored quote-origin orders."
+                )
 
         # Restore GTC combos and rebuild parent-child links
         combos = load_gtc_combos(GTC_COMBOS_FILE)
@@ -5214,15 +5317,23 @@ class Engine:
     # ------------------------------------------------------------------
 
     def _resting_gtc_orders(self) -> list[Order]:
-        """GTC orders that should survive a restart.
+        """Resting orders that should survive a restart.
 
-        Quote legs are excluded: they are re-seeded from config on every
-        startup, so persisting them accumulates duplicates across restarts.
+        Covers both TIF=GTC and TIF=DAY: a process restart is no longer a
+        day boundary (see docs-design/EduMatcher-Revised-Quote-Persistence.md
+        §12-§13) — DAY orders persist here the same as GTC ones, and are
+        purged instead at startup restore if their business day has passed
+        (Engine._restore_gtc). Quote legs (origin=QUOTE) are no longer a
+        special case: they persist by the same TIF rule as any other order
+        (see §5.2 of the same document). `_restore_gtc` rebuilds
+        `self._quote_index` from restored quote-origin orders so a
+        surviving quote is fully quote-managed again after restart, not
+        just resting as a plain order — see §5.3.
         """
         resting: list[Order] = []
         for book in self.books.values():
             for order in book.resting_orders():
-                if order.tif == TIF.GTC and order.origin != OrderOrigin.QUOTE:
+                if order.tif in (TIF.GTC, TIF.DAY):
                     resting.append(order)
         return resting
 
@@ -5234,9 +5345,9 @@ class Engine:
         eviction, power loss, or any unhandled exception in the loop. This
         bounds that loss to the checkpoint interval instead.
 
-        Unlike :meth:`_shutdown`, this never mutates state: it does not expire
-        DAY orders and publishes nothing, so it is safe to run mid-session on
-        the poll tick.
+        Unlike :meth:`_shutdown`, this never mutates state: it does not
+        expire anything and publishes nothing, so it is safe to run
+        mid-session on the poll tick.
         """
         now = time.monotonic()
         if not force and now - self._last_persist < _PERSIST_INTERVAL_SEC:
@@ -5259,32 +5370,31 @@ class Engine:
         log.info("Shutting down …")
         self._running = False
 
-        all_resting: list[Order] = []
-        for book in self.books.values():
-            for order in book.resting_orders():
-                if order.tif == TIF.GTC:
-                    if order.origin == OrderOrigin.QUOTE:
-                        # Quote legs are re-seeded from config on every startup;
-                        # do not persist them or they accumulate across restarts.
-                        continue
-                    all_resting.append(order)
-                else:
-                    # Expire DAY orders
-                    order.status = OrderStatus.EXPIRED
-                    self.pub_sock.send_multipart(
-                        make_expired_msg(
-                            order.gateway_id,
-                            order.id,
-                            client_tag=order.client_tag,
-                            order=order.to_dict(),
-                        )
-                    )
-                    # If this was a combo child, cascade-cancel sibling legs
-                    if order.combo_parent_id:
-                        self._check_combo_after_child_event(order)
-
+        # A process exit (clean or otherwise) is not a day boundary — TIF=DAY
+        # orders are no longer expired here. Both TIF=GTC and TIF=DAY resting
+        # orders are persisted and restored on the next startup; a TIF=DAY
+        # order is only discarded there if its business day has already
+        # passed (Engine._restore_gtc). True end-of-day expiry is driven by
+        # the scheduler's transition to CLOSED (Engine._expire_tif), which is
+        # unaffected by this change. See
+        # docs-design/EduMatcher-Revised-Quote-Persistence.md §12-§13.
+        #
+        # Combos are out of scope for that design: save_gtc_combos() below
+        # still persists only TIF.GTC combo parents, so a restored TIF.DAY
+        # combo leg (now persisted here as a plain order, since it is no
+        # longer expired) comes back with a combo_parent_id that no longer
+        # resolves to anything in self._combos/_order_to_combo — it restores
+        # as an ordinary standalone resting order, silently detached from
+        # its former combo. _check_combo_after_child_event() no-ops safely
+        # on the unresolved id rather than raising, so this is a known,
+        # scoped-out limitation, not a crash risk.
+        #
+        # Quote-origin orders (MM quote legs) are also no longer excluded
+        # here: they persist by the same TIF rule as any other resting
+        # order. See docs-design/EduMatcher-Revised-Quote-Persistence.md §5.
+        all_resting = self._resting_gtc_orders()
         save_gtc_orders(all_resting, GTC_ORDERS_FILE)
-        log.info(f"Saved {len(all_resting)} GTC order(s) to {GTC_ORDERS_FILE}")
+        log.info(f"Saved {len(all_resting)} resting order(s) to {GTC_ORDERS_FILE}")
 
         # Persist resting GTC combos
         save_gtc_combos(list(self._combos.values()), GTC_COMBOS_FILE)

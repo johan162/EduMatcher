@@ -22,7 +22,14 @@ from edumatcher.engine.persistence import (
 )
 from edumatcher.models.trade import reset_trade_ids_for_tests
 from edumatcher.models.message import decode
-from edumatcher.models.order import Order, OrderStatus, OrderType, Side, TIF
+from edumatcher.models.order import (
+    Order,
+    OrderOrigin,
+    OrderStatus,
+    OrderType,
+    Side,
+    TIF,
+)
 
 # ---------------------------------------------------------------------------
 # E1 — a malformed frame must not end the loop
@@ -95,11 +102,16 @@ def test_a_decodable_message_still_reaches_the_dispatcher(tmp_path: Path) -> Non
 # ---------------------------------------------------------------------------
 
 
-def test_checkpoint_persists_resting_gtc_without_mutating_state(
+def test_checkpoint_persists_resting_gtc_and_day_without_mutating_state(
     tmp_path: Path,
 ) -> None:
-    """A checkpoint runs mid-session, so it must not expire DAY orders or
-    publish anything — unlike _shutdown, which does both deliberately."""
+    """A checkpoint runs mid-session, so it must not expire anything or
+    publish anything — unlike _shutdown, which used to expire DAY orders but
+    no longer does (see docs-design/EduMatcher-Revised-Quote-Persistence.md
+    §12-§13: a process exit, including the periodic checkpoint's caller, is
+    not a day boundary). Both TIF=GTC and TIF=DAY resting orders are
+    persisted here; a same-day-vs-stale distinction for DAY orders is only
+    applied at restore time (Engine._restore_gtc), not at checkpoint time."""
     engine = _engine_without_sockets(tmp_path)
     gtc = _order("GTC-1", TIF.GTC)
     day = _order("DAY-1", TIF.DAY)
@@ -116,10 +128,41 @@ def test_checkpoint_persists_resting_gtc_without_mutating_state(
         engine._flush_persistence(force=True)
 
     saved = {o.id for o in load_gtc_orders(gtc_file)}
-    assert saved == {"GTC-1"}, "only GTC rests across a restart"
-    # The DAY order is untouched — a checkpoint is not an end-of-day.
+    assert saved == {"GTC-1", "DAY-1"}, "both GTC and DAY rest across a restart"
+    # Neither order is touched — a checkpoint mutates nothing.
     assert day.status is not OrderStatus.EXPIRED
+    assert gtc.status is not OrderStatus.EXPIRED
     engine.pub_sock.send_multipart.assert_not_called()
+
+
+def test_shutdown_persists_quote_legs_gtc_and_day_alike(tmp_path: Path) -> None:
+    """Quote-origin orders (origin=QUOTE) are no longer excluded from
+    persistence — see docs-design/EduMatcher-Revised-Quote-Persistence.md
+    §5.2. A quote leg now persists by the same TIF rule as any other order:
+    TIF=GTC and TIF=DAY both survive, since §12-§13 already made TIF=DAY
+    resting orders survive a same-day restart too. This is a strictly
+    better outcome than the original §5.2 scope (which only covered
+    TIF=GTC) — see §13.7."""
+    engine = _engine_without_sockets(tmp_path)
+    gtc_quote_leg = _quote_leg("GTC-BID", TIF.GTC, Side.BUY)
+    day_quote_leg = _quote_leg("DAY-ASK", TIF.DAY, Side.SELL)
+    book = engine._book("AAPL")
+    book.process(gtc_quote_leg, match=False)
+    book.process(day_quote_leg, match=False)
+
+    gtc_file = tmp_path / "gtc.json"
+    with (
+        patch("edumatcher.engine.main.GTC_ORDERS_FILE", gtc_file),
+        patch("edumatcher.engine.main.GTC_COMBOS_FILE", tmp_path / "combos.json"),
+        patch("edumatcher.engine.main.BOOK_STATS_FILE", tmp_path / "stats.json"),
+    ):
+        engine._shutdown()
+
+    saved = {o.id: o for o in load_gtc_orders(gtc_file)}
+    assert saved.keys() == {"GTC-BID", "DAY-ASK"}
+    assert all(o.origin == OrderOrigin.QUOTE for o in saved.values())
+    assert saved["GTC-BID"].quote_id == "Q1"
+    assert saved["DAY-ASK"].quote_id == "Q1"
 
 
 def test_checkpoint_is_throttled(tmp_path: Path) -> None:
@@ -415,6 +458,25 @@ def _order(order_id: str, tif: TIF) -> Order:
         tif=tif,
     )
     order.id = order_id
+    return order
+
+
+def _quote_leg(order_id: str, tif: TIF, side: Side, quote_id: str = "Q1") -> Order:
+    """A resting order shaped like one leg of a market-maker quote —
+    origin=QUOTE with a quote_id, as Engine._load_config()/_handle_quote_new
+    produce. See docs-design/EduMatcher-Revised-Quote-Persistence.md §5.2."""
+    order = Order.create(
+        symbol="AAPL",
+        side=side,
+        order_type=OrderType.LIMIT,
+        quantity=100,
+        price=10000 if side == Side.BUY else 10010,
+        gateway_id="GW01",
+        tif=tif,
+    )
+    order.id = order_id
+    order.origin = OrderOrigin.QUOTE
+    order.quote_id = quote_id
     return order
 
 

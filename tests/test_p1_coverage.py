@@ -774,8 +774,13 @@ class TestGtcPersistence:
         assert loaded[0].remaining_qty == 100
         assert loaded[0].status == OrderStatus.PARTIAL
 
-    def test_day_orders_excluded(self, tmp_path):
-        """DAY orders are NOT persisted."""
+    def test_day_orders_included(self, tmp_path):
+        """DAY orders ARE persisted, alongside GTC orders.
+
+        A process restart is not a day boundary (see
+        docs-design/EduMatcher-Revised-Quote-Persistence.md §12-§13); the
+        same-day-vs-stale distinction for a restored DAY order is applied by
+        Engine._restore_gtc, not by save_gtc_orders/load_gtc_orders."""
         path = tmp_path / "gtc.json"
         day_order = Order.create(
             symbol="AAPL",
@@ -798,8 +803,8 @@ class TestGtcPersistence:
         save_gtc_orders([day_order, gtc_order], path)
         loaded = load_gtc_orders(path)
 
-        assert len(loaded) == 1
-        assert loaded[0].id == gtc_order.id
+        assert len(loaded) == 2
+        assert {o.id for o in loaded} == {day_order.id, gtc_order.id}
 
     def test_filled_orders_excluded(self, tmp_path):
         """Filled GTC orders are NOT persisted."""

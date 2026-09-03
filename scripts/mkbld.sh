@@ -523,20 +523,18 @@ if [ "$NO_DOCS" = false ]; then
     else
         if [ "$BUILD_EXCHANGE_INTRO_PDF" = true ]; then
             print_sub_step "Building Exchange Intro Booklet"
-            run_parallel_commands2 \
-                "make -C docs-exchange-intro -j4" "Building Exchange Intro Booklet" \
-                "make -C docs-exchange-intro epub-docs" "Building Exchange Intro EPUB"
+            run_command "make -C docs-exchange-intro -j4" "Building Exchange Intro Booklet"
+            run_command "make -C docs-exchange-intro epub-docs" "Building Exchange Intro EPUB"
         fi
     
         if [ "$BUILD_USER_GUIDE_PDF" = true ]; then
-            run_parallel_commands3 \
+            run_parallel_commands2 \
                 "make -C docs -j4 pdf-docs" \
                 "Building User Guide PDFs (v${VERSION}) with Makefile" \
                 "make -C docs -j4 pdf-training" \
-                "Building Training Guide PDFs (v${VERSION}) with Makefile" \
-                "make -C docs -j16 chapters-pdf" \
-                "Building User Guide Chapters PDF bundle"
-                
+                "Building Training Guide PDFs (v${VERSION}) with Makefile"
+
+            run_command "make -C docs -j16 chapters-pdf" "Building User Guide Chapters PDF bundle"
             run_command "make -C docs epub-docs" "Building User Guide EPUB"
         fi
     fi

@@ -85,7 +85,13 @@ class TestGtcOrderRoundTrip:
                 f"  restored= {restored.to_dict()}"
             )
 
-    def test_terminal_and_day_orders_are_not_persisted(self, tmp_path) -> None:
+    def test_resting_day_order_survives_save_load_unchanged(self, tmp_path) -> None:
+        """TIF=DAY orders now round-trip the same as TIF=GTC.
+
+        A process restart is not a day boundary (see
+        docs-design/EduMatcher-Revised-Quote-Persistence.md §12-§13); the
+        same-day-vs-stale distinction for a restored DAY order is applied by
+        Engine._restore_gtc, not by save_gtc_orders/load_gtc_orders."""
         day = Order.create(
             symbol=SYMBOL,
             side=Side.BUY,
@@ -95,6 +101,15 @@ class TestGtcOrderRoundTrip:
             tif=TIF.DAY,
             price=10000,
         )
+        path = tmp_path / "gtc_orders.json"
+        save_gtc_orders([day], path)
+        loaded = load_gtc_orders(path)
+        assert len(loaded) == 1
+        assert loaded[0].to_dict() == day.to_dict()
+
+    def test_terminal_orders_are_not_persisted(self, tmp_path) -> None:
+        """Filled/cancelled orders are excluded regardless of TIF — only
+        resting (NEW/PARTIAL) orders are persisted."""
         filled = _gtc(OrderType.LIMIT, price=10000)
         filled.remaining_qty = 0
         filled.status = OrderStatus.FILLED
@@ -102,7 +117,7 @@ class TestGtcOrderRoundTrip:
         cancelled.status = OrderStatus.CANCELLED
 
         path = tmp_path / "gtc_orders.json"
-        save_gtc_orders([day, filled, cancelled], path)
+        save_gtc_orders([filled, cancelled], path)
         assert load_gtc_orders(path) == []
 
 

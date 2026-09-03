@@ -1183,7 +1183,7 @@ CANCEL|OCO_ID=TPS
 | `oco.ack.{GW}` (`accepted=false`) | OCO pair rejected; contains `reason`                      |
 | `oco.cancelled.{GW}`              | Sibling auto-cancelled after the other leg settled        |
 | `order.fill.{GW}`                 | Each leg is an independent order; fill events are per-leg |
-| `order.cancelled.{GW}` | Published for each leg on explicit CANCEL|OCO_ID= |
+| `order.cancelled.{GW}`            | Published for each leg on explicit CANCEL\|OCO_ID=        |
 
 ### Edge Cases and Gotchas
 
