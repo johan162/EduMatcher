@@ -1,3 +1,28 @@
+## [v0.29.0] - 2026-09-03
+
+Release Type: major
+
+### 📋 Summary
+This release makes live order-book state persistent across same-day engine
+restarts, including market-maker quote legs and DAY orders. It also adds a
+macOS Multipass recovery utility and expands the persistence documentation.
+
+### ✨ Additions
+- Added persistence and restart recovery for market-maker quote legs
+- Added `scripts/multipass-fix.sh` for restarting Multipass environments on macOS
+
+### 🚀 Improvements
+- Improved same-day restart handling so DAY orders survive an engine restart
+- Improved engine recovery and persistence handling for restored orders and quote state
+
+### 📚 Documentation
+- Added a revised quote-persistence design document
+- Expanded market-maker, persistence, installation, VM, and container documentation for the new restart behavior
+
+### 🛠 Internal
+- Added comprehensive regression coverage for quote persistence, order durability, restart recovery, and engine edge cases
+- Updated project version metadata and documentation build references
+
 ## [v0.28.1] - 2026-09-02
 
 Release Type: patch
