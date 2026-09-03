@@ -1,3 +1,18 @@
+## [v0.29.2] - 2026-09-04
+
+Release Type: patch
+
+### 📋 Summary
+This patch release fixes the GitHub Actions frontend container builds by
+pinning a compatible npm version and updates the system trading verification
+documentation to reflect the latest implementation.
+
+### 🐛 Bug Fixes
+- Fixed GHCR frontend image builds failing during npm workspace dependency resolution with an Arborist `edgesOut` error
+
+### 📚 Documentation
+- Updated the system trading verification design document with the implemented tick-validation and cancel-reason behavior
+
 ## [v0.29.1] - 2026-09-04
 
 Release Type: minor

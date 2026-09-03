@@ -37,10 +37,11 @@ COPY package.json package-lock.json* tsconfig.base.json ./
 COPY packages ./packages
 COPY apps ./apps
 RUN npm config set fetch-retries 2 \
+ && npm install --global npm@11.19.0 \
  && npm config set fetch-timeout 120000 \
  && if [ -n "$NPM_REGISTRY" ]; then npm config set registry "$NPM_REGISTRY"; fi \
  && if [ "$NPM_STRICT_SSL" = "false" ]; then npm config set strict-ssl false; fi \
- && if [ -f package-lock.json ]; then npm ci; else npm install --no-dedupe; fi \
+ && if [ -f package-lock.json ]; then npm ci; else npm install; fi \
  && npm cache clean --force
 
 RUN npm run build --workspace @edumatcher/log-web
