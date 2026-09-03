@@ -1,3 +1,36 @@
+## [v0.29.1] - 2026-09-04
+
+Release Type: minor
+
+### 📋 Summary
+This release improves matching-engine hot-path performance while strengthening
+order validation, rejection reporting, and client-order correlation across the
+gateway protocols. It also improves VM update workflows and fixes frontend
+container builds in GitHub Actions.
+
+### ✨ Additions
+- Added explicit cancel reasons for rejected cancellations and circuit-breaker cancellations
+- Added missing client-tag propagation to exchange events
+
+### 🚀 Improvements
+- Improved order-entry performance by avoiding redundant validation in the hot path and using lower-overhead order-ID generation
+- Improved validation and rejection handling for order prices, tick sizes, and protocol wire values
+- Improved VM upgrade and installation workflows, including automatic restart and snapshot handling
+- Improved npm install compatibility for lockfile-free frontend container builds
+
+### 🐛 Bug Fixes
+- Fixed missing client tags on exchange events
+- Fixed frontend GHCR builds failing with npm's Arborist deduplication error
+- Fixed VM upgrade and development-node setup issues
+
+### 📚 Documentation
+- Updated user-guide, training, protocol, and design documentation for client tags, reject codes, tick validation, and same-day DAY-order persistence
+- Added performance analysis and expanded matching-engine verification strategy documentation
+
+### 🛠 Internal
+- Added regression coverage for ALF wire bounds, cancel reasons, client-tag propagation, tick validation, and engine behavior
+- Added hot-path performance benchmarks and related implementation cleanup
+
 ## [v0.29.0] - 2026-09-03
 
 Release Type: major
