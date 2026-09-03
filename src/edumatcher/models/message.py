@@ -299,13 +299,21 @@ def make_cancelled_msg(
     client_tag: str | None = None,
     request_tag: str | None = None,
     order: dict[str, Any] | None = None,
+    *,
+    cancel_reason: _gen_order.OrderCancelledCancelReason | None = None,
 ) -> list[bytes]:
-    """Generated from ``spec/messages/order.yaml``. Byte-identical to before."""
+    """Generated from ``spec/messages/order.yaml``.
+
+    ``cancel_reason`` says why the *exchange* cancelled the order and is None
+    for a client-requested cancel; it is keyword-only so it cannot be confused
+    with the two tag positionals above it.
+    """
     return _gen_order.make_order_cancelled_unchecked(
         gateway_id=gateway_id,
         order_id=order_id,
         client_tag=client_tag,
         request_tag=request_tag,
+        cancel_reason=cancel_reason,
         **group_ids(order),
     )
 

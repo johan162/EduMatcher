@@ -16,6 +16,8 @@ from edumatcher.balf_gwy.codec import (
     encode_price,
 )
 from edumatcher.balf_gwy.protocol import (
+    RC_INVALID_FIELD,
+    BalfValidationError,
     validate_new_order_price_logic,
     validate_order_type,
     validate_quantity,
@@ -25,7 +27,7 @@ from edumatcher.balf_gwy.protocol import (
     validate_tif,
 )
 from edumatcher.models.clock import now_ns
-from edumatcher.models.price import to_ticks
+from edumatcher.models.price import TickViolation, to_ticks_exact
 
 # ---------------------------------------------------------------------------
 # NEW_ORDER → engine order dict
@@ -72,16 +74,25 @@ def build_engine_new_order(
     parsed_with_strs["visible_qty"] = visible_qty if visible_qty is not None else 0
     validate_new_order_price_logic(parsed_with_strs)
 
-    # Convert display prices to engine ticks
-    price_ticks = to_ticks(price_display, symbol) if price_display is not None else None
-    stop_price_ticks = (
-        to_ticks(stop_price_display, symbol) if stop_price_display is not None else None
-    )
-    trail_offset_ticks = (
-        to_ticks(trail_offset_display, symbol)
-        if trail_offset_display is not None
-        else None
-    )
+    # Convert display prices to engine ticks. BALF carries prices as
+    # fixed-point at scale 1e8, so a client can express far finer values than
+    # any symbol's tick grid; rounding them silently would move the price.
+    try:
+        price_ticks = (
+            to_ticks_exact(price_display, symbol) if price_display is not None else None
+        )
+        stop_price_ticks = (
+            to_ticks_exact(stop_price_display, symbol)
+            if stop_price_display is not None
+            else None
+        )
+        trail_offset_ticks = (
+            to_ticks_exact(trail_offset_display, symbol)
+            if trail_offset_display is not None
+            else None
+        )
+    except TickViolation as exc:
+        raise BalfValidationError(RC_INVALID_FIELD, "price off tick grid") from exc
 
     order: dict[str, Any] = {
         "id": engine_order_id,

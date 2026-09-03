@@ -672,6 +672,12 @@ class OrderBook:
         # unfilled MARKET order got a positive ACK and then silence (#5).
         if order.remaining_qty > 0 and order.status != OrderStatus.FILLED:
             order.status = OrderStatus.CANCELLED  # unsatisfied market → discard
+            # A cancel with no stated cause is indistinguishable from a kill
+            # switch or a halt cascade on the wire; say the book ran out.  An
+            # SMP cancel encountered mid-sweep has already set its own reason,
+            # which is the more specific answer and must not be overwritten.
+            if order.cancel_reason is None:
+                order.cancel_reason = "INSUFFICIENT_LIQUIDITY"
             events.append(order)
 
     def _match_limit(
@@ -742,6 +748,7 @@ class OrderBook:
                 and same_gw_conflicts
             ):
                 order.status = OrderStatus.CANCELLED
+                order.cancel_reason = "SELF_MATCH_PREVENTED"
             else:
                 order.status = OrderStatus.REJECTED
             events.append(order)
@@ -760,6 +767,11 @@ class OrderBook:
         # above this should not fire for genuine liquidity.
         if order.remaining_qty > 0 and order.status not in _DEAD_STATUSES:
             order.status = OrderStatus.CANCELLED
+            # The pre-check above already rejected a genuine shortfall, so
+            # reaching here means the sweep hit a same-gateway order the
+            # pre-check's exclusion missed.
+            if order.cancel_reason is None:
+                order.cancel_reason = "SELF_MATCH_PREVENTED"
             events.append(order)
 
     def fillable_quantity(self, side: Side, price_limit: Optional[int]) -> int:
@@ -857,6 +869,10 @@ class OrderBook:
             OrderStatus.CANCELLED,
         ):
             order.status = OrderStatus.CANCELLED
+            # Same cause as the discarded MARKET remainder: the book ran out
+            # before the IOC was filled.
+            if order.cancel_reason is None:
+                order.cancel_reason = "INSUFFICIENT_LIQUIDITY"
             events.append(order)
 
     def _add_trailing_stop(self, order: Order, events: list[Order]) -> None:
@@ -928,6 +944,7 @@ class OrderBook:
     def _smp_cancel_resting(self, order: Order, events: list[Order]) -> None:
         """Mark a resting order as CANCELLED (SMP), remove from index."""
         order.status = OrderStatus.CANCELLED
+        order.cancel_reason = "SELF_MATCH_PREVENTED"
         entry = self._entry_index.get(order.id)
         if entry:
             entry.valid = False
@@ -979,6 +996,7 @@ class OrderBook:
             if _smp_action != SmpAction.NONE and _gw_id == best.gateway_id:
                 if _smp_action == SmpAction.CANCEL_AGGRESSOR:
                     aggressor.status = OrderStatus.CANCELLED
+                    aggressor.cancel_reason = "SELF_MATCH_PREVENTED"
                     events.append(aggressor)
                     return
                 elif _smp_action == SmpAction.CANCEL_RESTING:
@@ -987,6 +1005,7 @@ class OrderBook:
                 elif _smp_action == SmpAction.CANCEL_BOTH:
                     self._smp_cancel_resting(best, events)
                     aggressor.status = OrderStatus.CANCELLED
+                    aggressor.cancel_reason = "SELF_MATCH_PREVENTED"
                     events.append(aggressor)
                     return
 

@@ -13,7 +13,7 @@ from edumatcher.api_gateway.schemas import (
 )
 from edumatcher.models.combo import ComboLeg, ComboOrder, ComboType
 from edumatcher.models.order import Order, OrderType, Side, SmpAction, TIF
-from edumatcher.models.price import to_ticks
+from edumatcher.models.price import to_ticks_exact
 
 
 def wire_value(value: object) -> str:
@@ -32,12 +32,12 @@ def build_order(request: OrderRequest, gateway_id: str) -> Order:
         gateway_id=gateway_id,
         tif=TIF(request.tif),
         price=(
-            to_ticks(request.price, request.symbol)
+            to_ticks_exact(request.price, request.symbol)
             if request.price is not None
             else None
         ),
         stop_price=(
-            to_ticks(request.stop_price, request.symbol)
+            to_ticks_exact(request.stop_price, request.symbol)
             if request.stop_price is not None
             else None
         ),
@@ -49,7 +49,7 @@ def build_order(request: OrderRequest, gateway_id: str) -> Order:
             SmpAction(request.smp_action) if request.smp_action is not None else None
         ),
         trail_offset=(
-            to_ticks(request.trail_offset, request.symbol)
+            to_ticks_exact(request.trail_offset, request.symbol)
             if request.trail_offset is not None
             else None
         ),
@@ -68,9 +68,9 @@ def build_quote_payload(request: QuoteRequest, gateway_id: str) -> dict[str, Any
     payload: dict[str, Any] = {
         "gateway_id": gateway_id,
         "symbol": request.symbol,
-        "bid_price": to_ticks(request.bid_price, request.symbol),
+        "bid_price": to_ticks_exact(request.bid_price, request.symbol),
         "bid_qty": request.bid_qty,
-        "ask_price": to_ticks(request.ask_price, request.symbol),
+        "ask_price": to_ticks_exact(request.ask_price, request.symbol),
         "ask_qty": request.ask_qty,
         "tif": wire_value(request.tif),
     }
@@ -89,11 +89,11 @@ def _oco_leg_to_payload(leg: OcoLegRequest, symbol: str) -> dict[str, Any]:
         "order_type": wire_value(leg.order_type),
     }
     if leg.price is not None:
-        payload["price"] = to_ticks(leg.price, symbol)
+        payload["price"] = to_ticks_exact(leg.price, symbol)
     if leg.stop_price is not None:
-        payload["stop_price"] = to_ticks(leg.stop_price, symbol)
+        payload["stop_price"] = to_ticks_exact(leg.stop_price, symbol)
     if leg.trail_offset is not None:
-        payload["trail_offset"] = to_ticks(leg.trail_offset, symbol)
+        payload["trail_offset"] = to_ticks_exact(leg.trail_offset, symbol)
     return payload
 
 
@@ -121,9 +121,11 @@ def build_combo_payload(request: ComboRequest, gateway_id: str) -> dict[str, Any
             side=Side(leg.side),
             order_type=OrderType(leg.order_type),
             quantity=leg.quantity,
-            price=to_ticks(leg.price, leg.symbol) if leg.price is not None else None,
+            price=(
+                to_ticks_exact(leg.price, leg.symbol) if leg.price is not None else None
+            ),
             stop_price=(
-                to_ticks(leg.stop_price, leg.symbol)
+                to_ticks_exact(leg.stop_price, leg.symbol)
                 if leg.stop_price is not None
                 else None
             ),

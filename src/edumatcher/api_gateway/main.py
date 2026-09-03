@@ -38,6 +38,7 @@ from edumatcher.log_srv.config import (
     resolve_host_default,
 )
 from edumatcher.logclient.discovery import resolve_handler
+from edumatcher.models.price import TickViolation
 
 _CLIENT_NAME = "pm-api-gwy"
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
@@ -51,6 +52,7 @@ _HTTP_REJECT_CODES = {
     "READ_ONLY": "ROLE_DENIED",
     "ROLE_DENIED": "ROLE_DENIED",
     "RATE_LIMIT": "RATE_LIMITED",
+    "SYMBOLS_NOT_READY": "SYMBOL_NOT_READY",
     "VALIDATION": "INVALID_VALUE",
     "ENGINE_TIMEOUT": "INTERNAL_ERROR",
 }
@@ -67,6 +69,20 @@ def _extract_correlation(body: object, request: Request) -> dict[str, str]:
     if request_tag is not None:
         tags["request_tag"] = request_tag
     return tags
+
+
+async def _safe_body(request: Request) -> object:
+    """Re-read the request body for correlation tags, tolerating failure.
+
+    ``RequestValidationError`` arrives with the parsed body attached; an
+    exception raised inside a route handler does not, so the body has to be
+    read back. Starlette has already buffered it by then, but echoing a tag is
+    a convenience and must never turn one error into a different one.
+    """
+    try:
+        return await request.json()
+    except Exception:
+        return None
 
 
 def _validation_reject_code(error_type: str, message: str) -> str:
@@ -181,6 +197,34 @@ def create_app(config: ApiGatewayConfig) -> FastAPI:
                     ),
                     "reason": message,
                     **_extract_correlation(body, request),
+                }
+            },
+        )
+
+    @app.exception_handler(TickViolation)
+    async def tick_violation_handler(  # pyright: ignore[reportUnusedFunction]
+        request: Request,
+        exc: TickViolation,
+    ) -> JSONResponse:
+        """One handler, not a try/except at every conversion site.
+
+        ``translate.py`` converts prices in five places across orders, quotes,
+        OCO legs and combo legs; catching there would mean five near-identical
+        bodies that could drift apart. The transport decides the status code
+        (400, a malformed request); ``reject_code`` is the value the
+        cross-transport equivalence assertion compares, and it must equal what
+        ALF answers for the same price.
+        """
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": {
+                    "code": "VALIDATION",
+                    "message": str(exc),
+                    "field": "price",
+                    "reject_code": "TICK_VIOLATION",
+                    "reason": str(exc),
+                    **_extract_correlation(await _safe_body(request), request),
                 }
             },
         )

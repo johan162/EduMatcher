@@ -107,7 +107,16 @@ class TestQuotePricesAreTicksNow:
             "mm_bot/bot.py",
         ):
             source = (root / rel).read_text(encoding="utf-8")
-            assert "to_ticks(" in source, rel
+            # to_ticks_exact is the checking variant the client-facing edges
+            # moved to; alf_gwy wraps it in its own _ticks helper so an
+            # off-grid price becomes a REJECT_CODE rather than a rounded one.
+            # Either spelling satisfies the rule this test enforces: no raw
+            # display float reaches the builder.
+            assert (
+                "to_ticks(" in source
+                or "to_ticks_exact(" in source
+                or "self._ticks(" in source
+            ), rel
             assert '"bid_price": bid_price,' not in source, rel
             assert '"bid_price": bid,' not in source, rel
 

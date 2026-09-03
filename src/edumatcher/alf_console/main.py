@@ -105,7 +105,7 @@ from edumatcher.models.order import (
     SmpAction,
     TIF,
 )
-from edumatcher.models.price import to_ticks
+from edumatcher.models.price import TickViolation, to_ticks_exact
 
 # Extracted submodules — re-exported here so that existing
 # ``from edumatcher.alf_console.main import ...`` imports keep working.
@@ -1300,22 +1300,35 @@ class Gateway:
                 console.print("[red]TRAILING_STOP requires TRAIL=<offset>[/red]")
                 return
 
-        order = Order.create(
-            symbol=symbol,
-            side=side,
-            order_type=order_type,
-            quantity=quantity,
-            gateway_id=self.gateway_id,
-            tif=tif,
-            price=to_ticks(price, symbol) if price is not None else None,
-            stop_price=to_ticks(stop_price, symbol) if stop_price is not None else None,
-            visible_qty=visible,
-            smp_action=smp_action,
-            trail_offset=(
-                to_ticks(float(kv["TRAIL"]), symbol) if "TRAIL" in kv else None
-            ),
-            client_tag=client_tag,
-        )
+        # Catch an off-grid price here rather than letting the engine round
+        # it: the console user typed a price and would otherwise watch an
+        # order rest at a different one with no explanation.
+        try:
+            order = Order.create(
+                symbol=symbol,
+                side=side,
+                order_type=order_type,
+                quantity=quantity,
+                gateway_id=self.gateway_id,
+                tif=tif,
+                price=to_ticks_exact(price, symbol) if price is not None else None,
+                stop_price=(
+                    to_ticks_exact(stop_price, symbol)
+                    if stop_price is not None
+                    else None
+                ),
+                visible_qty=visible,
+                smp_action=smp_action,
+                trail_offset=(
+                    to_ticks_exact(float(kv["TRAIL"]), symbol)
+                    if "TRAIL" in kv
+                    else None
+                ),
+                client_tag=client_tag,
+            )
+        except TickViolation as exc:
+            console.print(f"[red]{exc}[/red]")
+            return
 
         # Pre-register in cache before ACK arrives
         self.order_cache[order.id] = {
@@ -1358,17 +1371,21 @@ class Gateway:
             console.print("[red]QUOTE requires BID < ASK[/red]")
             return
 
-        payload: dict[str, Any] = {
-            "gateway_id": self.gateway_id,
-            "symbol": symbol,
-            # Ticks on the wire: converting is the submitting gateway's job
-            # (design section 15.2, extended to quotes in 6.1b).
-            "bid_price": to_ticks(bid_price, symbol),
-            "bid_qty": bid_qty,
-            "ask_price": to_ticks(ask_price, symbol),
-            "ask_qty": ask_qty,
-            "tif": tif.value,
-        }
+        try:
+            payload: dict[str, Any] = {
+                "gateway_id": self.gateway_id,
+                "symbol": symbol,
+                # Ticks on the wire: converting is the submitting gateway's
+                # job (design section 15.2, extended to quotes in 6.1b).
+                "bid_price": to_ticks_exact(bid_price, symbol),
+                "bid_qty": bid_qty,
+                "ask_price": to_ticks_exact(ask_price, symbol),
+                "ask_qty": ask_qty,
+                "tif": tif.value,
+            }
+        except TickViolation as exc:
+            console.print(f"[red]{exc}[/red]")
+            return
         quote_id = kv.get("QUOTE_ID")
         if quote_id:
             payload["quote_id"] = quote_id
@@ -1415,12 +1432,16 @@ class Gateway:
                 "side": kv[side_key],
                 "order_type": kv[type_key],
             }
-            if price_key in kv:
-                leg["price"] = to_ticks(float(kv[price_key]), symbol)
-            if stop_key in kv:
-                leg["stop_price"] = to_ticks(float(kv[stop_key]), symbol)
-            if trail_key in kv:
-                leg["trail_offset"] = to_ticks(float(kv[trail_key]), symbol)
+            try:
+                if price_key in kv:
+                    leg["price"] = to_ticks_exact(float(kv[price_key]), symbol)
+                if stop_key in kv:
+                    leg["stop_price"] = to_ticks_exact(float(kv[stop_key]), symbol)
+                if trail_key in kv:
+                    leg["trail_offset"] = to_ticks_exact(float(kv[trail_key]), symbol)
+            except TickViolation as exc:
+                console.print(f"[red]{exc}[/red]")
+                return None
             return leg
 
         leg1 = _parse_leg("LEG1_")
@@ -1524,7 +1545,9 @@ class Gateway:
                     side=Side(side),
                     order_type=OrderType(leg_type),
                     quantity=int(qty),
-                    price=to_ticks(float(price), sym) if price else None,
+                    # TickViolation subclasses ValueError, so the except below
+                    # already reports an off-grid leg price as a parse error.
+                    price=to_ticks_exact(float(price), sym) if price else None,
                     smp_action=SmpAction(smp_str) if smp_str is not None else None,
                 )
             except (ValueError, KeyError) as exc:

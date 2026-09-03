@@ -30,7 +30,7 @@ import signal
 import sys
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import holidays
 import zmq
@@ -151,7 +151,12 @@ from edumatcher.models.order import (
     SmpAction,
     TIF,
 )
-from edumatcher.models.price import from_ticks, to_ticks
+from edumatcher.models.price import (
+    TickViolation,
+    from_ticks,
+    to_ticks,
+    to_ticks_exact,
+)
 from edumatcher.models.price import get_tick_decimals, register_tick_decimals
 from edumatcher.models.trade import set_run_seq
 from edumatcher.models.quote import (
@@ -185,7 +190,7 @@ from edumatcher.models.generated.risk import (
     TOPIC_SYMBOL_HALT,
     TOPIC_SYMBOL_RESUME,
 )
-from edumatcher.models.reject import RejectCode
+from edumatcher.models.reject import CancelReason, RejectCode
 from edumatcher.models.generated.quote import (
     TOPIC_QUOTE_CANCEL,
     TOPIC_QUOTE_NEW,
@@ -606,6 +611,33 @@ class Engine:
             return "GATEWAY_NOT_CONFIGURED"
         return "AUTH_REQUIRED"
 
+    def _halt_reject_code(self, symbol: str) -> RejectCode:
+        """Distinguish an automatic volatility halt from a discretionary one.
+
+        ``_halted_symbols`` is one boolean whatever caused the halt, but the
+        circuit breaker already records the cause in ``halt_source`` ("CB" for
+        a level trip, "ADMIN" for an operator action).  A symbol can be halted
+        with no circuit breaker configured at all — the global halt-all sets
+        the flag for every symbol — and that case is an operator action by
+        construction, so it reads as INSTRUMENT_HALTED.
+        """
+        cb = self._circuit_breakers.get(symbol)
+        if cb is not None and cb.halt_source == "CB":
+            return "CIRCUIT_BREAKER_ACTIVE"
+        return "INSTRUMENT_HALTED"
+
+    @staticmethod
+    def _cancel_reason_of(order: Order) -> CancelReason | None:
+        """Narrow ``Order.cancel_reason`` to the generated ``Literal``.
+
+        ``Order`` types the field as a plain ``str`` so that ``models.order``
+        need not import the generated module, which would close an import
+        cycle through ``models.message``.  The book only ever writes values
+        from the spec's enum, so the cast is safe; ``make_order_cancelled``'s
+        own validation is the backstop if that ever stops being true.
+        """
+        return cast(Optional[CancelReason], order.cancel_reason)
+
     @staticmethod
     def _amend_reject_code(reason: str) -> RejectCode:
         if reason == "Order not found":
@@ -978,7 +1010,10 @@ class Engine:
                                 _seed_cancel_ids.add(evt.id)
                                 self.pub_sock.send_multipart(
                                     make_cancelled_msg(
-                                        evt.gateway_id, evt.id, order=evt.to_dict()
+                                        evt.gateway_id,
+                                        evt.id,
+                                        order=evt.to_dict(),
+                                        cancel_reason=self._cancel_reason_of(evt),
                                     )
                                 )
                     for trade in trades:
@@ -1359,18 +1394,27 @@ class Engine:
         book = self._book(order.symbol)
         do_match = is_matching_enabled(self._session_state)
 
-        # Halt check — circuit breaker has halted this symbol
+        # Halt check — this symbol is halted, by the circuit breaker or by an
+        # administrator.  Both set the same flag; only the reject code tells a
+        # client which, so it can distinguish an automatic volatility halt it
+        # should wait out from a discretionary one it should not.
         if self._halted_symbols.get(order.symbol):
             if order.order_type in (OrderType.MARKET, OrderType.FOK, OrderType.IOC):
                 self._dbg_count("new_order_reject_halt")
+                code = self._halt_reject_code(order.symbol)
+                trigger = (
+                    "circuit breaker halt"
+                    if code == "CIRCUIT_BREAKER_ACTIVE"
+                    else "trading halt"
+                )
                 reason = (
                     f"{order.symbol} is halted — "
-                    f"{order.order_type.value} orders rejected during circuit breaker halt"
+                    f"{order.order_type.value} orders rejected during {trigger}"
                 )
                 self._reject(
                     gateway_id=order.gateway_id,
                     order_id=order.id,
-                    code="INSTRUMENT_HALTED",
+                    code=code,
                     reason=reason,
                     client_tag=order.client_tag,
                     request_tag=None,
@@ -1669,12 +1713,21 @@ class Engine:
                 and evt.id not in _published_terminal_ids
             ):
                 _published_terminal_ids.add(evt.id)
-                # Terminal cancellation (SMP, IOC/MARKET remainder) — notify owner.
+                # Terminal cancellation (SMP, IOC/MARKET remainder) — notify
+                # owner. This is the hot path, so the frame is built by hand
+                # rather than through make_cancelled_msg; cancel_reason follows
+                # the spec's omit_when_none, so it is added only when set.
+                _cancelled: dict[str, Any] = {
+                    "order_id": evt.id,
+                    "client_tag": evt.client_tag,
+                }
+                if evt.cancel_reason is not None:
+                    _cancelled["cancel_reason"] = evt.cancel_reason
                 _pub.send_multipart(
                     [
                         _tc.get(f"cancel.{evt.gateway_id}")
                         or topic_order_cancelled(evt.gateway_id).encode(),
-                        dumps({"order_id": evt.id, "client_tag": evt.client_tag}),
+                        dumps(_cancelled),
                     ]
                 )
                 if evt.combo_parent_id:
@@ -3241,7 +3294,10 @@ class Engine:
                         _pub_cancel_ids.add(evt.id)
                         self.pub_sock.send_multipart(
                             make_cancelled_msg(
-                                evt.gateway_id, evt.id, order=evt.to_dict()
+                                evt.gateway_id,
+                                evt.id,
+                                order=evt.to_dict(),
+                                cancel_reason=self._cancel_reason_of(evt),
                             )
                         )
             for trade in trades:
@@ -4129,7 +4185,10 @@ class Engine:
                         _pub_terminal_ids.add(evt.id)
                         self.pub_sock.send_multipart(
                             make_cancelled_msg(
-                                evt.gateway_id, evt.id, order=evt.to_dict()
+                                evt.gateway_id,
+                                evt.id,
+                                order=evt.to_dict(),
+                                cancel_reason=self._cancel_reason_of(evt),
                             )
                         )
                     if evt.combo_parent_id and evt.id != child.id:
@@ -4872,7 +4931,10 @@ class Engine:
                         _pub_terminal_ids.add(evt.id)
                         self.pub_sock.send_multipart(
                             make_cancelled_msg(
-                                evt.gateway_id, evt.id, order=evt.to_dict()
+                                evt.gateway_id,
+                                evt.id,
+                                order=evt.to_dict(),
+                                cancel_reason=self._cancel_reason_of(evt),
                             )
                         )
                         if evt.oco_group_id:
@@ -5134,9 +5196,29 @@ class Engine:
         # #9: apply the same gates a NEW order at this price would face, so
         # fat-finger / session / halt protections cannot be bypassed by amending
         # instead of re-entering.
-        new_price_ticks = (
-            to_ticks(float(new_price), symbol) if new_price is not None else None
-        )
+        #
+        # The tick gate is one of those. order.amend is the one engine-inbound
+        # message that carries display money rather than ticks (the gateways
+        # cannot convert it without knowing the resting order's symbol), so
+        # unlike order.new this check belongs here — which is also why it
+        # covers every transport at once.
+        try:
+            new_price_ticks = (
+                to_ticks_exact(float(new_price), symbol)
+                if new_price is not None
+                else None
+            )
+        except TickViolation as exc:
+            self._dbg_count("amend_reject_tick")
+            self._reject(
+                gateway_id=gateway_id,
+                order_id=order_id,
+                code="TICK_VIOLATION",
+                reason=str(exc),
+                client_tag=resting.client_tag if resting is not None else None,
+                request_tag=request_tag,
+            )
+            return
 
         # Session gating — reject amends while the market does not accept orders.
         if self._sessions_enabled and not accepts_orders(self._session_state):
@@ -5293,7 +5375,12 @@ class Engine:
             ):
                 published_terminal_ids.add(evt.id)
                 self.pub_sock.send_multipart(
-                    make_cancelled_msg(evt.gateway_id, evt.id, order=evt.to_dict())
+                    make_cancelled_msg(
+                        evt.gateway_id,
+                        evt.id,
+                        order=evt.to_dict(),
+                        cancel_reason=self._cancel_reason_of(evt),
+                    )
                 )
             elif (
                 evt.status == OrderStatus.REJECTED

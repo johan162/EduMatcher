@@ -529,6 +529,24 @@ messages:
         doc: >
           Client correlation tag for this cancel request. Engine-initiated
           cancels publish with request_tag=null.
+      - name: cancel_reason
+        type: enum
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: >
+          Why the exchange cancelled this order, when the exchange decided it
+          rather than the client. Null for a client-requested cancel, and for
+          engine-initiated cancels whose cause is not yet classified - so
+          request_tag=null together with cancel_reason=null still means "the
+          exchange did this, cause unstated". Deliberately not the same
+          vocabulary as order_ack.reject_code: a cancel is not a rejection,
+          and most reject codes can never apply to one. New members may be
+          added; existing members are never removed or renamed. A client must
+          ignore a value it does not recognise.
+        values:
+          - SELF_MATCH_PREVENTED
+          - INSUFFICIENT_LIQUIDITY
       - { name: oco_group_id, type: string, required: false, nullable: true,
           omit_when_none: true, validate: { max_len: 64 } }
       - { name: combo_parent_id, type: string, required: false, nullable: true,

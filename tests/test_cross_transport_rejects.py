@@ -4,7 +4,7 @@ import inspect
 import json
 import socket
 import time
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from typing import Any, cast
 
 import pytest
@@ -21,6 +21,11 @@ from edumatcher.api_gateway.routers import orders
 from edumatcher.api_gateway.schemas import OrderRequest
 from edumatcher.api_gateway.sessions import Session
 from edumatcher.models.order import OrderType, Side
+from edumatcher.models.price import (
+    TickViolation,
+    clear_tick_registry,
+    register_tick_decimals,
+)
 
 
 class _FakePush:
@@ -35,6 +40,23 @@ class _FakePush:
 class _FakeSub:
     def setsockopt(self, op: int, value: bytes) -> None:
         _ = (op, value)
+
+
+@pytest.fixture(autouse=True)
+def _symbols_loaded() -> Iterator[None]:
+    """Stand in for the engine's symbols snapshot.
+
+    The order routes now refuse a symbol whose tick precision has not arrived
+    yet: converting a price before it does would apply the two-decimal default
+    to an instrument that may not have two decimals. A live gateway registers
+    these when it authenticates; these tests call the route functions directly,
+    so they register them here.
+    """
+    clear_tick_registry()
+    register_tick_decimals("AAPL", 2)
+    register_tick_decimals("MSFT", 2)
+    yield
+    clear_tick_registry()
 
 
 @pytest.fixture()
@@ -274,3 +296,44 @@ async def test_alf_and_rest_business_rule_reject_codes_match(
     assert rest_response.reject_code == alf_reject_code
     assert rest_response.event is not None
     assert rest_response.event["reject_code"] == alf_reject_code
+
+
+@pytest.mark.anyio
+async def test_alf_and_rest_agree_on_tick_violation(
+    alf_gateway: AlfGateway,
+) -> None:
+    """The one reject code neither gateway can delegate to the engine.
+
+    Every other shared code is produced by the engine and merely relayed, so
+    the two transports agree for free. Tick validation is different: the bus
+    carries integer ticks and every integer is a valid tick, so the engine
+    structurally cannot check this — each edge does it independently, and this
+    is the only thing keeping their answers the same.
+    """
+    off_grid = 100.005  # not a multiple of AAPL's 0.01 tick
+
+    session, peer = _session()
+    try:
+        alf_gateway._handle_client_line(
+            session,
+            f"NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=10|PRICE={off_grid}|TAG=CT-TICK",
+        )
+        assert session.out_queue, "ALF did not answer an off-grid price"
+        frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
+        assert frame.command == "ERR"
+        alf_code = frame.fields["REJECT_CODE"]
+        # The correlation tag survives, so the client can tell which order
+        # was refused — the point of G1, exercised on a new reject path.
+        assert frame.fields["TAG"] == "CT-TICK"
+    finally:
+        peer.close()
+        session.close()
+
+    app = create_app(ApiGatewayConfig(swagger_enabled=False))
+    handler = app.exception_handlers[TickViolation]
+    result = handler(_request(), TickViolation(off_grid, "AAPL"))
+    response = await result if inspect.isawaitable(result) else result
+    content = cast(dict[str, Any], json.loads(bytes(response.body).decode("utf-8")))
+    rest_code = str(cast(dict[str, Any], content["error"])["reject_code"])
+
+    assert alf_code == rest_code == "TICK_VIOLATION"

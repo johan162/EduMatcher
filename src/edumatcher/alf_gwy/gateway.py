@@ -53,7 +53,11 @@ from edumatcher.models.message import (
     make_symbols_request_msg,
 )
 from edumatcher.models.order import Order, OrderType, Side, SmpAction, TIF
-from edumatcher.models.price import register_tick_decimals, to_ticks
+from edumatcher.models.price import (
+    TickViolation,
+    register_tick_decimals,
+    to_ticks_exact,
+)
 from edumatcher.models.reject import RejectCode
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.generated.order import (
@@ -687,12 +691,18 @@ class AlfGateway:
             quantity=quantity,
             gateway_id=self._require_gw(session),
             tif=tif,
-            price=to_ticks(price, symbol) if price is not None else None,
-            stop_price=to_ticks(stop_price, symbol) if stop_price is not None else None,
+            price=self._ticks(price, symbol, "PRICE") if price is not None else None,
+            stop_price=(
+                self._ticks(stop_price, symbol, "STOP")
+                if stop_price is not None
+                else None
+            ),
             visible_qty=visible,
             smp_action=smp,
             trail_offset=(
-                to_ticks(trail_offset, symbol) if trail_offset is not None else None
+                self._ticks(trail_offset, symbol, "TRAIL")
+                if trail_offset is not None
+                else None
             ),
             oco_group_id=None,
             client_tag=self._optional_tag(fields, "TAG"),
@@ -721,16 +731,22 @@ class AlfGateway:
             }
 
             if f"{prefix}PRICE" in fields:
-                leg["price"] = to_ticks(
-                    safe_float(fields[f"{prefix}PRICE"], f"{prefix}PRICE"), symbol
+                leg["price"] = self._ticks(
+                    safe_float(fields[f"{prefix}PRICE"], f"{prefix}PRICE"),
+                    symbol,
+                    f"{prefix}PRICE",
                 )
             if f"{prefix}STOP" in fields:
-                leg["stop_price"] = to_ticks(
-                    safe_float(fields[f"{prefix}STOP"], f"{prefix}STOP"), symbol
+                leg["stop_price"] = self._ticks(
+                    safe_float(fields[f"{prefix}STOP"], f"{prefix}STOP"),
+                    symbol,
+                    f"{prefix}STOP",
                 )
             if f"{prefix}TRAIL" in fields:
-                leg["trail_offset"] = to_ticks(
-                    safe_float(fields[f"{prefix}TRAIL"], f"{prefix}TRAIL"), symbol
+                leg["trail_offset"] = self._ticks(
+                    safe_float(fields[f"{prefix}TRAIL"], f"{prefix}TRAIL"),
+                    symbol,
+                    f"{prefix}TRAIL",
                 )
             return leg
 
@@ -812,8 +828,12 @@ class AlfGateway:
                     side=side,
                     order_type=leg_type,
                     quantity=qty,
-                    price=to_ticks(price, sym) if price is not None else None,
-                    stop_price=to_ticks(stop, sym) if stop is not None else None,
+                    price=(
+                        self._ticks(price, sym, "PRICE") if price is not None else None
+                    ),
+                    stop_price=(
+                        self._ticks(stop, sym, "STOP") if stop is not None else None
+                    ),
                     smp_action=smp_action,
                 )
             )
@@ -909,9 +929,9 @@ class AlfGateway:
             "gateway_id": self._require_gw(session),
             "symbol": symbol,
             # Ticks on the wire (design section 15.2, quotes joined in 6.1b).
-            "bid_price": to_ticks(bid, symbol),
+            "bid_price": self._ticks(bid, symbol, "BID"),
             "bid_qty": bid_qty,
-            "ask_price": to_ticks(ask, symbol),
+            "ask_price": self._ticks(ask, symbol, "ASK"),
             "ask_qty": ask_qty,
             "tif": tif.value,
         }
@@ -1422,6 +1442,8 @@ class AlfGateway:
                 fields["TAG"] = str(payload["client_tag"])
             if payload.get("request_tag") is not None:
                 fields["RTAG"] = str(payload["request_tag"])
+            if payload.get("cancel_reason") is not None:
+                fields["CANCEL_REASON"] = str(payload["cancel_reason"])
         elif topic.startswith(PREFIX_ORDER_EXPIRED):
             msg_type = "EXPIRED"
             fields = {"ORDER_ID": str(payload.get("order_id", ""))}
@@ -1540,6 +1562,23 @@ class AlfGateway:
         if default is not None:
             return default
         raise ValidationError("MISSING_FIELD", f"{key} is required")
+
+    @staticmethod
+    def _ticks(price: float, symbol: str, field: str) -> int:
+        """Convert a client price to ticks, refusing one off the tick grid.
+
+        ``to_ticks`` would round it instead, so a client that asked for
+        100.005 on a 2-decimal symbol would silently get a resting order at a
+        price it never sent. The legacy ``CODE=`` stays ``INVALID_VALUE`` so
+        the existing ERR vocabulary is unchanged; ``REJECT_CODE`` carries the
+        machine-readable answer.
+        """
+        try:
+            return to_ticks_exact(price, symbol)
+        except TickViolation as exc:
+            raise ValidationError(
+                "INVALID_VALUE", f"{field}: {exc}", "TICK_VIOLATION"
+            ) from exc
 
     def _optional_tag(self, fields: dict[str, str], key: str) -> str | None:
         if key not in fields:

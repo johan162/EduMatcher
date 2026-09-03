@@ -12,7 +12,6 @@ class PersonalityProfile:
     order_size_max: int
     cross_probability: float
     passive_offset_ticks: int
-    tick_size: float
     size_distribution: str
 
     def sample_qty(self, rng: random.Random) -> int:
@@ -43,7 +42,6 @@ _PRESET_PROFILES: dict[str, PersonalityProfile] = {
         order_size_max=120,
         cross_probability=0.35,
         passive_offset_ticks=0,
-        tick_size=0.01,
         size_distribution="balanced",
     ),
     "cautious": PersonalityProfile(
@@ -53,7 +51,6 @@ _PRESET_PROFILES: dict[str, PersonalityProfile] = {
         order_size_max=60,
         cross_probability=0.05,
         passive_offset_ticks=2,
-        tick_size=0.01,
         size_distribution="balanced",
     ),
     "many-small": PersonalityProfile(
@@ -63,7 +60,6 @@ _PRESET_PROFILES: dict[str, PersonalityProfile] = {
         order_size_max=25,
         cross_probability=0.18,
         passive_offset_ticks=1,
-        tick_size=0.01,
         size_distribution="small-heavy",
     ),
     "few-large": PersonalityProfile(
@@ -73,7 +69,6 @@ _PRESET_PROFILES: dict[str, PersonalityProfile] = {
         order_size_max=700,
         cross_probability=0.12,
         passive_offset_ticks=1,
-        tick_size=0.01,
         size_distribution="block-heavy",
     ),
 }

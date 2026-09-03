@@ -433,3 +433,70 @@ class TestCircuitBreakerEngineIntegration:
             eng._flush_circuit_breakers()
 
         assert eng._halted_symbols["AAPL"]
+
+
+class TestHaltRejectCodeNamesTheCause:
+    """A halt is one flag; a client needs to know which kind it hit.
+
+    An automatic volatility halt resolves itself and is worth waiting out; a
+    discretionary halt does not and is not. Both used to answer
+    INSTRUMENT_HALTED, and both used to claim in the reason text that a
+    circuit breaker had fired even when an operator had pulled the switch.
+    The circuit breaker already recorded which in ``halt_source``; the reject
+    code now reports it.
+    """
+
+    @staticmethod
+    def _halt(eng, source: str) -> None:
+        eng._halted_symbols["AAPL"] = True
+        cb = CircuitBreakerState(
+            symbol="AAPL",
+            config=CircuitBreakerConfig(
+                symbol="AAPL",
+                reference_window_ns=300_000_000_000,
+                levels=[
+                    CircuitBreakerLevel(
+                        name="L1",
+                        price_shift_pct=0.05,
+                        halt_duration_ns=60_000_000_000,
+                    )
+                ],
+            ),
+        )
+        cb.halted = True
+        cb.halt_source = source
+        eng._circuit_breakers["AAPL"] = cb
+
+    def test_circuit_breaker_trip_reports_circuit_breaker_active(self, engine) -> None:
+        eng, pub = engine
+        self._halt(eng, "CB")
+
+        eng._handle_new_order(_order_dict(order_type=OrderType.MARKET, price=None))
+        _, msg = decode(pub.sent[-1])
+        assert msg["accepted"] is False
+        assert msg["reject_code"] == "CIRCUIT_BREAKER_ACTIVE"
+        assert "circuit breaker halt" in msg["reason"]
+
+    def test_admin_halt_reports_instrument_halted(self, engine) -> None:
+        eng, pub = engine
+        self._halt(eng, "ADMIN")
+
+        eng._handle_new_order(_order_dict(order_type=OrderType.MARKET, price=None))
+        _, msg = decode(pub.sent[-1])
+        assert msg["reject_code"] == "INSTRUMENT_HALTED"
+        # The reason no longer blames a circuit breaker that never fired.
+        assert "circuit breaker" not in msg["reason"]
+
+    def test_symbol_with_no_circuit_breaker_reports_instrument_halted(
+        self, engine
+    ) -> None:
+        """The global halt-all sets the flag for every symbol, including ones
+        with no circuit breaker configured. That is an operator action by
+        construction, so there is nothing to look up and nothing to guess."""
+        eng, pub = engine
+        eng._halted_symbols["AAPL"] = True
+        eng._circuit_breakers.pop("AAPL", None)
+
+        eng._handle_new_order(_order_dict(order_type=OrderType.MARKET, price=None))
+        _, msg = decode(pub.sent[-1])
+        assert msg["reject_code"] == "INSTRUMENT_HALTED"

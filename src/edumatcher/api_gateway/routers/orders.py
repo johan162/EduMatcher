@@ -26,6 +26,7 @@ from edumatcher.api_gateway.translate import (
     build_order,
     build_quote_payload,
 )
+from edumatcher.models.price import has_tick_decimals
 from edumatcher.models.generated.order import (
     topic_order_ack,
     topic_order_amended,
@@ -42,6 +43,31 @@ def _check_rate_limit(request: Request, session: Session) -> None:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={"error": {"code": "RATE_LIMIT", "message": "Write rate exceeded"}},
+        )
+
+
+def _check_symbol_ready(symbol: str) -> None:
+    """Raise 503 until this symbol's tick precision has arrived from the engine.
+
+    The gateway learns tick precision from the engine's symbols snapshot,
+    requested when it authenticates. Until that lands, converting a price
+    applies the two-decimal default: on a 4-decimal instrument that is a
+    hundredfold error, and on a 0-decimal one the price loses its meaning --
+    silently, because rounding never fails. ALF has always refused this window
+    with SYMBOLS_NOT_READY; REST had no equivalent gate and would happily take
+    the order. 503 rather than 400: the client did nothing wrong and should
+    retry.
+    """
+    if not has_tick_decimals(symbol):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error": {
+                    "code": "SYMBOLS_NOT_READY",
+                    "message": f"Reference data for {symbol} is not loaded yet",
+                    "reject_code": "SYMBOL_NOT_READY",
+                }
+            },
         )
 
 
@@ -92,6 +118,7 @@ async def submit_order(
 ) -> OrderAccepted:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
+    _check_symbol_ready(body.symbol)
     order = build_order(body, gateway_id)
     request.app.state.engine.get_caches(gateway_id).orders[order.id] = {
         "order_id": order.id,
@@ -264,6 +291,7 @@ async def submit_oco(
 ) -> PendingIdResponse:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
+    _check_symbol_ready(body.symbol)
     request.app.state.engine.send_oco(build_oco_payload(body, gateway_id))
     return PendingIdResponse(id=body.oco_id, status="PENDING")
 
@@ -286,6 +314,8 @@ async def submit_combo(
 ) -> PendingIdResponse:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
+    for leg in body.legs:
+        _check_symbol_ready(leg.symbol)
     request.app.state.engine.send_combo(build_combo_payload(body, gateway_id))
     return PendingIdResponse(id=body.combo_id, status="PENDING")
 
@@ -308,6 +338,7 @@ async def submit_quote(
 ) -> PendingIdResponse:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
+    _check_symbol_ready(body.symbol)
     request.app.state.engine.send_quote(build_quote_payload(body, gateway_id))
     return PendingIdResponse(id=body.quote_id or body.symbol, status="PENDING")
 
