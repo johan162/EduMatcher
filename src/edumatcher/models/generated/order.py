@@ -204,9 +204,10 @@ class ComboLeg:
             quantity=int(p["quantity"]),
             price=None if p.get("price") is None else int(p["price"]),
             stop_price=None if p.get("stop_price") is None else int(p["stop_price"]),
-            smp_action=cast(
-                ComboLegSmpAction | None,
-                None if p.get("smp_action") is None else str(p["smp_action"]),
+            smp_action=(
+                None
+                if p.get("smp_action") is None
+                else cast(ComboLegSmpAction, str(p["smp_action"]))
             ),
         )
 
@@ -414,9 +415,10 @@ class OrderDisplay:
             displayed_qty=(
                 None if p.get("displayed_qty") is None else int(p["displayed_qty"])
             ),
-            smp_action=cast(
-                OrderDisplaySmpAction | None,
-                None if p.get("smp_action") is None else str(p["smp_action"]),
+            smp_action=(
+                None
+                if p.get("smp_action") is None
+                else cast(OrderDisplaySmpAction, str(p["smp_action"]))
             ),
             combo_parent_id=(
                 None if p.get("combo_parent_id") is None else str(p["combo_parent_id"])
@@ -652,9 +654,10 @@ class PriceLevelOrder:
             displayed_qty=(
                 None if p.get("displayed_qty") is None else int(p["displayed_qty"])
             ),
-            smp_action=cast(
-                PriceLevelOrderSmpAction | None,
-                None if p.get("smp_action") is None else str(p["smp_action"]),
+            smp_action=(
+                None
+                if p.get("smp_action") is None
+                else cast(PriceLevelOrderSmpAction, str(p["smp_action"]))
             ),
             combo_parent_id=(
                 None if p.get("combo_parent_id") is None else str(p["combo_parent_id"])
@@ -1278,9 +1281,10 @@ class OrderAck:
             order_id=str(p["order_id"]),
             accepted=bool(p["accepted"]),
             reason=str(p.get("reason", "")),
-            reject_code=cast(
-                OrderAckRejectCode | None,
-                None if p.get("reject_code") is None else str(p["reject_code"]),
+            reject_code=(
+                None
+                if p.get("reject_code") is None
+                else cast(OrderAckRejectCode, str(p["reject_code"]))
             ),
             symbol=None if p.get("symbol") is None else str(p["symbol"]),
             side=None if p.get("side") is None else str(p["side"]),
@@ -2021,9 +2025,10 @@ class OrderCancelled:
             order_id=str(p["order_id"]),
             client_tag=None if p.get("client_tag") is None else str(p["client_tag"]),
             request_tag=None if p.get("request_tag") is None else str(p["request_tag"]),
-            cancel_reason=cast(
-                OrderCancelledCancelReason | None,
-                None if p.get("cancel_reason") is None else str(p["cancel_reason"]),
+            cancel_reason=(
+                None
+                if p.get("cancel_reason") is None
+                else cast(OrderCancelledCancelReason, str(p["cancel_reason"]))
             ),
             oco_group_id=(
                 None if p.get("oco_group_id") is None else str(p["oco_group_id"])
@@ -2993,9 +2998,10 @@ class OrderNew:
             displayed_qty=(
                 None if p.get("displayed_qty") is None else int(p["displayed_qty"])
             ),
-            smp_action=cast(
-                OrderNewSmpAction | None,
-                None if p.get("smp_action") is None else str(p["smp_action"]),
+            smp_action=(
+                None
+                if p.get("smp_action") is None
+                else cast(OrderNewSmpAction, str(p["smp_action"]))
             ),
             combo_parent_id=(
                 None if p.get("combo_parent_id") is None else str(p["combo_parent_id"])

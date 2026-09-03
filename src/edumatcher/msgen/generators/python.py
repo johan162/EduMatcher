@@ -459,14 +459,40 @@ def _narrow(message: Message, f: Field, expr: str) -> str:
     it confines the "we have not checked yet" admission to the one function
     whose job is not to check.
 
-    The cast target is the full annotation, ``| None`` included: a nullable
-    enum coerces to ``str | None``, which is just as much a widening as the
-    non-nullable case. ``smp_action`` on ``order.new`` was the first nullable
-    enum in any spec and mypy caught the omission immediately.
+    The cast target is always a **bare alias name**, never ``Alias | None``.
+    A nullable field is narrowed by :func:`_narrow_nullable` instead, which
+    casts inside the conditional so this stays true. See that function for why
+    the difference is worth 1 µs per call.
     """
     if not _uses_literal(f):
         return expr
-    return f"cast({_annotation(message, f)}, {expr})"
+    return f"cast({_base_annotation(message, f)}, {expr})"
+
+
+def _narrow_nullable(message: Message, f: Field, key: str, coerced: str) -> str:
+    """The nullable read, with the cast inside the ``else`` branch.
+
+    The obvious form is ``cast(Alias | None, None if ... else str(...))``, and
+    that is what this generator emitted until it was profiled.
+
+    ``cast``'s first argument is an ordinary expression, not an annotation, so
+    ``from __future__ import annotations`` does not defer it: ``Alias | None``
+    is **rebuilt and hashed against ``typing._tp_cache`` on every call**. On
+    ``order.new`` — one nullable enum, on the order-entry hot path — that
+    measured **1 107 ns per ``from_dict``**, against 58 ns for a cast whose
+    target is a name already bound at module level. For a function that returns
+    its second argument unchanged, all of it was waste.
+
+    Casting only the coerced branch removes the union expression entirely:
+
+        None if p.get("smp_action") is None else cast(Alias, str(p["smp_action"]))
+
+    The type is unchanged — the conditional is ``None | Alias``, which is what
+    the field declares — so mypy and pyright accept it for exactly the reason
+    they accepted the old form. ``None`` needs no cast to satisfy ``| None``.
+    """
+    read = f"None if p.get({key}) is None else {_narrow(message, f, coerced)}"
+    return read
 
 
 def _split_top_level(text: str) -> tuple[str, str]:
@@ -559,8 +585,7 @@ def _read_expr(message: Message, f: Field, in_topic_only: bool = False) -> str:
     if f.nullable:
         # None must survive the read: coercing it would turn "absent" into
         # "None" (str(None) == "None"), which is a value, not an absence.
-        nullable_read = f"None if p.get({key}) is None else {coerce}(p[{key}])"
-        return _narrow(message, f, nullable_read)
+        return _narrow_nullable(message, f, key, f"{coerce}(p[{key}])")
     if f.has_parse_default:
         return _narrow(message, f, f"{coerce}(p.get({key}, {_pyval(f.parse_default)}))")
     if f.omit_when_empty:

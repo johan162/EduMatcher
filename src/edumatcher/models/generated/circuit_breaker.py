@@ -200,9 +200,10 @@ class CircuitBreakerHalt:
             resume_at_ns=(
                 None if p.get("resume_at_ns") is None else int(p["resume_at_ns"])
             ),
-            halt_source=cast(
-                CircuitBreakerHaltHaltSource | None,
-                None if p.get("halt_source") is None else str(p["halt_source"]),
+            halt_source=(
+                None
+                if p.get("halt_source") is None
+                else cast(CircuitBreakerHaltHaltSource, str(p["halt_source"]))
             ),
             level=None if p.get("level") is None else str(p["level"]),
             corridor_low=(
@@ -475,9 +476,10 @@ class CircuitBreakerExtend:
             symbol=str(p["symbol"]),
             indicative_price=float(p["indicative_price"]),
             indicative_qty=int(p["indicative_qty"]),
-            imbalance_side=cast(
-                CircuitBreakerExtendImbalanceSide | None,
-                None if p.get("imbalance_side") is None else str(p["imbalance_side"]),
+            imbalance_side=(
+                None
+                if p.get("imbalance_side") is None
+                else cast(CircuitBreakerExtendImbalanceSide, str(p["imbalance_side"]))
             ),
             resume_at_ns=int(p["resume_at_ns"]),
             corridor_low=float(p["corridor_low"]),
@@ -697,9 +699,10 @@ class CircuitBreakerResume:
         """
         return cls(
             symbol=str(p["symbol"]),
-            halt_source=cast(
-                CircuitBreakerResumeHaltSource | None,
-                None if p.get("halt_source") is None else str(p["halt_source"]),
+            halt_source=(
+                None
+                if p.get("halt_source") is None
+                else cast(CircuitBreakerResumeHaltSource, str(p["halt_source"]))
             ),
             reason=str(p.get("reason", "")),
             clamped=None if p.get("clamped") is None else bool(p["clamped"]),

@@ -76,6 +76,47 @@ the target is ≥1% of wall time (review finding P6).
   (monotonic, finding M9); the raw `time.time_ns` alias `_time_ns` is retained
   only for backward compatibility.
 
+## Message generator
+
+- **Nullable enum `from_dict` no longer builds a `typing` union per call
+  (2026-09-03).** `msgen/generators/python.py::_narrow` emitted
+  `cast(Alias | None, None if ... else str(...))` for a nullable enum field.
+  `cast`'s first argument is an ordinary expression, not an annotation, so
+  `from __future__ import annotations` does not defer it: `Alias | None` was
+  rebuilt and hashed against `typing._tp_cache` **on every call**, for a
+  function that returns its second argument unchanged.
+
+  `_narrow_nullable` now casts inside the conditional, so the target is a bare
+  module-level alias:
+
+  ```python
+  None if p.get("smp_action") is None else cast(OrderNewSmpAction, str(...))
+  ```
+
+  Measured on `OrderNew.from_dict`, 200 000 iterations: **5 888 -> 4 306 ns,
+  -1 581 ns (27%)**, and the `typing.__hash__` / `_tp_cache` lines leave the
+  profile entirely. In isolation the cast expression alone goes from 1 107 ns
+  to 58 ns.
+
+  The type is unchanged - the conditional is `None | Alias`, which is what the
+  field declares - and both mypy and pyright still reject a bad value for a
+  nullable enum, accept `None`, and reveal the precise `Literal[...] | None`
+  for the field. That was verified explicitly rather than assumed: the whole
+  point of the `cast` is the checking it enables, and a faster form that
+  stopped catching a typo would be a bad trade.
+
+  Three families carry nullable enums today - `order` (6 fields), `auction`
+  (2) and `circuit_breaker` (3) - and `order.new` is on the order-entry hot
+  path, so this lands where it matters. End to end, the ALF ingress leg
+  (`_handle_client_line` for a `NEW`) went from a **32.0 us** median to
+  **28.9 us**, four runs of 50 000 iterations each, spread under 3%. The leg
+  saving is larger than the isolated 1.58 us; the isolated benchmark used a
+  12-key payload against the gateway's 22-key one, which is the likeliest
+  reason, but the gap is not fully accounted for.
+
+  **Do not "simplify" this back to a single cast around the whole
+  conditional.** It reads better and costs a microsecond per call.
+
 ## Guidance
 
 Macro costs dominate over these micro-opts: JSON per message, publication
