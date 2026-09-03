@@ -11594,6 +11594,13 @@ wire-format specification in the
 <td>Client correlation tag for this cancel request. Engine-initiated cancels publish with request_tag=null.</td>
 </tr>
 <tr>
+<td><code>cancel_reason</code></td>
+<td>enum: <code>SELF_MATCH_PREVENTED</code>, <code>INSUFFICIENT_LIQUIDITY</code></td>
+<td>omitted when unset</td>
+<td>—</td>
+<td>Why the exchange cancelled this order, when the exchange decided it rather than the client. Null for a client-requested cancel, and for engine-initiated cancels whose cause is not yet classified - so request_tag=null together with cancel_reason=null still means "the exchange did this, cause unstated". Deliberately not the same vocabulary as order_ack.reject_code: a cancel is not a rejection, and most reject codes can never apply to one. New members may be added; existing members are never removed or renamed. A client must ignore a value it does not recognise.</td>
+</tr>
+<tr>
 <td><code>oco_group_id</code></td>
 <td><code>string</code></td>
 <td>omitted when unset</td>

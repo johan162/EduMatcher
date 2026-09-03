@@ -3220,10 +3220,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-4-compare-day-and-gtc-behaviour" class="md-nav__link">
+  <a href="#exercise-4-day-order-survives-a-same-day-restart" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 4: Compare DAY and GTC Behaviour
+        Exercise 4: DAY Order Survives a Same-Day Restart
       
     </span>
   </a>
@@ -4094,10 +4094,21 @@ state across restart scenarios.</p>
 <p>EduMatcher stores persistent runtime data under <code>EDUMATCHER_DATA_DIR</code>. Common
 files include:</p>
 <ul>
-<li><code>gtc_orders.json</code> — Good-Till-Cancelled orders that survive session boundaries.</li>
+<li><code>gtc_orders.json</code> — resting <code>GTC</code> orders (any age) <strong>and</strong> resting <code>DAY</code>
+  orders from the current business day, including MM quote legs. Written on
+  every checkpoint and at clean shutdown; read back at the next startup.</li>
 <li><code>stats.db</code> — SQLite database written by <code>pm-stats</code>.</li>
 <li><code>audit.log</code> — event log if <code>pm-audit</code> writes to disk.</li>
 </ul>
+<div class="admonition note">
+<p class="admonition-title">A restart is not a day boundary</p>
+<p><code>gtc_orders.json</code> is not just a "GTC file" any more: it also carries
+resting <code>TIF=DAY</code> orders across an <strong>engine restart</strong>, as long as the
+restart happens on the same business day the order was placed. The
+day-vs-restart distinction is the subject of Exercise 4 below — see
+<a href="../../user-guide/180-persistence/#impact-of-a-business-day-change">Persistence — Impact of a Business-Day Change</a>
+for the full rule.</p>
+</div>
 <h2 id="exercise-1-locate-the-data-directory">Exercise 1: Locate the Data Directory<a class="headerlink" href="#exercise-1-locate-the-data-directory" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">"</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>ls<span class="w"> </span>-la<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">"</span>
@@ -4143,48 +4154,79 @@ confirming how many GTC orders it saved (<code>[ENGINE] Saved N GTC order(s) to
 <p>Compare explicitly after restart:</p>
 <ul>
 <li>GTC orders restore from persistence (given the conditions above).</li>
-<li>DAY orders from prior session should not survive CLOSED.</li>
 <li>Stats remain in <code>stats.db</code> if <code>pm-stats</code> was writing before restart.</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> verify whether the GTC order survives restart.</p>
-<h2 id="exercise-4-compare-day-and-gtc-behaviour">Exercise 4: Compare DAY and GTC Behaviour<a class="headerlink" href="#exercise-4-compare-day-and-gtc-behaviour" title="Permanent link">&para;</a></h2>
-<p>Place one DAY and one GTC order at non-marketable prices:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=400.00|TIF=DAY
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=399.00|TIF=GTC
+<h2 id="exercise-4-day-order-survives-a-same-day-restart">Exercise 4: DAY Order Survives a Same-Day Restart<a class="headerlink" href="#exercise-4-day-order-survives-a-same-day-restart" title="Permanent link">&para;</a></h2>
+<p>A resting <code>DAY</code> order is no longer tied to the engine process — it is tied to
+the business day. Place a DAY order at a non-marketable price:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=399.00|TIF=DAY
 </code></pre></div>
-<p>Move the session to CLOSED, then restart and inspect <code>ORDERS</code>. DAY orders should
-expire at session close; GTC orders are the ones designed to survive.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> explain the different lifecycle of DAY and GTC orders.</p>
+<p>Restart <code>pm-engine</code> cleanly, on the <strong>same calendar day</strong>, with the same data
+directory and config. Reconnect <code>TRADER01</code> and check:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[TRADER01]&gt; ORDERS
+</code></pre></div>
+<p>The DAY order should still be resting — restored exactly like the GTC order
+from Exercise 3, because the restart did not cross a business-day boundary.
+This is new behaviour: earlier versions of the engine excluded <code>TIF=DAY</code>
+orders from <code>gtc_orders.json</code> entirely, and any resting DAY order was gone
+after any restart, same-day or not.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> the DAY order is still resting after a same-day restart.</p>
+<div class="admonition note">
+<p class="admonition-title">Two separate ways a DAY order disappears</p>
+<p>Don't confuse these — they are driven by different things:</p>
+<ul>
+<li><strong>Session close</strong> (<code>pm-scheduler</code> transitioning to <code>CLOSED</code>, or you
+  forcing it with <code>SESSION|STATE=CLOSED</code>): every resting DAY order is
+  cancelled <em>live</em>, with an <code>order.expired</code> event, regardless of restart.
+  See <a href="../06-time-in-force-sessions/">06 — Time-in-Force &amp; Sessions</a>.</li>
+<li><strong>Engine restart after the business day has rolled over</strong>: a resting
+  DAY order from a prior business day is silently discarded during
+  restore — logged at <code>INFO</code>, but with <strong>no</strong> <code>order.expired</code> published.
+  There is no live sweep for this; it is only checked once, at the next
+  startup. See
+  <a href="../../user-guide/180-persistence/#impact-of-a-business-day-change">Persistence — Impact of a Business-Day Change</a>.</li>
+</ul>
+<p>If you want to see the second case instead of the first, you would need
+to actually cross a calendar date between shutdown and restart — not
+practical to demonstrate live in this exercise, so take it as read from
+the user guide.</p>
+</div>
 <h2 id="exercise-5-persist-statistics">Exercise 5: Persist Statistics<a class="headerlink" href="#exercise-5-persist-statistics" title="Permanent link">&para;</a></h2>
 <p>Start <code>pm-stats</code>, execute a few trades, and inspect the stats database:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pm-stats
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>pm-stats-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--limit<span class="w"> </span><span class="m">5</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>ls<span class="w"> </span>-lh<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-stats
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>pm-stats-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--limit<span class="w"> </span><span class="m">5</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>ls<span class="w"> </span>-lh<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">"</span>
 </code></pre></div>
 <p>You should see <code>stats.db</code> in the data directory once statistics have been
 recorded.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>stats.db</code> exists and contains recent trades.</p>
 <h2 id="exercise-6-audit-to-disk">Exercise 6: Audit to Disk<a class="headerlink" href="#exercise-6-audit-to-disk" title="Permanent link">&para;</a></h2>
 <p>Start audit logging to a file:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-audit<span class="w"> </span>--audit-log-file<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">/audit.log"</span><span class="w"> </span>--terminal
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-audit<span class="w"> </span>--audit-log-file<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">/audit.log"</span><span class="w"> </span>--terminal
 </code></pre></div>
 <p>Execute a trade, then inspect the log:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>tail<span class="w"> </span>-20<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">/audit.log"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>tail<span class="w"> </span>-20<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">/audit.log"</span>
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> audit log contains events from your trading session.</p>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>You now understand:</p>
 <ul>
 <li>Which data belongs in <code>EDUMATCHER_DATA_DIR</code>.</li>
-<li>Why GTC and DAY orders behave differently across session boundaries.</li>
+<li>Why GTC and DAY orders behave differently across session boundaries, and
+  why that is a <em>different</em> question from how they behave across an engine
+  restart.</li>
 <li>How stats and audit files survive beyond the current terminal session.</li>
 </ul>
 <h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
-<p>Why does the engine persist GTC orders but deliberately discard DAY orders
-and re-seed MM quote legs from config on every restart, instead of just
-saving and restoring the entire book state wholesale? What would go wrong
-operationally if quote legs were persisted and blindly restored alongside
-GTC orders after a config change removed a market maker?</p>
+<p>A resting <code>DAY</code> order and a live MM quote leg both now survive an engine
+restart on the same business day, restored from <code>gtc_orders.json</code> exactly
+like a <code>GTC</code> order would — only a business-day rollover discards them, and
+only at the next startup. Why does it make sense to key this purely off the
+<em>business day</em>, rather than off the number of times the engine process has
+restarted? What would go wrong operationally in a classroom setting if a
+<code>DAY</code> order's survival depended instead on "how many restarts have happened
+since it was placed"?</p>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../user-guide/180-persistence/">Persistence</a></li>

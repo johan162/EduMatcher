@@ -4951,7 +4951,7 @@ order.</p>
 <tr>
 <td><code>0x07</code></td>
 <td><code>RC_HALT_REJECTION</code></td>
-<td>Symbol halted</td>
+<td>Symbol halted, by a circuit breaker or by an administrator — BALF has one code for both</td>
 </tr>
 <tr>
 <td><code>0x08</code></td>
@@ -4976,7 +4976,7 @@ order.</p>
 <tr>
 <td><code>0x0C</code></td>
 <td><code>RC_INVALID_FIELD</code></td>
-<td>Invalid field — bad quantity, missing LIMIT price, etc.</td>
+<td>Invalid field — bad quantity, missing LIMIT price, or a price that is not on the instrument's tick grid (<code>reason</code> = <code>"price off tick grid"</code>)</td>
 </tr>
 <tr>
 <td><code>0xFF</code></td>
@@ -4985,6 +4985,14 @@ order.</p>
 </tr>
 </tbody>
 </table>
+<div class="admonition warning">
+<p class="admonition-title">Prices must land on the tick grid</p>
+<p>BALF carries prices as <code>i64</code> fixed point at scale 1e8, so a client can
+express values far finer than any instrument's tick size. A price that is
+not an exact multiple of the symbol's tick is rejected with
+<code>RC_INVALID_FIELD</code> rather than rounded — rounding would fill you at a price
+you never sent. <code>tick_decimals</code> per symbol comes from the reference data.</p>
+</div>
 <h3 id="cancel_order-0x12-client-server"><code>CANCEL_ORDER</code> (0x12) - Client -&gt; Server<a class="headerlink" href="#cancel_order-0x12-client-server" title="Permanent link">&para;</a></h3>
 <p><strong>Body (16 bytes):</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>Offset  0  |  client_order_id  |  u64 LE  |  New client ref for this cancel request

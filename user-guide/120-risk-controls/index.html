@@ -1939,6 +1939,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#what-the-client-sees" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the client sees
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#where-smp-is-checked-the-matching-engine-mechanics" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4829,14 +4840,39 @@ dictionary is implicitly <code>ACTIVE</code>.</p>
 <h3 id="halt-behaviour-by-order-type">Halt behaviour by order type<a class="headerlink" href="#halt-behaviour-by-order-type" title="Permanent link">&para;</a></h3>
 <p>When the engine receives a new order for a halted symbol:</p>
 <ul>
-<li><strong>MARKET / FOK / IOC</strong> — rejected immediately with a reason of the form
-  <code>"&lt;SYMBOL&gt; is halted — &lt;TYPE&gt; orders rejected during circuit breaker halt"</code>
-  (e.g. <code>"AAPL is halted — MARKET orders rejected during circuit breaker
-  halt"</code>).  These order types require immediate execution and cannot be held
-  on the book.</li>
-<li><strong>LIMIT / ICEBERG</strong> — accepted and placed on the book but the engine
+<li>
+<p><strong>MARKET / FOK / IOC</strong> — rejected immediately.  These order types require
+  immediate execution and cannot be held on the book.</p>
+<p>The <code>reject_code</code> says <strong>which kind of halt</strong> you hit, because the two are
+not equivalent to a client: an automatic volatility halt clears itself and
+is worth waiting out, while a discretionary one does not and is not.</p>
+<table>
+<thead>
+<tr>
+<th>Halt source</th>
+<th><code>reject_code</code></th>
+<th>Reason text</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Circuit breaker tripped on a price move</td>
+<td><code>CIRCUIT_BREAKER_ACTIVE</code></td>
+<td><code>"&lt;SYMBOL&gt; is halted — &lt;TYPE&gt; orders rejected during circuit breaker halt"</code></td>
+</tr>
+<tr>
+<td>Administrator halted the symbol, or halted everything</td>
+<td><code>INSTRUMENT_HALTED</code></td>
+<td><code>"&lt;SYMBOL&gt; is halted — &lt;TYPE&gt; orders rejected during trading halt"</code></td>
+</tr>
+</tbody>
+</table>
+<p>A symbol with no circuit breaker configured can only be halted by an
+administrator, so it always answers <code>INSTRUMENT_HALTED</code>.
+- <strong>LIMIT / ICEBERG</strong> — accepted and placed on the book but the engine
   suppresses the continuous-matching sweep.  The order will rest until the
-  symbol is resumed, at which point it participates in the reopening.</li>
+  symbol is resumed, at which point it participates in the reopening.</p>
+</li>
 </ul>
 <p>When the engine receives a new quote for a halted symbol, the entire quote is
 rejected (both sides) with reason <code>"&lt;SYMBOL&gt; is halted — quotes rejected
@@ -6016,6 +6052,15 @@ below):</p>
 aggressor sweeping several price levels can encounter same-gateway resting
 liquidity at one level and other-participant liquidity at another; SMP only
 engages at the levels where the gateway IDs actually collide.</p>
+<h3 id="what-the-client-sees">What the client sees<a class="headerlink" href="#what-the-client-sees" title="Permanent link">&para;</a></h3>
+<p>Every order SMP cancels — aggressor, resting order, or both — is reported as a
+cancellation carrying <code>CANCEL_REASON=SELF_MATCH_PREVENTED</code> on ALF, or
+<code>cancel_reason</code> on the REST WebSocket. It is <strong>not</strong> a rejection: the order was
+accepted, it may already have traded against other participants at better price
+levels, and only the part that would have self-matched is pulled.</p>
+<p>Without that field an SMP cancel is indistinguishable from a kill switch or a
+halt cascade, which matters most under <code>CANCEL_RESTING</code> — where the order that
+disappears is one you placed earlier and were not thinking about.</p>
 <h3 id="where-smp-is-checked-the-matching-engine-mechanics">Where SMP is checked — the matching-engine mechanics<a class="headerlink" href="#where-smp-is-checked-the-matching-engine-mechanics" title="Permanent link">&para;</a></h3>
 <p>SMP is enforced inside the order book's price-time sweep, immediately after
 the price-limit check and before a fill is generated. This applies uniformly

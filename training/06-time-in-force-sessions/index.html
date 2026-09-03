@@ -4136,6 +4136,21 @@ and how to use the scheduler to drive the exchange through a full trading day.</
 </tr>
 </tbody>
 </table>
+<div class="admonition note">
+<p class="admonition-title">A DAY order's \"end of session\" is not the same as \"the engine process exits\"</p>
+<p>The table above describes the session-scheduler's rule: <code>pm-scheduler</code>
+driving the session into <code>CLOSED</code> cancels every resting <code>DAY</code> order at
+that moment, published as <code>order.expired</code>. That is unchanged.</p>
+<p>Separately, an <strong>engine restart is not itself a day boundary</strong>. If you
+stop and restart <code>pm-engine</code> mid-session (a config reload, a crash
+recovery) while still on the same business day, a resting <code>DAY</code> order
+now survives that restart, exactly like a <code>GTC</code> order would — it is only
+discarded, at the <em>next</em> startup, once its own timestamp is from a prior
+business day. See <a href="../../user-guide/180-persistence/#impact-of-a-business-day-change">Persistence</a>
+for the full restart-vs-session-close distinction, and chapter
+<a href="../16-persistence-recovery/">16 — Persistence &amp; Recovery</a> for a hands-on
+exercise.</p>
+</div>
 <h2 id="exercise-1-observe-session-phases">Exercise 1: Observe Session Phases<a class="headerlink" href="#exercise-1-observe-session-phases" title="Permanent link">&para;</a></h2>
 <p>Start the scheduler in rapid-fire mode to see all transitions quickly:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-scheduler<span class="w"> </span>--now

@@ -1988,6 +1988,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Engine-scoped events (per-gateway)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#unsolicited-cancels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unsolicited cancels
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -4814,19 +4831,35 @@ available for that fill.</p>
 classification. <code>REASON</code> remains the human-readable explanation.
 Gateway-local validation errors use <code>ERR|CODE=...|REJECT_CODE=...|DETAIL=...</code>
 and echo <code>TAG=...</code> when the rejected command carried a correlating tag.</p>
+<div class="admonition warning">
+<p class="admonition-title"><code>PRICE</code>, <code>STOP</code> and <code>TRAIL</code> must be on the tick grid</p>
+<p>Every price must be an exact multiple of the instrument's tick size —
+<code>SYMBOLS</code> reports it per symbol as <code>TICK</code>. One that is not is rejected by
+the gateway before it reaches the engine:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>ERR|CODE=INVALID_VALUE|REJECT_CODE=TICK_VIOLATION|DETAIL=PRICE: 100.005 is not a multiple of AAPL's tick size 0.01|TAG=ORDER-001
+</code></pre></div>
+<p>The gateway refuses rather than rounds, because rounding would rest your
+order at a price you never sent and never tell you. Ordinary
+floating-point arithmetic is safe: a price your code computed as
+<code>100.00 - 3 * 0.01</code> is accepted as <code>99.97</code>.</p>
+<p><code>SYMBOLS_NOT_READY</code> covers the startup window — the gateway will not price
+an order for a symbol whose tick precision it has not yet received from the
+engine, because converting against a default precision would move the
+price. Retry once the symbol list has arrived.</p>
+</div>
 <h3 id="amend-amend-resting-order"><code>AMEND</code> — amend resting order<a class="headerlink" href="#amend-amend-resting-order" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>AMEND|ID=&lt;order-id&gt;|PRICE=151.00[|RTAG=&lt;request-tag&gt;]
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>AMEND|ID=&lt;order-id&gt;|QTY=200[|RTAG=&lt;request-tag&gt;]
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>AMEND|ID=&lt;order-id&gt;|PRICE=151.00|QTY=200[|RTAG=&lt;request-tag&gt;]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>AMEND|ID=&lt;order-id&gt;|PRICE=151.00[|RTAG=&lt;request-tag&gt;]
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>AMEND|ID=&lt;order-id&gt;|QTY=200[|RTAG=&lt;request-tag&gt;]
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>AMEND|ID=&lt;order-id&gt;|PRICE=151.00|QTY=200[|RTAG=&lt;request-tag&gt;]
 </code></pre></div>
 <p>At least one of <code>PRICE</code> or <code>QTY</code> is required. <code>RTAG</code> is optional and identifies
 this amend request; when present, the gateway echoes it on <code>AMENDED</code> or the
 rejected <code>ACK</code>.</p>
 <p><strong>Response:</strong> <code>AMENDED|ORDER_ID=...|PRICE=...|QTY=...|REMAINING=...|PRIORITY_RESET=TRUE|FALSE[|RTAG=...]</code></p>
 <h3 id="cancel-cancel-order-oco-combo"><code>CANCEL</code> — cancel order / OCO / combo<a class="headerlink" href="#cancel-cancel-order-oco-combo" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>CANCEL|ID=&lt;order-id&gt;[|RTAG=&lt;request-tag&gt;]
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>CANCEL|OCO_ID=&lt;oco-id&gt;
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>CANCEL|COMBO_ID=&lt;combo-id&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>CANCEL|ID=&lt;order-id&gt;[|RTAG=&lt;request-tag&gt;]
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>CANCEL|OCO_ID=&lt;oco-id&gt;
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>CANCEL|COMBO_ID=&lt;combo-id&gt;
 </code></pre></div>
 <p><code>RTAG</code> is accepted on single-order cancels only. It identifies this cancel
 request and is echoed on <code>CANCELLED</code> or the rejected <code>ACK</code>.</p>
@@ -4834,25 +4867,25 @@ request and is echoed on <code>CANCELLED</code> or the rejected <code>ACK</code>
 <strong>Response for OCO:</strong> <code>OCO_CANCELLED|OCO_ID=...|CANCELLED_ID=...|REASON=...</code><br />
 <strong>Response for combo:</strong> <code>COMBO_STATUS|COMBO_ID=...|STATUS=CANCELLED|REASON=...</code></p>
 <h3 id="quote-submitreplace-two-sided-quote-market_maker-role"><code>QUOTE</code> — submit/replace two-sided quote (MARKET_MAKER role)<a class="headerlink" href="#quote-submitreplace-two-sided-quote-market_maker-role" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>QUOTE|SYM=AAPL|BID=150.00|ASK=150.10|BID_QTY=500|ASK_QTY=500
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>QUOTE|SYM=AAPL|BID=150.00|ASK=150.10|BID_QTY=500|ASK_QTY=500|QUOTE_ID=my-q1
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>QUOTE|SYM=AAPL|BID=150.00|ASK=150.10|BID_QTY=500|ASK_QTY=500
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>QUOTE|SYM=AAPL|BID=150.00|ASK=150.10|BID_QTY=500|ASK_QTY=500|QUOTE_ID=my-q1
 </code></pre></div>
 <p>Requires gateway role <code>MARKET_MAKER</code>.  <code>BID</code> must be strictly less than <code>ASK</code>.</p>
 <p><strong>Response:</strong> <code>QUOTE_ACK|QUOTE_ID=...|ACCEPTED=TRUE|BID_ID=...|ASK_ID=...</code></p>
 <h3 id="quote_cancel-cancel-active-quote-market_maker-role"><code>QUOTE_CANCEL</code> — cancel active quote (MARKET_MAKER role)<a class="headerlink" href="#quote_cancel-cancel-active-quote-market_maker-role" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>QUOTE_CANCEL|SYM=AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>QUOTE_CANCEL|SYM=AAPL
 </code></pre></div>
 <p><strong>Response:</strong> <code>QUOTE_ACK|QUOTE_ID=...|ACCEPTED=TRUE|...</code></p>
 <h3 id="kill-gateway-kill-switch"><code>KILL</code> — gateway kill-switch<a class="headerlink" href="#kill-gateway-kill-switch" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>KILL
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>KILL|SYM=AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>KILL
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>KILL|SYM=AAPL
 </code></pre></div>
 <p>Cancels all resting orders and active quotes for this gateway, optionally
 scoped to one symbol.</p>
 <p><strong>Response:</strong> <code>KILL_ACK|ACCEPTED=TRUE|ORDERS=N|QUOTES=N</code></p>
 <h3 id="dc-toggle-drop-copy-relay"><code>DC</code> — toggle drop-copy relay<a class="headerlink" href="#dc-toggle-drop-copy-relay" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>DC|STATE=ON
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>DC|STATE=OFF
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>DC|STATE=ON
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>DC|STATE=OFF
 </code></pre></div>
 <p>Subscribes (or unsubscribes) this session to the engine's drop-copy feed
 (<code>DropCopyPublisher</code>, ZMQ PUB <code>:5557</code> — a separate socket from the main
@@ -4873,44 +4906,44 @@ the drop-copy envelope and are not present on <code>FILL</code>; <code>DC_FILL</
 carry <code>REMAINING</code>/<code>STATUS</code> the way <code>FILL</code> does. See
 <a href="../200-drop-copy/#orderfill-event">Drop Copy — order.fill event</a> for the
 full source payload.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>&gt; DC|STATE=ON
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>DC_ACK|STATE=ON
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>...
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>DC_FILL|SEQ=42|ORDER_ID=ORD-001|SYMBOL=AAPL|FILL_QTY=100|FILL_PRICE=150.05|LIQUIDITY=TAKER
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>&gt; DC|STATE=ON
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>DC_ACK|STATE=ON
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>...
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>DC_FILL|SEQ=42|ORDER_ID=ORD-001|SYMBOL=AAPL|FILL_QTY=100|FILL_PRICE=150.05|LIQUIDITY=TAKER
 </code></pre></div>
 <h3 id="symbols-instrument-list"><code>SYMBOLS</code> — instrument list<a class="headerlink" href="#symbols-instrument-list" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>SYMBOLS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>SYMBOLS
 </code></pre></div>
 <p><strong>Multi-line response:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>SYMBOLS|COUNT=3
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>SYMBOL|SYM=AAPL|TICK=0.01
-<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>SYMBOL|SYM=MSFT|TICK=0.01
-<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>SYMBOL|SYM=TSLA|TICK=0.01
-<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>END|TYPE=SYMBOLS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>SYMBOLS|COUNT=3
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>SYMBOL|SYM=AAPL|TICK=0.01
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>SYMBOL|SYM=MSFT|TICK=0.01
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>SYMBOL|SYM=TSLA|TICK=0.01
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>END|TYPE=SYMBOLS
 </code></pre></div>
 <h3 id="orders-resting-order-list"><code>ORDERS</code> — resting order list<a class="headerlink" href="#orders-resting-order-list" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>ORDERS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>ORDERS
 </code></pre></div>
 <p><strong>Multi-line response:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>ORDERS|COUNT=2|GW=TRADER01
-<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>ORDER|ID=abc123|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|REMAINING=60|PRICE=150.00|STATUS=PARTIAL
-<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>ORDER|ID=def456|SYM=MSFT|SIDE=SELL|TYPE=LIMIT|QTY=200|REMAINING=200|PRICE=415.00|STATUS=NEW
-<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>END|TYPE=ORDERS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>ORDERS|COUNT=2|GW=TRADER01
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>ORDER|ID=abc123|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|REMAINING=60|PRICE=150.00|STATUS=PARTIAL
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>ORDER|ID=def456|SYM=MSFT|SIDE=SELL|TYPE=LIMIT|QTY=200|REMAINING=200|PRICE=415.00|STATUS=NEW
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>END|TYPE=ORDERS
 </code></pre></div>
 <h3 id="qboot-quote-bootstrap-state"><code>QBOOT</code> — quote bootstrap state<a class="headerlink" href="#qboot-quote-bootstrap-state" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>QBOOT
-<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>QBOOT|SYM=AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>QBOOT
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>QBOOT|SYM=AAPL
 </code></pre></div>
 <p><strong>Multi-line response:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>QBOOT|COUNT=1
-<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>QUOTE|QUOTE_ID=...|SYM=AAPL|BID=150.00|ASK=150.10|BID_QTY=500|ASK_QTY=500|STATUS=ACTIVE
-<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>END|TYPE=QBOOT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>QBOOT|COUNT=1
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>QUOTE|QUOTE_ID=...|SYM=AAPL|BID=150.00|ASK=150.10|BID_QTY=500|ASK_QTY=500|STATUS=ACTIVE
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>END|TYPE=QBOOT
 </code></pre></div>
 <h3 id="qlegs-quote-leg-snapshot-active-recent"><code>QLEGS</code> — quote leg snapshot (active + recent)<a class="headerlink" href="#qlegs-quote-leg-snapshot-active-recent" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>QLEGS
-<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>QLEGS|SYM=AAPL
-<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>QLEGS|SHOW=RECENT
-<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>QLEGS|SYM=AAPL|SHOW=ALL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>QLEGS
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>QLEGS|SYM=AAPL
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>QLEGS|SHOW=RECENT
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>QLEGS|SYM=AAPL|SHOW=ALL
 </code></pre></div>
 <table>
 <thead>
@@ -4952,20 +4985,20 @@ for when a leg's snapshot can be absent). See
 <a href="../055-alf-console/#qlegs-inspect-mm-quote-legs-and-fill-flags">ALF Console → QLEGS</a>
 for the full column semantics (shared with <code>pm-alf-console</code>'s <code>QLEGS</code>).</p>
 <p><strong>Multi-line response:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>QLEGS|COUNT=2|RECENT_COUNT=1|SHOW=ALL
-<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>LEG|QUOTE_ID=Q123|SYM=AAPL|SIDE=BUY|ORDER_ID=7c4a91e2|QTY=500|REMAINING=400|FILLED=100|STATUS=PARTIAL_FILL|QUOTE_STATUS=ACTIVE
-<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>LEG|QUOTE_ID=Q123|SYM=AAPL|SIDE=SELL|ORDER_ID=be2170fd|QTY=500|REMAINING=500|FILLED=0|STATUS=RESTING|QUOTE_STATUS=ACTIVE
-<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>RECENT_LEG|QUOTE_ID=Q100|SYM=AAPL|QUOTE_STATUS=CANCELLED|REASON=Cancelled by participant|REMOVED_AT_NS=1784468999030221878
-<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>RECENT_BID_LEG|QUOTE_ID=Q100|SIDE=BUY|ORDER_ID=3f9a2b71|QTY=500|REMAINING=500|FILLED=0|STATUS=CANCELLED
-<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a>RECENT_ASK_LEG|QUOTE_ID=Q100|SIDE=SELL|ORDER_ID=8d1c4e05|QTY=500|REMAINING=200|FILLED=300|STATUS=CANCELLED
-<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a>END|TYPE=QLEGS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>QLEGS|COUNT=2|RECENT_COUNT=1|SHOW=ALL
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>LEG|QUOTE_ID=Q123|SYM=AAPL|SIDE=BUY|ORDER_ID=7c4a91e2|QTY=500|REMAINING=400|FILLED=100|STATUS=PARTIAL_FILL|QUOTE_STATUS=ACTIVE
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>LEG|QUOTE_ID=Q123|SYM=AAPL|SIDE=SELL|ORDER_ID=be2170fd|QTY=500|REMAINING=500|FILLED=0|STATUS=RESTING|QUOTE_STATUS=ACTIVE
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>RECENT_LEG|QUOTE_ID=Q100|SYM=AAPL|QUOTE_STATUS=CANCELLED|REASON=Cancelled by participant|REMOVED_AT_NS=1784468999030221878
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>RECENT_BID_LEG|QUOTE_ID=Q100|SIDE=BUY|ORDER_ID=3f9a2b71|QTY=500|REMAINING=500|FILLED=0|STATUS=CANCELLED
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>RECENT_ASK_LEG|QUOTE_ID=Q100|SIDE=SELL|ORDER_ID=8d1c4e05|QTY=500|REMAINING=200|FILLED=300|STATUS=CANCELLED
+<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a>END|TYPE=QLEGS
 </code></pre></div>
 <p>An unconnected/unknown gateway still gets a well-formed, empty reply
 (<code>QLEGS|COUNT=0|RECENT_COUNT=0|SHOW=...</code> followed immediately by
 <code>END|TYPE=QLEGS</code>) rather than an error — <code>QLEGS</code> never fails on a bad
 gateway ID, it simply has nothing to report.</p>
 <h3 id="session-query-current-trading-session-state"><code>SESSION</code> — query current trading session state<a class="headerlink" href="#session-query-current-trading-session-state" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>SESSION
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>SESSION
 </code></pre></div>
 <p>Requests the engine's current trading session state (<code>PRE_OPEN</code>,
 <code>OPENING_AUCTION</code>, <code>CONTINUOUS</code>, <code>CLOSING_AUCTION</code>, <code>CLOSED</code>) for this
@@ -4973,7 +5006,7 @@ gateway. <code>pm-alf-gwy</code> forwards this straight to the engine's
 <a href="../270-message-reference/#systemsession_state_request"><code>system.session_state_request</code></a>
 message and routes the reply back to the querying session only.</p>
 <p><strong>Response:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>SESSION|STATE=CONTINUOUS|PREV_STATE=|SESSIONS_ENABLED=TRUE
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>SESSION|STATE=CONTINUOUS|PREV_STATE=|SESSIONS_ENABLED=TRUE
 </code></pre></div>
 <p>This reuses the same <code>SESSION</code> message type as the
 <a href="#broadcast-events">unsolicited session-state broadcast</a> below — a queried
@@ -4983,9 +5016,9 @@ field indicating whether session-state gating is active for this engine.
 Existing clients that already parse the broadcast <code>SESSION</code> line need no
 changes to also handle the queried response.</p>
 <h3 id="ping-exit"><code>PING</code> / <code>EXIT</code><a class="headerlink" href="#ping-exit" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>PING        → PONG|TS=2026-07-02T09:30:00.123Z
-<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>EXIT        → (connection closed)
-<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>QUIT        → (connection closed)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>PING        → PONG|TS=2026-07-02T09:30:00.123Z
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>EXIT        → (connection closed)
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>QUIT        → (connection closed)
 </code></pre></div>
 <h2 id="broadcast-events">Broadcast events<a class="headerlink" href="#broadcast-events" title="Permanent link">&para;</a></h2>
 <p>These messages arrive <strong>unsolicited</strong> on every authenticated session.</p>
@@ -5039,23 +5072,23 @@ delivered automatically after <code>WELCOME</code>.</p>
 <tbody>
 <tr>
 <td><code>ACK</code></td>
-<td><code>ORDER_ID</code>, <code>ACCEPTED</code>, <code>REASON</code>, <code>SYMBOL</code>, <code>SIDE</code>, <code>TYPE</code></td>
+<td><code>ORDER_ID</code>, <code>ACCEPTED</code>, <code>REASON</code>, <code>REJECT_CODE</code>, <code>SYMBOL</code>, <code>SIDE</code>, <code>TYPE</code>, <code>TAG</code>, <code>RTAG</code></td>
 </tr>
 <tr>
 <td><code>FILL</code></td>
-<td><code>ORDER_ID</code>, <code>FILL_QTY</code>, <code>FILL_PRICE</code>, <code>REMAINING</code>, <code>STATUS</code>, <code>TRADE_IDS</code></td>
+<td><code>ORDER_ID</code>, <code>FILL_QTY</code>, <code>FILL_PRICE</code>, <code>REMAINING</code>, <code>STATUS</code>, <code>TRADE_IDS</code>, <code>TAG</code></td>
 </tr>
 <tr>
 <td><code>AMENDED</code></td>
-<td><code>ORDER_ID</code>, <code>PRICE</code>, <code>QTY</code>, <code>REMAINING</code>, <code>PRIORITY_RESET</code></td>
+<td><code>ORDER_ID</code>, <code>PRICE</code>, <code>QTY</code>, <code>REMAINING</code>, <code>PRIORITY_RESET</code>, <code>TAG</code>, <code>RTAG</code></td>
 </tr>
 <tr>
 <td><code>CANCELLED</code></td>
-<td><code>ORDER_ID</code></td>
+<td><code>ORDER_ID</code>, <code>TAG</code>, <code>RTAG</code>, <code>CANCEL_REASON</code> — see <a href="#unsolicited-cancels">Unsolicited cancels</a></td>
 </tr>
 <tr>
 <td><code>EXPIRED</code></td>
-<td><code>ORDER_ID</code></td>
+<td><code>ORDER_ID</code>, <code>TAG</code></td>
 </tr>
 <tr>
 <td><code>QUOTE_ACK</code></td>
@@ -5091,10 +5124,65 @@ delivered automatically after <code>WELCOME</code>.</p>
 </tr>
 <tr>
 <td><code>DC_FILL</code></td>
-<td><code>SEQ</code>, <code>ORDER_ID</code>, <code>SYMBOL</code>, <code>FILL_QTY</code>, <code>FILL_PRICE</code>, <code>LIQUIDITY</code> — only while <code>DC|STATE=ON</code> is active, see <a href="#dc-toggle-drop-copy-relay"><code>DC</code></a></td>
+<td><code>SEQ</code>, <code>ORDER_ID</code>, <code>SYMBOL</code>, <code>FILL_QTY</code>, <code>FILL_PRICE</code>, <code>LIQUIDITY</code> — only while <code>DC\|STATE=ON</code> is active, see <a href="#dc-toggle-drop-copy-relay"><code>DC</code></a></td>
 </tr>
 </tbody>
 </table>
+<p>Every one of these carries <code>TAG</code> when the order was submitted with one, so a
+client correlates an event to its own order without matching on arrival order.
+That includes events you did not ask for — an expiry hours after you last
+touched the order, or a cancel the exchange decided on.</p>
+<h3 id="unsolicited-cancels">Unsolicited cancels<a class="headerlink" href="#unsolicited-cancels" title="Permanent link">&para;</a></h3>
+<p>A <code>CANCELLED</code> line does not always answer a <code>CANCEL</code> you sent. The exchange
+cancels orders on its own: self-match prevention, the unfillable remainder of a
+<code>MARKET</code> or <code>IOC</code> order, a kill switch, an OCO sibling, a <code>DAY</code> order at the
+close. Two fields tell you which happened:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>RTAG</code></td>
+<td>Present only when <em>you</em> asked, echoing the <code>RTAG</code> from your <code>CANCEL</code>. Absent means the exchange decided</td>
+</tr>
+<tr>
+<td><code>CANCEL_REASON</code></td>
+<td>Why the exchange decided. Absent on your own cancels</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>CANCELLED|ORDER_ID=ORD-7f3a|TAG=ORDER-001|CANCEL_REASON=SELF_MATCH_PREVENTED
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th><code>CANCEL_REASON</code></th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SELF_MATCH_PREVENTED</code></td>
+<td>The order would have traded against another order from your own gateway. Which order is cancelled — the aggressor, the resting one, or both — follows the <code>SMP</code> action in force</td>
+</tr>
+<tr>
+<td><code>INSUFFICIENT_LIQUIDITY</code></td>
+<td>A <code>MARKET</code> or <code>IOC</code> order ran out of book. Whatever traded is reported by the preceding <code>FILL</code> lines; this cancels the remainder, which never rests</td>
+</tr>
+</tbody>
+</table>
+<p>The field is <strong>omitted, not empty</strong>, when you requested the cancel yourself, and
+also on exchange-initiated cancels whose cause is not yet classified — a kill
+switch, a halt cascade, an expiry. So an absent <code>RTAG</code> together with an absent
+<code>CANCEL_REASON</code> still means <em>the exchange did this, cause unstated</em>. Treat a
+value you do not recognise the same way: new members may be added, but existing
+ones are never removed or renamed.</p>
+<p><code>CANCEL_REASON</code> deliberately does not share the <code>REJECT_CODE</code> vocabulary. A
+cancel is not a rejection — the order was accepted, and may well have traded.</p>
 <h2 id="error-codes">Error codes<a class="headerlink" href="#error-codes" title="Permanent link">&para;</a></h2>
 <p>Every error arrives as <code>ERR|CODE=&lt;CODE&gt;|REJECT_CODE=&lt;canonical-code&gt;|DETAIL=&lt;message&gt;</code>.
 When the rejected command carried <code>TAG</code> or <code>RTAG</code>, the gateway also echoes it as
@@ -5150,7 +5238,12 @@ When the rejected command carried <code>TAG</code> or <code>RTAG</code>, the gat
 </tr>
 <tr>
 <td><code>INVALID_VALUE</code></td>
-<td>Field value fails validation (e.g. <code>PRICE=NaN</code>)</td>
+<td>Field value fails validation (e.g. <code>PRICE=NaN</code>, or a price off the instrument's tick grid — the latter carries <code>REJECT_CODE=TICK_VIOLATION</code>)</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>SYMBOLS_NOT_READY</code></td>
+<td>Any command naming a symbol before the engine's symbol list has reached the gateway (<code>REJECT_CODE=SYMBOL_NOT_READY</code>) — transient, retry</td>
 <td>Yes</td>
 </tr>
 <tr>
@@ -5200,142 +5293,142 @@ protects the gateway from runaway or malicious clients.</p>
 <p>The <code>examples/alf/</code> directory contains ready-to-run Python and C libraries that
 replicate the workflow of <code>pm-alf-console</code> as an <strong>external TCP client</strong> — no
 ZeroMQ, no <code>edumatcher</code> package import, only a plain socket.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>examples/alf/
-<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>├── python/
-<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>│   ├── alf_parser.py       # Protocol library: parse, build, AlfSession
-<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>│   └── alf_client.py       # Interactive client (tab-completion, event display, P&amp;L)
-<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>└── c/
-<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>    ├── alf_parser.h / .c   # C library
-<a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a>    ├── alf_client.c        # Interactive C client (readline + select)
-<a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a>    └── Makefile
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>examples/alf/
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>├── python/
+<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>│   ├── alf_parser.py       # Protocol library: parse, build, AlfSession
+<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>│   └── alf_client.py       # Interactive client (tab-completion, event display, P&amp;L)
+<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>└── c/
+<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a>    ├── alf_parser.h / .c   # C library
+<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a>    ├── alf_client.c        # Interactive C client (readline + select)
+<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a>    └── Makefile
 </code></pre></div>
 <h3 id="python">Python<a class="headerlink" href="#python" title="Permanent link">&para;</a></h3>
 <p><strong>Library — <code>alf_parser.py</code></strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">alf_parser</span><span class="w"> </span><span class="kn">import</span> <span class="n">parse_alf_line</span><span class="p">,</span> <span class="n">build_alf_line</span><span class="p">,</span> <span class="n">AlfSession</span><span class="p">,</span> <span class="n">AlfMessage</span>
-<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>
-<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="c1"># Parse one line received from the gateway</span>
-<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="n">msg</span><span class="p">:</span> <span class="n">AlfMessage</span> <span class="o">=</span> <span class="n">parse_alf_line</span><span class="p">(</span><span class="s2">"ACK|ORDER_ID=abc|ACCEPTED=TRUE|SYMBOL=AAPL|TAG=ORDER-001"</span><span class="p">)</span>
-<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">msg_type</span><span class="p">)</span>    <span class="c1"># "ACK"</span>
-<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="p">)</span>      <span class="c1"># {"ORDER_ID": "ABC", "ACCEPTED": "TRUE", ...}</span>
-<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a>
-<a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a><span class="c1"># Build a line to send</span>
-<a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a><span class="n">line</span> <span class="o">=</span> <span class="n">build_alf_line</span><span class="p">(</span><span class="s2">"NEW"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"SYM"</span><span class="p">:</span> <span class="s2">"AAPL"</span><span class="p">,</span> <span class="s2">"SIDE"</span><span class="p">:</span> <span class="s2">"BUY"</span><span class="p">,</span>
-<a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a>                               <span class="s2">"TYPE"</span><span class="p">:</span> <span class="s2">"LIMIT"</span><span class="p">,</span> <span class="s2">"QTY"</span><span class="p">:</span> <span class="s2">"100"</span><span class="p">,</span> <span class="s2">"PRICE"</span><span class="p">:</span> <span class="s2">"150.00"</span><span class="p">,</span> <span class="s2">"TAG"</span><span class="p">:</span> <span class="s2">"ORDER-001"</span><span class="p">})</span>
-<a id="__codelineno-29-11" name="__codelineno-29-11" href="#__codelineno-29-11"></a><span class="c1"># → "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001\n"</span>
-<a id="__codelineno-29-12" name="__codelineno-29-12" href="#__codelineno-29-12"></a>
-<a id="__codelineno-29-13" name="__codelineno-29-13" href="#__codelineno-29-13"></a><span class="c1"># High-level session: connect, HELLO/WELCOME, send/recv</span>
-<a id="__codelineno-29-14" name="__codelineno-29-14" href="#__codelineno-29-14"></a><span class="n">session</span> <span class="o">=</span> <span class="n">AlfSession</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">"127.0.0.1"</span><span class="p">,</span> <span class="mi">5565</span><span class="p">,</span> <span class="s2">"TRADER01"</span><span class="p">)</span>
-<a id="__codelineno-29-15" name="__codelineno-29-15" href="#__codelineno-29-15"></a><span class="nb">print</span><span class="p">(</span><span class="n">session</span><span class="o">.</span><span class="n">welcome</span><span class="o">.</span><span class="n">gw_name</span><span class="p">)</span>         <span class="c1"># "alf-gwy01"</span>
-<a id="__codelineno-29-16" name="__codelineno-29-16" href="#__codelineno-29-16"></a><span class="n">session</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">"SYMBOLS"</span><span class="p">)</span>
-<a id="__codelineno-29-17" name="__codelineno-29-17" href="#__codelineno-29-17"></a><span class="n">msg</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">recv_msg</span><span class="p">()</span>               <span class="c1"># first line of SYMBOLS response</span>
-<a id="__codelineno-29-18" name="__codelineno-29-18" href="#__codelineno-29-18"></a><span class="n">session</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">alf_parser</span><span class="w"> </span><span class="kn">import</span> <span class="n">parse_alf_line</span><span class="p">,</span> <span class="n">build_alf_line</span><span class="p">,</span> <span class="n">AlfSession</span><span class="p">,</span> <span class="n">AlfMessage</span>
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="c1"># Parse one line received from the gateway</span>
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="n">msg</span><span class="p">:</span> <span class="n">AlfMessage</span> <span class="o">=</span> <span class="n">parse_alf_line</span><span class="p">(</span><span class="s2">"ACK|ORDER_ID=abc|ACCEPTED=TRUE|SYMBOL=AAPL|TAG=ORDER-001"</span><span class="p">)</span>
+<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">msg_type</span><span class="p">)</span>    <span class="c1"># "ACK"</span>
+<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="p">)</span>      <span class="c1"># {"ORDER_ID": "ABC", "ACCEPTED": "TRUE", ...}</span>
+<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a>
+<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a><span class="c1"># Build a line to send</span>
+<a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a><span class="n">line</span> <span class="o">=</span> <span class="n">build_alf_line</span><span class="p">(</span><span class="s2">"NEW"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"SYM"</span><span class="p">:</span> <span class="s2">"AAPL"</span><span class="p">,</span> <span class="s2">"SIDE"</span><span class="p">:</span> <span class="s2">"BUY"</span><span class="p">,</span>
+<a id="__codelineno-31-10" name="__codelineno-31-10" href="#__codelineno-31-10"></a>                               <span class="s2">"TYPE"</span><span class="p">:</span> <span class="s2">"LIMIT"</span><span class="p">,</span> <span class="s2">"QTY"</span><span class="p">:</span> <span class="s2">"100"</span><span class="p">,</span> <span class="s2">"PRICE"</span><span class="p">:</span> <span class="s2">"150.00"</span><span class="p">,</span> <span class="s2">"TAG"</span><span class="p">:</span> <span class="s2">"ORDER-001"</span><span class="p">})</span>
+<a id="__codelineno-31-11" name="__codelineno-31-11" href="#__codelineno-31-11"></a><span class="c1"># → "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001\n"</span>
+<a id="__codelineno-31-12" name="__codelineno-31-12" href="#__codelineno-31-12"></a>
+<a id="__codelineno-31-13" name="__codelineno-31-13" href="#__codelineno-31-13"></a><span class="c1"># High-level session: connect, HELLO/WELCOME, send/recv</span>
+<a id="__codelineno-31-14" name="__codelineno-31-14" href="#__codelineno-31-14"></a><span class="n">session</span> <span class="o">=</span> <span class="n">AlfSession</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">"127.0.0.1"</span><span class="p">,</span> <span class="mi">5565</span><span class="p">,</span> <span class="s2">"TRADER01"</span><span class="p">)</span>
+<a id="__codelineno-31-15" name="__codelineno-31-15" href="#__codelineno-31-15"></a><span class="nb">print</span><span class="p">(</span><span class="n">session</span><span class="o">.</span><span class="n">welcome</span><span class="o">.</span><span class="n">gw_name</span><span class="p">)</span>         <span class="c1"># "alf-gwy01"</span>
+<a id="__codelineno-31-16" name="__codelineno-31-16" href="#__codelineno-31-16"></a><span class="n">session</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">"SYMBOLS"</span><span class="p">)</span>
+<a id="__codelineno-31-17" name="__codelineno-31-17" href="#__codelineno-31-17"></a><span class="n">msg</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">recv_msg</span><span class="p">()</span>               <span class="c1"># first line of SYMBOLS response</span>
+<a id="__codelineno-31-18" name="__codelineno-31-18" href="#__codelineno-31-18"></a><span class="n">session</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </code></pre></div>
 <p><strong>Interactive client — <code>alf_client.py</code></strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/alf/python
-<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>
-<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a><span class="c1"># Connect to a local gateway</span>
-<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>python3<span class="w"> </span>alf_client.py<span class="w"> </span>--id<span class="w"> </span>TRADER01
-<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>
-<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a><span class="c1"># Connect to a remote gateway</span>
-<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a>python3<span class="w"> </span>alf_client.py<span class="w"> </span>--host<span class="w"> </span><span class="m">10</span>.0.0.5<span class="w"> </span>--port<span class="w"> </span><span class="m">5565</span><span class="w"> </span>--id<span class="w"> </span>TRADER01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/alf/python
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a><span class="c1"># Connect to a local gateway</span>
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a>python3<span class="w"> </span>alf_client.py<span class="w"> </span>--id<span class="w"> </span>TRADER01
+<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>
+<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a><span class="c1"># Connect to a remote gateway</span>
+<a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a>python3<span class="w"> </span>alf_client.py<span class="w"> </span>--host<span class="w"> </span><span class="m">10</span>.0.0.5<span class="w"> </span>--port<span class="w"> </span><span class="m">5565</span><span class="w"> </span>--id<span class="w"> </span>TRADER01
 </code></pre></div>
 <p>At the prompt the client behaves like <code>pm-alf-console</code>:
 Tab completes command verbs, field names, and enum values.
 Background receive thread displays fills, acks, and broadcast events while you type.
 <code>POS</code> shows tracked positions.  <code>STATUS</code> shows session info.
 History is saved to <code>~/.alf_client_history</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001
-<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>[09:30:01.234] ACK      xxxxxxxx tag=ORDER-001  order accepted
-<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>[TRADER01]&gt; ORDERS
-<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>[TRADER01]&gt; POS
-<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>[TRADER01]&gt; HELP
-<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a>[TRADER01]&gt; EXIT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>[09:30:01.234] ACK      xxxxxxxx tag=ORDER-001  order accepted
+<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>[TRADER01]&gt; ORDERS
+<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a>[TRADER01]&gt; POS
+<a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a>[TRADER01]&gt; HELP
+<a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a>[TRADER01]&gt; EXIT
 </code></pre></div>
 <h3 id="c">C<a class="headerlink" href="#c" title="Permanent link">&para;</a></h3>
 <p><strong>Build:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="c1"># macOS: brew install readline (Homebrew readline for full callback support)</span>
-<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="c1"># Linux: sudo apt install libreadline-dev</span>
-<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>
-<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/alf/c
-<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>make
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="c1"># macOS: brew install readline (Homebrew readline for full callback support)</span>
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="c1"># Linux: sudo apt install libreadline-dev</span>
+<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a>
+<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/alf/c
+<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a>make
 </code></pre></div>
 <p><strong>Run:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>./alf_client<span class="w"> </span>--id<span class="w"> </span>TRADER01
-<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>./alf_client<span class="w"> </span>--host<span class="w"> </span><span class="m">10</span>.0.0.5<span class="w"> </span>--port<span class="w"> </span><span class="m">5565</span><span class="w"> </span>--id<span class="w"> </span>TRADER01
-<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>./alf_client<span class="w"> </span>--id<span class="w"> </span>TRADER01<span class="w"> </span>--no-color
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>./alf_client<span class="w"> </span>--id<span class="w"> </span>TRADER01
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a>./alf_client<span class="w"> </span>--host<span class="w"> </span><span class="m">10</span>.0.0.5<span class="w"> </span>--port<span class="w"> </span><span class="m">5565</span><span class="w"> </span>--id<span class="w"> </span>TRADER01
+<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a>./alf_client<span class="w"> </span>--id<span class="w"> </span>TRADER01<span class="w"> </span>--no-color
 </code></pre></div>
 <p>The C client uses <code>select()</code> to multiplex the TCP socket and stdin, so gateway
 events display immediately while you are typing.  Readline provides tab
 completion and history.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-002
-<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>[09:30:01.234] ACK      xxxxxxxx tag=ORDER-002  order accepted
-<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a>[TRADER01]&gt; ORDERS
-<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a>[TRADER01]&gt; POS
-<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a>[TRADER01]&gt; HELP
-<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a>[TRADER01]&gt; EXIT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-002
+<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a>[09:30:01.234] ACK      xxxxxxxx tag=ORDER-002  order accepted
+<a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a>[TRADER01]&gt; ORDERS
+<a id="__codelineno-36-4" name="__codelineno-36-4" href="#__codelineno-36-4"></a>[TRADER01]&gt; POS
+<a id="__codelineno-36-5" name="__codelineno-36-5" href="#__codelineno-36-5"></a>[TRADER01]&gt; HELP
+<a id="__codelineno-36-6" name="__codelineno-36-6" href="#__codelineno-36-6"></a>[TRADER01]&gt; EXIT
 </code></pre></div>
 <p><strong>Library usage:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">"alf_parser.h"</span>
-<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a>
-<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a><span class="cm">/* Parse */</span>
-<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a><span class="kt">char</span><span class="w"> </span><span class="n">line</span><span class="p">[]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"ACK|ORDER_ID=abc|ACCEPTED=TRUE"</span><span class="p">;</span>
-<a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a><span class="n">alf_message_t</span><span class="w"> </span><span class="n">msg</span><span class="p">;</span>
-<a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a><span class="n">alf_parse_line</span><span class="p">(</span><span class="n">line</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">msg</span><span class="p">);</span>
-<a id="__codelineno-35-7" name="__codelineno-35-7" href="#__codelineno-35-7"></a><span class="n">puts</span><span class="p">(</span><span class="n">alf_get_field</span><span class="p">(</span><span class="o">&amp;</span><span class="n">msg</span><span class="p">,</span><span class="w"> </span><span class="s">"ACCEPTED"</span><span class="p">));</span><span class="w">   </span><span class="cm">/* "TRUE" */</span>
-<a id="__codelineno-35-8" name="__codelineno-35-8" href="#__codelineno-35-8"></a>
-<a id="__codelineno-35-9" name="__codelineno-35-9" href="#__codelineno-35-9"></a><span class="cm">/* Build */</span>
-<a id="__codelineno-35-10" name="__codelineno-35-10" href="#__codelineno-35-10"></a><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">kv</span><span class="p">[]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="s">"SYM"</span><span class="p">,</span><span class="w"> </span><span class="s">"AAPL"</span><span class="p">,</span><span class="w"> </span><span class="s">"SIDE"</span><span class="p">,</span><span class="w"> </span><span class="s">"BUY"</span><span class="p">,</span>
-<a id="__codelineno-35-11" name="__codelineno-35-11" href="#__codelineno-35-11"></a><span class="w">                    </span><span class="s">"TYPE"</span><span class="p">,</span><span class="w"> </span><span class="s">"LIMIT"</span><span class="p">,</span><span class="w"> </span><span class="s">"QTY"</span><span class="p">,</span><span class="w"> </span><span class="s">"100"</span><span class="p">,</span><span class="w"> </span><span class="s">"PRICE"</span><span class="p">,</span><span class="w"> </span><span class="s">"150.00"</span><span class="p">,</span><span class="w"> </span><span class="s">"TAG"</span><span class="p">,</span><span class="w"> </span><span class="s">"ORDER-003"</span><span class="p">,</span><span class="w"> </span><span class="nb">NULL</span><span class="p">};</span>
-<a id="__codelineno-35-12" name="__codelineno-35-12" href="#__codelineno-35-12"></a><span class="kt">char</span><span class="w"> </span><span class="n">buf</span><span class="p">[</span><span class="mi">4096</span><span class="p">];</span>
-<a id="__codelineno-35-13" name="__codelineno-35-13" href="#__codelineno-35-13"></a><span class="n">alf_build_line</span><span class="p">(</span><span class="n">buf</span><span class="p">,</span><span class="w"> </span><span class="k">sizeof</span><span class="p">(</span><span class="n">buf</span><span class="p">),</span><span class="w"> </span><span class="s">"NEW"</span><span class="p">,</span><span class="w"> </span><span class="n">kv</span><span class="p">);</span>
-<a id="__codelineno-35-14" name="__codelineno-35-14" href="#__codelineno-35-14"></a><span class="n">write</span><span class="p">(</span><span class="n">sockfd</span><span class="p">,</span><span class="w"> </span><span class="n">buf</span><span class="p">,</span><span class="w"> </span><span class="n">strlen</span><span class="p">(</span><span class="n">buf</span><span class="p">));</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">"alf_parser.h"</span>
+<a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a>
+<a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a><span class="cm">/* Parse */</span>
+<a id="__codelineno-37-4" name="__codelineno-37-4" href="#__codelineno-37-4"></a><span class="kt">char</span><span class="w"> </span><span class="n">line</span><span class="p">[]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"ACK|ORDER_ID=abc|ACCEPTED=TRUE"</span><span class="p">;</span>
+<a id="__codelineno-37-5" name="__codelineno-37-5" href="#__codelineno-37-5"></a><span class="n">alf_message_t</span><span class="w"> </span><span class="n">msg</span><span class="p">;</span>
+<a id="__codelineno-37-6" name="__codelineno-37-6" href="#__codelineno-37-6"></a><span class="n">alf_parse_line</span><span class="p">(</span><span class="n">line</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">msg</span><span class="p">);</span>
+<a id="__codelineno-37-7" name="__codelineno-37-7" href="#__codelineno-37-7"></a><span class="n">puts</span><span class="p">(</span><span class="n">alf_get_field</span><span class="p">(</span><span class="o">&amp;</span><span class="n">msg</span><span class="p">,</span><span class="w"> </span><span class="s">"ACCEPTED"</span><span class="p">));</span><span class="w">   </span><span class="cm">/* "TRUE" */</span>
+<a id="__codelineno-37-8" name="__codelineno-37-8" href="#__codelineno-37-8"></a>
+<a id="__codelineno-37-9" name="__codelineno-37-9" href="#__codelineno-37-9"></a><span class="cm">/* Build */</span>
+<a id="__codelineno-37-10" name="__codelineno-37-10" href="#__codelineno-37-10"></a><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">kv</span><span class="p">[]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="s">"SYM"</span><span class="p">,</span><span class="w"> </span><span class="s">"AAPL"</span><span class="p">,</span><span class="w"> </span><span class="s">"SIDE"</span><span class="p">,</span><span class="w"> </span><span class="s">"BUY"</span><span class="p">,</span>
+<a id="__codelineno-37-11" name="__codelineno-37-11" href="#__codelineno-37-11"></a><span class="w">                    </span><span class="s">"TYPE"</span><span class="p">,</span><span class="w"> </span><span class="s">"LIMIT"</span><span class="p">,</span><span class="w"> </span><span class="s">"QTY"</span><span class="p">,</span><span class="w"> </span><span class="s">"100"</span><span class="p">,</span><span class="w"> </span><span class="s">"PRICE"</span><span class="p">,</span><span class="w"> </span><span class="s">"150.00"</span><span class="p">,</span><span class="w"> </span><span class="s">"TAG"</span><span class="p">,</span><span class="w"> </span><span class="s">"ORDER-003"</span><span class="p">,</span><span class="w"> </span><span class="nb">NULL</span><span class="p">};</span>
+<a id="__codelineno-37-12" name="__codelineno-37-12" href="#__codelineno-37-12"></a><span class="kt">char</span><span class="w"> </span><span class="n">buf</span><span class="p">[</span><span class="mi">4096</span><span class="p">];</span>
+<a id="__codelineno-37-13" name="__codelineno-37-13" href="#__codelineno-37-13"></a><span class="n">alf_build_line</span><span class="p">(</span><span class="n">buf</span><span class="p">,</span><span class="w"> </span><span class="k">sizeof</span><span class="p">(</span><span class="n">buf</span><span class="p">),</span><span class="w"> </span><span class="s">"NEW"</span><span class="p">,</span><span class="w"> </span><span class="n">kv</span><span class="p">);</span>
+<a id="__codelineno-37-14" name="__codelineno-37-14" href="#__codelineno-37-14"></a><span class="n">write</span><span class="p">(</span><span class="n">sockfd</span><span class="p">,</span><span class="w"> </span><span class="n">buf</span><span class="p">,</span><span class="w"> </span><span class="n">strlen</span><span class="p">(</span><span class="n">buf</span><span class="p">));</span>
 </code></pre></div>
 <h3 id="minimal-zero-dependency-client-python">Minimal zero-dependency client (Python)<a class="headerlink" href="#minimal-zero-dependency-client-python" title="Permanent link">&para;</a></h3>
 <p>For scripts that cannot import anything outside the standard library:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">socket</span>
-<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a>
-<a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a><span class="k">def</span><span class="w"> </span><span class="nf">alf_connect</span><span class="p">(</span><span class="n">host</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">port</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">gateway_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">client_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"bot"</span><span class="p">):</span>
-<a id="__codelineno-36-4" name="__codelineno-36-4" href="#__codelineno-36-4"></a>    <span class="n">sock</span> <span class="o">=</span> <span class="n">socket</span><span class="o">.</span><span class="n">create_connection</span><span class="p">((</span><span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">),</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
-<a id="__codelineno-36-5" name="__codelineno-36-5" href="#__codelineno-36-5"></a>    <span class="n">buf</span> <span class="o">=</span> <span class="nb">bytearray</span><span class="p">()</span>
-<a id="__codelineno-36-6" name="__codelineno-36-6" href="#__codelineno-36-6"></a>
-<a id="__codelineno-36-7" name="__codelineno-36-7" href="#__codelineno-36-7"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">send</span><span class="p">(</span><span class="n">line</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-36-8" name="__codelineno-36-8" href="#__codelineno-36-8"></a>        <span class="n">sock</span><span class="o">.</span><span class="n">sendall</span><span class="p">((</span><span class="n">line</span> <span class="o">+</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">"utf-8"</span><span class="p">))</span>
-<a id="__codelineno-36-9" name="__codelineno-36-9" href="#__codelineno-36-9"></a>
-<a id="__codelineno-36-10" name="__codelineno-36-10" href="#__codelineno-36-10"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">recv_line</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<a id="__codelineno-36-11" name="__codelineno-36-11" href="#__codelineno-36-11"></a>        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
-<a id="__codelineno-36-12" name="__codelineno-36-12" href="#__codelineno-36-12"></a>            <span class="n">nl</span> <span class="o">=</span> <span class="n">buf</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="sa">b</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
-<a id="__codelineno-36-13" name="__codelineno-36-13" href="#__codelineno-36-13"></a>            <span class="k">if</span> <span class="n">nl</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
-<a id="__codelineno-36-14" name="__codelineno-36-14" href="#__codelineno-36-14"></a>                <span class="n">line</span> <span class="o">=</span> <span class="nb">bytes</span><span class="p">(</span><span class="n">buf</span><span class="p">[:</span><span class="n">nl</span><span class="p">])</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">"utf-8"</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s2">"replace"</span><span class="p">)</span>
-<a id="__codelineno-36-15" name="__codelineno-36-15" href="#__codelineno-36-15"></a>                <span class="k">del</span> <span class="n">buf</span><span class="p">[:</span><span class="n">nl</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>
-<a id="__codelineno-36-16" name="__codelineno-36-16" href="#__codelineno-36-16"></a>                <span class="k">return</span> <span class="n">line</span>
-<a id="__codelineno-36-17" name="__codelineno-36-17" href="#__codelineno-36-17"></a>            <span class="n">chunk</span> <span class="o">=</span> <span class="n">sock</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="mi">4096</span><span class="p">)</span>
-<a id="__codelineno-36-18" name="__codelineno-36-18" href="#__codelineno-36-18"></a>            <span class="k">if</span> <span class="ow">not</span> <span class="n">chunk</span><span class="p">:</span>
-<a id="__codelineno-36-19" name="__codelineno-36-19" href="#__codelineno-36-19"></a>                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"gateway closed connection"</span><span class="p">)</span>
-<a id="__codelineno-36-20" name="__codelineno-36-20" href="#__codelineno-36-20"></a>            <span class="n">buf</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">chunk</span><span class="p">)</span>
-<a id="__codelineno-36-21" name="__codelineno-36-21" href="#__codelineno-36-21"></a>
-<a id="__codelineno-36-22" name="__codelineno-36-22" href="#__codelineno-36-22"></a>    <span class="n">send</span><span class="p">(</span><span class="sa">f</span><span class="s2">"HELLO|CLIENT=</span><span class="si">{</span><span class="n">client_name</span><span class="si">}</span><span class="s2">|PROTO=ALF1|ID=</span><span class="si">{</span><span class="n">gateway_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-<a id="__codelineno-36-23" name="__codelineno-36-23" href="#__codelineno-36-23"></a>    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
-<a id="__codelineno-36-24" name="__codelineno-36-24" href="#__codelineno-36-24"></a>        <span class="n">line</span> <span class="o">=</span> <span class="n">recv_line</span><span class="p">()</span>
-<a id="__codelineno-36-25" name="__codelineno-36-25" href="#__codelineno-36-25"></a>        <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"WELCOME"</span><span class="p">):</span>
-<a id="__codelineno-36-26" name="__codelineno-36-26" href="#__codelineno-36-26"></a>            <span class="k">break</span>
-<a id="__codelineno-36-27" name="__codelineno-36-27" href="#__codelineno-36-27"></a>        <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"ERR"</span><span class="p">):</span>
-<a id="__codelineno-36-28" name="__codelineno-36-28" href="#__codelineno-36-28"></a>            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Auth failed: </span><span class="si">{</span><span class="n">line</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-<a id="__codelineno-36-29" name="__codelineno-36-29" href="#__codelineno-36-29"></a>
-<a id="__codelineno-36-30" name="__codelineno-36-30" href="#__codelineno-36-30"></a>    <span class="k">return</span> <span class="n">sock</span><span class="p">,</span> <span class="n">send</span><span class="p">,</span> <span class="n">recv_line</span>
-<a id="__codelineno-36-31" name="__codelineno-36-31" href="#__codelineno-36-31"></a>
-<a id="__codelineno-36-32" name="__codelineno-36-32" href="#__codelineno-36-32"></a>
-<a id="__codelineno-36-33" name="__codelineno-36-33" href="#__codelineno-36-33"></a><span class="n">sock</span><span class="p">,</span> <span class="n">send</span><span class="p">,</span> <span class="n">recv_line</span> <span class="o">=</span> <span class="n">alf_connect</span><span class="p">(</span><span class="s2">"127.0.0.1"</span><span class="p">,</span> <span class="mi">5565</span><span class="p">,</span> <span class="s2">"TRADER01"</span><span class="p">)</span>
-<a id="__codelineno-36-34" name="__codelineno-36-34" href="#__codelineno-36-34"></a><span class="n">send</span><span class="p">(</span><span class="s2">"NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-004"</span><span class="p">)</span>
-<a id="__codelineno-36-35" name="__codelineno-36-35" href="#__codelineno-36-35"></a>
-<a id="__codelineno-36-36" name="__codelineno-36-36" href="#__codelineno-36-36"></a><span class="c1"># Read events until ACK arrives — HB/SESSION/TRADE may arrive first</span>
-<a id="__codelineno-36-37" name="__codelineno-36-37" href="#__codelineno-36-37"></a><span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
-<a id="__codelineno-36-38" name="__codelineno-36-38" href="#__codelineno-36-38"></a>    <span class="n">line</span> <span class="o">=</span> <span class="n">recv_line</span><span class="p">()</span>
-<a id="__codelineno-36-39" name="__codelineno-36-39" href="#__codelineno-36-39"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
-<a id="__codelineno-36-40" name="__codelineno-36-40" href="#__codelineno-36-40"></a>    <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"ACK"</span><span class="p">):</span>
-<a id="__codelineno-36-41" name="__codelineno-36-41" href="#__codelineno-36-41"></a>        <span class="k">break</span>
-<a id="__codelineno-36-42" name="__codelineno-36-42" href="#__codelineno-36-42"></a>
-<a id="__codelineno-36-43" name="__codelineno-36-43" href="#__codelineno-36-43"></a><span class="n">send</span><span class="p">(</span><span class="s2">"EXIT"</span><span class="p">)</span>
-<a id="__codelineno-36-44" name="__codelineno-36-44" href="#__codelineno-36-44"></a><span class="n">sock</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">socket</span>
+<a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a>
+<a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a><span class="k">def</span><span class="w"> </span><span class="nf">alf_connect</span><span class="p">(</span><span class="n">host</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">port</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">gateway_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">client_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"bot"</span><span class="p">):</span>
+<a id="__codelineno-38-4" name="__codelineno-38-4" href="#__codelineno-38-4"></a>    <span class="n">sock</span> <span class="o">=</span> <span class="n">socket</span><span class="o">.</span><span class="n">create_connection</span><span class="p">((</span><span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">),</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+<a id="__codelineno-38-5" name="__codelineno-38-5" href="#__codelineno-38-5"></a>    <span class="n">buf</span> <span class="o">=</span> <span class="nb">bytearray</span><span class="p">()</span>
+<a id="__codelineno-38-6" name="__codelineno-38-6" href="#__codelineno-38-6"></a>
+<a id="__codelineno-38-7" name="__codelineno-38-7" href="#__codelineno-38-7"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">send</span><span class="p">(</span><span class="n">line</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-38-8" name="__codelineno-38-8" href="#__codelineno-38-8"></a>        <span class="n">sock</span><span class="o">.</span><span class="n">sendall</span><span class="p">((</span><span class="n">line</span> <span class="o">+</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">"utf-8"</span><span class="p">))</span>
+<a id="__codelineno-38-9" name="__codelineno-38-9" href="#__codelineno-38-9"></a>
+<a id="__codelineno-38-10" name="__codelineno-38-10" href="#__codelineno-38-10"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">recv_line</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="__codelineno-38-11" name="__codelineno-38-11" href="#__codelineno-38-11"></a>        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+<a id="__codelineno-38-12" name="__codelineno-38-12" href="#__codelineno-38-12"></a>            <span class="n">nl</span> <span class="o">=</span> <span class="n">buf</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="sa">b</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+<a id="__codelineno-38-13" name="__codelineno-38-13" href="#__codelineno-38-13"></a>            <span class="k">if</span> <span class="n">nl</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-38-14" name="__codelineno-38-14" href="#__codelineno-38-14"></a>                <span class="n">line</span> <span class="o">=</span> <span class="nb">bytes</span><span class="p">(</span><span class="n">buf</span><span class="p">[:</span><span class="n">nl</span><span class="p">])</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">"utf-8"</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s2">"replace"</span><span class="p">)</span>
+<a id="__codelineno-38-15" name="__codelineno-38-15" href="#__codelineno-38-15"></a>                <span class="k">del</span> <span class="n">buf</span><span class="p">[:</span><span class="n">nl</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>
+<a id="__codelineno-38-16" name="__codelineno-38-16" href="#__codelineno-38-16"></a>                <span class="k">return</span> <span class="n">line</span>
+<a id="__codelineno-38-17" name="__codelineno-38-17" href="#__codelineno-38-17"></a>            <span class="n">chunk</span> <span class="o">=</span> <span class="n">sock</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="mi">4096</span><span class="p">)</span>
+<a id="__codelineno-38-18" name="__codelineno-38-18" href="#__codelineno-38-18"></a>            <span class="k">if</span> <span class="ow">not</span> <span class="n">chunk</span><span class="p">:</span>
+<a id="__codelineno-38-19" name="__codelineno-38-19" href="#__codelineno-38-19"></a>                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"gateway closed connection"</span><span class="p">)</span>
+<a id="__codelineno-38-20" name="__codelineno-38-20" href="#__codelineno-38-20"></a>            <span class="n">buf</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">chunk</span><span class="p">)</span>
+<a id="__codelineno-38-21" name="__codelineno-38-21" href="#__codelineno-38-21"></a>
+<a id="__codelineno-38-22" name="__codelineno-38-22" href="#__codelineno-38-22"></a>    <span class="n">send</span><span class="p">(</span><span class="sa">f</span><span class="s2">"HELLO|CLIENT=</span><span class="si">{</span><span class="n">client_name</span><span class="si">}</span><span class="s2">|PROTO=ALF1|ID=</span><span class="si">{</span><span class="n">gateway_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<a id="__codelineno-38-23" name="__codelineno-38-23" href="#__codelineno-38-23"></a>    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+<a id="__codelineno-38-24" name="__codelineno-38-24" href="#__codelineno-38-24"></a>        <span class="n">line</span> <span class="o">=</span> <span class="n">recv_line</span><span class="p">()</span>
+<a id="__codelineno-38-25" name="__codelineno-38-25" href="#__codelineno-38-25"></a>        <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"WELCOME"</span><span class="p">):</span>
+<a id="__codelineno-38-26" name="__codelineno-38-26" href="#__codelineno-38-26"></a>            <span class="k">break</span>
+<a id="__codelineno-38-27" name="__codelineno-38-27" href="#__codelineno-38-27"></a>        <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"ERR"</span><span class="p">):</span>
+<a id="__codelineno-38-28" name="__codelineno-38-28" href="#__codelineno-38-28"></a>            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Auth failed: </span><span class="si">{</span><span class="n">line</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<a id="__codelineno-38-29" name="__codelineno-38-29" href="#__codelineno-38-29"></a>
+<a id="__codelineno-38-30" name="__codelineno-38-30" href="#__codelineno-38-30"></a>    <span class="k">return</span> <span class="n">sock</span><span class="p">,</span> <span class="n">send</span><span class="p">,</span> <span class="n">recv_line</span>
+<a id="__codelineno-38-31" name="__codelineno-38-31" href="#__codelineno-38-31"></a>
+<a id="__codelineno-38-32" name="__codelineno-38-32" href="#__codelineno-38-32"></a>
+<a id="__codelineno-38-33" name="__codelineno-38-33" href="#__codelineno-38-33"></a><span class="n">sock</span><span class="p">,</span> <span class="n">send</span><span class="p">,</span> <span class="n">recv_line</span> <span class="o">=</span> <span class="n">alf_connect</span><span class="p">(</span><span class="s2">"127.0.0.1"</span><span class="p">,</span> <span class="mi">5565</span><span class="p">,</span> <span class="s2">"TRADER01"</span><span class="p">)</span>
+<a id="__codelineno-38-34" name="__codelineno-38-34" href="#__codelineno-38-34"></a><span class="n">send</span><span class="p">(</span><span class="s2">"NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-004"</span><span class="p">)</span>
+<a id="__codelineno-38-35" name="__codelineno-38-35" href="#__codelineno-38-35"></a>
+<a id="__codelineno-38-36" name="__codelineno-38-36" href="#__codelineno-38-36"></a><span class="c1"># Read events until ACK arrives — HB/SESSION/TRADE may arrive first</span>
+<a id="__codelineno-38-37" name="__codelineno-38-37" href="#__codelineno-38-37"></a><span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+<a id="__codelineno-38-38" name="__codelineno-38-38" href="#__codelineno-38-38"></a>    <span class="n">line</span> <span class="o">=</span> <span class="n">recv_line</span><span class="p">()</span>
+<a id="__codelineno-38-39" name="__codelineno-38-39" href="#__codelineno-38-39"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+<a id="__codelineno-38-40" name="__codelineno-38-40" href="#__codelineno-38-40"></a>    <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"ACK"</span><span class="p">):</span>
+<a id="__codelineno-38-41" name="__codelineno-38-41" href="#__codelineno-38-41"></a>        <span class="k">break</span>
+<a id="__codelineno-38-42" name="__codelineno-38-42" href="#__codelineno-38-42"></a>
+<a id="__codelineno-38-43" name="__codelineno-38-43" href="#__codelineno-38-43"></a><span class="n">send</span><span class="p">(</span><span class="s2">"EXIT"</span><span class="p">)</span>
+<a id="__codelineno-38-44" name="__codelineno-38-44" href="#__codelineno-38-44"></a><span class="n">sock</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title">TCP is a byte stream</p>
@@ -5377,21 +5470,21 @@ completion and history.</p>
 <p>Before starting <code>pm-alf-gwy</code>, or when a client cannot connect, verify that
 something is actually listening on port 5565.</p>
 <p><strong>macOS:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a><span class="c1"># lsof — shows the process name and PID holding the port</span>
-<a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a>sudo<span class="w"> </span>lsof<span class="w"> </span>-iTCP:5565<span class="w"> </span>-sTCP:LISTEN
-<a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a>
-<a id="__codelineno-37-4" name="__codelineno-37-4" href="#__codelineno-37-4"></a><span class="c1"># BSD netstat (ships with macOS)</span>
-<a id="__codelineno-37-5" name="__codelineno-37-5" href="#__codelineno-37-5"></a>netstat<span class="w"> </span>-an<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>LISTEN<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="m">5565</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a><span class="c1"># lsof — shows the process name and PID holding the port</span>
+<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>sudo<span class="w"> </span>lsof<span class="w"> </span>-iTCP:5565<span class="w"> </span>-sTCP:LISTEN
+<a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a>
+<a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a><span class="c1"># BSD netstat (ships with macOS)</span>
+<a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a>netstat<span class="w"> </span>-an<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>LISTEN<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="m">5565</span>
 </code></pre></div>
 <p><strong>Linux:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a><span class="c1"># ss — preferred on modern Linux</span>
-<a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a>ss<span class="w"> </span>-tlnp<span class="w"> </span><span class="s1">'sport = :5565'</span>
-<a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a>
-<a id="__codelineno-38-4" name="__codelineno-38-4" href="#__codelineno-38-4"></a><span class="c1"># lsof</span>
-<a id="__codelineno-38-5" name="__codelineno-38-5" href="#__codelineno-38-5"></a>sudo<span class="w"> </span>lsof<span class="w"> </span>-iTCP:5565<span class="w"> </span>-sTCP:LISTEN
-<a id="__codelineno-38-6" name="__codelineno-38-6" href="#__codelineno-38-6"></a>
-<a id="__codelineno-38-7" name="__codelineno-38-7" href="#__codelineno-38-7"></a><span class="c1"># netstat (older distributions)</span>
-<a id="__codelineno-38-8" name="__codelineno-38-8" href="#__codelineno-38-8"></a>netstat<span class="w"> </span>-tlnp<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="m">5565</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a><span class="c1"># ss — preferred on modern Linux</span>
+<a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a>ss<span class="w"> </span>-tlnp<span class="w"> </span><span class="s1">'sport = :5565'</span>
+<a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a>
+<a id="__codelineno-40-4" name="__codelineno-40-4" href="#__codelineno-40-4"></a><span class="c1"># lsof</span>
+<a id="__codelineno-40-5" name="__codelineno-40-5" href="#__codelineno-40-5"></a>sudo<span class="w"> </span>lsof<span class="w"> </span>-iTCP:5565<span class="w"> </span>-sTCP:LISTEN
+<a id="__codelineno-40-6" name="__codelineno-40-6" href="#__codelineno-40-6"></a>
+<a id="__codelineno-40-7" name="__codelineno-40-7" href="#__codelineno-40-7"></a><span class="c1"># netstat (older distributions)</span>
+<a id="__codelineno-40-8" name="__codelineno-40-8" href="#__codelineno-40-8"></a>netstat<span class="w"> </span>-tlnp<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="m">5565</span>
 </code></pre></div>
 <p>If no output appears, the gateway is not running or is bound to a different port.
 Check the <code>alf_gateway.port</code> value in <code>engine_config.yaml</code>.</p>
@@ -5399,27 +5492,27 @@ Check the <code>alf_gateway.port</code> value in <code>engine_config.yaml</code>
 <p>Use <code>nc</code> (netcat) to open a raw TCP connection and type ALF lines by hand.
 This bypasses any client library and proves the gateway is reachable end-to-end.</p>
 <p><strong>macOS / Linux:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5565</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5565</span>
 </code></pre></div>
 <p>For a remote host:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>nc<span class="w"> </span><span class="m">10</span>.0.0.5<span class="w"> </span><span class="m">5565</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a>nc<span class="w"> </span><span class="m">10</span>.0.0.5<span class="w"> </span><span class="m">5565</span>
 </code></pre></div>
 <p>Type the following lines (press Enter after each):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>HELLO|CLIENT=test|PROTO=ALF1|ID=TRADER01
-<a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a>SYMBOLS
-<a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a>EXIT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a>HELLO|CLIENT=test|PROTO=ALF1|ID=TRADER01
+<a id="__codelineno-43-2" name="__codelineno-43-2" href="#__codelineno-43-2"></a>SYMBOLS
+<a id="__codelineno-43-3" name="__codelineno-43-3" href="#__codelineno-43-3"></a>EXIT
 </code></pre></div>
 <p>Expected output: <code>WELCOME|...</code>, then a <code>SYMBOLS|COUNT=N</code> block, then
 <code>END|TYPE=SYMBOLS</code>, then the connection closes.</p>
 <p><strong><code>telnet</code> (macOS / Linux):</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a>telnet<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5565</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a>telnet<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5565</span>
 </code></pre></div>
 <p>Type <code>HELLO|CLIENT=test|PROTO=ALF1|ID=TRADER01</code> and press Enter.  <code>telnet</code>
 echoes characters locally so the line appears duplicated in the terminal —
 the <code>WELCOME</code> response confirms the gateway accepted it.  Press <code>Ctrl-]</code>,
 then type <code>quit</code> to close.</p>
 <p><strong>Non-interactive test (useful in scripts or CI):</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a><span class="nb">printf</span><span class="w"> </span><span class="s1">'HELLO|CLIENT=test|PROTO=ALF1|ID=TRADER01\nEXIT\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5565</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a><span class="nb">printf</span><span class="w"> </span><span class="s1">'HELLO|CLIENT=test|PROTO=ALF1|ID=TRADER01\nEXIT\n'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5565</span>
 </code></pre></div>
 <p>Expected output ends with <code>BYE</code> or a clean connection close immediately after <code>WELCOME</code>.</p>
 <h3 id="common-problems">Common problems<a class="headerlink" href="#common-problems" title="Permanent link">&para;</a></h3>

@@ -5205,6 +5205,33 @@ it prioritizes immediacy over price certainty.</p>
 <li>Partial fills are accepted — the unfilled remainder is <strong>discarded</strong> (not rested)</li>
 <li>No price specified</li>
 </ul>
+<p>The discarded remainder is not silently dropped. The order is <em>accepted</em>, and
+what could not be filled arrives as a cancellation carrying
+<code>CANCEL_REASON=INSUFFICIENT_LIQUIDITY</code> (<code>cancel_reason</code> on REST). A <code>MARKET</code>
+order into an empty book is therefore an accepted order that immediately
+cancels in full — <strong>not</strong> a rejection, and worth distinguishing when you write
+a client:</p>
+<table>
+<thead>
+<tr>
+<th>Situation</th>
+<th>What you receive</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Book runs out during continuous trading</td>
+<td><code>ACK ACCEPTED=TRUE</code>, any <code>FILL</code>s, then <code>CANCELLED</code> with <code>INSUFFICIENT_LIQUIDITY</code></td>
+</tr>
+<tr>
+<td>Symbol halted, or the session is not matching</td>
+<td><code>ACK ACCEPTED=FALSE</code> with <code>INSTRUMENT_HALTED</code>, <code>CIRCUIT_BREAKER_ACTIVE</code> or <code>SESSION_NOT_PERMITTED</code> — rejected before the book is touched</td>
+</tr>
+</tbody>
+</table>
+<p><code>IOC</code> behaves identically for its own remainder. <code>FOK</code> differs: it is
+all-or-nothing, so an unfillable <code>FOK</code> is <em>rejected</em> with
+<code>INSUFFICIENT_LIQUIDITY</code> rather than accepted and cancelled.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 </code></pre></div>
 <p><strong>Educational note</strong>: Market orders <strong>guarantee execution but not price</strong>. In a

@@ -2391,6 +2391,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#unsolicited-cancels-and-cancel_reason" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unsolicited cancels and cancel_reason
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#category-examples" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5329,7 +5340,12 @@ here.</p>
 <tr>
 <td><code>VALIDATION</code></td>
 <td style="text-align: right;"><code>400</code>, <code>422</code></td>
-<td>Request body or parameters failed validation</td>
+<td>Request body or parameters failed validation. A price off the instrument's tick grid lands here with <code>reject_code: TICK_VIOLATION</code></td>
+</tr>
+<tr>
+<td><code>SYMBOLS_NOT_READY</code></td>
+<td style="text-align: right;"><code>503</code></td>
+<td>Order-entry request arrived before the engine's symbol metadata reached the gateway; <code>reject_code: SYMBOL_NOT_READY</code>. Transient — retry</td>
 </tr>
 <tr>
 <td><code>RATE_LIMIT</code></td>
@@ -5494,8 +5510,36 @@ tag.</p>
 <li>Behavior: the gateway and engine do not enforce uniqueness.</li>
 <li>Lifetime: when supplied, the tag is echoed on order lifecycle events and on
   cached order reads so clients can map exchange-assigned <code>order_id</code> values
-  back to their own submissions.</li>
+  back to their own submissions. That includes events the client did not ask
+  for — an unsolicited cancel, an expiry at the close — which are precisely the
+  ones it cannot correlate any other way.</li>
 </ul>
+<h3 id="unsolicited-cancels-and-cancel_reason">Unsolicited cancels and <code>cancel_reason</code><a class="headerlink" href="#unsolicited-cancels-and-cancel_reason" title="Permanent link">&para;</a></h3>
+<p>An <code>order.cancelled</code> event does not always answer a <code>DELETE</code>. When the exchange
+cancels an order itself, <code>request_tag</code> is absent and <code>cancel_reason</code> says why:</p>
+<table>
+<thead>
+<tr>
+<th><code>cancel_reason</code></th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SELF_MATCH_PREVENTED</code></td>
+<td>The order would have traded against another order from the same gateway</td>
+</tr>
+<tr>
+<td><code>INSUFFICIENT_LIQUIDITY</code></td>
+<td>A <code>MARKET</code> or <code>IOC</code> order exhausted the book; this cancels the remainder, which never rests</td>
+</tr>
+</tbody>
+</table>
+<p>Both fields are omitted rather than null when they do not apply, so
+<code>request_tag</code> absent with <code>cancel_reason</code> absent means the exchange cancelled
+the order for a cause it does not yet classify — a kill switch, a halt cascade,
+an expiry. <code>cancel_reason</code> is a separate vocabulary from <code>reject_code</code>: a
+cancel is not a rejection. Clients must ignore values they do not recognise.</p>
 <h3 id="category-examples">Category examples<a class="headerlink" href="#category-examples" title="Permanent link">&para;</a></h3>
 <p>The examples below are normative shape examples for each category. Values are
 illustrative.</p>
@@ -6008,7 +6052,11 @@ frame that the <code>WS /api/v1/admin/monitor</code> socket sends immediately af
 </tr>
 <tr>
 <td><code>VALIDATION</code></td>
-<td>Body does not match the order type</td>
+<td>Body does not match the order type, or a price is not an exact multiple of the instrument's tick size (<code>reject_code: TICK_VIOLATION</code>)</td>
+</tr>
+<tr>
+<td><code>SYMBOLS_NOT_READY</code></td>
+<td>Symbol metadata has not reached the gateway yet (<code>reject_code: SYMBOL_NOT_READY</code>)</td>
 </tr>
 <tr>
 <td><code>RATE_LIMIT</code></td>
@@ -6020,6 +6068,9 @@ frame that the <code>WS /api/v1/admin/monitor</code> socket sends immediately af
 </tr>
 </tbody>
 </table>
+<p>Prices are refused rather than rounded to the nearest tick: rounding would rest
+the order at a price the client never sent. See
+<a href="../260-api-gateway/#tick-precision">Tick precision</a>.</p>
 <h3 id="delete-apiv1ordersorder_id"><code>DELETE /api/v1/orders/{order_id}</code><a class="headerlink" href="#delete-apiv1ordersorder_id" title="Permanent link">&para;</a></h3>
 <p>Purpose: cancel one live order in the caller's gateway.</p>
 <p><strong>Arguments</strong></p>
@@ -7198,7 +7249,7 @@ frame that the <code>WS /api/v1/admin/monitor</code> socket sends immediately af
 <tbody>
 <tr>
 <td>none</td>
-<td>—</td>
+<td>This endpoint does not require auth</td>
 </tr>
 </tbody>
 </table>
