@@ -1,6 +1,6 @@
-Version: 0.1.0
+Version: 0.2.0
 
-Date: 2026-09-02
+Date: 2026-09-03
 
 Status: Design Proposal — not implemented
 
@@ -20,6 +20,23 @@ Status: Design Proposal — not implemented
 9. [Alternative: Rely on pm-mm-bot Instead of Persistence](#9-alternative-rely-on-pm-mm-bot-instead-of-persistence)
 10. [Recommendation](#10-recommendation)
 11. [Open Questions](#11-open-questions)
+12. [TIF=DAY Currently Means "Until Next Process Restart" — Root Cause](#12-tifday-currently-means-until-next-process-restart--root-cause)
+13. [Revised TIF=DAY Design — Persist and Purge on Business-Day Boundary](#13-revised-tifday-design--persist-and-purge-on-business-day-boundary)
+
+---
+
+**Revision history**
+
+- **0.1.0** (2026-09-02) — Original quote-persistence proposal (§1–§11):
+  why config-seeded MM quotes vanish after an engine restart, and the fix.
+- **0.2.0** (2026-09-03) — Added §12–§13: a related but distinct defect
+  found while implementing §1–§11 — `TIF=DAY` orders in general (not just
+  quote legs) do not survive *any* engine process restart today, regardless
+  of whether `pm-scheduler` and `sessions_enabled` are in use. §12–§13 is
+  self-contained and independently implementable; it does not depend on
+  §1–§11 having shipped first, though the two share the same persistence
+  file and the same restart code path and should be reviewed together for
+  that reason (see §13.7).
 
 
 ## 1. Overview
@@ -751,3 +768,459 @@ that survives a restart.
   actively demonstrate (a worked example of MM inventory risk building up
   across sessions), or purely a documented caveat? Content decision, not a
   code decision.
+
+
+## 12. TIF=DAY Currently Means "Until Next Process Restart" — Root Cause
+
+### 12.1 The question that surfaced this
+
+While working through §1–§11, a related question came up: does `TIF=DAY`
+actually mean "valid for the current trading day," as the name and the rest
+of the system's documentation imply, or does it — in practice — mean
+"valid until the engine process next restarts, for any reason"? If the
+latter, that is a design-principle violation independent of the quote
+question §1–§11 addresses: EduMatcher's stated principle is to behave in
+the most expected way, and an operator who bounces the engine process at
+10am to pick up a config change would not expect that action alone to
+cancel every DAY order in the book, any more than restarting a web server
+should log every user out for the day.
+
+### 12.2 Verified: yes, `_shutdown()` expires TIF=DAY unconditionally, on every process exit
+
+`Engine._shutdown()` (`src/edumatcher/engine/main.py`) is unconditional and
+consults nothing about *why* the process is exiting:
+
+```python
+def _shutdown(self) -> None:
+    log.info("Shutting down …")
+    self._running = False
+
+    all_resting: list[Order] = []
+    for book in self.books.values():
+        for order in book.resting_orders():
+            if order.tif == TIF.GTC:
+                if order.origin == OrderOrigin.QUOTE:
+                    continue
+                all_resting.append(order)
+            else:
+                # Expire DAY orders
+                order.status = OrderStatus.EXPIRED
+                self.pub_sock.send_multipart(make_expired_msg(...))
+                if order.combo_parent_id:
+                    self._check_combo_after_child_event(order)
+
+    save_gtc_orders(all_resting, GTC_ORDERS_FILE)
+    ...
+```
+
+Critically, this branch does not check `self._sessions_enabled`, does not
+check the current `self._session_state`, and does not check the wall
+clock. It runs identically whether:
+
+- the exchange is running with `sessions_enabled: false` (the classroom
+  always-open mode) and an operator restarts at any time of day, or
+- the exchange is running with `pm-scheduler --daily` and the restart
+  happens mid-`CONTINUOUS`, hours before the scheduled `CLOSED` transition
+  that is supposed to be the actual day boundary (per the existing M14
+  comment: *"the close is the day boundary"*).
+
+So in both configurations, today, `TIF=DAY` is expired by **any** clean
+process exit (`SIGINT`/`SIGTERM` reaching `run()`'s main loop and falling
+through to `_shutdown()`), not by the arrival of end-of-day. This is the
+"until-next-restart" behaviour the user identified.
+
+### 12.3 Verified: an unclean exit loses TIF=DAY orders too, silently, without even an expiry event
+
+The other half of `run()` matters here. `_shutdown()` is only reached if
+the main loop exits normally — a caught `SIGINT`/`SIGTERM` sets
+`self._running = False` and the loop falls through at the next 200ms poll
+tick. A hard kill (`SIGKILL`, OOM-kill, container eviction) or any
+exception that escapes the loop's own guards bypasses `_shutdown()`
+entirely. In that case:
+
+- `_flush_persistence()` — the periodic checkpoint — explicitly documents
+  that it "never mutates state: it does not expire DAY orders," and only
+  ever persists `TIF.GTC` orders (`_resting_gtc_orders()` filters
+  `order.tif == TIF.GTC`).
+- So a `TIF=DAY` order is never written to `gtc_orders.json` by the
+  periodic checkpoint, is never explicitly expired either (that only
+  happens inside `_shutdown()`, which didn't run), and is simply absent
+  from the book the next time the engine starts — gone by omission rather
+  than by explicit expiry, but gone all the same.
+
+Net effect: **every kind of process restart — clean or unclean — loses
+resting `TIF=DAY` orders today**, regardless of `sessions_enabled`. A
+clean restart loses them via explicit, logged expiry; an unclean one loses
+them silently. Neither is tied to an actual day boundary.
+
+### 12.4 Why this matters for both configurations, not just one
+
+**Sessions enabled, `pm-scheduler --daily` running.** The scheduler already
+gives `TIF=DAY` a correct, calendar-aware day-boundary meaning at the
+*scheduled* `→ CLOSED` transition (`_expire_tif(TIF.DAY)`, driven by
+`pm-scheduler`'s working-day/holiday-aware clock, as covered when this
+question first came up). But that correct mechanism is undermined by
+`_shutdown()` enforcing a *second*, unrelated, and stricter DAY-expiry rule
+on every process exit — including engine restarts that have nothing to do
+with the trading day (a config reload, a deploy, a crash-and-restart
+mid-`CONTINUOUS`). An operator restarting the engine at 10am to pick up a
+YAML change would, today, silently cancel every trader's DAY order in
+every book — a destructive side effect with no relationship to what the
+operator asked for.
+
+**Sessions disabled (classroom mode).** There is no scheduler and no
+`CLOSED` transition ever firing, so `_shutdown()`'s unconditional DAY
+expiry on process exit is, in this configuration, the *only* thing that
+ever expires a DAY order at all. Today that coincidentally acts as a crude
+substitute for a day boundary (restart the exchange each morning, DAY
+orders from "yesterday" are gone) — but it is indistinguishable from, and
+triggered identically by, any other restart for any other reason during
+the same day. An instructor restarting the engine mid-class to fix a typo
+in `engine_config.yaml` would unknowingly cancel every student's
+still-valid DAY order from that morning's session.
+
+Both configurations therefore need the same fix at the mechanism level:
+**stop tying `TIF=DAY` expiry to process exit.** They differ only in what
+*should* trigger DAY expiry once process-exit no longer does — the
+scheduler's `→ CLOSED` transition when sessions are enabled, and (per the
+scoping decision in §13.1) a persist-and-purge-on-restore check keyed to
+calendar date when sessions are disabled.
+
+### 12.5 Relationship to §1–§11
+
+This is a strict superset of one part of the original quote-persistence
+problem. §5.2 of this document already proposed persisting quote-origin
+`TIF=GTC` legs; §12–§13 generalizes the underlying defect and its fix to
+*all* `TIF=DAY` orders, not only MM quote legs, and not only at the
+process-exit boundary — it is the same class of bug (a durability rule
+implicitly scoped to "until the process restarts" rather than to the
+concept the TIF is actually supposed to encode) found in a second place
+while implementing the first fix. §13.7 reconciles the two proposals
+against the same persistence file and the same restore-time code path.
+
+
+## 13. Revised TIF=DAY Design — Persist and Purge on Business-Day Boundary
+
+### 13.1 Scope decision, agreed up front
+
+This section fixes the **process-restart** case for `TIF=DAY` orders in
+both configurations (`sessions_enabled: true` and `sessions_enabled:
+false`). It deliberately does **not** add a live, calendar-driven midnight
+sweep to the engine's own maintenance tick for the sessions-disabled case.
+
+The reason is a genuine race condition, not a simplification for its own
+sake: the maintenance tick (`_run_maintenance()`, called once per ~200ms
+poll iteration) runs concurrently with order acceptance on the same
+iteration of the event loop, but nothing prevents a new `TIF=DAY` order
+from being accepted in the same wall-clock instant a date-rollover sweep
+is deciding what "today" is, nor is there any atomic way to freeze order
+intake for the duration of a sweep without introducing exactly the kind of
+session-state machinery (`HALTED`-for-housekeeping) that `sessions_enabled:
+false` exists to avoid in the first place. Retrofitting a safe halt/sweep/
+resume cycle into a configuration whose entire purpose is "always accept
+orders, no session machinery" would reintroduce most of the complexity
+`sessions_enabled: false` is meant to opt out of.
+
+Instead, the sessions-disabled case is handled by policy plus a restore-time
+safety net: **the classroom/always-on configuration is expected to be
+restarted at least once per calendar day** (the operator's existing habit,
+per the original bug report — "after a restart of the exchange the MM
+Quotes in the books are removed," implying restarts already happen
+routinely). §13.4's restore-time business-day check then purges anything
+that slipped past midnight while the process was up, the next time it
+starts. A genuinely unattended multi-day run with `sessions_enabled: false`
+and no restart in between is explicitly out of scope for this document; if
+that becomes a real requirement later, it needs the halt/sweep/resume
+design this section is deliberately avoiding, as its own follow-up
+proposal — not a maintenance-tick patch.
+
+### 13.2 Design summary
+
+1. **Stop expiring `TIF=DAY` orders at process shutdown.** Remove the
+   `else: # Expire DAY orders` branch from `_shutdown()` entirely. Process
+   exit — clean or unclean — no longer has any opinion about `TIF=DAY`.
+2. **Persist `TIF=DAY` orders alongside `TIF=GTC` orders**, using the same
+   file and the same atomic-write mechanism (`gtc_orders.json` — the name
+   becomes slightly imprecise but changing it is a separate, avoidable
+   migration cost; see §13.6). Both the periodic checkpoint
+   (`_flush_persistence()`/`_resting_gtc_orders()`) and shutdown now save
+   every resting order regardless of TIF.
+3. **At restore time (`_restore_gtc()`), for each persisted `TIF=DAY`
+   order, compare the order's own business day against the engine's
+   business day at startup.** If the order's business day is the *current*
+   business day, restore it exactly as a GTC order is restored today
+   (`book.process(order, match=False)`, price-time priority preserved via
+   its original timestamp). If the order's business day is *older* than
+   the current business day, discard it — log it as expired-by-rollover,
+   do not restore it into the book, and do not re-publish an `order.expired`
+   event for it (the gateway that owns it is not connected at engine
+   startup to receive one meaningfully; see §13.5 on notification).
+4. **`TIF=GTC` orders are unaffected** — they already survive restarts
+   unconditionally and are not date-gated; this proposal does not change
+   that.
+
+This directly implements the user's Option A restore-time check, scoped
+per §13.1 to be the sessions-disabled safety net, while also being exactly
+the missing piece for the sessions-enabled case: once process-exit no
+longer expires DAY orders, a mid-`CONTINUOUS` restart under
+`pm-scheduler` now correctly preserves resting DAY orders (they persist
+and restore, same business day, nothing purged), and the *scheduled*
+`→ CLOSED` transition remains the sole source of true end-of-day DAY
+expiry, exactly as the existing M14 comment intends.
+
+### 13.3 Defining "business day" for this check
+
+The engine has no timezone concept today — confirmed by inspection:
+`EngineConfig` (`src/edumatcher/engine/config_loader.py`) carries no
+`timezone`/`session_timezone` field, and `--timezone` exists only on the
+two recorder processes (`pm-stats`, `pm-clearing`) and `pm-ticker`, per
+`docs/user-guide/080-session-scheduling.md`'s "trading date" section. The
+scheduler (`pm-scheduler`) uses `datetime.now()` (naive, local machine
+time) together with a `country` parameter for holiday lookups
+(`DEFAULT_COUNTRY = "Sweden"`), not an explicit IANA timezone.
+
+This proposal needs the engine itself — which today has no timezone
+awareness at all — to answer "is this persisted order's business day still
+today's business day." Rather than inventing a new engine-side timezone
+concept, and consistent with the existing pattern of restore comparisons
+already in `_restore_gtc()`/`_load_config()` (`stats.get(sym)` vs.
+config-seeded values, both compared without any timezone conversion), this
+proposal defines "business day" for the purposes of this check as **the
+machine-local calendar date**, exactly as `pm-scheduler` already does via
+`datetime.now().date()`. This is a deliberate simplification, not an
+oversight:
+
+- It matches the scheduler's own notion of "today" when sessions *are*
+  enabled, so the two mechanisms agree on what day it is.
+- It avoids introducing a second, engine-side timezone configuration
+  surface that would need to be kept consistent with the recorders'
+  `--timezone` flags — a coordination burden the existing
+  `080-session-scheduling.md` "the two recorders must agree with each
+  other" warning already flags as a real footgun for exactly this kind of
+  duplicated configuration.
+- For a single-machine classroom deployment (the case this half of the fix
+  is actually for), machine-local date and the intended trading-day
+  timezone are the same thing in practice.
+
+If EduMatcher later needs the engine to run on a different machine
+timezone than its trading venue's local time, this check would need to
+adopt the same `--timezone` parameter the recorders use — flagged as an
+open question in §13.8, not solved here, since no current deployment
+config requires it.
+
+Each `Order` already carries `timestamp` (`now_ns()`, UTC-based nanosecond
+epoch, set at creation and preserved through persistence for price-time
+priority). The business-day comparison is: convert the order's
+`timestamp` to a local calendar date, convert "now" (at engine startup) to
+a local calendar date, and discard the order if the former is strictly
+earlier than the latter.
+
+### 13.4 Restore-time check, precisely
+
+In `_restore_gtc()`, alongside the existing per-order restore loop:
+
+```python
+today = datetime.now().date()
+for order in orders:
+    if self._allowed_symbols and order.symbol not in self._allowed_symbols:
+        ...  # existing skip, unchanged
+        continue
+
+    if order.tif == TIF.DAY:
+        order_day = datetime.fromtimestamp(order.timestamp / 1_000_000_000).date()
+        if order_day < today:
+            log.info(
+                f"Discarding stale TIF=DAY order {order.id[:8]} "
+                f"({order.symbol}) — order date {order_day} is before "
+                f"today ({today}); business day has rolled over since "
+                f"this order was resting"
+            )
+            continue
+        # else: order_day == today (order_day > today should not occur —
+        # a persisted order cannot be dated in the future — but is treated
+        # the same as == today defensively rather than raising, consistent
+        # with the existing "guard each order" resilience posture below)
+
+    order.status = OrderStatus.NEW
+    book = self._book(order.symbol)
+    try:
+        book.process(order, match=False)
+    except Exception as exc:
+        ...  # existing per-order guard, unchanged
+```
+
+This sits inside the existing per-order `try`/`except` resilience pattern
+(finding C6: "a persisted order that raises during restore is logged and
+skipped rather than crashing the whole engine") and adds one more reason
+an order can be legitimately skipped, logged the same way as the existing
+removed-symbol skip.
+
+### 13.5 What does *not* happen for a discarded stale order
+
+Discarding a stale `TIF=DAY` order at restore time does **not** publish an
+`order.expired` message. This is a deliberate difference from `_expire_tif`
+and from today's `_shutdown()` behaviour, both of which do publish an
+expiry event, and it needs to be a conscious choice, not an oversight:
+
+- At restore time, no gateway is connected yet (`_restore_gtc()` runs
+  before any participant can have dialled in — same ordering guarantee the
+  existing GTC-restore code already relies on). An `order.expired` event
+  published to a PUB socket with no subscriber connected is simply lost —
+  publishing it would create a false impression of notification without
+  actually notifying anyone.
+- The order's owning gateway will, on its own next reconnect, learn its
+  order is gone the same way it already learns about any other order that
+  is no longer live: querying open orders returns nothing for it. This
+  proposal does not add a new notification channel for this case — it is
+  explicitly scoped to fixing the persistence/restore mechanics, not to
+  building a "here is what happened while you were disconnected" gateway
+  notification feature, which would be a larger, separate design.
+- This should be logged clearly at `INFO` (as shown in §13.4) so an
+  operator inspecting engine logs after a multi-day-old restart can see
+  exactly which orders were purged and why, even though no wire message
+  announces it.
+
+### 13.6 Why not rename `gtc_orders.json`
+
+The persisted file now holds a mix of `TIF=GTC` and same-day `TIF=DAY`
+orders. Renaming it (e.g. to `resting_orders.json`) would be more
+accurate, but per the project's simplicity-first convention this document
+does not propose it: a rename is a breaking file-format/migration change
+for zero functional benefit, touches deployment scripts and any
+operational tooling that references the filename by convention (backup
+scripts, `180-persistence.md`'s data-file table, `pm-*-cli` tooling if any
+reads the file directly), and the file's *content* already needs no schema
+change — it is still a JSON array of `Order.to_dict()` entries, each of
+which already carries its own `tif` field, so nothing about the format
+misleads a reader who opens the file. The filename becoming slightly
+imprecise is a smaller cost than a rename's migration surface. If the
+project later does a broader persistence-file cleanup, revisiting the name
+then is fine; it is not warranted as part of this fix alone.
+
+### 13.7 Interaction with §1–§11 (the quote-persistence proposal)
+
+Both proposals touch the same two functions
+(`_resting_gtc_orders()`/`_shutdown()`'s save path, and `_restore_gtc()`'s
+restore path) and the same file. They are compatible and should be
+implemented together or in a coordinated sequence, not independently in
+either order without re-checking the other:
+
+- §5.2 removes the `origin == OrderOrigin.QUOTE` exclusion so quote legs
+  persist **when `TIF=GTC`**. §13.2 separately removes DAY-specific expiry
+  from `_shutdown()` and extends persistence to `TIF=DAY` orders
+  **regardless of origin**. Combined, a config-seeded MM quote at its
+  *default* `TIF=DAY` (§3.1 of this document) now also survives a process
+  restart within the same business day — it no longer needs an explicit
+  `tif: GTC` override to survive a mid-day restart, only to survive an
+  actual day-boundary close. This is a strictly better outcome for the
+  common case (most seeded quotes are left at the `TIF=DAY` default) than
+  §5 alone provided, and removes one of the two reasons (§3.1) the
+  original symptom occurred, on top of removing the other (§3.2/§3.3).
+- §5.3's `QuoteIndex` rebuild on restore must run over *all* restored
+  quote-origin orders, `TIF=GTC` and same-day `TIF=DAY` alike, once §13
+  ships — not only the `TIF=GTC` subset §5.3 was originally scoped to,
+  since a `TIF=DAY` quote leg can now also be present after restore. This
+  is a small but real scope adjustment to §5.3/WP2, not a new mechanism —
+  flagged here so it is not missed if §5 and §13 are implemented as
+  separate PRs in sequence.
+- §13.4's stale-order purge and §5.4's `seed_once`/`QuoteIndex`-presence
+  check must also agree: a `TIF=DAY` quote leg purged by §13.4 because it
+  is stale from a prior business day must leave `_quote_index` correctly
+  empty for that `(gateway_id, symbol)`, so §5.4's revised `seed_once`
+  gate correctly allows a fresh seed on the new business day. This falls
+  out naturally from the ordering already required (restore before seed
+  decision) and needs no extra code beyond what §5.3/§13.4 already specify
+  individually, but is worth an explicit test (§13.9, WP4) covering
+  exactly this combination.
+
+### 13.8 Open questions
+
+- Machine-local date (§13.3) is the deliberately chosen simplification for
+  this fix. If a future requirement needs the engine's business-day
+  concept to match an explicit trading-venue timezone independent of the
+  host machine's local time, the engine would need its own
+  `--timezone`/`session_timezone` config, coordinated with the recorders'
+  existing flags. Not needed for any current deployment; flagged for
+  awareness only.
+- §13.1 scopes out a live midnight sweep for `sessions_enabled: false`
+  specifically because of the halt/sweep/resume race condition, and
+  instead relies on "the classroom exchange gets restarted daily" as an
+  operational assumption. Should that assumption be written down anywhere
+  operator-facing (e.g. a note in the classroom/quick-start deployment
+  docs) so it is a documented expectation rather than an implicit one a
+  future reader of this design doc has to infer?
+- Should the discard-log line in §13.4 also be counted in the existing
+  debug-summary counters (`self._dbg_count(...)`, used elsewhere in this
+  codebase for exactly this kind of "worth surfacing in aggregate"
+  bookkeeping) so a multi-day-stale restart is visible in the engine's own
+  periodic debug summary, not only in the log stream? Small, optional
+  addition; not required by the stated goals.
+
+### 13.9 Implementation plan
+
+Sized and sequenced the same way as §7 — each workpackage independently
+mergeable and independently testable.
+
+**WP1 — Stop expiring `TIF=DAY` at `_shutdown()`** (§13.2 point 1)
+Remove the `else: # Expire DAY orders` branch (and its `order.expired`
+publish and combo cascade-cancel) from `_shutdown()`. At this point DAY
+orders are no longer expired at exit, but are also not yet
+persisted — an interim state that must not ship alone (a restart between
+WP1 and WP2 would silently drop DAY orders with no expiry event at all,
+worse than today). Land WP1 and WP2 as one PR.
+*Verify:* extend `test_engine_durability.py` — place a `TIF=DAY` order,
+call `_shutdown()`, assert no `order.expired` message was published for it
+(distinguishing this from the pre-existing GTC-vs-DAY-expiry test in the
+same file).
+
+**WP2 — Persist `TIF=DAY` orders in the checkpoint and at shutdown**
+(§13.2 point 2)
+Broaden `_resting_gtc_orders()` (or introduce a differently-named internal
+method if `_resting_gtc_orders` reads too misleadingly once it includes
+DAY orders — naming is an implementation-time call, not a design
+constraint) and the shutdown save path to include every resting order
+regardless of `tif`, not only `TIF.GTC`.
+*Verify:* extend `test_persistence_roundtrips.py` — place a `TIF=DAY`
+order, checkpoint (`_flush_persistence(force=True)`), assert it appears in
+`gtc_orders.json` with `tif="DAY"`.
+
+**WP3 — Restore-time business-day check** (§13.3–§13.5)
+Implement the `order_day < today` comparison in `_restore_gtc()` exactly as
+in §13.4, with the `INFO`-level discard log and no `order.expired` publish.
+*Verify:* three cases in `test_persistence_roundtrips.py` /
+`test_engine_durability.py`: (a) a `TIF=DAY` order dated today restores
+normally into the book; (b) a `TIF=DAY` order dated yesterday is discarded,
+does not appear in the book, and the discard is logged; (c) a `TIF=GTC`
+order dated yesterday still restores unconditionally (proving the date
+check is DAY-only, not applied to GTC).
+
+**WP4 — Interaction tests with §1–§11** (§13.7)
+Only relevant once both proposals are implemented (either as one combined
+effort or as §13 landing after §5–§7). Covers: a default-`TIF=DAY`
+config-seeded MM quote surviving a same-day mid-`CONTINUOUS` restart
+without needing an explicit `tif: GTC` override; a stale `TIF=DAY` quote
+leg purged by WP3 correctly leaving `_quote_index` empty so §5.4's
+`seed_once` gate re-seeds on the new business day.
+*Verify:* new test(s) exercising the combination directly, not just each
+half in isolation.
+
+**WP5 — Update `180-persistence.md`**
+The "At Shutdown" step 2 ("Orders with `TIF = DAY` receive an
+`order.expired.<GW_ID>` event and are discarded") and the data-file table's
+description of `gtc_orders.json` both need rewriting: DAY orders are no
+longer expired at shutdown, and the file now holds same-day DAY orders
+too. Add a short explanation of the business-day purge at restore.
+*Verify:* doc build passes; read-through against WP1–WP3's actual
+behaviour.
+
+**WP6 — Full-suite verification**
+`black`, `flake8`, `mypy`, `pyright` across touched files; full `pytest`
+suite, paying particular attention to any existing test that asserted
+`_shutdown()` expires DAY orders (that assertion is now intentionally
+false and the test needs updating, not just re-passing by accident) or
+that asserted `gtc_orders.json` contains only `TIF.GTC` entries.
+
+Suggested sequencing: WP1+WP2 as one PR → WP3 → WP4 (once §5–§7 is also in
+place) → WP5 → WP6 gates the final merge. WP1–WP3 can proceed and land
+independently of §1–§11's WP1–WP7 if the two efforts are staged
+separately; only WP4 has a hard dependency on both being done.

@@ -7,6 +7,7 @@ verbose paths, no-config init, and board/viewer/audit/stats helpers.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -124,6 +125,31 @@ def _gtc_order(symbol="AAPL", side=Side.BUY, price=100.0):
     return o
 
 
+def _day_order(symbol="AAPL", side=Side.BUY, price=100.0, days_ago=0):
+    """A resting TIF=DAY order, as would be loaded from gtc_orders.json.
+
+    days_ago controls the order's timestamp for the business-day check in
+    Engine._restore_gtc (see
+    docs-design/EduMatcher-Revised-Quote-Persistence.md §13.4):
+    days_ago=0 is dated today (restores normally), days_ago=1 is dated
+    yesterday (discarded as stale).
+    """
+    o = Order.create(
+        symbol=symbol,
+        side=side,
+        order_type=OrderType.LIMIT,
+        quantity=100,
+        gateway_id="GW01",
+        tif=TIF.DAY,
+        price=price,
+    )
+    o.status = OrderStatus.NEW
+    if days_ago:
+        order_date = datetime.now() - timedelta(days=days_ago)
+        o.timestamp = int(order_date.timestamp() * 1e9)
+    return o
+
+
 # ---------------------------------------------------------------------------
 # Engine init without config file (line 162-164)
 # ---------------------------------------------------------------------------
@@ -228,6 +254,54 @@ class TestRestoreGTCWithOrders:
         )
         engine._restore_gtc()
         assert combo.id in engine._combos
+
+
+class TestRestoreGTCBusinessDayCheck:
+    """TIF=DAY orders are only restored if their business day is still
+    today's — see docs-design/EduMatcher-Revised-Quote-Persistence.md
+    §12-§13. TIF=GTC orders are never date-gated."""
+
+    def test_day_order_dated_today_restores_normally(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        order = _day_order(days_ago=0)
+        engine, _ = _make_engine(
+            monkeypatch, tmp_path, gtc_orders=[order], verbose=False
+        )
+        engine._restore_gtc()
+        restored_ids = {o.id for o in engine.books["AAPL"].resting_orders()}
+        assert order.id in restored_ids
+
+    def test_day_order_dated_yesterday_is_discarded(
+        self, monkeypatch, tmp_path, caplog
+    ) -> None:
+        import logging
+
+        order = _day_order(days_ago=1)
+        engine, _ = _make_engine(
+            monkeypatch, tmp_path, gtc_orders=[order], verbose=False
+        )
+        with caplog.at_level(logging.INFO):
+            engine._restore_gtc()
+        # The stale order is discarded before Engine._book() is ever called
+        # for it, so "AAPL" never gets a book entry at all — confirm that
+        # rather than indexing into engine.books, which would KeyError.
+        assert "AAPL" not in engine.books
+        assert "Discarding stale TIF=DAY order" in caplog.text
+
+    def test_gtc_order_dated_yesterday_still_restores(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        """The business-day check is DAY-only — GTC restores unconditionally
+        regardless of how old the order is."""
+        order = _gtc_order()
+        order.timestamp = int((datetime.now() - timedelta(days=1)).timestamp() * 1e9)
+        engine, _ = _make_engine(
+            monkeypatch, tmp_path, gtc_orders=[order], verbose=False
+        )
+        engine._restore_gtc()
+        restored_ids = {o.id for o in engine.books["AAPL"].resting_orders()}
+        assert order.id in restored_ids
 
 
 # ---------------------------------------------------------------------------

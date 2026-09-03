@@ -95,11 +95,16 @@ def test_a_decodable_message_still_reaches_the_dispatcher(tmp_path: Path) -> Non
 # ---------------------------------------------------------------------------
 
 
-def test_checkpoint_persists_resting_gtc_without_mutating_state(
+def test_checkpoint_persists_resting_gtc_and_day_without_mutating_state(
     tmp_path: Path,
 ) -> None:
-    """A checkpoint runs mid-session, so it must not expire DAY orders or
-    publish anything — unlike _shutdown, which does both deliberately."""
+    """A checkpoint runs mid-session, so it must not expire anything or
+    publish anything — unlike _shutdown, which used to expire DAY orders but
+    no longer does (see docs-design/EduMatcher-Revised-Quote-Persistence.md
+    §12-§13: a process exit, including the periodic checkpoint's caller, is
+    not a day boundary). Both TIF=GTC and TIF=DAY resting orders are
+    persisted here; a same-day-vs-stale distinction for DAY orders is only
+    applied at restore time (Engine._restore_gtc), not at checkpoint time."""
     engine = _engine_without_sockets(tmp_path)
     gtc = _order("GTC-1", TIF.GTC)
     day = _order("DAY-1", TIF.DAY)
@@ -116,9 +121,10 @@ def test_checkpoint_persists_resting_gtc_without_mutating_state(
         engine._flush_persistence(force=True)
 
     saved = {o.id for o in load_gtc_orders(gtc_file)}
-    assert saved == {"GTC-1"}, "only GTC rests across a restart"
-    # The DAY order is untouched — a checkpoint is not an end-of-day.
+    assert saved == {"GTC-1", "DAY-1"}, "both GTC and DAY rest across a restart"
+    # Neither order is touched — a checkpoint mutates nothing.
     assert day.status is not OrderStatus.EXPIRED
+    assert gtc.status is not OrderStatus.EXPIRED
     engine.pub_sock.send_multipart.assert_not_called()
 
 

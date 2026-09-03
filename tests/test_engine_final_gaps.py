@@ -186,7 +186,14 @@ def _ack_id(pub_sock: _Sock) -> str:
 
 
 class TestEngineShutdown:
-    def test_shutdown_expires_day_orders(self, monkeypatch, tmp_path) -> None:
+    def test_shutdown_persists_day_orders_instead_of_expiring(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        """DAY orders are no longer expired at shutdown — a process exit is
+        not a day boundary (see
+        docs-design/EduMatcher-Revised-Quote-Persistence.md §12-§13). They
+        are saved alongside GTC orders and restored at the next startup,
+        purged there only if their business day has passed."""
         saved = []
         monkeypatch.setattr(
             "edumatcher.engine.main.save_gtc_orders",
@@ -208,8 +215,10 @@ class TestEngineShutdown:
         pub_sock.sent.clear()
         engine._shutdown()
         topics = [decode(f)[0] for f in pub_sock.sent]
-        # DAY order should be expired
-        assert any("expired" in t for t in topics)
+        # No expiry event — the DAY order was persisted, not expired.
+        assert not any("expired" in t for t in topics)
+        assert len(saved) == 1
+        assert saved[0].tif == TIF.DAY
 
     def test_shutdown_saves_gtc_orders(self, monkeypatch, tmp_path) -> None:
         saved: list = []

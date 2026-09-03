@@ -1,10 +1,15 @@
 """
-GTC order persistence — save/load resting GTC orders across trading days.
+GTC order persistence — save/load resting GTC and DAY orders across restarts.
 Book stats persistence — save/load per-symbol last buy/sell prices and prev_close.
 
-File format: JSON array of Order.to_dict() entries (GTC orders).
+File format: JSON array of Order.to_dict() entries (GTC and DAY orders).
              JSON object keyed by symbol (book stats).
-Only orders with TIF=GTC and status NEW/PARTIAL are persisted.
+Orders with TIF=GTC or TIF=DAY and status NEW/PARTIAL are persisted. A
+process restart is not itself a day boundary (see
+docs-design/EduMatcher-Revised-Quote-Persistence.md §12-§13): DAY orders are
+saved here the same as GTC ones, and are only discarded at restore time if
+their business day has already passed (Engine._restore_gtc). True
+end-of-day expiry remains driven by the scheduler's transition to CLOSED.
 """
 
 from __future__ import annotations
@@ -77,18 +82,25 @@ def load_and_bump_run_seq(path: Path) -> int:
 
 
 def save_gtc_orders(orders: list[Order], path: Path) -> None:
-    """Serialize resting GTC orders to *path*."""
+    """Serialize resting GTC and DAY orders to *path*.
+
+    TIF=DAY orders are included alongside TIF=GTC: a process restart is not
+    a day boundary, so a resting DAY order must survive it the same as a GTC
+    order does. The distinction between a same-day and a stale DAY order is
+    applied at restore time (Engine._restore_gtc), not here.
+    """
     gtc = [
         o.to_dict()
         for o in orders
-        if o.tif == TIF.GTC and o.status in (OrderStatus.NEW, OrderStatus.PARTIAL)
+        if o.tif in (TIF.GTC, TIF.DAY)
+        and o.status in (OrderStatus.NEW, OrderStatus.PARTIAL)
     ]
     _atomic_write_text(path, json.dumps(gtc, indent=2))
 
 
 def load_gtc_orders(path: Path) -> list[Order]:
     """
-    Load previously persisted GTC orders.
+    Load previously persisted GTC and DAY orders.
 
     - Returns an empty list if the file does not exist.
     - Returns an empty list if the file cannot be parsed as a JSON array
