@@ -198,6 +198,18 @@ left an active quote in the book. `QBOOT` prevents blind re-quoting by showing
 whether a slot is already active so the new process can adopt or replace safely
 instead of creating duplicates.
 
+!!! note "The engine, not just your bot, can restart between quotes"
+    Quote legs now persist across an **engine** restart the same way any
+    other resting order does: unconditionally if `TIF=GTC`, or if `TIF=DAY`
+    and the restart happens on the same business day. So `QBOOT` right after
+    an engine restart can legitimately show your `Q001` slot still `ACTIVE`
+    with the same leg IDs, even though you never resubmitted the quote — the
+    engine restored it and re-registered it in its own `QuoteIndex`. Only a
+    business-day rollover (or an explicit `QUOTE_CANCEL`/fill) clears a
+    `TIF=DAY` quote slot. See
+    [Persistence — Impact of a Business-Day Change](../user-guide/180-persistence.md#impact-of-a-business-day-change)
+    for the full mechanics.
+
 The reply is a `Quote bootstrap` table, one row per active quote:
 
 | Column | Meaning |

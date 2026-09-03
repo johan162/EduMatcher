@@ -24,9 +24,19 @@ state across restart scenarios.
 EduMatcher stores persistent runtime data under `EDUMATCHER_DATA_DIR`. Common
 files include:
 
-- `gtc_orders.json` — Good-Till-Cancelled orders that survive session boundaries.
+- `gtc_orders.json` — resting `GTC` orders (any age) **and** resting `DAY`
+  orders from the current business day, including MM quote legs. Written on
+  every checkpoint and at clean shutdown; read back at the next startup.
 - `stats.db` — SQLite database written by `pm-stats`.
 - `audit.log` — event log if `pm-audit` writes to disk.
+
+!!! note "A restart is not a day boundary"
+    `gtc_orders.json` is not just a "GTC file" any more: it also carries
+    resting `TIF=DAY` orders across an **engine restart**, as long as the
+    restart happens on the same business day the order was placed. The
+    day-vs-restart distinction is the subject of Exercise 4 below — see
+    [Persistence — Impact of a Business-Day Change](../user-guide/180-persistence.md#impact-of-a-business-day-change)
+    for the full rule.
 
  
 
@@ -100,26 +110,54 @@ confirming how many GTC orders it saved (`[ENGINE] Saved N GTC order(s) to
 Compare explicitly after restart:
 
 - GTC orders restore from persistence (given the conditions above).
-- DAY orders from prior session should not survive CLOSED.
 - Stats remain in `stats.db` if `pm-stats` was writing before restart.
 
 :material-checkbox-blank-outline: **Checkpoint:** verify whether the GTC order survives restart.
 
  
 
-## Exercise 4: Compare DAY and GTC Behaviour
+## Exercise 4: DAY Order Survives a Same-Day Restart
 
-Place one DAY and one GTC order at non-marketable prices:
+A resting `DAY` order is no longer tied to the engine process — it is tied to
+the business day. Place a DAY order at a non-marketable price:
 
 ```
-[TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=400.00|TIF=DAY
-[TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=399.00|TIF=GTC
+[TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=399.00|TIF=DAY
 ```
 
-Move the session to CLOSED, then restart and inspect `ORDERS`. DAY orders should
-expire at session close; GTC orders are the ones designed to survive.
+Restart `pm-engine` cleanly, on the **same calendar day**, with the same data
+directory and config. Reconnect `TRADER01` and check:
 
-:material-checkbox-blank-outline: **Checkpoint:** explain the different lifecycle of DAY and GTC orders.
+```
+[TRADER01]> ORDERS
+```
+
+The DAY order should still be resting — restored exactly like the GTC order
+from Exercise 3, because the restart did not cross a business-day boundary.
+This is new behaviour: earlier versions of the engine excluded `TIF=DAY`
+orders from `gtc_orders.json` entirely, and any resting DAY order was gone
+after any restart, same-day or not.
+
+:material-checkbox-blank-outline: **Checkpoint:** the DAY order is still resting after a same-day restart.
+
+!!! note "Two separate ways a DAY order disappears"
+    Don't confuse these — they are driven by different things:
+
+    - **Session close** (`pm-scheduler` transitioning to `CLOSED`, or you
+      forcing it with `SESSION|STATE=CLOSED`): every resting DAY order is
+      cancelled *live*, with an `order.expired` event, regardless of restart.
+      See [06 — Time-in-Force & Sessions](06-time-in-force-sessions.md).
+    - **Engine restart after the business day has rolled over**: a resting
+      DAY order from a prior business day is silently discarded during
+      restore — logged at `INFO`, but with **no** `order.expired` published.
+      There is no live sweep for this; it is only checked once, at the next
+      startup. See
+      [Persistence — Impact of a Business-Day Change](../user-guide/180-persistence.md#impact-of-a-business-day-change).
+
+    If you want to see the second case instead of the first, you would need
+    to actually cross a calendar date between shutdown and restart — not
+    practical to demonstrate live in this exercise, so take it as read from
+    the user guide.
 
  
 
@@ -163,16 +201,21 @@ tail -20 "$EDUMATCHER_DATA_DIR/audit.log"
 You now understand:
 
 - Which data belongs in `EDUMATCHER_DATA_DIR`.
-- Why GTC and DAY orders behave differently across session boundaries.
+- Why GTC and DAY orders behave differently across session boundaries, and
+  why that is a *different* question from how they behave across an engine
+  restart.
 - How stats and audit files survive beyond the current terminal session.
 
 ## Reflection
 
-Why does the engine persist GTC orders but deliberately discard DAY orders
-and re-seed MM quote legs from config on every restart, instead of just
-saving and restoring the entire book state wholesale? What would go wrong
-operationally if quote legs were persisted and blindly restored alongside
-GTC orders after a config change removed a market maker?
+A resting `DAY` order and a live MM quote leg both now survive an engine
+restart on the same business day, restored from `gtc_orders.json` exactly
+like a `GTC` order would — only a business-day rollover discards them, and
+only at the next startup. Why does it make sense to key this purely off the
+*business day*, rather than off the number of times the engine process has
+restarted? What would go wrong operationally in a classroom setting if a
+`DAY` order's survival depended instead on "how many restarts have happened
+since it was placed"?
 
 ## Further Reading
 
