@@ -8,6 +8,7 @@
     - How GTC orders preserve their price-time priority across sessions
     - The exact shutdown and startup sequence that keeps the order book consistent
     - How book statistics allow stop orders to trigger correctly on the first trade of a new day
+    - Exactly what changes — and what does not — when the business day rolls over
     - How to safely inspect, edit, or delete persistence files between sessions
 
 EduMatcher models a real exchange behaviour: **Good-Till-Cancelled (GTC)** orders
@@ -16,9 +17,9 @@ restarts for the next day. A resting **Day (DAY)** order also survives an engine
 restart, as long as the restart happens on the same business day it was
 submitted — a process restart is not itself a day boundary; a DAY order is
 only discarded, at the next startup, once its business day has actually
-passed. See [Trading Day Lifecycle](#trading-day-lifecycle) below. Several
-other data files are also maintained across sessions to preserve market
-state and historical records.
+passed. See [Impact of a Business-Day Change](#impact-of-a-business-day-change)
+below. Several other data files are also maintained across sessions to
+preserve market state and historical records.
 
 !!! tip "Where is the data directory?"
     All persistence files live under the **data directory**, which varies by
@@ -36,20 +37,51 @@ state and historical records.
 
 ## Data files at a glance
 
-This is the single reference for **every data file EduMatcher writes** — what it
-is, which process creates it, when, why, and how to read it. All paths are
-relative to the data directory shown above.
+This is the single reference table for **every data file EduMatcher writes** —
+what it is, which process creates it, when, why, and how to read it. All
+paths are relative to the data directory shown above. Every row on this page
+appears in exactly one of the two tables below; there is no persistence file
+used by any process that is not listed here.
 
-The files fall into two groups.
+All data files are stored in the canonical data directory used by all processes
 
-**Engine state files** — written by `pm-engine` on a clean shutdown and reloaded
-at the next startup so the market resumes where it left off.
+The full resolution order for the data directory is
+
+| Priority | Condition | Resolved path |
+|---|---|---|
+| 1 — Explicit | `EDUMATCHER_DATA_DIR` env var is set | Value of `$EDUMATCHER_DATA_DIR` |
+| 2 — Installed | Running from a `pipx`/`pip` install | `~/.local/share/edumatcher/` |
+| 3 — Developer | Running from a source checkout | `<repo>/src/data/` |
+
+
+For a **clean product install** (`pipx install edumatcher`) the data
+directory is `~/.local/share/edumatcher/` — no `src/` prefix is involved.
+Run `pm-setup` once after installation to create this directory and copy a
+sample config file
+A project-root `data/` directory also exists in the repository (used for
+sample CSVs) but is never written to by any runtime process.
+
+
+**Engine state files** — written by `pm-engine` and reloaded at the next
+startup so the market resumes where it left off.
 
 | File | Written by | When | Purpose | Read / extract with |
 |------|------------|------|---------|---------------------|
-| `gtc_orders.json` | `pm-engine` | Periodic checkpoint and clean shutdown (Ctrl-C) | Resting GTC orders, and resting same-day DAY orders, restored with their price-time priority at next startup — a stale DAY order (from an earlier business day) is discarded at restore instead | JSON; loaded by the engine at startup |
-| `gtc_combos.json` | `pm-engine` | Clean shutdown | Resting GTC combo parents and their child-leg links | JSON; loaded by the engine at startup |
-| `book_stats.json` | `pm-engine` | Clean shutdown | Last buy/sell price and previous-close per symbol; seeds the collar and circuit-breaker reference at the next open, and the `SYMBOLS` command's `prev_close` field | JSON; loaded by the engine at startup |
+| `gtc_orders.json` | `pm-engine` | Periodic checkpoint and clean shutdown (Ctrl-C) | Resting GTC orders, and resting same-day DAY orders (including MM quote legs), restored with their price-time priority at next startup — a stale DAY order (from an earlier business day) is discarded at restore instead | JSON; loaded by the engine at startup |
+| `gtc_combos.json` | `pm-engine` | Periodic checkpoint and clean shutdown | Resting GTC combo parents and their child-leg links | JSON; loaded by the engine at startup |
+| `book_stats.json` | `pm-engine` | Periodic checkpoint and clean shutdown | Last buy/sell price and previous-close per symbol; seeds the collar and circuit-breaker reference at the next open, and the `SYMBOLS` command's `prev_close` field | JSON; loaded by the engine at startup |
+| `engine_run_seq.json` | `pm-engine` | Once, at the very start of every engine run — **not** checkpointed periodically | A durable, monotonically-increasing run counter, bumped and saved before anything else happens on startup (even before GTC restore). Prefixed into every trade ID (`{run_seq:06d}-{trade_seq:09d}`) so trade IDs never collide across restarts even though the in-memory per-run trade counter resets to zero each time | JSON; loaded and incremented by the engine at startup |
+
+!!! note "Reading the *When* column for engine state files"
+    **Periodic checkpoint** = the engine re-saves the current file every
+    `_PERSIST_INTERVAL_SEC` while running, so an abrupt exit — a crash,
+    `SIGKILL`, container eviction — loses at most one checkpoint interval of
+    state rather than the whole session. **Clean shutdown** = the engine
+    caught `Ctrl-C`/`SIGINT` and finished its shutdown sequence, which also
+    performs one final save of these same files before exit. `engine_run_seq.json`
+    is the one exception: it is written exactly once, at startup, and is
+    never touched again for the life of that process — see
+    [The `engine_run_seq.json` File](#the-engine_run_seqjson-file) below.
 
 **Accumulating data stores** — written by the optional subscriber processes while
 a session runs. They grow across sessions (never auto-truncated) and each has a
@@ -64,14 +96,25 @@ dedicated query tool.
 | `indexes/<ID>_history.jsonl` | `pm-index` (triggered by [`pm-index-admin-cli`](152-index-admin-cli.md) for `CORP_ACTION`/`ADD_CONSTITUENT`/`DELIST`) | On structural events only (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`) | Structural/corporate-action audit trail — **not** level or EOD history (that lives in `stats.db`, written by `pm-stats`) | **`pm-index-cli`** (read-only) — see [Market Index](150-market-index.md) |
 | `indexes/<ID>_state.json` | `pm-index` | On each update | Persisted divisor + last levels so the index resumes correctly after a restart | JSON; loaded by `pm-index` at startup |
 
-!!! note "Reading the *When* column"
+!!! note "Reading the *When* column for accumulating stores"
     **Per trade** = on every `trade.executed` event. **EOD** (end of day) = when
     the engine broadcasts `system.eod` on a clean shutdown. **Clean shutdown** =
     the engine caught `Ctrl-C`/`SIGINT` and finished its shutdown sequence — a hard
     kill (`SIGKILL`) skips these writes.
 
-The engine state files are described in detail in the sections below; the
-accumulating stores each have their own chapter (linked in the table).
+!!! note "Files intentionally out of scope for this page"
+    Two other named constants under the data directory exist but are not
+    persistence in the sense of this page, and are documented elsewhere:
+    `clearing_report.csv` is an on-demand CSV export written by the `pm-emo`
+    CLI when you ask it to generate a report, not a file the system reads
+    back; `log.db` / `logs/` belong to the separate `pm-log-srv` (LALF)
+    subsystem, documented in `docs-design/EduMatcher-log-srv.md`, not to the
+    matching engine covered here.
+
+The engine state files are described in detail in
+[Engine State Files In Detail](#engine-state-files-in-detail) below; the
+accumulating stores each have their own chapter, linked in the table and
+described in [Other Persistent Files](#other-persistent-files).
 
 !!! note "What is deliberately *not* persisted: quote inactivation history"
     The engine keeps a small, bounded, **in-memory-only** ring buffer per
@@ -103,7 +146,7 @@ orders are no longer expired here; they are persisted the same as `TIF = GTC`
 orders, and the same-day-vs-stale decision is made once, at the next
 startup (see below). True end-of-day `DAY` expiry is driven separately by
 the session scheduler's transition to `CLOSED` (see
-[Trading Day Lifecycle](#trading-day-lifecycle) and
+[Impact of a Business-Day Change](#impact-of-a-business-day-change) and
 [Auctions & Scheduling](080-session-scheduling.md)), not by the engine
 process exiting.
 
@@ -117,17 +160,24 @@ process exiting.
 The engine also checkpoints steps 1-2 and 4 periodically while running (not
 only at shutdown), so an abrupt exit — a crash, `SIGKILL`, container
 eviction — loses at most one checkpoint interval of state rather than the
-whole session.
+whole session. `engine_run_seq.json` is not part of this shutdown sequence
+at all — it is only ever written once, at the following startup.
 
 ### At Startup
 
+0. Before anything else — before GTC restore, before config is loaded — the
+   engine reads `<DATA_DIR>/engine_run_seq.json`, increments the run
+   counter, and saves it back immediately. This guarantees every trade ID
+   minted during this run is globally unique, even against trade IDs from
+   earlier runs. See [The `engine_run_seq.json` File](#the-engine_run_seqjson-file).
 1. The engine reads `<DATA_DIR>/gtc_orders.json` (if it exists).
 2. Each `TIF = GTC` order is re-injected into its symbol's order book unconditionally, **with its original timestamp preserved**.
-3. Each `TIF = DAY` order is re-injected **only if its own timestamp falls on the current business day** (machine-local calendar date). A `DAY` order dated before today — because the business day rolled over while the engine was up, or while it was down — is discarded instead, and the discard is logged at `INFO` level. This is the mechanism that ultimately gives `TIF = DAY` its intended meaning of "valid for the current trading day," independent of how many times the engine process itself has restarted in between.
+3. Each `TIF = DAY` order is re-injected **only if its own timestamp falls on the current business day** (machine-local calendar date). A `DAY` order dated before today — because the business day rolled over while the engine was up, or while it was down — is discarded instead, and the discard is logged at `INFO` level. This is the mechanism that ultimately gives `TIF = DAY` its intended meaning of "valid for the current trading day," independent of how many times the engine process itself has restarted in between. This rule applies to every resting order regardless of origin, including MM quote legs (step 3a below).
+3a. Restored quote-origin orders (from steps 2-3 above) are grouped back into linked bid/ask pairs by `(gateway_id, quote_id)` and re-registered as active quotes in the engine's in-memory `QuoteIndex`, so a surviving quote is fully quote-managed again — not just resting as a plain order. A quote whose sibling leg did not survive (filled, cancelled, or discarded as a stale `TIF=DAY` order) restores its surviving leg as an ordinary resting order instead, logged as a "single-leg quote remnant."
 4. The engine reads `<DATA_DIR>/gtc_combos.json` (if it exists) and rebuilds parent-child tracking maps for restored `GTC` combos.
 5. If any orders were restored, initial book snapshots are published.
 6. The engine reads `<DATA_DIR>/book_stats.json` (if it exists) and restores `last_buy_price` / `last_sell_price` / `prev_close` per symbol.  Persisted values take priority over config-seeded values.
-7. Market-maker quotes from each symbol's `market_maker_quotes` config section are injected as linked bid/ask quote legs, unless `seed_once: true` (the default) and this symbol already has a `book_stats.json` entry (i.e. the engine has been started at least once before for this symbol, whether or not a quote survived that restart). **No gateway connection is required** — seeds enter the book before any participant dials in.  If a restored order already crosses a seed price, a trade executes immediately during this step.
+7. Market-maker quotes from each symbol's `market_maker_quotes` config section are injected as linked bid/ask quote legs, unless `seed_once: true` (the default) and this `(gateway_id, symbol)` pair already has an active entry in `QuoteIndex` — i.e. a live quote was restored in step 3a. **No gateway connection is required** — seeds enter the book before any participant dials in.  If a restored order already crosses a seed price, a trade executes immediately during this step. This can also happen **between two different market makers**: a restored quote leg from one gateway can cross a freshly-injected seed from a different gateway — e.g. one gateway's quote only partially survived the restart (see [Operational edge cases](#operational-edge-cases) below), so `seed_once` still allows a second gateway's seed to fire, and that seed happens to cross the first gateway's surviving leg. Same startup-crossing behaviour as above, just a new pair of counterparties.
 8. Market-maker combos from the `market_maker_combos` config section are injected.
 9. Book snapshots are published for any symbol where MM quotes were injected.
 10. Original timestamps ensure that price-time priority carries over correctly — an order
@@ -135,70 +185,150 @@ whole session.
 
 
 
+## Impact of a Business-Day Change
+
+The single fact that governs everything on this page: **a process restart is
+not a day boundary.** The engine has no clock of its own that fires at
+midnight — the only place "is this still the same business day?" is ever
+evaluated is once, at startup, by comparing each restored order's own
+timestamp against today's machine-local calendar date (see
+[At Startup](#at-startup), steps 1-3 above). Two restarts can therefore
+behave very differently depending on nothing but whether a calendar date
+happened to change while the engine was down — the restart mechanics
+themselves (steps 0-10 above) are identical either way.
+
+```mermaid
+flowchart TD
+    RESTART([Engine restarts])
+    CHECK{Business day\nsame as when the\nengine last saved state?}
+
+    subgraph SAME["Same business day (e.g. quick restart, config reload, crash recovery)"]
+        direction TB
+        S_GTC[GTC orders: restored unchanged]
+        S_DAY[DAY orders: restored unchanged\nincl. same-day DAY quote legs]
+        S_QIDX[QuoteIndex: fully rebuilt\nfrom restored quote legs]
+        S_SEED[seed_once market-maker seeds:\nskipped — a live quote already\nrestored into QuoteIndex]
+        S_BSTAT[book_stats.json: restored\nlast_buy/sell + prev_close carry over]
+        S_COMBO[GTC combos: restored unchanged\nDAY combo parents: not persisted,\nchild legs follow order rules above]
+    end
+
+    subgraph ROLLED["Business day has rolled over (first restart after date change)"]
+        direction TB
+        R_GTC[GTC orders: restored unchanged\n— GTC has no day boundary]
+        R_DAY[DAY orders: discarded\nlogged at INFO, no order.expired published]
+        R_QIDX[QuoteIndex: rebuilt only from\nsurviving GTC quote legs;\nDAY quote legs are gone]
+        R_SEED[seed_once market-maker seeds:\nfire again for any gateway/symbol\nwhose quote did not survive the purge]
+        R_BSTAT[book_stats.json: restored unchanged\n— last trade context always carries\nforward regardless of day rollover]
+        R_COMBO[GTC combos: restored unchanged;\nany DAY combo child legs\nfollow the DAY order rule above]
+    end
+
+    RESTART --> CHECK
+    CHECK -->|yes, same day| SAME
+    CHECK -->|no, day changed| ROLLED
+```
+
+Reading the diagram: **only `TIF = DAY` orders — including DAY-tenored quote
+legs — are sensitive to the business-day check.** Everything else
+(`gtc_orders.json`'s GTC rows, `gtc_combos.json`, `book_stats.json`,
+`engine_run_seq.json`) is restored identically whichever branch is taken,
+because none of those depend on the calendar at all.
+
+The practical consequences of the "rolled over" branch:
+
+- A DAY order a trader left resting overnight is gone the next trading day —
+  by design, this is what `TIF = DAY` means. It is not cancelled with an
+  `order.cancelled` event; it is silently dropped during restore (a discard
+  is logged at `INFO` level and counted in a debug counter, but no
+  order-lifecycle message is published for it — from a gateway's point of
+  view the order simply never comes back).
+- A market maker's `TIF = DAY` quote leg is purged the same way. Because
+  `seed_once` only skips re-seeding when a *live* quote is already in
+  `QuoteIndex`, a purged DAY quote's `(gateway_id, symbol)` pair has no
+  `QuoteIndex` entry after restore, so the configured `market_maker_quotes`
+  seed for that pair fires again on this startup — the market reopens with a
+  fresh seed rather than a stale, days-old order.
+- `book_stats.json` is **not** day-sensitive: `last_buy_price` /
+  `last_sell_price` / `prev_close` restore unchanged across a day rollover.
+  This is intentional — `prev_close` exists specifically to carry the prior
+  session's closing price into the new session.
+- `gtc_combos.json` combo parents are GTC-only by construction (see
+  [The `gtc_combos.json` File](#the-gtc_combosjson-file)) and are therefore
+  never subject to the day check either; only their child orders, if any
+  leg were ever a DAY order, would be.
+- There is currently **no live, mid-session sweep** for a day rollover that
+  happens while the engine keeps running — the check above only runs at
+  startup. See the note below.
+
+!!! note "No day-rollover sweep while running"
+    The engine does **not** watch for midnight and does not halt trading to
+    purge stale DAY orders while it is running — the business-day check above
+    only runs at startup. In a classroom setting with `sessions_enabled: false`
+    (no [`pm-scheduler`](080-session-scheduling.md)), a stale TIF=DAY order from
+    a previous business day is only discarded the next time the engine
+    restarts. If you deliberately want to clear all resting DAY orders between
+    sessions in a classroom setup that does not run `pm-scheduler`, restart
+    the engine at least once after the date has rolled over — the stale-order
+    check at startup discards them then. See the design rationale in
+    `docs-design/EduMatcher-Revised-Quote-Persistence.md` §13.1 (repository
+    checkout only).
+
+    When `pm-scheduler` **is** running, true end-of-day `DAY` expiry is
+    additionally driven live by the session's transition to `CLOSED`,
+    independent of any engine restart — see
+    [Auctions & Scheduling](080-session-scheduling.md).
+
+
+
 ## Operational edge cases
 
 - If `<DATA_DIR>/gtc_orders.json`, `<DATA_DIR>/gtc_combos.json`, or `<DATA_DIR>/book_stats.json`
   is malformed JSON, startup does **not** fail. The loader returns empty state
-  for that file and the engine continues.
+  for that file and the engine continues. `<DATA_DIR>/engine_run_seq.json` is the
+  one exception: a corrupt or unreadable run-sequence file **is** fatal at
+  startup, because silently restarting the counter risks reissuing a trade ID
+  that a downstream store (e.g. `stats.db`'s `trade_log.trade_id` primary key)
+  already treats as durable. See
+  [The `engine_run_seq.json` File](#the-engine_run_seqjson-file).
 - Restored orders for symbols that no longer exist in the current config are
   skipped during restore rather than aborting startup.
-- Because config quote seeds run **after** persisted order restore, a
+- Because config quote seeds run **after** persisted order/quote restore, a
   seeded `market_maker_quotes` entry with `seed_once: false` can duplicate
   already-restored quote inventory on restart — `seed_once: true` (the
-  default) avoids this by skipping the seed whenever `book_stats.json`
-  already has an entry for the symbol, regardless of whether a quote
-  actually survived to be restored. Note this is a coarser check than "is
-  there currently a live quote for this gateway/symbol": once a symbol has
-  traded, its `book_stats` entry persists indefinitely, so a quote that
-  later gets fully hit and removed will **not** be automatically re-seeded
-  on a later restart even though no quote is actually resting — the
-  operator would need `seed_once: false` or a manual `quote.new` to
-  re-establish it. Separately, quote legs (`origin=QUOTE`) are currently
-  **never** persisted to `gtc_orders.json` regardless of their `TIF` —
-  unlike ordinary orders, which follow the GTC/DAY rule described above.
-  This means every restart re-seeds from config (subject to the
-  `seed_once` gate just described) rather than restoring a live quote's
-  actual resting legs. This is a known, separately tracked gap — see
-  `docs-design/EduMatcher-Revised-Quote-Persistence.md` §1-§7 (repository
-  checkout only) — not a consequence of the TIF=DAY work described in this
-  section.
+  default) avoids this by skipping the seed whenever this `(gateway_id,
+  symbol)` pair already has an active entry in `QuoteIndex`, i.e. a live
+  quote was actually restored. This is a live-presence check, not a
+  trading-history check: a quote that later gets fully hit through (or
+  expires as a stale `TIF=DAY` order) correctly has no `QuoteIndex` entry,
+  so the next startup's seed fires again rather than leaving the book with
+  no MM presence.
+- Quote legs (`origin=QUOTE`) persist by the same `TIF=GTC`/`TIF=DAY` rule
+  as any other resting order — they are no longer a special case excluded
+  from `gtc_orders.json`. A restored quote is re-registered as a live,
+  quote-managed entry in `QuoteIndex` (not just a plain resting order); see
+  [At Startup](#at-startup) above, step 3a. See
+  `docs-design/EduMatcher-Revised-Quote-Persistence.md` (repository
+  checkout only) for the full design rationale, and
+  [Market-Maker page](090-market-maker.md#what-happens-on-subsequent-days)
+  for the market-maker-specific walkthrough of this behaviour.
 - A `TIF = DAY` order now survives an engine restart the same as a `TIF =
   GTC` order does, as long as the restart happens on the same business day
   it rested on. This means restarting the engine mid-session to pick up a
   config change, or recovering from a crash, no longer cancels traders'
   DAY orders — only an actual business-day rollover does, checked once at
-  the next startup. If you deliberately want to clear all resting DAY
-  orders between sessions in a classroom setup that does not run
-  `pm-scheduler`, restart the engine at least once after the date has
-  rolled over — the stale-order check at startup discards them then. There
-  is currently no live, mid-session sweep for this case (see
-  [Auctions & Scheduling](080-session-scheduling.md) for the
-  scheduler-driven equivalent when sessions are enabled).
+  the next startup. See [Impact of a Business-Day Change](#impact-of-a-business-day-change)
+  above for the full breakdown.
 
 
 
-## Order ID Stability
+## Engine State Files In Detail
 
-GTC order IDs are UUID4 strings generated at submission time by the gateway.
-They **do not change** across restarts. Gateways and the order monitor will see
-the same order ID in all events throughout the order's life.
+The four files below are written and read exclusively by `pm-engine` itself
+(the engine state files row group in the
+[at-a-glance table](#data-files-at-a-glance)). This section is organized
+file-by-file; for command syntax to submit or cancel a GTC order, see
+[Working with GTC Orders](#working-with-gtc-orders) further down the page.
 
-
-
-## Submitting a GTC Order
-
-Add `TIF=GTC` to any LIMIT, STOP, STOP_LIMIT, or ICEBERG order:
-
-```
-NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=148.00|TIF=GTC
-NEW|SYM=AAPL|SIDE=BUY|TYPE=ICEBERG|QTY=1000|PRICE=149.00|VISIBLE=100|TIF=GTC
-```
-
-MARKET, FOK, and IOC orders are always DAY orders — they cannot be GTC because they do not rest.
-
-
-
-## The `gtc_orders.json` File
+### The `gtc_orders.json` File
 
 Format: a JSON array of serialized `Order` objects.
 
@@ -231,75 +361,44 @@ also holds resting TIF=DAY orders (see [How It Works](#how-it-works) above),
 deleting it before restarting clears **both** GTC and same-day DAY orders — not
 just GTC ones as in earlier versions.
 
+### The `engine_run_seq.json` File
 
+Format: a single JSON object holding the last-issued run number.
 
-## Trading Day Lifecycle
-
-```mermaid
-flowchart TD
-    START([Engine start\nno gateways connected])
-    GTC1[Load gtc_orders.json]
-    GTC2[Load gtc_combos.json\nrebuild parent-child maps]
-    DAYCHK{For each order:\nTIF=DAY and\norder-date < today?}
-    DISCARD[Discard stale DAY order\nlog + debug counter\nno order.expired published]
-    REINJ[Re-inject order\nwith original timestamp\nGTC always; DAY only if same-day]
-    SNAP1{Any orders\nrestored?}
-    BSTAT[Load book_stats.json\nrestore last_buy/sell prices + prev_close]
-    MMQ[Inject MM quotes from config\nseeds posted without MM online]
-    CROSS{Restored orders\ncross MM seeds?}
-    TRADE1[Trades fire immediately]
-    MMC[Inject MM combos from config]
-    SNAP2[Publish book snapshots\nfor symbols with MM quotes]
-    GW([Gateways connect\nMM re-quotes if seed consumed])
-    SESSION([Trading session\norders arrive, match, fill])
-    SIGTERM([Ctrl-C / SIGTERM])
-    SAVEGTC[Save resting GTC + DAY orders\n→ gtc_orders.json]
-    SAVECMB[Save GTC combos → gtc_combos.json\nDAY combo parent records not persisted]
-    SAVEBST[Save book stats → book_stats.json]
-    EOD[Publish system.eod\nfinal book snapshots]
-    DONE([Shutdown])
-
-    START --> GTC1 --> GTC2 --> DAYCHK
-    DAYCHK -->|yes| DISCARD --> SNAP1
-    DAYCHK -->|no| REINJ --> SNAP1
-    SNAP1 -->|yes| BSTAT
-    SNAP1 -->|no| BSTAT
-    BSTAT --> MMQ --> CROSS
-    CROSS -->|yes| TRADE1 --> MMC
-    CROSS -->|no| MMC
-    MMC --> SNAP2 --> GW --> SESSION --> SIGTERM
-    SIGTERM --> SAVEGTC --> SAVECMB --> SAVEBST --> EOD --> DONE
+```json
+{
+  "run_seq": 42
+}
 ```
 
-!!! note "No day-rollover sweep while running"
-    The engine does **not** watch for midnight and does not halt trading to
-    purge stale DAY orders while it is running — the business-day check above
-    only runs at startup. In a classroom setting with `sessions_enabled: false`
-    (no [`pm-scheduler`](080-session-scheduling.md)), a stale TIF=DAY order from
-    a previous business day is only discarded the next time the engine
-    restarts. See the design rationale in
-    `docs-design/EduMatcher-Revised-Quote-Persistence.md` §13.1 (repository
-    checkout only).
+This file exists for exactly one reason: to keep trade IDs globally unique
+across engine restarts. Within a single run, trades are numbered `1, 2, 3,
+...` in memory; that counter always restarts at `1` on the next process
+start. Without something to distinguish runs from each other, the second
+run's trade `1` would collide with the first run's trade `1` in any
+downstream store that treats trade IDs as a primary key (notably
+`stats.db`'s `trade_log` table — see
+[the `trade_log` table](#table-trade_log) further down this page).
 
+`engine_run_seq.json` solves this by persisting a run counter that only ever
+goes up. At the very start of every `run()` — before GTC restore, before
+config is loaded, before anything else — the engine reads the current
+`run_seq`, increments it, writes the new value back immediately, and holds
+the incremented value in memory for the rest of that process's life. Every
+trade ID minted during that run is then formatted as
+`{run_seq:06d}-{trade_seq:09d}`, e.g. `000042-000000001` for the first
+trade of run 42 — so trade IDs from different runs can never collide, even
+though each run's own counter starts over at 1.
 
+Unlike the other three engine state files, this file is **not** periodically
+checkpointed and is untouched by the shutdown sequence — it is written once,
+at startup, and not written again until the next startup. A missing file is
+treated as run `0` (so the very first run becomes run `1`); a **corrupt or
+unreadable** file is fatal — the engine refuses to start rather than risk
+reissuing trade IDs a downstream store already considers durable. See
+[Operational edge cases](#operational-edge-cases) above.
 
-## Cancelling a GTC Order
-
-Cancel it like any other order while the engine is running:
-
-```
-CANCEL|ID=<full-order-id>|RTAG=gtc-cxl-001
-```
-
-Cancelled orders are **not** included in the GTC save at shutdown — they are
-already marked `CANCELLED`.
-
-!!! tip
-    To find the full order ID, type `ORDERS` in your gateway terminal or check the audit log.
-
-
-
-## The `book_stats.json` File
+### The `book_stats.json` File
 
 Preserves the **last trade price context** per symbol across sessions. This serves two
 purposes: it allows the engine to correctly trigger stop orders on the first trade of a
@@ -327,6 +426,9 @@ back on restore, so values round-trip exactly regardless of a symbol's `tick_dec
 On startup, persisted values **override** any `last_buy_price` / `last_sell_price` seeded
 in `engine_config.yaml`.  Config seeds are only used when no persisted file exists (first run).
 
+This file is never day-sensitive — see
+[Impact of a Business-Day Change](#impact-of-a-business-day-change) above.
+
 !!! note "Config seeds are the IPO price; persisted stats are the carried-over close"
     The `last_buy_price` / `last_sell_price` in `engine_config.yaml` are the
     symbol's opening ([IPO](010-configuration.md#adding-or-removing-symbols))
@@ -336,9 +438,7 @@ in `engine_config.yaml`.  Config seeds are only used when no persisted file exis
     the collar and circuit-breaker references use this same resolved value — see
     [Risk Controls - Day one (IPO) behaviour](120-risk-controls.md#day-one-ipo-behaviour).
 
-
-
-## The `gtc_combos.json` File
+### The `gtc_combos.json` File
 
 Format: a JSON array of serialized `ComboOrder` objects (only combos with TIF=GTC and
 status `PENDING` or `PARTIALLY_MATCHED`):
@@ -363,6 +463,94 @@ status `PENDING` or `PARTIALLY_MATCHED`):
 
 On restore, the engine rebuilds the `_combos` and `_order_to_combo` tracking maps so
 that fill events on restored child orders correctly propagate to their parent combo.
+Only `TIF=GTC` combo parents are ever written here, so this file is never day-sensitive
+either — see [Impact of a Business-Day Change](#impact-of-a-business-day-change) above.
+
+
+
+## Working with GTC Orders
+
+### Submitting a GTC Order
+
+Add `TIF=GTC` to any LIMIT, STOP, STOP_LIMIT, or ICEBERG order:
+
+```
+NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=148.00|TIF=GTC
+NEW|SYM=AAPL|SIDE=BUY|TYPE=ICEBERG|QTY=1000|PRICE=149.00|VISIBLE=100|TIF=GTC
+```
+
+MARKET, FOK, and IOC orders are always DAY orders — they cannot be GTC because they do not rest.
+
+### Cancelling a GTC Order
+
+Cancel it like any other order while the engine is running:
+
+```
+CANCEL|ID=<full-order-id>|RTAG=gtc-cxl-001
+```
+
+Cancelled orders are **not** included in the GTC save at shutdown — they are
+already marked `CANCELLED`.
+
+!!! tip
+    To find the full order ID, type `ORDERS` in your gateway terminal or check the audit log.
+
+### Order ID Stability
+
+GTC order IDs are UUID4 strings generated at submission time by the gateway.
+They **do not change** across restarts. Gateways and the order monitor will see
+the same order ID in all events throughout the order's life.
+
+
+
+## General Startup / Shutdown Sequence
+
+The diagram below shows the full mechanical sequence for every restart — the
+same steps run whichever branch of
+[Impact of a Business-Day Change](#impact-of-a-business-day-change) applies;
+only the `DAYCHK` decision differs between them.
+
+```mermaid
+flowchart TD
+    START([Engine start\nno gateways connected])
+    RUNSEQ[Bump + save\nengine_run_seq.json]
+    GTC1[Load gtc_orders.json]
+    GTC2[Load gtc_combos.json\nrebuild parent-child maps]
+    DAYCHK{For each order:\nTIF=DAY and\norder-date < today?}
+    DISCARD[Discard stale DAY order\nlog + debug counter\nno order.expired published]
+    REINJ[Re-inject order\nwith original timestamp\nGTC always; DAY only if same-day]
+    QIDX[Rebuild QuoteIndex from restored\nquote-origin orders, grouped by\ngateway_id + quote_id]
+    SNAP1{Any orders\nrestored?}
+    BSTAT[Load book_stats.json\nrestore last_buy/sell prices + prev_close]
+    MMQ{seed_once and active\nquote already in\nQuoteIndex?}
+    MMQSKIP[Skip seed\na live quote is already resting]
+    MMQINJECT[Inject MM seed quote\nfrom config]
+    CROSS{Restored/seeded orders\ncross each other?}
+    TRADE1[Trades fire immediately]
+    MMC[Inject MM combos from config]
+    SNAP2[Publish book snapshots\nfor symbols with MM quotes]
+    GW([Gateways connect\nMM re-quotes if seed consumed])
+    SESSION([Trading session\norders arrive, match, fill])
+    SIGTERM([Ctrl-C / SIGTERM])
+    SAVEGTC[Save resting GTC + DAY orders\nincl. quote legs → gtc_orders.json]
+    SAVECMB[Save GTC combos → gtc_combos.json\nDAY combo parent records not persisted]
+    SAVEBST[Save book stats → book_stats.json]
+    EOD[Publish system.eod\nfinal book snapshots]
+    DONE([Shutdown])
+
+    START --> RUNSEQ --> GTC1 --> GTC2 --> DAYCHK
+    DAYCHK -->|yes| DISCARD --> SNAP1
+    DAYCHK -->|no| REINJ --> QIDX --> SNAP1
+    SNAP1 -->|yes| BSTAT
+    SNAP1 -->|no| BSTAT
+    BSTAT --> MMQ
+    MMQ -->|yes| MMQSKIP --> CROSS
+    MMQ -->|no| MMQINJECT --> CROSS
+    CROSS -->|yes| TRADE1 --> MMC
+    CROSS -->|no| MMC
+    MMC --> SNAP2 --> GW --> SESSION --> SIGTERM
+    SIGTERM --> SAVEGTC --> SAVECMB --> SAVEBST --> EOD --> DONE
+```
 
 
 
@@ -537,10 +725,12 @@ CREATE TABLE IF NOT EXISTS trade_log (
 );
 ```
 
-  `INSERT OR IGNORE` on `trade_id` makes duplicate deliveries safe. Modern engine
-  IDs are durable strings such as `000042-000000001`, where the prefix is the
-  engine run sequence and the suffix is the trade counter within that run. Older
-  statistics database files are not migrated and must be recreated.
+  `INSERT OR IGNORE` on `trade_id` makes duplicate deliveries safe. Engine
+  trade IDs are durable strings such as `000042-000000001`, where the prefix
+  is the engine run sequence persisted in `engine_run_seq.json` (see
+  [The `engine_run_seq.json` File](#the-engine_run_seqjson-file) above) and
+  the suffix is the trade counter within that run — this is what keeps
+  `trade_id` collision-free as a primary key across restarts.
 
 **Example queries**:
 
@@ -573,29 +763,15 @@ ORDER BY ts;
 For the complete file-by-file map — every data file, the process that writes it,
 its cadence, its purpose, and the tool used to read it — see
 [Data files at a glance](#data-files-at-a-glance) near the top of this page. The
-engine state files (`gtc_orders.json`, `gtc_combos.json`, `book_stats.json`) are
-described in detail in the sections above.
+engine state files (`gtc_orders.json`, `gtc_combos.json`, `book_stats.json`,
+`engine_run_seq.json`) are described in detail in
+[Engine State Files In Detail](#engine-state-files-in-detail) above.
 
 !!! note "Data directory path depends on how EduMatcher is run"
     The paths shown above use `src/data/` because that is the default for a
     **developer source checkout** (detected by `config.py` checking whether its
     own parent directory is named `src`).
 
-    The full resolution order is:
-
-    | Priority | Condition | Resolved path |
-    |---|---|---|
-    | 1 — Explicit | `EDUMATCHER_DATA_DIR` env var is set | Value of `$EDUMATCHER_DATA_DIR` |
-    | 2 — Installed | Running from a `pipx`/`pip` install | `~/.local/share/edumatcher/` |
-    | 3 — Developer | Running from a source checkout | `<repo>/src/data/` |
-
-    For a **clean product install** (`pipx install edumatcher`) the data
-    directory is `~/.local/share/edumatcher/` — no `src/` prefix is involved.
-    Run `pm-setup` once after installation to create this directory and copy a
-    sample config file.
-
-    A project-root `data/` directory also exists in the repository (used for
-    sample CSVs) but is never written to by any runtime process.
 
 ## See also
 
@@ -603,5 +779,3 @@ described in detail in the sections above.
 - [Auctions & Scheduling](080-session-scheduling.md) — how ATO/ATC orders expire at phase transitions
 - [Processes](170-processes.md#pm-stats-statistics-recorder) — `pm-stats` writes `stats.db`; `pm-audit` writes `audit.log`
 - [Configuration](010-configuration.md) — `last_buy_price`/`last_sell_price` config seeds vs persisted values
-
-

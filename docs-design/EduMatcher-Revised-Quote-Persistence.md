@@ -1,8 +1,9 @@
-Version: 0.4.0
+Version: 0.6.0
 
 Date: 2026-09-03
 
-Status: §1–§11 (quote persistence) Design Proposal — not implemented.
+Status: §1–§11 (quote persistence) — §7's WP1–WP6 implemented and verified
+(full lint + test suite green); WP7 (final full-suite gate) in progress.
 §12–§13 (TIF=DAY persistence) — Implemented and verified
 (full lint + test suite green).
 
@@ -61,6 +62,39 @@ Status: §1–§11 (quote persistence) Design Proposal — not implemented.
   content is an argument *against* doing extra work (a gratuitous rename),
   not a cross-version-compatibility requirement, so it already matches
   this project's "no backward compatibility to maintain" stance.
+- **0.5.0** (2026-09-03) — §7's WP1, WP2, and WP3 implemented and verified
+  (full lint + test suite green): `_resting_gtc_orders()`/`_shutdown()` no
+  longer exclude quote-origin orders (WP1); `_restore_gtc()` rebuilds
+  `self._quote_index` from restored quote-origin orders, GTC and same-day
+  DAY alike (WP2); `seed_once` gates on live `QuoteIndex` presence instead
+  of `book_stats` (WP3). Also updated `docs/user-guide/090-market-maker.md`
+  (seed_once semantics, cross-restart table, `tif` table, and the
+  `NEVER_INACTIVATE`-plus-restart-durability note originally scoped to
+  WP6 — this page needed substantially more rewriting than WP6 alone
+  anticipated, since it documented the pre-WP1–WP3 behaviour in detail)
+  and `docs/user-guide/180-persistence.md`'s remaining quote-specific gaps.
+  New holistic tests added in `tests/test_quote_persistence_restart.py`
+  build a second `Engine` instance from a first instance's persisted files
+  and drive `_restore_gtc()` + `_load_config()` in `run()`'s real order —
+  covering GTC/same-day-DAY quote restore without duplication, re-seeding
+  after a quote is fully hit or purged as stale, and MM-vs-MM startup
+  crossing (§6.2). WP4 (remaining edge cases) is next.
+- **0.6.0** (2026-09-03) — §7's WP4, WP5, and WP6 implemented and verified
+  (full lint + test suite green). WP4 needed no production-code change —
+  the existing per-order `try/except` guard in `_restore_gtc()` already
+  handled a corrupt sibling record correctly; added
+  `test_corrupt_sibling_record_does_not_abort_startup` to
+  `tests/test_engine_coverage_final.py` to prove it (§6.3), on top of the
+  MM-vs-MM crossing and §13.7 interaction tests already delivered with
+  WP1–WP3. WP5 and WP6 turned out to be substantially already done as a
+  side effect of WP1–WP3's documentation work — `docs/user-guide/
+  180-persistence.md`'s startup sequence, `seed_once` edge-case bullet, and
+  Trading Day Lifecycle diagram already described the post-WP1–WP3
+  behaviour, and `090-market-maker.md` already carried the
+  `NEVER_INACTIVATE`-plus-restart-durability warning (§6.4). The one gap
+  found on review: `180-persistence.md` was still missing the §6.2
+  MM-vs-MM startup-crossing sentence (present in `090-market-maker.md` but
+  not here) — added. WP7 (final full-suite gate) remains.
 
 
 ## 1. Overview

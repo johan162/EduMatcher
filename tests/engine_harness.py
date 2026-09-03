@@ -223,6 +223,7 @@ def submit_quote(
     ask_qty: int = 100,
     quote_id: str = "Q1",
     symbol: str = SYMBOL,
+    tif: str = "DAY",
 ) -> None:
     engine._handle_quote_new(
         {
@@ -236,7 +237,7 @@ def submit_quote(
             "ask_price": to_ticks(ask_price, symbol),
             "bid_qty": bid_qty,
             "ask_qty": ask_qty,
-            "tif": "DAY",
+            "tif": tif,
         }
     )
 

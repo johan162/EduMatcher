@@ -165,6 +165,22 @@ flowchart TD
     NEVER --> STAY
 ```
 
+!!! warning "`NEVER_INACTIVATE` plus GTC persistence is a durable steady-state across restarts"
+    Under `NEVER_INACTIVATE`, a partially-filled leg is never cancelled by a
+    fill — it just keeps resting with reduced quantity. Combined with quote
+    persistence (this page, above), a `TIF=GTC` quote's remaining inventory
+    now survives indefinitely across engine restarts, not just for one
+    continuous run: restart the engine as many times as you like and a
+    `NEVER_INACTIVATE` quote's partially-filled leg comes back with whatever
+    quantity was left when it was last saved. This is very likely what you
+    want if you're using `NEVER_INACTIVATE` to model an MM that manages its
+    own inventory across sessions — but if you're using it for a classroom
+    exercise and expect each session to start from the full configured
+    quantity, restart discipline alone will not reset it; delete
+    `src/data/gtc_orders.json` (see the testing tip under
+    [`seed_once`](#controlling-when-seeds-are-applied-seed_once) above) or
+    switch the leg's `tif` to `DAY` and let a business-day rollover clear it.
+
 ---
 
 ## MM obligations enforcement
@@ -324,55 +340,65 @@ symbol, the seed is silently replaced (same behaviour as any re-quote).
 ### Controlling when seeds are applied: `seed_once`
 
 The `seed_once` field controls whether a seed is a **one-off primer** or a
-**permanent daily seed**:
+**permanent seed**:
 
 | `seed_once` | When is the seed injected? | Typical use |
 |---|---|---|
-| `true` *(default)* | Only on the **very first startup** for that symbol — never again once the book has history | Initial liquidity for a brand-new symbol; the MM takes over from day 2 onwards |
-| `false` | On **every startup**, regardless of whether the symbol has been traded before | Demo setups where a specific spread must always be the opening quote |
+| `true` *(default)* | Only when this gateway/symbol does **not** already have an active quote restored from a previous session — never again once a live quote for it exists | Initial liquidity for a brand-new symbol; the MM takes over once its quote is actually resting |
+| `false` | On **every startup**, regardless of whether a quote already exists for this gateway/symbol | Demo setups where a specific spread must always be the opening quote |
 
-**"First startup" is detected via `book_stats.json`**: at every shutdown the
-engine writes `src/data/book_stats.json` with an entry for every configured
-symbol. If that entry is absent when the engine starts, the symbol is new.
-Once it exists — even if no trades happened yet — the symbol is considered
-known and `seed_once` seeds are skipped.
+**Detection is based on live quote presence, not on trading history**: at
+startup the engine first restores any quote legs that survived the previous
+shutdown (see [Cross-session behaviour](#what-happens-on-subsequent-days)
+below) and rebuilds its in-memory `QuoteIndex` from them, *before* deciding
+whether to inject config seeds. `seed_once: true` skips injection only when
+this specific `(gateway_id, symbol)` pair already has an active entry in that
+index — i.e. a quote is genuinely resting in the book right now. A symbol
+that has traded before, but whose quote later got fully hit through (or
+expired as a stale `TIF=DAY` order — see
+[Choosing `tif` for seed quotes](#choosing-tif-for-seed-quotes) below), is
+correctly treated as having **no** active quote, so the seed fires again on
+the next startup rather than leaving the book with no MM presence.
 
 ```mermaid
 flowchart TD
-    START[Engine startup\n_load_config]
-    LOADSTATS[Load book_stats.json]
-    FOREACH[For each market_maker_quotes entry]
+    START[Engine startup]
+    RESTORE[Restore quote-origin orders\nfrom gtc_orders.json\nrebuild QuoteIndex]
+    LOADCFG["_load_config(): for each\nmarket_maker_quotes entry"]
     SEEDONCE{seed_once?}
-    KNOWN{Symbol already in\nbook_stats.json?}
-    SKIP[Skip — symbol has\nprior history]
+    ACTIVE{Active quote already\nin QuoteIndex for this\ngateway/symbol?}
+    SKIP[Skip — a live quote\nis already resting]
     INJECT[Inject seed quote\ninto order book]
 
-    START --> LOADSTATS --> FOREACH --> SEEDONCE
+    START --> RESTORE --> LOADCFG --> SEEDONCE
     SEEDONCE -->|false| INJECT
-    SEEDONCE -->|true| KNOWN
-    KNOWN -->|yes| SKIP
-    KNOWN -->|no| INJECT
+    SEEDONCE -->|true| ACTIVE
+    ACTIVE -->|yes| SKIP
+    ACTIVE -->|no| INJECT
 ```
 
 !!! tip "Resetting to \"first day\" for testing"
-    Delete `src/data/book_stats.json` before starting the engine. Every
-    symbol will appear new again and `seed_once` seeds will be re-injected.
-    This is the standard way to reset a demo exchange to day-one state.
+    Delete `src/data/gtc_orders.json` (and, if you also want prior trade
+    history and reference prices gone, `src/data/book_stats.json`) before
+    starting the engine. With no persisted quote to restore, every
+    `seed_once: true` seed fires again on the next startup — this is the
+    standard way to reset a demo exchange to day-one state.
 
 ### Seeding and the startup order
 
-Seed quotes are injected *after* GTC resting orders are restored. This means a
-GTC resting order from a previous session may immediately cross against a seed
+Seed quotes are injected *after* GTC/DAY resting orders — including any
+restored quote legs — are restored. This means a resting order from a
+previous session, GTC or DAY alike, may immediately cross against a seed
 quote — that trade fires at startup, before any gateway connects:
 
 ```mermaid
 sequenceDiagram
     participant E as Engine (startup)
 
-    note over E: Step 1 — restore GTC orders
+    note over E: Step 1 — restore resting orders, rebuild QuoteIndex
     E->>E: Load gtc_orders.json → GTC SELL AAPL 100@149.00 restored
 
-    note over E: Step 2 — inject MM seed quotes (only if new symbol)
+    note over E: Step 2 — inject MM seed quotes (skipped if seed_once and\nan active quote already exists for this gateway/symbol)
     E->>E: SEED-MM01-AAPL BID=149.95 injected
     note over E: bid 149.95 ≥ resting ask 149.00 → immediate match!
     E->>E: trade.executed AAPL 100@149.00 published
@@ -381,42 +407,71 @@ sequenceDiagram
     note over E: Step 3 — ready for connections
 ```
 
+A restored quote leg can also cross a freshly-seeded quote from a *different*
+gateway — e.g. gateway A's restored quote only partially survived (§6.3 of
+`docs-design/EduMatcher-Revised-Quote-Persistence.md`), so `seed_once` still
+allows gateway B's seed to fire, and gateway B's seed happens to cross
+gateway A's surviving leg. This is the same startup-crossing behaviour as
+above, just between two market makers instead of a trader and a market
+maker.
+
 !!! warning "Startup trades fire before any gateway is connected"
-    If a GTC sell order rests at a price that a seed bid would cross, the
-    trade executes at startup. Fill events are published to the bus —
-    `pm-clearing` and `pm-stats` record them — but no participant terminal is
-    connected yet. The MM gateway's inbox will have the fill event waiting
-    when it connects.
+    If a GTC or same-day DAY sell order rests at a price that a seed bid
+    would cross, the trade executes at startup. Fill events are published to
+    the bus — `pm-clearing` and `pm-stats` record them — but no participant
+    terminal is connected yet. The MM gateway's inbox will have the fill
+    event waiting when it connects.
 
 ### What happens on subsequent days?
 
-The table below summarises the full session-boundary behaviour:
+A process exit — clean or otherwise — is **not** a day boundary. Quote legs
+persist across a restart by the same rule as any other order: `TIF=GTC`
+unconditionally, `TIF=DAY` only if the restart happens on the same business
+day it rested on (machine-local calendar date). The table below summarises
+the full session-boundary behaviour:
 
-| Component                           | Saved at shutdown?       | Day 2+ behaviour                           |
-|-------------------------------------|--------------------------|--------------------------------------------|
-| GTC participant orders              | Yes → `gtc_orders.json`  | Restored into book before seed injection   |
-| GTC combo parent state              | Yes → `gtc_combos.json`  | Restored; parent-child links rebuilt       |
-| Book stats (OHLCV, last prices)     | Yes → `book_stats.json`  | Restored; provides the "known symbol" flag |
-| MM seed quotes (`seed_once: true`)  | **No**                   | Skipped — symbol is already known          |
-| MM seed quotes (`seed_once: false`) | **No**                   | Re-injected on every startup               |
-| DAY participant orders              | No (expired at shutdown) | Must be re-submitted by participants       |
+| Component                                    | Saved at shutdown?      | Next-startup behaviour                                                    |
+|-----------------------------------------------|--------------------------|----------------------------------------------------------------------------|
+| GTC participant orders                        | Yes → `gtc_orders.json`  | Restored into book before seed injection                                   |
+| GTC combo parent state                        | Yes → `gtc_combos.json`  | Restored; parent-child links rebuilt                                       |
+| Book stats (OHLCV, last prices)                | Yes → `book_stats.json`  | Restored; used for `last_buy_price`/`last_sell_price`/`prev_close` only    |
+| DAY participant orders (same business day)     | Yes → `gtc_orders.json`  | Restored into book before seed injection                                   |
+| DAY participant orders (from a prior business day) | Yes → `gtc_orders.json` (until the next restart discards it) | Discarded at restore time, logged at `INFO` |
+| MM quote legs (any `tif`, same business day if `DAY`) | Yes → `gtc_orders.json`, `QuoteIndex` rebuilt | Restored as a live, quote-managed quote — no re-seed if `seed_once: true`   |
+| MM seed quotes (`seed_once: true`, no active quote restored) | — | Injected fresh                                                             |
+| MM seed quotes (`seed_once: false`)            | —                        | Re-injected on every startup regardless of what was restored               |
 
-!!! note "Why quote legs are never saved to `gtc_orders.json`"
-    At shutdown the engine skips quote-origin orders when writing
-    `gtc_orders.json`. Config seeds are the authoritative source for seed
-    quotes — saving the legs would create duplicate orders in the book on the
-    next startup when seeds are also re-injected.
+Note that a symbol's `book_stats.json` entry no longer has anything to do
+with whether a `seed_once: true` seed fires — see
+[Controlling when seeds are applied](#controlling-when-seeds-are-applied-seed_once)
+above. It continues to drive `last_buy_price`/`last_sell_price`/`prev_close`
+and the price-collar/circuit-breaker reference price, which is unrelated to
+quote seeding.
+
+!!! note "Quote legs are persisted like any other order"
+    Earlier versions of this engine excluded quote-origin orders from
+    `gtc_orders.json` entirely, and expired every `TIF=DAY` order (quotes
+    included) at every shutdown. Neither is true any more: a quote leg
+    persists and restores exactly like a participant's order would, subject
+    to the same `TIF=GTC`-unconditional / `TIF=DAY`-same-business-day rule.
+    See `docs-design/EduMatcher-Revised-Quote-Persistence.md` (repository
+    checkout only) for the full design rationale, and
+    [Persistence](180-persistence.md) for the general GTC/DAY persistence
+    mechanics this relies on.
 
 ### Choosing `tif` for seed quotes
 
-| `tif` value | Behaviour during the session                                   | Cross-session behaviour                                          |
-|-------------|----------------------------------------------------------------|------------------------------------------------------------------|
-| `DAY`       | Quote expires at end of trading day (Ctrl-C / SIGTERM)         | Re-seeded from config on next startup (if conditions met)        |
-| `GTC`       | Quote survives an ATC/session reset within the same engine run | Still re-seeded from config on next startup (legs not persisted) |
+| `tif` value *(default `DAY`)* | Behaviour during the session                                    | Cross-restart behaviour                                                                          |
+|-------------------------------|-------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|
+| `DAY`                          | Quote expires at end of trading day (scheduler-driven `CLOSED`, not a process exit) | Survives a restart within the same business day; discarded at restore if the business day has rolled over |
+| `GTC`                          | Quote survives an ATC/session reset within the same engine run    | Survives every restart unconditionally, regardless of business day                                 |
 
-For most setups `tif: DAY` is the right choice. Use `tif: GTC` only if you
-want the seed to survive an intra-session `CLOSED → PRE_OPEN` cycle within
-the same running engine instance.
+Both values now behave the same as an ordinary participant order at the same
+`tif` — quotes are no longer a special case for persistence. Choose `DAY`
+(the default) for a quote that should reset with the trading day like a real
+IPO opening quote; choose `GTC` only if you deliberately want the seed's
+resting inventory to carry over indefinitely across business-day boundaries
+without being re-primed from config.
 
 ---
 
@@ -1484,6 +1539,6 @@ sequenceDiagram
 - [Configuration](010-configuration.md) — full gateway and `mm_obligation_defaults` config schema
 - [Order Types](060-order-types.md) — the LIMIT orders that quote legs create under the hood
 - [Risk Controls](120-risk-controls.md) — how circuit breakers cancel quotes during a halt
-- [Persistence](180-persistence.md) — GTC quotes survive restarts; MM seeds are injected at startup
+- [Persistence](180-persistence.md) — GTC and same-day DAY quotes survive restarts; MM seeds are injected at startup for whatever didn't restore
 - [ALF Console](055-alf-console.md) — full QUOTE and QUOTE_CANCEL command syntax
 - [Messages](270-message-reference.md) — `quote.ack` and `quote.status` message payloads

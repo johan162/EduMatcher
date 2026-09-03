@@ -24,6 +24,7 @@ from edumatcher.models.combo import ComboLeg, ComboOrder, ComboType
 from edumatcher.models.message import decode
 from edumatcher.models.order import (
     Order,
+    OrderOrigin,
     OrderStatus,
     OrderType,
     Side,
@@ -144,6 +145,38 @@ def _day_order(symbol="AAPL", side=Side.BUY, price=100.0, days_ago=0):
         price=price,
     )
     o.status = OrderStatus.NEW
+    if days_ago:
+        order_date = datetime.now() - timedelta(days=days_ago)
+        o.timestamp = int(order_date.timestamp() * 1e9)
+    return o
+
+
+def _quote_leg(
+    order_id,
+    side,
+    tif=TIF.GTC,
+    quote_id="Q1",
+    gateway_id="GW01",
+    symbol="AAPL",
+    days_ago=0,
+):
+    """A resting quote-origin order, as would be loaded from
+    gtc_orders.json after §5.2's persistence change — origin=QUOTE with a
+    quote_id, exactly as Engine._load_config()/_handle_quote_new produce.
+    See docs-design/EduMatcher-Revised-Quote-Persistence.md §5.2-§5.3."""
+    o = Order.create(
+        symbol=symbol,
+        side=side,
+        order_type=OrderType.LIMIT,
+        quantity=100,
+        gateway_id=gateway_id,
+        tif=tif,
+        price=100.0 if side == Side.BUY else 100.10,
+    )
+    o.id = order_id
+    o.status = OrderStatus.NEW
+    o.origin = OrderOrigin.QUOTE
+    o.quote_id = quote_id
     if days_ago:
         order_date = datetime.now() - timedelta(days=days_ago)
         o.timestamp = int(order_date.timestamp() * 1e9)
@@ -302,6 +335,147 @@ class TestRestoreGTCBusinessDayCheck:
         engine._restore_gtc()
         restored_ids = {o.id for o in engine.books["AAPL"].resting_orders()}
         assert order.id in restored_ids
+
+
+class TestRestoreQuoteIndexRebuild:
+    """Restored quote-origin orders are regrouped by (gateway_id, quote_id)
+    into QuoteIndex entries — see
+    docs-design/EduMatcher-Revised-Quote-Persistence.md §5.3, revised per
+    §13.7 to cover same-day TIF=DAY quote legs as well as TIF=GTC."""
+
+    def test_two_legged_gtc_quote_is_rebuilt_into_quoteindex(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        bid = _quote_leg("Q1-BID", Side.BUY, tif=TIF.GTC)
+        ask = _quote_leg("Q1-ASK", Side.SELL, tif=TIF.GTC)
+        engine, _ = _make_engine(
+            monkeypatch, tmp_path, gtc_orders=[bid, ask], verbose=False
+        )
+        engine._restore_gtc()
+
+        entry = engine._quote_index.get("GW01", "AAPL")
+        assert entry is not None
+        assert entry.quote_id == "Q1"
+        assert entry.bid_order_id == "Q1-BID"
+        assert entry.ask_order_id == "Q1-ASK"
+        # And the legs are genuinely resting in the book, not just indexed.
+        restored_ids = {o.id for o in engine.books["AAPL"].resting_orders()}
+        assert restored_ids == {"Q1-BID", "Q1-ASK"}
+
+    def test_two_legged_same_day_tif_day_quote_is_rebuilt_into_quoteindex(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        """The common case per §13.7: a config-seeded quote left at the
+        TIF=DAY default now also survives a same-day restart and is fully
+        quote-managed again, not just resting as a plain order."""
+        bid = _quote_leg("Q1-BID", Side.BUY, tif=TIF.DAY, days_ago=0)
+        ask = _quote_leg("Q1-ASK", Side.SELL, tif=TIF.DAY, days_ago=0)
+        engine, _ = _make_engine(
+            monkeypatch, tmp_path, gtc_orders=[bid, ask], verbose=False
+        )
+        engine._restore_gtc()
+
+        entry = engine._quote_index.get("GW01", "AAPL")
+        assert entry is not None
+        assert entry.bid_order_id == "Q1-BID"
+        assert entry.ask_order_id == "Q1-ASK"
+
+    def test_single_surviving_leg_rests_but_is_not_quote_managed(
+        self, monkeypatch, tmp_path, caplog
+    ) -> None:
+        """The sibling leg is gone (filled/cancelled before shutdown, or
+        never GTC/same-day-DAY) — the surviving leg rests as an ordinary
+        order but no QuoteEntry is created for it. See §6.3."""
+        import logging
+
+        bid_only = _quote_leg("Q1-BID", Side.BUY, tif=TIF.GTC)
+        engine, _ = _make_engine(
+            monkeypatch, tmp_path, gtc_orders=[bid_only], verbose=False
+        )
+        with caplog.at_level(logging.INFO):
+            engine._restore_gtc()
+
+        assert engine._quote_index.get("GW01", "AAPL") is None
+        restored_ids = {o.id for o in engine.books["AAPL"].resting_orders()}
+        assert restored_ids == {"Q1-BID"}
+        assert "single-leg quote remnant" in caplog.text
+
+    def test_stale_day_quote_leaves_quoteindex_empty(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        """A same-day TIF=DAY quote leg that is actually stale (business day
+        has rolled over) is discarded by the staleness check before it ever
+        reaches the QuoteIndex grouping step — the interaction case from
+        §13.7 / the former §13.9-WP4."""
+        bid = _quote_leg("Q1-BID", Side.BUY, tif=TIF.DAY, days_ago=1)
+        ask = _quote_leg("Q1-ASK", Side.SELL, tif=TIF.DAY, days_ago=1)
+        engine, _ = _make_engine(
+            monkeypatch, tmp_path, gtc_orders=[bid, ask], verbose=False
+        )
+        engine._restore_gtc()
+
+        assert engine._quote_index.get("GW01", "AAPL") is None
+        assert "AAPL" not in engine.books
+
+    def test_mixed_gateways_do_not_cross_pollinate_groups(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        """Two different gateways seeding the same quote_id string must not
+        be merged into one QuoteEntry — grouping key is (gateway_id,
+        quote_id), not quote_id alone."""
+        gw1_bid = _quote_leg("GW1-BID", Side.BUY, gateway_id="GW01", quote_id="Q1")
+        gw1_ask = _quote_leg("GW1-ASK", Side.SELL, gateway_id="GW01", quote_id="Q1")
+        gw2_bid = _quote_leg("GW2-BID", Side.BUY, gateway_id="MM02", quote_id="Q1")
+        gw2_ask = _quote_leg("GW2-ASK", Side.SELL, gateway_id="MM02", quote_id="Q1")
+        engine, _ = _make_engine(
+            monkeypatch,
+            tmp_path,
+            gateways=("GW01", "MM02"),
+            gtc_orders=[gw1_bid, gw1_ask, gw2_bid, gw2_ask],
+            verbose=False,
+        )
+        engine._restore_gtc()
+
+        entry1 = engine._quote_index.get("GW01", "AAPL")
+        entry2 = engine._quote_index.get("MM02", "AAPL")
+        assert entry1 is not None and entry2 is not None
+        assert entry1.bid_order_id == "GW1-BID"
+        assert entry2.bid_order_id == "GW2-BID"
+
+    def test_corrupt_sibling_record_does_not_abort_startup(
+        self, monkeypatch, tmp_path, caplog
+    ) -> None:
+        """§6.3: the per-order try/except guard in _restore_gtc() (finding
+        C6) can drop one leg of a quote pair while keeping the other, if
+        that leg's persisted record is individually corrupt — e.g. a
+        hand-edited gtc_orders.json with a null price on a LIMIT order,
+        which fails OrderBook._rest()'s assertion. Startup must not abort,
+        the surviving leg must still rest as an ordinary (non-quote-managed)
+        order, and no QuoteEntry should be created for the incomplete pair.
+        """
+        import logging
+
+        good_leg = _quote_leg("Q1-BID", Side.BUY, tif=TIF.GTC)
+        corrupt_leg = _quote_leg("Q1-ASK", Side.SELL, tif=TIF.GTC)
+        corrupt_leg.price = None  # simulates a corrupt/hand-edited record
+
+        engine, _ = _make_engine(
+            monkeypatch,
+            tmp_path,
+            gtc_orders=[good_leg, corrupt_leg],
+            verbose=False,
+        )
+        with caplog.at_level(logging.INFO):
+            engine._restore_gtc()  # must not raise
+
+        # The corrupt leg was skipped; the good leg still rests.
+        restored_ids = {o.id for o in engine.books["AAPL"].resting_orders()}
+        assert restored_ids == {"Q1-BID"}
+        assert "restore failed" in caplog.text
+        # No QuoteEntry for an incomplete pair — surviving leg is a plain
+        # resting order, not quote-managed.
+        assert engine._quote_index.get("GW01", "AAPL") is None
+        assert "single-leg quote remnant" in caplog.text
 
 
 # ---------------------------------------------------------------------------

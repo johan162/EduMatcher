@@ -223,7 +223,9 @@ class MMQuoteSeed:
     tif: TIF = TIF.DAY
     quote_id: str | None = None
     seed_once: bool = (
-        True  # if True, skip injection when book_stats already has an entry for this symbol
+        True  # if True, skip injection when this (gateway_id, symbol) pair
+        # already has an active quote restored into QuoteIndex — see
+        # docs-design/EduMatcher-Revised-Quote-Persistence.md §5.4
     )
 
 
