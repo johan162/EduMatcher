@@ -321,6 +321,25 @@ classification. `REASON` remains the human-readable explanation.
 Gateway-local validation errors use `ERR|CODE=...|REJECT_CODE=...|DETAIL=...`
 and echo `TAG=...` when the rejected command carried a correlating tag.
 
+!!! warning "`PRICE`, `STOP` and `TRAIL` must be on the tick grid"
+    Every price must be an exact multiple of the instrument's tick size —
+    `SYMBOLS` reports it per symbol as `TICK`. One that is not is rejected by
+    the gateway before it reaches the engine:
+
+    ```
+    ERR|CODE=INVALID_VALUE|REJECT_CODE=TICK_VIOLATION|DETAIL=PRICE: 100.005 is not a multiple of AAPL's tick size 0.01|TAG=ORDER-001
+    ```
+
+    The gateway refuses rather than rounds, because rounding would rest your
+    order at a price you never sent and never tell you. Ordinary
+    floating-point arithmetic is safe: a price your code computed as
+    `100.00 - 3 * 0.01` is accepted as `99.97`.
+
+    `SYMBOLS_NOT_READY` covers the startup window — the gateway will not price
+    an order for a symbol whose tick precision it has not yet received from the
+    engine, because converting against a default precision would move the
+    price. Retry once the symbol list has arrived.
+
 ### `AMEND` — amend resting order
 
 ```text
@@ -568,11 +587,11 @@ These messages are addressed to your gateway ID and arrive on your session only.
 
 | Message type | Key fields |
 |---|---|
-| `ACK` | `ORDER_ID`, `ACCEPTED`, `REASON`, `SYMBOL`, `SIDE`, `TYPE` |
-| `FILL` | `ORDER_ID`, `FILL_QTY`, `FILL_PRICE`, `REMAINING`, `STATUS`, `TRADE_IDS` |
-| `AMENDED` | `ORDER_ID`, `PRICE`, `QTY`, `REMAINING`, `PRIORITY_RESET` |
-| `CANCELLED` | `ORDER_ID` |
-| `EXPIRED` | `ORDER_ID` |
+| `ACK` | `ORDER_ID`, `ACCEPTED`, `REASON`, `REJECT_CODE`, `SYMBOL`, `SIDE`, `TYPE`, `TAG`, `RTAG` |
+| `FILL` | `ORDER_ID`, `FILL_QTY`, `FILL_PRICE`, `REMAINING`, `STATUS`, `TRADE_IDS`, `TAG` |
+| `AMENDED` | `ORDER_ID`, `PRICE`, `QTY`, `REMAINING`, `PRIORITY_RESET`, `TAG`, `RTAG` |
+| `CANCELLED` | `ORDER_ID`, `TAG`, `RTAG`, `CANCEL_REASON` — see [Unsolicited cancels](#unsolicited-cancels) |
+| `EXPIRED` | `ORDER_ID`, `TAG` |
 | `QUOTE_ACK` | `QUOTE_ID`, `ACCEPTED`, `REASON`, `BID_ID`, `ASK_ID` |
 | `QUOTE_STATUS` | `QUOTE_ID`, `STATUS`, `REASON` |
 | `COMBO_ACK` | `COMBO_ID`, `ACCEPTED`, `REASON` |
@@ -581,7 +600,43 @@ These messages are addressed to your gateway ID and arrive on your session only.
 | `OCO_CANCELLED` | `OCO_ID`, `CANCELLED_ID`, `REASON` |
 | `KILL_ACK` | `ACCEPTED`, `REASON`, `ORDERS`, `QUOTES` |
 | `DC_ACK` | `STATE` (`ON`/`OFF`) — reply to `DC`, not unsolicited |
-| `DC_FILL` | `SEQ`, `ORDER_ID`, `SYMBOL`, `FILL_QTY`, `FILL_PRICE`, `LIQUIDITY` — only while `DC|STATE=ON` is active, see [`DC`](#dc-toggle-drop-copy-relay) |
+| `DC_FILL` | `SEQ`, `ORDER_ID`, `SYMBOL`, `FILL_QTY`, `FILL_PRICE`, `LIQUIDITY` — only while `DC\|STATE=ON` is active, see [`DC`](#dc-toggle-drop-copy-relay) |
+
+Every one of these carries `TAG` when the order was submitted with one, so a
+client correlates an event to its own order without matching on arrival order.
+That includes events you did not ask for — an expiry hours after you last
+touched the order, or a cancel the exchange decided on.
+
+### Unsolicited cancels
+
+A `CANCELLED` line does not always answer a `CANCEL` you sent. The exchange
+cancels orders on its own: self-match prevention, the unfillable remainder of a
+`MARKET` or `IOC` order, a kill switch, an OCO sibling, a `DAY` order at the
+close. Two fields tell you which happened:
+
+| Field | Meaning |
+|---|---|
+| `RTAG` | Present only when *you* asked, echoing the `RTAG` from your `CANCEL`. Absent means the exchange decided |
+| `CANCEL_REASON` | Why the exchange decided. Absent on your own cancels |
+
+```
+CANCELLED|ORDER_ID=ORD-7f3a|TAG=ORDER-001|CANCEL_REASON=SELF_MATCH_PREVENTED
+```
+
+| `CANCEL_REASON` | Meaning |
+|---|---|
+| `SELF_MATCH_PREVENTED` | The order would have traded against another order from your own gateway. Which order is cancelled — the aggressor, the resting one, or both — follows the `SMP` action in force |
+| `INSUFFICIENT_LIQUIDITY` | A `MARKET` or `IOC` order ran out of book. Whatever traded is reported by the preceding `FILL` lines; this cancels the remainder, which never rests |
+
+The field is **omitted, not empty**, when you requested the cancel yourself, and
+also on exchange-initiated cancels whose cause is not yet classified — a kill
+switch, a halt cascade, an expiry. So an absent `RTAG` together with an absent
+`CANCEL_REASON` still means *the exchange did this, cause unstated*. Treat a
+value you do not recognise the same way: new members may be added, but existing
+ones are never removed or renamed.
+
+`CANCEL_REASON` deliberately does not share the `REJECT_CODE` vocabulary. A
+cancel is not a rejection — the order was accepted, and may well have traded.
 
 
 ## Error codes
@@ -600,7 +655,8 @@ When the rejected command carried `TAG` or `RTAG`, the gateway also echoes it as
 | `BAD_MESSAGE` | Empty line, non-UTF-8, or line > 4096 bytes | Yes |
 | `UNKNOWN_COMMAND` | Unrecognised command verb | Yes |
 | `MISSING_FIELD` | Required field absent | Yes |
-| `INVALID_VALUE` | Field value fails validation (e.g. `PRICE=NaN`) | Yes |
+| `INVALID_VALUE` | Field value fails validation (e.g. `PRICE=NaN`, or a price off the instrument's tick grid — the latter carries `REJECT_CODE=TICK_VIOLATION`) | Yes |
+| `SYMBOLS_NOT_READY` | Any command naming a symbol before the engine's symbol list has reached the gateway (`REJECT_CODE=SYMBOL_NOT_READY`) — transient, retry | Yes |
 | `SYMBOL_NOT_CONFIGURED` | Unknown symbol (after symbols are loaded) | Yes |
 | `ROLE_DENIED` | Command not allowed for this gateway's role (e.g. `QUOTE` for non-MM) | Yes |
 | `RATE_LIMITED` | Commands arriving faster than `max_commands_per_second` | Yes |

@@ -187,7 +187,7 @@ if [[ $? -ne 0 ]]; then
 fi
 
 echo -e "${BLUE}Installing provisioning script...${NC}"
-multipass transfer "$SCRIPT_DIR/$INSTALL_SCRIPT" "$VM_NAME:/tmp/$INSTALL_SCRIPT"
+multipass transfer "$SCRIPT_DIR/$INSTALL_SCRIPT" "$VM_NAME:/opt/$INSTALL_SCRIPT"
 
 echo -e "${BLUE}Now provisioning EduMatcher $EDUMATCHER_VERSION...${NC}"
 
@@ -197,17 +197,17 @@ multipass exec "$VM_NAME" -- sudo apt-get upgrade -y
 # Run the provisioning script with the specified version. 
 # The script will install Python, create a virtual environment, 
 # install the specified version of edumatcher, and symlink the console scripts.
-multipass exec "$VM_NAME" -- sudo chmod +x /tmp/"$INSTALL_SCRIPT"
+multipass exec "$VM_NAME" -- sudo chmod +x /opt/"$INSTALL_SCRIPT"
 if [[ "$EDUMATCHER_VERSION" == "latest" ]]; then
-  multipass exec "$VM_NAME" -- sudo /tmp/"$INSTALL_SCRIPT"
+  multipass exec "$VM_NAME" -- sudo /opt/"$INSTALL_SCRIPT"
 elif [[ "$EDUMATCHER_VERSION" == "dev" ]]; then
   echo -e "${BLUE}Transferring local wheel file to VM for dev installation...${NC}"
   echo -e "${BLUE}Looking for wheel file in \"$REPO_ROOT/dist/*.whl\" to \"$VM_NAME:/tmp/\"...${NC}"
   multipass transfer $REPO_ROOT/dist/*.whl $VM_NAME:/tmp/
   echo -e "${GREEN}Installing local wheel file DONE.${NC}"
-  multipass exec "$VM_NAME" -- sudo /tmp/"$INSTALL_SCRIPT" --dev
+  multipass exec "$VM_NAME" -- sudo /opt/"$INSTALL_SCRIPT" --dev
 else
-  multipass exec "$VM_NAME" -- sudo /tmp/"$INSTALL_SCRIPT" --version "$EDUMATCHER_VERSION"
+  multipass exec "$VM_NAME" -- sudo /opt/"$INSTALL_SCRIPT" --version "$EDUMATCHER_VERSION"
 fi
 
 if [[ $? -ne 0 ]]; then

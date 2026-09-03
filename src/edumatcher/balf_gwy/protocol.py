@@ -77,7 +77,13 @@ def classify_engine_reason(reason: str) -> int:
         return RC_ATO_OUTSIDE_OPENING
     if reason.startswith("ATC orders only accepted during"):
         return RC_ATC_OUTSIDE_CLOSING
-    if "orders rejected during circuit breaker halt" in reason:
+    # Matches both halt wordings the engine produces: a circuit-breaker trip
+    # and a discretionary admin halt now say which they are, and BALF has one
+    # reject code for both. Keying on the shorter stable fragment rather than
+    # the full sentence is why widening the engine's wording did not silently
+    # demote these to RC_OTHER — and is also the argument for classifying on
+    # order_ack.reject_code instead of prose, when BALF next changes.
+    if "orders rejected during" in reason:
         return RC_HALT_REJECTION
     if "orders not accepted during" in reason:
         return RC_PHASE_REJECTION

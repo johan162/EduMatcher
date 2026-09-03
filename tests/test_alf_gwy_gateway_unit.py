@@ -820,3 +820,37 @@ def test_session_status_response_dropped_when_client_disconnected(
     )
 
     gateway._poll_engine_events()  # should not raise
+
+
+def test_cancelled_event_echoes_cancel_reason(gateway: AlfGateway) -> None:
+    """An exchange-initiated cancel reaches an ALF client with its cause.
+
+    The engine now says why it cancelled; dropping that at the gateway edge
+    would leave an ALF client exactly where it was — unable to tell a
+    self-match prevention from a kill switch.
+    """
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    gateway._clients[session.sock.fileno()] = session
+    gateway._active_gateway_sessions["TRADER01"] = session.sock.fileno()
+
+    fake_sub = gateway._sub
+    assert isinstance(fake_sub, _FakeSub)
+    fake_sub._queue.append(
+        encode(
+            "order.cancelled.TRADER01",
+            {"order_id": "ORD1", "cancel_reason": "SELF_MATCH_PREVENTED"},
+        )
+    )
+    # A client-requested cancel carries no cause, and the field is omitted
+    # rather than sent empty — an empty CANCEL_REASON= would read as a value.
+    fake_sub._queue.append(encode("order.cancelled.TRADER01", {"order_id": "ORD2"}))
+
+    gateway._poll_engine_events()
+
+    smp = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    client = parse_alf_line(session.out_queue[1].decode("utf-8"))
+    assert smp.fields["CANCEL_REASON"] == "SELF_MATCH_PREVENTED"
+    assert "CANCEL_REASON" not in client.fields
+    peer.close()

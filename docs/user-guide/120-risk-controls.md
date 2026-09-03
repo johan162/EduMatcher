@@ -105,11 +105,20 @@ dictionary is implicitly `ACTIVE`.
 
 When the engine receives a new order for a halted symbol:
 
-- **MARKET / FOK / IOC** — rejected immediately with a reason of the form
-  `"<SYMBOL> is halted — <TYPE> orders rejected during circuit breaker halt"`
-  (e.g. `"AAPL is halted — MARKET orders rejected during circuit breaker
-  halt"`).  These order types require immediate execution and cannot be held
-  on the book.
+- **MARKET / FOK / IOC** — rejected immediately.  These order types require
+  immediate execution and cannot be held on the book.
+
+    The `reject_code` says **which kind of halt** you hit, because the two are
+    not equivalent to a client: an automatic volatility halt clears itself and
+    is worth waiting out, while a discretionary one does not and is not.
+
+    | Halt source | `reject_code` | Reason text |
+    |---|---|---|
+    | Circuit breaker tripped on a price move | `CIRCUIT_BREAKER_ACTIVE` | `"<SYMBOL> is halted — <TYPE> orders rejected during circuit breaker halt"` |
+    | Administrator halted the symbol, or halted everything | `INSTRUMENT_HALTED` | `"<SYMBOL> is halted — <TYPE> orders rejected during trading halt"` |
+
+    A symbol with no circuit breaker configured can only be halted by an
+    administrator, so it always answers `INSTRUMENT_HALTED`.
 - **LIMIT / ICEBERG** — accepted and placed on the book but the engine
   suppresses the continuous-matching sweep.  The order will rest until the
   symbol is resumed, at which point it participates in the reopening.
@@ -1222,6 +1231,18 @@ below):
 aggressor sweeping several price levels can encounter same-gateway resting
 liquidity at one level and other-participant liquidity at another; SMP only
 engages at the levels where the gateway IDs actually collide.
+
+### What the client sees
+
+Every order SMP cancels — aggressor, resting order, or both — is reported as a
+cancellation carrying `CANCEL_REASON=SELF_MATCH_PREVENTED` on ALF, or
+`cancel_reason` on the REST WebSocket. It is **not** a rejection: the order was
+accepted, it may already have traded against other participants at better price
+levels, and only the part that would have self-matched is pulled.
+
+Without that field an SMP cancel is indistinguishable from a kill switch or a
+halt cascade, which matters most under `CANCEL_RESTING` — where the order that
+disappears is one you placed earlier and were not thinking about.
 
 ### Where SMP is checked — the matching-engine mechanics
 

@@ -35,7 +35,11 @@ from edumatcher.models.message import (
     make_symbols_request_msg,
 )
 from edumatcher.models.order import TIF, Order, OrderType, Side
-from edumatcher.models.price import to_ticks
+from edumatcher.models.price import (
+    get_tick_decimals,
+    register_tick_decimals,
+    to_ticks,
+)
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
 from edumatcher.models.generated.order import (
@@ -55,6 +59,19 @@ _CLIENT_NAME = "pm-ai-trader"
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
 log = logging.getLogger(__name__)
+
+
+def _tick_size(symbol: str) -> float:
+    """This symbol's tick size in display money.
+
+    The personality profiles used to carry a fixed 0.01, which is right for
+    the two-decimal symbols in the demo configs and wrong for every other
+    one: on a 0-decimal instrument a one-tick offset rounded back to the
+    reference price, so the bot quoted on top of the book forever, and on a
+    4-decimal one it moved a hundred ticks instead of one. Tick precision is
+    a property of the instrument, not of the trader's personality.
+    """
+    return float(10 ** -get_tick_decimals(symbol))
 
 
 @dataclass
@@ -290,8 +307,23 @@ class AITraderBot:
             return
 
         if topic == topic_symbols(self.gateway_id):
-            raw = payload.get("symbols", [])
-            all_syms = [str(sym).upper() for sym in raw if str(sym).strip()]
+            # One record per instrument, each carrying its own symbol and tick
+            # precision. This read the list as bare strings, which stringified
+            # the record instead ("{'symbol': 'AAPL', ...}"), so _known_symbols
+            # only ever held usable values via the --symbols fallback below --
+            # and tick precision, which the bot needs to price on the grid, was
+            # never registered at all.
+            all_syms: list[str] = []
+            for entry in payload.get("symbols", []):
+                if not isinstance(entry, dict):
+                    continue
+                sym = str(entry.get("symbol", "")).strip().upper()
+                if not sym:
+                    continue
+                all_syms.append(sym)
+                decimals = entry.get("tick_decimals")
+                if isinstance(decimals, int):
+                    register_tick_decimals(sym, decimals)
             if self._symbols_filter:
                 allowed = set(self._symbols_filter)
                 self._known_symbols = [sym for sym in all_syms if sym in allowed]
@@ -392,9 +424,10 @@ class AITraderBot:
             ):
                 price = snap.best_ask
             else:
+                tick = _tick_size(symbol)
                 price = max(
-                    0.01,
-                    ref - self.profile.passive_offset_ticks * self.profile.tick_size,
+                    tick,
+                    ref - self.profile.passive_offset_ticks * tick,
                 )
         else:
             ref = snap.best_ask if snap.best_ask is not None else snap.last_price
@@ -406,7 +439,7 @@ class AITraderBot:
             ):
                 price = snap.best_bid
             else:
-                price = ref + self.profile.passive_offset_ticks * self.profile.tick_size
+                price = ref + self.profile.passive_offset_ticks * _tick_size(symbol)
 
         # The bot talks straight to the engine, so it builds a complete order
         # (id, remaining_qty, timestamp, status) in ticks, exactly as a gateway

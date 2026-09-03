@@ -120,6 +120,23 @@ def make_order_new_msg(order_dict: dict[str, Any]) -> list[bytes]:
     return _gen_order.make_order_new(**order_dict)
 
 
+def make_order_new_unchecked_msg(order_dict: dict[str, Any]) -> list[bytes]:
+    """Same frames as :func:`make_order_new_msg`, without ``validate()``.
+
+    For a caller that has already validated every field itself and is hot
+    enough to care — today that is the ALF gateway's single-order path alone,
+    and ``_unchecked``'s own docstring asks that it stay that way.
+
+    Most of what this saves is not the validation. The validating builder goes
+    dict → ``OrderNew`` → ``validate()`` → dict; this one builds the payload
+    directly. Measured on one order: 7 349 ns against 2 364 ns, of which
+    ``validate()`` is 355 ns and the dataclass round trip is the other 4 630.
+    The generator guarantees the two emit byte-identical frames for any input,
+    and ``test_alf_gwy_wire_bounds.py`` holds that guarantee to it.
+    """
+    return _gen_order.make_order_new_unchecked(**order_dict)
+
+
 def make_gateway_connect_msg(gateway_id: str) -> list[bytes]:
     return _gen_system.make_gateway_connect(gateway_id=gateway_id)
 
@@ -203,6 +220,31 @@ def make_amended_msg(
 GROUP_ID_FIELDS = ("oco_group_id", "combo_parent_id", "quote_id", "leg_index")
 
 
+def order_client_tag(
+    client_tag: str | None, order: dict[str, Any] | None
+) -> str | None:
+    """Resolve the ``client_tag`` for a lifecycle event about *order*.
+
+    An explicit argument wins; otherwise the tag comes from the order itself.
+
+    This exists because the three lifecycle builders below used to disagree
+    about it. ``make_ack_msg`` read the tag off ``order``; ``make_cancelled_msg``
+    and ``make_expired_msg`` took the same ``order`` argument, used it only for
+    group ids, and left ``client_tag`` at its ``None`` default. Seven
+    engine-initiated cancels and every expiry therefore reached clients
+    untagged - not because anyone decided they should be, but because two
+    builders with near-identical signatures behaved differently and said
+    nothing about it. Sourcing the tag in one place is what stops the next
+    caller from having to know which builder it is talking to.
+    """
+    if client_tag is not None:
+        return client_tag
+    if not order:
+        return None
+    tag = order.get("client_tag")
+    return None if tag is None else str(tag)
+
+
 def group_ids(order: dict[str, Any] | None) -> dict[str, Any]:
     """Extract the group identifiers present on *order*.
 
@@ -236,9 +278,6 @@ def make_ack_msg(
     readers, which all use ``.get`` - see design section B.7.2.
     """
     detail = order or {}
-    order_client_tag = (
-        client_tag if client_tag is not None else detail.get("client_tag")
-    )
     return _gen_order.make_order_ack_unchecked(
         gateway_id=gateway_id,
         order_id=order_id,
@@ -251,7 +290,7 @@ def make_ack_msg(
         tif=detail.get("tif"),
         qty=detail.get("quantity"),
         price=detail.get("price"),
-        client_tag=order_client_tag,
+        client_tag=order_client_tag(client_tag, order),
         request_tag=request_tag,
         **group_ids(order),
     )
@@ -299,13 +338,21 @@ def make_cancelled_msg(
     client_tag: str | None = None,
     request_tag: str | None = None,
     order: dict[str, Any] | None = None,
+    *,
+    cancel_reason: _gen_order.OrderCancelledCancelReason | None = None,
 ) -> list[bytes]:
-    """Generated from ``spec/messages/order.yaml``. Byte-identical to before."""
+    """Generated from ``spec/messages/order.yaml``.
+
+    ``cancel_reason`` says why the *exchange* cancelled the order and is None
+    for a client-requested cancel; it is keyword-only so it cannot be confused
+    with the two tag positionals above it.
+    """
     return _gen_order.make_order_cancelled_unchecked(
         gateway_id=gateway_id,
         order_id=order_id,
-        client_tag=client_tag,
+        client_tag=order_client_tag(client_tag, order),
         request_tag=request_tag,
+        cancel_reason=cancel_reason,
         **group_ids(order),
     )
 
@@ -320,7 +367,7 @@ def make_expired_msg(
     return _gen_order.make_order_expired_unchecked(
         gateway_id=gateway_id,
         order_id=order_id,
-        client_tag=client_tag,
+        client_tag=order_client_tag(client_tag, order),
         **group_ids(order),
     )
 

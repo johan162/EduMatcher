@@ -37,6 +37,21 @@ Different TIF values control when orders are active and when they expire.
 
  
 
+!!! note "A DAY order's \"end of session\" is not the same as \"the engine process exits\""
+    The table above describes the session-scheduler's rule: `pm-scheduler`
+    driving the session into `CLOSED` cancels every resting `DAY` order at
+    that moment, published as `order.expired`. That is unchanged.
+
+    Separately, an **engine restart is not itself a day boundary**. If you
+    stop and restart `pm-engine` mid-session (a config reload, a crash
+    recovery) while still on the same business day, a resting `DAY` order
+    now survives that restart, exactly like a `GTC` order would — it is only
+    discarded, at the *next* startup, once its own timestamp is from a prior
+    business day. See [Persistence](../user-guide/180-persistence.md#impact-of-a-business-day-change)
+    for the full restart-vs-session-close distinction, and chapter
+    [16 — Persistence & Recovery](16-persistence-recovery.md) for a hands-on
+    exercise.
+
 ## Exercise 1: Observe Session Phases
 
 Start the scheduler in rapid-fire mode to see all transitions quickly:

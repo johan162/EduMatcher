@@ -43,7 +43,7 @@ from edumatcher.models.message import (
     make_oco_order_msg,
     make_order_amend_msg,
     make_order_cancel_msg,
-    make_order_new_msg,
+    make_order_new_unchecked_msg,
     make_orders_request_msg,
     make_quote_bootstrap_request_msg,
     make_quote_cancel_msg,
@@ -53,7 +53,11 @@ from edumatcher.models.message import (
     make_symbols_request_msg,
 )
 from edumatcher.models.order import Order, OrderType, Side, SmpAction, TIF
-from edumatcher.models.price import register_tick_decimals, to_ticks
+from edumatcher.models.price import (
+    TickViolation,
+    register_tick_decimals,
+    to_ticks_exact,
+)
 from edumatcher.models.reject import RejectCode
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.generated.order import (
@@ -114,6 +118,12 @@ _MAX_DC_EVENTS_PER_LOOP = 1000
 # Topic prefix used by edumatcher.engine.drop_copy.DropCopyPublisher for live
 # (non-replay) fill events -- see docs/user-guide/200-drop-copy.md.
 _DC_EVENT_TOPIC_PREFIX = PREFIX_DROP_COPY_EVENT
+#: Wire limits `order_new` declares in spec/messages/order.yaml. Checked once
+#: each - symbols when the engine's snapshot lands, gateway ids at HELLO -
+#: rather than per order by the validating message builder.
+_MAX_SYMBOL_LEN = 16
+_MAX_GATEWAY_ID_LEN = 32
+
 _TAG_ALLOWED = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.")
 
 log = logging.getLogger(__name__)
@@ -584,6 +594,17 @@ class AlfGateway:
             )
             return
 
+        if len(gateway_id) > _MAX_GATEWAY_ID_LEN:
+            # order_new declares gateway_id max_len 32. Refusing at HELLO is
+            # both earlier and clearer than the per-order check this replaces.
+            self._register_error(
+                session,
+                "INVALID_VALUE",
+                f"Gateway id exceeds {_MAX_GATEWAY_ID_LEN} characters",
+                close_connection=True,
+            )
+            return
+
         session.client_name = client
         session.gateway_id = gateway_id
         session.auth_pending = True
@@ -687,18 +708,32 @@ class AlfGateway:
             quantity=quantity,
             gateway_id=self._require_gw(session),
             tif=tif,
-            price=to_ticks(price, symbol) if price is not None else None,
-            stop_price=to_ticks(stop_price, symbol) if stop_price is not None else None,
+            price=self._ticks(price, symbol, "PRICE") if price is not None else None,
+            stop_price=(
+                self._ticks(stop_price, symbol, "STOP")
+                if stop_price is not None
+                else None
+            ),
             visible_qty=visible,
             smp_action=smp,
             trail_offset=(
-                to_ticks(trail_offset, symbol) if trail_offset is not None else None
+                self._ticks(trail_offset, symbol, "TRAIL")
+                if trail_offset is not None
+                else None
             ),
             oco_group_id=None,
             client_tag=self._optional_tag(fields, "TAG"),
         )
 
-        self._send_to_engine(make_order_new_msg(order.to_dict()))
+        # The unchecked builder, on the one path measured hot enough to
+        # justify it (docs-design/EduMatcher-Perf-Analysis.md section 7).
+        # It skips OrderNew.validate() — worth 355 ns — but the bulk of the
+        # 5.0 us it saves is the dataclass round trip the validating builder
+        # makes: dict -> OrderNew -> validate -> dict. Every rule validate()
+        # would have applied is already enforced above or bounded once at
+        # startup; tests/test_alf_gwy_wire_bounds.py pins that field by field
+        # so the correspondence cannot rot.
+        self._send_to_engine(make_order_new_unchecked_msg(order.to_dict()))
 
     def _handle_new_oco(self, session: ClientSession, fields: dict[str, str]) -> None:
         gateway_id = self._require_gw(session)
@@ -721,16 +756,22 @@ class AlfGateway:
             }
 
             if f"{prefix}PRICE" in fields:
-                leg["price"] = to_ticks(
-                    safe_float(fields[f"{prefix}PRICE"], f"{prefix}PRICE"), symbol
+                leg["price"] = self._ticks(
+                    safe_float(fields[f"{prefix}PRICE"], f"{prefix}PRICE"),
+                    symbol,
+                    f"{prefix}PRICE",
                 )
             if f"{prefix}STOP" in fields:
-                leg["stop_price"] = to_ticks(
-                    safe_float(fields[f"{prefix}STOP"], f"{prefix}STOP"), symbol
+                leg["stop_price"] = self._ticks(
+                    safe_float(fields[f"{prefix}STOP"], f"{prefix}STOP"),
+                    symbol,
+                    f"{prefix}STOP",
                 )
             if f"{prefix}TRAIL" in fields:
-                leg["trail_offset"] = to_ticks(
-                    safe_float(fields[f"{prefix}TRAIL"], f"{prefix}TRAIL"), symbol
+                leg["trail_offset"] = self._ticks(
+                    safe_float(fields[f"{prefix}TRAIL"], f"{prefix}TRAIL"),
+                    symbol,
+                    f"{prefix}TRAIL",
                 )
             return leg
 
@@ -812,8 +853,12 @@ class AlfGateway:
                     side=side,
                     order_type=leg_type,
                     quantity=qty,
-                    price=to_ticks(price, sym) if price is not None else None,
-                    stop_price=to_ticks(stop, sym) if stop is not None else None,
+                    price=(
+                        self._ticks(price, sym, "PRICE") if price is not None else None
+                    ),
+                    stop_price=(
+                        self._ticks(stop, sym, "STOP") if stop is not None else None
+                    ),
                     smp_action=smp_action,
                 )
             )
@@ -909,9 +954,9 @@ class AlfGateway:
             "gateway_id": self._require_gw(session),
             "symbol": symbol,
             # Ticks on the wire (design section 15.2, quotes joined in 6.1b).
-            "bid_price": to_ticks(bid, symbol),
+            "bid_price": self._ticks(bid, symbol, "BID"),
             "bid_qty": bid_qty,
-            "ask_price": to_ticks(ask, symbol),
+            "ask_price": self._ticks(ask, symbol, "ASK"),
             "ask_qty": ask_qty,
             "tif": tif.value,
         }
@@ -1166,6 +1211,21 @@ class AlfGateway:
             if isinstance(tick_decimals, int):
                 ticks[sym] = tick_decimals
                 register_tick_decimals(sym, tick_decimals)
+
+        # order_new declares symbol max_len 16. The gateway no longer pays
+        # for that check per order (see _handle_new_single), so it is made
+        # once here, against the only source symbols ever come from. A symbol
+        # this long is a configuration error, and discovering it on the first
+        # order of the day would be a poor place to learn about it.
+        oversized = [sym for sym in symbols if len(sym) > _MAX_SYMBOL_LEN]
+        if oversized:
+            log.error(
+                "engine sent symbol(s) longer than the %d-character wire limit; "
+                "orders for them will be refused: %s",
+                _MAX_SYMBOL_LEN,
+                ", ".join(sorted(oversized)),
+            )
+        symbols = [sym for sym in symbols if len(sym) <= _MAX_SYMBOL_LEN]
 
         self._symbols_snapshot_loaded = True
         self._known_symbols.update(symbols)
@@ -1422,6 +1482,8 @@ class AlfGateway:
                 fields["TAG"] = str(payload["client_tag"])
             if payload.get("request_tag") is not None:
                 fields["RTAG"] = str(payload["request_tag"])
+            if payload.get("cancel_reason") is not None:
+                fields["CANCEL_REASON"] = str(payload["cancel_reason"])
         elif topic.startswith(PREFIX_ORDER_EXPIRED):
             msg_type = "EXPIRED"
             fields = {"ORDER_ID": str(payload.get("order_id", ""))}
@@ -1540,6 +1602,23 @@ class AlfGateway:
         if default is not None:
             return default
         raise ValidationError("MISSING_FIELD", f"{key} is required")
+
+    @staticmethod
+    def _ticks(price: float, symbol: str, field: str) -> int:
+        """Convert a client price to ticks, refusing one off the tick grid.
+
+        ``to_ticks`` would round it instead, so a client that asked for
+        100.005 on a 2-decimal symbol would silently get a resting order at a
+        price it never sent. The legacy ``CODE=`` stays ``INVALID_VALUE`` so
+        the existing ERR vocabulary is unchanged; ``REJECT_CODE`` carries the
+        machine-readable answer.
+        """
+        try:
+            return to_ticks_exact(price, symbol)
+        except TickViolation as exc:
+            raise ValidationError(
+                "INVALID_VALUE", f"{field}: {exc}", "TICK_VIOLATION"
+            ) from exc
 
     def _optional_tag(self, fields: dict[str, str], key: str) -> str | None:
         if key not in fields:

@@ -1,13 +1,14 @@
-Version: 1.0.0
+Version: 1.1.0
 
-Date: 2026-08-31
+Date: 2026-09-03
 
-Status: Design and Research Proposal
+Status: Prerequisites implemented and audited — framework Phase 1 may begin
 
 # EduMatcher — System Trading Verification (`pm-systest`)
 
 ## Table of Contents
 
+0. [Verification Status (2026-09-03)](#0-verification-status-2026-09-03)
 1. [Motivation](#1-motivation)
 2. [Goals and Non-Goals](#2-goals-and-non-goals)
 3. [The Determinism Problem](#3-the-determinism-problem)
@@ -45,6 +46,189 @@ Status: Design and Research Proposal
 
 ---
 
+## 0. Verification Status (2026-09-03)
+
+The Appendix A prerequisites were implemented between 2026-08-31 and
+2026-09-01 (commits `c507f692` through `81c07868`) and audited against the
+tree on 2026-09-03. This section records what that audit found, so the rest of
+the document can be read as a plan whose starting conditions are *known*
+rather than assumed. Where a later section made a claim the audit contradicts,
+that section has been corrected in place and carries a pointer back here.
+
+### 0.1 Gap ledger — current verdict
+
+| Gap | Verdict | Evidence in the tree |
+|---|---|---|
+| **G1** client order correlation | ✅ **Closed** | `Engine._reject` (26 call sites; keyword-only `client_tag`/`request_tag`, no defaults); `alf_gwy/gateway.py::_optional_tag` with `TAG`/`RTAG` inbound and outbound; `api_gateway/translate.py::build_order`; `request_tag` in `spec/messages/order.yaml` |
+| **G2** machine-readable spy output | ✅ **Closed — different spelling** | All three spies accept `--format json` and print one JSON object per line to stdout. There is no `--output FILE`; the orchestrator redirects. §8 and §15 corrected. |
+| **G3** engine book snapshot | ✅ **Closed by an existing path** | `Engine._handle_book_snapshot_request` answers `book.snapshot.request` on the bus with an authoritative `book.<SYM>` snapshot, already consumed by `pm-board` and `pm-viewer`. Neither the admin endpoint nor an ALF `BOOK` command proposed in §13 is needed. |
+| **G4** canonical reject codes | ✅ **Closed** | `reject_code` inline enum on `order_ack`; `models/reject.py` re-export of the generated `Literal`; ALF `REJECT_CODE=`; REST 4xx bodies and WS acks; `tests/test_cross_transport_rejects.py` |
+| **G5** matching decision trace | ⬜ Open | Not implemented. Non-blocking by design. |
+| **G6** rejections in the audit journal | ✅ **Was never open** | `audit/main.py` subscribes with an empty topic filter, and every rejection is published as `order.ack` with `accepted=false`. |
+| **G7** causal trade identity | ✅ **Closed** | `Trade.id` matches `^\d{6}-\d{9}$`; `persistence.load_and_bump_run_seq` is fail-loud; `set_run_seq()` is the first statement of `Engine.run()`; CALF `TRADE_ID`/`RUN_SEQ`; `md_gateway/replay_buffer` dedups on trade id; drop copy and ALF `FILL` carry `trade_ids` |
+| **G8** stats flush timing | ⬜ Open, mitigated | No flush marker or admin flush command exists. §5.3's rowid-stability probe is an adequate substitute, so this is downgraded from prerequisite to nice-to-have. |
+| **G9** liquidity flag on the private fill | 🟥 **Open — now blocking** | `order_fill` in `spec/messages/order.yaml` carries no `liquidity_flag`. See §0.2. |
+| **G10** session/halt matrix ratification | ⬜ Open, non-blocking | No rulebook document exists; `spec/` holds message specifications only. Spike S4 established the behaviour, so the scenarios can be written; ratification remains outstanding. |
+| **G11** unfilled MARKET carries no reason | 🟥 **New — found by this audit** | See §0.2. |
+| **G12** no tick, lot or order-size validation | 🟥 **New — found by this audit** | See §0.3. |
+
+**All three blocking prerequisites — G1, G4 and G7 — are closed**, and gate
+**G-δ** (§B.6), which the plan calls the premise of the entire design, is
+proven by `tests/test_cross_transport_rejects.py`. Both Appendix A and
+Appendix B are complete: every work package WP1–WP12 has merged.
+
+**Framework Phase 1 may begin.** Nothing blocks the skeleton, the two drivers,
+or the first three scenarios (LM-001, LM-020, LM-040). Four items remain before
+the *full* catalogue can be written, and §15 tracks them:
+
+| | Item | Blocks |
+|---|---|---|
+| a | Lift `tests/engine_invariants.py` I1–I6 into `edumatcher/systest/invariants.py`. `src/edumatcher/systest/` does not exist — this is the actual first task | Phase 1 assertions |
+| b | Close **G9** (§0.2) — small and additive | any scenario asserting maker/taker attribution |
+| c | Decide **G12** (§0.3) | six catalogue scenarios and two invariants |
+| d | Ratify §11.4 (**G10**) and write `docs/developer/ui-manual-verification.md` (§14) | neither blocks code; both are outstanding |
+
+### 0.2 G9 and G11 — two holes on the order-entry path
+
+Both were missed by the original gap analysis because both are about what a
+*correct* event fails to say, not about a missing event.
+
+**G9 — the private fill does not say who was the maker.**
+`spec/messages/order.yaml::order_fill` has no `liquidity_flag`, so neither the
+ALF `FILL` line nor the REST WebSocket fill event carries maker/taker
+attribution. Only the drop copy (E7) does — `engine/drop_copy.py::publish_fill`
+takes it as a required argument. The consequence is specific and it lands on
+Phase 1: §6.1's worked scenario asserts `liquidity: TAKER` on a fill, §11.5's
+dissemination matrix distinguishes the two sides of a match, and invariant I4
+("exactly one maker and one taker") cannot be evaluated from E1 at all. A
+scenario can still *infer* attribution by joining E1 to E7 on `trade_ids`, but
+then the framework is proving E7 against itself rather than proving that the
+client-facing path reports attribution correctly — which is exactly the class
+of defect a system test exists to catch.
+
+*Fix (additive, one spec edit plus two edges):* add
+`liquidity_flag` to `order_fill` alongside the existing `trade_ids`; echo it as
+`LIQUIDITY=` on the ALF `FILL` line, matching the `DC_FILL` line that already
+carries it; the REST WS path needs no change because the projection forwards
+the payload verbatim (spike S3). This is a production improvement, not a test
+hook — a participant reading its own fills today cannot tell whether it paid or
+earned the spread.
+
+**G11 — an unfilled MARKET order is cancelled without a reason.**
+Spike S4 left §17's second open question ("MARKET with no liquidity: REJECTED
+or ACCEPTED-then-CANCELLED?") unanswered. The code answers it, and the answer
+is *both*, depending on the path:
+
+| Situation | Terminal event | Reason on the wire |
+|---|---|---|
+| MARKET in `CONTINUOUS`, book empty or thin | `order.cancelled` | **none** — `_match_market` sets `OrderStatus.CANCELLED` and the engine publishes `make_cancelled_msg` |
+| MARKET while matching is disabled (auction, halt) | `order.ack accepted=false` | `INSTRUMENT_HALTED` or `SESSION_NOT_PERMITTED`, rejected before the book is reached |
+| FOK that cannot be fully filled | `order.ack accepted=false` | `INSUFFICIENT_LIQUIDITY` |
+
+So `INSUFFICIENT_LIQUIDITY` exists and is emitted — but for FOK, not for the
+plain unfilled MARKET that §12.3's LM-042 is about. On the wire, that MARKET's
+cancellation is indistinguishable from a kill-switch cancel, a halt cascade or
+a DAY expiry, because `order_cancelled` carries neither `reason` nor
+`reject_code`. LM-042 has been rewritten to assert the behaviour that exists;
+whether the behaviour is *right* is a rulebook question (G10), and whether it is
+*observable* is this gap.
+
+*Fix (optional, additive):* a nullable `reject_code` on `order_cancelled`, set
+to `INSUFFICIENT_LIQUIDITY` for the discarded MARKET remainder and left null
+for a client-requested cancel. `request_tag=None` already distinguishes
+exchange-initiated cancels from client ones (A.1.7), so this only has to
+distinguish *why* the exchange did it.
+
+### 0.3 G12 — the instrument-rule and risk rejections do not exist
+
+This is the correction with the widest reach through the document, and it was
+not visible from the reject-code enum, because the enum was written from the
+*catalogue* rather than from the code.
+
+Eight members of the `reject_code` enum are declared and never emitted
+anywhere in `src/edumatcher/`:
+
+| Code | Why it is never emitted |
+|---|---|
+| `TICK_VIOLATION` | There is no tick validation. `models/price.py::to_ticks` **rounds to the nearest tick** (`int(round(price * scale))`). A sub-tick price is silently accepted at a different price than the client sent. |
+| `LOT_VIOLATION` | There is no lot-size concept anywhere — not in `SymbolConfig`, not in the config schema, not in any spec file. |
+| `MAX_ORDER_QTY`, `MAX_ORDER_VALUE`, `POSITION_LIMIT` | No pre-trade size or notional limits are implemented. |
+| `CIRCUIT_BREAKER_ACTIVE` | A circuit-breaker halt sets the same per-symbol halt flag as an admin halt and rejects with `INSTRUMENT_HALTED`. |
+| `SELF_MATCH_PREVENTED` | SMP cancels the aggressor, the resting order, or both; it never produces a rejection ack. |
+| `UNKNOWN` | Deliberate — it is the forward-compatibility fallback (A.2.3). |
+
+`_validate_new_order` returns exactly five codes: `DUPLICATE_ORDER`,
+`QTY_OUT_OF_RANGE`, `PRICE_OUT_OF_RANGE`, `MISSING_FIELD` and (for the iceberg
+slice) `QTY_OUT_OF_RANGE` again. Everything else in the enum comes from session,
+halt, gateway-status, collar or liquidity checks.
+
+Nothing here is a defect introduced by the Appendix A work — the enum is
+deliberately forward-looking, and A.2.3 says so ("new members may be added").
+The defect is in *this document*, which built a test catalogue and a coverage
+argument on validation that was assumed to exist:
+
+- §4.3's symbol table has a **Lot size** column. There is no such config field.
+- **LM-007** (sub-tick price → `TICK_VIOLATION`), **LM-009** and **LM-045**
+  (lot-size violation → reject) and **LM-011** (`max_order_qty` /
+  `max_order_value`) assert outcomes the engine cannot produce.
+- §11.3's boundary-value list is largely unreachable: "lot size ± 1",
+  "tick − ε", "at and over `max_order_value`" have no corresponding control.
+- Invariant **I10** ("every price is an exact multiple of the tick") is
+  vacuously true — prices are *stored* as ticks, so it cannot fail. Invariant
+  **I11** has no lot size to check.
+
+Those sections are corrected below. The choice this leaves open is a product
+decision, not a test-design one:
+
+1. **Implement the controls**, then the scenarios and invariants stand as
+   written. This is a real pre-trade-risk feature and §1 already names
+   pre-trade risk as the next subsystem — so it is arguably the right order.
+2. **Do not implement them**, and delete the corresponding scenarios and the
+   unreachable enum members, rather than shipping a catalogue whose coverage
+   ledger reports green cells that nothing tests.
+
+Until it is decided, the affected scenarios are marked **`blocked: G12`** in
+§12 and excluded from the coverage ledger's denominator, so the ledger cannot
+quietly claim credit for them.
+
+### 0.4 What this does to the confidence claim
+
+§11 asks for a systematic derivation rather than a guess-list, and delivers
+one. What it should not do — and what §1 and §16 previously implied — is
+attach a number to it. A percentage suggests a measured defect-escape rate;
+what the method actually produces is a *ledger*: every cell of derivations
+A–E is either covered by a system scenario, covered by a named unit test, or
+listed as an uncovered residual with a reason.
+
+That distinction is not pedantry, because three things stand outside the
+ledger no matter how many scenarios are added, and each is a real place a
+defect can hide:
+
+1. **BALF is a third correlation namespace** (spike S1). Its `client_order_id`
+   is a `u64` held gateway-side and never mapped to `client_tag`, and no BALF
+   frame carries a trade id. The cross-transport equivalence proof of §9.3
+   covers ALF and REST only.
+2. **The Trading UI is manual** (§14) and `pm-alf-console` is bypassed by the
+   ALF driver (§7.2). Both are covered by unit tests and a checklist, not by
+   the equivalence proof.
+3. **A test derived from observed behaviour cannot show the behaviour is
+   wrong.** §11.4's matrices are correct descriptions of the implementation;
+   until G10 ratifies them, every session and halt scenario asserts a snapshot,
+   not a specification.
+
+So the claim this design can honestly support, once Phase 2 completes, is:
+
+> For LIMIT and MARKET orders over ALF and REST, every state, transition,
+> decision-table row, boundary and dissemination cell derived in §11 is
+> covered by a system scenario or by a named unit test; the residual is
+> enumerated with reasons; and the canonical outcome is identical across
+> transports.
+
+That is a stronger statement than "99% confident", because it is checkable.
+§16 has been amended accordingly.
+
+---
+
 ## 1. Motivation
 
 EduMatcher now has a functionally complete basic exchange: matching engine,
@@ -65,9 +249,11 @@ the question an exchange operator actually asks:
 > ledger *all agree with each other and with the rulebook*?
 
 Before adding more order types or a pre-trade-risk subsystem, we need to be
-able to state with near-certainty that the **LIMIT and MARKET order paths are
-defect-free and disseminate correct data**. That is the purpose of this
-document.
+able to state — and *show the working for* — that the **LIMIT and MARKET order
+paths behave to specification and disseminate correct data**. That is the
+purpose of this document. The claim it is built to support is a coverage
+ledger with an enumerated residual, not a confidence percentage; §0.4 explains
+why that distinction matters and what the defensible wording is.
 
 The central obstacle is that the system is time-dependent. Timestamps,
 order IDs, trade IDs, sequence numbers, session dates, log `client_ts` /
@@ -255,15 +441,23 @@ Phase 1 only needs Monday.
 
 Deliberately small and chosen to exercise different config axes:
 
-| Symbol | Tick decimals | Lot size | Collar | Circuit breaker | Purpose |
-|---|---|---|---|---|---|
-| `TST1` | 2 | 1 | wide | disabled | Baseline, no interference |
-| `TST2` | 2 | 100 | narrow | enabled | Lot/collar/CB rejection paths |
-| `TST4` | 4 | 1 | wide | disabled | Tick-precision arithmetic |
-| `TST0` | 0 | 1 | wide | disabled | Integer-price edge cases |
+| Symbol | Tick decimals | Collar | Circuit breaker | Purpose |
+|---|---|---|---|---|
+| `TST1` | 2 | wide | disabled | Baseline, no interference |
+| `TST2` | 2 | narrow | enabled | Collar and circuit-breaker rejection paths |
+| `TST4` | 4 | wide | disabled | Tick-precision arithmetic |
+| `TST0` | 0 | wide | disabled | Integer-price edge cases |
 
 Using synthetic symbols (not `AAPL`/`MSFT`) keeps the systest config
 independent of the demo config and prevents accidental coupling.
+
+> **Corrected 2026-09-03 (§0.3, G12).** An earlier draft gave each symbol a
+> **lot size** and used `TST2` for lot-violation rejections. There is no lot
+> size in `SymbolConfig`, in the config schema, or in any spec file — the
+> concept does not exist in EduMatcher. The column is removed rather than
+> left as an aspiration, because a config axis the engine does not read
+> produces scenarios that pass for the wrong reason. Restore it if and when
+> the pre-trade-risk subsystem lands.
 
 ### 4.4 Actor roster
 
@@ -334,7 +528,7 @@ installable on the test VM without the dev extras.
 | `systest/canonical.py` | ID remapping, field stripping, stable sorting |
 | `systest/assertions.py` | Invariant library + golden/cross-transport compare |
 | `systest/report.py` | Human report, JSON artefact, JUnit XML for CI |
-| `systest/cli.py` | `pm-systest run|list|record|compare|report` |
+| `systest/cli.py` | `pm-systest run\|list\|record\|compare\|verify\|report` |
 
 ### 5.2 Orchestrator responsibilities
 
@@ -343,8 +537,13 @@ installable on the test VM without the dev extras.
    for each — never `sleep`:
    `pm-log-srv → pm-engine → pm-audit → pm-stats → pm-clearing →
     pm-md-gwy → pm-ralf-gwy → pm-dc-gwy → pm-alf-gwy → pm-api-gwy → pm-index`.
-   Readiness = a positive probe (`GET /healthz`, TCP connect + `WELCOME`,
-   engine `SESSION` query), not a log line.
+   Readiness = a positive probe (`GET /healthz` on `pm-api-gwy`, TCP connect +
+   `WELCOME` on `pm-alf-gwy`, engine `SESSION` query), not a log line.
+   `pm-scheduler` is deliberately **not** started: Phase 1 uses Option C and
+   drives session transitions explicitly (§4.2), and a running scheduler would
+   inject unscripted transitions. `pm-ticker`, `pm-board`, `pm-orders`,
+   `pm-ai-trader` and `pm-mm-bot` are likewise absent — the test driver is the
+   only source of order flow (§4.1).
 3. Attach collectors *before* any actor connects, so no event is missed.
 4. Run the scenario.
 5. Quiesce: wait until every collector reports no new events for a
@@ -378,7 +577,7 @@ so that the same file can be executed by any driver.
 ### 6.1 Shape
 
 ```yaml
-id: LM-004
+id: LM-023
 title: "Aggressing MARKET order sweeps two LIMIT price levels"
 tags: [limit, market, matching, phase1]
 symbols: [TST1]
@@ -416,6 +615,9 @@ steps:
     expect:
       status: FILLED
       fills:
+        # `liquidity:` is blocked on G9 — see §0.2. Until order_fill carries
+        # liquidity_flag, the runner can only source it from the drop copy,
+        # which is one of the sinks under test.
         - {price: "100.00", qty: 100, maker: M1, liquidity: TAKER}
         - {price: "100.01", qty:  50, maker: M2, liquidity: TAKER}
       book:
@@ -439,15 +641,20 @@ verify:
   invariants: [all]
 ```
 
+> **Corrected 2026-09-03.** This example was labelled `LM-004`, which §12.1
+> assigns to a different scenario (a LIMIT resting behind the top). It is
+> `LM-023` — the two-level sweep — and §6.2 and §9.3 have been renumbered to
+> match.
+
 ### 6.2 Actor binding
 
 The runner is invoked with a **binding**, e.g.:
 
 ```bash
-pm-systest run LM-004 --bind MAKER=alf,TAKER=alf
-pm-systest run LM-004 --bind MAKER=rest,TAKER=rest
-pm-systest run LM-004 --bind MAKER=alf,TAKER=rest      # mixed
-pm-systest run LM-004 --all-bindings --assert-equivalent
+pm-systest run LM-023 --bind MAKER=alf,TAKER=alf
+pm-systest run LM-023 --bind MAKER=rest,TAKER=rest
+pm-systest run LM-023 --bind MAKER=alf,TAKER=rest      # mixed
+pm-systest run LM-023 --all-bindings --assert-equivalent
 ```
 
 `--all-bindings` runs the cartesian product (or a declared subset), then
@@ -579,13 +786,24 @@ is only detectable by cross-checking sinks.
 | E6 | RALF post-trade | `pm-ralf-spy` capture | Post-trade dissemination completeness |
 | E7 | Drop copy | `pm-dc-spy` capture | Per-gateway fill copies, liquidity flags |
 | E8 | Operational log | `log.db` via `pm-log-cli` | No ERROR/CRITICAL; no unexpected WARNINGs |
-| E9 | Engine state | `GET /admin/orders`, `SYMBOLS`, book snapshot | Server-side book/order truth |
+| E9 | Engine state | `GET /admin/orders`, `SYMBOLS`, and a `book.snapshot.request` on the bus answered by `book.<SYM>` | Server-side book/order truth, independent of CALF (§0.1, G3) |
 | E10 | Index | `pm-index-cli` | Index level moves correctly with constituent trades |
 | E11 | Process exit codes | orchestrator | Clean shutdown, no crash |
 
 The spy tools (`pm-calf-spy`, `pm-ralf-spy`, `pm-dc-spy`) already exist and are
-the intended capture mechanism — they need a machine-readable output mode
-(§13, gap **G2**) rather than reimplementation.
+the intended capture mechanism. **G2 is closed**: all three take
+`--format json` and print one JSON object per line on stdout, so the collector
+runs each as `pm-<x>-spy --format json > capture.jsonl` and tails the file.
+There is no `--output FILE` flag and none is needed; note that each tool's
+own logging goes to stderr precisely so stdout stays a clean data stream.
+
+E9's book snapshot deserves its own note, because §13 recorded it as a gap
+(**G3**) on the grounds that inferring the book from CALF depth would be
+circular. It is not a gap: the engine answers a `book.snapshot.request` with an
+authoritative `book.<SYM>` message on the bus — `Engine._handle_book_snapshot_request`,
+already used by `pm-board` and `pm-viewer`. The collector subscribes to
+`book.*` and requests a snapshot at each barrier. No new endpoint or ALF
+command is required.
 
 ### 8.1 The completeness matrix
 
@@ -595,10 +813,14 @@ For each trade, the framework asserts a **fan-out row**:
 |---|---|---|---|---|---|---|---|---|---|
 | `TR1` | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 2 | Δ |
 
-Every cell must be exactly 1 (or 2 for drop copy — one per side). A `0`
-means a lost message; a `2` means a duplicate. **This single matrix is the
-most valuable artefact the framework produces**, because message loss and
-duplication are the failure modes that unit tests structurally cannot see.
+Every cell must be exactly 1, except drop copy, whose expected count is **one
+per distinct gateway involved in the trade** — 2 for the ordinary two-gateway
+match, and 1 when maker and taker are on the same gateway (LM-028's self-match
+configuration, and any scenario binding both actors to one gateway id). A
+count below the expectation means a lost message; above it means a duplicate.
+**This single matrix is the most valuable artefact the framework produces**,
+because message loss and duplication are the failure modes that unit tests
+structurally cannot see.
 
 ### 8.2 Negative observation
 
@@ -643,10 +865,10 @@ silently regenerated by a failing test run.
 ### 9.3 The equivalence assertion
 
 ```
-canonical(LM-004, MAKER=alf, TAKER=alf)
-  == canonical(LM-004, MAKER=rest, TAKER=rest)
-  == canonical(LM-004, MAKER=alf, TAKER=rest)
-  == expected/LM-004.canonical.json
+canonical(LM-023, MAKER=alf, TAKER=alf)
+  == canonical(LM-023, MAKER=rest, TAKER=rest)
+  == canonical(LM-023, MAKER=alf, TAKER=rest)
+  == expected/LM-023.canonical.json
 ```
 
 If the first three agree but differ from the golden, we have a genuine
@@ -670,14 +892,15 @@ This is where most defects will actually be caught.
 | I1 | Book is not crossed: `best_bid < best_ask` in continuous session |
 | I2 | Conservation: `Σ filled_qty(buys) == Σ filled_qty(sells)` per symbol |
 | I3 | Per order: `filled + remaining + cancelled == original_qty` |
-| I4 | Every trade has exactly one maker and one taker, on opposite sides |
+| I4 | Every trade has exactly one maker and one taker, on opposite sides — *evaluable from E7 only until G9 lands (§0.2)* |
 | I5 | Trade price is within the maker order's limit and (if limited) the taker's |
 | I6 | Price–time priority: no trade at a worse price while a better resting level exists |
 | I7 | Position sum across all gateways per symbol == 0 |
-| I8 | Every trade appears exactly once in each of E2–E7 (fan-out matrix) |
+| I8 | Every trade appears exactly once in each of E2–E6, and once per involved gateway in E7 (fan-out matrix, §8.1) |
 | I9 | No sequence gaps or duplicates in any WS/CALF/RALF/DC stream |
-| I10 | Every price is an exact multiple of the symbol's tick size |
-| I11 | Every quantity is an exact multiple of the symbol's lot size |
+| I10 | ~~Every price is an exact multiple of the symbol's tick size~~ — **withdrawn (§0.3)**: prices are *stored* as integer ticks, so this cannot fail. Replaced by I10′ |
+| I10′ | The display price a client submitted round-trips unchanged through every sink. A sub-tick submission is silently rounded by `to_ticks`, so this invariant is what would *detect* that, rather than asserting a rejection that does not happen |
+| I11 | ~~Every quantity is an exact multiple of the symbol's lot size~~ — **withdrawn (§0.3)**: no lot size exists. Reinstate with the pre-trade-risk subsystem |
 | I12 | No `ERROR`/`CRITICAL` log rows outside the allow-list |
 | I13 | Terminal orders are absent from the live book and from `GET /orders?open=true` |
 | I14 | Stats aggregates recompute exactly from the trade list (last, high, low, volume, VWAP) |
@@ -752,13 +975,21 @@ input dimensions. Enumerate the table and cover every reachable row.
 | Incoming qty vs available | less, equal, greater |
 | Same-price queue | 1 order, N orders (FIFO priority) |
 | TIF | DAY, GTC (Phase 1 subset) |
-| Session | PRE_OPEN, OPENING_AUCTION, CONTINUOUS, CLOSING_AUCTION, CLOSED, HALTED |
+| Session | PRE_OPEN, OPENING_AUCTION, CONTINUOUS, CLOSING_AUCTION, CLOSED |
+| Symbol halted | no, yes |
 
-Full cartesian product is ~2×2×3×4×3×2×2×6 ≈ 3,456 — far too many for system
+> **Corrected 2026-09-03.** This table listed `HALTED` as a sixth session
+> value, which spike S4 had already shown to be wrong for §11.4 (§B.1.1). A
+> halt is a per-symbol boolean orthogonal to the five-member `SessionState`,
+> so it is a dimension of its own here too.
+
+Full cartesian product is 2×2×3×4×3×2×2×5×2 ≈ 5,760 — far too many for system
 tests. **Reduction strategy:**
 
 1. Remove infeasible combinations (MARKET has no price relation; empty book +
-   "crosses" is impossible). → ~600.
+   "crosses" is impossible; matching is disabled in four of the five session
+   states and while halted, which collapses most of the depth/qty axes there).
+   → ~700.
 2. Apply **pairwise (2-way) combinatorial reduction** on the independent
    dimensions. Every *pair* of values co-occurs in at least one test, which
    empirically catches the large majority of interaction defects. → ~40–60.
@@ -768,27 +999,43 @@ tests. **Reduction strategy:**
 4. Add every boundary case from Method C.
 
 Result: roughly **60–80 system scenarios** for LIMIT/MARKET, each run under
-2–3 bindings. That is tractable.
+2–3 bindings. §12 currently enumerates 60, of which 6 are blocked on G12.
 
-The remaining ~500 reduced-away combinations are **not** discarded — they are
-delegated to a parameterised in-process test that drives the same decision
-table against the engine directly (fast, no orchestration). The system tests
-prove the *plumbing*; the parameterised table proves the *matching maths*.
-Stating that split explicitly is what makes a "close to 100%" claim honest.
+The ~600 reduced-away combinations are **not** discarded — they are delegated
+to a parameterised in-process test that drives the same decision table against
+the engine directly (fast, no orchestration). The system tests prove the
+*plumbing*; the parameterised table proves the *matching maths*.
+
+**That parameterised table does not exist yet, and the split is load-bearing.**
+It is what the coverage ledger points at for every reduced-away cell, so
+without it the ledger's "covered by a unit test instead" column is a promise
+rather than a reference. Building it is a Phase 2 deliverable in its own right
+(§15), not a by-product — and unlike the framework it needs no orchestration,
+so it can be written first.
 
 ### 11.3 Method C — Boundary value analysis
 
 For every numeric and ordinal input, test min−1, min, min+1, typical, max−1,
 max, max+1:
 
-- Quantity: 0, 1, lot size, lot size−1, lot size+1, max order qty, max+1.
-- Price: 0, one tick, tick−ε (invalid), collar lower bound and one tick
-  outside, collar upper bound and one tick outside, max price, max+1.
-- Price precision: exactly N decimals, N+1 decimals (must reject), for the
-  0/2/4-decimal symbols.
+- Quantity: 0, −1, 1, and a quantity larger than all resting liquidity.
+- Price: 0, negative, one tick, collar lower bound and one tick outside,
+  collar upper bound and one tick outside.
+- Price precision: exactly N decimals for the 0/2/4-decimal symbols, and
+  N+1 decimals — asserting the **rounding** that `to_ticks` performs, and the
+  round-trip of the rounded value through every sink (I10′).
 - Book depth: 0, 1, 2, and "more levels than the order can consume".
 - Queue depth at a price: 1, 2, 3 (to prove FIFO, not just "some order").
-- Notional value: at and over `max_order_value` risk limit.
+
+> **Corrected 2026-09-03 (§0.3, G12).** The original list also carried
+> "lot size ± 1", "max order qty ± 1", "tick − ε (invalid)" and "notional at
+> and over `max_order_value`". None of those controls exists in EduMatcher:
+> there is no lot size, no order-size or notional limit, and a sub-tick price
+> is rounded rather than rejected. They are removed here rather than left as
+> boundary cases with no boundary, and reinstated with the pre-trade-risk
+> subsystem. Note the direction of the change: what was a *rejection* case
+> becomes a *silent-rounding* case, and the second is the more valuable test
+> because nothing else in the suite would notice it.
 
 ### 11.4 Method D — Session-state matrix
 
@@ -851,6 +1098,14 @@ Deriving this table from the specs *before* running anything is essential: it
 is the reference against which the fan-out matrix (§8.1) is judged. Building it
 from observed behaviour would make the test tautological.
 
+Two cells of this table cannot be filled from the specs as they stand. The
+`✓✓` in the DC column is "one per involved gateway", not literally two (§8.1),
+and the maker/taker distinction the *Full match* and *Partial match* rows rely
+on is absent from `order_fill` — so the E1 columns cannot say which side of the
+match each event describes until **G9** (§0.2) lands. Both are recorded here
+rather than papered over, because a matrix with an unstated assumption in it is
+worse than one with a hole.
+
 ### 11.6 The coverage ledger
 
 `pm-systest report --coverage` emits a matrix of every cell from Methods A–E
@@ -858,6 +1113,20 @@ against the scenarios that cover it, with uncovered cells listed explicitly.
 The claim "LIMIT and MARKET are verified" is only defensible when this ledger
 has zero unexplained gaps — and every deliberate gap carries a written
 justification and a pointer to the unit test that covers it instead.
+
+The ledger must therefore distinguish **four** dispositions per cell, not two.
+Collapsing them is how a coverage report starts lying:
+
+| Disposition | Meaning | Counts toward the denominator? |
+|---|---|---|
+| `covered` | A system scenario asserts it | yes |
+| `delegated` | Named unit test asserts it (§11.2's parameterised table) | yes, with the test id recorded |
+| `blocked` | The behaviour does not exist in the system — G12's rows | **no**, and the blocking gap id is printed |
+| `uncovered` | Reachable, nothing asserts it | yes, and the report fails |
+
+A `blocked` cell that later becomes reachable must reappear as `uncovered`,
+not silently as `covered` — so the ledger's own schema needs the gap id, not
+just a boolean.
 
 ---
 
@@ -875,15 +1144,16 @@ ALF-only, REST-only, and at least one mixed binding.
 | LM-003 | Second LIMIT at same price → FIFO queue of 2; depth shows qty sum, count 2 |
 | LM-004 | LIMIT behind the top → depth updates, TOP does **not** |
 | LM-005 | LIMIT improving the top → TOP updates |
-| LM-006 | LIMIT at price 0 → reject, reason `INVALID_PRICE` |
-| LM-007 | LIMIT at sub-tick price on `TST2`/`TST4` → reject, reason `TICK_VIOLATION` |
-| LM-008 | LIMIT with qty 0 / negative → reject |
-| LM-009 | LIMIT with qty not a multiple of lot size (`TST2`) → reject |
-| LM-010 | LIMIT above/below collar band → reject, reason `COLLAR_BREACH` |
-| LM-011 | LIMIT exceeding `max_order_qty` / `max_order_value` → reject |
-| LM-012 | LIMIT on unknown symbol → reject, reason `UNKNOWN_SYMBOL` |
+| LM-006 | LIMIT at price 0 or negative → reject, `PRICE_OUT_OF_RANGE` |
+| LM-007 | LIMIT at sub-tick price on `TST2`/`TST4` → **accepted and rounded to the nearest tick**; the rounded price is identical in every sink (I10′). **`blocked: G12`** for the rejection variant |
+| LM-008 | LIMIT with qty 0 / negative → reject, `QTY_OUT_OF_RANGE` |
+| LM-009 | ~~LIMIT with qty not a multiple of lot size~~ — **`blocked: G12`**, no lot size exists |
+| LM-010 | LIMIT above/below collar band → reject, `COLLAR_BREACH` |
+| LM-011 | ~~LIMIT exceeding `max_order_qty` / `max_order_value`~~ — **`blocked: G12`**, no size or notional limit exists |
+| LM-012 | LIMIT on unknown symbol → reject, `UNKNOWN_SYMBOL` |
 | LM-013 | LIMIT with 0-decimal symbol `TST0` → integer prices round-trip exactly |
 | LM-014 | LIMIT with 4-decimal symbol `TST4` → no float drift anywhere in the fan-out |
+| LM-015 | Duplicate order id resubmitted → reject, `DUPLICATE_ORDER` (the A4 guard) |
 
 ### 12.2 LIMIT — matching
 
@@ -906,14 +1176,15 @@ ALF-only, REST-only, and at least one mixed binding.
 | ID | Scenario |
 |---|---|
 | LM-040 | MARKET BUY against 1 resting level, exact size → FILLED |
-| LM-041 | MARKET BUY larger than book → partial fill, remainder **cancelled not rested** |
-| LM-042 | MARKET into empty book → rejected/cancelled per rulebook; **no trade, no CALF TRADE** |
+| LM-041 | MARKET BUY larger than book → partial fill, then `order.cancelled` for the remainder — **cancelled, not rested, and not rejected** |
+| LM-042 | MARKET into empty book in `CONTINUOUS` → `order.ack accepted=true` followed by `order.cancelled`; **no trade, no CALF TRADE**. Asserts the *absence* of a reject; see G11 (§0.2) for why the cancel carries no reason |
 | LM-043 | MARKET sweeping multiple levels → multiple trades, ascending/descending price order |
-| LM-044 | MARKET with a price field supplied → reject (price not permitted) |
-| LM-045 | MARKET with qty violating lot size → reject |
+| LM-044 | MARKET with a price field supplied → reject at the REST schema (422) and at the ALF parser; assert both map to the same `reject_code` |
+| LM-045 | ~~MARKET with qty violating lot size~~ — **`blocked: G12`**, no lot size exists |
 | LM-046 | MARKET never appears in the book at any point (asserted on every depth snapshot) |
-| LM-047 | MARKET triggering the collar / CB on the far level → correct partial behaviour |
+| LM-047 | MARKET triggering the collar on the far level → correct partial behaviour |
 | LM-048 | MARKET both sides in quick succession → last price, high, low all correct |
+| LM-049 | MARKET while matching is disabled (auction / halt) → rejected *before* the book, with `SESSION_NOT_PERMITTED` or `INSTRUMENT_HALTED` — the contrast case for LM-042 |
 
 ### 12.4 Lifecycle
 
@@ -921,7 +1192,7 @@ ALF-only, REST-only, and at least one mixed binding.
 |---|---|
 | LM-060 | Cancel a resting LIMIT → CANCELLED, removed from book and depth |
 | LM-061 | Cancel a partially filled LIMIT → CANCELLED with correct `filled`/`cancelled` split |
-| LM-062 | Cancel an already-filled order → reject, reason `ORDER_NOT_FOUND`/`TOO_LATE` |
+| LM-062 | Cancel an already-filled order → reject, `ORDER_NOT_FOUND` (the engine does not distinguish "gone because filled" from "never existed"; there is no `TOO_LATE`) |
 | LM-063 | Cancel another gateway's order → reject, reason `NOT_OWNER` |
 | LM-064 | Amend price → loses time priority (asserted by a subsequent FIFO match) |
 | LM-065 | Amend qty down → keeps time priority |
@@ -937,7 +1208,7 @@ ALF-only, REST-only, and at least one mixed binding.
 | LM-080 | LIMIT/MARKET in PRE_OPEN → LIMIT queues; MARKET rejected `SESSION_NOT_PERMITTED` |
 | LM-081 | LIMIT/MARKET in OPENING_AUCTION → LIMIT queues, no trade until uncross; MARKET rejected |
 | LM-082 | Halted instrument → **LIMIT rests without matching**; MARKET/FOK/IOC rejected `INSTRUMENT_HALTED` (corrected by spike S4) |
-| LM-083 | LIMIT/MARKET after circuit breaker trip → reject; after resume → accept |
+| LM-083 | After a circuit-breaker trip the symbol is halted, so LM-082's halt behaviour applies and the code is `INSTRUMENT_HALTED`, **not** `CIRCUIT_BREAKER_ACTIVE`; after resume → accept |
 | LM-084 | LIMIT/MARKET when CLOSED → reject `MARKET_CLOSED`; **cancel still accepted** |
 | LM-085 | Kill switch cancels this gateway's resting LIMITs only |
 
@@ -961,39 +1232,62 @@ ALF-only, REST-only, and at least one mixed binding.
 | LM-121 | Same as LM-120 with 2 actors on ALF and 2 on REST → fan-out complete |
 | LM-122 | Engine restart mid-scenario → resting orders recovered, no duplicate fills |
 
-**Approximate totals:** ~70 scenarios × ~3 bindings ≈ 210 executions.
+**Totals (recounted 2026-09-03).** 62 scenarios are enumerated above: 15 in
+§12.1, 11 in §12.2, 10 in §12.3, 10 in §12.4, 6 in §12.5, 7 in §12.6 and 3 in
+§12.7. Three are struck as `blocked: G12` (LM-009, LM-011, LM-045) and one
+(LM-007) is reduced to its rounding half, leaving **59 runnable**. At the
+{all-ALF, all-REST, one-mixed} binding set of §17 Q5 that is ≈ 177 executions.
 At an estimated few seconds each with probe-based quiescence, a full Phase 1
 run is a nightly-CI-sized job, not a per-commit one. A `--tag smoke` subset
 (~12 scenarios, one binding) runs per commit.
+
+The earlier figure — "~70 scenarios ≈ 210 executions" — was an estimate that
+outran the list; the numbers above are counted. Keep them counted: a totals
+line that drifts from the catalogue is the first thing a reviewer checks and
+the first thing that undermines the rest.
 
 ---
 
 ## 13. Observability Gap Analysis
 
-Building the framework will expose places where the system is correct but
-unverifiable. Anticipated gaps, to be confirmed during Phase 1:
+Building the framework exposes places where the system is correct but
+unverifiable. The table below is the live register; §0.1 is its summary and
+§0.2–§0.3 give the detail on the three that are still open and blocking.
 
-| ID | Gap | Impact | Proposed fix |
-|---|---|---|---|
-| **G1** | ALF neither accepts nor echoes the `client_tag` that the engine already supports; reject acks drop it entirely | Cannot reliably match response→request under concurrency; framework would be unsound | Wire `client_tag` through both client edges and every reject path (§A.1) |
-| **G2** | Spy tools (`pm-calf-spy`, `pm-ralf-spy`, `pm-dc-spy`) print human text | Capture requires fragile screen-scraping | Add `--format jsonl --output FILE` to all three |
-| **G3** | No engine "book snapshot" query for tests | Book state inferred from CALF depth, which is itself under test (circular) | Add an admin read-only depth endpoint / ALF `BOOK\|SYM=` command |
-| **G4** | Three unrelated reject vocabularies: ALF codes, engine free-text English, REST HTTP detail | Cannot assert reject reason cross-transport | Canonical `RejectCode` enum emitted verbatim by both gateways (§A.2) |
-| **G5** | No structured "matching decision" trace | When a match is wrong, the log shows the outcome but not the traversal | Add DEBUG-level structured matching trace behind a flag |
-| **G6** | Audit journal may not record rejected orders | Rejections invisible in E2 | Ensure every reject publishes an auditable event |
-| **G7** | **Resolved (2026-09-01):** durable `Trade.id`; CALF and drop copy carry trade identity | Fan-out joins use stable trade IDs rather than field/time heuristics | `run_seq-counter` IDs; CALF `TRADE_ID`/`RUN_SEQ`; private and drop-copy `trade_ids` (§A.3) |
-| **G8** | Stats flush timing unobservable | Test cannot know when it is safe to read `stats.db` | Add a flush/commit marker or an admin "flush now" command |
-| **G9** | No liquidity flag on some paths | Maker/taker attribution unverifiable | Ensure `liquidity_flag` is present in E1, E7 and E2 |
-| **G10** | Session-state matrix had undefined cells (§11.4) | No basis for an assertion | **Resolved by spike S4** — behaviour is fully determined and documented; what remains is rulebook ratification, not discovery |
+| ID | Gap | Status | Impact | Fix |
+|---|---|---|---|---|
+| **G1** | ALF neither accepted nor echoed `client_tag`; reject acks dropped it | ✅ **Closed 2026-09-01** | Response→request correlation under concurrency | `TAG=`/`RTAG=` on ALF, `client_tag`/`request_tag` on REST and the bus, `_reject()` funnel (§A.1) |
+| **G2** | Spy tools printed human text only | ✅ **Closed — as `--format json`** | Capture required screen-scraping | `pm-<x>-spy --format json` emits one JSON object per line on stdout; the collector redirects. No `--output FILE` exists or is needed |
+| **G3** | No engine "book snapshot" query for tests | ✅ **Not a gap** | Book state would have been inferred from CALF depth, which is itself under test | `Engine._handle_book_snapshot_request` already answers `book.snapshot.request` with an authoritative `book.<SYM>`; `pm-board` and `pm-viewer` use it today |
+| **G4** | Three unrelated reject vocabularies | ✅ **Closed 2026-09-01** | Reject reason not comparable cross-transport | Generated `RejectCode` `Literal` on `order_ack`, emitted verbatim by both gateways (§A.2) |
+| **G5** | No structured "matching decision" trace | ⬜ Open, non-blocking | When a match is wrong, the log shows the outcome but not the traversal | DEBUG-level structured matching trace behind a flag |
+| **G6** | Audit journal may not record rejected orders | ✅ **Was never a gap** | — | `audit/main.py` subscribes with an empty filter; every rejection is an `order.ack` with `accepted=false` and is journalled |
+| **G7** | Trade identity not durable; CALF and drop copy carried none | ✅ **Closed 2026-09-01** | Fan-out joins would need field/time heuristics | `run_seq-counter` ids; CALF `TRADE_ID`/`RUN_SEQ`; private, drop-copy and ALF `TRADE_IDS` (§A.3) |
+| **G8** | Stats flush timing unobservable | ⬜ Open, mitigated | Test cannot know when `stats.db` is safe to read | §5.3's rowid-stability probe suffices. A flush marker would make the quiesce cheaper, not more correct — downgraded to nice-to-have |
+| **G9** | `order_fill` carries no `liquidity_flag`; only the drop copy does | 🟥 **Open — blocking Phase 1** | Maker/taker attribution unverifiable from the client-facing path; I4 and §11.5 depend on it | Add `liquidity_flag` to `order_fill`; echo `LIQUIDITY=` on the ALF `FILL` line. REST needs no change (spike S3). See §0.2 |
+| **G10** | Session/halt matrix describes the implementation, not a rulebook | ⬜ Open, non-blocking | A test written from observed behaviour cannot show the behaviour is wrong | Spike S4 determined every cell, so scenarios can be written now; ratification remains. Note `spec/` holds *message* specs — the rulebook needs a new home, not `spec/` |
+| **G11** | An unfilled MARKET is cancelled with no reason on the wire | 🟥 **Open — new 2026-09-03** | `order.cancelled` for a discarded MARKET remainder is indistinguishable from a kill-switch, halt or expiry cancel | Optional nullable `reject_code` on `order_cancelled`. See §0.2 |
+| **G12** | No tick, lot, order-size or notional validation exists | 🟥 **Open — new 2026-09-03** | Eight `reject_code` members are unreachable; six catalogue scenarios and two invariants assert behaviour the system does not have | Product decision: implement pre-trade risk, or delete the scenarios and the unreachable codes. See §0.3 |
 
-**G1, G4 and G7 are blocking**: without them the framework cannot make sound
-assertions, so they are Phase 0 work rather than nice-to-haves.
+**G1, G4 and G7 were the blocking three and all are closed.** The blocking set
+is now **G9** alone, which is small and additive; **G12** blocks six specific
+scenarios rather than the framework, and **G11** blocks only the *reason* half
+of LM-042.
 
 **[Appendix A](#appendix-a--prerequisite-system-changes-g1-g4-g7) specifies
-G1, G4 and G7 in implementation-ready detail.** A code survey while writing it
-found that `client_tag` and `trade_ids` are *already specified and largely
-implemented* — and that four live defects (not merely missing test hooks) are
-blocking their use. See §A.0.
+G1, G4 and G7 in implementation-ready detail**, and
+[Appendix B](#appendix-b--detailed-remediation-plan) sequences the work. Both
+are now historical: every work package WP1–WP12 has merged. The survey that
+produced them found `client_tag` and `trade_ids` *already specified and largely
+implemented*, plus four live defects (D1–D4) blocking their use — see §A.0.
+
+**The lesson worth carrying forward** is the one G12 illustrates: G1–G10 were
+derived by asking "can the framework observe this?", and every one of them was
+about a missing *field*. Nobody asked "does the behaviour the catalogue
+asserts actually exist?", and that is a different question with a different
+answer. Before Phase 2 writes the remaining scenarios, each one's expected
+outcome should be traced to a line of code or a spec clause — not to the
+catalogue author's model of how an exchange ought to work.
 
 ---
 
@@ -1001,7 +1295,9 @@ blocking their use. See §A.0.
 
 Until Playwright automation exists, the Trading UI is covered by a versioned
 manual checklist, `docs/developer/ui-manual-verification.md`, executed before
-each release against the same fixed VM snapshot. It deliberately mirrors the
+each release against the same fixed VM snapshot. **That file does not exist
+yet** (checked 2026-09-03); writing it is a Phase 0 deliverable in §15, and it
+is the cheapest item on the whole plan. It deliberately mirrors the
 automated scenarios so that any divergence is attributable to the UI layer.
 
 Minimum checklist (each item: perform in UI, then verify with `pm-systest
@@ -1014,8 +1310,10 @@ matrix against whatever happened):
 3. Submit a crossing LIMIT SELL from a second browser session; confirm both
    fill, both blotters update, the trade tape shows one trade.
 4. Submit a MARKET order that sweeps two levels; confirm two fills shown.
-5. Submit an invalid order (sub-tick price); confirm the rejection message
-   and reason are displayed.
+5. Submit an invalid order — use a **negative or zero price**, not a sub-tick
+   price: a sub-tick price is rounded, not rejected (§0.3, G12), so it would
+   not exercise the rejection display at all. Confirm the message, the
+   `reject_code` and the free-text `reason` are all displayed.
 6. Cancel a resting order; confirm removal from book and blotter.
 7. Amend price and qty; confirm updated values.
 8. Force a disconnect (network off/on); confirm reconnect and that the
@@ -1031,20 +1329,24 @@ to UI confidence before Playwright.
 
 ## 15. Implementation Plan
 
-### Phase 0 — Prerequisites (blocking)
+### Phase 0 — Prerequisites
 
-1. Close gaps **G1**, **G4** and **G7** per
-   [Appendix A](#appendix-a--prerequisite-system-changes-g1-g4-g7), following
-   the build order in §A.4.
-2. Ratify the session-state and halt matrices of §11.4 in the rulebook
-   (**G10**). Spike S4 established the behaviour; this step records it as
-   intended rather than merely observed. No longer blocking.
-3. Add `--format jsonl` to the three spy tools (**G2**).
-4. Lift `tests/engine_invariants.py` I1–I6 into
-   `edumatcher/systest/invariants.py`, shared by unit and system tests.
+| # | Item | Status |
+|---|---|---|
+| 1 | Close **G1**, **G4**, **G7** per [Appendix A](#appendix-a--prerequisite-system-changes-g1-g4-g7) and §A.4 | ✅ **Done** — WP1–WP12 merged, audited 2026-09-03 |
+| 2 | Ratify §11.4's session and halt matrices (**G10**) | ⬜ Outstanding, **not blocking** — spike S4 determined every cell, so the scenarios can be written against it |
+| 3 | Machine-readable spy output (**G2**) | ✅ **Done** — `--format json`, one object per line on stdout |
+| 4 | Lift `tests/engine_invariants.py` I1–I6 into `edumatcher/systest/invariants.py`, shared by unit and system tests | 🟥 **Not started** — `src/edumatcher/systest/` does not exist. The first task of the whole effort |
+| 5 | **New:** close **G9** — `liquidity_flag` on `order_fill`, `LIQUIDITY=` on ALF `FILL` (§0.2) | 🟥 **Not started, blocking** |
+| 6 | **New:** write `docs/developer/ui-manual-verification.md` (§14) | 🟥 **Not started** |
+| 7 | **New:** decide G12 — implement the instrument-rule and risk controls, or delete the six scenarios and the unreachable enum members (§0.3) | 🟥 **Decision outstanding**; blocks those scenarios only |
 
 *Verify:* unit tests still pass; each new field is visible end-to-end in a
 manual smoke run.
+
+**Items 1 and 3 are complete, so Phase 1 is unblocked.** Item 4 is the real
+starting task; item 5 must land before any scenario asserts maker/taker
+attribution; item 7 is a product decision that can be taken in parallel.
 
 ### Phase 1 — Framework skeleton + first scenario
 
@@ -1059,9 +1361,15 @@ canonical outputs are byte-identical across bindings.
 ### Phase 2 — Full LIMIT/MARKET catalogue
 
 1. Remaining collectors (CALF, RALF, DC, clearing, index, WS).
-2. The fan-out matrix (§8.1) and invariants I7–I15.
-3. All scenarios in §12.1–§12.4 and §12.6.
-4. The coverage ledger report.
+2. The fan-out matrix (§8.1) and invariants I7–I15 (I10 and I11 as amended in
+   §10.1).
+3. All scenarios in §12.1–§12.4 and §12.6, excluding those marked
+   `blocked: G12`.
+4. **The parameterised in-process decision-table test of §11.2.** This is the
+   half of the coverage argument the system tests delegate to, it needs no
+   orchestration, and it is listed here as a deliverable rather than an
+   assumption because the ledger cites it by test id.
+5. The coverage ledger report, with the four dispositions of §11.6.
 
 *Verify:* coverage ledger has zero unexplained gaps for LIMIT/MARKET;
 nightly CI runs green three consecutive nights (flakiness gate).
@@ -1085,7 +1393,15 @@ automation reusing the same scenario files and the same canonicaliser.
 
 ## 16. Acceptance Checklist
 
-- [ ] Every Phase 0 gap closed and covered by a unit test.
+- [x] The three blocking prerequisite gaps (G1, G4, G7) closed and covered by
+      unit tests — audited 2026-09-03, §0.1.
+- [x] Gate **G-δ** passed: `tests/test_cross_transport_rejects.py` proves ALF
+      and REST agree on `reject_code`. §9.3's premise is no longer an
+      assumption.
+- [ ] **G9** closed, so maker/taker attribution is assertable from E1.
+- [ ] **G12** decided, and every `blocked:` scenario either implemented or
+      deleted — not left in the catalogue unmarked.
+- [ ] Every remaining Phase 0 item in §15 closed and covered by a unit test.
 - [ ] `pm-systest run <id> --all-bindings --assert-equivalent` passes for
       every scenario in §12.
 - [ ] Canonical outputs are identical across ALF, REST and mixed bindings.
@@ -1096,9 +1412,15 @@ automation reusing the same scenario files and the same canonicaliser.
       every trade in every scenario.
 - [ ] Negative observation (§8.2) passes: no unexpected errors, no stray
       dissemination, no sequence gaps.
-- [ ] The coverage ledger for Methods A–E has zero unexplained gaps; every
-      deliberate gap has a written justification and a pointer to the unit
-      test covering it.
+- [ ] The coverage ledger for Methods A–E has zero `uncovered` cells; every
+      `delegated` cell names the unit test that covers it, and every `blocked`
+      cell names the gap that blocks it (§11.6).
+- [ ] The parameterised in-process decision-table test of §11.2 exists and is
+      the cited target of every `delegated` cell.
+- [ ] **The verification claim is stated as §0.4 words it** — a coverage
+      ledger with an enumerated residual, with BALF, the Trading UI and
+      `pm-alf-console` named as outside its scope. No percentage appears in
+      any report, README or release note.
 - [ ] Nightly CI runs the full suite; per-commit CI runs the `smoke` tag.
 - [ ] Three consecutive green nightly runs with no retries (flakiness gate).
 - [ ] The manual UI checklist (§14) is versioned and executed per release.
@@ -1109,12 +1431,26 @@ automation reusing the same scenario files and the same canonicaliser.
 
 ## 17. Open Questions
 
-1. **Rulebook authority.** Several §11.4 cells are undefined. Who decides —
-   and where is the decision recorded so tests and implementation cannot
-   drift? A `spec/` rulebook document is the natural home.
-2. **MARKET with no liquidity.** Is the correct outcome REJECTED or
-   ACCEPTED-then-CANCELLED? These are observably different and must be fixed
-   in the spec before LM-042 can be written.
+Two of the original six are now answered and are recorded here as settled
+rather than deleted, so a reader of the earlier version can see what changed.
+
+1. ~~**Rulebook authority.** Several §11.4 cells are undefined.~~
+   **Answered by spike S4 (§B.1.1):** no cell is undefined; every one has a
+   determined, implemented answer. What survives is narrower and is tracked as
+   **G10** — the behaviour needs *ratifying* so the tests assert a
+   specification rather than a snapshot. One correction to the original
+   question: `spec/` is not the natural home. It holds *message* specifications
+   consumed by `pm-msgen`, and `_reject_unknown()` hard-fails on anything it
+   does not recognise, so a rulebook document cannot live there. It needs a
+   new location — `docs/concepts/` or a new `rulebook/` tree.
+2. ~~**MARKET with no liquidity.** REJECTED or ACCEPTED-then-CANCELLED?~~
+   **Answered by the code (§0.2, G11):** in `CONTINUOUS` with insufficient
+   book it is ACCEPTED-then-CANCELLED, with no reason on the wire; while
+   matching is disabled it is rejected before the book ever sees it. LM-042
+   and LM-049 have been written against that. The question that *replaces* it
+   is narrower and worth deciding: should the discarded remainder's
+   `order.cancelled` carry a `reject_code`, so a client can tell it from a
+   kill-switch cancel?
 3. **`faketime` under acceleration.** Does `now_ns()`'s monotonicity guard
    behave correctly at 60×? Needs a spike before Phase 3 commits to Option A.
 4. **VM vs containers.** Docker Compose (`deployment/docker/`) may be a
@@ -1125,7 +1461,18 @@ automation reusing the same scenario files and the same canonicaliser.
    latter and expand only if mixed bindings actually find defects.
 6. **Where do scenarios live?** `tests/systest/scenarios/` keeps them with
    the tests; `spec/scenarios/` treats them as specification. The latter is
-   more honest if the UI automation is eventually to reuse them.
+   more honest if the UI automation is eventually to reuse them — but see Q1:
+   `spec/` is `pm-msgen`'s input tree and will reject unknown files. If the
+   "specification" framing wins, the directory needs a different name.
+7. **G12 — build the controls, or drop the claim?** §0.3 lays out the two
+   options. This is the largest open decision in the document, because it
+   determines whether "verified to specification" covers instrument rules and
+   pre-trade risk at all, or explicitly excludes them.
+8. **Does the framework belong in the package?** §5 ships `systest/` inside
+   `src/edumatcher/` so it installs on the test VM without dev extras. That
+   also ships an order-injection harness in every production install. The
+   alternative is a separate distribution (`edumatcher-systest`) that the VM
+   image installs alongside. Worth settling before the package layout sets.
 
 ---
 
@@ -1149,6 +1496,31 @@ automation reusing the same scenario files and the same canonicaliser.
 > compatibility or data migration is provided for pre-durable database files:
 > clearing rejects its old composite-key layout, while stats rejects older
 > schema versions.
+
+> **As-built deviations (audited 2026-09-03).** Three places where the
+> implementation departs from the design below. All three are acceptable; they
+> are recorded because the design text still describes the original intent.
+>
+> 1. **`make_ack_msg` kept its defaults.** A.1.3 Step 2 asked for a
+>    keyword-only `client_tag` with *no* default so omission could not compile.
+>    The shipped signature is `client_tag: str | None = None`, still falling
+>    back to `order`. The guarantee is preserved by a different means:
+>    `Engine._reject()` *does* have no defaults, all 26 rejection sites go
+>    through it, and only three direct `make_ack_msg` call sites remain in the
+>    engine — all accept paths that pass `order=`. The defect class is closed
+>    at the funnel rather than at the builder. If a fourth direct call site
+>    ever appears on a reject path, the type checker will not catch it, so the
+>    parameterised sweep in `test_engine_handlers.py` is now the only guard.
+> 2. **Composite primary keys were dropped, not kept.** A.3.2's consequences
+>    table says "keep it — defence in depth costs nothing". The implementation
+>    replaced them with the sole keys recorded above, and rejects the old
+>    layouts outright. That is the stronger choice for an unreleased system
+>    and the table has been corrected.
+> 3. **ALF rejects `RTAG=` on `NEW` as well as `TAG=` on `CANCEL`.** A.1.7
+>    specified only the second. The symmetric rejection is better — it teaches
+>    the distinction from both directions — and `RTAG` is additionally
+>    restricted to `CANCEL|ID` (not the symbol- or gateway-scoped mass-cancel
+>    forms, which are not one request against one order).
 
 ## A.0 Summary and Survey Results (Historical)
 
@@ -1318,6 +1690,10 @@ who genuinely had no tag. Add an explicit keyword-only `client_tag` parameter
 with no default, taking precedence over `order`. Callers that do have the
 order pass `client_tag=order.client_tag` — explicit, cheap, and it avoids
 building a whole `to_dict()` on the reject path.
+
+> **Not implemented as written.** The shipped `make_ack_msg` keeps
+> `client_tag: str | None = None`. See deviation 1 in the completion record
+> above for why that is acceptable and what now carries the guarantee.
 
 Step 3 — the two paths that are not mechanical:
 
@@ -1750,6 +2126,27 @@ truth.** No new spec family, no new generator feature.
 behaviour when it meets version *n+1*. Emitting it deliberately is a bug, and
 CI asserts it never appears in a systest run.
 
+> **Which members are live (audited 2026-09-03).** The enum was written from
+> §12's catalogue, and seven members describe controls the engine does not
+> implement: `TICK_VIOLATION`, `LOT_VIOLATION`, `MAX_ORDER_QTY`,
+> `MAX_ORDER_VALUE`, `POSITION_LIMIT`, `CIRCUIT_BREAKER_ACTIVE` (a
+> circuit-breaker halt rejects with `INSTRUMENT_HALTED`) and
+> `SELF_MATCH_PREVENTED` (SMP cancels rather than rejecting). Declaring them
+> ahead of use is consistent with this section's own promise that members may
+> be added — but it means the enum is *not* a description of what the system
+> can currently tell you, and §12 read it as if it were. See §0.3, gap G12.
+>
+> The live set is: `MALFORMED_MESSAGE`, `MISSING_FIELD`, `INVALID_VALUE`,
+> `UNSUPPORTED_FIELD`, `AUTH_REQUIRED`, `AUTH_FAILED`, `ROLE_DENIED`,
+> `NOT_OWNER`, `RATE_LIMITED`, `GATEWAY_NOT_CONFIGURED`, `UNKNOWN_SYMBOL`,
+> `SYMBOL_NOT_READY`, `PRICE_OUT_OF_RANGE`, `QTY_OUT_OF_RANGE`,
+> `COLLAR_BREACH`, `MARKET_CLOSED`, `SESSION_NOT_PERMITTED`,
+> `INSTRUMENT_HALTED`, `ORDER_NOT_FOUND`, `ORDER_ALREADY_TERMINAL`,
+> `AMEND_NOT_PERMITTED`, `DUPLICATE_ORDER`, `INSUFFICIENT_LIQUIDITY`,
+> `INTERNAL_ERROR`. A test asserting "every member is reachable" would be
+> wrong here; a test asserting "every *emitted* code is a member" is the one
+> that carries weight, and `test_reject_codes.py` is that test.
+
 `ORDER_NOT_FOUND`, `NOT_OWNER` and `ORDER_ALREADY_TERMINAL` are needed
 immediately, not "later": `_handle_cancel` already produces exactly these
 three rejections (`"Order not found"`, `"Cannot cancel an order owned by
@@ -2071,13 +2468,13 @@ Consequences to handle:
 
 | Consumer | Impact | Action |
 |---|---|---|
-| `clearing/store.py` `PRIMARY KEY (id, ts_ns)` | now redundant | **keep it** — defence in depth costs nothing; update the comment to say it is belt-and-braces, not load-bearing |
-| `stats/main.py` `PRIMARY KEY (trade_id, ts)` | same | same |
+| `clearing/store.py` `PRIMARY KEY (id, ts_ns)` | now redundant | **Superseded.** The design said "keep it, belt-and-braces". The implementation made `id` the sole primary key and rejects the old composite layout — see deviation 2 in the completion record |
+| `stats/main.py` `PRIMARY KEY (trade_id, ts)` | same | same: `trade_id` alone, older schema versions rejected |
 | `stats/main.py::_last_trade_id` gap detection | **breaks** — parses the id as an `int` | split on `-`; compare suffixes within a run; treat a prefix change as a recorded discontinuity, not a gap. Must ship in the same commit. |
 | RALF `EXEC_ID` / `MATCH_ID` | string passthrough | none |
 | Spec `max_len: 64` | 16 chars | fits |
 | BALF binary | survey found no binary trade-id field | **verify before implementing** |
-| Existing stored ids | old short ids remain | no migration — old and new never collide, since old ids have no `-`. Document the format change with its release. |
+| Existing stored ids | old short ids remain | **Superseded.** The design assumed old and new ids would coexist because they never collide. The implementation instead **refuses to open** a pre-durable clearing or stats database, on the grounds that a store whose key semantics changed should fail loudly rather than serve a mixture. Correct for an unreleased system; it would not be after release. |
 
 The `stats` gap-detection change is the one real hazard and must not be
 deferred. Everything else is additive.
@@ -2256,7 +2653,7 @@ required for the fan-out matrix (LM-100 to LM-106) and the restart scenario
 | `TAG=` on `CANCEL` now rejected | **Yes, deliberately** | Previously ignored along with all unknown keys. Rejecting teaches the `TAG`/`RTAG` distinction at the boundary. No known client sends it. |
 | `reject_code` | No | New optional field; `reason` unchanged |
 | `REJECT_CODE=` on ALF `ERR` | No | Additive keyed field |
-| **`Trade.id` format** | **Yes** | Any consumer parsing the id as an integer breaks — one known case (`stats._last_trade_id`), fixed in the same commit. `grep -rn "int(trade_id)\|int(.*\.id)"` before merging. Old and new ids never collide (old ids contain no `-`), so no data migration. |
+| **`Trade.id` format** | **Yes** | Any consumer parsing the id as an integer breaks — one known case (`stats._last_trade_id`), fixed in the same commit. `grep -rn "int(trade_id)\|int(.*\.id)"` before merging. **As built there is no coexistence:** clearing and stats refuse a pre-durable database file rather than mixing formats (see the completion record). |
 | `run_seq` on `trade.executed` | No | New field |
 | Drop copy `trade_ids` | No | New optional field, defaults to `[]` |
 | CALF `TRADE_ID` | No | Additive keyed field; `PROTO=CALF1` unchanged |
@@ -2283,49 +2680,69 @@ unwound later at higher cost.
 
 ## A.5 Combined Acceptance Criteria
 
-- [ ] **D1** — a REST order with `client_tag` produces an `Order` whose
+> **All boxes below verified against the tree on 2026-09-03**, with three
+> qualifications, none of which reopens a gap:
+>
+> - The `reject_code` exhaustiveness criterion is satisfied for every rejection
+>   path that *exists*. Eight enum members are never emitted by any path —
+>   `TICK_VIOLATION`, `LOT_VIOLATION`, `MAX_ORDER_QTY`, `MAX_ORDER_VALUE`,
+>   `POSITION_LIMIT`, `CIRCUIT_BREAKER_ACTIVE`, `SELF_MATCH_PREVENTED` and the
+>   deliberate `UNKNOWN`. That is correct for a forward-looking enum (A.2.3
+>   says members may be added ahead of use) but it means "every code both
+>   transports can produce" is a smaller set than the enum, and the
+>   cross-transport test's coverage should be read that way. See §0.3.
+> - "One concept, one name" holds for the bus, ALF and REST. It does **not**
+>   hold for BALF, whose `client_order_id` is a gateway-side `u64` never mapped
+>   to `client_tag` — recorded by spike S1 and restated here so the criterion
+>   is not read more broadly than it was proven.
+> - `make_ack_msg` retains parameter defaults; the no-omission guarantee rests
+>   on `_reject()` and the parameterised sweep. Deviation 1, above.
+
+- [x] **D1** — a REST order with `client_tag` produces an `Order` whose
   `client_tag` matches, and the value is returned on `GET /orders/{id}`;
   `client_order_id` is rejected as an unknown REST field.
-- [ ] **D2** — every engine rejection ack carries `client_tag` when the
+- [x] **D2** — every engine rejection ack carries `client_tag` when the
       submission supplied one, proven by a parameterised sweep over all
       rejection paths, not by sampled examples; `_reject()`'s keyword-only
       parameters have no defaults, so a new omission cannot type-check.
-- [ ] **D3** — `Trade.id` matches `^\d{6}-\d{9}$`; lexicographic order equals
+- [x] **D3** — `Trade.id` matches `^\d{6}-\d{9}$`; lexicographic order equals
       chronological order; ids from two runs never collide; the engine refuses
       to start if the run sequence cannot be persisted;
       `grep -rn "int(trade_id)"` returns nothing unhandled.
-- [ ] **D4** — every CALF `TRADE` carries `TRADE_ID` equal to
+- [x] **D4** — every CALF `TRADE` carries `TRADE_ID` equal to
       `trade.executed.id`, and a replay across a reconnect overlap yields each
       `TRADE_ID` exactly once.
-- [ ] **L8** — `_cancel_order_by_id` emits `client_tag`.
-- [ ] `request_tag` round-trips on amend and cancel, including the not-found
+- [x] **L8** — `_cancel_order_by_id` emits `client_tag`.
+- [x] `request_tag` round-trips on amend and cancel, including the not-found
       and not-owner rejections; engine-initiated cancels carry
       `request_tag=None`.
-- [ ] `reject_code` is a generated `Literal` — a misspelled code is caught by
+- [x] `reject_code` is a generated `Literal` — a misspelled code is caught by
       mypy and pyright, not at runtime.
-- [ ] Every engine rejection emits a non-null `reject_code`; `UNKNOWN` is
+- [x] Every engine rejection emits a non-null `reject_code`; `UNKNOWN` is
       never emitted deliberately.
-- [ ] The same invalid order submitted over ALF and over REST yields the
+- [x] The same invalid order submitted over ALF and over REST yields the
       **same** `reject_code` — verified for every code both transports can
       produce.
-- [ ] ALF echoes `TAG` on `ACK`, `FILL`, `AMENDED`, `CANCELLED`, `EXPIRED`
+- [x] ALF echoes `TAG` on `ACK`, `FILL`, `AMENDED`, `CANCELLED`, `EXPIRED`
       and on gateway-local `ERR` (except `MALFORMED_MESSAGE`), and `RTAG` on
       `ACK`, `AMENDED`, `CANCELLED`.
-- [ ] `order.fill` and `drop_copy.event` report identical `trade_ids` for the
+- [x] `order.fill` and `drop_copy.event` report identical `trade_ids` for the
       same execution, including the swept-VWAP case.
-- [ ] Every trade is joinable across all nine sinks of §A.3.6 by a stable
+- [x] Every trade is joinable across all nine sinks of §A.3.6 by a stable
       key, with no time-window or field-value heuristics anywhere.
-- [ ] One concept, one name: `client_tag` on the bus, in REST and in the GUI;
+- [x] One concept, one name: `client_tag` on the bus, in REST and in the GUI;
       `TAG=` is its documented ALF abbreviation.
-- [ ] No `enum_ref` or other generator feature was added — `pm-msgen` is
+- [x] No `enum_ref` or other generator feature was added — `pm-msgen` is
       unchanged (A.2.4).
-- [ ] `spec/messages/*.yaml` is the sole source of every new wire field; no
+- [x] `spec/messages/*.yaml` is the sole source of every new wire field; no
       hand-edits under `models/generated/`.
-- [ ] Regenerated `docs/user-guide/270-message-reference.md` is committed and
+- [x] Regenerated `docs/user-guide/270-message-reference.md` is committed and
       `test_msgen_docs.py` passes.
 - [ ] `black`, `flake8`, `mypy`, `pyright`, `pytest` all clean; coverage gate
-      still met.
-- [ ] No existing test required modification except where it asserted a
+      still met. *Not re-run by the 2026-09-03 audit — the repository `.venv`
+      is macOS-native and unusable from the review environment. Confirm on the
+      dev host; everything else above was verified by reading the tree.*
+- [x] No existing test required modification except where it asserted a
       now-fixed defect — each such change justified in the commit message.
 
 ---
@@ -2963,17 +3380,27 @@ on an unmerged predecessor.
 | 7 | `feat(engine): thread request_tag through cancel and amend` | A.1.7 engine |
 | 8 | `feat(alf): accept and echo TAG, RTAG and REJECT_CODE` | G1/G4 ALF |
 | 9 | `feat(api): emit reject_code and accept request_tag` | G1/G4 REST |
-| 11 | `test: assert ALF and REST agree on reject_code` | **gate** |
-| 12 | `refactor(gui): use client_tag directly` | D1 cleanup |
-| 13 | `feat(engine): durable run sequence for globally unique trade ids` | **D3** |
-| 14 | `fix(stats): gap detection across the new trade id format` | D3 fallout |
-| 15 | `feat(spec): add trade_ids to drop copy events` | G7 |
-| 16 | `feat(md): publish TRADE_ID on the CALF trade channel` | **D4** |
-| 17 | `feat(md): deduplicate replay and snapshot resume on TRADE_ID` | D4 wider fix |
-| 18 | `docs: regenerate message reference for reject_code and tags` | WP12 |
+| 10 | `test: assert ALF and REST agree on reject_code` | **gate** |
+| 11 | `refactor(gui): use client_tag directly` | D1 cleanup |
+| 12 | `feat(engine): durable run sequence for globally unique trade ids` | **D3** |
+| 13 | `fix(stats): gap detection across the new trade id format` | D3 fallout |
+| 14 | `feat(spec): add trade_ids to drop copy events` | G7 |
+| 15 | `feat(md): publish TRADE_ID on the CALF trade channel` | **D4** |
+| 16 | `feat(md): deduplicate replay and snapshot resume on TRADE_ID` | D4 wider fix |
+| 17 | `docs: regenerate message reference for reject_code and tags` | WP12 |
 
-Commits 13 and 14 are listed separately for reviewability but **must merge
-together** — 13 alone leaves stats gap detection broken.
+Commits 12 and 13 are listed separately for reviewability but **must merge
+together** — 12 alone leaves stats gap detection broken. (The original table
+skipped number 10; renumbered 2026-09-03.)
+
+> **All merged.** The work landed between 2026-08-31 and 2026-09-01 as
+> `c507f692` (engine reject funnel), `dbb3d70e` (`request_tag` threading),
+> `58168aeb` (ALF `TAG`/`RTAG`/`REJECT_CODE`), `0d05738a` (REST edge),
+> `55bc5e96` (cross-transport gate), `bb83501d` (durable trade id),
+> `4285f811` (drop-copy `trade_ids`), `4b3fdb9e` (CALF trade identity and
+> replay dedup), `c141841b` (ALF `FILL` field fix) and `81c07868` (stats and
+> clearing on the new id). Appendix B is retained as the record of *why* the
+> order was what it was, not as outstanding work.
 
 ---
 

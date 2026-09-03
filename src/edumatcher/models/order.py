@@ -4,12 +4,12 @@ Domain models: Order, enums.
 
 from __future__ import annotations
 
-import uuid
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Optional
 
 from edumatcher.models.clock import now_ns
+from edumatcher.models.ids import new_order_id
 
 
 class Side(str, Enum):
@@ -166,6 +166,15 @@ class Order:
     # Assigned by OrderBook when the order is placed on a heap; 0 = unassigned.
     arrival_seq: int = 0
 
+    # Why the *exchange* cancelled this order, set by OrderBook when it makes
+    # that decision itself (self-match prevention, an unfillable MARKET/IOC
+    # remainder) and read by the engine when it publishes order.cancelled.
+    # Deliberately absent from to_dict(): it is a marker carried on the event
+    # object between the book and the publisher for the duration of one
+    # handler call, not part of the order's persisted or wire representation.
+    # A client cancel leaves it None.
+    cancel_reason: Optional[str] = None
+
     # ------------------------------------------------------------------
     # Factory
     # ------------------------------------------------------------------
@@ -188,7 +197,7 @@ class Order:
     ) -> "Order":
         displayed = visible_qty if order_type == OrderType.ICEBERG else None
         return cls(
-            id=str(uuid.uuid4()),
+            id=new_order_id(),
             symbol=symbol,
             side=side,
             order_type=order_type,
@@ -279,4 +288,8 @@ class Order:
         o.quote_id = d.get("quote_id")
         o.client_tag = d.get("client_tag")
         o.arrival_seq = d.get("arrival_seq", 0)
+        # Not carried on the wire (see the field comment): __new__ bypasses the
+        # dataclass default, so the slot must be initialised here or the first
+        # read raises AttributeError.
+        o.cancel_reason = None
         return o

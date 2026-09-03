@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any
 
@@ -28,6 +29,7 @@ from edumatcher.api_gateway.schemas import (
 from edumatcher.api_gateway.sessions import Session, SessionRegistry, require_trading
 from edumatcher.models.generated.order import topic_order_amended, topic_order_cancelled
 from edumatcher.models.order import OrderType, Side
+from edumatcher.models.price import clear_tick_registry, register_tick_decimals
 
 
 class FakeEngine:
@@ -196,6 +198,23 @@ def trading_session() -> Session:
 @pytest.fixture
 def anyio_backend() -> str:
     return "asyncio"
+
+
+@pytest.fixture(autouse=True)
+def _symbols_loaded() -> Iterator[None]:
+    """Stand in for the engine's symbols snapshot.
+
+    The order routes now refuse a symbol whose tick precision has not arrived
+    yet: converting a price before it does would apply the two-decimal default
+    to an instrument that may not have two decimals. A live gateway registers
+    these when it authenticates; these tests call the route functions directly,
+    so they register them here.
+    """
+    clear_tick_registry()
+    register_tick_decimals("AAPL", 2)
+    register_tick_decimals("MSFT", 2)
+    yield
+    clear_tick_registry()
 
 
 def test_session_registry_and_require_trading() -> None:

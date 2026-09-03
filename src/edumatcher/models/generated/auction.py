@@ -150,9 +150,10 @@ class AuctionIndicative:
             phase=cast(AuctionIndicativePhase, str(p["phase"])),
             eq_price=None if p.get("eq_price") is None else float(p["eq_price"]),
             eq_qty=int(p["eq_qty"]),
-            imbalance_side=cast(
-                AuctionIndicativeImbalanceSide | None,
-                None if p.get("imbalance_side") is None else str(p["imbalance_side"]),
+            imbalance_side=(
+                None
+                if p.get("imbalance_side") is None
+                else cast(AuctionIndicativeImbalanceSide, str(p["imbalance_side"]))
             ),
             imbalance_qty=int(p["imbalance_qty"]),
         )
@@ -393,9 +394,10 @@ class AuctionResult:
             eq_price=None if p.get("eq_price") is None else float(p["eq_price"]),
             eq_qty=int(p["eq_qty"]),
             trades_count=int(p["trades_count"]),
-            imbalance_side=cast(
-                AuctionResultImbalanceSide | None,
-                None if p.get("imbalance_side") is None else str(p["imbalance_side"]),
+            imbalance_side=(
+                None
+                if p.get("imbalance_side") is None
+                else cast(AuctionResultImbalanceSide, str(p["imbalance_side"]))
             ),
             imbalance_qty=int(p["imbalance_qty"]),
             reason=cast(AuctionResultReason, str(p["reason"])),

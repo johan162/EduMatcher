@@ -8,7 +8,6 @@ set -euo pipefail
 
 PACKAGE_NAME="edumatcher"
 VENV_DIR="/opt/edumatcher/.venv"
-RUNTIME_USER="edumatcher"
 VERSION=""
 PYTHON_BIN=""
 UPDATE="false"
@@ -93,12 +92,6 @@ if [[ -z "$PYTHON_BIN" ]]; then
 fi
 
 echo "Using Python interpreter: $PYTHON_BIN"
-echo "Adding user '$RUNTIME_USER'..."
-
-if ! id -u "$RUNTIME_USER" >/dev/null 2>&1; then
-  useradd -m -s /bin/bash "$RUNTIME_USER"
-fi
-
 
 echo "Installing EduMatcher runtime version: ${VERSION:-latest}..."
 
@@ -108,7 +101,7 @@ mkdir -p /opt/edumatcher
 if [[ -n "$VERSION" && "$VERSION" != "latest" && "$VERSION" != "dev" ]]; then
   "$VENV_DIR/bin/pip" install "${PACKAGE_NAME}==${VERSION}"
 elif [[ "$VERSION" == "dev" ]]; then
-  "$VENV_DIR/bin/pip" install /tmp/*.whl
+  "$VENV_DIR/bin/pip" install --force-reinstall /tmp/*.whl
 else
   "$VENV_DIR/bin/pip" install "${PACKAGE_NAME}"
 fi
@@ -147,7 +140,6 @@ print(version("edumatcher"))
 PY
 )"
 
-chown -R "$RUNTIME_USER:$RUNTIME_USER" /opt/edumatcher
 printf '%s\n' "$INSTALLED_VERSION" > /opt/edumatcher/EDUMATCHER_VERSION
 
 echo "Installed ${PACKAGE_NAME}==${INSTALLED_VERSION}"

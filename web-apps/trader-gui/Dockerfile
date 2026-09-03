@@ -28,7 +28,7 @@ RUN npm config set fetch-retries 2 \
  && npm config set fetch-timeout 120000 \
  && if [ -n "$NPM_REGISTRY" ]; then npm config set registry "$NPM_REGISTRY"; fi \
  && if [ "$NPM_STRICT_SSL" = "false" ]; then npm config set strict-ssl false; fi \
- && if [ -f package-lock.json ]; then npm ci; else npm install; fi \
+ && if [ -f package-lock.json ]; then npm ci; else npm install --no-dedupe; fi \
  && npm cache clean --force
 
  # Type-check and build the frontend bundle into apps/web/dist.
