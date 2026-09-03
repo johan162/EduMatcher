@@ -1,8 +1,10 @@
-Version: 0.2.0
+Version: 0.4.0
 
 Date: 2026-09-03
 
-Status: Design Proposal — not implemented
+Status: §1–§11 (quote persistence) Design Proposal — not implemented.
+§12–§13 (TIF=DAY persistence) — Implemented and verified
+(full lint + test suite green).
 
 # EduMatcher — Revised Quote Persistence Across Engine Restarts
 
@@ -37,6 +39,28 @@ Status: Design Proposal — not implemented
   §1–§11 having shipped first, though the two share the same persistence
   file and the same restart code path and should be reviewed together for
   that reason (see §13.7).
+- **0.3.0** (2026-09-03) — §13.9's WP1–WP3, WP5, and WP6 implemented and
+  verified (full lint + test suite green); §13.9's WP4 remained deferred,
+  pending §7. Re-read and revalidated §7 against the shipped §12–§13
+  baseline: the design in §5–§6 is unchanged and still not implemented, but
+  WP1, WP2, and WP4 of §7 are revised to reflect that `_shutdown()`,
+  `_resting_gtc_orders()`, and `_restore_gtc()` now behave differently than
+  they did when §7 was first written (see the note at the top of §7, and
+  §13.7). WP5 is revised to layer onto `180-persistence.md`'s
+  already-updated text rather than the pre-§13 original. WP3 and WP6 are
+  unchanged.
+- **0.4.0** (2026-09-03) — Removed §6.5 ("Backward compatibility of
+  `gtc_orders.json` across the change"). EduMatcher is a single-machine
+  classroom deployment with no rolling upgrades and no mixed old/new
+  engine binaries reading the same persisted file — that section's premise
+  (an older engine reading a newer file, or vice versa) does not arise in
+  practice, so the analysis was pure overhead with no corresponding
+  implementation step to simplify (it already concluded "no migration is
+  needed" and had zero entries in §7's workpackages). §13.6 ("Why not
+  rename `gtc_orders.json`") is retained and reworded slightly: its actual
+  content is an argument *against* doing extra work (a gratuitous rename),
+  not a cross-version-compatibility requirement, so it already matches
+  this project's "no backward compatibility to maintain" stance.
 
 
 ## 1. Overview
@@ -446,95 +470,157 @@ what §5 already specifies — flagging it here because it is a behavioural
 change an operator could be surprised by, even though the code doing it is
 correct per the design.
 
-### 6.5 Backward compatibility of `gtc_orders.json` across the change
-
-Before this change, `gtc_orders.json` written by a given engine version
-never contains `origin == QUOTE` entries. After this change, it can. An
-older engine binary reading a newer file is unaffected (it already
-filters/ignores fields it doesn't specifically restore beyond what
-`Order.to_dict()`/`from_dict()` round-trip; quote-origin orders it restores
-would simply rest as ordinary orders, since the old `_restore_gtc()` never
-special-cased `origin` on read — only `_shutdown()`/`_resting_gtc_orders()`
-special-cased it on write). A newer engine reading an older file (no
-quote-origin entries) is trivially fine — nothing to restore, falls through
-to normal `seed_once` seeding as it does today. No migration is needed.
-
-*Mitigation:* none required beyond noting it; flagged for completeness
-since the project's persistence file format has no explicit version field
-and this is exactly the kind of change a version field would normally
-gate — worth a one-line confirmation in the PR description rather than a
-schema change, per the "minimum code that solves the problem" project
-convention.
-
-
 ## 7. Implementation Plan
+
+> **Revalidated 2026-09-03, against a shipped §13.** This plan was written
+> before §12–§13 existed. §12–§13 (TIF=DAY persistence and business-day
+> purge) has since been implemented and verified — WP1–WP3, WP5, and WP6 of
+> §13.9 are done; only §13.9's own WP4 (interaction tests, which needs *this*
+> proposal to exist first) was deferred, pending this plan. Re-reading §5–§6
+> against the current codebase confirms the underlying design is still
+> exactly right: the `origin == OrderOrigin.QUOTE` exclusion is still in
+> place in `_resting_gtc_orders()`/`_shutdown()`, `_restore_gtc()` still
+> never touches `self._quote_index`, and `seed_once` still gates on
+> `sym in stats` rather than live quote presence — none of that has changed.
+> What has changed is the baseline WP1 and WP2 build on top of, per §13.7:
+> `_shutdown()` no longer expires `TIF=DAY` orders, `_resting_gtc_orders()`
+> already saves both `TIF.GTC` and `TIF.DAY` resting orders, and
+> `_restore_gtc()` already discards stale (prior-business-day) `TIF=DAY`
+> orders before this proposal's own order-processing loop would see them.
+> The workpackages below are updated to reflect that; the affected ones are
+> marked "(revised)".
 
 Each workpackage is independently mergeable and independently testable —
 sized so a single work session can complete one, run the full check suite
 (`black`, `flake8`, `mypy`, `pyright`, plus the relevant `pytest` files),
 and stop in a working state.
 
-**WP1 — Persist quote-origin GTC orders (§5.2)**
+**WP1 — Persist quote-origin orders, GTC and same-day DAY alike (§5.2)
+(revised)**
 Remove the `origin != OrderOrigin.QUOTE` filter from `_resting_gtc_orders()`
 and the `origin == OrderOrigin.QUOTE: continue` branch from `_shutdown()`.
+Because §13 already broadened both to `order.tif in (TIF.GTC, TIF.DAY)`,
+this single change now makes quote legs persist at **either** TIF, not only
+`TIF=GTC` as originally scoped — a `TIF=DAY` quote (today's config default,
+§3.1) survives a same-day restart too, and is purged at restore only if
+stale, by §13's existing business-day check in `_restore_gtc()`, not by
+anything this WP adds. This is a strictly better outcome than the original
+§5.2 scope and needs no extra code to get — see §13.7.
 *Verify:* a new/extended test in `test_engine_durability.py` — place a live
 `quote.new` with `tif=GTC`, trigger `_shutdown()`, assert the quote's two
-legs appear in the saved `gtc_orders.json` with `origin=QUOTE`. A
-companion case confirms a `TIF=DAY` quote is still excluded (expired, not
-saved) — unchanged from today.
-*Note:* at this point restored quote legs rest in the book but are **not**
-yet reachable through `_quote_index` — WP2 closes that gap. Land WP1 and
-WP2 together if a genuinely atomic PR is preferred; they are listed
-separately here only because they are independently reviewable and touch
-different methods.
+legs appear in the saved `gtc_orders.json` with `origin=QUOTE`. A second,
+new case does the same with `tif=DAY` and asserts the legs are *also*
+saved (this replaces the old "TIF=DAY quote is still excluded — unchanged
+from today" companion case, which is no longer true post-§13 and must not
+be re-added).
+*Note:* at this point restored quote legs (of either TIF) rest in the book
+but are **not** yet reachable through `_quote_index` — WP2 closes that
+gap. Land WP1 and WP2 together if a genuinely atomic PR is preferred; they
+are listed separately here only because they are independently reviewable
+and touch different methods.
 
-**WP2 — Rebuild `QuoteIndex` on restore (§5.3)**
+**WP2 — Rebuild `QuoteIndex` on restore, GTC and same-day DAY alike (§5.3)
+(revised)**
 Extend `_restore_gtc()` to group restored quote-origin orders by
 `(gateway_id, quote_id)` and populate `self._quote_index`, per the
-two-leg/one-leg handling in §5.3.
+two-leg/one-leg handling in §5.3. Per §13.7, this grouping must run over
+*all* quote-origin orders that reach the existing per-order restore loop —
+`TIF=GTC` orders unconditionally, and `TIF=DAY` orders that already passed
+§13's business-day check — not only the `TIF=GTC` subset originally
+scoped. No ordering change versus §13 is required: the business-day
+discard already happens per-order, before that order would be a candidate
+for `QuoteIndex` grouping, so a stale `TIF=DAY` quote leg is simply never
+in the group in the first place.
 *Verify:* extend `test_persistence_roundtrips.py` — restore a two-legged
-persisted quote, assert `self._quote_index.get(gateway_id, symbol)` returns
-a `QuoteEntry` with matching `bid_order_id`/`ask_order_id`; a second case
-restores a single surviving leg and asserts no `QuoteEntry` is created
-(§6.3's test) while the order itself still rests in the book.
+persisted `TIF=GTC` quote, assert `self._quote_index.get(gateway_id,
+symbol)` returns a `QuoteEntry` with matching `bid_order_id`/
+`ask_order_id`; a second, new case does the same for a same-day `TIF=DAY`
+quote; a third case restores a single surviving leg and asserts no
+`QuoteEntry` is created (§6.3's test) while the order itself still rests in
+the book; a fourth, new case persists a `TIF=DAY` quote dated to a prior
+business day and asserts *neither* leg restores and `_quote_index` has no
+entry for that `(gateway_id, symbol)` — the §13.7/§13.9-WP4 interaction
+case.
 
 **WP3 — Change `seed_once` gate to live-quote presence (§5.4)**
 Replace `sym in stats` with the `self._quote_index.get(...)` check in the
-seed-injection loop.
+seed-injection loop. No change from the original scope — §13 does not
+touch `_load_config()` or `seed_once` at all.
 *Verify:* the ordering regression test from §6.1 — two sequential engine
 starts against one data directory with a `TIF=GTC`, `seed_once: true`
 quote: after start 1, one `QuoteEntry` exists; after start 2 (restore, no
 re-seed), still exactly one, with the *same* `bid_order_id`/`ask_order_id`
 as before restart (proves it was restored, not re-seeded on top). A third
 start after manually cancelling the quote (simulating "fully hit and
-removed") asserts the seed *does* fire again, closing the original gap.
+removed") asserts the seed *does* fire again, closing the original gap. A
+fourth, new case repeats the same three-start sequence with the quote left
+at the config default `TIF=DAY` instead of `TIF=GTC`, confirming the same
+restore-not-reseed behaviour now also holds for the common case (this is
+the other half of the §13.9-WP4 interaction test; see WP4 below).
 
-**WP4 — Startup crossing and corrupt-record edge cases (§6.2, §6.3)**
+**WP4 — Startup crossing, corrupt-record, and §13 interaction edge cases
+(§6.2, §6.3, §13.7) (revised)**
 Add the MM-vs-MM startup-crossing test and the single-leg-corrupt-record
-test described in those sections.
+test described in §6.2/§6.3. This WP also now absorbs §13.9's own
+deferred WP4 ("interaction tests with §1–§11"), which was blocked on this
+proposal existing: confirm end-to-end that a default-`TIF=DAY`
+config-seeded MM quote survives a same-day mid-`CONTINUOUS` restart without
+an explicit `tif: GTC` override (WP1+WP2's outcome), and that a stale
+`TIF=DAY` quote purged at restore leaves `_quote_index` empty so WP3's
+`seed_once` gate re-seeds correctly on the new business day (WP2+WP3's
+outcome). Most of this is already covered by the new cases added to WP1–
+WP3 above; this WP's job is the remaining cross-cutting scenarios that
+don't fit naturally into a single method's test file — in particular a
+full engine-restart integration test (not a unit-level `_restore_gtc()`
+call) exercising the whole sequence.
 *Verify:* tests pass; no change to production code expected in this WP
 unless WP1–WP3 review surfaces a gap.
 
-**WP5 — Update `180-persistence.md`** (§5.6)
-Rewrite the "At Shutdown"/"At Startup" numbered sequences and the "What is
-deliberately not persisted" callout to describe the TIF-conditioned rule.
-Add the one-sentence startup-crossing note from §6.2.
+**WP5 — Update `180-persistence.md`** (§5.6) **(revised)**
+§13's own WP5 already rewrote this document's "At Shutdown"/"At Startup"
+sequences and the Trading Day Lifecycle diagram to describe TIF-conditioned
+persistence and the business-day purge (no `TIF=DAY` expiry at shutdown;
+GTC restored unconditionally, DAY restored only if same-day) — that text
+is silent on quote legs specifically and needs no correction, only
+addition. Note the existing "What is deliberately *not* persisted" callout
+in this doc is about something unrelated — the in-memory `QLEGS`
+inactivation-history ring buffer — not about quote *orders* being excluded
+from `gtc_orders.json`; that latter fact (today's actual behaviour, via the
+`origin == OrderOrigin.QUOTE` exclusion this WP1/WP2 remove) is not
+documented anywhere in the current text and does not need un-documenting.
+This WP adds new material: describe the §5.2 TIF-conditioned persistence
+rule for quote legs (a `quote.new`/config-seeded quote persists exactly
+like any other order — `TIF=GTC` unconditionally, `TIF=DAY` if same-day —
+once this WP1/WP2 lands), and add the one-sentence startup-crossing note
+from §6.2. Cross-check the "Operational edge cases" section's `seed_once`
+bullet (rewritten during §13's WP5 to describe the *current* `sym in
+stats` gate) and update it once WP3 changes what `seed_once` actually
+checks.
 *Verify:* doc build (`mkdocs build` or the project's existing doc-build
 check) passes; a human read-through against WP1–WP4's actual behaviour.
 
 **WP6 — Update `090-market-maker.md`** (§6.4)
-Add the `NEVER_INACTIVATE`-plus-restart-durability note.
+Add the `NEVER_INACTIVATE`-plus-restart-durability note. No change from
+the original scope.
 *Verify:* doc build passes.
 
 **WP7 — Full-suite verification**
 Run `black`, `flake8`, `mypy`, `pyright` across the touched files, and the
 full `pytest` suite (not just the new/extended files) to catch any
-incidental interaction with existing GTC-restore, `QLEGS`, or `QBOOT`
-tests that assumed quote-origin orders never appear in the persisted file.
+incidental interaction with existing GTC-restore, `QLEGS`, `QBOOT`, or
+§13's own DAY-persistence tests (`test_negative_engine_state.py`,
+`test_engine_final_gaps.py`, `test_engine_coverage_final.py`,
+`test_combo_gateway_integration.py`) that assumed quote-origin orders never
+appear in the persisted file.
 
 Suggested sequencing: WP1 → WP2 → WP3 → WP4, each as its own commit/PR;
 WP5–WP6 can land alongside WP4 or immediately after; WP7 gates the final
-merge.
+merge. Because WP1/WP2 build directly on §13's already-shipped
+`_resting_gtc_orders()`/`_shutdown()`/`_restore_gtc()` code, expect small
+merge-conflict-shaped overlap with the comments and structure §13 already
+introduced there — not logic conflicts, since §13's changes and this
+plan's changes are additive to different conditions (TIF vs. origin) in
+the same functions.
 
 
 ## 8. Differences From Real Market Makers
@@ -1085,17 +1171,18 @@ expiry event, and it needs to be a conscious choice, not an oversight:
 The persisted file now holds a mix of `TIF=GTC` and same-day `TIF=DAY`
 orders. Renaming it (e.g. to `resting_orders.json`) would be more
 accurate, but per the project's simplicity-first convention this document
-does not propose it: a rename is a breaking file-format/migration change
-for zero functional benefit, touches deployment scripts and any
+does not propose it: a rename is pure extra work for zero functional
+benefit — it would require updating deployment scripts and any
 operational tooling that references the filename by convention (backup
 scripts, `180-persistence.md`'s data-file table, `pm-*-cli` tooling if any
 reads the file directly), and the file's *content* already needs no schema
 change — it is still a JSON array of `Order.to_dict()` entries, each of
 which already carries its own `tif` field, so nothing about the format
 misleads a reader who opens the file. The filename becoming slightly
-imprecise is a smaller cost than a rename's migration surface. If the
-project later does a broader persistence-file cleanup, revisiting the name
-then is fine; it is not warranted as part of this fix alone.
+imprecise is a smaller cost than the churn a rename would cause across the
+codebase. If the project later does a broader persistence-file cleanup,
+revisiting the name then is fine; it is not warranted as part of this fix
+alone.
 
 ### 13.7 Interaction with §1–§11 (the quote-persistence proposal)
 

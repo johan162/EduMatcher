@@ -127,7 +127,7 @@ whole session.
 4. The engine reads `<DATA_DIR>/gtc_combos.json` (if it exists) and rebuilds parent-child tracking maps for restored `GTC` combos.
 5. If any orders were restored, initial book snapshots are published.
 6. The engine reads `<DATA_DIR>/book_stats.json` (if it exists) and restores `last_buy_price` / `last_sell_price` / `prev_close` per symbol.  Persisted values take priority over config-seeded values.
-7. Market-maker quotes from each symbol's `market_maker_quotes` config section are injected as linked bid/ask quote legs, unless `seed_once: true` (the default) and this gateway/symbol already has a restored, active quote. **No gateway connection is required** — seeds enter the book before any participant dials in.  If a restored order already crosses a seed price, a trade executes immediately during this step.
+7. Market-maker quotes from each symbol's `market_maker_quotes` config section are injected as linked bid/ask quote legs, unless `seed_once: true` (the default) and this symbol already has a `book_stats.json` entry (i.e. the engine has been started at least once before for this symbol, whether or not a quote survived that restart). **No gateway connection is required** — seeds enter the book before any participant dials in.  If a restored order already crosses a seed price, a trade executes immediately during this step.
 8. Market-maker combos from the `market_maker_combos` config section are injected.
 9. Book snapshots are published for any symbol where MM quotes were injected.
 10. Original timestamps ensure that price-time priority carries over correctly — an order
@@ -145,8 +145,23 @@ whole session.
 - Because config quote seeds run **after** persisted order restore, a
   seeded `market_maker_quotes` entry with `seed_once: false` can duplicate
   already-restored quote inventory on restart — `seed_once: true` (the
-  default) avoids this by skipping the seed when this gateway/symbol
-  already has a restored, active quote.
+  default) avoids this by skipping the seed whenever `book_stats.json`
+  already has an entry for the symbol, regardless of whether a quote
+  actually survived to be restored. Note this is a coarser check than "is
+  there currently a live quote for this gateway/symbol": once a symbol has
+  traded, its `book_stats` entry persists indefinitely, so a quote that
+  later gets fully hit and removed will **not** be automatically re-seeded
+  on a later restart even though no quote is actually resting — the
+  operator would need `seed_once: false` or a manual `quote.new` to
+  re-establish it. Separately, quote legs (`origin=QUOTE`) are currently
+  **never** persisted to `gtc_orders.json` regardless of their `TIF` —
+  unlike ordinary orders, which follow the GTC/DAY rule described above.
+  This means every restart re-seeds from config (subject to the
+  `seed_once` gate just described) rather than restoring a live quote's
+  actual resting legs. This is a known, separately tracked gap — see
+  `docs-design/EduMatcher-Revised-Quote-Persistence.md` §1-§7 (repository
+  checkout only) — not a consequence of the TIF=DAY work described in this
+  section.
 - A `TIF = DAY` order now survives an engine restart the same as a `TIF =
   GTC` order does, as long as the restart happens on the same business day
   it rested on. This means restarting the engine mid-session to pick up a
