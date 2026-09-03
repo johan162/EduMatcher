@@ -157,6 +157,15 @@ To update a VM in place:
 ./mkupd.sh --vm-name ems
 ```
 
+`/opt/edumatcher` is root-owned, so an upgrade from inside the VM needs `sudo`
+(the `ubuntu` user has passwordless sudo). Prefer re-running the provisioning
+script over a bare `pip install`, since only the script refreshes the
+`/usr/local/bin/pm-*` symlinks when a release adds a new command:
+
+```bash
+sudo /opt/install_edumatcher.sh --version 0.26.0
+```
+
 ## Reset and remove
 
 ```bash
