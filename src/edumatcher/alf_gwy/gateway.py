@@ -43,7 +43,7 @@ from edumatcher.models.message import (
     make_oco_order_msg,
     make_order_amend_msg,
     make_order_cancel_msg,
-    make_order_new_msg,
+    make_order_new_unchecked_msg,
     make_orders_request_msg,
     make_quote_bootstrap_request_msg,
     make_quote_cancel_msg,
@@ -118,6 +118,12 @@ _MAX_DC_EVENTS_PER_LOOP = 1000
 # Topic prefix used by edumatcher.engine.drop_copy.DropCopyPublisher for live
 # (non-replay) fill events -- see docs/user-guide/200-drop-copy.md.
 _DC_EVENT_TOPIC_PREFIX = PREFIX_DROP_COPY_EVENT
+#: Wire limits `order_new` declares in spec/messages/order.yaml. Checked once
+#: each - symbols when the engine's snapshot lands, gateway ids at HELLO -
+#: rather than per order by the validating message builder.
+_MAX_SYMBOL_LEN = 16
+_MAX_GATEWAY_ID_LEN = 32
+
 _TAG_ALLOWED = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.")
 
 log = logging.getLogger(__name__)
@@ -588,6 +594,17 @@ class AlfGateway:
             )
             return
 
+        if len(gateway_id) > _MAX_GATEWAY_ID_LEN:
+            # order_new declares gateway_id max_len 32. Refusing at HELLO is
+            # both earlier and clearer than the per-order check this replaces.
+            self._register_error(
+                session,
+                "INVALID_VALUE",
+                f"Gateway id exceeds {_MAX_GATEWAY_ID_LEN} characters",
+                close_connection=True,
+            )
+            return
+
         session.client_name = client
         session.gateway_id = gateway_id
         session.auth_pending = True
@@ -708,7 +725,15 @@ class AlfGateway:
             client_tag=self._optional_tag(fields, "TAG"),
         )
 
-        self._send_to_engine(make_order_new_msg(order.to_dict()))
+        # The unchecked builder, on the one path measured hot enough to
+        # justify it (docs-design/EduMatcher-Perf-Analysis.md section 7).
+        # It skips OrderNew.validate() — worth 355 ns — but the bulk of the
+        # 5.0 us it saves is the dataclass round trip the validating builder
+        # makes: dict -> OrderNew -> validate -> dict. Every rule validate()
+        # would have applied is already enforced above or bounded once at
+        # startup; tests/test_alf_gwy_wire_bounds.py pins that field by field
+        # so the correspondence cannot rot.
+        self._send_to_engine(make_order_new_unchecked_msg(order.to_dict()))
 
     def _handle_new_oco(self, session: ClientSession, fields: dict[str, str]) -> None:
         gateway_id = self._require_gw(session)
@@ -1186,6 +1211,21 @@ class AlfGateway:
             if isinstance(tick_decimals, int):
                 ticks[sym] = tick_decimals
                 register_tick_decimals(sym, tick_decimals)
+
+        # order_new declares symbol max_len 16. The gateway no longer pays
+        # for that check per order (see _handle_new_single), so it is made
+        # once here, against the only source symbols ever come from. A symbol
+        # this long is a configuration error, and discovering it on the first
+        # order of the day would be a poor place to learn about it.
+        oversized = [sym for sym in symbols if len(sym) > _MAX_SYMBOL_LEN]
+        if oversized:
+            log.error(
+                "engine sent symbol(s) longer than the %d-character wire limit; "
+                "orders for them will be refused: %s",
+                _MAX_SYMBOL_LEN,
+                ", ".join(sorted(oversized)),
+            )
+        symbols = [sym for sym in symbols if len(sym) <= _MAX_SYMBOL_LEN]
 
         self._symbols_snapshot_loaded = True
         self._known_symbols.update(symbols)

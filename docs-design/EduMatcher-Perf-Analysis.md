@@ -229,6 +229,18 @@ Median of 50 000 iterations each, warm.
 | Engine: `_handle_new_order` to published ack | **22.1 µs** | 41% |
 | **In-process total** | **≈ 54 µs** | 100% |
 
+> **After items 3, 4 and 5 (2026-09-03): the gateway leg is 17.3 µs**, p90
+> 21, three runs of 50 000 iterations each with a spread under 1%. The
+> in-process total is **≈ 39 µs**, and the gateway is no longer the larger
+> leg. The engine leg is unchanged, as expected — none of the three changes
+> touches it.
+>
+> The 15 µs saved exceeds the 8.7 µs the three items sum to individually,
+> because they overlap: the unchecked builder skips `OrderNew.from_dict`
+> entirely, so item 3's saving on this path is subsumed by item 4's rather
+> than adding to it. Do not read the individual figures as a decomposition of
+> the 15.
+
 The asymmetry is the headline: **the gateway costs more than the engine**, and
 no existing test measures it. Optimisation attention has gone to the engine
 because that is what `test_perf.py` reports.
@@ -391,8 +403,8 @@ trusting anything that follows.
 | 1 | **Fix the benchmark** (§11) | Removes a 2.9× measurement artefact | None | Do first; nothing else is verifiable until the number is stable |
 | 2 | **Extend the benchmark to the gateway leg** | — | None | 59% of the path is currently untimed |
 | 3 | ~~Hoist the `X \| None` union out of generated `cast()`~~ | **DONE** — measured **1.58 µs** per generated `from_dict` | — | Fixed 2026-09-03; see below and `perf-notes.md` |
-| 4 | **Gateway uses `make_order_new_unchecked`** | **6.4 µs/order** | Medium — see below | 20% of the gateway leg |
-| 5 | **Replace `uuid4()` for order ids** | up to **2.5 µs/order** | Low–medium | See below |
+| 4 | ~~Gateway uses `make_order_new_unchecked`~~ | **DONE** — 4.99 µs/order, of which only 355 ns was validation | — | Done 2026-09-03 with the correspondence test §10 asked for |
+| 5 | ~~Replace `uuid4()` for order ids~~ | **DONE** — 2.11 µs/order | — | `os.urandom(16).hex()`; no durable state needed after all |
 | 6 | **Unpack the payload dict once in `_handle_new_order`** | ~1–2 µs/order | Low | 28.8 `dict.get` calls today |
 | 7 | **Compile out `_dbg_count` and the log guards when disabled** | ~1 µs/order | Low | 9.5 guard calls per order |
 | 8 | **Cache `.value` on hot enums** | ~0.8 µs/order | Low | 3.5 descriptor calls per order |
@@ -415,6 +427,35 @@ recommendation is: switch it, and add a test asserting that every field
 `validate()` would have checked is checked by the gateway first — otherwise
 this trades 6.4 µs for a class of bug that only appears in production.
 
+> **Done 2026-09-03, and the framing above was wrong in a way worth
+> recording.** Decomposing the builders shows the cost is not mostly
+> validation:
+>
+> | | ns |
+> |---|---:|
+> | `make_order_new` (validating) | 7 349 |
+> | `make_order_new_unchecked` | 2 364 |
+> | *of the 4 985 difference:* `validate()` | **355** |
+> | *of the 4 985 difference:* dataclass round trip | **4 630** |
+>
+> `make_order_new` goes dict → `OrderNew` → `validate()` → dict. The payload
+> arrives as a dict and leaves as one; the object in the middle exists only to
+> be validated. So 93% of the saving costs nothing in safety, and the headline
+> for this item should have been "serialises three times", not "validates
+> twice".
+>
+> The 355 ns still had to be earned. Two of `validate()`'s sixteen rules —
+> `symbol` max_len 16 and `gateway_id` max_len 32 — had no gateway equivalent,
+> and neither is checked by `pm-cverifier` either, so `validate()` was the only
+> thing catching a misconfiguration. Both are config-derived, so they moved to
+> where that belongs: symbols are bounded when the engine's snapshot lands,
+> gateway ids at `HELLO`. Both are O(1) per connection rather than per order.
+>
+> `tests/test_alf_gwy_wire_bounds.py` covers all sixteen rules, asserts the two
+> builders emit byte-identical frames, and — the part that keeps this honest —
+> reads the rules out of the generated source so a rule added to the spec fails
+> the build until someone classifies it.
+
 ### On item 5 — what replaces `uuid4()`?
 
 The order id needs to be unique across gateways and restarts, and it is used as
@@ -429,6 +470,33 @@ primitive), and the format must stay fixed-width so lexicographic order matches
 chronological order. Note the id is currently a UUID *string* in several
 stores; changing its shape is a wire-visible change and belongs in the same
 category as the trade-id change, with the same `grep` for parsers.
+
+> **Done 2026-09-03 — and not the way this section proposed.** The counter
+> scheme above is the wrong trade. Measured:
+>
+> | | ns |
+> |---|---:|
+> | `str(uuid.uuid4())` — before | 2 584 |
+> | `uuid.uuid4().hex` | 2 155 |
+> | **`os.urandom(16).hex()` — chosen** | **473** |
+> | `f"{prefix}-{next(counter):012d}"` | 265 |
+>
+> uuid4's cost is almost all packaging: it draws 16 random bytes, then builds a
+> `UUID` object and formats the dashed 8-4-4-4-12 shape. Taking the bytes
+> directly keeps **the entropy identical** — 128 bits of OS CSPRNG — so every
+> uniqueness argument for uuid4 still holds, unchanged, with no durable state
+> and no coordination.
+>
+> That matters more than the extra 208 ns the counter would have saved. Order
+> ids are minted independently by five processes and must not collide across a
+> restart, so a counter needs a durable run sequence in each of them. Paying
+> `Trade.id`'s machinery five times over for 208 ns is a bad trade, and the
+> recommendation above should not have been written without measuring
+> `os.urandom` first.
+>
+> The id is 32 hex characters against uuid4's 36 — both inside the spec's
+> 64-char `max_len`, and the two forms coexist safely in stored data because
+> nothing parses one (verified by grep before changing it).
 
 ### What is not worth doing
 

@@ -120,6 +120,23 @@ def make_order_new_msg(order_dict: dict[str, Any]) -> list[bytes]:
     return _gen_order.make_order_new(**order_dict)
 
 
+def make_order_new_unchecked_msg(order_dict: dict[str, Any]) -> list[bytes]:
+    """Same frames as :func:`make_order_new_msg`, without ``validate()``.
+
+    For a caller that has already validated every field itself and is hot
+    enough to care — today that is the ALF gateway's single-order path alone,
+    and ``_unchecked``'s own docstring asks that it stay that way.
+
+    Most of what this saves is not the validation. The validating builder goes
+    dict → ``OrderNew`` → ``validate()`` → dict; this one builds the payload
+    directly. Measured on one order: 7 349 ns against 2 364 ns, of which
+    ``validate()`` is 355 ns and the dataclass round trip is the other 4 630.
+    The generator guarantees the two emit byte-identical frames for any input,
+    and ``test_alf_gwy_wire_bounds.py`` holds that guarantee to it.
+    """
+    return _gen_order.make_order_new_unchecked(**order_dict)
+
+
 def make_gateway_connect_msg(gateway_id: str) -> list[bytes]:
     return _gen_system.make_gateway_connect(gateway_id=gateway_id)
 

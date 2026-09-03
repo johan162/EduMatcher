@@ -117,6 +117,48 @@ the target is ≥1% of wall time (review finding P6).
   **Do not "simplify" this back to a single cast around the whole
   conditional.** It reads better and costs a microsecond per call.
 
+## ALF gateway ingress
+
+- **`make_order_new_unchecked` on the single-order path (2026-09-03).**
+  `_handle_new_single` built its bus frame with the validating builder, which
+  goes dict -> `OrderNew` -> `validate()` -> dict. Measured on one order:
+  **7 349 ns against 2 364 ns**. Only **355 ns** of that difference is
+  `validate()`; the other **4 630 ns** is the dataclass round trip, which buys
+  nothing - the payload arrives as a dict and leaves as a dict.
+
+  The 355 ns is a real safety trade and is only acceptable because every rule
+  `validate()` declares is enforced earlier: client-supplied fields per order
+  by the gateway's own parsers, and the two config-derived limits once each -
+  `symbol` max_len 16 when the engine's snapshot lands, `gateway_id` max_len
+  32 at HELLO. `tests/test_alf_gwy_wire_bounds.py` pins the correspondence
+  field by field, and its `test_every_validate_rule_is_accounted_for` reads the
+  rules out of the generated source so a *new* spec rule fails the build until
+  someone classifies it. Without that test this optimisation would rot into a
+  defect quietly.
+
+  Other callers of `make_order_new_msg` (console, AI trader, REST, BALF) keep
+  the validating builder, as `_unchecked`'s own docstring asks.
+
+- **`os.urandom(16).hex()` for order ids (2026-09-03).** `str(uuid.uuid4())`
+  was **2 584 ns**; this is **473 ns**. The entropy is identical - 128 bits
+  from the OS CSPRNG - so the collision argument is unchanged, which matters
+  because five processes mint order ids with no coordination and several
+  stores outlive the process that wrote them. uuid4's extra 2 111 ns is
+  entirely `UUID` object construction and the dashed 8-4-4-4-12 formatting,
+  and nothing in the system parses an order id back (checked). Shared by
+  `Order.create`, `ComboOrder.create` and BALF's `new_engine_order_id` via
+  `models/ids.py`.
+
+  A per-gateway counter would be 265 ns but needs a durable run sequence in
+  each of those five producers to survive a restart - the machinery `Trade.id`
+  needs, and 208 ns does not justify.
+
+  **Combined with the generator fix above, the ALF ingress leg
+  (`_handle_client_line` for a `NEW`) went from a 32.3 us median to 17.3 us -
+  three runs of 50 000 iterations each, spread under 1%.** That is more than
+  the parts sum to, because the unchecked builder skips `OrderNew.from_dict`
+  altogether and so subsumes the generator saving on this path.
+
 ## Guidance
 
 Macro costs dominate over these micro-opts: JSON per message, publication
