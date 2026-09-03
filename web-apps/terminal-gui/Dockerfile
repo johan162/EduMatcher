@@ -40,10 +40,11 @@ COPY apps ./apps
 # Fail fast (in ~2 min) instead of hanging indefinitely when the network is
 # blocked, and apply any registry / TLS overrides supplied via build args.
 RUN npm config set fetch-retries 2 \
+ && npm install --global npm@11.19.0 \
  && npm config set fetch-timeout 120000 \
  && if [ -n "$NPM_REGISTRY" ]; then npm config set registry "$NPM_REGISTRY"; fi \
  && if [ "$NPM_STRICT_SSL" = "false" ]; then npm config set strict-ssl false; fi \
- && if [ -f package-lock.json ]; then npm ci; else npm install --no-dedupe; fi \
+ && if [ -f package-lock.json ]; then npm ci; else npm install; fi \
  && npm cache clean --force
 
 # Type-check and build the frontend bundle into apps/web/dist.
