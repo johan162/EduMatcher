@@ -4,12 +4,12 @@ Domain models: Order, enums.
 
 from __future__ import annotations
 
-import uuid
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Optional
 
 from edumatcher.models.clock import now_ns
+from edumatcher.models.ids import new_order_id
 
 
 class Side(str, Enum):
@@ -197,7 +197,7 @@ class Order:
     ) -> "Order":
         displayed = visible_qty if order_type == OrderType.ICEBERG else None
         return cls(
-            id=str(uuid.uuid4()),
+            id=new_order_id(),
             symbol=symbol,
             side=side,
             order_type=order_type,

@@ -8,12 +8,12 @@ The parent combo tracks whether all legs have filled.
 
 from __future__ import annotations
 
-import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
 
 from edumatcher.models.clock import now_ns
+from edumatcher.models.ids import new_order_id
 
 from edumatcher.models.order import (
     OrderStatus,
@@ -136,7 +136,7 @@ class ComboOrder:
         client_tag: str | None = None,
     ) -> "ComboOrder":
         return cls(
-            id=str(uuid.uuid4()),
+            id=new_order_id(),
             combo_id=combo_id,
             gateway_id=gateway_id,
             combo_type=combo_type,

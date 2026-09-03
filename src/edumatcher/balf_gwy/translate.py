@@ -7,7 +7,6 @@ and maps engine event payloads back to BALF outbound frame parameters.
 
 from __future__ import annotations
 
-import uuid
 from typing import Any
 
 from edumatcher.balf_gwy.codec import (
@@ -27,6 +26,7 @@ from edumatcher.balf_gwy.protocol import (
     validate_tif,
 )
 from edumatcher.models.clock import now_ns
+from edumatcher.models.ids import new_order_id
 from edumatcher.models.price import TickViolation, to_ticks_exact
 
 # ---------------------------------------------------------------------------
@@ -44,7 +44,7 @@ def build_engine_new_order(
     Raises ``BalfValidationError`` for invalid field values.
     Returns a dict ready to pass to ``make_order_new_msg()``.
 
-    ``engine_order_id`` is a pre-generated UUID string supplied by the caller.
+    ``engine_order_id`` is a pre-generated id string supplied by the caller.
     """
     symbol = str(parsed["symbol"])
     validate_symbol(symbol)
@@ -181,5 +181,10 @@ def cancel_reason_from_engine(payload: dict[str, Any]) -> int:
 
 
 def new_engine_order_id() -> str:
-    """Generate a fresh UUID string for a new engine order."""
-    return str(uuid.uuid4())
+    """Generate a fresh engine order id.
+
+    Kept as a named function because BALF mints the id before it knows whether
+    the order will validate, and the two-step is easier to follow with a name
+    on it. The generation itself is shared - see models.ids.new_order_id.
+    """
+    return new_order_id()
