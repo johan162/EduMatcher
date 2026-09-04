@@ -14,6 +14,8 @@ from dataclasses import replace
 
 import holidays
 
+from edumatcher.cli_version import package_version
+
 from edumatcher.engine.config_loader import load_engine_config
 from edumatcher.models.order import SmpAction
 from edumatcher.models.participant import ParticipantRole
@@ -1768,7 +1770,7 @@ def main() -> None:
     rendered = render_yaml(
         config=config,
         command=cmd_line,
-        generated_version="1.1.0",
+        generated_version=package_version(),
         generated_date=str(date.today()),
         default_engine_field_comments=default_config_field_comment_lines,
     )
