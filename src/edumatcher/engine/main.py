@@ -85,6 +85,7 @@ from edumatcher.models.generated.order import (
     TOPIC_ORDER_OCO_CANCEL,
     TOPIC_ORDERS_REQUEST,
     TOPIC_PRICE_LEVEL_ORDERS_REQUEST,
+    OrderFillLiquidityFlag,
     topic_order_ack,
     topic_order_cancelled,
     topic_order_fill,
@@ -1001,6 +1002,9 @@ class Engine:
                                         trade_ids=self._order_trade_ids(trades).get(
                                             evt.id, []
                                         ),
+                                        liquidity_flag=self._order_liquidity_flags(
+                                            trades
+                                        ).get(evt.id),
                                     )
                                 )
                                 if evt.quote_id:
@@ -1556,6 +1560,7 @@ class Engine:
         # somehow missing from the trade map.
         _order_fill_px = self._order_fill_prices(trades)
         _order_trade_ids_map = self._order_trade_ids(trades)
+        _order_liquidity_flags_map = self._order_liquidity_flags(trades)
         _fill_px = (
             from_ticks(book.last_trade_price, order.symbol)
             if trades and book.last_trade_price is not None
@@ -1615,6 +1620,15 @@ class Engine:
                                     "PARTIAL_FILL" if evt.remaining_qty else "FILLED"
                                 ),
                                 "trade_ids": _order_trade_ids_map.get(evt.id, []),
+                                **(
+                                    {
+                                        "liquidity_flag": _order_liquidity_flags_map[
+                                            evt.id
+                                        ]
+                                    }
+                                    if evt.id in _order_liquidity_flags_map
+                                    else {}
+                                ),
                                 "symbol": evt.symbol,
                                 "side": _side_v if _is_agg else evt.side.value,
                                 "order_type": (
@@ -2761,6 +2775,24 @@ class Engine:
                     bucket.append(t.id)
         return ids
 
+    @staticmethod
+    def _order_liquidity_flags(trades: list[Any]) -> dict[str, OrderFillLiquidityFlag]:
+        """Per-order MAKER/TAKER attribution, mirroring ``_order_trade_ids`` (G9).
+
+        Same derivation the drop-copy path (M13) already uses: the aggressor
+        side of a trade is TAKER, the resting side is MAKER. An order's side
+        (BUY/SELL) is constant across every trade that composes its fill, so
+        the first trade touching an order id settles its flag; a coalesced
+        multi-level sweep cannot disagree with itself because the order is
+        the aggressor for all of its own trades or for none of them.
+        """
+        flags: dict[str, OrderFillLiquidityFlag] = {}
+        for t in trades:
+            agg = t.aggressor_side
+            for oid, side in ((t.buy_order_id, "BUY"), (t.sell_order_id, "SELL")):
+                flags.setdefault(oid, "TAKER" if side == agg else "MAKER")
+        return flags
+
     def _check_circuit_breaker(self, symbol: str, trade_price: int, now: int) -> None:
         """
         Called after every fill to check whether a circuit breaker halt should fire.
@@ -3285,6 +3317,9 @@ class Engine:
                                 status=evt.status.value,
                                 order=evt.to_dict(),
                                 trade_ids=self._order_trade_ids(trades).get(evt.id, []),
+                                liquidity_flag=self._order_liquidity_flags(trades).get(
+                                    evt.id
+                                ),
                             )
                         )
                         if evt.quote_id:
@@ -4165,6 +4200,9 @@ class Engine:
                                 status=evt.status.value,
                                 order=evt.to_dict(),
                                 trade_ids=self._order_trade_ids(trades).get(evt.id, []),
+                                liquidity_flag=self._order_liquidity_flags(trades).get(
+                                    evt.id
+                                ),
                             )
                         )
                     if evt.combo_parent_id and evt.id != child.id:
@@ -4613,6 +4651,9 @@ class Engine:
                                     trade_ids=self._order_trade_ids(trades).get(
                                         evt.id, []
                                     ),
+                                    liquidity_flag=self._order_liquidity_flags(
+                                        trades
+                                    ).get(evt.id),
                                 )
                             )
                         if evt.combo_parent_id:
@@ -4653,6 +4694,9 @@ class Engine:
                                         trade_ids=self._order_trade_ids(sub_trades).get(
                                             sub_evt.id, []
                                         ),
+                                        liquidity_flag=self._order_liquidity_flags(
+                                            sub_trades
+                                        ).get(sub_evt.id),
                                     )
                                 )
                                 if sub_evt.combo_parent_id:
@@ -4922,6 +4966,9 @@ class Engine:
                                 status=evt.status.value,
                                 order=evt.to_dict(),
                                 trade_ids=self._order_trade_ids(trades).get(evt.id, []),
+                                liquidity_flag=self._order_liquidity_flags(trades).get(
+                                    evt.id
+                                ),
                             )
                         )
                         if evt.status == OrderStatus.FILLED and evt.oco_group_id:
@@ -5367,6 +5414,7 @@ class Engine:
                         status=("PARTIAL_FILL" if evt.remaining_qty else "FILLED"),
                         order=evt.to_dict(),
                         trade_ids=self._order_trade_ids(trades).get(evt.id, []),
+                        liquidity_flag=self._order_liquidity_flags(trades).get(evt.id),
                     )
                 )
             if (

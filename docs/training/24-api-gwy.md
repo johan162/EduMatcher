@@ -423,6 +423,9 @@ Expected behavior:
   topic means your client read too slowly and events were dropped
 - `session` and `circuit_breaker` arrive whether or not you subscribed — the
   ack lists them under `always`
+- an `order.fill` event's `data.liquidity_flag` tells you whether *your*
+  order supplied liquidity (`MAKER`, it was resting) or removed it
+  (`TAKER`, it crossed the spread) — no join against another feed required
 
 :material-checkbox-blank-outline: Checkpoint: you can explain when to use REST responses versus WebSocket events for order outcomes.
 

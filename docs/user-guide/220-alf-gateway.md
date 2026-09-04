@@ -316,6 +316,13 @@ IDs that composed the fill. It normally contains one ID; a swept order can
 contain several in execution order. An empty value means no public trade ID was
 available for that fill.
 
+`FILL` also includes `LIQUIDITY=<MAKER|TAKER>`: `MAKER` if this order was
+resting on the book and got matched into, `TAKER` if it crossed the spread
+and matched immediately. It is the same maker/taker attribution the drop-copy
+`DC_FILL` line has always carried, now on the ordinary session fill too — no
+need to enable `DC` or cross-reference the drop-copy feed just to know which
+side of a trade you were on.
+
 On rejected order ACKs, `REJECT_CODE` is the stable machine-readable rejection
 classification. `REASON` remains the human-readable explanation.
 Gateway-local validation errors use `ERR|CODE=...|REJECT_CODE=...|DETAIL=...`
@@ -588,7 +595,7 @@ These messages are addressed to your gateway ID and arrive on your session only.
 | Message type | Key fields |
 |---|---|
 | `ACK` | `ORDER_ID`, `ACCEPTED`, `REASON`, `REJECT_CODE`, `SYMBOL`, `SIDE`, `TYPE`, `TAG`, `RTAG` |
-| `FILL` | `ORDER_ID`, `FILL_QTY`, `FILL_PRICE`, `REMAINING`, `STATUS`, `TRADE_IDS`, `TAG` |
+| `FILL` | `ORDER_ID`, `FILL_QTY`, `FILL_PRICE`, `REMAINING`, `STATUS`, `TRADE_IDS`, `LIQUIDITY`, `TAG` |
 | `AMENDED` | `ORDER_ID`, `PRICE`, `QTY`, `REMAINING`, `PRIORITY_RESET`, `TAG`, `RTAG` |
 | `CANCELLED` | `ORDER_ID`, `TAG`, `RTAG`, `CANCEL_REASON` — see [Unsolicited cancels](#unsolicited-cancels) |
 | `EXPIRED` | `ORDER_ID`, `TAG` |

@@ -145,14 +145,21 @@ $150.00, the prices **cross** — a trade happens immediately.
 Both gateways receive fill events. In Window 4 (GW01):
 
 ```
-[GW01] order.fill: order_id=abc123 qty=100 price=150.00 status=FILLED
+[GW01] order.fill: order_id=abc123 qty=100 price=150.00 status=FILLED liquidity=MAKER
 ```
 
 In Window 5 (GW02):
 
 ```
-[GW02] order.fill: order_id=xyz456 qty=100 price=150.00 status=FILLED
+[GW02] order.fill: order_id=xyz456 qty=100 price=150.00 status=FILLED liquidity=TAKER
 ```
+
+That `liquidity` field is the same passive/maker vs. aggressive/taker
+distinction from Steps 3 and 4, now stated directly on the fill instead of
+something you'd have to work out from who submitted first: GW01's LIMIT BUY
+was resting on the book (**maker**), and GW02's LIMIT SELL crossed the
+spread to match it (**taker**). You don't need to remember who acted first —
+the fill tells you.
 
 In Window 2 (book viewer), the order book is now empty at that level — both
 orders were consumed by the trade.
@@ -325,7 +332,7 @@ You have completed a full basic trading session:
 | 2 | Queried symbols | System state |
 | 3 | Posted a LIMIT BUY | Passive / maker order, resting on book |
 | 4 | Posted a matching LIMIT SELL | Aggressive / taker order, price crossing |
-| 5 | Read fill confirmation | Order lifecycle |
+| 5 | Read fill confirmation | Order lifecycle, `liquidity` = maker/taker on the fill itself |
 | 6 | Checked P&L | Long position, unrealized P&L |
 | 7 | Closed position for profit | Realized P&L |
 | 8 | Cancelled a resting order | Order cancellation |

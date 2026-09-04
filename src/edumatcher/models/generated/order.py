@@ -1457,6 +1457,8 @@ def describe_order_ack() -> tuple[dict[str, Any], ...]:
 TOPIC_ORDER_FILL = "order.fill.{gateway_id}"
 PREFIX_ORDER_FILL = "order.fill."
 _ORDER_FILL_RE = re.compile("order\\.fill\\.(?P<gateway_id>[^.]+)")
+_ORDER_FILL_LIQUIDITY_FLAG_VALUES = ("MAKER", "TAKER")
+OrderFillLiquidityFlag = Literal["MAKER", "TAKER"]
 
 
 _ORDER_FILL_FIELDS: tuple[dict[str, Any], ...] = (
@@ -1595,7 +1597,15 @@ _ORDER_FILL_FIELDS: tuple[dict[str, Any], ...] = (
         "type": "list",
         "unit": None,
         "required": False,
-        "doc": "The public trade.executed id(s) that composed this fill event. Usually one; more than one when an aggressor swept several resting orders and the engine coalesced them into a single VWAP fill (H5/H6). Empty only for a fill with no trade behind it. Lets a reader link a private fill to the public trade tape without re-deriving the join.",
+        "doc": "The public trade.executed id(s) that composed this fill event. Usually one; more than one when an aggressor swept several resting orders and the engine coalesced them into a single VWAP fill (H5/H6). Every current call site only publishes order_fill from a real trade, so in practice this is never empty; it is typed as a list (not required) defensively, for a fill notification that might one day exist without one. Lets a reader link a private fill to the public trade tape without re-deriving the join.",
+    },
+    {
+        "name": "liquidity_flag",
+        "type": "enum",
+        "unit": None,
+        "required": False,
+        "doc": "Derived from the trade's aggressor side: the aggressor is the TAKER and the resting side the MAKER (same derivation as drop_copy.yaml::liquidity_flag). Nullable/omit_when_none for the same reason trade_ids is typed as an empty-able list: every current call site only publishes order_fill from a real trade, so this is never actually absent today, but nothing enforces that a future fill notification always has a trade behind it.",
+        "values": _ORDER_FILL_LIQUIDITY_FLAG_VALUES,
     },
 )
 
@@ -1624,6 +1634,7 @@ class OrderFill:
     quote_id: str | None = None
     leg_index: int | None = None  # unit: dimensionless
     trade_ids: list[str] = field(default_factory=list)
+    liquidity_flag: OrderFillLiquidityFlag | None = None
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -1684,6 +1695,11 @@ class OrderFill:
                 raise MessageValidationError(
                     f"quote_id: length {len(self.quote_id)} exceeds max_len 64"
                 )
+        if self.liquidity_flag is not None:
+            if self.liquidity_flag not in _ORDER_FILL_LIQUIDITY_FLAG_VALUES:
+                raise MessageValidationError(
+                    f"liquidity_flag: {self.liquidity_flag!r} is not one of {_ORDER_FILL_LIQUIDITY_FLAG_VALUES!r}"
+                )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "OrderFill":
@@ -1716,6 +1732,11 @@ class OrderFill:
             quote_id=None if p.get("quote_id") is None else str(p["quote_id"]),
             leg_index=None if p.get("leg_index") is None else int(p["leg_index"]),
             trade_ids=[str(item) for item in p.get("trade_ids", [])],
+            liquidity_flag=(
+                None
+                if p.get("liquidity_flag") is None
+                else cast(OrderFillLiquidityFlag, str(p["liquidity_flag"]))
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -1750,6 +1771,8 @@ class OrderFill:
             payload["quote_id"] = self.quote_id
         if self.leg_index is not None:
             payload["leg_index"] = self.leg_index
+        if self.liquidity_flag is not None:
+            payload["liquidity_flag"] = self.liquidity_flag
         return payload
 
 
@@ -1799,6 +1822,7 @@ def make_order_fill_unchecked(
     quote_id: str | None = None,
     leg_index: int | None = None,
     trade_ids: list[str] = [],
+    liquidity_flag: OrderFillLiquidityFlag | None = None,
 ) -> list[bytes]:
     """Identical frames to ``make_order_fill``, without ``validate()``.
 
@@ -1840,6 +1864,8 @@ def make_order_fill_unchecked(
         payload["quote_id"] = str(quote_id)
     if leg_index is not None:
         payload["leg_index"] = int(leg_index)
+    if liquidity_flag is not None:
+        payload["liquidity_flag"] = str(liquidity_flag)
     return [
         topic_order_fill(gateway_id).encode(),
         _msg.dumps(payload),

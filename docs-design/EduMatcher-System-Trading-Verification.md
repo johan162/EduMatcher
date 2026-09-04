@@ -1,10 +1,10 @@
-Version: 1.2.0
+Version: 1.3.0
 
-Date: 2026-09-03
+Date: 2026-09-04
 
 Status: Prerequisites implemented and audited; gap ledger re-verified against
-the tree same day — G11 closed, G12 tick validation closed. Framework Phase 1
-may begin; G9 and G12's lot/order-size remainder are the only blockers left.
+the tree — G9 closed, G11 closed, G12 tick validation closed. Framework
+Phase 1 may begin; G12's lot/order-size remainder is the only blocker left.
 
 # EduMatcher — System Trading Verification (`pm-systest`)
 
@@ -69,7 +69,7 @@ that section has been corrected in place and carries a pointer back here.
 | **G6** rejections in the audit journal | ✅ **Was never open** | `audit/main.py` subscribes with an empty topic filter, and every rejection is published as `order.ack` with `accepted=false`. |
 | **G7** causal trade identity | ✅ **Closed** | `Trade.id` matches `^\d{6}-\d{9}$`; `persistence.load_and_bump_run_seq` is fail-loud; `set_run_seq()` is the first statement of `Engine.run()`; CALF `TRADE_ID`/`RUN_SEQ`; `md_gateway/replay_buffer` dedups on trade id; drop copy and ALF `FILL` carry `trade_ids` |
 | **G8** stats flush timing | ⬜ Open, mitigated | No flush marker or admin flush command exists. §5.3's rowid-stability probe is an adequate substitute, so this is downgraded from prerequisite to nice-to-have. |
-| **G9** liquidity flag on the private fill | 🟥 **Open — now blocking** | `order_fill` in `spec/messages/order.yaml` carries no `liquidity_flag`. See §0.2. |
+| **G9** liquidity flag on the private fill | ✅ **Closed** | `liquidity_flag` added to `order_fill` in `spec/messages/order.yaml`; derived per-order in `Engine._order_liquidity_flags` (`engine/main.py`) and threaded through all 8 fill-publication sites; echoed as `LIQUIDITY=` on the ALF `FILL` line; REST/WS needed no change (payload pass-through). `tests/test_liquidity_flag.py`. See §0.2. |
 | **G10** session/halt matrix ratification | ⬜ Open, non-blocking | No rulebook document exists; `spec/` holds message specifications only. Spike S4 established the behaviour, so the scenarios can be written; ratification remains outstanding. |
 | **G11** unfilled MARKET carries no reason | ✅ **Closed** | `order_cancelled.cancel_reason` (`INSUFFICIENT_LIQUIDITY`) is set in `order_book.py::_match_market` and threaded through `Engine._cancel_reason_of`; ALF emits `CANCEL_REASON=`. `tests/test_cancel_reason.py`. See §0.2. |
 | **G12** no tick, lot or order-size validation | 🟨 **Partially closed** | Tick validation is implemented (`models/price.py::to_ticks_exact`, `TickViolation`) and wired into ALF, REST and BALF order entry plus amends, all raising `TICK_VIOLATION`. Lot size, `MAX_ORDER_QTY`, `MAX_ORDER_VALUE` and `POSITION_LIMIT` remain unimplemented — no config field, no check. See §0.3. |
@@ -86,36 +86,38 @@ the *full* catalogue can be written, and §15 tracks them:
 | | Item | Blocks |
 |---|---|---|
 | a | Lift `tests/engine_invariants.py` I1–I6 into `edumatcher/systest/invariants.py`. `src/edumatcher/systest/` does not exist — this is the actual first task | Phase 1 assertions |
-| b | Close **G9** (§0.2) — small and additive | any scenario asserting maker/taker attribution |
+| b | ~~Close **G9** (§0.2)~~ — **closed**: `liquidity_flag` now ships on `order_fill` | — |
 | b′ | ~~Decide G11~~ — **closed**: `cancel_reason` now ships on `order_cancelled` | — |
 | c | Decide the lot-size / order-size half of **G12** (§0.3) — tick validation is done | five catalogue scenarios (LM-009, LM-011, LM-045, plus two more) |
 | d | Ratify §11.4 (**G10**) and write `docs/developer/ui-manual-verification.md` (§14) | neither blocks code; both are outstanding |
 
-### 0.2 G9 and G11 — two holes on the order-entry path
+### 0.2 G9 and G11 — two holes on the order-entry path (both closed)
 
 Both were missed by the original gap analysis because both are about what a
 *correct* event fails to say, not about a missing event.
 
-**G9 — the private fill does not say who was the maker.**
-`spec/messages/order.yaml::order_fill` has no `liquidity_flag`, so neither the
-ALF `FILL` line nor the REST WebSocket fill event carries maker/taker
-attribution. Only the drop copy (E7) does — `engine/drop_copy.py::publish_fill`
-takes it as a required argument. The consequence is specific and it lands on
-Phase 1: §6.1's worked scenario asserts `liquidity: TAKER` on a fill, §11.5's
-dissemination matrix distinguishes the two sides of a match, and invariant I4
-("exactly one maker and one taker") cannot be evaluated from E1 at all. A
-scenario can still *infer* attribution by joining E1 to E7 on `trade_ids`, but
-then the framework is proving E7 against itself rather than proving that the
-client-facing path reports attribution correctly — which is exactly the class
-of defect a system test exists to catch.
-
-*Fix (additive, one spec edit plus two edges):* add
-`liquidity_flag` to `order_fill` alongside the existing `trade_ids`; echo it as
-`LIQUIDITY=` on the ALF `FILL` line, matching the `DC_FILL` line that already
-carries it; the REST WS path needs no change because the projection forwards
-the payload verbatim (spike S3). This is a production improvement, not a test
-hook — a participant reading its own fills today cannot tell whether it paid or
-earned the spread.
+**G9 — the private fill did not say who was the maker. (Closed 2026-09-04.)**
+`spec/messages/order.yaml::order_fill` had no `liquidity_flag`, so neither the
+ALF `FILL` line nor the REST WebSocket fill event carried maker/taker
+attribution — only the drop copy (E7) did, via
+`engine/drop_copy.py::publish_fill`. Fixed exactly as scoped below:
+`liquidity_flag` (nullable, `omit_when_none`, enum `MAKER`/`TAKER`) is now a
+field on `order_fill`, generated via `pm-msgen generate` and verified
+drift-free with `pm-msgen check`. `Engine._order_liquidity_flags` derives it
+per-order from `Trade.aggressor_side` — the aggressor is TAKER, the resting
+side is MAKER, the same rule drop copy already used — and every one of the 8
+places the engine publishes a fill (7 call sites through `make_fill_msg`, plus
+the inlined hot path in `_handle_new_order`) now carries it. The ALF gateway
+echoes it as `LIQUIDITY=` on the `FILL` line, matching `DC_FILL`. The REST/WS
+path needed no change: `api_gateway/events.py::envelope()` forwards the engine
+payload verbatim (confirming spike S3). `tests/test_liquidity_flag.py` proves
+maker/taker attribution across a simple cross, a flipped-side cross, a
+multi-level MARKET sweep, and cross-checks the private fill against drop
+copy's own attribution for the same trade — the two must never disagree.
+Unaffected by design: the BALF `execution_report` binary frame, a fixed-width
+wire struct, was out of scope for G9 and is untouched. §6.1, §11.5 and
+invariant I4, all previously blocked on this, are now assertable from E1
+directly; see below.
 
 **G11 — an unfilled MARKET order is cancelled without a reason. (Closed.)**
 Spike S4 left §17's second open question ("MARKET with no liquidity: REJECTED
@@ -652,9 +654,8 @@ steps:
     expect:
       status: FILLED
       fills:
-        # `liquidity:` is blocked on G9 — see §0.2. Until order_fill carries
-        # liquidity_flag, the runner can only source it from the drop copy,
-        # which is one of the sinks under test.
+        # `liquidity:` is sourced directly from order_fill's liquidity_flag
+        # (G9, closed 2026-09-04) — no longer inferred by joining to drop copy.
         - {price: "100.00", qty: 100, maker: M1, liquidity: TAKER}
         - {price: "100.01", qty:  50, maker: M2, liquidity: TAKER}
       book:
@@ -929,7 +930,7 @@ This is where most defects will actually be caught.
 | I1 | Book is not crossed: `best_bid < best_ask` in continuous session |
 | I2 | Conservation: `Σ filled_qty(buys) == Σ filled_qty(sells)` per symbol |
 | I3 | Per order: `filled + remaining + cancelled == original_qty` |
-| I4 | Every trade has exactly one maker and one taker, on opposite sides — *evaluable from E7 only until G9 lands (§0.2)* |
+| I4 | Every trade has exactly one maker and one taker, on opposite sides — evaluable directly from E1 (`order_fill.liquidity_flag`, G9 closed, §0.2) |
 | I5 | Trade price is within the maker order's limit and (if limited) the taker's |
 | I6 | Price–time priority: no trade at a worse price while a better resting level exists |
 | I7 | Position sum across all gateways per symbol == 0 |
@@ -1136,13 +1137,14 @@ Deriving this table from the specs *before* running anything is essential: it
 is the reference against which the fan-out matrix (§8.1) is judged. Building it
 from observed behaviour would make the test tautological.
 
-Two cells of this table cannot be filled from the specs as they stand. The
-`✓✓` in the DC column is "one per involved gateway", not literally two (§8.1),
-and the maker/taker distinction the *Full match* and *Partial match* rows rely
-on is absent from `order_fill` — so the E1 columns cannot say which side of the
-match each event describes until **G9** (§0.2) lands. Both are recorded here
-rather than papered over, because a matrix with an unstated assumption in it is
-worse than one with a hole.
+One cell of this table could not be filled from the specs as they stand. The
+`✓✓` in the DC column is "one per involved gateway", not literally two (§8.1).
+The maker/taker distinction the *Full match* and *Partial match* rows rely on
+was, until **G9** closed (§0.2), absent from `order_fill`; the E1 columns can
+now say which side of the match each event describes directly from
+`liquidity_flag`. The DC-column note is recorded here rather than papered
+over, because a matrix with an unstated assumption in it is worse than one
+with a hole.
 
 ### 11.6 The coverage ledger
 
@@ -1303,15 +1305,15 @@ unverifiable. The table below is the live register; §0.1 is its summary and
 | **G6** | Audit journal may not record rejected orders | ✅ **Was never a gap** | — | `audit/main.py` subscribes with an empty filter; every rejection is an `order.ack` with `accepted=false` and is journalled |
 | **G7** | Trade identity not durable; CALF and drop copy carried none | ✅ **Closed 2026-09-01** | Fan-out joins would need field/time heuristics | `run_seq-counter` ids; CALF `TRADE_ID`/`RUN_SEQ`; private, drop-copy and ALF `TRADE_IDS` (§A.3) |
 | **G8** | Stats flush timing unobservable | ⬜ Open, mitigated | Test cannot know when `stats.db` is safe to read | §5.3's rowid-stability probe suffices. A flush marker would make the quiesce cheaper, not more correct — downgraded to nice-to-have |
-| **G9** | `order_fill` carries no `liquidity_flag`; only the drop copy does | 🟥 **Open — blocking Phase 1** | Maker/taker attribution unverifiable from the client-facing path; I4 and §11.5 depend on it | Add `liquidity_flag` to `order_fill`; echo `LIQUIDITY=` on the ALF `FILL` line. REST needs no change (spike S3). See §0.2 |
+| **G9** | `order_fill` carried no `liquidity_flag`; only the drop copy did | ✅ **Closed 2026-09-04** | Maker/taker attribution now verifiable from the client-facing path; I4 and §11.5 no longer depend on E7 | `liquidity_flag` added to `order_fill`; `LIQUIDITY=` echoed on the ALF `FILL` line; REST needed no change (spike S3 confirmed). `tests/test_liquidity_flag.py`. See §0.2 |
 | **G10** | Session/halt matrix describes the implementation, not a rulebook | ⬜ Open, non-blocking | A test written from observed behaviour cannot show the behaviour is wrong | Spike S4 determined every cell, so scenarios can be written now; ratification remains. Note `spec/` holds *message* specs — the rulebook needs a new home, not `spec/` |
 | **G11** | An unfilled MARKET is cancelled with no reason on the wire | 🟥 **Open — new 2026-09-03** | `order.cancelled` for a discarded MARKET remainder is indistinguishable from a kill-switch, halt or expiry cancel | Optional nullable `reject_code` on `order_cancelled`. See §0.2 |
 | **G12** | No tick, lot, order-size or notional validation exists | 🟥 **Open — new 2026-09-03** | Eight `reject_code` members are unreachable; six catalogue scenarios and two invariants assert behaviour the system does not have | Product decision: implement pre-trade risk, or delete the scenarios and the unreachable codes. See §0.3 |
 
-**G1, G4 and G7 were the blocking three and all are closed.** The blocking set
-is now **G9** alone, which is small and additive; **G12** blocks six specific
-scenarios rather than the framework, and **G11** blocks only the *reason* half
-of LM-042.
+**G1, G4 and G7 were the blocking three and all are closed. G9 is now closed
+too.** Nothing blocks the framework itself; **G12** blocks six specific
+scenarios rather than the framework, and **G11** is fully closed (it used to
+block only the *reason* half of LM-042).
 
 **[Appendix A](#appendix-a--prerequisite-system-changes-g1-g4-g7) specifies
 G1, G4 and G7 in implementation-ready detail**, and
@@ -1376,18 +1378,18 @@ to UI confidence before Playwright.
 | 2 | Ratify §11.4's session and halt matrices (**G10**) | ⬜ Outstanding, **not blocking** — spike S4 determined every cell, so the scenarios can be written against it |
 | 3 | Machine-readable spy output (**G2**) | ✅ **Done** — `--format json`, one object per line on stdout |
 | 4 | Lift `tests/engine_invariants.py` I1–I6 into `edumatcher/systest/invariants.py`, shared by unit and system tests | 🟥 **Not started** — `src/edumatcher/systest/` does not exist. The first task of the whole effort |
-| 5 | **New:** close **G9** — `liquidity_flag` on `order_fill`, `LIQUIDITY=` on ALF `FILL` (§0.2) | 🟥 **Not started, blocking** |
+| 5 | **New:** close **G9** — `liquidity_flag` on `order_fill`, `LIQUIDITY=` on ALF `FILL` (§0.2) | ✅ **Done** — `tests/test_liquidity_flag.py`, audited 2026-09-04 |
 | 6 | **New:** write `docs/developer/ui-manual-verification.md` (§14) | 🟥 **Not started** |
 | 7 | **New:** decide G12's remainder — implement lot-size/order-size/notional controls, or delete the corresponding scenarios and enum members; tick validation is done (§0.3) | 🟥 **Decision outstanding**; blocks LM-009, LM-011, LM-045 and two invariants only |
 
 *Verify:* unit tests still pass; each new field is visible end-to-end in a
 manual smoke run.
 
-**Items 1 and 3 are complete, so Phase 1 is unblocked.** Item 4 is the real
-starting task; item 5 (G9) must land before any scenario asserts maker/taker
-attribution; item 7 (G12's remainder) is a product decision that can be taken
-in parallel. G11 shipped since this table was drafted and has been removed
-from the outstanding list.
+**Items 1, 3 and 5 are complete, so Phase 1 is unblocked** — any scenario may
+now assert maker/taker attribution directly from E1. Item 4 is the real
+starting task; item 7 (G12's remainder) is a product decision that can be
+taken in parallel. G9 and G11 both shipped since this table was drafted and
+have been removed from the outstanding list.
 
 ### Phase 1 — Framework skeleton + first scenario
 
@@ -1439,7 +1441,9 @@ automation reusing the same scenario files and the same canonicaliser.
 - [x] Gate **G-δ** passed: `tests/test_cross_transport_rejects.py` proves ALF
       and REST agree on `reject_code`. §9.3's premise is no longer an
       assumption.
-- [ ] **G9** closed, so maker/taker attribution is assertable from E1.
+- [x] **G9** closed, so maker/taker attribution is assertable from E1 —
+      `liquidity_flag` on `order_fill`, `LIQUIDITY=` on ALF `FILL`,
+      `tests/test_liquidity_flag.py`, audited 2026-09-04.
 - [ ] **G12**'s remainder (lot size / order-size / notional) decided, and
       every remaining `blocked:` scenario either implemented or deleted — not
       left in the catalogue unmarked. (Tick validation closed; LM-007 no

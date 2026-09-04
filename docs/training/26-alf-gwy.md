@@ -243,6 +243,16 @@ those durable public trade IDs with the order record: a swept order can contain
 several, in match order, and they join the private fill to the public trade
 tape, CALF, and drop copy without matching on price or time.
 
+`FILL` also carries `LIQUIDITY=<MAKER|TAKER>` — whether this order supplied
+liquidity by resting on the book (`MAKER`) or removed it by crossing the
+spread (`TAKER`). If `MM01` filled your order immediately, expect `TAKER`;
+if you place a resting `LIMIT` and a later order crosses it, that later
+`FILL` (for the counterparty) says `TAKER` while yours says `MAKER`. It is
+the same attribution the drop-copy `DC_FILL` line has always reported (see
+[Exercise 8 → DC](#exercise-8-control-commands-and-the-kill-switch) below,
+or [Market Data & Drop Copy](13-market-data-drop-copy.md)) — you no longer
+need drop copy just to find out which side of a trade you were on.
+
 Cancel the resting order using the UUID from the `ACK` and a request tag:
 
 ```text

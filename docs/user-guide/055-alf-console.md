@@ -519,12 +519,14 @@ pm-alf-console --id GW01 --drop-copy
     own fill notification and always arrives regardless of `DC` state.
     `DC_FILL` is a second, independent notification sourced from the
     engine's dedicated drop-copy feed (`:5557`) — the same feed a real
-    exchange would deliver to a separate risk/back-office recipient. Seeing
-    both for the same fill (with different envelopes: `DC_FILL` carries the
-    drop-copy `seq`/`liquidity_flag`, not the order-lifecycle `remaining`/
-    `status` fields `FILL` carries) is expected and mirrors how a real
-    participant's own trading session and their firm's drop-copy recipient
-    receive independent copies of the same execution.
+    exchange would deliver to a separate risk/back-office recipient. Both
+    carry `LIQUIDITY`/`liquidity_flag` (`MAKER`/`TAKER`) — they must always
+    agree, since both derive it from the same trade. Seeing both for the
+    same fill (with different envelopes: `DC_FILL` carries the drop-copy
+    `seq`, not the order-lifecycle `remaining`/`status` fields `FILL`
+    carries) is expected and mirrors how a real participant's own trading
+    session and their firm's drop-copy recipient receive independent copies
+    of the same execution.
     `pm-alf-gwy` supports the identical `DC|STATE=ON`/`DC|STATE=OFF`
     command for external TCP clients — see
     [ALF TCP Gateway → DC](220-alf-gateway.md#dc-toggle-drop-copy-relay).

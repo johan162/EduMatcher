@@ -305,12 +305,18 @@ def make_fill_msg(
     status: str,
     order: dict[str, Any] | None = None,
     trade_ids: list[str] | None = None,
+    *,
+    liquidity_flag: _gen_order.OrderFillLiquidityFlag | None = None,
 ) -> list[bytes]:
     """Generated from ``spec/messages/order.yaml``.
 
     Same one wire change as ``make_ack_msg``: a MARKET order's fill no longer
     carries ``"price": null``. ``trade_ids`` are the public trade.executed ids
     that composed this fill (one, or several for a swept VWAP fill).
+    ``liquidity_flag`` is ``TAKER`` for the aggressor side and ``MAKER`` for
+    the resting side (G9) -- keyword-only, matching ``cancel_reason`` on
+    ``make_cancelled_msg``, so it cannot be confused with the positionals
+    above it. None only for a fill with no trade behind it.
     """
     detail = order or {}
     return _gen_order.make_order_fill_unchecked(
@@ -328,6 +334,7 @@ def make_fill_msg(
         price=detail.get("price"),
         client_tag=detail.get("client_tag"),
         trade_ids=list(trade_ids) if trade_ids else [],
+        liquidity_flag=liquidity_flag,
         **group_ids(order),
     )
 

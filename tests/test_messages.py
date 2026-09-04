@@ -345,6 +345,26 @@ class TestOrderMessages:
         )
         assert payload["symbol"] == "AAPL"
 
+    def test_make_fill_msg_carries_the_liquidity_flag(self) -> None:
+        """G9: maker/taker attribution, keyword-only like cancel_reason."""
+        _, taker_payload = _rt(
+            make_fill_msg(
+                "GW01", "ORD1", 50, 150.0, 50, "PARTIAL", liquidity_flag="TAKER"
+            )
+        )
+        assert taker_payload["liquidity_flag"] == "TAKER"
+
+        _, maker_payload = _rt(
+            make_fill_msg(
+                "GW02", "ORD2", 50, 150.0, 0, "FILLED", liquidity_flag="MAKER"
+            )
+        )
+        assert maker_payload["liquidity_flag"] == "MAKER"
+
+    def test_make_fill_msg_omits_liquidity_flag_by_default(self) -> None:
+        _, payload = _rt(make_fill_msg("GW01", "ORD1", 50, 150.0, 50, "PARTIAL"))
+        assert "liquidity_flag" not in payload
+
     def test_make_cancelled_msg(self) -> None:
         topic, payload = _rt(make_cancelled_msg("GW01", "ORD1"))
         assert topic == "order.cancelled.GW01"
