@@ -47,15 +47,25 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from edumatcher.config import ENGINE_PUB_ADDR, STATS_DB_FILE, resolve_data_path
+from edumatcher.config import (
+    ENGINE_PUB_ADDR,
+    ENGINE_PULL_ADDR,
+    STATS_DB_FILE,
+    resolve_data_path,
+)
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
     load_default_log_server_config,
     resolve_host_default,
 )
 from edumatcher.logclient.discovery import resolve_handler
-from edumatcher.messaging.bus import make_subscriber
-from edumatcher.models.message import decode
+from edumatcher.messaging.bus import make_pusher, make_subscriber
+from edumatcher.models.message import (
+    decode,
+    make_book_snapshot_request_msg,
+    make_symbols_request_msg,
+)
+from edumatcher.models.generated.system import topic_symbols
 from edumatcher.stats.query import resolve_session_timezone
 from edumatcher.stats.trading_day import resolve_timezone, trading_date
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
@@ -81,6 +91,14 @@ log = logging.getLogger(__name__)
 
 _CLIENT_NAME = "pm-ticker"
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
+
+#: gateway_id used on the symbols-request round trip (mirrors pm-board's
+#: BOARD_GATEWAY_ID) -- not a FIX gateway, just an identifier the engine
+#: echoes back on the reply topic.
+TICKER_GATEWAY_ID = "TICKER"
+#: How often to retry the symbols request until the engine answers -- it may
+#: not have been up yet when the ticker started (mirrors pm-board).
+_SYMBOLS_REQUEST_RETRY_SEC = 1.0
 
 
 # ---------------------------------------------------------------------------
@@ -328,7 +346,19 @@ class TickerProcess:
         self._debug_counts: defaultdict[str, int] = defaultdict(int)
         self._debug_last_summary = time.monotonic()
 
-        self.sub = make_subscriber(ENGINE_PUB_ADDR, PREFIX_BOOK_SNAPSHOT)
+        self.sub = make_subscriber(
+            ENGINE_PUB_ADDR,
+            PREFIX_BOOK_SNAPSHOT,
+            topic_symbols(TICKER_GATEWAY_ID),
+        )
+        # PUSH socket to ask the engine for the symbol list and, per symbol,
+        # a book snapshot -- otherwise a symbol whose book was only ever
+        # seeded with startup market-maker quotes (no order/trade since)
+        # never publishes a book.* message and stays invisible at startup
+        # (mirrors pm-board's identical workaround).
+        self.push = make_pusher(ENGINE_PULL_ADDR)
+        self._symbols_requested_at = 0.0
+        self._symbols_received = False
 
     def _dbg_count(self, key: str, amount: int = 1) -> None:
         if not log.isEnabledFor(logging.DEBUG):
@@ -351,6 +381,17 @@ class TickerProcess:
         log.debug("ticker flow summary: %s", summary)
         self._debug_counts.clear()
         self._debug_last_summary = now
+
+    # ------------------------------------------------------------------
+    # Symbol request / retry
+    # ------------------------------------------------------------------
+
+    def _request_symbols(self) -> None:
+        try:
+            self.push.send_multipart(make_symbols_request_msg(TICKER_GATEWAY_ID))
+            self._symbols_requested_at = time.monotonic()
+        except zmq.Again:
+            log.debug("engine not reachable yet for symbols request")
 
     # ------------------------------------------------------------------
     # DB refresh
@@ -427,6 +468,13 @@ class TickerProcess:
                         self._symbols.sort()
                 self._dbg_count("book_events")
                 self._dbg_count("symbols_seen", 1 if symbol not in self._daily else 0)
+            elif topic == topic_symbols(TICKER_GATEWAY_ID):
+                self._symbols_received = True
+                self._dbg_count("symbols_reply")
+                for entry in payload.get("symbols", []):
+                    sym = str(entry.get("symbol", ""))
+                    if sym:
+                        self.push.send_multipart(make_book_snapshot_request_msg(sym))
         self._flush_debug_summary(force=True)
         log.info("ticker receive loop stopped")
 
@@ -477,6 +525,8 @@ class TickerProcess:
             self._db_interval,
         )
 
+        self._request_symbols()
+
         t = threading.Thread(target=self._receive, daemon=True)
         t.start()
 
@@ -496,6 +546,16 @@ class TickerProcess:
             ) as live:
                 while self._running:
                     now = time.monotonic()
+
+                    # Retry the symbols request until the engine answers --
+                    # it may not have been up yet when the ticker started.
+                    if (
+                        not self._symbols_received
+                        and now - self._symbols_requested_at
+                        >= _SYMBOLS_REQUEST_RETRY_SEC
+                    ):
+                        self._request_symbols()
+
                     if now - self._last_db_refresh >= self._db_interval:
                         self._refresh_db()
                         self._last_db_refresh = now
@@ -516,6 +576,7 @@ class TickerProcess:
             self._running = False  # ensure _receive exits even on exception
             t.join(timeout=2.0)  # wait for thread before touching the socket
             self.sub.close()  # safe: _receive is no longer polling
+            self.push.close()
             self._flush_debug_summary(force=True)
         log.info("ticker shutdown complete")
 
