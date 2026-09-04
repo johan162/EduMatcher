@@ -224,7 +224,7 @@ verify it, then bootstrap:
 ```bash
 multipass version
 
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | bash -s -- --version 0.29.2
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | bash -s -- --version 0.30.0
 ```
 
 This launches a VM (default name `ems`), installs the runtime inside it, runs
