@@ -142,6 +142,7 @@ SymbolSpec:
   last_sell_price:          ? Price
   market_maker_quotes:      ? List<MMQuoteSeedSpec>
   collar:                   ? CollarSpec
+  order_limits:             ? OrderLimitsSpec            # per-symbol override
   circuit_breaker:          ? CircuitBreakerSpec         # per-symbol override
 
 AlfGatewaySpec:                              # one entry of gateways.alf
@@ -184,7 +185,32 @@ AlfGatewaySpec:                              # one entry of gateways.alf
 A per-symbol `collar` is merged over the symbol's resolved `level` collar
 (symbol keys win). When neither is present, no collar applies to the symbol.
 
-### 4.3 `MMObligationSpec` — `gateways.alf[].mm_obligations.<S>`
+### 4.3 `OrderLimitsSpec` — `symbols.<S>.order_limits` and `risk_controls.levels.<L>.order_limits`
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `max_order_qty` | `Qty` | – | — | `> 0` |
+| `max_order_value` | `Float` | – | — | `> 0`; display money |
+
+Pre-trade caps on a **single order**. A per-symbol `order_limits` is merged over
+the symbol's resolved `level` order limits **per key** (symbol keys win), the
+same way `collar` merges — so a symbol may tighten `max_order_qty` while
+inheriting its level's `max_order_value`.
+
+Each cap is independently optional and has **no default**: an absent cap is not
+enforced. There is deliberately no built-in fallback number — a limit that
+exists only in code and not in the configuration file is not auditable as a
+requirement.
+
+An order breaching `max_order_qty` is rejected with reject code
+`MAX_ORDER_QTY`; one breaching `max_order_value` (`quantity × price`, in
+display money) with `MAX_ORDER_VALUE`. `max_order_value` is **not** evaluated
+for an order that carries no price on the wire (MARKET, IOC) — the same orders
+the collar's price bands already skip. Both caps are re-checked on `order.amend`
+against the amended quantity and price, so the control cannot be bypassed by
+entering small and amending up.
+
+### 4.4 `MMObligationSpec` — `gateways.alf[].mm_obligations.<S>`
 
 | Field | Type | Req | Default | Constraints |
 |-------|------|:---:|---------|-------------|
@@ -192,7 +218,7 @@ A per-symbol `collar` is merged over the symbol's resolved `level` collar
 | `max_spread_ticks` | `Ticks` | – | gateway's `mm_max_spread_ticks` | `> 0` |
 | `min_qty` | `Qty` | – | gateway's `mm_min_qty` | `> 0` |
 
-### 4.4 `ComboSeedSpec` — `market_maker_combos[]`
+### 4.5 `ComboSeedSpec` — `market_maker_combos[]`
 
 | Field | Type | Req | Default | Constraints |
 |-------|------|:---:|---------|-------------|
@@ -213,7 +239,7 @@ A per-symbol `collar` is merged over the symbol's resolved `level` collar
 | `stop_price` | `Int` | – | `null` | tick stop price; currently unvalidated for any order type, including `STOP`/`STOP_LIMIT`/`TRAILING_STOP` |
 | `smp_action` | `Enum<SmpAction>` | – | seeding gateway's `gateways.alf[].smp_action`, else `NONE` | |
 
-### 4.5 `IndexSpec` — `indices[]`
+### 4.6 `IndexSpec` — `indices[]`
 
 | Field | Type | Req | Default | Constraints |
 |-------|------|:---:|---------|-------------|
@@ -225,7 +251,7 @@ A per-symbol `collar` is merged over the symbol's resolved `level` collar
 | `state_file` | `Path` | – | `data/indexes/<id>_state.json` | non-empty |
 | `constituents` | `List<Symbol>` | ✔ | — | non-empty; each MUST exist in `symbols` **and** define `outstanding_shares`; no duplicates |
 
-### 4.6 `ScheduleSpec` — `schedule`
+### 4.7 `ScheduleSpec` — `schedule`
 
 | Field | Type | Req | Default |
 |-------|------|:---:|---------|
@@ -243,7 +269,8 @@ A per-symbol `collar` is merged over the symbol's resolved `level` collar
 
 `Map<Symbol, SymbolSpec>`. The mapping key is the symbol id. A value of `null`/`{}`
 is a valid empty spec. Symbol fields: see the schema tree (§3, `SymbolSpec`);
-`market_maker_quotes` §4.1, `collar` §4.2, `circuit_breaker` §5.6.
+`market_maker_quotes` §4.1, `collar` §4.2, `order_limits` §4.3,
+`circuit_breaker` §5.6.
 
 ### 5.2 `gateways.alf` (REQUIRED)
 
@@ -258,7 +285,7 @@ gateway's orders **when the order itself doesn't specify one**:
   see [Market-Maker Bot](100-mm-bot.md) and the ALF `QUOTE` command) have no
   per-request SMP concept of their own, so they always use this default.
 - `NEW`/combo order entry carries its own optional per-order `SMP=` field
-  (§4.4, `ComboLegSpec.smp_action`; ALF protocol `NEW|SMP=`). An explicit
+  (§4.5, `ComboLegSpec.smp_action`; ALF protocol `NEW|SMP=`). An explicit
   `SMP=` from the client — including `SMP=NONE` — always takes precedence
   over this gateway default; only an *omitted* `SMP=` falls back to it.
 
@@ -292,7 +319,7 @@ These values supply the defaults inherited by `gateways.alf[]` obligation fields
 | Field | Type | Req | Default | Constraints |
 |-------|------|:---:|---------|-------------|
 | `default_level` | `Str` | – | `null` | non-empty; MUST be a key of `levels` |
-| `levels` | `Map<Str, {collar: CollarSpec}>` | – | `{}` | level names upper-cased |
+| `levels` | `Map<Str, {collar: CollarSpec, order_limits: OrderLimitsSpec}>` | – | `{}` | level names upper-cased; both members optional |
 
 `risk_controls.levels.<L>.circuit_breaker` is **NOT supported** and MUST be
 rejected; define circuit breakers under `circuit_breaker_defaults` (§5.6) instead.
@@ -336,15 +363,15 @@ merge, the built-in ladder applies: `L1 = 0.07 / 5 min`, `L2 = 0.13 / 15 min`,
 
 ### 5.7 `market_maker_combos` (OPTIONAL)
 
-`List<ComboSeedSpec>` — see §4.4.
+`List<ComboSeedSpec>` — see §4.5.
 
 ### 5.8 `indices` (OPTIONAL)
 
-`List<IndexSpec>`, **at most 5** entries — see §4.5.
+`List<IndexSpec>`, **at most 5** entries — see §4.6.
 
 ### 5.9 `schedule` (OPTIONAL)
 
-`ScheduleSpec` — see §4.6. Consumed by `pm-engine` (when `sessions_enabled`) and,
+`ScheduleSpec` — see §4.7. Consumed by `pm-engine` (when `sessions_enabled`) and,
 independently, by `pm-scheduler`.
 
 ### 5.10 `country` (OPTIONAL)

@@ -228,7 +228,7 @@ _TOP_LEVEL_HINTS: dict[str, list[str]] = {
         "runtime retention and throttling knobs with memory/latency trade-offs"
     ],
     "mm_obligation_defaults": ["default market-maker obligation settings"],
-    "risk_controls": ["collar profiles by risk level"],
+    "risk_controls": ["collar and order-limit profiles by risk level"],
     "circuit_breaker_defaults": ["circuit-breaker ladder definitions"],
     "gateways": ["ALF gateway allowlist"],
     "post_trade_gateway": ["RALF post-trade gateway settings"],

@@ -301,6 +301,10 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
         raise ValueError("--static-band must be in (0, 1)")
     if args.dynamic_band is not None and not (0 < args.dynamic_band < 1):
         raise ValueError("--dynamic-band must be in (0, 1)")
+    if args.max_order_qty is not None and args.max_order_qty <= 0:
+        raise ValueError("--max-order-qty must be > 0")
+    if args.max_order_value is not None and args.max_order_value <= 0:
+        raise ValueError("--max-order-value must be > 0")
 
     if args.seed_mm_mid_range is not None:
         min_price, max_price = _parse_seed_mm_mid_range(args.seed_mm_mid_range)
@@ -1697,6 +1701,8 @@ def main() -> None:
             enforce_circuit_breakers=not args.no_circuit_breakers,
             static_band_pct=args.static_band,
             dynamic_band_pct=args.dynamic_band,
+            max_order_qty=args.max_order_qty,
+            max_order_value=args.max_order_value,
             risk_levels=risk_levels,
             cb_levels=cb_levels,
             ace_enabled=not args.no_ace,

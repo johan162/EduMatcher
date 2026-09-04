@@ -58,7 +58,7 @@ All paths are rooted at `/api/v1`.
 | [GET /api/v1/reference](#get-apiv1reference) | Authenticated key | Return the full reference bundle |
 | [GET /api/v1/reference/config-version](#get-apiv1referenceconfig-version) | Authenticated key | Return the reference bundle version |
 | [GET /api/v1/reference/symbols](#get-apiv1referencesymbols) | Authenticated key | Return per-symbol tick and risk metadata |
-| [GET /api/v1/reference/risk](#get-apiv1referencerisk) | Authenticated key | Return risk-band definitions |
+| [GET /api/v1/reference/risk](#get-apiv1referencerisk) | Authenticated key | Return risk-band and order-limit definitions |
 | [GET /api/v1/reference/indexes](#get-apiv1referenceindexes) | Authenticated key | Return configured exchange index definitions |
 | [GET /api/v1/reference/schedule](#get-apiv1referenceschedule) | Authenticated key | Return session schedule metadata |
 | [POST /api/v1/admin/reference/reload](#post-apiv1adminreferencereload) | Admin role | Reload the compiled reference bundle |
@@ -1253,6 +1253,14 @@ Purpose: return per-symbol tick and risk metadata.
 |---|---|---|
 | `200 OK` | `{ "symbols": [...], "config_version": "..." }` | One object per symbol (each carries its own `symbol`) |
 
+Each symbol object carries `tick_decimals`, `level`, and — when configured —
+`collar`, `order_limits` (`max_order_qty` / `max_order_value`) and
+`circuit_breaker`. `collar` and `order_limits` are the symbol's **effective**
+values, its risk level's defaults already merged under any per-symbol
+override; a field is omitted entirely when neither scope configures it. Full
+field law: `ReferenceSymbol` in the
+[message reference](270-message-reference.md).
+
 **Errors**
 
 | Code | When |
@@ -1262,7 +1270,8 @@ Purpose: return per-symbol tick and risk metadata.
 
 ### `GET /api/v1/reference/risk`
 
-Purpose: return risk-band definitions and the default risk level.
+Purpose: return risk-band definitions, order-limit profiles, and the default
+risk level.
 
 **Arguments**
 
@@ -1274,7 +1283,12 @@ Purpose: return risk-band definitions and the default risk level.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | `{ "default_level", "levels", "config_version" }` | Risk-band configuration |
+| `200 OK` | `{ "default_level", "levels", "config_version" }` | Risk-level configuration |
+
+Each entry of `levels` carries its `name` and, when the level configures them,
+`collar` and `order_limits` — as configured, before any per-symbol override.
+Full field law: `RiskLevel` in the
+[message reference](270-message-reference.md).
 
 **Errors**
 

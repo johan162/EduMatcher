@@ -162,6 +162,63 @@ class Collar:
 
 
 @dataclass(frozen=True, slots=True)
+class OrderLimits:
+    """Pre-trade order-size and notional caps, as configured. Each cap is
+    independently optional: an absent cap is not enforced, the same way an absent
+    `collar` leaves a symbol uncollared.
+    """
+
+    max_order_qty: int | None = None  # unit: shares
+    max_order_value: float | None = None  # unit: money
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if self.max_order_qty is not None:
+            if self.max_order_qty <= 0:
+                raise MessageValidationError(
+                    f"max_order_qty: {self.max_order_qty!r} must be > 0"
+                )
+        if self.max_order_value is not None:
+            if self.max_order_value <= 0:
+                raise MessageValidationError(
+                    f"max_order_value: {self.max_order_value!r} must be > 0"
+                )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "OrderLimits":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            max_order_qty=(
+                None if p.get("max_order_qty") is None else int(p["max_order_qty"])
+            ),
+            max_order_value=(
+                None
+                if p.get("max_order_value") is None
+                else float(p["max_order_value"])
+            ),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        payload: dict[str, Any] = {}
+        if self.max_order_qty is not None:
+            payload["max_order_qty"] = self.max_order_qty
+        if self.max_order_value is not None:
+            payload["max_order_value"] = self.max_order_value
+        return payload
+
+
+@dataclass(frozen=True, slots=True)
 class CircuitBreakerLevel:
     """One rung of a symbol's circuit-breaker ladder, as configured. `name` is the
     string `circuit_breaker.halt.level` and `admin.action.scope.level` carry
@@ -269,6 +326,7 @@ class ReferenceSymbol:
     tick_decimals: int  # unit: dimensionless
     level: str | None = None
     collar: Collar | None = None
+    order_limits: OrderLimits | None = None
     circuit_breaker: SymbolCircuitBreaker | None = None
 
     def validate(self) -> None:
@@ -297,6 +355,8 @@ class ReferenceSymbol:
                 )
         if self.collar is not None:
             self.collar.validate()
+        if self.order_limits is not None:
+            self.order_limits.validate()
         if self.circuit_breaker is not None:
             self.circuit_breaker.validate()
 
@@ -313,6 +373,11 @@ class ReferenceSymbol:
             tick_decimals=int(p["tick_decimals"]),
             level=None if p.get("level") is None else str(p["level"]),
             collar=None if p.get("collar") is None else Collar.from_dict(p["collar"]),
+            order_limits=(
+                None
+                if p.get("order_limits") is None
+                else OrderLimits.from_dict(p["order_limits"])
+            ),
             circuit_breaker=(
                 None
                 if p.get("circuit_breaker") is None
@@ -330,6 +395,8 @@ class ReferenceSymbol:
             payload["level"] = self.level
         if self.collar is not None:
             payload["collar"] = self.collar.to_dict()
+        if self.order_limits is not None:
+            payload["order_limits"] = self.order_limits.to_dict()
         if self.circuit_breaker is not None:
             payload["circuit_breaker"] = self.circuit_breaker.to_dict()
         return payload
@@ -343,6 +410,7 @@ class RiskLevel:
 
     name: str
     collar: Collar | None = None
+    order_limits: OrderLimits | None = None
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -357,6 +425,8 @@ class RiskLevel:
             )
         if self.collar is not None:
             self.collar.validate()
+        if self.order_limits is not None:
+            self.order_limits.validate()
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "RiskLevel":
@@ -369,6 +439,11 @@ class RiskLevel:
         return cls(
             name=str(p["name"]),
             collar=None if p.get("collar") is None else Collar.from_dict(p["collar"]),
+            order_limits=(
+                None
+                if p.get("order_limits") is None
+                else OrderLimits.from_dict(p["order_limits"])
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -378,6 +453,8 @@ class RiskLevel:
         }
         if self.collar is not None:
             payload["collar"] = self.collar.to_dict()
+        if self.order_limits is not None:
+            payload["order_limits"] = self.order_limits.to_dict()
         return payload
 
 

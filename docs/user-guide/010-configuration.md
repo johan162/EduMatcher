@@ -269,6 +269,8 @@ Core engine and risk options:
 | `--symbol-static-band SYM:PCT`           | Repeatable       | none            | Per-symbol `collar.static_band_pct` override        |
 | `--symbol-dynamic-band SYM:PCT`          | Repeatable       | none            | Per-symbol `collar.dynamic_band_pct` override       |
 | `--symbol-risk-level SYM:LEVEL`          | Repeatable       | none            | Per-symbol `symbols.<SYM>.level` override           |
+| `--max-order-qty N`                      | int (`> 0`)      | unset           | Default `order_limits.max_order_qty` (`DEFAULT` level) |
+| `--max-order-value AMOUNT`               | float (`> 0`)    | unset           | Default `order_limits.max_order_value` (`DEFAULT` level) |
 | `--risk-level NAME:STATIC[:DYNAMIC]`     | Repeatable       | none            | Add named risk levels under `risk_controls.levels`  |
 | `--cb-levels NAME:SHIFT[:HALT_MINS[:RESUMPTION_MODE]] ...` | List | built-in ladder | Circuit-breaker level specs; `RESUMPTION_MODE` is `AUCTION` (default) or `CONTINUOUS` |
 | `--cb-window-ns NS`                      | int (`> 0`)      | `300000000000`  | Circuit-breaker reference window                    |
@@ -561,6 +563,8 @@ Supported `KEY` values:
 | `tick_decimals`                                                            | int `0..8`                | Override symbol tick precision                                      |
 | `static_band`                                                              | float `(0,1)`             | Symbol collar static band                                           |
 | `dynamic_band`                                                             | float `(0,1)`             | Symbol collar dynamic band                                          |
+| `max_order_qty`                                                            | int `> 0`                 | Symbol `order_limits.max_order_qty` cap                             |
+| `max_order_value`                                                          | float `> 0`               | Symbol `order_limits.max_order_value` cap (display money)           |
 | `cb_shift_l1` / `cb_shift_l2` / `cb_shift_l3`                             | float `(0,1)`             | Override CB level shift pct                                         |
 | `cb_halt_l1` / `cb_halt_l2` / `cb_halt_l3`                                | int `>= 0` minutes        | Override CB halt duration (`0` means rest-of-day)                  |
 | `ace_enabled`                                                              | `true` / `false`          | Enable or disable Automated Corridor Expansion for that symbol       |
@@ -1286,7 +1290,7 @@ The current parser recognizes these top-level keys:
 | `enforce_circuit_breakers` |                         No | Engine                          | Global circuit-breaker enforcement toggle                                 |
 | `engine_tuning`            |                         No | Engine                          | Runtime retention and throttling knobs                                    |
 | `mm_obligation_defaults`   |                         No | Engine                          | Default market-maker quote obligation policy                              |
-| `risk_controls`            |                         No | Engine                          | Named collar profiles                                                     |
+| `risk_controls`            |                         No | Engine                          | Named collar and order-limit profiles                                     |
 | `circuit_breaker_defaults` |                         No | Engine                          | Default circuit-breaker ladder                                            |
 | `market_maker_combos`      |                         No | Engine                          | Startup multi-symbol combo seeds                                          |
 | `schedule`                 |                         No | Scheduler, parsed by engine too | Session transition times                                                  |
@@ -1316,7 +1320,7 @@ of the file — the gateway-specific blocks (`market_data_gateway`,
 
 | Process | Loader module | Top-level section(s) read | What it needs it for |
 |---|---|---|---|
-| `pm-engine` | `engine/config_loader.py` | `symbols`, `gateways.alf`, `sessions_enabled`, `enforce_collars`, `enforce_circuit_breakers`, `engine_tuning`, `mm_obligation_defaults`, `risk_controls`, `circuit_breaker_defaults`, `market_maker_combos`, `schedule`, `indices` | Symbol universe, allowed order-entry gateways, session/collar/circuit-breaker policy, runtime tuning, MM obligations, startup combo seeds, session schedule, and index definitions |
+| `pm-engine` | `engine/config_loader.py` | `symbols`, `gateways.alf`, `sessions_enabled`, `enforce_collars`, `enforce_circuit_breakers`, `engine_tuning`, `mm_obligation_defaults`, `risk_controls`, `circuit_breaker_defaults`, `market_maker_combos`, `schedule`, `indices` | Symbol universe, allowed order-entry gateways, session/collar/order-limit/circuit-breaker policy, runtime tuning, MM obligations, startup combo seeds, session schedule, and index definitions |
 | `pm-alf-gwy` | `alf_gwy/config.py` | `alf_gateway`, `gateways.alf` | Own bind address/port/timeouts, plus the gateway ID allowlist and roles for ALF client sessions |
 | `pm-balf-gwy` | `balf_gwy/config.py` | `balf_gateway`, `gateways.alf` | Own bind address/port/timeouts, plus the gateway ID allowlist, roles, and `disconnect_behaviour` for BALF sessions |
 | `pm-ralf-gwy` | `ralf_gateway/config.py` | `post_trade_gateway` | Own bind address/port/timeouts and `allowed_roles` for RALF (post-trade) subscribers |
@@ -3088,6 +3092,163 @@ parsed:
 7. Symbols within one combo must be unique.
 8. `risk_controls.levels.<LEVEL>.circuit_breaker` is explicitly rejected with
    an error; use top-level `circuit_breaker_defaults` instead.
+
+
+## Verifying the Deployed Artifact
+
+The compiled artifact carries two independent integrity checks. They answer
+different questions, they fail differently, and confusing them wastes an
+afternoon — so they are described separately here.
+
+| Check | Compares | Severity | Runs |
+|---|---|---|---|
+| **Content digest** | the artifact against *itself* | **error** — the process refuses to start | on every load, in every process |
+| **Source staleness** | the artifact against the authored YAML | **warning** — the process starts anyway | when a process reports its deployment |
+
+### The content digest (an error)
+
+Every artifact stores `meta.content_sha256`: a SHA-256 over all of its own
+sections *except* `meta`. On **every** load, `load_compiled_config()`
+recomputes that digest and refuses the file if it no longer matches.
+
+**The YAML is not involved.** Nothing is recompiled, and the authored file is
+not read. The check is a *round trip of the artifact through the running
+build's own type definitions*:
+
+1. parse `engine_config.json`;
+2. build the `CompiledConfig` dataclass tree from it;
+3. serialise that tree straight back to primitives;
+4. canonicalise (sorted keys, fixed indent) and SHA-256 the result;
+5. compare against the `meta.content_sha256` stored inside the same file.
+
+Step 2 is the one that surprises people. A key **absent** from the JSON is
+filled from the dataclass default, and step 3 writes out **every** declared
+field. So what gets hashed is not the file's bytes — it is what those bytes
+mean to *this* build. Adding a configuration field to the code is therefore
+enough to change the digest of an artifact nobody has touched: the key decodes
+to its default and is re-emitted as `"new_field": null`, which the recorded
+digest never covered.
+
+That is a completely different situation from a hand-edit, and it needs a
+different fix, so the loader distinguishes them **exactly** rather than by
+guesswork: before reporting anything it also hashes the payload *as it sits on
+disk*. If that still matches what was recorded, the file is provably intact and
+only the schema moved.
+
+**Cause 1 — the artifact predates a schema change.** Nothing is wrong with the
+file; it was compiled by a build that declared a different set of configuration
+fields. Upgrading (or downgrading) EduMatcher across such a change invalidates
+every artifact compiled before it. This is the common cause and it is not a
+fault:
+
+```text
+ArtifactError: compiled config is intact but was compiled against a
+different configuration schema: it was written by version 0.29.2, and this
+build declares a different set of configuration fields. Nothing has been
+edited — run pm-config-deploy to recompile it
+```
+
+**Cause 2 — the deployed `.json` really was edited** after deployment. The
+payload no longer hashes to what the file itself records:
+
+```text
+ArtifactError: compiled config has been modified since it was compiled
+(payload digest 8e77158733b5… does not match the recorded 4a63ba384b6f…)
+— edit the source and run pm-config-deploy rather than editing the deployed
+artifact
+```
+
+An edit is the more serious finding, so an edit *on top of* a schema change
+reports as an edit.
+
+The check is symmetric, and deliberately so: an artifact compiled by a *newer*
+build fails on an older one too, because the older build ignores the field it
+does not know about and re-emits a payload missing it. Neither direction can
+silently run a configuration it has misread.
+
+!!! note "This detects modification, not malice"
+    The digest travels inside the file it protects, so anyone who edits the
+    payload can recompute it. It proves the artifact is internally consistent,
+    not that it came from a trusted party — that would need a signature over a
+    key the artifact does not carry.
+
+A coarser gate runs *before* the digest: `meta.schema_version` must equal the
+`SCHEMA_VERSION` the build reads, and a mismatch produces its own distinct
+error. That version is bumped only when an older reader would **misinterpret**
+a newer artifact; an additively-changed schema is left to the digest check,
+which already refuses it loudly and now names the reason.
+
+### The source staleness check (a warning)
+
+The artifact also records `meta.source_path` and `meta.source_sha256` — where
+the YAML was read from, and the SHA-256 of its text. This is the check that
+*does* look at your YAML, and it catches the one failure compiling introduces:
+editing the authored file and forgetting to deploy, so the exchange keeps
+running the previous configuration while the file on disk says otherwise.
+
+```text
+engine_config.yaml has changed since the running configuration was compiled
+at 2026-09-04T09:43:28.000Z — this exchange is still running the previous
+one. Run pm-config-deploy to pick up the edit.
+```
+
+It only warns. It also stays silent when the source is unreachable — a
+configuration compiled on another machine, or from a file since moved, is not
+evidence of staleness, and warning about it would train you to ignore the
+warning.
+
+### Checking both by hand
+
+Where the two files live:
+
+```bash
+pm-config-deploy --show
+```
+
+To see the artifact's provenance and confirm both checks pass, from a source
+checkout:
+
+```bash
+poetry run python - <<'PY'
+from edumatcher.config_artifact import (
+    load_compiled_config, content_digest, staleness)
+
+cfg = load_compiled_config()
+print("compiled by :", cfg.meta.compiler_version, "at", cfg.meta.compiled_at)
+print("source      :", cfg.meta.source_path)
+print("recorded    :", cfg.meta.content_sha256[:16])
+print("recomputed  :", content_digest(cfg)[:16])
+print("stale?      :", staleness(cfg) or "no - source matches")
+PY
+```
+
+Reaching the `recomputed` line at all means the digest check already passed —
+`load_compiled_config()` raises on a mismatch rather than returning a bad
+config, so the two digests can never print differently. The line is there to
+show you the value, not to perform the comparison.
+
+### Fixing a digest mismatch
+
+Both causes have the same fix — recompile the YAML that is already deployed
+beside the artifact:
+
+```bash
+pm-config-deploy src/data/ref_data/engine_config.yaml
+```
+
+Two things to know before reaching for something else:
+
+- **`pm-config-deploy` has no `--force`.** It takes a positional source path
+  and always overwrites. The `--force` you may be thinking of belongs to
+  `pm-setup`, where it means "recompile and overwrite an already-deployed
+  configuration" — a different command with a different source.
+- **Do not "fix" it with `--example`** unless you really are on a stock
+  example. A deployed configuration generated from an example is identical to
+  it *except* for the randomly generated `api_key` values, and redeploying
+  from the example silently replaces every one of them.
+
+Redeploying is always safe here: the artifact is derived data, and the YAML
+beside it is by construction the exact bytes that were last compiled.
 
 ---
 

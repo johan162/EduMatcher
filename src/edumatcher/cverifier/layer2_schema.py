@@ -161,6 +161,15 @@ def _check_symbols(raw: dict[str, Any], results: list[CheckResult]) -> None:
         _check_symbol_level(sym, cfg, defined_levels, results)
         _check_symbol_mm_quotes(sym, cfg, results)
         _check_symbol_collar(sym, cfg, results)
+        _check_order_limits(
+            cfg.get("order_limits"),
+            label=f"Symbol '{sym}': order_limits",
+            path=f"symbols.{sym}.order_limits",
+            mapping_code="S114",
+            qty_code="S115",
+            value_code="S116",
+            results=results,
+        )
         _check_symbol_circuit_breaker(sym, cfg, cb_default_levels, results)
 
 
@@ -489,6 +498,79 @@ def _check_symbol_collar(
                     ),
                     suggestion="A typical value is 0.02 (2%).",
                     path=f"symbols.{sym}.collar.dynamic_band_pct",
+                )
+            )
+
+
+def _check_order_limits(
+    block: Any,
+    *,
+    label: str,
+    path: str,
+    mapping_code: str,
+    qty_code: str,
+    value_code: str,
+    results: list[CheckResult],
+) -> None:
+    """S114–S116 (symbol scope) / S117–S119 (level scope) — ``order_limits``.
+
+    Mirrors the validation the engine loader performs on this field at both
+    scopes: the block is a mapping, ``max_order_qty`` a positive integer and
+    ``max_order_value`` a positive number. An absent cap is legal everywhere
+    — it means the cap is not enforced.
+    """
+    if block is None:
+        return
+    if not isinstance(block, dict):
+        results.append(
+            CheckResult(
+                code=mapping_code,
+                severity=Severity.ERROR,
+                message=f"{label} must be a mapping.",
+                suggestion=(
+                    "Set order_limits to a mapping with max_order_qty and/or "
+                    "max_order_value."
+                ),
+                path=path,
+            )
+        )
+        return
+
+    qty = block.get("max_order_qty")
+    if qty is not None:
+        try:
+            if isinstance(qty, bool):
+                raise ValueError("not an integer")
+            qty_i = int(qty)
+            if qty_i != qty or qty_i <= 0:
+                raise ValueError("out of range")
+        except (TypeError, ValueError):
+            results.append(
+                CheckResult(
+                    code=qty_code,
+                    severity=Severity.ERROR,
+                    message=f"{label}.max_order_qty {qty} is not a positive integer.",
+                    suggestion="Use a whole number of shares, e.g. 100000.",
+                    path=f"{path}.max_order_qty",
+                )
+            )
+
+    value = block.get("max_order_value")
+    if value is not None:
+        try:
+            if isinstance(value, bool):
+                raise ValueError("not a number")
+            value_f = float(value)
+            if value_f <= 0:
+                raise ValueError("out of range")
+        except (TypeError, ValueError):
+            results.append(
+                CheckResult(
+                    code=value_code,
+                    severity=Severity.ERROR,
+                    message=f"{label}.max_order_value {value} is not a positive number.",
+                    suggestion="Use a notional amount in display money, e.g. 5000000.",
+                    path=f"{path}.max_order_value",
                 )
             )
 
@@ -1548,6 +1630,16 @@ def _check_risk_controls(raw: dict[str, Any], results: list[CheckResult]) -> Non
                     path=f"risk_controls.levels.{level_name}.circuit_breaker",
                 )
             )
+
+        _check_order_limits(
+            level_cfg.get("order_limits"),
+            label=f"risk_controls.levels.{level_name}.order_limits",
+            path=f"risk_controls.levels.{level_name}.order_limits",
+            mapping_code="S117",
+            qty_code="S118",
+            value_code="S119",
+            results=results,
+        )
 
         collar = level_cfg.get("collar")
         if not isinstance(collar, dict):

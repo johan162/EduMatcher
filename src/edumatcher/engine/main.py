@@ -53,6 +53,10 @@ from edumatcher.engine.auction import (
 from edumatcher.cli_version import add_version_argument
 from edumatcher.engine.circuit_breaker import CircuitBreakerLevel, CircuitBreakerState
 from edumatcher.engine.collar import CollarConfig, validate_collar
+from edumatcher.engine.order_limits import (
+    OrderLimitsConfig,
+    validate_order_limits,
+)
 from edumatcher.engine.config_loader import EngineConfig, load_engine_config
 from edumatcher.engine.drop_copy import DropCopyPublisher
 from edumatcher.engine.order_book import OrderBook
@@ -415,6 +419,9 @@ class Engine:
         self._book_stats: dict[str, dict[str, Any]] = {}
         # Price collar configs — keyed by symbol; populated in _load_config()
         self._collars: dict[str, CollarConfig] = {}
+        # Order-size / notional caps — keyed by symbol; populated in
+        # _load_config(). Absent symbol means no cap is configured.
+        self._order_limits: dict[str, OrderLimitsConfig] = {}
         # Circuit breaker states — keyed by symbol; populated in _load_config()
         self._circuit_breakers: dict[str, CircuitBreakerState] = {}
         # Picks the random end of every reopening call phase. Seeded from
@@ -1074,6 +1081,8 @@ class Engine:
                     sym_cfg.collar.symbol = sym
                     sym_cfg.collar.reference_price = ref_ticks
                     self._collars[sym] = sym_cfg.collar
+            if sym_cfg.order_limits is not None:
+                self._order_limits[sym] = sym_cfg.order_limits
             if sym_cfg.circuit_breaker is not None:
                 sym_cfg.circuit_breaker.symbol = sym
                 cb_state = CircuitBreakerState(
@@ -1279,6 +1288,23 @@ class Engine:
                     "QTY_OUT_OF_RANGE",
                     "ICEBERG visible_qty must not exceed quantity",
                 )
+        # G12: pre-trade order-size and notional caps. Configured per risk
+        # level with a per-symbol override; an unconfigured symbol has no cap.
+        # A priceless order (MARKET, IOC) has no known notional, so only the
+        # quantity cap can apply to it.
+        limits = self._order_limits.get(order.symbol)
+        if limits is not None:
+            breach = validate_order_limits(
+                order.quantity,
+                (
+                    from_ticks(order.price, order.symbol)
+                    if order.price is not None
+                    else None
+                ),
+                limits,
+            )
+            if breach is not None:
+                return breach
         return None
 
     def _handle_new_order(self, payload: dict[str, Any]) -> None:
@@ -1789,6 +1815,14 @@ class Engine:
                     "static_band_pct": sym_cfg.collar.static_band_pct,
                     "dynamic_band_pct": sym_cfg.collar.dynamic_band_pct,
                 }
+            if sym_cfg.order_limits is not None:
+                # Already the effective caps: the loader merged the symbol's
+                # override over its level's defaults, so a caller reads one
+                # number per cap rather than resolving precedence itself.
+                entry["order_limits"] = {
+                    "max_order_qty": sym_cfg.order_limits.max_order_qty,
+                    "max_order_value": sym_cfg.order_limits.max_order_value,
+                }
             if sym_cfg.circuit_breaker is not None:
                 entry["circuit_breaker"] = {
                     "reference_window_ns": sym_cfg.circuit_breaker.reference_window_ns,
@@ -1806,11 +1840,17 @@ class Engine:
         risk_levels: list[dict[str, Any]] = []
         for name, level_cfg in sorted(engine_cfg.risk_control_levels.items()):
             collar_raw = level_cfg.get("collar") or {}
+            limits_raw = level_cfg.get("order_limits") or {}
             level_entry: dict[str, Any] = {"name": name}
             if collar_raw:
                 level_entry["collar"] = {
                     "static_band_pct": collar_raw.get("static_band_pct"),
                     "dynamic_band_pct": collar_raw.get("dynamic_band_pct"),
+                }
+            if limits_raw:
+                level_entry["order_limits"] = {
+                    "max_order_qty": limits_raw.get("max_order_qty"),
+                    "max_order_value": limits_raw.get("max_order_value"),
                 }
             risk_levels.append(level_entry)
 
@@ -5302,6 +5342,37 @@ class Engine:
                         request_tag=request_tag,
                     )
                     return
+
+        # G12: the same order-size / notional caps a new order faces. `new_qty`
+        # is the amended order's *total* quantity and `new_price_ticks` its new
+        # price; either may be absent, in which case the resting value stands —
+        # the same resolution OrderBook.amend_order performs.
+        limits = self._order_limits.get(symbol)
+        if limits is not None and resting is not None:
+            amended_qty = new_qty if new_qty is not None else resting.quantity
+            amended_price = (
+                new_price_ticks if new_price_ticks is not None else resting.price
+            )
+            breach = validate_order_limits(
+                amended_qty,
+                (
+                    from_ticks(amended_price, symbol)
+                    if amended_price is not None
+                    else None
+                ),
+                limits,
+            )
+            if breach is not None:
+                self._dbg_count("amend_reject_order_limits")
+                self._reject(
+                    gateway_id=gateway_id,
+                    order_id=order_id,
+                    code=breach[0],
+                    reason=breach[1],
+                    client_tag=resting.client_tag,
+                    request_tag=request_tag,
+                )
+                return
 
         now = now_ns()
         amended, priority_reset, err = book.amend_order(

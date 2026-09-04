@@ -34,6 +34,7 @@ from edumatcher.models.mm_obligation import MarketMakerObligation
 # names present in this module's namespace. Neither module imports this one,
 # so there is no cycle to avoid.
 from edumatcher.engine.collar import CollarConfig
+from edumatcher.engine.order_limits import OrderLimitsConfig
 from edumatcher.engine.circuit_breaker import (
     CircuitBreakerConfig,
     ExpansionLevel,
@@ -208,6 +209,9 @@ class SymbolConfig:
     last_sell_price: Optional[float] = None
     market_maker_quotes: list[MMQuoteSeed] = field(default_factory=list)
     collar: Optional[CollarConfig] = None  # populated by load_engine_config()
+    order_limits: Optional[OrderLimitsConfig] = (
+        None  # populated by load_engine_config()
+    )
     circuit_breaker: Optional[CircuitBreakerConfig] = (
         None  # populated by load_engine_config()
     )
@@ -492,6 +496,12 @@ def load_engine_config(path: Path) -> EngineConfig:
                     f"Engine config 'risk_controls.levels.{level_name}.collar' must be a mapping"
                 )
 
+            level_limits_raw = level_cfg_raw.get("order_limits")
+            if level_limits_raw is not None and not isinstance(level_limits_raw, dict):
+                raise ValueError(
+                    f"Engine config 'risk_controls.levels.{level_name}.order_limits' must be a mapping"
+                )
+
             level_cb_raw = level_cfg_raw.get("circuit_breaker")
             if level_cb_raw is not None:
                 raise ValueError(
@@ -500,6 +510,7 @@ def load_engine_config(path: Path) -> EngineConfig:
 
             risk_control_levels[level_name] = {
                 "collar": dict(level_collar_raw or {}),
+                "order_limits": dict(level_limits_raw or {}),
             }
 
         if (
@@ -667,6 +678,53 @@ def load_engine_config(path: Path) -> EngineConfig:
                 raise ValueError(
                     f"Symbol '{sym}': collar.dynamic_band_pct must be in (0, 1)"
                 )
+
+        # --- Optional order_limits section -------------------------------------
+        limits_cfg: Optional[OrderLimitsConfig] = None
+        limits_raw = cfg.get("order_limits")
+        if limits_raw is not None and not isinstance(limits_raw, dict):
+            raise ValueError(f"Symbol '{sym}': order_limits must be a mapping")
+        level_limits = level_cfg.get("order_limits")
+        effective_limits_raw: dict[str, Any] = {}
+        if isinstance(level_limits, dict):
+            effective_limits_raw.update(level_limits)
+        if isinstance(limits_raw, dict):
+            effective_limits_raw.update(limits_raw)
+
+        max_qty: int | None = None
+        max_qty_raw = effective_limits_raw.get("max_order_qty")
+        if max_qty_raw is not None:
+            try:
+                max_qty = int(max_qty_raw)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"Symbol '{sym}': order_limits.max_order_qty must be an integer"
+                )
+            if max_qty <= 0:
+                raise ValueError(
+                    f"Symbol '{sym}': order_limits.max_order_qty must be > 0"
+                )
+
+        max_value: float | None = None
+        max_value_raw = effective_limits_raw.get("max_order_value")
+        if max_value_raw is not None:
+            try:
+                max_value = float(max_value_raw)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"Symbol '{sym}': order_limits.max_order_value must be a number"
+                )
+            if max_value <= 0:
+                raise ValueError(
+                    f"Symbol '{sym}': order_limits.max_order_value must be > 0"
+                )
+        # Both absent means no cap is configured at either scope, which is the
+        # same thing as having no order_limits block at all.
+        if max_qty is not None or max_value is not None:
+            limits_cfg = OrderLimitsConfig(
+                max_order_qty=max_qty,
+                max_order_value=max_value,
+            )
 
         # --- Optional circuit_breaker section ---------------------------------
         cb_cfg: Optional[CircuitBreakerConfig] = None
@@ -851,6 +909,7 @@ def load_engine_config(path: Path) -> EngineConfig:
             last_sell_price=lsp,
             market_maker_quotes=mm_quotes,
             collar=collar_cfg,
+            order_limits=limits_cfg,
             circuit_breaker=cb_cfg,
         )
 

@@ -171,6 +171,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
+        "--max-order-qty",
+        type=int,
+        default=None,
+        metavar="N",
+        help="DEFAULT level max_order_qty in shares (> 0). Omit for no cap.",
+    )
+    parser.add_argument(
+        "--max-order-value",
+        type=float,
+        default=None,
+        metavar="AMOUNT",
+        help="DEFAULT level max_order_value as notional (> 0). Omit for no cap.",
+    )
+
+    parser.add_argument(
         "--risk-level",
         action="append",
         default=[],

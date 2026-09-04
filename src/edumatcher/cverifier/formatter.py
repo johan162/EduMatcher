@@ -185,6 +185,8 @@ def format_text(
     collar_status = "enabled" if rs.collars_enforced else "disabled"
     lines.append(f"Collars          {collar_status} — {rs.collar_description}")
 
+    lines.append(f"Order limits     {rs.order_limits_description}")
+
     cb_status = "enabled" if rs.circuit_breakers_enforced else "disabled"
     lines.append(f"Circuit breakers {cb_status} — {rs.cb_description}")
 
@@ -260,6 +262,7 @@ def format_json(report: VerificationReport) -> str:
             "sessions_enabled": rs.sessions_enabled,
             "collars_enforced": rs.collars_enforced,
             "collars_configured": rs.collars_configured,
+            "order_limits_configured": rs.order_limits_configured,
             "circuit_breakers_enforced": rs.circuit_breakers_enforced,
             "circuit_breakers_using_defaults": not rs.circuit_breakers_configured,
             "mm_obligations_enforced": rs.mm_obligations_enforced,

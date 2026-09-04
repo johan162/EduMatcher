@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import dataclasses
 import enum
+import hashlib
 import json
 from pathlib import PurePath
 from typing import Any, get_args, get_origin, get_type_hints
@@ -22,6 +23,7 @@ from edumatcher.balf_gwy.config import BalfGatewayConfig
 from edumatcher.config_artifact import (
     SCHEMA_VERSION,
     _is_optional,
+    _payload_text,
     _unwrap_optional,
     ArtifactError,
     ArtifactMeta,
@@ -131,6 +133,22 @@ def _config(**over: Any) -> CompiledConfig:
     }
     base.update(over)
     return CompiledConfig(**base)
+
+
+def _artifact_missing_key(config: CompiledConfig, section: str, key: str) -> str:
+    """Artifact text as a build that did not know *key* would have written it.
+
+    The key is dropped and ``content_sha256`` recomputed over what remains, so
+    the file is internally consistent — exactly the state of every artifact
+    compiled before a configuration field was added.
+    """
+    payload = json.loads(encode(config))
+    del payload[section][key]
+    body = {k: v for k, v in payload.items() if k != "meta"}
+    payload["meta"]["content_sha256"] = hashlib.sha256(
+        _payload_text(body).encode("utf-8")
+    ).hexdigest()
+    return json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
 
 
 class TestRoundTrip:
@@ -450,6 +468,52 @@ class TestContentDigest:
         ]
 
         with pytest.raises(ArtifactError, match="pm-config-deploy"):
+            decode(json.dumps(payload))
+
+    def test_a_schema_change_alone_is_not_reported_as_an_edit(self) -> None:
+        """An artifact from a build with fewer fields is intact, not modified.
+
+        The digest is computed over the decoded tree re-serialised by this
+        build, so a field added to a configuration dataclass moves it on a file
+        nobody has touched: the key is absent, decodes to its default, and is
+        written back out. Reporting that as tampering pointed at the wrong fix.
+        """
+        stamped = _config(meta=_meta(content_sha256=content_digest(_config())))
+        text = _artifact_missing_key(stamped, "engine", "enforce_collars")
+
+        with pytest.raises(ArtifactError) as excinfo:
+            decode(text)
+
+        message = str(excinfo.value)
+        assert "intact" in message
+        assert "different configuration schema" in message
+        assert "0.17.0" in message  # names the build that wrote it
+        assert "modified" not in message
+        assert "pm-config-deploy" in message
+
+    def test_an_edit_is_still_reported_as_an_edit(self) -> None:
+        """The discriminator must not swallow the case it was guarding."""
+        stamped = _config(meta=_meta(content_sha256=content_digest(_config())))
+        payload = json.loads(encode(stamped))
+        payload["market_data_gateway"]["port"] = 9999
+
+        with pytest.raises(ArtifactError) as excinfo:
+            decode(json.dumps(payload))
+
+        message = str(excinfo.value)
+        assert "modified since it was compiled" in message
+        assert "intact" not in message
+
+    def test_an_edit_on_top_of_a_schema_change_is_reported_as_an_edit(
+        self,
+    ) -> None:
+        """An edit is the more serious finding, so it wins the message."""
+        stamped = _config(meta=_meta(content_sha256=content_digest(_config())))
+        text = _artifact_missing_key(stamped, "engine", "enforce_collars")
+        payload = json.loads(text)
+        payload["market_data_gateway"]["port"] = 9999
+
+        with pytest.raises(ArtifactError, match="modified since it was compiled"):
             decode(json.dumps(payload))
 
     def test_an_artifact_with_no_digest_is_still_readable(self) -> None:
