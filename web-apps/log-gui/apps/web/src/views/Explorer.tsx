@@ -11,6 +11,15 @@ import { api } from "../lib/api.js";
 import { useLiveStore } from "../store/useLiveStore.js";
 import { SeverityBadge } from "../components/SeverityBadge.js";
 
+const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "2026-04-09T07:00:14.469Z" -> "09 Apr 07:00:14.469" (UTC, no year). */
+function formatRowTs(clientTs: string): string {
+  const month = MONTH_ABBR[Number(clientTs.slice(5, 7)) - 1];
+  const day = clientTs.slice(8, 10);
+  return `${day} ${month} ${clientTs.slice(11, 23)}`;
+}
+
 function filterFromParams(params: URLSearchParams): LogFilter {
   return {
     minLevel: (params.get("minLevel") as LogLevel) || undefined,
@@ -174,7 +183,7 @@ export function ExplorerView() {
                   )}
                   style={{ transform: `translateY(${item.start}px)`, height: item.size }}
                 >
-                  <span className="w-24 shrink-0 text-fg-subtle">{row.client_ts.slice(11, 23)}</span>
+                  <span className="w-40 shrink-0 text-fg-subtle">{formatRowTs(row.client_ts)}</span>
                   <SeverityBadge level={row.level} />
                   <span className="w-28 shrink-0 truncate text-fg-subtle">{row.process}</span>
                   <span className="truncate">{row.message}</span>
