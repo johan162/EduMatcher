@@ -76,6 +76,34 @@ the target is ≥1% of wall time (review finding P6).
   (monotonic, finding M9); the raw `time.time_ns` alias `_time_ns` is retained
   only for backward compatibility.
 
+- **Fill loop passes the raw enum member instead of `.value` to the JSON
+  encoder (2026-09-04).** The two non-aggressor fields in the fill payload
+  (`evt.side`, `evt.order_type`) called `.value` on a `str, Enum` member
+  before handing it to `dumps`. Both `orjson.dumps` and the stdlib `json`
+  fallback already serialize a `str` subclass — which is exactly what a
+  `str, Enum` member is — as its string value, so `.value` bought nothing but
+  an extra descriptor call. Profiling 30 000 orders through
+  `_handle_new_order` showed 75 057 calls to `enum.py:value` at this pair of
+  call sites; removing it drops that count to zero with no change to the
+  emitted bytes (checked against both encoders).
+
+  This is deliberately narrow. The wider hot path has ~29 similar `dict.get`
+  calls per order (`docs-design/EduMatcher-Perf-Analysis.md` §10 item 6), but
+  profiling showed those are legitimate per-trade VWAP / trade-id / liquidity
+  aggregation, not redundant re-reads — nothing to unpack there. §10 item 7
+  (compiling out the `_dbg_count` log guards) was left alone too: it is a
+  shared helper with 52 call sites across the file, the measured cost is
+  ~1.3% of profiled wall time, and the only way to avoid re-checking
+  `log.isEnabledFor` on every call is a cached flag that would go stale the
+  moment the log level changes at runtime — not a trade worth making for a
+  sub-300 ns/order win.
+
+  **Do not extend this to `Order.to_dict()`'s eight `.value` calls** without
+  separately profiling those call sites — `to_dict()` is used far outside the
+  order-entry hot path (persistence, snapshots, other message builders), and
+  this change was verified only for the two fill-loop sites actually
+  profiled here.
+
 ## Message generator
 
 - **Nullable enum `from_dict` no longer builds a `typing` union per call

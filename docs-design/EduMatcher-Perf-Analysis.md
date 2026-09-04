@@ -400,16 +400,16 @@ trusting anything that follows.
 
 | # | Change | Measured win | Risk | Notes |
 |---|---|---:|---|---|
-| 1 | **Fix the benchmark** (§11) | Removes a 2.9× measurement artefact | None | Do first; nothing else is verifiable until the number is stable |
+| 1 | ~~Fix the benchmark~~ (§11) | **DONE** — spread now typically 1–10%, threshold-gated at 25% | — | Fixed 2026-09-04: drained publisher, 3-repeat median/spread report, `gc.collect()` between repeats. See `tests/test_perf.py` |
 | 2 | **Extend the benchmark to the gateway leg** | — | None | 59% of the path is currently untimed |
 | 3 | ~~Hoist the `X \| None` union out of generated `cast()`~~ | **DONE** — measured **1.58 µs** per generated `from_dict` | — | Fixed 2026-09-03; see below and `perf-notes.md` |
 | 4 | ~~Gateway uses `make_order_new_unchecked`~~ | **DONE** — 4.99 µs/order, of which only 355 ns was validation | — | Done 2026-09-03 with the correspondence test §10 asked for |
 | 5 | ~~Replace `uuid4()` for order ids~~ | **DONE** — 2.11 µs/order | — | `os.urandom(16).hex()`; no durable state needed after all |
-| 6 | **Unpack the payload dict once in `_handle_new_order`** | ~1–2 µs/order | Low | 28.8 `dict.get` calls today |
-| 7 | **Compile out `_dbg_count` and the log guards when disabled** | ~1 µs/order | Low | 9.5 guard calls per order |
-| 8 | **Cache `.value` on hot enums** | ~0.8 µs/order | Low | 3.5 descriptor calls per order |
+| 6 | ~~Unpack the payload dict once in `_handle_new_order`~~ | **N/A** — re-profiled 2026-09-04; no redundant re-reads found | — | The 28.8 `dict.get`/order are legitimate per-trade VWAP/trade-id/liquidity-flag aggregation, not repeated field lookups. Nothing to unpack. |
+| 7 | Compile out `_dbg_count` and the log guards when disabled | ~1 µs/order | Low | Re-profiled 2026-09-04: ~1.3% of wall time, spread across a 52-call-site shared helper. The only guard-caching fix risks going stale when the log level changes at runtime. Left as-is; see `perf-notes.md`. |
+| 8 | ~~Cache `.value` on hot enums~~ | **DONE** — 75 057 `enum.value` calls/30k orders → 0 at the 2 fill-loop sites | — | Fixed 2026-09-04: pass the `str, Enum` member directly to the JSON encoder instead of `.value`. See `perf-notes.md`. Log f-string sites (`f"{x.value}"`) were left alone — `f"{x}"` renders as `"Side.BUY"`, not `"BUY"`, on `str, Enum` in this Python version. |
 | 9 | **Split `_handle_new_order`'s gates** | not yet measured | Medium | 28% of engine time is this function's own bytecode |
-| 10 | **Tune GC thresholds in the engine process** | ~5% in production, more under load | Low | `gc.set_threshold(50_000, 50, 50)` measured 13 669 vs 7 257 TPS in the *retaining* configuration |
+| 10 | **Tune GC thresholds in the engine process** | ~5% in production, more under load | Low | `gc.set_threshold(50_000, 50, 50)` measured 13 669 vs 7 257 TPS in the *retaining* configuration — that configuration no longer exists after item 1, so this number should be re-measured before acting on it |
 
 ### On item 4 — is skipping validation safe here?
 

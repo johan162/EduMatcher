@@ -1656,10 +1656,16 @@ class Engine:
                                     else {}
                                 ),
                                 "symbol": evt.symbol,
-                                "side": _side_v if _is_agg else evt.side.value,
-                                "order_type": (
-                                    _ot_v if _is_agg else evt.order_type.value
-                                ),
+                                # evt.side / evt.order_type are `str, Enum`
+                                # members -- passed straight to the JSON
+                                # encoder (both orjson and the stdlib
+                                # fallback serialize them as their string
+                                # value) instead of calling `.value`, which
+                                # is a descriptor call
+                                # (docs-design/EduMatcher-Perf-Analysis.md
+                                # §8: ~90 ns/call measured).
+                                "side": _side_v if _is_agg else evt.side,
+                                "order_type": (_ot_v if _is_agg else evt.order_type),
                                 "qty": evt.quantity,
                                 "price": (
                                     _price_v

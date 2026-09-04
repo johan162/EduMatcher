@@ -30,6 +30,7 @@ Running
 
 from __future__ import annotations
 
+import gc
 import statistics
 import time
 from dataclasses import dataclass, field
@@ -81,10 +82,18 @@ _LIQUIDITY_QTY = 5_000_000
 
 @dataclass
 class _DummySocket:
+    #: Retain frames only for the tests that assert on published output.
+    #: The throughput test needs the count, not the frames, and retaining
+    #: tens of thousands of them is what makes its result bimodal (see
+    #: docs-design/EduMatcher-Perf-Analysis.md §4).
+    keep: bool = True
     sent: list[list[bytes]] = field(default_factory=list)
+    count: int = 0
 
     def send_multipart(self, frames: list[bytes]) -> None:
-        self.sent.append(frames)
+        self.count += 1
+        if self.keep:
+            self.sent.append(frames)
 
     def close(self) -> None:
         pass
@@ -95,13 +104,21 @@ class _DummySocket:
 # ---------------------------------------------------------------------------
 
 
-def _build_engine(monkeypatch, tmp_path) -> tuple[Engine, _DummySocket]:
-    """Return a fully-initialised Engine backed by mocked ZMQ sockets."""
+def _build_engine(
+    monkeypatch, tmp_path, *, keep: bool = True
+) -> tuple[Engine, _DummySocket]:
+    """Return a fully-initialised Engine backed by mocked ZMQ sockets.
+
+    ``keep=False`` makes the publisher drain frames instead of retaining
+    them, matching a real ZMQ socket's behaviour (see docs-design/
+    EduMatcher-Perf-Analysis.md §11). Use this for throughput measurement;
+    the latency tests need ``keep=True`` since they inspect published frames.
+    """
     cfg = EngineConfig(
         symbols={_SYMBOL: SymbolConfig(name=_SYMBOL)},
         fix_gateways={_GW: FixGatewayConfig(id=_GW, description="perf gw")},
     )
-    pub_sock = _DummySocket()
+    pub_sock = _DummySocket(keep=keep)
 
     monkeypatch.setattr("edumatcher.engine.main.make_puller", lambda _: _DummySocket())
     monkeypatch.setattr("edumatcher.engine.main.make_publisher", lambda _: pub_sock)
@@ -362,11 +379,21 @@ class TestThroughput:
     on the book but do not match each other (bid < ask).
     """
 
-    def test_max_tps(self, monkeypatch, tmp_path) -> None:
-        engine, pub_sock = _build_engine(monkeypatch, tmp_path)
-        _seed_liquidity(engine, pub_sock)
+    #: Max allowed spread across _N_REPEATS repeats, as a fraction of the
+    #: median: (max - min) / median. The unpatched benchmark's own variance
+    #: was up to 2.9x (docs-design/EduMatcher-Perf-Analysis.md §4) -- a
+    #: benchmark whose spread exceeds this cannot reliably detect a real
+    #: regression and should fail rather than report a misleading number.
+    #: 0.25 is generous headroom above the ~1-10% spread typically observed
+    #: on a quiet host after §11's fixes, while still catching the >100%
+    #: bimodal blow-up the unpatched benchmark was prone to.
+    _MAX_SPREAD_FRACTION = 0.25
 
-        # --- build all order dicts up-front (exclude from timed section) ---
+    #: Number of timed repeats used to compute the reported distribution.
+    _N_REPEATS = 3
+
+    def _build_order_mix(self) -> list[dict]:
+        """Build one freshly-shuffled batch of N_TPS order dicts."""
         n_market = int(N_TPS * _FRAC_MARKET_BUY)
         n_agg_limit = int(N_TPS * _FRAC_AGGRESSIVE_LIMIT)
         n_pass_buy = int(N_TPS * _FRAC_PASSIVE_BUY)
@@ -430,71 +457,73 @@ class TestThroughput:
 
         rng = random.Random(42)
         rng.shuffle(orders)
+        return orders
+
+    def test_max_tps(self, monkeypatch, tmp_path) -> None:
+        # keep=False: the publisher drains frames instead of retaining them,
+        # matching a real ZMQ socket. Retaining tens of thousands of frames
+        # is what made this benchmark bimodal (see
+        # docs-design/EduMatcher-Perf-Analysis.md §4 and §11).
+        engine, pub_sock = _build_engine(monkeypatch, tmp_path, keep=False)
+        _seed_liquidity(engine, pub_sock)
 
         # --- warm-up (not timed) ---
-        for o in orders[:N_WARMUP]:
+        for o in self._build_order_mix()[:N_WARMUP]:
             engine._handle_new_order(o)
-        pub_sock.sent.clear()
 
-        # Rebuild orders for the timed section (UUIDs are consumed)
-        timed_orders: list[dict] = []
-        for o in orders[N_WARMUP:]:
-            # Re-create with a fresh UUID so engine doesn't see duplicates
-            timed_orders.append(
-                Order.create(
-                    symbol=o["symbol"],
-                    side=Side(o["side"]),
-                    order_type=OrderType(o["order_type"]),
-                    quantity=o["quantity"],
-                    gateway_id=o["gateway_id"],
-                    tif=TIF(o["tif"]),
-                    price=o.get("price"),
-                ).to_dict()
-            )
+        # --- timed repeats: report a distribution, not a single number ---
+        # A single run's variance was up to 2.9x on the unpatched benchmark,
+        # which cannot detect a real ~20% regression. Repeating and checking
+        # the spread turns that blind spot into a hard failure instead.
+        tps_runs: list[float] = []
+        n_messages_total = 0
+        n_timed = 0
 
-        n_timed = len(timed_orders)
+        for _ in range(self._N_REPEATS):
+            orders = self._build_order_mix()
+            n_timed = len(orders)
 
-        # --- timed section ---
-        t_start = time.perf_counter()
-        for payload in timed_orders:
-            engine._handle_new_order(payload)
-        t_end = time.perf_counter()
+            # Isolate this repeat's heap from the previous one so a GC
+            # pause landing mid-run doesn't leak variance across repeats.
+            gc.collect()
 
-        elapsed = t_end - t_start
-        tps = n_timed / elapsed
+            t_start = time.perf_counter()
+            for payload in orders:
+                engine._handle_new_order(payload)
+            t_end = time.perf_counter()
 
-        # Count generated trade messages (aggressive orders only)
-        n_trades = sum(
-            1 for frames in pub_sock.sent if decode(frames)[0] == "trade.executed"
-        )
-        _expected_trades = n_market + n_agg_limit - N_WARMUP  # noqa: F841
-        # (some warm-up orders were aggressive; remainder is n_timed aggressive)
-        # We simply assert at least 50 % of expected trades arrived.
-        assert n_trades > 0, "No trades generated — check liquidity seeding."
+            elapsed = t_end - t_start
+            tps_runs.append(n_timed / elapsed)
+            n_messages_total += pub_sock.count
+
+        assert n_messages_total > 0, "No messages published — check liquidity seeding."
+
+        tps_runs_sorted = sorted(tps_runs)
+        tps_min, tps_max = tps_runs_sorted[0], tps_runs_sorted[-1]
+        tps_median = statistics.median(tps_runs_sorted)
+        spread_fraction = (tps_max - tps_min) / tps_median
 
         print("\n" + "=" * 62)
-        print(f"  Throughput \u2014 Maximum TPS  (n={n_timed:,} orders)")
+        print(
+            f"  Throughput — Maximum TPS  "
+            f"(n={n_timed:,} orders x {self._N_REPEATS} runs)"
+        )
         print("=" * 62)
-        print("  Order mix:")
-        print(f"    Market BUY       : {n_market:>6,}  ({_FRAC_MARKET_BUY*100:.0f}%)")
-        print(
-            f"    Aggressive LIMIT : {n_agg_limit:>6,}  ({_FRAC_AGGRESSIVE_LIMIT*100:.0f}%)"
-        )
-        print(
-            f"    Passive BUY      : {n_pass_buy:>6,}  ({_FRAC_PASSIVE_BUY*100:.0f}%)"
-        )
-        print(
-            f"    Passive SELL     : {n_pass_sell:>6,}  ({_FRAC_PASSIVE_SELL*100:.0f}%)"
-        )
-        print(f"  Elapsed            : {elapsed:>10.3f} s")
-        print(f"  Trades generated   : {n_trades:>10,}")
-        print("  ─────────────────────────────────────────────────────")
-        print(f"  TPS (orders/sec)   : {tps:>10,.0f}")
-        print(f"  µs / order (mean)  : {elapsed / n_timed * 1e6:>10.3f} µs")
+        print(f"  TPS runs           : {[f'{t:,.0f}' for t in tps_runs]}")
+        print(f"  TPS min            : {tps_min:>10,.0f}")
+        print(f"  TPS median         : {tps_median:>10,.0f}")
+        print(f"  TPS max            : {tps_max:>10,.0f}")
+        print(f"  Spread (max-min)/median : {spread_fraction:>7.1%}")
         print("=" * 62)
         print(
             "  NOTE: TPS above is engine-only.  In production the bottleneck\n"
             "  shifts to ZMQ socket throughput (~200k–500k msgs/s on loopback)."
         )
 
-        assert tps > 0
+        assert spread_fraction <= self._MAX_SPREAD_FRACTION, (
+            f"TPS spread {spread_fraction:.1%} exceeds "
+            f"{self._MAX_SPREAD_FRACTION:.0%} threshold across runs "
+            f"{tps_runs} — the benchmark result is unreliable (see "
+            "docs-design/EduMatcher-Perf-Analysis.md §4)."
+        )
+        assert tps_median > 0
