@@ -6486,9 +6486,10 @@ restarts. Use <code>monitor.snapshot</code> for current state and
 <a id="__codelineno-41-9" name="__codelineno-41-9" href="#__codelineno-41-9"></a><span class="w">    </span><span class="nt">"fill_qty"</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span>
 <a id="__codelineno-41-10" name="__codelineno-41-10" href="#__codelineno-41-10"></a><span class="w">    </span><span class="nt">"fill_price"</span><span class="p">:</span><span class="w"> </span><span class="mf">150.50</span><span class="p">,</span>
 <a id="__codelineno-41-11" name="__codelineno-41-11" href="#__codelineno-41-11"></a><span class="w">    </span><span class="nt">"remaining_qty"</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span>
-<a id="__codelineno-41-12" name="__codelineno-41-12" href="#__codelineno-41-12"></a><span class="w">    </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"PARTIAL"</span>
-<a id="__codelineno-41-13" name="__codelineno-41-13" href="#__codelineno-41-13"></a><span class="w">  </span><span class="p">}</span>
-<a id="__codelineno-41-14" name="__codelineno-41-14" href="#__codelineno-41-14"></a><span class="p">}</span>
+<a id="__codelineno-41-12" name="__codelineno-41-12" href="#__codelineno-41-12"></a><span class="w">    </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"PARTIAL"</span><span class="p">,</span>
+<a id="__codelineno-41-13" name="__codelineno-41-13" href="#__codelineno-41-13"></a><span class="w">    </span><span class="nt">"liquidity_flag"</span><span class="p">:</span><span class="w"> </span><span class="s2">"TAKER"</span>
+<a id="__codelineno-41-14" name="__codelineno-41-14" href="#__codelineno-41-14"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-41-15" name="__codelineno-41-15" href="#__codelineno-41-15"></a><span class="p">}</span>
 </code></pre></div>
 <table>
 <thead>
@@ -6528,6 +6529,16 @@ restarts. Use <code>monitor.snapshot</code> for current state and
 </tr>
 </tbody>
 </table>
+<p><code>order.fill.data.liquidity_flag</code> is <code>"MAKER"</code> when this order was resting on
+the book and got matched into, <code>"TAKER"</code> when it crossed the spread and
+matched immediately — derived from the trade's aggressor side. Every current
+fill notification comes from a real trade, so in practice the field is
+always present; it is nullable/omittable only as a defensive schema
+allowance (mirroring <code>trade_ids</code>, which is likewise never actually empty
+today). The same attribution is available today from the drop-copy feed's
+own <code>order.fill</code> event (see <a href="../200-drop-copy/#orderfill-event">Drop Copy</a>);
+on this path it now needs no cross-reference — a client reading only its own
+private fills can tell which side of the spread it was on.</p>
 <p>Order lifecycle events — <code>order.ack</code>, <code>order.fill</code>, <code>order.cancelled</code>,
 <code>order.expired</code> — additionally carry the identifiers that tie the order to the
 structure it belongs to, when it belongs to one:</p>

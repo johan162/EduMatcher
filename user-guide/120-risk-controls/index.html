@@ -1456,6 +1456,78 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#order-size-and-notional-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Order size and notional limits
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Order size and notional limits">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#motivation_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Motivation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#which-orders-are-checked_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which orders are checked
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reject-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reject codes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configuration_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#querying-the-effective-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Querying the effective limits
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#circuit-breakers" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1468,7 +1540,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#motivation_1" class="md-nav__link">
+  <a href="#motivation_2" class="md-nav__link">
     <span class="md-ellipsis">
       
         Motivation
@@ -1595,7 +1667,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#configuration_1" class="md-nav__link">
+  <a href="#configuration_2" class="md-nav__link">
     <span class="md-ellipsis">
       
         Configuration
@@ -1917,7 +1989,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#motivation_2" class="md-nav__link">
+  <a href="#motivation_3" class="md-nav__link">
     <span class="md-ellipsis">
       
         Motivation
@@ -4709,13 +4781,14 @@
 <ul>
 <li>How an instrument halt state prevents trading while a symbol is suspended</li>
 <li>How price collars reject orders that stray too far from a reference or last-traded price</li>
+<li>How order-size and notional limits cap how <em>big</em> a single order may be, independently of its price</li>
 <li>How circuit breakers detect violent price moves and automatically halt and resume a symbol</li>
 <li>How the kill switch lets any gateway instantly cancel all its own resting orders</li>
 <li>How Self-Match Prevention (SMP) stops a gateway from trading against its own resting orders,
   and the four actions (<code>NONE</code>, <code>CANCEL_AGGRESSOR</code>, <code>CANCEL_RESTING</code>, <code>CANCEL_BOTH</code>) it can take</li>
 <li>Why SMP is resolved per order, not fixed per gateway, and how a gateway-level default fills in
   when an order or quote doesn't specify one</li>
-<li>How all five mechanisms interact with the order types described in <a href="../060-order-types/">Order Types</a></li>
+<li>How all six mechanisms interact with the order types described in <a href="../060-order-types/">Order Types</a></li>
 <li>How to configure each feature in <code>engine_config.yaml</code></li>
 </ul>
 <p><strong>Prerequisite</strong>: <a href="../../concepts/01-concepts-order-book/">Concepts — Order Book</a> explains the
@@ -4723,7 +4796,7 @@ order lifecycle that underpins these controls.</p>
 </div>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
 <p>Real exchanges operate several layers of protection against runaway prices and
-disorderly markets.  EduMatcher implements five complementary mechanisms:</p>
+disorderly markets.  EduMatcher implements six complementary mechanisms:</p>
 <table>
 <thead>
 <tr>
@@ -4747,6 +4820,12 @@ disorderly markets.  EduMatcher implements five complementary mechanisms:</p>
 <td>Order is rejected</td>
 </tr>
 <tr>
+<td><strong>Order size / notional limits</strong></td>
+<td>Config per symbol</td>
+<td>Incoming order quantity, and quantity × price</td>
+<td>Order is rejected</td>
+</tr>
+<tr>
 <td><strong>Circuit breaker</strong></td>
 <td>Config per symbol</td>
 <td>Last trade price vs. rolling reference</td>
@@ -4766,21 +4845,29 @@ disorderly markets.  EduMatcher implements five complementary mechanisms:</p>
 </tr>
 </tbody>
 </table>
-<p>The first three — instrument halt, price collar, and circuit breaker — act on
-the <strong>order admission path</strong>, <em>before</em> an order enters the book. The kill
+<p>The first four — instrument halt, price collar, order size / notional limits,
+and circuit breaker — act on the <strong>order admission path</strong>, <em>before</em> an order
+enters the book. The kill
 switch is different: it acts on orders that are <strong>already resting</strong>,
 cancelling a gateway's own exposure on demand. SMP is different again: it acts
 <strong>during matching</strong>, at the instant a specific incoming order would otherwise
 cross against a specific resting order — see
 <a href="#self-match-prevention-smp">Self-Match Prevention (SMP)</a> below.</p>
-<p>The following diagram shows the order admission path through those three
+<p>The following diagram shows the order admission path through those four
 admission-path controls:</p>
 <pre class="mermaid"><code>flowchart TD
     A([Incoming order]) --&gt; B{Symbol halted?}
     B -- Yes --&gt; C{Order type?}
     C -- MARKET / FOK / IOC --&gt; REJ1([Reject: SYM is halted —\nTYPE orders rejected during\ncircuit breaker halt])
     C -- LIMIT / ICEBERG --&gt; REST([Accept \u2014 rest on book,\nno matching sweep])
-    B -- No --&gt; D{Collar\nconfigured?}
+    B -- No --&gt; OL{Order limits\nconfigured?}
+    OL -- Yes --&gt; OLQ{Qty within\nmax_order_qty?}
+    OLQ -- No --&gt; REJQ([Reject: MAX_ORDER_QTY])
+    OLQ -- Yes --&gt; OLV{Notional within\nmax_order_value?\npriced orders only}
+    OLV -- No --&gt; REJV([Reject: MAX_ORDER_VALUE])
+    OLV -- Yes --&gt; D
+    OL -- No --&gt; D
+    D{Collar\nconfigured?}
     D -- Yes --&gt; E{Price within\nstatic band?}
     E -- No --&gt; REJ2([Reject: STATIC_COLLAR_BREACH])
     E -- Yes --&gt; F{Last trade\nprice known?}
@@ -4794,6 +4881,14 @@ admission-path controls:</p>
     I -- Yes --&gt; HALT([Halt symbol\nschedule resume])
     I -- No --&gt; DONE([Done])
     H -- No --&gt; DONE</code></pre>
+<div class="admonition note">
+<p class="admonition-title">Order limits have no global switch</p>
+<p>Unlike collars and circuit breakers, order limits are turned off by simply
+not setting them on a symbol: an absent cap is not enforced. There is
+deliberately no <code>enforce_order_limits</code> flag, no risk-level tier and no
+built-in fallback number — a limit that exists only in code and not in the
+configuration file is not auditable as a requirement.</p>
+</div>
 <div class="admonition note">
 <p class="admonition-title">Global on/off switches</p>
 <p>Collar and circuit-breaker enforcement can each be disabled engine-wide
@@ -5040,8 +5135,128 @@ preferring a persisted last price from <code>book_stats.json</code>, then the co
 <code>last_buy_price</code>, then <code>last_sell_price</code> (converted to ticks).  The circuit
 breaker seeds its reference from the same resolved value, so both controls agree
 at the open — see <a href="#day-one-ipo-behaviour">Day one (IPO) behaviour</a>.</p>
-<h2 id="circuit-breakers">Circuit breakers<a class="headerlink" href="#circuit-breakers" title="Permanent link">&para;</a></h2>
+<h2 id="order-size-and-notional-limits">Order size and notional limits<a class="headerlink" href="#order-size-and-notional-limits" title="Permanent link">&para;</a></h2>
 <h3 id="motivation_1">Motivation<a class="headerlink" href="#motivation_1" title="Permanent link">&para;</a></h3>
+<p>A collar catches an order whose <em>price</em> is wrong. It cannot catch an order
+whose price is perfectly reasonable and whose <em>size</em> is not: "buy 1,000,000
+shares at 150.00" passes every price band, because 150.00 is exactly where the
+stock trades. Two independent caps close that gap.</p>
+<p><code>max_order_qty</code>
+:   The largest quantity a single order may carry. Catches the fat-finger that
+    adds a zero to the size field.</p>
+<p><code>max_order_value</code>
+:   The largest notional — <code>quantity × price</code>, in display money — a single
+    order may carry. Catches the same error expressed as a plausible-looking
+    size on an expensive instrument.</p>
+<p>Both are <strong>pre-trade</strong> checks on the admission path, evaluated before the order
+reaches the book, and both reject rather than truncate: an order over a cap is
+never silently reduced to fit.</p>
+<h3 id="which-orders-are-checked_1">Which orders are checked<a class="headerlink" href="#which-orders-are-checked_1" title="Permanent link">&para;</a></h3>
+<p><code>max_order_qty</code> applies to <strong>every</strong> order type. <code>max_order_value</code> needs a
+price, so it is skipped for <strong>MARKET</strong> and <strong>IOC</strong> orders, which carry none on
+the wire — the same orders the collar's price bands already skip, for the same
+reason.</p>
+<p>Both caps are re-checked on <code>order.amend</code>, against the amended quantity and
+price. Without that, the control would be trivially bypassed by entering a
+small order and amending it up.</p>
+<p>The quantity cap is evaluated first, so an order that breaches both is rejected
+with <code>MAX_ORDER_QTY</code>.</p>
+<h3 id="reject-codes">Reject codes<a class="headerlink" href="#reject-codes" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Condition</th>
+<th><code>reject_code</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>quantity &gt; max_order_qty</code></td>
+<td><code>MAX_ORDER_QTY</code></td>
+</tr>
+<tr>
+<td><code>quantity × price &gt; max_order_value</code></td>
+<td><code>MAX_ORDER_VALUE</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="configuration_1">Configuration<a class="headerlink" href="#configuration_1" title="Permanent link">&para;</a></h3>
+<p>Add an <code>order_limits</code> sub-section to any symbol:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nt">symbols</span><span class="p">:</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">    </span><span class="nt">tick_decimals</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">    </span><span class="nt">order_limits</span><span class="p">:</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">      </span><span class="nt">max_order_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50000</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">      </span><span class="nt">max_order_value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2500000</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">  </span><span class="nt">TSLA</span><span class="p">:</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">    </span><span class="nt">tick_decimals</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">    </span><span class="nt">order_limits</span><span class="p">:</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">      </span><span class="c1"># a quantity cap only; notional is left unlimited</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">      </span><span class="nt">max_order_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5000</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="w">  </span><span class="nt">MSFT</span><span class="p">:</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="w">    </span><span class="nt">tick_decimals</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="w">    </span><span class="c1"># no order_limits at all — neither cap is enforced for MSFT</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>max_order_qty</code></td>
+<td>int</td>
+<td><em>none</em></td>
+<td>Maximum quantity on a single order (<code>&gt; 0</code>)</td>
+</tr>
+<tr>
+<td><code>max_order_value</code></td>
+<td>float</td>
+<td><em>none</em></td>
+<td>Maximum notional on a single priced order, in display money (<code>&gt; 0</code>)</td>
+</tr>
+</tbody>
+</table>
+<p><code>pm-config-gen</code> can write both, either with the explicit per-symbol flags or
+as <code>--symbol-opts</code> keys:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pm-config-gen<span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span>--symbol-max-order-qty<span class="w"> </span>AAPL:50000<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span>--symbol-max-order-value<span class="w"> </span>AAPL:2500000
+</code></pre></div>
+<p><strong>Order limits are configured per symbol and nowhere else.</strong> There is no
+risk-level tier and no global default, so the rule is simply:</p>
+<ol>
+<li><code>symbols.&lt;symbol&gt;.order_limits.&lt;cap&gt;</code> — the cap applies</li>
+<li>absent — the cap is <strong>not enforced</strong></li>
+</ol>
+<p>Note how this differs from collars. A collar can be defined once on a
+<code>risk_controls</code> level and shared by every symbol that references it, because a
+percentage band means the same thing on a $10 stock and a $1,000 one. A size or
+notional cap does not: the right number depends on the individual instrument's
+price and typical trade size, so there is nothing useful for a shared profile to
+say. <code>risk_controls.levels.&lt;L&gt;.order_limits</code> is therefore <strong>rejected</strong> — by the
+engine loader at startup and by <code>pm-cverifier</code> as check <code>S117</code> — rather than
+silently accepted and ignored.</p>
+<p>Each cap is independent: <code>TSLA</code> above caps quantity while leaving notional
+unlimited.</p>
+<h3 id="querying-the-effective-limits">Querying the effective limits<a class="headerlink" href="#querying-the-effective-limits" title="Permanent link">&para;</a></h3>
+<p><code>GET /api/v1/reference/symbols</code> reports each symbol's caps alongside its
+collar:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">{</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"TSLA"</span><span class="p">,</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span><span class="nt">"tick_decimals"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">  </span><span class="nt">"level"</span><span class="p">:</span><span class="w"> </span><span class="s2">"L1"</span><span class="p">,</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">  </span><span class="nt">"order_limits"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"max_order_qty"</span><span class="p">:</span><span class="w"> </span><span class="mi">5000</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="p">}</span>
+</code></pre></div>
+<p>A symbol that sets neither cap omits <code>order_limits</code> entirely — see
+<a href="../950-app-REST-API-reference/">REST API reference</a>.</p>
+<h2 id="circuit-breakers">Circuit breakers<a class="headerlink" href="#circuit-breakers" title="Permanent link">&para;</a></h2>
+<h3 id="motivation_2">Motivation<a class="headerlink" href="#motivation_2" title="Permanent link">&para;</a></h3>
 <p>A circuit breaker is an <em>automatic</em> mechanism that pauses trading when prices
 move too fast.  Unlike a collar (which rejects individual orders), a circuit
 breaker monitors executed trades and halts the <em>entire symbol</em> when a trade
@@ -5117,12 +5332,12 @@ own rolling trade reference and can halt independently.</p>
 <code>now - reference_window_ns</code> is discarded before computing the average.  This
 means the reference tracks recent price behaviour — a slow steady trend will
 not accumulate stale data that masks a sudden move.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>           reference_window_ns
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>        ←──────────────────────→
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>────────●──●───●───●──●────●──── now
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>        (old trades)  (new trade being evaluated)
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>reference = average of all trades in window (excluding new trade)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>           reference_window_ns
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>        ←──────────────────────→
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>────────●──●───●───●──●────●──── now
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>        (old trades)  (new trade being evaluated)
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>reference = average of all trades in window (excluding new trade)
 </code></pre></div>
 <p>If the window is empty, the circuit breaker has no reference to compare
 against, so the trade is accepted and simply added to the history.  At engine
@@ -5327,13 +5542,13 @@ waits for this backstop or for an ADMIN resume.</p>
 <h4 id="observability">Observability<a class="headerlink" href="#observability" title="Permanent link">&para;</a></h4>
 <p>Every corridor adjustment is logged and published, so an extension sequence
 can be watched as it happens:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>CIRCUIT BREAKER HALT ABC: level=L1 trigger=12200, ref=10000 ticks, corridor=[9000, 11000] ticks (+/-10.0%)
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>ACE EXTEND ABC: indicative=12200 ticks outside [9000, 11000] -&gt; expansion=1 corridor=[8000, 12000] (+/-20.0%) qty=500 next_call_ends=...
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>ACE EXTEND ABC: indicative=12200 ticks outside [8000, 12000] -&gt; expansion=2 corridor=[6000, 14000] (+/-40.0%) qty=500 next_call_ends=...
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>CIRCUIT BREAKER RESUME ABC: after 2 ACE extension(s)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>CIRCUIT BREAKER HALT ABC: level=L1 trigger=12200, ref=10000 ticks, corridor=[9000, 11000] ticks (+/-10.0%)
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>ACE EXTEND ABC: indicative=12200 ticks outside [9000, 11000] -&gt; expansion=1 corridor=[8000, 12000] (+/-20.0%) qty=500 next_call_ends=...
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>ACE EXTEND ABC: indicative=12200 ticks outside [8000, 12000] -&gt; expansion=2 corridor=[6000, 14000] (+/-40.0%) qty=500 next_call_ends=...
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>CIRCUIT BREAKER RESUME ABC: after 2 ACE extension(s)
 </code></pre></div>
 <p>and at the close:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>CLOSING BACKSTOP ABC: indicative=12200 ticks outside [9000, 11000] -&gt; clamped to 11000 (BUY imbalance), after 1 ACE extension(s)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>CLOSING BACKSTOP ABC: indicative=12200 ticks outside [9000, 11000] -&gt; clamped to 11000 (BUY imbalance), after 1 ACE extension(s)
 </code></pre></div>
 <p>On the wire, <code>circuit_breaker.halt.{symbol}</code> and the new
 <code>circuit_breaker.extend.{symbol}</code> both carry <code>corridor_low</code>, <code>corridor_high</code>
@@ -5344,41 +5559,41 @@ fields are always present — the event is published by the widening itself. On
 disabled, or the halt began with no reference price to centre one on, or it is
 an operator halt. A backstop resume carries <code>reason: "CLOSING_BACKSTOP"</code>,
 <code>clamped</code> and <code>print_price</code>.</p>
-<h3 id="configuration_1">Configuration<a class="headerlink" href="#configuration_1" title="Permanent link">&para;</a></h3>
+<h3 id="configuration_2">Configuration<a class="headerlink" href="#configuration_2" title="Permanent link">&para;</a></h3>
 <p>Define a global threshold ladder under <code>circuit_breaker_defaults</code>, then override
 per symbol only where needed:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nt">circuit_breaker_defaults</span><span class="p">:</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">reference_window_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300000000000</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span><span class="nt">levels</span><span class="p">:</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">    </span><span class="nt">L1</span><span class="p">:</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">      </span><span class="nt">price_shift_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.07</span>
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">      </span><span class="nt">halt_duration_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300000000000</span><span class="w">   </span><span class="c1"># 5 minutes</span>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">    </span><span class="nt">L2</span><span class="p">:</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">      </span><span class="nt">price_shift_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.13</span>
-<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">      </span><span class="nt">halt_duration_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">900000000000</span><span class="w">   </span><span class="c1"># 15 minutes</span>
-<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="w">    </span><span class="nt">L3</span><span class="p">:</span>
-<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="w">      </span><span class="nt">price_shift_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.20</span>
-<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="w">      </span><span class="nt">halt_duration_ns</span><span class="p">:</span><span class="w">                 </span><span class="c1"># null =&gt; rest of trading day</span>
-<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="w">  </span><span class="nt">reopening</span><span class="p">:</span><span class="w">                            </span><span class="c1"># Automated Corridor Expansion</span>
-<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="w">    </span><span class="nt">initial_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.10</span><span class="w">              </span><span class="c1"># +/-10% corridor to start</span>
-<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="w">    </span><span class="nt">random_end_max_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30000000000</span><span class="w">      </span><span class="c1"># up to 30s random tail per call</span>
-<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a><span class="w">    </span><span class="nt">random_seed</span><span class="p">:</span><span class="w">                        </span><span class="c1"># null =&gt; OS entropy</span>
-<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="w">    </span><span class="nt">expansions</span><span class="p">:</span><span class="w">                         </span><span class="c1"># last rung repeats indefinitely</span>
-<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">widen_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.10</span>
-<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a><span class="w">        </span><span class="nt">min_duration_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">120000000000</span><span class="w">   </span><span class="c1"># 2 minutes</span>
-<a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">widen_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.20</span>
-<a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a><span class="w">        </span><span class="nt">min_duration_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300000000000</span><span class="w">   </span><span class="c1"># 5 minutes</span>
-<a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a>
-<a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a><span class="nt">symbols</span><span class="p">:</span>
-<a id="__codelineno-8-25" name="__codelineno-8-25" href="#__codelineno-8-25"></a><span class="w">  </span><span class="nt">TSLA</span><span class="p">:</span>
-<a id="__codelineno-8-26" name="__codelineno-8-26" href="#__codelineno-8-26"></a><span class="w">    </span><span class="nt">tick_decimals</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
-<a id="__codelineno-8-27" name="__codelineno-8-27" href="#__codelineno-8-27"></a><span class="w">    </span><span class="nt">circuit_breaker</span><span class="p">:</span>
-<a id="__codelineno-8-28" name="__codelineno-8-28" href="#__codelineno-8-28"></a><span class="w">      </span><span class="nt">levels</span><span class="p">:</span>
-<a id="__codelineno-8-29" name="__codelineno-8-29" href="#__codelineno-8-29"></a><span class="w">        </span><span class="nt">L1</span><span class="p">:</span>
-<a id="__codelineno-8-30" name="__codelineno-8-30" href="#__codelineno-8-30"></a><span class="w">          </span><span class="nt">halt_duration_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">600000000000</span><span class="w">  </span><span class="c1"># symbol-specific override</span>
-<a id="__codelineno-8-31" name="__codelineno-8-31" href="#__codelineno-8-31"></a><span class="w">      </span><span class="nt">reopening</span><span class="p">:</span>
-<a id="__codelineno-8-32" name="__codelineno-8-32" href="#__codelineno-8-32"></a><span class="w">        </span><span class="nt">initial_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.05</span><span class="w">            </span><span class="c1"># tighter corridor for TSLA only</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nt">circuit_breaker_defaults</span><span class="p">:</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">reference_window_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300000000000</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span><span class="nt">levels</span><span class="p">:</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">    </span><span class="nt">L1</span><span class="p">:</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">      </span><span class="nt">price_shift_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.07</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">      </span><span class="nt">halt_duration_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300000000000</span><span class="w">   </span><span class="c1"># 5 minutes</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="w">    </span><span class="nt">L2</span><span class="p">:</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="w">      </span><span class="nt">price_shift_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.13</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="w">      </span><span class="nt">halt_duration_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">900000000000</span><span class="w">   </span><span class="c1"># 15 minutes</span>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="w">    </span><span class="nt">L3</span><span class="p">:</span>
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="w">      </span><span class="nt">price_shift_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.20</span>
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="w">      </span><span class="nt">halt_duration_ns</span><span class="p">:</span><span class="w">                 </span><span class="c1"># null =&gt; rest of trading day</span>
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="w">  </span><span class="nt">reopening</span><span class="p">:</span><span class="w">                            </span><span class="c1"># Automated Corridor Expansion</span>
+<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a><span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a><span class="w">    </span><span class="nt">initial_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.10</span><span class="w">              </span><span class="c1"># +/-10% corridor to start</span>
+<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a><span class="w">    </span><span class="nt">random_end_max_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30000000000</span><span class="w">      </span><span class="c1"># up to 30s random tail per call</span>
+<a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a><span class="w">    </span><span class="nt">random_seed</span><span class="p">:</span><span class="w">                        </span><span class="c1"># null =&gt; OS entropy</span>
+<a id="__codelineno-11-18" name="__codelineno-11-18" href="#__codelineno-11-18"></a><span class="w">    </span><span class="nt">expansions</span><span class="p">:</span><span class="w">                         </span><span class="c1"># last rung repeats indefinitely</span>
+<a id="__codelineno-11-19" name="__codelineno-11-19" href="#__codelineno-11-19"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">widen_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.10</span>
+<a id="__codelineno-11-20" name="__codelineno-11-20" href="#__codelineno-11-20"></a><span class="w">        </span><span class="nt">min_duration_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">120000000000</span><span class="w">   </span><span class="c1"># 2 minutes</span>
+<a id="__codelineno-11-21" name="__codelineno-11-21" href="#__codelineno-11-21"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">widen_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.20</span>
+<a id="__codelineno-11-22" name="__codelineno-11-22" href="#__codelineno-11-22"></a><span class="w">        </span><span class="nt">min_duration_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300000000000</span><span class="w">   </span><span class="c1"># 5 minutes</span>
+<a id="__codelineno-11-23" name="__codelineno-11-23" href="#__codelineno-11-23"></a>
+<a id="__codelineno-11-24" name="__codelineno-11-24" href="#__codelineno-11-24"></a><span class="nt">symbols</span><span class="p">:</span>
+<a id="__codelineno-11-25" name="__codelineno-11-25" href="#__codelineno-11-25"></a><span class="w">  </span><span class="nt">TSLA</span><span class="p">:</span>
+<a id="__codelineno-11-26" name="__codelineno-11-26" href="#__codelineno-11-26"></a><span class="w">    </span><span class="nt">tick_decimals</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-11-27" name="__codelineno-11-27" href="#__codelineno-11-27"></a><span class="w">    </span><span class="nt">circuit_breaker</span><span class="p">:</span>
+<a id="__codelineno-11-28" name="__codelineno-11-28" href="#__codelineno-11-28"></a><span class="w">      </span><span class="nt">levels</span><span class="p">:</span>
+<a id="__codelineno-11-29" name="__codelineno-11-29" href="#__codelineno-11-29"></a><span class="w">        </span><span class="nt">L1</span><span class="p">:</span>
+<a id="__codelineno-11-30" name="__codelineno-11-30" href="#__codelineno-11-30"></a><span class="w">          </span><span class="nt">halt_duration_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">600000000000</span><span class="w">  </span><span class="c1"># symbol-specific override</span>
+<a id="__codelineno-11-31" name="__codelineno-11-31" href="#__codelineno-11-31"></a><span class="w">      </span><span class="nt">reopening</span><span class="p">:</span>
+<a id="__codelineno-11-32" name="__codelineno-11-32" href="#__codelineno-11-32"></a><span class="w">        </span><span class="nt">initial_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.05</span><span class="w">            </span><span class="c1"># tighter corridor for TSLA only</span>
 </code></pre></div>
 <p>For each trade, the engine computes:</p>
 <div class="arithmatex">\[
@@ -5551,45 +5766,45 @@ circuit breakers contain fast market dislocations.</p>
 <h2 id="interaction-between-mechanisms">Interaction between mechanisms<a class="headerlink" href="#interaction-between-mechanisms" title="Permanent link">&para;</a></h2>
 <p>All three admission-path controls can be active simultaneously on the same
 symbol.  The engine applies them in this order for every incoming order:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>1. Is the symbol halted?           → reject MARKET/FOK/IOC; suppress matching for LIMIT
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>2. Is a collar configured?         → validate price against static and dynamic bands
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>3. (After match) Did a trade fire
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>   a circuit breaker?              → halt symbol, schedule resume
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>1. Is the symbol halted?           → reject MARKET/FOK/IOC; suppress matching for LIMIT
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>2. Is a collar configured?         → validate price against static and dynamic bands
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>3. (After match) Did a trade fire
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>   a circuit breaker?              → halt symbol, schedule resume
 </code></pre></div>
 <p>A circuit breaker halt feeds back into step 1: any subsequent orders on a
 circuit-breaker-halted symbol are subject to the same halt rules as an
 operator-initiated halt.</p>
 <h3 id="combined-example">Combined example<a class="headerlink" href="#combined-example" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>Opening reference price: 10000 ticks (100.00 in display)
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>  → also seeds the CB's rolling trade_history as a single baseline point
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>Static collar:   ±20%  → [8000, 12000] ticks
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>Dynamic collar:  ±2%   → depends on last trade
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>CB levels:       L1=7%, L2=13%, L3=20%
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
-<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>A limit sell order arrives at price 7500 ticks:
-<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>  → Static collar: 7500 &lt; 8000 → STATIC_COLLAR_BREACH → rejected
-<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>
-<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>A limit buy at 10100 ticks trades.
-<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>  → CB reference = history average BEFORE this trade = 10000 (seed only)
-<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a>  → deviation = |10100 - 10000| / 10000 = 1.0% &lt; L1 (7%) → no halt
-<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>  → history becomes [10000, 10100] (sum=20100, len=2)
-<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a>
-<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a>A limit buy at 10700 ticks trades.
-<a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a>  → CB reference = 20100 // 2 = 10050 (integer-tick average)
-<a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a>  → deviation = |10700 - 10050| / 10050 ≈ 6.5% &lt; L1 (7%) → no halt
-<a id="__codelineno-10-18" name="__codelineno-10-18" href="#__codelineno-10-18"></a>  → history becomes [10000, 10100, 10700] (sum=30800, len=3)
-<a id="__codelineno-10-19" name="__codelineno-10-19" href="#__codelineno-10-19"></a>
-<a id="__codelineno-10-20" name="__codelineno-10-20" href="#__codelineno-10-20"></a>A limit buy at 11000 ticks trades.
-<a id="__codelineno-10-21" name="__codelineno-10-21" href="#__codelineno-10-21"></a>  → CB reference = 30800 // 3 = 10266 (floor division)
-<a id="__codelineno-10-22" name="__codelineno-10-22" href="#__codelineno-10-22"></a>  → deviation = |11000 - 10266| / 10266 ≈ 7.1% ≥ L1 (7%)
-<a id="__codelineno-10-23" name="__codelineno-10-23" href="#__codelineno-10-23"></a>  → L1 circuit breaker fires, symbol halted for L1 duration (5 min default);
-<a id="__codelineno-10-24" name="__codelineno-10-24" href="#__codelineno-10-24"></a>    resume always runs a reopening uncross for the symbol
-<a id="__codelineno-10-25" name="__codelineno-10-25" href="#__codelineno-10-25"></a>
-<a id="__codelineno-10-26" name="__codelineno-10-26" href="#__codelineno-10-26"></a>Separately, suppose a later session's rolling reference has settled at 10100
-<a id="__codelineno-10-27" name="__codelineno-10-27" href="#__codelineno-10-27"></a>and a limit buy at 12200 ticks trades:
-<a id="__codelineno-10-28" name="__codelineno-10-28" href="#__codelineno-10-28"></a>  → deviation = |12200 - 10100| / 10100 ≈ 20.8% ≥ L3 (20%)
-<a id="__codelineno-10-29" name="__codelineno-10-29" href="#__codelineno-10-29"></a>  → L3 circuit breaker fires, symbol halted for rest of trading day
-<a id="__codelineno-10-30" name="__codelineno-10-30" href="#__codelineno-10-30"></a>  → next order at this symbol: if MARKET → rejected; if LIMIT → accepted, no match
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>Opening reference price: 10000 ticks (100.00 in display)
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>  → also seeds the CB's rolling trade_history as a single baseline point
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>Static collar:   ±20%  → [8000, 12000] ticks
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>Dynamic collar:  ±2%   → depends on last trade
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>CB levels:       L1=7%, L2=13%, L3=20%
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>A limit sell order arrives at price 7500 ticks:
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>  → Static collar: 7500 &lt; 8000 → STATIC_COLLAR_BREACH → rejected
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>A limit buy at 10100 ticks trades.
+<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a>  → CB reference = history average BEFORE this trade = 10000 (seed only)
+<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a>  → deviation = |10100 - 10000| / 10000 = 1.0% &lt; L1 (7%) → no halt
+<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a>  → history becomes [10000, 10100] (sum=20100, len=2)
+<a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a>
+<a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a>A limit buy at 10700 ticks trades.
+<a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a>  → CB reference = 20100 // 2 = 10050 (integer-tick average)
+<a id="__codelineno-13-17" name="__codelineno-13-17" href="#__codelineno-13-17"></a>  → deviation = |10700 - 10050| / 10050 ≈ 6.5% &lt; L1 (7%) → no halt
+<a id="__codelineno-13-18" name="__codelineno-13-18" href="#__codelineno-13-18"></a>  → history becomes [10000, 10100, 10700] (sum=30800, len=3)
+<a id="__codelineno-13-19" name="__codelineno-13-19" href="#__codelineno-13-19"></a>
+<a id="__codelineno-13-20" name="__codelineno-13-20" href="#__codelineno-13-20"></a>A limit buy at 11000 ticks trades.
+<a id="__codelineno-13-21" name="__codelineno-13-21" href="#__codelineno-13-21"></a>  → CB reference = 30800 // 3 = 10266 (floor division)
+<a id="__codelineno-13-22" name="__codelineno-13-22" href="#__codelineno-13-22"></a>  → deviation = |11000 - 10266| / 10266 ≈ 7.1% ≥ L1 (7%)
+<a id="__codelineno-13-23" name="__codelineno-13-23" href="#__codelineno-13-23"></a>  → L1 circuit breaker fires, symbol halted for L1 duration (5 min default);
+<a id="__codelineno-13-24" name="__codelineno-13-24" href="#__codelineno-13-24"></a>    resume always runs a reopening uncross for the symbol
+<a id="__codelineno-13-25" name="__codelineno-13-25" href="#__codelineno-13-25"></a>
+<a id="__codelineno-13-26" name="__codelineno-13-26" href="#__codelineno-13-26"></a>Separately, suppose a later session's rolling reference has settled at 10100
+<a id="__codelineno-13-27" name="__codelineno-13-27" href="#__codelineno-13-27"></a>and a limit buy at 12200 ticks trades:
+<a id="__codelineno-13-28" name="__codelineno-13-28" href="#__codelineno-13-28"></a>  → deviation = |12200 - 10100| / 10100 ≈ 20.8% ≥ L3 (20%)
+<a id="__codelineno-13-29" name="__codelineno-13-29" href="#__codelineno-13-29"></a>  → L3 circuit breaker fires, symbol halted for rest of trading day
+<a id="__codelineno-13-30" name="__codelineno-13-30" href="#__codelineno-13-30"></a>  → next order at this symbol: if MARKET → rejected; if LIMIT → accepted, no match
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Reference price is an integer-tick rolling average</p>
@@ -5600,55 +5815,55 @@ reference used for a given trade always excludes that trade itself; it is
 only added to the rolling history <em>after</em> the deviation check.</p>
 </div>
 <p>What the gateway operator sees when a collar rejects an order:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=75.00
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>[14:02:00.301] ORDER REJECTED  reason="STATIC_COLLAR_BREACH"
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=75.00
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>[14:02:00.301] ORDER REJECTED  reason="STATIC_COLLAR_BREACH"
 </code></pre></div>
 <h2 id="zeromq-messages">ZeroMQ messages<a class="headerlink" href="#zeromq-messages" title="Permanent link">&para;</a></h2>
 <p>Risk events are broadcast on the engine's PUB socket (port 5556).</p>
 <h3 id="circuit-breaker-halt">Circuit breaker halt<a class="headerlink" href="#circuit-breaker-halt" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>topic:   b"circuit_breaker.halt.MSFT"
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>payload: {
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>    "symbol":           "MSFT",
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>    "trigger_price":    108.00,   # display money, not ticks
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>    "reference_price":  101.00,
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>    "resume_at_ns":     &lt;timestamp&gt;,
-<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>    "halt_source":      "CB",
-<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>    "level":            "L1",
-<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>    "corridor_low":     90.00,    # all three omitted when there is
-<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>    "corridor_high":    110.00,   # no corridor — see above
-<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>    "expansion":        0
-<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>topic:   b"circuit_breaker.halt.MSFT"
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>payload: {
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>    "symbol":           "MSFT",
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>    "trigger_price":    108.00,   # display money, not ticks
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>    "reference_price":  101.00,
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>    "resume_at_ns":     &lt;timestamp&gt;,
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>    "halt_source":      "CB",
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>    "level":            "L1",
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a>    "corridor_low":     90.00,    # all three omitted when there is
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a>    "corridor_high":    110.00,   # no corridor — see above
+<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a>    "expansion":        0
+<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a>}
 </code></pre></div>
 <h3 id="circuit-breaker-extend-ace">Circuit breaker extend (ACE)<a class="headerlink" href="#circuit-breaker-extend-ace" title="Permanent link">&para;</a></h3>
 <p>Published when a call phase ends with the indicative price outside the
 corridor. The symbol stays halted and a fresh call phase begins.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>topic:   b"circuit_breaker.extend.MSFT"
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>payload: {
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>    "symbol":           "MSFT",
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>    "indicative_price": 122.00,   # what it would have reopened at
-<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>    "indicative_qty":   500,
-<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>    "imbalance_side":   "BUY",   # omitted entirely when balanced
-<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>    "corridor_low":     80.00,    # corridor AFTER widening
-<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>    "corridor_high":    120.00,
-<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>    "expansion":        1,        # rungs consumed so far
-<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>    "resume_at_ns":     ...       # end of the new call phase
-<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a>}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>topic:   b"circuit_breaker.extend.MSFT"
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>payload: {
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>    "symbol":           "MSFT",
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>    "indicative_price": 122.00,   # what it would have reopened at
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>    "indicative_qty":   500,
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>    "imbalance_side":   "BUY",   # omitted entirely when balanced
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>    "corridor_low":     80.00,    # corridor AFTER widening
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>    "corridor_high":    120.00,
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>    "expansion":        1,        # rungs consumed so far
+<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a>    "resume_at_ns":     ...       # end of the new call phase
+<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>}
 </code></pre></div>
 <h3 id="circuit-breaker-resume">Circuit breaker resume<a class="headerlink" href="#circuit-breaker-resume" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>topic:   b"circuit_breaker.resume.MSFT"
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>payload: {
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    "symbol":      "MSFT",
-<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>    "halt_source": "CB"
-<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>topic:   b"circuit_breaker.resume.MSFT"
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>payload: {
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>    "symbol":      "MSFT",
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>    "halt_source": "CB"
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>}
 </code></pre></div>
 <p>A resume forced by the end-of-day backstop carries three extra fields:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>payload: {
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>    "symbol":      "MSFT",
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>    "halt_source": "CB",
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>    "reason":      "CLOSING_BACKSTOP",
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>    "clamped":     true,          # printed at the corridor boundary
-<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>    "print_price": 110.00
-<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>payload: {
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>    "symbol":      "MSFT",
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>    "halt_source": "CB",
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>    "reason":      "CLOSING_BACKSTOP",
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>    "clamped":     true,          # printed at the corridor boundary
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>    "print_price": 110.00
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>}
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">This detail is also on the CALF market-data wire</p>
@@ -5671,12 +5886,12 @@ technology incident, regulatory instruction, or extreme market dislocation
 requires every symbol to be frozen simultaneously.</p>
 <h3 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h3>
 <p>Configure a dedicated gateway with <code>role: ADMIN</code> in <code>engine_config.yaml</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nt">gateways</span><span class="p">:</span>
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GW_ADMIN</span>
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"Operations</span><span class="nv"> </span><span class="s">desk"</span>
-<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ADMIN</span>
-<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="w">      </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_QUOTES_ONLY</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="nt">gateways</span><span class="p">:</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GW_ADMIN</span>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"Operations</span><span class="nv"> </span><span class="s">desk"</span>
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ADMIN</span>
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a><span class="w">      </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_QUOTES_ONLY</span>
 </code></pre></div>
 <p>The gateway connects to the engine via the standard PUSH socket (port 5555) and
 subscribes to the PUB socket (port 5556) to receive ack messages.</p>
@@ -5692,20 +5907,20 @@ in <a href="../260-api-gateway/">API Gateway</a>.</p>
 </div>
 <h3 id="triggering-an-exchange-wide-halt">Triggering an exchange-wide halt<a class="headerlink" href="#triggering-an-exchange-wide-halt" title="Permanent link">&para;</a></h3>
 <p>Send the following frame to the engine's PUSH socket (port <strong>5555</strong>):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>Frame 0 (topic):   b"risk.circuit_breaker_halt_all"
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>Frame 1 (payload): {"gateway_id": "GW_ADMIN"}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>Frame 0 (topic):   b"risk.circuit_breaker_halt_all"
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>Frame 1 (payload): {"gateway_id": "GW_ADMIN"}
 </code></pre></div>
 <p>Python snippet using <code>pyzmq</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">zmq</span><span class="o">,</span><span class="w"> </span><span class="nn">json</span>
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>
-<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="n">ctx</span> <span class="o">=</span> <span class="n">zmq</span><span class="o">.</span><span class="n">Context</span><span class="p">()</span>
-<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="n">push</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">socket</span><span class="p">(</span><span class="n">zmq</span><span class="o">.</span><span class="n">PUSH</span><span class="p">)</span>
-<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="n">push</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">"tcp://localhost:5555"</span><span class="p">)</span>
-<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>
-<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="n">push</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">([</span>
-<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>    <span class="sa">b</span><span class="s2">"risk.circuit_breaker_halt_all"</span><span class="p">,</span>
-<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a>    <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span><span class="s2">"gateway_id"</span><span class="p">:</span> <span class="s2">"GW_ADMIN"</span><span class="p">})</span><span class="o">.</span><span class="n">encode</span><span class="p">(),</span>
-<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a><span class="p">])</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">zmq</span><span class="o">,</span><span class="w"> </span><span class="nn">json</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="n">ctx</span> <span class="o">=</span> <span class="n">zmq</span><span class="o">.</span><span class="n">Context</span><span class="p">()</span>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="n">push</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">socket</span><span class="p">(</span><span class="n">zmq</span><span class="o">.</span><span class="n">PUSH</span><span class="p">)</span>
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="n">push</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">"tcp://localhost:5555"</span><span class="p">)</span>
+<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a>
+<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a><span class="n">push</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">([</span>
+<a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a>    <span class="sa">b</span><span class="s2">"risk.circuit_breaker_halt_all"</span><span class="p">,</span>
+<a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a>    <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span><span class="s2">"gateway_id"</span><span class="p">:</span> <span class="s2">"GW_ADMIN"</span><span class="p">})</span><span class="o">.</span><span class="n">encode</span><span class="p">(),</span>
+<a id="__codelineno-21-10" name="__codelineno-21-10" href="#__codelineno-21-10"></a><span class="p">])</span>
 </code></pre></div>
 <p>What the engine does:</p>
 <ol>
@@ -5721,46 +5936,46 @@ in <a href="../260-api-gateway/">API Gateway</a>.</p>
 </ol>
 <p>Expected inbound events (subscribe to <code>circuit_breaker.*</code> and
 <code>risk.circuit_breaker_halt_all_ack.*</code>):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>topic:   b"circuit_breaker.halt.AAPL"
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>payload: {
-<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>    "symbol":          "AAPL",
-<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>    "trigger_price":   null,
-<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>    "reference_price": null,
-<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>    "resume_at_ns":    null,
-<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>    "halt_source": "ADMIN",
-<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>    "level":           "ADMIN_ALL"
-<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>}
-<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a>
-<a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a>topic:   b"circuit_breaker.halt.MSFT"
-<a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a>payload: { ...same structure... }
-<a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a>
-<a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a>topic:   b"risk.circuit_breaker_halt_all_ack.GW_ADMIN"
-<a id="__codelineno-19-15" name="__codelineno-19-15" href="#__codelineno-19-15"></a>payload: {
-<a id="__codelineno-19-16" name="__codelineno-19-16" href="#__codelineno-19-16"></a>    "accepted":        true,
-<a id="__codelineno-19-17" name="__codelineno-19-17" href="#__codelineno-19-17"></a>    "reason":          "",
-<a id="__codelineno-19-18" name="__codelineno-19-18" href="#__codelineno-19-18"></a>    "halted_symbols":  4,
-<a id="__codelineno-19-19" name="__codelineno-19-19" href="#__codelineno-19-19"></a>    "cancelled_quotes": 12
-<a id="__codelineno-19-20" name="__codelineno-19-20" href="#__codelineno-19-20"></a>}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>topic:   b"circuit_breaker.halt.AAPL"
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>payload: {
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>    "symbol":          "AAPL",
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>    "trigger_price":   null,
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>    "reference_price": null,
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>    "resume_at_ns":    null,
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a>    "halt_source": "ADMIN",
+<a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a>    "level":           "ADMIN_ALL"
+<a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a>}
+<a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a>
+<a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a>topic:   b"circuit_breaker.halt.MSFT"
+<a id="__codelineno-22-12" name="__codelineno-22-12" href="#__codelineno-22-12"></a>payload: { ...same structure... }
+<a id="__codelineno-22-13" name="__codelineno-22-13" href="#__codelineno-22-13"></a>
+<a id="__codelineno-22-14" name="__codelineno-22-14" href="#__codelineno-22-14"></a>topic:   b"risk.circuit_breaker_halt_all_ack.GW_ADMIN"
+<a id="__codelineno-22-15" name="__codelineno-22-15" href="#__codelineno-22-15"></a>payload: {
+<a id="__codelineno-22-16" name="__codelineno-22-16" href="#__codelineno-22-16"></a>    "accepted":        true,
+<a id="__codelineno-22-17" name="__codelineno-22-17" href="#__codelineno-22-17"></a>    "reason":          "",
+<a id="__codelineno-22-18" name="__codelineno-22-18" href="#__codelineno-22-18"></a>    "halted_symbols":  4,
+<a id="__codelineno-22-19" name="__codelineno-22-19" href="#__codelineno-22-19"></a>    "cancelled_quotes": 12
+<a id="__codelineno-22-20" name="__codelineno-22-20" href="#__codelineno-22-20"></a>}
 </code></pre></div>
 <p>If the gateway is not connected or does not carry role <code>ADMIN</code>, the engine
 returns <code>accepted: false</code> and no symbols are halted:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>topic:   b"risk.circuit_breaker_halt_all_ack.GW_ADMIN"
-<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>payload: {
-<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>    "accepted": false,
-<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>    "reason":   "Global circuit-breaker halt is only allowed for ADMIN participants"
-<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a>}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>topic:   b"risk.circuit_breaker_halt_all_ack.GW_ADMIN"
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>payload: {
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>    "accepted": false,
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>    "reason":   "Global circuit-breaker halt is only allowed for ADMIN participants"
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>}
 </code></pre></div>
 <h3 id="resuming-all-trading">Resuming all trading<a class="headerlink" href="#resuming-all-trading" title="Permanent link">&para;</a></h3>
 <p>Once the situation is resolved, send <code>risk.circuit_breaker_resume_all</code> on the
 same PUSH socket:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>Frame 0 (topic):   b"risk.circuit_breaker_resume_all"
-<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>Frame 1 (payload): {"gateway_id": "GW_ADMIN"}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>Frame 0 (topic):   b"risk.circuit_breaker_resume_all"
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>Frame 1 (payload): {"gateway_id": "GW_ADMIN"}
 </code></pre></div>
 <p>Python snippet:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="n">push</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">([</span>
-<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>    <span class="sa">b</span><span class="s2">"risk.circuit_breaker_resume_all"</span><span class="p">,</span>
-<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>    <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span><span class="s2">"gateway_id"</span><span class="p">:</span> <span class="s2">"GW_ADMIN"</span><span class="p">})</span><span class="o">.</span><span class="n">encode</span><span class="p">(),</span>
-<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="p">])</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="n">push</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">([</span>
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>    <span class="sa">b</span><span class="s2">"risk.circuit_breaker_resume_all"</span><span class="p">,</span>
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>    <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span><span class="s2">"gateway_id"</span><span class="p">:</span> <span class="s2">"GW_ADMIN"</span><span class="p">})</span><span class="o">.</span><span class="n">encode</span><span class="p">(),</span>
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="p">])</span>
 </code></pre></div>
 <p>What the engine does:</p>
 <ol>
@@ -5772,18 +5987,18 @@ same PUSH socket:</p>
 <li>Sends the ack.</li>
 </ol>
 <p>Expected inbound events:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>topic:   b"circuit_breaker.resume.AAPL"
-<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>payload: { "symbol": "AAPL", "halt_source": "ADMIN" }
-<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>
-<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>topic:   b"circuit_breaker.resume.MSFT"
-<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>payload: { "symbol": "MSFT", "halt_source": "ADMIN" }
-<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a>
-<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a>topic:   b"risk.circuit_breaker_resume_all_ack.GW_ADMIN"
-<a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a>payload: {
-<a id="__codelineno-23-9" name="__codelineno-23-9" href="#__codelineno-23-9"></a>    "accepted":         true,
-<a id="__codelineno-23-10" name="__codelineno-23-10" href="#__codelineno-23-10"></a>    "reason":           "",
-<a id="__codelineno-23-11" name="__codelineno-23-11" href="#__codelineno-23-11"></a>    "resumed_symbols":  4
-<a id="__codelineno-23-12" name="__codelineno-23-12" href="#__codelineno-23-12"></a>}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>topic:   b"circuit_breaker.resume.AAPL"
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>payload: { "symbol": "AAPL", "halt_source": "ADMIN" }
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a>topic:   b"circuit_breaker.resume.MSFT"
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>payload: { "symbol": "MSFT", "halt_source": "ADMIN" }
+<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a>
+<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a>topic:   b"risk.circuit_breaker_resume_all_ack.GW_ADMIN"
+<a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a>payload: {
+<a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a>    "accepted":         true,
+<a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a>    "reason":           "",
+<a id="__codelineno-26-11" name="__codelineno-26-11" href="#__codelineno-26-11"></a>    "resumed_symbols":  4
+<a id="__codelineno-26-12" name="__codelineno-26-12" href="#__codelineno-26-12"></a>}
 </code></pre></div>
 <p>After the ack is received, normal order flow and quote submission resume for all
 previously halted symbols.  Market makers are expected to re-enter fresh quotes;
@@ -5855,8 +6070,8 @@ pair, an <code>ADMIN</code> gateway can halt or resume <strong>one symbol at a t
 endpoints (see <a href="../260-api-gateway/">API Gateway</a>) and is the mechanism behind
 the "Per-symbol operator halt" row in the
 <a href="#market-maker-interaction">Market-maker interaction</a> table below.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>Frame 0 (topic):   b"risk.symbol_halt"
-<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>Frame 1 (payload): {"gateway_id": "GW_ADMIN", "symbol": "AAPL"}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>Frame 0 (topic):   b"risk.symbol_halt"
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>Frame 1 (payload): {"gateway_id": "GW_ADMIN", "symbol": "AAPL"}
 </code></pre></div>
 <p>What the engine does:</p>
 <ol>
@@ -5890,8 +6105,8 @@ switch. It does not halt the symbol; trading continues immediately with an
 empty book (aside from any order that arrives afterward). It is <code>ADMIN</code>-only
 and is the command behind the <code>/api/v1/admin/kill-switch/symbol</code> REST endpoint
 (see <a href="../260-api-gateway/">API Gateway</a>).</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>Frame 0 (topic):   b"risk.cancel_symbol"
-<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>Frame 1 (payload): {"gateway_id": "GW_ADMIN", "symbol": "AAPL"}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>Frame 0 (topic):   b"risk.cancel_symbol"
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>Frame 1 (payload): {"gateway_id": "GW_ADMIN", "symbol": "AAPL"}
 </code></pre></div>
 <p>What the engine does:</p>
 <ol>
@@ -5919,11 +6134,11 @@ gateway needs to be flushed without stopping the whole market.</p>
 role.  Any authenticated, connected gateway can trigger a kill switch against
 its own orders.</p>
 <h3 id="sending-the-command">Sending the command<a class="headerlink" href="#sending-the-command" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>Frame 0 (topic):   b"risk.kill_switch"
-<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>Frame 1 (payload): {"gateway_id": "GW01"}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>Frame 0 (topic):   b"risk.kill_switch"
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>Frame 1 (payload): {"gateway_id": "GW01"}
 </code></pre></div>
 <p>An optional <code>"symbol"</code> field scopes the cancellation to a single instrument:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="p">{</span><span class="nt">"gateway_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"GW01"</span><span class="p">,</span><span class="w"> </span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AAPL"</span><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="p">{</span><span class="nt">"gateway_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"GW01"</span><span class="p">,</span><span class="w"> </span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AAPL"</span><span class="p">}</span>
 </code></pre></div>
 <p>When <code>"symbol"</code> is empty or absent, all symbols are included.</p>
 <h3 id="what-the-engine-does">What the engine does<a class="headerlink" href="#what-the-engine-does" title="Permanent link">&para;</a></h3>
@@ -5936,13 +6151,13 @@ its own orders.</p>
    items.</li>
 </ol>
 <h3 id="reply">Reply<a class="headerlink" href="#reply" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>topic:   b"risk.kill_switch_ack.GW01"
-<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>payload: {
-<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>    "accepted":          true,
-<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>    "reason":            "",
-<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>    "cancelled_orders":  &lt;count&gt;,
-<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>    "cancelled_quotes":  &lt;count&gt;
-<a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a>}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>topic:   b"risk.kill_switch_ack.GW01"
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>payload: {
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>    "accepted":          true,
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>    "reason":            "",
+<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>    "cancelled_orders":  &lt;count&gt;,
+<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a>    "cancelled_quotes":  &lt;count&gt;
+<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a>}
 </code></pre></div>
 <h3 id="differences-from-a-halt">Differences from a halt<a class="headerlink" href="#differences-from-a-halt" title="Permanent link">&para;</a></h3>
 <table>
@@ -5992,7 +6207,7 @@ to clear resting interest for a symbol across every gateway without a
 kill switch's single-gateway scope.</p>
 </div>
 <h2 id="self-match-prevention-smp">Self-Match Prevention (SMP)<a class="headerlink" href="#self-match-prevention-smp" title="Permanent link">&para;</a></h2>
-<h3 id="motivation_2">Motivation<a class="headerlink" href="#motivation_2" title="Permanent link">&para;</a></h3>
+<h3 id="motivation_3">Motivation<a class="headerlink" href="#motivation_3" title="Permanent link">&para;</a></h3>
 <p>A single trading firm often runs several independent strategies or bots
 against the same market, each connected through its own gateway session — or
 sometimes several sessions sharing one <code>gateway_id</code>. Without a safeguard,
@@ -6145,11 +6360,11 @@ was resting a moment earlier is now gone).</p>
    <strong>not</strong> specify <code>SMP=</code> at all. This is the operator expressing "for
    <em>this gateway</em>, when nobody says otherwise, do X."</li>
 </ol>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="nt">gateways</span><span class="p">:</span>
-<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
-<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
-<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"Prop</span><span class="nv"> </span><span class="s">desk</span><span class="nv"> </span><span class="s">algo</span><span class="nv"> </span><span class="s">1"</span>
-<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="w">      </span><span class="nt">smp_action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_RESTING</span><span class="w">   </span><span class="c1"># gateway-level default</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="nt">gateways</span><span class="p">:</span>
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"Prop</span><span class="nv"> </span><span class="s">desk</span><span class="nv"> </span><span class="s">algo</span><span class="nv"> </span><span class="s">1"</span>
+<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a><span class="w">      </span><span class="nt">smp_action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_RESTING</span><span class="w">   </span><span class="c1"># gateway-level default</span>
 </code></pre></div>
 <table>
 <thead>
@@ -6199,12 +6414,12 @@ the engine treats them as genuinely different values:</p>
   point an order or combo leg is accepted (<code>Engine._handle_new_order</code>,
   <code>Engine._accept_combo</code>), using this precedence:</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>1. Order/leg specified SMP= explicitly (including explicit SMP=NONE)
-<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>      → use that value, always. The gateway default is never consulted.
-<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>2. Order/leg omitted SMP= entirely
-<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>      → use gateways.alf[&lt;this gateway&gt;].smp_action
-<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>3. Gateway has no smp_action configured (or is unknown to the engine)
-<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a>      → use SmpAction.NONE
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>1. Order/leg specified SMP= explicitly (including explicit SMP=NONE)
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>      → use that value, always. The gateway default is never consulted.
+<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>2. Order/leg omitted SMP= entirely
+<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a>      → use gateways.alf[&lt;this gateway&gt;].smp_action
+<a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a>3. Gateway has no smp_action configured (or is unknown to the engine)
+<a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a>      → use SmpAction.NONE
 </code></pre></div>
 <p>By the time an order reaches the order book's matching logic, <code>smp_action</code>
 is always a concrete value — the book itself never sees the "unspecified"
@@ -6285,19 +6500,19 @@ protect a quoting gateway from this — see
 for the concrete example.</p>
 <h3 id="worked-examples">Worked examples<a class="headerlink" href="#worked-examples" title="Permanent link">&para;</a></h3>
 <p><strong>Example 1 — omitted <code>SMP=</code>, gateway has a configured default.</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="nt">gateways</span><span class="p">:</span>
-<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
-<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
-<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="w">      </span><span class="nt">smp_action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_RESTING</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="nt">gateways</span><span class="p">:</span>
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
+<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
+<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="w">      </span><span class="nt">smp_action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_RESTING</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
 </code></pre></div>
 <p>No <code>SMP=</code> on the wire → resolves to <code>CANCEL_RESTING</code> (the gateway default).
 If <code>TRADER01</code> already has a resting <code>SELL 100 @ 150.00</code>, that resting order
 is cancelled and the incoming buy continues matching against other
 participants (or rests itself, if none remain).</p>
 <p><strong>Example 2 — explicit <code>SMP=NONE</code> overrides a non-<code>NONE</code> gateway default.</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|SMP=NONE
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|SMP=NONE
 </code></pre></div>
 <p>Even though <code>TRADER01</code>'s gateway default is <code>CANCEL_RESTING</code>, the explicit
 <code>SMP=NONE</code> wins: the order is allowed to trade against <code>TRADER01</code>'s own
@@ -6305,11 +6520,11 @@ resting sell, producing a genuine self-trade. This is the "I meant it"
 escape hatch — useful for, e.g., internal cross facilitation the firm has
 separately reconciled for.</p>
 <p><strong>Example 3 — quote leg, no gateway default configured.</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="nt">gateways</span><span class="p">:</span>
-<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
-<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM_AAPL_02</span>
-<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
-<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a><span class="w">      </span><span class="c1"># no smp_action set</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a><span class="nt">gateways</span><span class="p">:</span>
+<a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
+<a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM_AAPL_02</span>
+<a id="__codelineno-37-4" name="__codelineno-37-4" href="#__codelineno-37-4"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
+<a id="__codelineno-37-5" name="__codelineno-37-5" href="#__codelineno-37-5"></a><span class="w">      </span><span class="c1"># no smp_action set</span>
 </code></pre></div>
 <p>A <code>QUOTE</code> from <code>MM_AAPL_02</code> has no <code>SMP=</code> field to omit or specify — it
 always falls back to the gateway default, which here is unset, so it
@@ -6318,9 +6533,9 @@ against the fresh replacement leg. This is the exact gap
 <code>gateways.alf[].smp_action</code> closes when configured — see Example 1's
 pattern applied to a market maker.</p>
 <p><strong>Example 4 — combo on the ALF text protocol: one <code>SMP=</code> value for every leg.</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=spread-1|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|
-<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a>  LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.00|
-<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a>  LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=400.00|SMP=CANCEL_BOTH
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=spread-1|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|
+<a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a>  LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.00|
+<a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a>  LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=400.00|SMP=CANCEL_BOTH
 </code></pre></div>
 <p>On the ALF text protocol there is a single combo-level <code>SMP=</code> field, not a
 per-leg <code>LEG&lt;i&gt;.SMP</code> — the parsed value (or, if <code>SMP=</code> is omitted entirely,
@@ -6330,15 +6545,15 @@ the <code>None</code> sentinel) is applied identically to every leg's <code>Comb
 <p>The REST <code>ComboRequest</code> schema and the <code>market_maker_combos[].legs[]</code> config
 seed path are less restrictive: each leg carries its own optional
 <code>smp_action</code>, resolved independently.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a><span class="p">{</span>
-<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a><span class="w">  </span><span class="nt">"combo_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spread-1"</span><span class="p">,</span>
-<a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a><span class="w">  </span><span class="nt">"combo_type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AON"</span><span class="p">,</span>
-<a id="__codelineno-36-4" name="__codelineno-36-4" href="#__codelineno-36-4"></a><span class="w">  </span><span class="nt">"tif"</span><span class="p">:</span><span class="w"> </span><span class="s2">"DAY"</span><span class="p">,</span>
-<a id="__codelineno-36-5" name="__codelineno-36-5" href="#__codelineno-36-5"></a><span class="w">  </span><span class="nt">"legs"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-36-6" name="__codelineno-36-6" href="#__codelineno-36-6"></a><span class="w">    </span><span class="p">{</span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AAPL"</span><span class="p">,</span><span class="w"> </span><span class="nt">"side"</span><span class="p">:</span><span class="w"> </span><span class="s2">"BUY"</span><span class="p">,</span><span class="w">  </span><span class="nt">"quantity"</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="nt">"price"</span><span class="p">:</span><span class="w"> </span><span class="mf">150.00</span><span class="p">,</span><span class="w"> </span><span class="nt">"smp_action"</span><span class="p">:</span><span class="w"> </span><span class="s2">"NONE"</span><span class="p">},</span>
-<a id="__codelineno-36-7" name="__codelineno-36-7" href="#__codelineno-36-7"></a><span class="w">    </span><span class="p">{</span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"MSFT"</span><span class="p">,</span><span class="w"> </span><span class="nt">"side"</span><span class="p">:</span><span class="w"> </span><span class="s2">"SELL"</span><span class="p">,</span><span class="w"> </span><span class="nt">"quantity"</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span><span class="w">  </span><span class="nt">"price"</span><span class="p">:</span><span class="w"> </span><span class="mf">400.00</span><span class="p">}</span>
-<a id="__codelineno-36-8" name="__codelineno-36-8" href="#__codelineno-36-8"></a><span class="w">  </span><span class="p">]</span>
-<a id="__codelineno-36-9" name="__codelineno-36-9" href="#__codelineno-36-9"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a><span class="p">{</span>
+<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a><span class="w">  </span><span class="nt">"combo_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spread-1"</span><span class="p">,</span>
+<a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a><span class="w">  </span><span class="nt">"combo_type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AON"</span><span class="p">,</span>
+<a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a><span class="w">  </span><span class="nt">"tif"</span><span class="p">:</span><span class="w"> </span><span class="s2">"DAY"</span><span class="p">,</span>
+<a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a><span class="w">  </span><span class="nt">"legs"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-39-6" name="__codelineno-39-6" href="#__codelineno-39-6"></a><span class="w">    </span><span class="p">{</span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AAPL"</span><span class="p">,</span><span class="w"> </span><span class="nt">"side"</span><span class="p">:</span><span class="w"> </span><span class="s2">"BUY"</span><span class="p">,</span><span class="w">  </span><span class="nt">"quantity"</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="nt">"price"</span><span class="p">:</span><span class="w"> </span><span class="mf">150.00</span><span class="p">,</span><span class="w"> </span><span class="nt">"smp_action"</span><span class="p">:</span><span class="w"> </span><span class="s2">"NONE"</span><span class="p">},</span>
+<a id="__codelineno-39-7" name="__codelineno-39-7" href="#__codelineno-39-7"></a><span class="w">    </span><span class="p">{</span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"MSFT"</span><span class="p">,</span><span class="w"> </span><span class="nt">"side"</span><span class="p">:</span><span class="w"> </span><span class="s2">"SELL"</span><span class="p">,</span><span class="w"> </span><span class="nt">"quantity"</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span><span class="w">  </span><span class="nt">"price"</span><span class="p">:</span><span class="w"> </span><span class="mf">400.00</span><span class="p">}</span>
+<a id="__codelineno-39-8" name="__codelineno-39-8" href="#__codelineno-39-8"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-39-9" name="__codelineno-39-9" href="#__codelineno-39-9"></a><span class="p">}</span>
 </code></pre></div>
 <p><code>AAPL</code>'s leg explicitly sets <code>smp_action: "NONE"</code> and keeps it, regardless
 of <code>TRADER01</code>'s gateway default. <code>MSFT</code>'s leg omits <code>smp_action</code> entirely

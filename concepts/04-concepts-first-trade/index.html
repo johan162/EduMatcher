@@ -719,10 +719,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#step-1-start-the-system" class="md-nav__link">
+  <a href="#step-1-start-the-engine" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Step 1 — Start the system
+        Step 1 — Start the engine
       
     </span>
   </a>
@@ -730,10 +730,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#step-2-check-what-symbols-are-available" class="md-nav__link">
+  <a href="#step-2-connect-two-trading-terminals" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Step 2 — Check what symbols are available
+        Step 2 — Connect two trading terminals
       
     </span>
   </a>
@@ -741,10 +741,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#step-3-submit-a-passive-limit-buy-make-liquidity" class="md-nav__link">
+  <a href="#step-3-check-what-symbols-are-available" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Step 3 — Submit a passive LIMIT BUY (make liquidity)
+        Step 3 — Check what symbols are available
       
     </span>
   </a>
@@ -752,10 +752,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#step-4-submit-a-matching-limit-sell-take-liquidity" class="md-nav__link">
+  <a href="#step-4-submit-a-passive-limit-buy-make-liquidity" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Step 4 — Submit a matching LIMIT SELL (take liquidity)
+        Step 4 — Submit a passive LIMIT BUY (make liquidity)
       
     </span>
   </a>
@@ -763,10 +763,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#step-5-read-the-fill-confirmation" class="md-nav__link">
+  <a href="#step-5-submit-a-matching-limit-sell-take-liquidity" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Step 5 — Read the fill confirmation
+        Step 5 — Submit a matching LIMIT SELL (take liquidity)
       
     </span>
   </a>
@@ -774,10 +774,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#step-6-check-pl-in-the-clearing-window" class="md-nav__link">
+  <a href="#step-6-read-the-fill-confirmation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Step 6 — Check P&amp;L in the clearing window
+        Step 6 — Read the fill confirmation
       
     </span>
   </a>
@@ -785,10 +785,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#step-7-submit-a-resting-sell-and-watch-unrealized-pl-move" class="md-nav__link">
+  <a href="#step-7-check-pl-in-the-clearing-window" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Step 7 — Submit a resting sell and watch unrealized P&amp;L move
+        Step 7 — Check P&amp;L in the clearing window
       
     </span>
   </a>
@@ -796,10 +796,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#step-8-submit-and-cancel-a-resting-order" class="md-nav__link">
+  <a href="#step-8-close-the-position-for-a-profit" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Step 8 — Submit and cancel a resting order
+        Step 8 — Close the position for a profit
       
     </span>
   </a>
@@ -807,10 +807,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#step-9-amend-an-existing-order" class="md-nav__link">
+  <a href="#step-9-submit-and-cancel-a-resting-order" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Step 9 — Amend an existing order
+        Step 9 — Submit and cancel a resting order
       
     </span>
   </a>
@@ -818,10 +818,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#step-10-try-a-market-order" class="md-nav__link">
+  <a href="#step-10-amend-an-existing-order" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Step 10 — Try a MARKET order
+        Step 10 — Amend an existing order
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-11-try-a-market-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 11 — Try a MARKET order
       
     </span>
   </a>
@@ -4075,59 +4086,111 @@
 <p class="admonition-title">Learning objectives</p>
 <p>After completing this walkthrough you will have:</p>
 <ul>
-<li>Started EduMatcher and verified all processes are connected</li>
+<li>Started EduMatcher and connected two trading terminals</li>
 <li>Submitted a limit order and watched it rest on the book</li>
 <li>Executed a trade between two gateways</li>
-<li>Read your fill confirmation and P&amp;L update</li>
-<li>Cancelled a resting order</li>
+<li>Read your fill confirmation, including who was maker and who was taker</li>
+<li>Checked P&amp;L in the clearing window</li>
+<li>Cancelled and amended a resting order</li>
+<li>Submitted a MARKET order</li>
 </ul>
 </div>
-<p>This is a step-by-step guided walkthrough. You need about 10 minutes and five
+<p>This is a step-by-step guided walkthrough. You need about 10 minutes and three
 terminal windows. No prior trading knowledge is assumed — every term is
 explained as it appears.</p>
+<div class="admonition tip">
+<p class="admonition-title">New to exchanges generally?</p>
+<p>If terms like "order book", "bid/ask" or "matching" are unfamiliar, read
+<a href="../01-concepts-order-book/">The Order Book</a> first — it explains the
+structure this walkthrough exercises. This chapter assumes that concept
+but not any EduMatcher-specific knowledge.</p>
+</div>
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
-<p>Install EduMatcher if you haven't yet, see <a href="https://johan162.github.io/EduMatcher/user-guide/00-getting-started/#installation">User Guide: Installation</a></p>
-<p>We will assume you have installed it, either as as VM or using <code>pipx</code> so that all entrypoints are directly available on the command line as <code>pm-*</code> </p>
-<p>Verify this, for example with</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-enginer<span class="w"> </span>--version
+<p>Install EduMatcher if you haven't yet — see
+<a href="../../user-guide/005-installation/">Installation</a>. This walkthrough uses the
+<code>pipx</code> / Poetry path, where each process runs in its own terminal:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pipx<span class="w"> </span>install<span class="w"> </span>edumatcher
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>mkdir<span class="w"> </span>edumatcher-session<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>edumatcher-session
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>pm-setup
 </code></pre></div>
-<p>If this is not working re-read the installation guide and read the troubleshooting section.</p>
-<h2 id="step-1-start-the-system">Step 1 — Start the system<a class="headerlink" href="#step-1-start-the-system" title="Permanent link">&para;</a></h2>
-<p>Open five terminal windows. Run one command per window, <strong>in this order</strong>
-(the engine must start before the gateways):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Window 1 — Matching engine</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pm-engine<span class="w"> </span>--verbose
+<p><code>pm-setup</code> creates a data directory and deploys a default sample
+configuration with three symbols (<code>AAPL</code>, <code>MSFT</code>, <code>TSLA</code>) and four gateways,
+including <code>TRADER01</code> and <code>TRADER02</code> — the two we'll use below. Session
+scheduling is disabled in the sample, so matching is available immediately;
+you don't need to worry about auctions or session phases for this
+walkthrough (see <a href="../05-concepts-trading-day/">A Full Trading Day</a> for that,
+later).</p>
+<p>Verify the install worked:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-engine<span class="w"> </span>--version
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Window 2 — Order book viewer (watch AAPL)</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>AAPL
+<p>If this doesn't work, re-read the installation guide and its troubleshooting
+section.</p>
+<div class="admonition tip">
+<p class="admonition-title">Using the container install instead?</p>
+<p>The exchange is already running — skip Step 1 below and open a shell
+inside the container for each terminal instead:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">cd</span><span class="w"> </span>~/.edumatcher
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>./edumatcher.sh<span class="w"> </span>shell
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Window 3 — Clearing / P&amp;L tracker</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pm-clearing
+<p>The container's default configuration has the same symbols and gateway
+IDs used here, so every command below works unchanged. You can also
+watch the trade land in the browser terminal at
+<a href="http://localhost:8090">http://localhost:8090</a>.</p>
+</div>
+<h2 id="step-1-start-the-engine">Step 1 — Start the engine<a class="headerlink" href="#step-1-start-the-engine" title="Permanent link">&para;</a></h2>
+<p>Open a terminal and start the matching engine. Leave it running for the rest
+of this walkthrough.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Terminal 1 — Matching engine</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pm-engine<span class="w"> </span>--verbose
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Window 4 — First trader</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>GW01
+<p>Wait until it prints that it has bound its sockets and loaded the deployed
+configuration.</p>
+<h2 id="step-2-connect-two-trading-terminals">Step 2 — Connect two trading terminals<a class="headerlink" href="#step-2-connect-two-trading-terminals" title="Permanent link">&para;</a></h2>
+<p>Open two more terminals and connect a console to the engine from each, using
+the two gateway IDs from the sample configuration:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Terminal 2 — First trader</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Window 5 — Second trader</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>GW02
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Terminal 3 — Second trader</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER02
 </code></pre></div>
-<p>When the gateways start, you should see:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[GW01] Connected and authenticated.
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>[GW01] Session: CONTINUOUS
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>GW01&gt;
+<p>Each terminal prints a short banner once connected:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>Gateway TRADER01 connected.  Type HELP for commands.  Tab=complete  ↑↓=history  Ctrl-A/E=line start/end
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>[TRADER01]&gt;
 </code></pre></div>
-<p>The <code>GW01&gt;</code> prompt means you are ready to enter orders.</p>
-<h2 id="step-2-check-what-symbols-are-available">Step 2 — Check what symbols are available<a class="headerlink" href="#step-2-check-what-symbols-are-available" title="Permanent link">&para;</a></h2>
-<p>At the <code>GW01&gt;</code> prompt, type:</p>
+<p>The <code>[TRADER01]&gt;</code> prompt means you're ready to enter commands. Every event
+the engine sends back — fills, acknowledgements, rejections — appears
+inline in this same window, prefixed with a <code>[HH:MM:SS.mmm]</code> timestamp, so
+keep an eye on it after every command.</p>
+<h2 id="step-3-check-what-symbols-are-available">Step 3 — Check what symbols are available<a class="headerlink" href="#step-3-check-what-symbols-are-available" title="Permanent link">&para;</a></h2>
+<p>At the <code>[TRADER01]&gt;</code> prompt, type:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>SYMBOLS
 </code></pre></div>
-<p>You should see the list of configured symbols (e.g. <code>AAPL</code>, <code>MSFT</code>). All
-examples in this walkthrough use <code>AAPL</code>.</p>
-<h2 id="step-3-submit-a-passive-limit-buy-make-liquidity">Step 3 — Submit a passive LIMIT BUY (make liquidity)<a class="headerlink" href="#step-3-submit-a-passive-limit-buy-make-liquidity" title="Permanent link">&para;</a></h2>
+<p>You should see a table of active instruments:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>┌─────────────────────────────────────────────────────────┐
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>│                    Active Instruments                   │
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>├────┬────────┬──────┬────────────┬────────────┬─────────┤
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>│  # │ Symbol │ Tick │ MM Enforced │ Max Spread │ Min Qty │
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>├────┼────────┼──────┼────────────┼────────────┼─────────┤
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>│  1 │ AAPL   │ 0.01 │ YES         │         10 │     100 │
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>│  2 │ MSFT   │ 0.01 │ NO          │         10 │     100 │
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>└────┴────────┴──────┴────────────┴────────────┴─────────┘
+</code></pre></div>
+<p>All examples in this walkthrough use <code>AAPL</code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code>SYMBOLS</code> only lists symbols that already have an active order book — one
+is created the first time an order (or a seeded market-maker quote)
+arrives for it. It's normal to see fewer symbols here than are defined in
+<code>engine_config.yaml</code> if nothing has traded them yet.</p>
+</div>
+<h2 id="step-4-submit-a-passive-limit-buy-make-liquidity">Step 4 — Submit a passive LIMIT BUY (make liquidity)<a class="headerlink" href="#step-4-submit-a-passive-limit-buy-make-liquidity" title="Permanent link">&para;</a></h2>
 <p>A <strong>LIMIT BUY</strong> order says: <em>"I want to buy X shares, but only at this price
-or lower."</em> If no one is selling at that price right now, the order will
-<strong>rest on the book</strong> — it waits until someone is willing to sell at your price.</p>
-<p>At the <code>GW01&gt;</code> prompt:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
+or lower."</em> If no one is selling at that price right now, the order <strong>rests
+on the book</strong> — it waits until someone is willing to sell at your price.</p>
+<p>At the <code>[TRADER01]&gt;</code> prompt:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
 </code></pre></div>
 <p><strong>What each field means:</strong></p>
 <table>
@@ -4164,130 +4227,202 @@ or lower."</em> If no one is selling at that price right now, the order will
 <td><code>150.00</code></td>
 <td>Maximum price you'll pay</td>
 </tr>
+<tr>
+<td><code>TIF</code></td>
+<td><code>DAY</code></td>
+<td>Time-in-force: expires at the end of the trading day if never filled</td>
+</tr>
 </tbody>
 </table>
-<p>You should see the acknowledgement:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[GW01] order.ack: order_id=abc123 accepted=true
+<p>You should see the acknowledgement appear in the same window:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[09:31:02.104] ACK       a1b2c3d4  order accepted
 </code></pre></div>
-<p>Now look at the <strong>book viewer</strong> (Window 2). You should see:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>AAPL  CONTINUOUS
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>BID                ASK
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>─────────────────────
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>100 @ 150.00
+<p>The 8-character ID (<code>a1b2c3d4</code> here — yours will differ) is a short
+reference used only for display in this console. Hold onto the idea that a
+<em>full</em> order ID exists too — you'll need it for <code>AMEND</code> and <code>CANCEL</code> in
+Steps 9 and 10.</p>
+<p>Your order is now resting on the book, waiting for a seller at $150.00 or
+better.</p>
+<h2 id="step-5-submit-a-matching-limit-sell-take-liquidity">Step 5 — Submit a matching LIMIT SELL (take liquidity)<a class="headerlink" href="#step-5-submit-a-matching-limit-sell-take-liquidity" title="Permanent link">&para;</a></h2>
+<p>Switch to the <code>[TRADER02]&gt;</code> terminal and submit a sell order at the same
+price:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
 </code></pre></div>
-<p>Your buy order is sitting on the bid side, waiting for a seller.</p>
-<h2 id="step-4-submit-a-matching-limit-sell-take-liquidity">Step 4 — Submit a matching LIMIT SELL (take liquidity)<a class="headerlink" href="#step-4-submit-a-matching-limit-sell-take-liquidity" title="Permanent link">&para;</a></h2>
-<p>Now switch to the <code>GW02&gt;</code> prompt in Window 5 and submit a sell order at the
-same price:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00
+<p>Because TRADER01 has a resting bid at $150.00 and TRADER02 is now willing to
+sell at $150.00, the prices <strong>cross</strong> — a trade happens immediately instead
+of resting.</p>
+<h2 id="step-6-read-the-fill-confirmation">Step 6 — Read the fill confirmation<a class="headerlink" href="#step-6-read-the-fill-confirmation" title="Permanent link">&para;</a></h2>
+<p>Both terminals receive a <code>FILL</code> line the moment the trade executes.</p>
+<p>In the <code>TRADER01</code> window:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[09:31:07.552] FILL      a1b2c3d4  qty=100 @150.00  remaining=0  [FILLED]
 </code></pre></div>
-<p>Because GW01 has a resting bid at $150.00 and GW02 is now willing to sell at
-$150.00, the prices <strong>cross</strong> — a trade happens immediately.</p>
-<h2 id="step-5-read-the-fill-confirmation">Step 5 — Read the fill confirmation<a class="headerlink" href="#step-5-read-the-fill-confirmation" title="Permanent link">&para;</a></h2>
-<p>Both gateways receive fill events. In Window 4 (GW01):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[GW01] order.fill: order_id=abc123 qty=100 price=150.00 status=FILLED
+<p>In the <code>TRADER02</code> window:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>[09:31:07.552] FILL      e5f6a7b8  qty=100 @150.00  remaining=0  [FILLED]
 </code></pre></div>
-<p>In Window 5 (GW02):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>[GW02] order.fill: order_id=xyz456 qty=100 price=150.00 status=FILLED
+<p><code>remaining=0</code> and <code>[FILLED]</code> mean the whole order is done; a partial fill
+would instead show <code>remaining=&lt;n&gt;</code> and <code>[PARTIAL]</code>, leaving the rest of the
+order still resting on the book.</p>
+<p>This is also the moment to connect the fill back to the maker/taker idea
+from <a href="../01-concepts-order-book/#passive-vs-aggressive-orders">The Order Book</a>:
+TRADER01's LIMIT BUY was already resting on the book when the trade
+happened, so TRADER01 was the <strong>maker</strong>; TRADER02's LIMIT SELL crossed the
+spread to match it, so TRADER02 was the <strong>taker</strong>.</p>
+<p>You don't have to work that out from who submitted first, though. Every fill
+also carries the derived <code>liquidity_flag</code> directly — you just have to ask
+for it. The plain <code>FILL</code> line above doesn't print it (it's a terse,
+high-frequency console line by design), but two other views show it
+explicitly:</p>
+<ul>
+<li><strong>Drop-copy</strong>, if you start the console with <code>--drop-copy</code> (or send
+  <code>DC|STATE=ON</code> once connected), prints one extra line per fill:</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>[09:31:07.552] DC_FILL   a1b2c3d4  AAPL  qty=100 @150.00  [MAKER]  #4821  (drop_copy.event.TRADER01)
 </code></pre></div>
-<p>In Window 2 (book viewer), the order book is now empty at that level — both
-orders were consumed by the trade.</p>
-<p>In Window 1 (engine <code>--verbose</code>), you'll see the trade logged:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>TRADE AAPL buyer=GW01 seller=GW02 qty=100 price=150.00
+<p>TRADER02's window would show the mirror image, tagged <code>[TAKER]</code>.</p>
+<ul>
+<li>The <strong>REST/WebSocket API</strong> puts it on every <code>order.fill</code> event as
+  <code>data.liquidity_flag</code>, no extra opt-in required — see
+  <a href="../../user-guide/260-api-gateway/">order.fill in the API Gateway guide</a>.</li>
+</ul>
+<p>If you'd rather see this live without switching consoles, reconnect with
+<code>pm-alf-console --id TRADER01 --drop-copy</code> and repeat Steps 4–6 — the
+<code>DC_FILL  ...  [MAKER]</code> / <code>[TAKER]</code> lines will appear right alongside the
+ordinary <code>FILL</code> lines.</p>
+<div class="admonition note">
+<p class="admonition-title">Watching the book empty out</p>
+<p>If you have a fourth terminal free, run <code>pm-viewer --symbol AAPL</code> before
+Step 4 and watch it live: the bid at $150.00 appears after Step 4 and
+disappears the instant the trade in Step 6 consumes it. <code>pm-viewer</code> is
+covered in <a href="../../user-guide/170-processes/">Processes</a>.</p>
+</div>
+<h2 id="step-7-check-pl-in-the-clearing-window">Step 7 — Check P&amp;L in the clearing window<a class="headerlink" href="#step-7-check-pl-in-the-clearing-window" title="Permanent link">&para;</a></h2>
+<p>Open a fourth terminal and start the clearing process:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1"># Terminal 4 — Clearing / P&amp;L tracker</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>pm-clearing
 </code></pre></div>
-<h2 id="step-6-check-pl-in-the-clearing-window">Step 6 — Check P&amp;L in the clearing window<a class="headerlink" href="#step-6-check-pl-in-the-clearing-window" title="Permanent link">&para;</a></h2>
-<p>In Window 3 (clearing), you'll see a P&amp;L update for both traders:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>[CLEARING] GW01 AAPL: position=+100 avg_cost=150.00 realized=0.00 unrealized=0.00
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>[CLEARING] GW02 AAPL: position=-100 avg_cost=150.00 realized=0.00 unrealized=0.00
+<p>After a moment it prints a P&amp;L Summary table covering every position it has
+seen fills for:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>                              P&amp;L Summary
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>┌──────────┬────────┬─────────┬──────────┬────────┬──────────┬────────────┬───────────┐
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>│ Gateway  │ Symbol │ Net Qty │ Avg Cost │  Mark  │ Realized │ Unrealized │ Total P&amp;L │
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>├──────────┼────────┼─────────┼──────────┼────────┼──────────┼────────────┼───────────┤
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>│ TRADER01 │ AAPL   │    +100 │   150.00 │ 150.00 │    +0.00 │      +0.00 │     +0.00 │
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>│ TRADER02 │ AAPL   │    -100 │   150.00 │ 150.00 │    +0.00 │      +0.00 │     +0.00 │
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>└──────────┴────────┴─────────┴──────────┴────────┴──────────┴────────────┴───────────┘
 </code></pre></div>
+<p><code>pm-clearing</code> re-prints this table after every trade batch, so from now on
+just watch this window after each fill.</p>
 <p><strong>Reading the P&amp;L:</strong></p>
 <ul>
-<li><strong>GW01</strong> bought 100 shares at $150.00. They now have a <strong>long position</strong> of
-  +100 shares. Their unrealized P&amp;L is $0 because the market price is still
-  $150.00 (no profit or loss yet).</li>
-<li><strong>GW02</strong> sold 100 shares they presumably don't own — they are now <strong>short</strong>
-  100 shares. Their P&amp;L is also $0 at the moment of the trade.</li>
+<li><strong>TRADER01</strong> bought 100 shares at $150.00 and now has a <strong>long position</strong>
+  (<code>Net Qty +100</code>). Unrealized P&amp;L is $0 because the mark price is still
+  $150.00 — no gain or loss yet.</li>
+<li><strong>TRADER02</strong> sold 100 shares it doesn't hold, so it is now <strong>short</strong> 100
+  shares (<code>Net Qty -100</code>). Its P&amp;L is also $0 at this instant, for the same
+  reason.</li>
 </ul>
-<h2 id="step-7-submit-a-resting-sell-and-watch-unrealized-pl-move">Step 7 — Submit a resting sell and watch unrealized P&amp;L move<a class="headerlink" href="#step-7-submit-a-resting-sell-and-watch-unrealized-pl-move" title="Permanent link">&para;</a></h2>
-<p>From <code>GW01&gt;</code>, post another order to close the long position at a profit:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=152.00|TIF=GTC
+<p>For the full mechanics behind avg cost, realized and unrealized P&amp;L —
+including what happens when a position adds, reduces, or flips sides — see
+<a href="../../user-guide/130-pnl-clearing/">P&amp;L &amp; Clearing</a>.</p>
+<h2 id="step-8-close-the-position-for-a-profit">Step 8 — Close the position for a profit<a class="headerlink" href="#step-8-close-the-position-for-a-profit" title="Permanent link">&para;</a></h2>
+<p>From <code>[TRADER01]&gt;</code>, post another order to close the long position at a
+higher price:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=152.00|TIF=GTC
 </code></pre></div>
-<p>The <code>TIF=GTC</code> (Good-Till-Cancelled) means this order will survive if the
-trading session ends. It rests on the ask side of the book waiting for a buyer
-at $152.00.</p>
-<p>From <code>GW02&gt;</code>, imagine GW02 wants to buy back their short position. If GW02
-submits a buy at $152.00:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=152.00
+<p><code>TIF=GTC</code> (Good-Till-Cancelled) means this order isn't tied to today's
+trading day: it's persisted and reloaded automatically at the start of the
+next session if it doesn't fill today. It rests on the ask side of the book,
+waiting for a buyer at $152.00.</p>
+<p>From <code>[TRADER02]&gt;</code>, buy back the short position at that price:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=152.00|TIF=DAY
 </code></pre></div>
-<p>Another trade executes. Now in the clearing window:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>[CLEARING] GW01 AAPL: position=0 avg_cost=0.00 realized=+200.00 unrealized=0.00
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>[CLEARING] GW02 AAPL: position=0 avg_cost=0.00 realized=-200.00 unrealized=0.00
+<p>Another trade executes immediately. The clearing window updates:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>                              P&amp;L Summary
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>┌──────────┬────────┬─────────┬──────────┬────────┬──────────┬────────────┬───────────┐
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>│ Gateway  │ Symbol │ Net Qty │ Avg Cost │  Mark  │ Realized │ Unrealized │ Total P&amp;L │
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>├──────────┼────────┼─────────┼──────────┼────────┼──────────┼────────────┼───────────┤
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>│ TRADER01 │ AAPL   │      +0 │        — │ 152.00 │  +200.00 │      +0.00 │   +200.00 │
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>│ TRADER02 │ AAPL   │      +0 │        — │ 152.00 │  -200.00 │      +0.00 │   -200.00 │
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>└──────────┴────────┴─────────┴──────────┴────────┴──────────┴────────────┴───────────┘
 </code></pre></div>
-<p>GW01 bought at $150, sold at <span class="arithmatex">\(152 — **\)</span>2 × 100 shares = $200 realized profit<strong>.
-GW02 sold at $150, bought back at <span class="arithmatex">\(152 — **\)</span>200 realized loss</strong>. Both are now
-flat (position = 0).</p>
-<h2 id="step-8-submit-and-cancel-a-resting-order">Step 8 — Submit and cancel a resting order<a class="headerlink" href="#step-8-submit-and-cancel-a-resting-order" title="Permanent link">&para;</a></h2>
+<p>TRADER01 bought at $150 and sold at <span class="arithmatex">\(152 — **\)</span>2 × 100 shares = $200 realized
+profit<strong>. TRADER02 sold at $150 and bought back at <span class="arithmatex">\(152 — **\)</span>200 realized
+loss</strong>. Both are now flat (<code>Net Qty 0</code>, <code>Avg Cost —</code>).</p>
+<h2 id="step-9-submit-and-cancel-a-resting-order">Step 9 — Submit and cancel a resting order<a class="headerlink" href="#step-9-submit-and-cancel-a-resting-order" title="Permanent link">&para;</a></h2>
 <p>Submit a new bid that won't fill immediately:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a># From GW01&gt;
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=148.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a># From [TRADER01]&gt;
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=148.00
 </code></pre></div>
-<p>You'll get an order ID in the acknowledgement (e.g. <code>order_id=def789</code>). To
-cancel it:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>CANCEL|ID=def789
+<p>You'll get an ACK with a short display ID, e.g.:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>[09:34:15.881] ACK       f9e8d7c6  order accepted
+</code></pre></div>
+<p>To cancel or amend it you need the <em>full</em> order ID, not the short one shown
+above. Ask the engine for it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>ORDERS
+</code></pre></div>
+<p>This prints your resting orders with their full UUIDs. Copy the one matching
+this order, then cancel it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>CANCEL|ID=&lt;full-order-uuid&gt;
 </code></pre></div>
 <p>The engine confirms:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>[GW01] order.cancelled: order_id=def789
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>[09:34:22.017] CANCELLED f9e8d7c6
 </code></pre></div>
-<p>The order disappears from the book viewer.</p>
-<h2 id="step-9-amend-an-existing-order">Step 9 — Amend an existing order<a class="headerlink" href="#step-9-amend-an-existing-order" title="Permanent link">&para;</a></h2>
-<p>Sometimes you want to change your mind without withdrawing completely — maybe
-you'd take a slightly higher price, or you only want to buy 30 shares instead
-of 50. The <code>AMEND</code> command updates a <strong>resting</strong> LIMIT order in-place, without
-cancelling it and losing your queue position.</p>
-<p>From <code>GW01&gt;</code>, post a new resting bid:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=148.00
+<div class="admonition warning">
+<p class="admonition-title">Short ID vs. full order ID</p>
+<p>The 8-character ID on <code>ACK</code>/<code>FILL</code> lines is display-only. <code>AMEND</code> and
+<code>CANCEL</code> both require the full UUID from <code>ORDERS</code> — this is the single
+most common mistake when scripting or typing commands by hand. See
+<a href="../../user-guide/055-alf-console/#common-mistakes-and-fast-triage">Common mistakes and fast triage</a>
+for more.</p>
+</div>
+<h2 id="step-10-amend-an-existing-order">Step 10 — Amend an existing order<a class="headerlink" href="#step-10-amend-an-existing-order" title="Permanent link">&para;</a></h2>
+<p>Sometimes you want to change your mind without withdrawing completely —
+maybe you'd take a slightly higher price, or want fewer shares. <code>AMEND</code>
+updates a <strong>resting</strong> LIMIT order in place, without losing your spot in the
+queue any more than necessary.</p>
+<p>From <code>[TRADER01]&gt;</code>, post a new resting bid and note its full ID via
+<code>ORDERS</code> as in Step 9:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=148.00
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>ORDERS
 </code></pre></div>
-<p>Note the order ID from the acknowledgement (e.g. <code>order_id=def789</code>). Now
-change the price to $149.00 and reduce the quantity to 30 shares:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>AMEND|ID=def789|PRICE=149.00|QTY=30
+<p>Now change the price to $149.00 and reduce the quantity to 30 shares:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>AMEND|ID=&lt;full-order-uuid&gt;|PRICE=149.00|QTY=30
 </code></pre></div>
 <p>The engine confirms the change:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>[GW01] order.amended: order_id=def789 price=149.00 qty=30
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>[09:35:40.229] AMENDED   f9e8d7c6  price=149.0 qty=30 remaining=30
 </code></pre></div>
-<p>In the book viewer the old level at $148.00 disappears and a new line appears
-at $149.00 for 30 shares — the order was updated atomically. You can amend
-the price, the quantity, or both in a single command. You cannot amend a
-fully filled or cancelled order.</p>
+<p>You can amend the price, the quantity, or both in a single command. You
+cannot amend a fully filled or cancelled order.</p>
 <div class="admonition warning">
 <p class="admonition-title">Queue priority</p>
 <p>Amending an order can cost you your <strong>time priority</strong> in the queue,
-mirroring the behaviour of real exchanges:</p>
+mirroring real exchanges:</p>
 <ul>
 <li><strong>Price change</strong> — always loses priority. The order moves to the back
-  of the new price level's queue, because you are effectively competing
-  for a different set of contra orders.</li>
-<li><strong>Quantity increase</strong> — loses priority. A larger order consumes more
-  liquidity, so the engine treats it as a new aggressor and re-timestamps
-  it.</li>
+  of the new price level's queue.</li>
+<li><strong>Quantity increase</strong> — loses priority, for the same reason.</li>
 <li><strong>Quantity decrease</strong> — priority is <strong>preserved</strong>. Reducing your size
-  is a concession to the market; exchanges reward this by keeping your
-  place in the queue.</li>
+  is a concession to the market, so exchanges reward it.</li>
 </ul>
 <p>In the example above, both the price change ($148 → $149) <em>and</em> the
 quantity reduction (50 → 30) happen in one command. The price change
 dominates — the order goes to the back of the $149.00 queue.</p>
 </div>
-<h2 id="step-10-try-a-market-order">Step 10 — Try a MARKET order<a class="headerlink" href="#step-10-try-a-market-order" title="Permanent link">&para;</a></h2>
-<p>A MARKET order doesn't specify a price — it just says "buy/sell at whatever
-is available right now." First, make sure there's something to trade against.</p>
-<p>From <code>GW02&gt;</code>, post a resting sell:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=151.00
+<h2 id="step-11-try-a-market-order">Step 11 — Try a MARKET order<a class="headerlink" href="#step-11-try-a-market-order" title="Permanent link">&para;</a></h2>
+<p>A MARKET order doesn't specify a price — it says "buy/sell at whatever is
+available right now." First, make sure there's something to trade against.</p>
+<p>From <code>[TRADER02]&gt;</code>, post a resting sell:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=151.00|TIF=DAY
 </code></pre></div>
-<p>Now from <code>GW01&gt;</code>, sweep it with a market buy:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
+<p>Now from <code>[TRADER01]&gt;</code>, sweep it with a market buy:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 </code></pre></div>
-<p>The market order fills immediately at $151.00 — it takes whatever price the
-resting sell requires. You didn't choose the price; you prioritised speed.</p>
+<p>The fill confirms immediately at $151.00 — the resting sell's price, not a
+price TRADER01 chose:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>[09:36:51.703] FILL      12ab34cd  qty=100 @151.00  remaining=0  [FILLED]
+</code></pre></div>
+<p>You didn't choose the price; you prioritized speed and certainty of
+execution over price control.</p>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>You have completed a full basic trading session:</p>
 <table>
@@ -4300,52 +4435,52 @@ resting sell requires. You didn't choose the price; you prioritised speed.</p>
 </thead>
 <tbody>
 <tr>
-<td>1</td>
-<td>Started all processes</td>
+<td>1–2</td>
+<td>Started the engine and connected two terminals</td>
 <td>System topology</td>
 </tr>
 <tr>
-<td>2</td>
+<td>3</td>
 <td>Queried symbols</td>
 <td>System state</td>
 </tr>
 <tr>
-<td>3</td>
+<td>4</td>
 <td>Posted a LIMIT BUY</td>
 <td>Passive / maker order, resting on book</td>
 </tr>
 <tr>
-<td>4</td>
+<td>5</td>
 <td>Posted a matching LIMIT SELL</td>
 <td>Aggressive / taker order, price crossing</td>
 </tr>
 <tr>
-<td>5</td>
-<td>Read fill confirmation</td>
-<td>Order lifecycle</td>
-</tr>
-<tr>
 <td>6</td>
-<td>Checked P&amp;L</td>
-<td>Long position, unrealized P&amp;L</td>
+<td>Read the fill confirmation</td>
+<td>Order lifecycle, <code>liquidity_flag</code> (drop-copy / API)</td>
 </tr>
 <tr>
 <td>7</td>
-<td>Closed position for profit</td>
-<td>Realized P&amp;L</td>
+<td>Checked P&amp;L</td>
+<td>Long/short positions, unrealized P&amp;L</td>
 </tr>
 <tr>
 <td>8</td>
-<td>Cancelled a resting order</td>
-<td>Order cancellation</td>
+<td>Closed positions for profit/loss</td>
+<td>Realized P&amp;L</td>
 </tr>
 <tr>
 <td>9</td>
+<td>Cancelled a resting order</td>
+<td>Order cancellation, short ID vs. full order ID</td>
+</tr>
+<tr>
+<td>10</td>
 <td>Amended a resting order</td>
 <td>In-place price/qty update, queue priority</td>
 </tr>
 <tr>
-<td>10</td>
+<td>11</td>
 <td>Submitted a MARKET order</td>
 <td>Immediacy vs. price certainty</td>
 </tr>
@@ -4353,9 +4488,10 @@ resting sell requires. You didn't choose the price; you prioritised speed.</p>
 </table>
 <h2 id="what-next">What next?<a class="headerlink" href="#what-next" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../../user-guide/060-order-types/">Order Types</a> — all ten order types with detailed mechanics</li>
+<li><a href="../../user-guide/060-order-types/">Order Types</a> — all order types with detailed mechanics</li>
 <li><a href="../05-concepts-trading-day/">A Full Trading Day</a> — auctions, session phases, and daily lifecycle</li>
 <li><a href="../../user-guide/130-pnl-clearing/">P&amp;L &amp; Clearing</a> — full explanation of VWAP cost basis and realized vs. unrealized</li>
+<li><a href="../../user-guide/055-alf-console/">ALF Console</a> — the full command reference for everything used in this walkthrough (quotes, OCO, combos, drop-copy, and more)</li>
 </ul>
 <p><a href="../../glossary/">Glossary →</a></p>
 

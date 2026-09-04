@@ -4827,6 +4827,12 @@ followed asynchronously by <code>FILL|...</code>, <code>CANCELLED|...</code>, or
 IDs that composed the fill. It normally contains one ID; a swept order can
 contain several in execution order. An empty value means no public trade ID was
 available for that fill.</p>
+<p><code>FILL</code> also includes <code>LIQUIDITY=&lt;MAKER|TAKER&gt;</code>: <code>MAKER</code> if this order was
+resting on the book and got matched into, <code>TAKER</code> if it crossed the spread
+and matched immediately. It is the same maker/taker attribution the drop-copy
+<code>DC_FILL</code> line has always carried, now on the ordinary session fill too — no
+need to enable <code>DC</code> or cross-reference the drop-copy feed just to know which
+side of a trade you were on.</p>
 <p>On rejected order ACKs, <code>REJECT_CODE</code> is the stable machine-readable rejection
 classification. <code>REASON</code> remains the human-readable explanation.
 Gateway-local validation errors use <code>ERR|CODE=...|REJECT_CODE=...|DETAIL=...</code>
@@ -5076,7 +5082,7 @@ delivered automatically after <code>WELCOME</code>.</p>
 </tr>
 <tr>
 <td><code>FILL</code></td>
-<td><code>ORDER_ID</code>, <code>FILL_QTY</code>, <code>FILL_PRICE</code>, <code>REMAINING</code>, <code>STATUS</code>, <code>TRADE_IDS</code>, <code>TAG</code></td>
+<td><code>ORDER_ID</code>, <code>FILL_QTY</code>, <code>FILL_PRICE</code>, <code>REMAINING</code>, <code>STATUS</code>, <code>TRADE_IDS</code>, <code>LIQUIDITY</code>, <code>TAG</code></td>
 </tr>
 <tr>
 <td><code>AMENDED</code></td>

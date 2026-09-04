@@ -5164,12 +5164,14 @@ connect instead of sending <code>DC|STATE=ON</code> manually every session:</p>
 own fill notification and always arrives regardless of <code>DC</code> state.
 <code>DC_FILL</code> is a second, independent notification sourced from the
 engine's dedicated drop-copy feed (<code>:5557</code>) — the same feed a real
-exchange would deliver to a separate risk/back-office recipient. Seeing
-both for the same fill (with different envelopes: <code>DC_FILL</code> carries the
-drop-copy <code>seq</code>/<code>liquidity_flag</code>, not the order-lifecycle <code>remaining</code>/
-<code>status</code> fields <code>FILL</code> carries) is expected and mirrors how a real
-participant's own trading session and their firm's drop-copy recipient
-receive independent copies of the same execution.
+exchange would deliver to a separate risk/back-office recipient. Both
+carry <code>LIQUIDITY</code>/<code>liquidity_flag</code> (<code>MAKER</code>/<code>TAKER</code>) — they must always
+agree, since both derive it from the same trade. Seeing both for the
+same fill (with different envelopes: <code>DC_FILL</code> carries the drop-copy
+<code>seq</code>, not the order-lifecycle <code>remaining</code>/<code>status</code> fields <code>FILL</code>
+carries) is expected and mirrors how a real participant's own trading
+session and their firm's drop-copy recipient receive independent copies
+of the same execution.
 <code>pm-alf-gwy</code> supports the identical <code>DC|STATE=ON</code>/<code>DC|STATE=OFF</code>
 command for external TCP clients — see
 <a href="../220-alf-gateway/#dc-toggle-drop-copy-relay">ALF TCP Gateway → DC</a>.</p>

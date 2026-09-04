@@ -1099,10 +1099,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#layer-2-schema-s001s112" class="md-nav__link">
+  <a href="#layer-2-schema-s001s117" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Layer 2 — Schema (S001–S112)
+        Layer 2 — Schema (S001–S117)
       
     </span>
   </a>
@@ -4327,7 +4327,7 @@ reporting scripts.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="layer-2-schema-s001s112">Layer 2 — Schema (<code>S001</code>–<code>S112</code>)<a class="headerlink" href="#layer-2-schema-s001s112" title="Permanent link">&para;</a></h3>
+<h3 id="layer-2-schema-s001s117">Layer 2 — Schema (<code>S001</code>–<code>S117</code>)<a class="headerlink" href="#layer-2-schema-s001s117" title="Permanent link">&para;</a></h3>
 <p><strong>Top-level structure</strong></p>
 <table>
 <thead>
@@ -4415,7 +4415,9 @@ reporting scripts.</p>
 inline per-symbol overrides that the engine loader validates just as strictly
 as the top-level <code>risk_controls.levels.*.collar</code> and
 <code>circuit_breaker_defaults.levels</code> sections (<code>S030</code>–<code>S034</code>, <code>S041</code>–<code>S042</code>) —
-these codes cover the per-symbol equivalents.</p>
+these codes cover the per-symbol equivalents. <code>order_limits</code> has no level-scope
+equivalent at all: <code>S114</code>–<code>S116</code> are the only value checks, and <code>S117</code> refuses
+the key if it appears on a risk level.</p>
 <table>
 <thead>
 <tr>
@@ -4435,6 +4437,18 @@ these codes cover the per-symbol equivalents.</p>
 <tr>
 <td><code>S038</code></td>
 <td><code>symbols.&lt;SYMBOL&gt;.collar.dynamic_band_pct</code> not in <code>(0, 1)</code></td>
+</tr>
+<tr>
+<td><code>S114</code></td>
+<td><code>symbols.&lt;SYMBOL&gt;.order_limits</code> present but not a mapping</td>
+</tr>
+<tr>
+<td><code>S115</code></td>
+<td><code>symbols.&lt;SYMBOL&gt;.order_limits.max_order_qty</code> not a positive integer</td>
+</tr>
+<tr>
+<td><code>S116</code></td>
+<td><code>symbols.&lt;SYMBOL&gt;.order_limits.max_order_value</code> not a positive number</td>
 </tr>
 <tr>
 <td><code>S065</code></td>
@@ -4564,6 +4578,10 @@ these codes cover the per-symbol equivalents.</p>
 <tr>
 <td><code>S042</code></td>
 <td><code>collar.dynamic_band_pct</code> not in <code>(0, 1)</code></td>
+</tr>
+<tr>
+<td><code>S117</code></td>
+<td><code>risk_controls.levels.&lt;LEVEL&gt;.order_limits</code> is present — order limits are a per-symbol control and are not supported here</td>
 </tr>
 </tbody>
 </table>

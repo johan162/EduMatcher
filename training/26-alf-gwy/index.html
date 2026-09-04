@@ -4352,6 +4352,15 @@ type <code>quit</code> to close.</p>
 those durable public trade IDs with the order record: a swept order can contain
 several, in match order, and they join the private fill to the public trade
 tape, CALF, and drop copy without matching on price or time.</p>
+<p><code>FILL</code> also carries <code>LIQUIDITY=&lt;MAKER|TAKER&gt;</code> — whether this order supplied
+liquidity by resting on the book (<code>MAKER</code>) or removed it by crossing the
+spread (<code>TAKER</code>). If <code>MM01</code> filled your order immediately, expect <code>TAKER</code>;
+if you place a resting <code>LIMIT</code> and a later order crosses it, that later
+<code>FILL</code> (for the counterparty) says <code>TAKER</code> while yours says <code>MAKER</code>. It is
+the same attribution the drop-copy <code>DC_FILL</code> line has always reported (see
+<a href="#exercise-8-control-commands-and-the-kill-switch">Exercise 8 → DC</a> below,
+or <a href="../13-market-data-drop-copy/">Market Data &amp; Drop Copy</a>) — you no longer
+need drop copy just to find out which side of a trade you were on.</p>
 <p>Cancel the resting order using the UUID from the <code>ACK</code> and a request tag:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>CANCEL|ID=&lt;uuid&gt;|RTAG=NC-CXL-001
 </code></pre></div>

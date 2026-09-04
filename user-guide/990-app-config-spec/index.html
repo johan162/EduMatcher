@@ -2392,10 +2392,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#43-mmobligationspec-gatewaysalfmm_obligationss" class="md-nav__link">
+  <a href="#43-orderlimitsspec-symbolssorder_limits" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4.3 MMObligationSpec — gateways.alf[].mm_obligations.&lt;S&gt;
+        4.3 OrderLimitsSpec — symbols.&lt;S&gt;.order_limits
       
     </span>
   </a>
@@ -2403,10 +2403,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#44-comboseedspec-market_maker_combos" class="md-nav__link">
+  <a href="#44-mmobligationspec-gatewaysalfmm_obligationss" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4.4 ComboSeedSpec — market_maker_combos[]
+        4.4 MMObligationSpec — gateways.alf[].mm_obligations.&lt;S&gt;
       
     </span>
   </a>
@@ -2414,10 +2414,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#45-indexspec-indices" class="md-nav__link">
+  <a href="#45-comboseedspec-market_maker_combos" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4.5 IndexSpec — indices[]
+        4.5 ComboSeedSpec — market_maker_combos[]
       
     </span>
   </a>
@@ -2425,10 +2425,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#46-schedulespec-schedule" class="md-nav__link">
+  <a href="#46-indexspec-indices" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4.6 ScheduleSpec — schedule
+        4.6 IndexSpec — indices[]
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#47-schedulespec-schedule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.7 ScheduleSpec — schedule
       
     </span>
   </a>
@@ -4632,19 +4643,20 @@ This tree is normative for <em>shape</em>; §4–§6 are normative for <em>field
 <a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>  last_sell_price:          ? Price
 <a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a>  market_maker_quotes:      ? List&lt;MMQuoteSeedSpec&gt;
 <a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a>  collar:                   ? CollarSpec
-<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a>  circuit_breaker:          ? CircuitBreakerSpec         # per-symbol override
-<a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a>
-<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a>AlfGatewaySpec:                              # one entry of gateways.alf
-<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a>  id:                       ! GatewayId
-<a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a>  description:              ? Str = ""
-<a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a>  role:                    ? Enum&lt;Role&gt; = TRADER
-<a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a>  disconnect_behaviour:    ? Enum&lt;DisconnectBehaviour&gt; = CANCEL_QUOTES_ONLY
-<a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a>  quote_refresh_policy:    ? Enum&lt;QuoteRefreshPolicy&gt; = INACTIVATE_ON_ANY_FILL
-<a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a>  enforce_mm_obligation:   ? Bool  = &lt;mm_obligation_defaults.enforce_mm_obligation | false&gt;
-<a id="__codelineno-0-44" name="__codelineno-0-44" href="#__codelineno-0-44"></a>  mm_max_spread_ticks:     ? Ticks = &lt;mm_obligation_defaults.mm_max_spread_ticks | 10&gt;
-<a id="__codelineno-0-45" name="__codelineno-0-45" href="#__codelineno-0-45"></a>  mm_min_qty:              ? Qty   = &lt;mm_obligation_defaults.mm_min_qty | 100&gt;
-<a id="__codelineno-0-46" name="__codelineno-0-46" href="#__codelineno-0-46"></a>  mm_obligations:          ? Map&lt;Symbol, MMObligationSpec&gt;
-<a id="__codelineno-0-47" name="__codelineno-0-47" href="#__codelineno-0-47"></a>  smp_action:              ? Enum&lt;SmpAction&gt; = NONE
+<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a>  order_limits:             ? OrderLimitsSpec            # per-symbol override
+<a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a>  circuit_breaker:          ? CircuitBreakerSpec         # per-symbol override
+<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a>
+<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a>AlfGatewaySpec:                              # one entry of gateways.alf
+<a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a>  id:                       ! GatewayId
+<a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a>  description:              ? Str = ""
+<a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a>  role:                    ? Enum&lt;Role&gt; = TRADER
+<a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a>  disconnect_behaviour:    ? Enum&lt;DisconnectBehaviour&gt; = CANCEL_QUOTES_ONLY
+<a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a>  quote_refresh_policy:    ? Enum&lt;QuoteRefreshPolicy&gt; = INACTIVATE_ON_ANY_FILL
+<a id="__codelineno-0-44" name="__codelineno-0-44" href="#__codelineno-0-44"></a>  enforce_mm_obligation:   ? Bool  = &lt;mm_obligation_defaults.enforce_mm_obligation | false&gt;
+<a id="__codelineno-0-45" name="__codelineno-0-45" href="#__codelineno-0-45"></a>  mm_max_spread_ticks:     ? Ticks = &lt;mm_obligation_defaults.mm_max_spread_ticks | 10&gt;
+<a id="__codelineno-0-46" name="__codelineno-0-46" href="#__codelineno-0-46"></a>  mm_min_qty:              ? Qty   = &lt;mm_obligation_defaults.mm_min_qty | 100&gt;
+<a id="__codelineno-0-47" name="__codelineno-0-47" href="#__codelineno-0-47"></a>  mm_obligations:          ? Map&lt;Symbol, MMObligationSpec&gt;
+<a id="__codelineno-0-48" name="__codelineno-0-48" href="#__codelineno-0-48"></a>  smp_action:              ? Enum&lt;SmpAction&gt; = NONE
 </code></pre></div>
 <hr />
 <h2 id="4-domain-sub-structures">4. Domain sub-structures<a class="headerlink" href="#4-domain-sub-structures" title="Permanent link">&para;</a></h2>
@@ -4748,7 +4760,52 @@ This tree is normative for <em>shape</em>; §4–§6 are normative for <em>field
 </table>
 <p>A per-symbol <code>collar</code> is merged over the symbol's resolved <code>level</code> collar
 (symbol keys win). When neither is present, no collar applies to the symbol.</p>
-<h3 id="43-mmobligationspec-gatewaysalfmm_obligationss">4.3 <code>MMObligationSpec</code> — <code>gateways.alf[].mm_obligations.&lt;S&gt;</code><a class="headerlink" href="#43-mmobligationspec-gatewaysalfmm_obligationss" title="Permanent link">&para;</a></h3>
+<h3 id="43-orderlimitsspec-symbolssorder_limits">4.3 <code>OrderLimitsSpec</code> — <code>symbols.&lt;S&gt;.order_limits</code><a class="headerlink" href="#43-orderlimitsspec-symbolssorder_limits" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th style="text-align: center;">Req</th>
+<th>Default</th>
+<th>Constraints</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>max_order_qty</code></td>
+<td><code>Qty</code></td>
+<td style="text-align: center;">–</td>
+<td>—</td>
+<td><code>&gt; 0</code></td>
+</tr>
+<tr>
+<td><code>max_order_value</code></td>
+<td><code>Float</code></td>
+<td style="text-align: center;">–</td>
+<td>—</td>
+<td><code>&gt; 0</code>; display money</td>
+</tr>
+</tbody>
+</table>
+<p>Pre-trade caps on a <strong>single order</strong>, configured <strong>per symbol and nowhere
+else</strong>. Unlike <code>collar</code>, <code>order_limits</code> has no risk-level tier and no global
+default: an appropriate cap depends on the individual instrument's price and
+typical size, so there is nothing sensible for a shared profile to say.
+<code>risk_controls.levels.&lt;L&gt;.order_limits</code> is <strong>NOT supported</strong> and MUST be
+rejected (§5.5).</p>
+<p>Each cap is independently optional and has <strong>no default</strong>: a cap the symbol
+does not set is not enforced. There is deliberately no built-in fallback number
+— a limit that exists only in code and not in the configuration file is not
+auditable as a requirement.</p>
+<p>An order breaching <code>max_order_qty</code> is rejected with reject code
+<code>MAX_ORDER_QTY</code>; one breaching <code>max_order_value</code> (<code>quantity × price</code>, in
+display money) with <code>MAX_ORDER_VALUE</code>. <code>max_order_value</code> is <strong>not</strong> evaluated
+for an order that carries no price on the wire (MARKET, IOC) — the same orders
+the collar's price bands already skip. Both caps are re-checked on <code>order.amend</code>
+against the amended quantity and price, so the control cannot be bypassed by
+entering small and amending up.</p>
+<h3 id="44-mmobligationspec-gatewaysalfmm_obligationss">4.4 <code>MMObligationSpec</code> — <code>gateways.alf[].mm_obligations.&lt;S&gt;</code><a class="headerlink" href="#44-mmobligationspec-gatewaysalfmm_obligationss" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -4783,7 +4840,7 @@ This tree is normative for <em>shape</em>; §4–§6 are normative for <em>field
 </tr>
 </tbody>
 </table>
-<h3 id="44-comboseedspec-market_maker_combos">4.4 <code>ComboSeedSpec</code> — <code>market_maker_combos[]</code><a class="headerlink" href="#44-comboseedspec-market_maker_combos" title="Permanent link">&para;</a></h3>
+<h3 id="45-comboseedspec-market_maker_combos">4.5 <code>ComboSeedSpec</code> — <code>market_maker_combos[]</code><a class="headerlink" href="#45-comboseedspec-market_maker_combos" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -4888,7 +4945,7 @@ This tree is normative for <em>shape</em>; §4–§6 are normative for <em>field
 </tr>
 </tbody>
 </table>
-<h3 id="45-indexspec-indices">4.5 <code>IndexSpec</code> — <code>indices[]</code><a class="headerlink" href="#45-indexspec-indices" title="Permanent link">&para;</a></h3>
+<h3 id="46-indexspec-indices">4.6 <code>IndexSpec</code> — <code>indices[]</code><a class="headerlink" href="#46-indexspec-indices" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -4951,7 +5008,7 @@ This tree is normative for <em>shape</em>; §4–§6 are normative for <em>field
 </tr>
 </tbody>
 </table>
-<h3 id="46-schedulespec-schedule">4.6 <code>ScheduleSpec</code> — <code>schedule</code><a class="headerlink" href="#46-schedulespec-schedule" title="Permanent link">&para;</a></h3>
+<h3 id="47-schedulespec-schedule">4.7 <code>ScheduleSpec</code> — <code>schedule</code><a class="headerlink" href="#47-schedulespec-schedule" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -4999,7 +5056,8 @@ This tree is normative for <em>shape</em>; §4–§6 are normative for <em>field
 <h3 id="51-symbols-required">5.1 <code>symbols</code> (REQUIRED)<a class="headerlink" href="#51-symbols-required" title="Permanent link">&para;</a></h3>
 <p><code>Map&lt;Symbol, SymbolSpec&gt;</code>. The mapping key is the symbol id. A value of <code>null</code>/<code>{}</code>
 is a valid empty spec. Symbol fields: see the schema tree (§3, <code>SymbolSpec</code>);
-<code>market_maker_quotes</code> §4.1, <code>collar</code> §4.2, <code>circuit_breaker</code> §5.6.</p>
+<code>market_maker_quotes</code> §4.1, <code>collar</code> §4.2, <code>order_limits</code> §4.3,
+<code>circuit_breaker</code> §5.6.</p>
 <h3 id="52-gatewaysalf-required">5.2 <code>gateways.alf</code> (REQUIRED)<a class="headerlink" href="#52-gatewaysalf-required" title="Permanent link">&para;</a></h3>
 <p><code>List&lt;AlfGatewaySpec&gt;</code> with <strong>at least one</strong> entry (§3, <code>AlfGatewaySpec</code>). Gateway
 ids MUST be unique after upper-casing. This list is the participant allowlist and
@@ -5011,7 +5069,7 @@ gateway's orders <strong>when the order itself doesn't specify one</strong>:</p>
   see <a href="../100-mm-bot/">Market-Maker Bot</a> and the ALF <code>QUOTE</code> command) have no
   per-request SMP concept of their own, so they always use this default.</li>
 <li><code>NEW</code>/combo order entry carries its own optional per-order <code>SMP=</code> field
-  (§4.4, <code>ComboLegSpec.smp_action</code>; ALF protocol <code>NEW|SMP=</code>). An explicit
+  (§4.5, <code>ComboLegSpec.smp_action</code>; ALF protocol <code>NEW|SMP=</code>). An explicit
   <code>SMP=</code> from the client — including <code>SMP=NONE</code> — always takes precedence
   over this gateway default; only an <em>omitted</em> <code>SMP=</code> falls back to it.</li>
 </ul>
@@ -5141,7 +5199,9 @@ unrestricted with sessions disabled — see <a href="../080-session-scheduling/"
 </tbody>
 </table>
 <p><code>risk_controls.levels.&lt;L&gt;.circuit_breaker</code> is <strong>NOT supported</strong> and MUST be
-rejected; define circuit breakers under <code>circuit_breaker_defaults</code> (§5.6) instead.</p>
+rejected; define circuit breakers under <code>circuit_breaker_defaults</code> (§5.6) instead.
+<code>risk_controls.levels.&lt;L&gt;.order_limits</code> is likewise <strong>NOT supported</strong> and MUST
+be rejected; set <code>order_limits</code> on each symbol that needs a cap (§4.3).</p>
 <h3 id="56-circuit_breaker_defaults-and-symbolsscircuit_breaker-circuitbreakerspec">5.6 <code>circuit_breaker_defaults</code> and <code>symbols.&lt;S&gt;.circuit_breaker</code> — <code>CircuitBreakerSpec</code><a class="headerlink" href="#56-circuit_breaker_defaults-and-symbolsscircuit_breaker-circuitbreakerspec" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -5287,11 +5347,11 @@ rejected; define circuit breakers under <code>circuit_breaker_defaults</code> (�
 merge, the built-in ladder applies: <code>L1 = 0.07 / 5 min</code>, <code>L2 = 0.13 / 15 min</code>,
 <code>L3 = 0.20 / rest-of-day</code>, all <code>AUCTION</code>.</p>
 <h3 id="57-market_maker_combos-optional">5.7 <code>market_maker_combos</code> (OPTIONAL)<a class="headerlink" href="#57-market_maker_combos-optional" title="Permanent link">&para;</a></h3>
-<p><code>List&lt;ComboSeedSpec&gt;</code> — see §4.4.</p>
+<p><code>List&lt;ComboSeedSpec&gt;</code> — see §4.5.</p>
 <h3 id="58-indices-optional">5.8 <code>indices</code> (OPTIONAL)<a class="headerlink" href="#58-indices-optional" title="Permanent link">&para;</a></h3>
-<p><code>List&lt;IndexSpec&gt;</code>, <strong>at most 5</strong> entries — see §4.5.</p>
+<p><code>List&lt;IndexSpec&gt;</code>, <strong>at most 5</strong> entries — see §4.6.</p>
 <h3 id="59-schedule-optional">5.9 <code>schedule</code> (OPTIONAL)<a class="headerlink" href="#59-schedule-optional" title="Permanent link">&para;</a></h3>
-<p><code>ScheduleSpec</code> — see §4.6. Consumed by <code>pm-engine</code> (when <code>sessions_enabled</code>) and,
+<p><code>ScheduleSpec</code> — see §4.7. Consumed by <code>pm-engine</code> (when <code>sessions_enabled</code>) and,
 independently, by <code>pm-scheduler</code>.</p>
 <h3 id="510-country-optional">5.10 <code>country</code> (OPTIONAL)<a class="headerlink" href="#510-country-optional" title="Permanent link">&para;</a></h3>
 <table>

@@ -4493,6 +4493,9 @@ focused instrument:</p>
   topic means your client read too slowly and events were dropped</li>
 <li><code>session</code> and <code>circuit_breaker</code> arrive whether or not you subscribed — the
   ack lists them under <code>always</code></li>
+<li>an <code>order.fill</code> event's <code>data.liquidity_flag</code> tells you whether <em>your</em>
+  order supplied liquidity (<code>MAKER</code>, it was resting) or removed it
+  (<code>TAKER</code>, it crossed the spread) — no join against another feed required</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can explain when to use REST responses versus WebSocket events for order outcomes.</p>
 <h2 id="exercise-10-admin-rest-session-control-risk-and-cross-gateway-orders">Exercise 10: Admin REST — Session Control, Risk, and Cross-Gateway Orders<a class="headerlink" href="#exercise-10-admin-rest-session-control-risk-and-cross-gateway-orders" title="Permanent link">&para;</a></h2>

@@ -7579,6 +7579,13 @@ that changes only when an admin reloads it.</p>
 </tr>
 </tbody>
 </table>
+<p>Each symbol object carries <code>tick_decimals</code>, <code>level</code>, and — when configured —
+<code>collar</code>, <code>order_limits</code> (<code>max_order_qty</code> / <code>max_order_value</code>) and
+<code>circuit_breaker</code>. <code>collar</code> is the symbol's <strong>effective</strong> band, its risk
+level's defaults already merged under any per-symbol override; <code>order_limits</code>
+is configured per symbol only, so it is simply what that symbol declared.
+Either is omitted entirely when not configured. Full field law:
+<code>ReferenceSymbol</code> in the <a href="../270-message-reference/">message reference</a>.</p>
 <p><strong>Errors</strong></p>
 <table>
 <thead>
@@ -7636,6 +7643,10 @@ that changes only when an admin reloads it.</p>
 </tr>
 </tbody>
 </table>
+<p>Each entry of <code>levels</code> carries its <code>name</code> and, when the level configures one,
+<code>collar</code> — as configured, before any per-symbol override. Levels do not carry
+order limits; those are per symbol and appear on <code>/reference/symbols</code>. Full
+field law: <code>RiskLevel</code> in the <a href="../270-message-reference/">message reference</a>.</p>
 <p><strong>Errors</strong></p>
 <table>
 <thead>

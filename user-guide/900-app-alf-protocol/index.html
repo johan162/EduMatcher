@@ -5229,6 +5229,15 @@ and tests; log <code>REASON</code> for operators.</p>
 trade IDs that composed the private fill. A one-level fill has one ID; a
 coalesced sweep has one ID per execution in match order. The field is present
 as <code>TRADE_IDS=</code> when no ID is available.</p>
+<p><code>FILL</code> also carries <code>LIQUIDITY=&lt;MAKER|TAKER&gt;</code>: whether <em>this</em> order supplied
+liquidity (rested on the book and was matched into) or removed it (crossed
+the spread and matched immediately). It is derived from the trade's aggressor
+side, the same rule the drop-copy <code>DC_FILL</code> line's <code>LIQUIDITY</code> field already
+used — the two now always agree for the same fill. A resting order that gets
+matched reports <code>MAKER</code>; the order that crossed to match it reports <code>TAKER</code>.
+One coalesced <code>FILL</code> covering several trades still reports a single,
+consistent value, because one order cannot be its own counterparty's maker on
+one trade and taker on another.</p>
 <p>Gateway-local errors use the same canonical field:
 <code>ERR|CODE=&lt;legacy-code&gt;|REJECT_CODE=&lt;canonical-code&gt;|DETAIL=&lt;text&gt;</code>. <code>CODE</code>
 names the ALF gateway validation condition; <code>REJECT_CODE</code> is the

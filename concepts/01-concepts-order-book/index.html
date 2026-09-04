@@ -4266,6 +4266,11 @@ available liquidity).</p>
 <p>In real exchanges, makers often pay lower fees than takers as a reward for
 providing liquidity. EduMatcher does not model fees, but the distinction
 is important for understanding order strategy.</p>
+<p>You don't have to infer maker/taker from order history, either: every
+<code>order.fill</code> event carries a <code>liquidity_flag</code> (<code>MAKER</code> or <code>TAKER</code>) stating it
+directly, on ALF, REST/WebSocket, and the drop-copy feed alike — see
+<a href="../04-concepts-first-trade/#step-6-read-the-fill-confirmation">Your First Trade, Step 6</a>
+for it in action.</p>
 <h2 id="key-terms-summary">Key terms summary<a class="headerlink" href="#key-terms-summary" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

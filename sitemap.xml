@@ -2,526 +2,526 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://github.com/johan162/EduMatcher/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/CHANGELOG/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/faq/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/glossary/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/how-exchange-works/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/architecture/01-architecture/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/architecture/02-architecture-guide/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/concepts/01-concepts-order-book/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/concepts/02-concepts-order-book-deep-dive/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/concepts/03-concepts-mm-quotes/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/concepts/04-concepts-first-trade/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/concepts/05-concepts-trading-day/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/concepts/06-concepts-market-data-feed/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/concepts/07-concepts-implied-orders/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/developer/01-dev-practice/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/developer/02-ai-bot/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/developer/03-experiments/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/developer/04-verification/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/developer/05-vm-runtime-image/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/developer/06-msgen/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/developer/07-container-and-networks/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/developer/08-dev-workflow/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/alf/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/calf/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/ralf/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/ref_data/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/ref_data/one-book-basic-nomm-setup/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/ref_data/one-book-basic-setup/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/ref_data/one-book-complex-nomm-setup/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/ref_data/one-book-complex-setup/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/ref_data/one-book-nominal-nomm-setup/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/ref_data/one-book-nominal-setup/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/ref_data/ten-books-basic-nomm-setup/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/ref_data/ten-books-basic-setup/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/ref_data/ten-books-complex-nomm-setup/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/ref_data/ten-books-complex-setup/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/ref_data/ten-books-nominal-nomm-setup/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/ref_data/ten-books-nominal-setup/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/ref_data/thirty-books-basic-nomm-setup/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/ref_data/thirty-books-basic-setup/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/ref_data/thirty-books-complex-nomm-setup/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/ref_data/thirty-books-complex-setup/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/ref_data/thirty-books-nominal-nomm-setup/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/ref_data/thirty-books-nominal-setup/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/ref_data/three-books-basic-nomm-setup/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/ref_data/three-books-basic-setup/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/ref_data/three-books-complex-nomm-setup/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/ref_data/three-books-complex-setup/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/ref_data/three-books-nominal-nomm-setup/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/examples/ref_data/three-books-nominal-setup/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/hooks/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/00-installation/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/01-configuring-startup/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/02-setting-up-MM-bots/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/03-the-first-trade/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/04-amending-orders/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/05-order-types/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/06-time-in-force-sessions/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/07-auctions/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/08-cancelling-orders/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/09-market-making/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/10-combo-orders/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/11-risk-controls/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/12-pnl-clearing/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/13-market-data-drop-copy/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/14-ai-traders/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/15-statistics-reporting/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/16-persistence-recovery/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/17-capstone-scenario/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/18-exchange-observer-processes/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/19-advanced-admin-operations/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/20-drop-copy-replay-recovery/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/21-automation-commandclient-mm-bot/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/22-ralf/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/23-calf/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/24-api-gwy/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/25-index/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/26-alf-gwy/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/training/27-balf-gwy/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/000-getting-started/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/001-learning-path/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/005-installation/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/010-configuration/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/020-config-verifier/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/030-config-GUI/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/040-running-the-exchange/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/051-gateway-intro/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/055-alf-console/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/060-order-types/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/070-combo-orders/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/080-session-scheduling/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/090-market-maker/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/100-mm-bot/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/110-ai-traders/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/120-risk-controls/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/130-pnl-clearing/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/140-statistics-and-reporting/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/150-market-index/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/152-index-admin-cli/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/160-exchange-commands/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/170-processes/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/180-persistence/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/190-audit/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/200-drop-copy/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/201-dc-gateway/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/202-dc-spy-cli/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/210-protocols-overview/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/220-alf-gateway/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/230-balf-gateway/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/240-calf-gateway/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/241-calf-spy-cli/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/250-ralf-gateway/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/251-ralf-spy-cli/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/260-api-gateway/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/270-message-reference/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/270-preamble/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/280-log-srv/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/285-log-srv-gui/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/290-trader-info-terminal/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/300-trader-gui/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/800-examples/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/810-example-configs/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/890-known-limitations-bugs/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/900-app-alf-protocol/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/910-app-balf-protocol/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/920-app-calf-protocol/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/930-app-ralf-protocol/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/940-app-lalf-protocol/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/950-app-REST-API-reference/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/990-app-config-spec/</loc>
-         <lastmod>2026-09-03</lastmod>
+         <lastmod>2026-09-04</lastmod>
     </url>
 </urlset>

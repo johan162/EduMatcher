@@ -1955,6 +1955,67 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#verifying-the-deployed-artifact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verifying the Deployed Artifact
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Verifying the Deployed Artifact">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-content-digest-an-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The content digest (an error)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-source-staleness-check-a-warning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The source staleness check (a warning)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#checking-both-by-hand" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checking both by hand
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixing-a-digest-mismatch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixing a digest mismatch
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5309,6 +5370,18 @@ for each MM quote seed at generation time.</p>
 <td>Per-symbol <code>collar.dynamic_band_pct</code> override</td>
 </tr>
 <tr>
+<td><code>--symbol-max-order-qty SYM:N</code></td>
+<td>Repeatable</td>
+<td>none</td>
+<td>Per-symbol <code>order_limits.max_order_qty</code> (shares, <code>&gt; 0</code>)</td>
+</tr>
+<tr>
+<td><code>--symbol-max-order-value SYM:AMOUNT</code></td>
+<td>Repeatable</td>
+<td>none</td>
+<td>Per-symbol <code>order_limits.max_order_value</code> (notional, <code>&gt; 0</code>)</td>
+</tr>
+<tr>
 <td><code>--symbol-risk-level SYM:LEVEL</code></td>
 <td>Repeatable</td>
 <td>none</td>
@@ -6239,6 +6312,16 @@ It may contain spaces; the entire string after the third colon is used as-is.</p
 <td>Symbol collar dynamic band</td>
 </tr>
 <tr>
+<td><code>max_order_qty</code></td>
+<td>int <code>&gt; 0</code></td>
+<td>Symbol <code>order_limits.max_order_qty</code> cap</td>
+</tr>
+<tr>
+<td><code>max_order_value</code></td>
+<td>float <code>&gt; 0</code></td>
+<td>Symbol <code>order_limits.max_order_value</code> cap (display money)</td>
+</tr>
+<tr>
 <td><code>cb_shift_l1</code> / <code>cb_shift_l2</code> / <code>cb_shift_l3</code></td>
 <td>float <code>(0,1)</code></td>
 <td>Override CB level shift pct</td>
@@ -6285,13 +6368,21 @@ It may contain spaces; the entire string after the third colon is used as-is.</p
 </tr>
 </tbody>
 </table>
-<p>For the two most common collar overrides, you can also use explicit flags:</p>
+<p>Four of these have explicit flags as well, which avoids the <code>KEY=VALUE</code>
+syntax when you are only setting one thing — the two collar bands and the two
+order-limit caps:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span>--symbol-static-band<span class="w"> </span>AAPL:0.18<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">  </span>--symbol-dynamic-band<span class="w"> </span>AAPL:0.03
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">  </span>--symbol-dynamic-band<span class="w"> </span>AAPL:0.03<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">  </span>--symbol-max-order-qty<span class="w"> </span>AAPL:50000<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">  </span>--symbol-max-order-value<span class="w"> </span>AAPL:2500000
 </code></pre></div>
+<p>The caps are equivalent to
+<code>--symbol-opts "AAPL:max_order_qty=50000,max_order_value=2500000"</code>, and like
+every order limit they apply to that symbol alone — there is no risk-level or
+global form of them (see <a href="../120-risk-controls/">Risk Controls</a>).</p>
 <p>Per-symbol risk-level assignment can also use an explicit flag:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
@@ -7257,7 +7348,7 @@ hand out or print for a class.</p>
 <td><code>risk_controls</code></td>
 <td style="text-align: right;">No</td>
 <td>Engine</td>
-<td>Named collar profiles</td>
+<td>Named collar and order-limit profiles</td>
 </tr>
 <tr>
 <td><code>circuit_breaker_defaults</code></td>
@@ -7353,7 +7444,7 @@ of the file — the gateway-specific blocks (<code>market_data_gateway</code>,
 <td><code>pm-engine</code></td>
 <td><code>engine/config_loader.py</code></td>
 <td><code>symbols</code>, <code>gateways.alf</code>, <code>sessions_enabled</code>, <code>enforce_collars</code>, <code>enforce_circuit_breakers</code>, <code>engine_tuning</code>, <code>mm_obligation_defaults</code>, <code>risk_controls</code>, <code>circuit_breaker_defaults</code>, <code>market_maker_combos</code>, <code>schedule</code>, <code>indices</code></td>
-<td>Symbol universe, allowed order-entry gateways, session/collar/circuit-breaker policy, runtime tuning, MM obligations, startup combo seeds, session schedule, and index definitions</td>
+<td>Symbol universe, allowed order-entry gateways, session/collar/order-limit/circuit-breaker policy, runtime tuning, MM obligations, startup combo seeds, session schedule, and index definitions</td>
 </tr>
 <tr>
 <td><code>pm-alf-gwy</code></td>
@@ -10372,6 +10463,149 @@ parsed:</p>
 <li><code>risk_controls.levels.&lt;LEVEL&gt;.circuit_breaker</code> is explicitly rejected with
    an error; use top-level <code>circuit_breaker_defaults</code> instead.</li>
 </ol>
+<h2 id="verifying-the-deployed-artifact">Verifying the Deployed Artifact<a class="headerlink" href="#verifying-the-deployed-artifact" title="Permanent link">&para;</a></h2>
+<p>The compiled artifact carries two independent integrity checks. They answer
+different questions, they fail differently, and confusing them wastes an
+afternoon — so they are described separately here.</p>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Compares</th>
+<th>Severity</th>
+<th>Runs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Content digest</strong></td>
+<td>the artifact against <em>itself</em></td>
+<td><strong>error</strong> — the process refuses to start</td>
+<td>on every load, in every process</td>
+</tr>
+<tr>
+<td><strong>Source staleness</strong></td>
+<td>the artifact against the authored YAML</td>
+<td><strong>warning</strong> — the process starts anyway</td>
+<td>when a process reports its deployment</td>
+</tr>
+</tbody>
+</table>
+<h3 id="the-content-digest-an-error">The content digest (an error)<a class="headerlink" href="#the-content-digest-an-error" title="Permanent link">&para;</a></h3>
+<p>Every artifact stores <code>meta.content_sha256</code>: a SHA-256 over all of its own
+sections <em>except</em> <code>meta</code>. On <strong>every</strong> load, <code>load_compiled_config()</code>
+recomputes that digest and refuses the file if it no longer matches.</p>
+<p><strong>The YAML is not involved.</strong> Nothing is recompiled, and the authored file is
+not read. The check is a <em>round trip of the artifact through the running
+build's own type definitions</em>:</p>
+<ol>
+<li>parse <code>engine_config.json</code>;</li>
+<li>build the <code>CompiledConfig</code> dataclass tree from it;</li>
+<li>serialise that tree straight back to primitives;</li>
+<li>canonicalise (sorted keys, fixed indent) and SHA-256 the result;</li>
+<li>compare against the <code>meta.content_sha256</code> stored inside the same file.</li>
+</ol>
+<p>Step 2 is the one that surprises people. A key <strong>absent</strong> from the JSON is
+filled from the dataclass default, and step 3 writes out <strong>every</strong> declared
+field. So what gets hashed is not the file's bytes — it is what those bytes
+mean to <em>this</em> build. Adding a configuration field to the code is therefore
+enough to change the digest of an artifact nobody has touched: the key decodes
+to its default and is re-emitted as <code>"new_field": null</code>, which the recorded
+digest never covered.</p>
+<p>That is a completely different situation from a hand-edit, and it needs a
+different fix, so the loader distinguishes them <strong>exactly</strong> rather than by
+guesswork: before reporting anything it also hashes the payload <em>as it sits on
+disk</em>. If that still matches what was recorded, the file is provably intact and
+only the schema moved.</p>
+<p><strong>Cause 1 — the artifact predates a schema change.</strong> Nothing is wrong with the
+file; it was compiled by a build that declared a different set of configuration
+fields. Upgrading (or downgrading) EduMatcher across such a change invalidates
+every artifact compiled before it. This is the common cause and it is not a
+fault:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-81-1" name="__codelineno-81-1" href="#__codelineno-81-1"></a>ArtifactError: compiled config is intact but was compiled against a
+<a id="__codelineno-81-2" name="__codelineno-81-2" href="#__codelineno-81-2"></a>different configuration schema: it was written by version 0.29.2, and this
+<a id="__codelineno-81-3" name="__codelineno-81-3" href="#__codelineno-81-3"></a>build declares a different set of configuration fields. Nothing has been
+<a id="__codelineno-81-4" name="__codelineno-81-4" href="#__codelineno-81-4"></a>edited — run pm-config-deploy to recompile it
+</code></pre></div>
+<p><strong>Cause 2 — the deployed <code>.json</code> really was edited</strong> after deployment. The
+payload no longer hashes to what the file itself records:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-82-1" name="__codelineno-82-1" href="#__codelineno-82-1"></a>ArtifactError: compiled config has been modified since it was compiled
+<a id="__codelineno-82-2" name="__codelineno-82-2" href="#__codelineno-82-2"></a>(payload digest 8e77158733b5… does not match the recorded 4a63ba384b6f…)
+<a id="__codelineno-82-3" name="__codelineno-82-3" href="#__codelineno-82-3"></a>— edit the source and run pm-config-deploy rather than editing the deployed
+<a id="__codelineno-82-4" name="__codelineno-82-4" href="#__codelineno-82-4"></a>artifact
+</code></pre></div>
+<p>An edit is the more serious finding, so an edit <em>on top of</em> a schema change
+reports as an edit.</p>
+<p>The check is symmetric, and deliberately so: an artifact compiled by a <em>newer</em>
+build fails on an older one too, because the older build ignores the field it
+does not know about and re-emits a payload missing it. Neither direction can
+silently run a configuration it has misread.</p>
+<div class="admonition note">
+<p class="admonition-title">This detects modification, not malice</p>
+<p>The digest travels inside the file it protects, so anyone who edits the
+payload can recompute it. It proves the artifact is internally consistent,
+not that it came from a trusted party — that would need a signature over a
+key the artifact does not carry.</p>
+</div>
+<p>A coarser gate runs <em>before</em> the digest: <code>meta.schema_version</code> must equal the
+<code>SCHEMA_VERSION</code> the build reads, and a mismatch produces its own distinct
+error. That version is bumped only when an older reader would <strong>misinterpret</strong>
+a newer artifact; an additively-changed schema is left to the digest check,
+which already refuses it loudly and now names the reason.</p>
+<h3 id="the-source-staleness-check-a-warning">The source staleness check (a warning)<a class="headerlink" href="#the-source-staleness-check-a-warning" title="Permanent link">&para;</a></h3>
+<p>The artifact also records <code>meta.source_path</code> and <code>meta.source_sha256</code> — where
+the YAML was read from, and the SHA-256 of its text. This is the check that
+<em>does</em> look at your YAML, and it catches the one failure compiling introduces:
+editing the authored file and forgetting to deploy, so the exchange keeps
+running the previous configuration while the file on disk says otherwise.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-83-1" name="__codelineno-83-1" href="#__codelineno-83-1"></a>engine_config.yaml has changed since the running configuration was compiled
+<a id="__codelineno-83-2" name="__codelineno-83-2" href="#__codelineno-83-2"></a>at 2026-09-04T09:43:28.000Z — this exchange is still running the previous
+<a id="__codelineno-83-3" name="__codelineno-83-3" href="#__codelineno-83-3"></a>one. Run pm-config-deploy to pick up the edit.
+</code></pre></div>
+<p>It only warns. It also stays silent when the source is unreachable — a
+configuration compiled on another machine, or from a file since moved, is not
+evidence of staleness, and warning about it would train you to ignore the
+warning.</p>
+<h3 id="checking-both-by-hand">Checking both by hand<a class="headerlink" href="#checking-both-by-hand" title="Permanent link">&para;</a></h3>
+<p>Where the two files live:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-84-1" name="__codelineno-84-1" href="#__codelineno-84-1"></a>pm-config-deploy<span class="w"> </span>--show
+</code></pre></div>
+<p>To see the artifact's provenance and confirm both checks pass, from a source
+checkout:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-85-1" name="__codelineno-85-1" href="#__codelineno-85-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;'PY'</span>
+<a id="__codelineno-85-2" name="__codelineno-85-2" href="#__codelineno-85-2"></a><span class="s">from edumatcher.config_artifact import (</span>
+<a id="__codelineno-85-3" name="__codelineno-85-3" href="#__codelineno-85-3"></a><span class="s">    load_compiled_config, content_digest, staleness)</span>
+<a id="__codelineno-85-4" name="__codelineno-85-4" href="#__codelineno-85-4"></a>
+<a id="__codelineno-85-5" name="__codelineno-85-5" href="#__codelineno-85-5"></a><span class="s">cfg = load_compiled_config()</span>
+<a id="__codelineno-85-6" name="__codelineno-85-6" href="#__codelineno-85-6"></a><span class="s">print("compiled by :", cfg.meta.compiler_version, "at", cfg.meta.compiled_at)</span>
+<a id="__codelineno-85-7" name="__codelineno-85-7" href="#__codelineno-85-7"></a><span class="s">print("source      :", cfg.meta.source_path)</span>
+<a id="__codelineno-85-8" name="__codelineno-85-8" href="#__codelineno-85-8"></a><span class="s">print("recorded    :", cfg.meta.content_sha256[:16])</span>
+<a id="__codelineno-85-9" name="__codelineno-85-9" href="#__codelineno-85-9"></a><span class="s">print("recomputed  :", content_digest(cfg)[:16])</span>
+<a id="__codelineno-85-10" name="__codelineno-85-10" href="#__codelineno-85-10"></a><span class="s">print("stale?      :", staleness(cfg) or "no - source matches")</span>
+<a id="__codelineno-85-11" name="__codelineno-85-11" href="#__codelineno-85-11"></a><span class="s">PY</span>
+</code></pre></div>
+<p>Reaching the <code>recomputed</code> line at all means the digest check already passed —
+<code>load_compiled_config()</code> raises on a mismatch rather than returning a bad
+config, so the two digests can never print differently. The line is there to
+show you the value, not to perform the comparison.</p>
+<h3 id="fixing-a-digest-mismatch">Fixing a digest mismatch<a class="headerlink" href="#fixing-a-digest-mismatch" title="Permanent link">&para;</a></h3>
+<p>Both causes have the same fix — recompile the YAML that is already deployed
+beside the artifact:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-86-1" name="__codelineno-86-1" href="#__codelineno-86-1"></a>pm-config-deploy<span class="w"> </span>src/data/ref_data/engine_config.yaml
+</code></pre></div>
+<p>Two things to know before reaching for something else:</p>
+<ul>
+<li><strong><code>pm-config-deploy</code> has no <code>--force</code>.</strong> It takes a positional source path
+  and always overwrites. The <code>--force</code> you may be thinking of belongs to
+  <code>pm-setup</code>, where it means "recompile and overwrite an already-deployed
+  configuration" — a different command with a different source.</li>
+<li><strong>Do not "fix" it with <code>--example</code></strong> unless you really are on a stock
+  example. A deployed configuration generated from an example is identical to
+  it <em>except</em> for the randomly generated <code>api_key</code> values, and redeploying
+  from the example silently replaces every one of them.</li>
+</ul>
+<p>Redeploying is always safe here: the artifact is derived data, and the YAML
+beside it is by construction the exact bytes that were last compiled.</p>
 <hr />
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
