@@ -168,6 +168,12 @@ export interface SymbolConfig {
   lastBuyPrice?: number | null;
   lastSellPrice?: number | null;
   collar?: { staticBandPct?: number; dynamicBandPct?: number };
+  /**
+   * Pre-trade order-size and notional caps. Configured per symbol and nowhere
+   * else — there is no risk-level or global default — so an absent cap is one
+   * that is not enforced.
+   */
+  orderLimits?: { maxOrderQty?: number; maxOrderValue?: number };
   circuitBreaker?: {
     /** Per-symbol override of the rolling reference window (ns). */
     referenceWindowNs?: number;

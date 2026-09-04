@@ -550,3 +550,57 @@ describe("parseYamlToDraft round trip", () => {
     expect(regenerated).toContain("future_feature");
   });
 });
+
+describe("order limits", () => {
+  it("emits a symbol's caps", () => {
+    const draft = twoTraderExchange();
+    draft.symbols.AAPL!.orderLimits = {
+      maxOrderQty: 5_000,
+      maxOrderValue: 250_000,
+    };
+    const doc = buildConfigDocument(draft) as Record<string, any>;
+    expect(doc.symbols.AAPL.order_limits).toEqual({
+      max_order_qty: 5_000,
+      max_order_value: 250_000,
+    });
+  });
+
+  it("emits only the caps that are set", () => {
+    const draft = twoTraderExchange();
+    draft.symbols.AAPL!.orderLimits = { maxOrderQty: 5_000 };
+    const doc = buildConfigDocument(draft) as Record<string, any>;
+    expect(doc.symbols.AAPL.order_limits).toEqual({ max_order_qty: 5_000 });
+  });
+
+  it("omits order_limits entirely when no cap is set", () => {
+    const doc = buildConfigDocument(twoTraderExchange()) as Record<string, any>;
+    expect(doc.symbols.AAPL.order_limits).toBeUndefined();
+  });
+
+  it("never writes caps onto a risk level", () => {
+    const draft = twoTraderExchange();
+    draft.riskControls.globalStaticBandPct = 0.2;
+    draft.riskControls.levels = {
+      CORE: { staticBandPct: 0.18, dynamicBandPct: 0.02 },
+    };
+    draft.symbols.AAPL!.orderLimits = { maxOrderQty: 5_000 };
+
+    const doc = buildConfigDocument(draft) as Record<string, any>;
+    for (const level of Object.values(doc.risk_controls.levels)) {
+      expect(level).not.toHaveProperty("order_limits");
+    }
+  });
+
+  it("round-trips a symbol's caps through YAML", () => {
+    const draft = twoTraderExchange();
+    draft.symbols.AAPL!.orderLimits = {
+      maxOrderQty: 5_000,
+      maxOrderValue: 250_000,
+    };
+    const { draft: back } = parseYamlToDraft(generateYaml(draft));
+    expect(back.symbols.AAPL!.orderLimits).toEqual({
+      maxOrderQty: 5_000,
+      maxOrderValue: 250_000,
+    });
+  });
+});
