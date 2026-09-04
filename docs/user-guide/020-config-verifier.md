@@ -194,7 +194,7 @@ reporting scripts.
 | `Y003` | YAML parse error                    |
 | `Y004` | Top-level document is not a mapping |
 
-### Layer 2 — Schema (`S001`–`S112`)
+### Layer 2 — Schema (`S001`–`S117`)
 
 **Top-level structure**
 
@@ -227,13 +227,18 @@ reporting scripts.
 inline per-symbol overrides that the engine loader validates just as strictly
 as the top-level `risk_controls.levels.*.collar` and
 `circuit_breaker_defaults.levels` sections (`S030`–`S034`, `S041`–`S042`) —
-these codes cover the per-symbol equivalents.
+these codes cover the per-symbol equivalents. `order_limits` has no level-scope
+equivalent at all: `S114`–`S116` are the only value checks, and `S117` refuses
+the key if it appears on a risk level.
 
 | Code   | Condition                                                              |
 |--------|--------------------------------------------------------------------------|
 | `S036` | `symbols.<SYMBOL>.collar` present but not a mapping                    |
 | `S037` | `symbols.<SYMBOL>.collar.static_band_pct` not in `(0, 1)`               |
 | `S038` | `symbols.<SYMBOL>.collar.dynamic_band_pct` not in `(0, 1)`              |
+| `S114` | `symbols.<SYMBOL>.order_limits` present but not a mapping              |
+| `S115` | `symbols.<SYMBOL>.order_limits.max_order_qty` not a positive integer   |
+| `S116` | `symbols.<SYMBOL>.order_limits.max_order_value` not a positive number  |
 | `S065` | `symbols.<SYMBOL>.circuit_breaker` or `.levels` not a mapping           |
 | `S066` | `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>` missing `price_shift_pct` |
 | `S067` | `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>.price_shift_pct` out of range `(0, 1)` |
@@ -273,6 +278,7 @@ these codes cover the per-symbol equivalents.
 | `S040` | `risk_controls.default_level` references an undefined level |
 | `S041` | `collar.static_band_pct` not in `(0, 1)`                    |
 | `S042` | `collar.dynamic_band_pct` not in `(0, 1)`                   |
+| `S117` | `risk_controls.levels.<LEVEL>.order_limits` is present — order limits are a per-symbol control and are not supported here |
 
 **Indices (`indices`)**
 

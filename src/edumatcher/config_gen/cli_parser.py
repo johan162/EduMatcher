@@ -79,6 +79,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="Per-symbol collar dynamic band pct in (0,1). Can be repeated.",
     )
     parser.add_argument(
+        "--symbol-max-order-qty",
+        action="append",
+        default=[],
+        metavar="SYM:N",
+        help="Per-symbol order_limits.max_order_qty in shares (> 0). Can be repeated.",
+    )
+    parser.add_argument(
+        "--symbol-max-order-value",
+        action="append",
+        default=[],
+        metavar="SYM:AMOUNT",
+        help=(
+            "Per-symbol order_limits.max_order_value as notional (> 0). "
+            "Can be repeated."
+        ),
+    )
+    parser.add_argument(
         "--symbol-risk-level",
         action="append",
         default=[],

@@ -618,6 +618,123 @@ def test_symbol_collar_band_flags_emit_per_symbol_override(
     assert cfg.symbols["MSFT"].collar is None
 
 
+def test_symbol_order_limit_flags_emit_per_symbol_caps(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "MSFT",
+            "--gateways",
+            "TRADER01",
+            "--symbol-max-order-qty",
+            "AAPL:50000",
+            "--symbol-max-order-value",
+            "AAPL:2500000",
+            "--symbol-max-order-qty",
+            "MSFT:20000",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    cfg = load_engine_config(out_file)
+    aapl = cfg.symbols["AAPL"].order_limits
+    assert aapl is not None
+    assert aapl.max_order_qty == 50000
+    assert aapl.max_order_value == pytest.approx(2_500_000.0)
+
+    # Each cap stands alone: MSFT caps quantity and leaves notional unlimited.
+    msft = cfg.symbols["MSFT"].order_limits
+    assert msft is not None
+    assert msft.max_order_qty == 20000
+    assert msft.max_order_value is None
+
+
+def test_symbol_order_limit_flags_agree_with_symbol_opts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The explicit flags are sugar for the --symbol-opts keys, not a rival."""
+    via_flags = tmp_path / "flags.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "TRADER01",
+            "--symbol-max-order-qty",
+            "AAPL:50000",
+            "--symbol-max-order-value",
+            "AAPL:2500000",
+            "--output",
+            str(via_flags),
+        ],
+    )
+    via_opts = tmp_path / "opts.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "TRADER01",
+            "--symbol-opts",
+            "AAPL:max_order_qty=50000,max_order_value=2500000",
+            "--output",
+            str(via_opts),
+        ],
+    )
+    assert (
+        load_engine_config(via_flags).symbols["AAPL"].order_limits
+        == load_engine_config(via_opts).symbols["AAPL"].order_limits
+    )
+
+
+@pytest.mark.parametrize(
+    "flag, value, message",
+    [
+        ("--symbol-max-order-qty", "AAPL:0", "must be > 0"),
+        ("--symbol-max-order-qty", "AAPL:-5", "must be > 0"),
+        ("--symbol-max-order-qty", "AAPL:nope", "must be numeric"),
+        ("--symbol-max-order-qty", "AAPL", "expected SYM:VALUE"),
+        ("--symbol-max-order-qty", "GHOST:100", "unknown symbol"),
+        ("--symbol-max-order-value", "AAPL:0", "must be > 0"),
+        ("--symbol-max-order-value", "AAPL:nope", "must be numeric"),
+    ],
+)
+def test_symbol_order_limit_flags_reject_bad_input(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    flag: str,
+    value: str,
+    message: str,
+) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "--gateways",
+                "TRADER01",
+                flag,
+                value,
+                "--output",
+                str(tmp_path / "engine_config.yaml"),
+            ],
+        )
+
+    assert exc_info.value.code == 2
+    assert message in capsys.readouterr().err
+
+
 def test_symbol_risk_level_flag_emits_per_symbol_level_override(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

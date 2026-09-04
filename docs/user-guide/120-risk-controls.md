@@ -5,13 +5,14 @@
 
     - How an instrument halt state prevents trading while a symbol is suspended
     - How price collars reject orders that stray too far from a reference or last-traded price
+    - How order-size and notional limits cap how *big* a single order may be, independently of its price
     - How circuit breakers detect violent price moves and automatically halt and resume a symbol
     - How the kill switch lets any gateway instantly cancel all its own resting orders
     - How Self-Match Prevention (SMP) stops a gateway from trading against its own resting orders,
       and the four actions (`NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`) it can take
     - Why SMP is resolved per order, not fixed per gateway, and how a gateway-level default fills in
       when an order or quote doesn't specify one
-    - How all five mechanisms interact with the order types described in [Order Types](060-order-types.md)
+    - How all six mechanisms interact with the order types described in [Order Types](060-order-types.md)
     - How to configure each feature in `engine_config.yaml`
 
     **Prerequisite**: [Concepts — Order Book](../concepts/01-concepts-order-book.md) explains the
@@ -22,25 +23,27 @@
 ## Overview
 
 Real exchanges operate several layers of protection against runaway prices and
-disorderly markets.  EduMatcher implements five complementary mechanisms:
+disorderly markets.  EduMatcher implements six complementary mechanisms:
 
 | Mechanism | Who sets it | What it checks | How it resolves |
 |---|---|---|---|
 | **Instrument halt** | Operator (external message) | Symbol is marked `HALTED` | Operator sends resume |
 | **Price collar** | Config per symbol | Incoming order price vs. reference band | Order is rejected |
+| **Order size / notional limits** | Config per symbol | Incoming order quantity, and quantity × price | Order is rejected |
 | **Circuit breaker** | Config per symbol | Last trade price vs. rolling reference | Automatic halt + scheduled resume |
 | **Kill switch** | Any authenticated gateway | — | Cancels all resting orders for that gateway |
 | **Self-Match Prevention (SMP)** | Per order/quote, or a gateway-level default | Incoming order would trade against a resting order from the *same* gateway | Cancel aggressor, resting order, both, or allow the trade |
 
-The first three — instrument halt, price collar, and circuit breaker — act on
-the **order admission path**, *before* an order enters the book. The kill
+The first four — instrument halt, price collar, order size / notional limits,
+and circuit breaker — act on the **order admission path**, *before* an order
+enters the book. The kill
 switch is different: it acts on orders that are **already resting**,
 cancelling a gateway's own exposure on demand. SMP is different again: it acts
 **during matching**, at the instant a specific incoming order would otherwise
 cross against a specific resting order — see
 [Self-Match Prevention (SMP)](#self-match-prevention-smp) below.
 
-The following diagram shows the order admission path through those three
+The following diagram shows the order admission path through those four
 admission-path controls:
 
 ```mermaid
@@ -49,7 +52,14 @@ flowchart TD
     B -- Yes --> C{Order type?}
     C -- MARKET / FOK / IOC --> REJ1([Reject: SYM is halted —\nTYPE orders rejected during\ncircuit breaker halt])
     C -- LIMIT / ICEBERG --> REST([Accept \u2014 rest on book,\nno matching sweep])
-    B -- No --> D{Collar\nconfigured?}
+    B -- No --> OL{Order limits\nconfigured?}
+    OL -- Yes --> OLQ{Qty within\nmax_order_qty?}
+    OLQ -- No --> REJQ([Reject: MAX_ORDER_QTY])
+    OLQ -- Yes --> OLV{Notional within\nmax_order_value?\npriced orders only}
+    OLV -- No --> REJV([Reject: MAX_ORDER_VALUE])
+    OLV -- Yes --> D
+    OL -- No --> D
+    D{Collar\nconfigured?}
     D -- Yes --> E{Price within\nstatic band?}
     E -- No --> REJ2([Reject: STATIC_COLLAR_BREACH])
     E -- Yes --> F{Last trade\nprice known?}
@@ -64,6 +74,13 @@ flowchart TD
     I -- No --> DONE([Done])
     H -- No --> DONE
 ```
+
+!!! note "Order limits have no global switch"
+    Unlike collars and circuit breakers, order limits are turned off by simply
+    not setting them on a symbol: an absent cap is not enforced. There is
+    deliberately no `enforce_order_limits` flag, no risk-level tier and no
+    built-in fallback number — a limit that exists only in code and not in the
+    configuration file is not auditable as a requirement.
 
 !!! note "Global on/off switches"
     Collar and circuit-breaker enforcement can each be disabled engine-wide
@@ -270,6 +287,121 @@ preferring a persisted last price from `book_stats.json`, then the configured
 `last_buy_price`, then `last_sell_price` (converted to ticks).  The circuit
 breaker seeds its reference from the same resolved value, so both controls agree
 at the open — see [Day one (IPO) behaviour](#day-one-ipo-behaviour).
+
+
+
+##  Order size and notional limits
+
+### Motivation
+
+A collar catches an order whose *price* is wrong. It cannot catch an order
+whose price is perfectly reasonable and whose *size* is not: "buy 1,000,000
+shares at 150.00" passes every price band, because 150.00 is exactly where the
+stock trades. Two independent caps close that gap.
+
+`max_order_qty`
+:   The largest quantity a single order may carry. Catches the fat-finger that
+    adds a zero to the size field.
+
+`max_order_value`
+:   The largest notional — `quantity × price`, in display money — a single
+    order may carry. Catches the same error expressed as a plausible-looking
+    size on an expensive instrument.
+
+Both are **pre-trade** checks on the admission path, evaluated before the order
+reaches the book, and both reject rather than truncate: an order over a cap is
+never silently reduced to fit.
+
+### Which orders are checked
+
+`max_order_qty` applies to **every** order type. `max_order_value` needs a
+price, so it is skipped for **MARKET** and **IOC** orders, which carry none on
+the wire — the same orders the collar's price bands already skip, for the same
+reason.
+
+Both caps are re-checked on `order.amend`, against the amended quantity and
+price. Without that, the control would be trivially bypassed by entering a
+small order and amending it up.
+
+The quantity cap is evaluated first, so an order that breaches both is rejected
+with `MAX_ORDER_QTY`.
+
+### Reject codes
+
+| Condition | `reject_code` |
+|---|---|
+| `quantity > max_order_qty` | `MAX_ORDER_QTY` |
+| `quantity × price > max_order_value` | `MAX_ORDER_VALUE` |
+
+### Configuration
+
+Add an `order_limits` sub-section to any symbol:
+
+```yaml
+symbols:
+  AAPL:
+    tick_decimals: 2
+    order_limits:
+      max_order_qty: 50000
+      max_order_value: 2500000
+  TSLA:
+    tick_decimals: 2
+    order_limits:
+      # a quantity cap only; notional is left unlimited
+      max_order_qty: 5000
+  MSFT:
+    tick_decimals: 2
+    # no order_limits at all — neither cap is enforced for MSFT
+```
+
+| Parameter | Type | Default | Meaning |
+|---|---|---|---|
+| `max_order_qty` | int | *none* | Maximum quantity on a single order (`> 0`) |
+| `max_order_value` | float | *none* | Maximum notional on a single priced order, in display money (`> 0`) |
+
+`pm-config-gen` can write both, either with the explicit per-symbol flags or
+as `--symbol-opts` keys:
+
+```bash
+pm-config-gen --symbols AAPL MSFT --gateways TRADER01 \
+  --symbol-max-order-qty AAPL:50000 \
+  --symbol-max-order-value AAPL:2500000
+```
+
+**Order limits are configured per symbol and nowhere else.** There is no
+risk-level tier and no global default, so the rule is simply:
+
+1. `symbols.<symbol>.order_limits.<cap>` — the cap applies
+2. absent — the cap is **not enforced**
+
+Note how this differs from collars. A collar can be defined once on a
+`risk_controls` level and shared by every symbol that references it, because a
+percentage band means the same thing on a $10 stock and a $1,000 one. A size or
+notional cap does not: the right number depends on the individual instrument's
+price and typical trade size, so there is nothing useful for a shared profile to
+say. `risk_controls.levels.<L>.order_limits` is therefore **rejected** — by the
+engine loader at startup and by `pm-cverifier` as check `S117` — rather than
+silently accepted and ignored.
+
+Each cap is independent: `TSLA` above caps quantity while leaving notional
+unlimited.
+
+### Querying the effective limits
+
+`GET /api/v1/reference/symbols` reports each symbol's caps alongside its
+collar:
+
+```json
+{
+  "symbol": "TSLA",
+  "tick_decimals": 2,
+  "level": "L1",
+  "order_limits": { "max_order_qty": 5000 }
+}
+```
+
+A symbol that sets neither cap omits `order_limits` entirely — see
+[REST API reference](950-app-REST-API-reference.md).
 
 
 

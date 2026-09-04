@@ -161,6 +161,7 @@ def _check_symbols(raw: dict[str, Any], results: list[CheckResult]) -> None:
         _check_symbol_level(sym, cfg, defined_levels, results)
         _check_symbol_mm_quotes(sym, cfg, results)
         _check_symbol_collar(sym, cfg, results)
+        _check_symbol_order_limits(sym, cfg, results)
         _check_symbol_circuit_breaker(sym, cfg, cb_default_levels, results)
 
 
@@ -489,6 +490,78 @@ def _check_symbol_collar(
                     ),
                     suggestion="A typical value is 0.02 (2%).",
                     path=f"symbols.{sym}.collar.dynamic_band_pct",
+                )
+            )
+
+
+def _check_symbol_order_limits(
+    sym: str, cfg: dict[str, Any], results: list[CheckResult]
+) -> None:
+    """S114–S116 — ``symbols.<SYM>.order_limits``.
+
+    Mirrors the validation the engine loader performs: the block is a mapping,
+    ``max_order_qty`` a positive integer and ``max_order_value`` a positive
+    number. An absent cap is legal — it means the cap is not enforced. Symbol
+    scope is the only scope; see S117 for the level-scope refusal.
+    """
+    limits = cfg.get("order_limits")
+    if limits is None:
+        return
+    if not isinstance(limits, dict):
+        results.append(
+            CheckResult(
+                code="S114",
+                severity=Severity.ERROR,
+                message=f"Symbol '{sym}': order_limits must be a mapping.",
+                suggestion=(
+                    "Set order_limits to a mapping with max_order_qty and/or "
+                    "max_order_value."
+                ),
+                path=f"symbols.{sym}.order_limits",
+            )
+        )
+        return
+
+    qty = limits.get("max_order_qty")
+    if qty is not None:
+        try:
+            if isinstance(qty, bool):
+                raise ValueError("not an integer")
+            qty_i = int(qty)
+            if qty_i != qty or qty_i <= 0:
+                raise ValueError("out of range")
+        except (TypeError, ValueError):
+            results.append(
+                CheckResult(
+                    code="S115",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"Symbol '{sym}': order_limits.max_order_qty {qty} is "
+                        "not a positive integer."
+                    ),
+                    suggestion="Use a whole number of shares, e.g. 100000.",
+                    path=f"symbols.{sym}.order_limits.max_order_qty",
+                )
+            )
+
+    value = limits.get("max_order_value")
+    if value is not None:
+        try:
+            if isinstance(value, bool):
+                raise ValueError("not a number")
+            if float(value) <= 0:
+                raise ValueError("out of range")
+        except (TypeError, ValueError):
+            results.append(
+                CheckResult(
+                    code="S116",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"Symbol '{sym}': order_limits.max_order_value {value} "
+                        "is not a positive number."
+                    ),
+                    suggestion="Use a notional amount in display money, e.g. 5000000.",
+                    path=f"symbols.{sym}.order_limits.max_order_value",
                 )
             )
 
@@ -1546,6 +1619,26 @@ def _check_risk_controls(raw: dict[str, Any], results: list[CheckResult]) -> Non
                         "Move it to the top-level circuit_breaker_defaults section."
                     ),
                     path=f"risk_controls.levels.{level_name}.circuit_breaker",
+                )
+            )
+
+        # S117: order limits are a per-symbol control. Accepting them here
+        # would silently enforce nothing, since neither the loader nor the
+        # engine reads a level-scope block.
+        if level_cfg.get("order_limits") is not None:
+            results.append(
+                CheckResult(
+                    code="S117",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"risk_controls.levels.{level_name}: order_limits is not "
+                        "supported here."
+                    ),
+                    suggestion=(
+                        "Set order_limits on each symbol that needs a cap; there "
+                        "is no level or global default."
+                    ),
+                    path=f"risk_controls.levels.{level_name}.order_limits",
                 )
             )
 

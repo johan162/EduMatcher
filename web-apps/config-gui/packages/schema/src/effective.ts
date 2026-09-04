@@ -80,6 +80,17 @@ export interface EffectiveCollar {
   levelName?: string;
 }
 
+/**
+ * One symbol's order-size / notional caps. Configured per symbol and nowhere
+ * else, so unlike a collar there is no level or engine default to fall back
+ * on: `applies` is false when the symbol itself sets neither cap.
+ */
+export interface EffectiveOrderLimits {
+  applies: boolean;
+  maxOrderQty?: number;
+  maxOrderValue?: number;
+}
+
 export interface EffectiveCbLevel {
   name: string;
   priceShiftPct: number;
@@ -175,6 +186,7 @@ export interface EffectiveSymbol {
   level?: string;
   levelSource: "symbol" | "default" | "none";
   collar: EffectiveCollar;
+  orderLimits: EffectiveOrderLimits;
   circuitBreaker: EffectiveCircuitBreaker;
   marketMakerRelevant: boolean;
   mmObligation: EffectiveMmObligation;
@@ -195,7 +207,8 @@ export function resolveEffectiveSymbol(
 
   // --- Risk level applied to the symbol -------------------------------------
   const defaultLevelName =
-    draft.riskControls.defaultLevel ?? (effectiveDefaultCollar(draft) ? "DEFAULT" : undefined);
+    draft.riskControls.defaultLevel ??
+    (effectiveDefaultCollar(draft) ? "DEFAULT" : undefined);
   let level: string | undefined;
   let levelSource: "symbol" | "default" | "none";
   if (config.level) {
@@ -214,7 +227,10 @@ export function resolveEffectiveSymbol(
     levelCollar = effectiveDefaultCollar(draft);
   } else if (level && draft.riskControls.levels[level]) {
     const l = draft.riskControls.levels[level]!;
-    levelCollar = { staticBandPct: l.staticBandPct, dynamicBandPct: l.dynamicBandPct };
+    levelCollar = {
+      staticBandPct: l.staticBandPct,
+      dynamicBandPct: l.dynamicBandPct,
+    };
   }
   const symbolCollar = config.collar;
   const symbolHasCollar =
@@ -240,6 +256,19 @@ export function resolveEffectiveSymbol(
         dynFromSymbol !== undefined ? "override" : dynFromLevel !== undefined ? "level" : "default",
     };
   }
+
+  // --- Order limits ---------------------------------------------------------
+  // Symbol scope only: no level default, no global default, no fallback.
+  const symbolLimits = config.orderLimits;
+  const orderLimits: EffectiveOrderLimits =
+    symbolLimits?.maxOrderQty === undefined &&
+    symbolLimits?.maxOrderValue === undefined
+      ? { applies: false }
+      : {
+          applies: true,
+          maxOrderQty: symbolLimits?.maxOrderQty,
+          maxOrderValue: symbolLimits?.maxOrderValue,
+        };
 
   // --- Circuit breaker ------------------------------------------------------
   const cbDefaults = draft.circuitBreakerDefaults;
@@ -311,6 +340,7 @@ export function resolveEffectiveSymbol(
     level,
     levelSource,
     collar,
+    orderLimits,
     circuitBreaker,
     marketMakerRelevant,
     mmObligation,

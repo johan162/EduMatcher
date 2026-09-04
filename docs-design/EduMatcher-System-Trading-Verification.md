@@ -1,10 +1,11 @@
-Version: 1.2.0
+Version: 1.4.0
 
-Date: 2026-09-03
+Date: 2026-09-04
 
 Status: Prerequisites implemented and audited; gap ledger re-verified against
-the tree same day — G11 closed, G12 tick validation closed. Framework Phase 1
-may begin; G9 and G12's lot/order-size remainder are the only blockers left.
+the tree — G9 closed, G11 closed, G12 tick validation closed, G12 lot-size
+found not applicable. Framework Phase 1 may begin; G12's order-size/notional
+and position-limit remainder is the only blocker left.
 
 # EduMatcher — System Trading Verification (`pm-systest`)
 
@@ -69,10 +70,10 @@ that section has been corrected in place and carries a pointer back here.
 | **G6** rejections in the audit journal | ✅ **Was never open** | `audit/main.py` subscribes with an empty topic filter, and every rejection is published as `order.ack` with `accepted=false`. |
 | **G7** causal trade identity | ✅ **Closed** | `Trade.id` matches `^\d{6}-\d{9}$`; `persistence.load_and_bump_run_seq` is fail-loud; `set_run_seq()` is the first statement of `Engine.run()`; CALF `TRADE_ID`/`RUN_SEQ`; `md_gateway/replay_buffer` dedups on trade id; drop copy and ALF `FILL` carry `trade_ids` |
 | **G8** stats flush timing | ⬜ Open, mitigated | No flush marker or admin flush command exists. §5.3's rowid-stability probe is an adequate substitute, so this is downgraded from prerequisite to nice-to-have. |
-| **G9** liquidity flag on the private fill | 🟥 **Open — now blocking** | `order_fill` in `spec/messages/order.yaml` carries no `liquidity_flag`. See §0.2. |
+| **G9** liquidity flag on the private fill | ✅ **Closed** | `liquidity_flag` added to `order_fill` in `spec/messages/order.yaml`; derived per-order in `Engine._order_liquidity_flags` (`engine/main.py`) and threaded through all 8 fill-publication sites; echoed as `LIQUIDITY=` on the ALF `FILL` line; REST/WS needed no change (payload pass-through). `tests/test_liquidity_flag.py`. See §0.2. |
 | **G10** session/halt matrix ratification | ⬜ Open, non-blocking | No rulebook document exists; `spec/` holds message specifications only. Spike S4 established the behaviour, so the scenarios can be written; ratification remains outstanding. |
 | **G11** unfilled MARKET carries no reason | ✅ **Closed** | `order_cancelled.cancel_reason` (`INSUFFICIENT_LIQUIDITY`) is set in `order_book.py::_match_market` and threaded through `Engine._cancel_reason_of`; ALF emits `CANCEL_REASON=`. `tests/test_cancel_reason.py`. See §0.2. |
-| **G12** no tick, lot or order-size validation | 🟨 **Partially closed** | Tick validation is implemented (`models/price.py::to_ticks_exact`, `TickViolation`) and wired into ALF, REST and BALF order entry plus amends, all raising `TICK_VIOLATION`. Lot size, `MAX_ORDER_QTY`, `MAX_ORDER_VALUE` and `POSITION_LIMIT` remain unimplemented — no config field, no check. See §0.3. |
+| **G12** no tick, order-size, notional or position validation | 🟨 **Mostly closed** | Tick validation is implemented (`models/price.py::to_ticks_exact`, `TickViolation`) and wired into ALF, REST and BALF order entry plus amends, all raising `TICK_VIOLATION`. Lot size is **not applicable** — EduMatcher trades in single-share granularity by design, so `LOT_VIOLATION` is withdrawn, not outstanding. `MAX_ORDER_QTY` and `MAX_ORDER_VALUE` shipped later on 2026-09-04 as the per-symbol `order_limits` config field, checked on order entry and on amend. Only `POSITION_LIMIT` remains unimplemented. See §0.3. |
 
 **All three blocking prerequisites — G1, G4 and G7 — are closed**, and gate
 **G-δ** (§B.6), which the plan calls the premise of the entire design, is
@@ -86,36 +87,38 @@ the *full* catalogue can be written, and §15 tracks them:
 | | Item | Blocks |
 |---|---|---|
 | a | Lift `tests/engine_invariants.py` I1–I6 into `edumatcher/systest/invariants.py`. `src/edumatcher/systest/` does not exist — this is the actual first task | Phase 1 assertions |
-| b | Close **G9** (§0.2) — small and additive | any scenario asserting maker/taker attribution |
+| b | ~~Close **G9** (§0.2)~~ — **closed**: `liquidity_flag` now ships on `order_fill` | — |
 | b′ | ~~Decide G11~~ — **closed**: `cancel_reason` now ships on `order_cancelled` | — |
-| c | Decide the lot-size / order-size half of **G12** (§0.3) — tick validation is done | five catalogue scenarios (LM-009, LM-011, LM-045, plus two more) |
+| c | Decide the order-size/notional/position-limit half of **G12** (§0.3) — tick validation is done, lot size is not applicable | one catalogue scenario (`LM-011`) plus invariant I11′ |
 | d | Ratify §11.4 (**G10**) and write `docs/developer/ui-manual-verification.md` (§14) | neither blocks code; both are outstanding |
 
-### 0.2 G9 and G11 — two holes on the order-entry path
+### 0.2 G9 and G11 — two holes on the order-entry path (both closed)
 
 Both were missed by the original gap analysis because both are about what a
 *correct* event fails to say, not about a missing event.
 
-**G9 — the private fill does not say who was the maker.**
-`spec/messages/order.yaml::order_fill` has no `liquidity_flag`, so neither the
-ALF `FILL` line nor the REST WebSocket fill event carries maker/taker
-attribution. Only the drop copy (E7) does — `engine/drop_copy.py::publish_fill`
-takes it as a required argument. The consequence is specific and it lands on
-Phase 1: §6.1's worked scenario asserts `liquidity: TAKER` on a fill, §11.5's
-dissemination matrix distinguishes the two sides of a match, and invariant I4
-("exactly one maker and one taker") cannot be evaluated from E1 at all. A
-scenario can still *infer* attribution by joining E1 to E7 on `trade_ids`, but
-then the framework is proving E7 against itself rather than proving that the
-client-facing path reports attribution correctly — which is exactly the class
-of defect a system test exists to catch.
-
-*Fix (additive, one spec edit plus two edges):* add
-`liquidity_flag` to `order_fill` alongside the existing `trade_ids`; echo it as
-`LIQUIDITY=` on the ALF `FILL` line, matching the `DC_FILL` line that already
-carries it; the REST WS path needs no change because the projection forwards
-the payload verbatim (spike S3). This is a production improvement, not a test
-hook — a participant reading its own fills today cannot tell whether it paid or
-earned the spread.
+**G9 — the private fill did not say who was the maker. (Closed 2026-09-04.)**
+`spec/messages/order.yaml::order_fill` had no `liquidity_flag`, so neither the
+ALF `FILL` line nor the REST WebSocket fill event carried maker/taker
+attribution — only the drop copy (E7) did, via
+`engine/drop_copy.py::publish_fill`. Fixed exactly as scoped below:
+`liquidity_flag` (nullable, `omit_when_none`, enum `MAKER`/`TAKER`) is now a
+field on `order_fill`, generated via `pm-msgen generate` and verified
+drift-free with `pm-msgen check`. `Engine._order_liquidity_flags` derives it
+per-order from `Trade.aggressor_side` — the aggressor is TAKER, the resting
+side is MAKER, the same rule drop copy already used — and every one of the 8
+places the engine publishes a fill (7 call sites through `make_fill_msg`, plus
+the inlined hot path in `_handle_new_order`) now carries it. The ALF gateway
+echoes it as `LIQUIDITY=` on the `FILL` line, matching `DC_FILL`. The REST/WS
+path needed no change: `api_gateway/events.py::envelope()` forwards the engine
+payload verbatim (confirming spike S3). `tests/test_liquidity_flag.py` proves
+maker/taker attribution across a simple cross, a flipped-side cross, a
+multi-level MARKET sweep, and cross-checks the private fill against drop
+copy's own attribution for the same trade — the two must never disagree.
+Unaffected by design: the BALF `execution_report` binary frame, a fixed-width
+wire struct, was out of scope for G9 and is untouched. §6.1, §11.5 and
+invariant I4, all previously blocked on this, are now assertable from E1
+directly; see below.
 
 **G11 — an unfilled MARKET order is cancelled without a reason. (Closed.)**
 Spike S4 left §17's second open question ("MARKET with no liquidity: REJECTED
@@ -149,7 +152,44 @@ client-requested cancel and for an engine-initiated cancel whose cause is not
 yet classified. `request_tag=None` still distinguishes exchange-initiated
 cancels from client ones (A.1.7); `cancel_reason` now says why.
 
-### 0.3 G12 — the instrument-rule and risk rejections (partially closed)
+### 0.3 G12 — the instrument-rule and risk rejections (order-size and notional caps now shipped; only `POSITION_LIMIT` remains)
+
+**Update, later on 2026-09-04: `MAX_ORDER_QTY` and `MAX_ORDER_VALUE` have
+shipped**, though *not* with the inheritance option 1 below sketched. They are
+a **per-symbol `order_limits` config field with no other scope**: no
+risk-level tier and no top-level default. `engine/order_limits.py` holds the
+config dataclass and the check, mirroring `engine/collar.py`; the caps resolve
+onto `SymbolConfig.order_limits` and are checked in
+`Engine._validate_new_order` next to `QTY_OUT_OF_RANGE` /
+`PRICE_OUT_OF_RANGE`, and re-checked in `Engine._handle_amend` beside the
+existing collar re-check.
+
+**Correction to option 1's shape.** Option 1 proposed following the
+`risk_controls.levels.<L>.collar` pattern — a level default with a per-symbol
+override — and additionally recommended a visible top-level
+`risk_controls.default_max_order_qty` / `default_max_order_value`. Neither was
+built, and the reason is that the analogy to `collar` does not hold. A collar
+band is a **percentage**: ±20% is the same protection on a $10 instrument and
+a $1,000 one, which is exactly what makes a shared, named profile useful. An
+order-size or notional cap is an **absolute** quantity, so the appropriate
+number is a property of the individual instrument's price and typical trade
+size. A cap shared across a level would be either meaningless for the small
+names on it or useless for the large ones, and a top-level default is the same
+objection one tier further out. `risk_controls.levels.<L>.order_limits` is
+therefore *rejected* rather than merely unused — by the loader at startup and
+by `pm-cverifier` as `S117` — so a deployment cannot write one and believe it
+is being enforced. An absent cap is simply not enforced, with no hidden
+fallback number.
+`max_order_value` is skipped for MARKET and IOC orders, which carry no price
+on the wire, rather than being priced against a reference — the same orders
+the collar's bands already skip. The caps travel on `ReferenceSymbol`
+(`spec/messages/system.yaml`), so `GET /api/v1/reference/symbols` reports a
+symbol's caps with no new endpoint; `RiskLevel` deliberately does not carry
+them. `tests/test_order_limits.py`.
+`POSITION_LIMIT` (option 2) is untouched and remains the only open half of
+G12.
+
+
 
 **Update, later on 2026-09-03: tick validation has shipped.**
 `models/price.py` now has `to_ticks_exact` (raises `TickViolation` for an
@@ -182,11 +222,32 @@ fix landed:
 | Code | Why it is never emitted |
 |---|---|
 | `TICK_VIOLATION` | ~~There is no tick validation.~~ **Fixed, later 2026-09-03**: `models/price.py::to_ticks_exact` now rejects an off-grid price with `TickViolation` at order entry/amend on all three transports; `to_ticks` (nearest-tick rounding) remains, but is only used engine-internally on values already known to be well-formed. |
-| `LOT_VIOLATION` | There is no lot-size concept anywhere — not in `SymbolConfig`, not in the config schema, not in any spec file. |
-| `MAX_ORDER_QTY`, `MAX_ORDER_VALUE`, `POSITION_LIMIT` | No pre-trade size or notional limits are implemented. |
+| `LOT_VIOLATION` | **Withdrawn, 2026-09-04 — not applicable.** There is no lot-size concept anywhere — not in `SymbolConfig`, not in the config schema, not in any spec file — and there should not be: EduMatcher trades in single-share granularity by design, the way most modern equity venues do. This is not a missing control; it is a control that does not apply to this product. See the correction below. |
+| `MAX_ORDER_QTY`, `MAX_ORDER_VALUE` | ~~No pre-trade size or notional limits are implemented.~~ **Fixed, later 2026-09-04**: `symbols.<S>.order_limits` / `risk_controls.levels.<L>.order_limits` are checked in `Engine._validate_new_order` and `Engine._handle_amend`. Both codes are now reachable. |
+| `POSITION_LIMIT` | No pre-trade position limit is implemented. Still open — see below. |
 | `CIRCUIT_BREAKER_ACTIVE` | ~~A circuit-breaker halt sets the same per-symbol halt flag as an admin halt and rejects with `INSTRUMENT_HALTED`.~~ **Also since corrected**: `Engine._halt_reject_code` now distinguishes the two — a symbol whose `CircuitBreaker.halt_source == "CB"` rejects with `CIRCUIT_BREAKER_ACTIVE`; every other halt (including the global halt-all) still rejects with `INSTRUMENT_HALTED`. `tests/test_instrument_halt.py`. Not part of G12's remaining scope — noted here because this table would otherwise mislead. |
 | `SELF_MATCH_PREVENTED` | SMP cancels the aggressor, the resting order, or both; it never produces a rejection ack. |
 | `UNKNOWN` | Deliberate — it is the forward-compatibility fallback (A.2.3). |
+
+**Correction, 2026-09-04: lot size is not applicable, not outstanding.**
+The original framing bundled `LOT_VIOLATION` in with `MAX_ORDER_QTY` /
+`MAX_ORDER_VALUE` / `POSITION_LIMIT` as "pre-trade risk, undecided." That
+conflated two different questions. Lot size is a quantity-*granularity* rule
+(orders must be multiples of some board-lot size) that exists on markets with
+odd-lot conventions; it has nothing to do with order-size or notional risk
+limits, and for a single-share-granularity equity design it is not a gap to
+be decided later — it is correctly absent. `LOT_VIOLATION` is withdrawn from
+the reject-code enum's active scope, `LM-009` and `LM-045` are deleted from
+the catalogue (not `blocked: G12`), and invariant `I11` is withdrawn (§10.1)
+rather than left pending. If EduMatcher ever needs board-lot markets this
+would be revisited as new scope, not as closing an old gap.
+
+`MAX_ORDER_QTY` and `MAX_ORDER_VALUE` shipped later on 2026-09-04 (see the
+update at the head of this section), which unblocks `LM-011`. `POSITION_LIMIT`
+remains genuinely open — a position risk limit is independent of both lot size
+and order size, and standard on real equity venues regardless of trading
+granularity. `I11`'s replacement scope (`I11′`) stays `blocked: G12` pending
+the product decision below.
 
 `_validate_new_order` returns exactly five codes: `DUPLICATE_ORDER`,
 `QTY_OUT_OF_RANGE`, `PRICE_OUT_OF_RANGE`, `MISSING_FIELD` and (for the iceberg
@@ -201,32 +262,81 @@ deliberately forward-looking, and A.2.3 says so ("new members may be added").
 The defect is in *this document*, which built a test catalogue and a coverage
 argument on validation that was assumed to exist:
 
-- §4.3's symbol table has a **Lot size** column. There is no such config field.
+- §4.3's symbol table has a **Lot size** column. There is no such config
+  field, and there should not be — see the correction above. The column is
+  removed.
 - ~~**LM-007** (sub-tick price → `TICK_VIOLATION`) ... assert[ed] outcomes the
   engine cannot produce~~ — **fixed, see the update above; LM-007 now runs as
-  written.** **LM-009** and **LM-045** (lot-size violation → reject) and
-  **LM-011** (`max_order_qty` / `max_order_value`) still assert outcomes the
-  engine cannot produce.
-- §11.3's boundary-value list is largely unreachable: "lot size ± 1",
-  "tick − ε", "at and over `max_order_value`" have no corresponding control.
+  written.** **LM-009** and **LM-045** (lot-size violation → reject) are
+  **deleted** — not applicable, see above. **LM-011** (`max_order_qty` /
+  `max_order_value`) asserted an outcome the engine could not produce; **it
+  can now** — `order_limits` shipped later on 2026-09-04 — so LM-011 is
+  unblocked and runs as written.
+- §11.3's boundary-value list: "lot size ± 1" is removed as not applicable;
+  "tick − ε" is now reachable (`to_ticks_exact`); "at and over
+  `max_order_value`" now has a control — `order_limits` shipped later on
+  2026-09-04 — so that boundary, and "max order qty ± 1", are back on the
+  list.
 - Invariant **I10** ("every price is an exact multiple of the tick") is no
   longer vacuous now that `to_ticks_exact` rejects off-grid prices at entry —
   it can be asserted meaningfully against every accepted order. Invariant
-  **I11** still has no lot size to check.
+  **I11** ("every quantity is an exact multiple of the lot size") is
+  **withdrawn** — not applicable, see above — and replaced by a narrower
+  **I11′** once `POSITION_LIMIT` is decided (below), asserting that no
+  accepted order leaves a gateway's net position beyond its configured limit.
 
-Those sections are corrected below. The choice this leaves open is a product
-decision, not a test-design one:
+Those sections are corrected below. Of what was open at the time of writing,
+options 1 and 2 were both product decisions rather than test-design ones. The
+shapes sketched here are kept as written; option 1 has since been built
+essentially as described (see the update at the head of this section), and
+option 2 has not:
 
-1. **Implement the controls**, then the scenarios and invariants stand as
-   written. This is a real pre-trade-risk feature and §1 already names
-   pre-trade risk as the next subsystem — so it is arguably the right order.
-2. **Do not implement them**, and delete the corresponding scenarios and the
-   unreachable enum members, rather than shipping a catalogue whose coverage
-   ledger reports green cells that nothing tests.
+1. **`MAX_ORDER_QTY` / `MAX_ORDER_VALUE`** — *(as-built: see the correction
+   at the head of this section — the level tier and the top-level default
+   sketched here were both dropped)* — a per-symbol config field,
+   following the existing `risk_controls.levels.<level>.collar` pattern
+   (`config_loader.py`, `CollarConfig`): a level default with per-symbol
+   override, resolved onto `SymbolConfig` alongside `collar`, and checked in
+   `Engine._validate_new_order` next to `QTY_OUT_OF_RANGE` /
+   `PRICE_OUT_OF_RANGE`. `MAX_ORDER_VALUE` needs `qty * price`; for MARKET
+   orders (no price on the wire) that means either skipping the value check
+   or pricing against a reference (last trade / prior close), the way the
+   collar's static band already does. When a symbol has no configured limit,
+   the recommended behaviour is "no limit enforced" (matching how an absent
+   `collar` is handled today) rather than a silent hardcoded fallback number
+   — a limit that exists only in code and not in the config file is not
+   auditable as a requirement. A visible top-level default
+   (`risk_controls.default_max_order_qty` / `default_max_order_value`), on
+   the same footing as today's `risk_controls.default_level`, is the
+   recommended way to give unconfigured symbols a safety net without hiding
+   the number in code.
+2. **`POSITION_LIMIT`** — this is not starting from nothing: `Engine`
+   already maintains a per-gateway, per-symbol signed net position and VWAP
+   average cost on every fill (`_gateway_positions`, `_update_position`,
+   queryable today via `_handle_position_request`). The natural design reuses
+   that ledger rather than building new position tracking: a configured
+   `position_limit` per symbol/level, checked pre-trade in
+   `_validate_new_order` as "does `_gateway_positions[gw][symbol]` plus this
+   order's worst-case signed fill exceed the limit?" This is a genuinely new
+   *check* (pre-trade instead of the ledger's current post-fill update point)
+   but not a new subsystem. A different control — capping the number of
+   *resting* orders a gateway may have open per symbol ("working order
+   limit") — is sometimes also called a position-adjacent limit on real
+   venues, but it is conceptually distinct (order-message load, not
+   exposure) and conflating the two would make a rejection ambiguous about
+   which condition fired. If that control is wanted too it should get its
+   own reject code and its own gap-ledger line, not be folded into
+   `POSITION_LIMIT`.
+3. **Do not implement them**, and delete `LM-011`, the `MAX_ORDER_QTY` /
+   `MAX_ORDER_VALUE` / `POSITION_LIMIT` enum members and the `I11′` sketch
+   above, rather than shipping a catalogue whose coverage ledger reports
+   green cells that nothing tests.
 
-Until it is decided, the affected scenarios are marked **`blocked: G12`** in
-§12 and excluded from the coverage ledger's denominator, so the ledger cannot
-quietly claim credit for them.
+`LM-011` was marked **`blocked: G12`** and excluded from the coverage
+ledger's denominator until this was decided. Option 1 shipped later on
+2026-09-04, so LM-011 is unblocked and back in the denominator. Nothing in
+§12 is now blocked on the remaining `POSITION_LIMIT` decision except the
+`I11′` sketch above.
 
 ### 0.4 What this does to the confidence claim
 
@@ -652,9 +762,8 @@ steps:
     expect:
       status: FILLED
       fills:
-        # `liquidity:` is blocked on G9 — see §0.2. Until order_fill carries
-        # liquidity_flag, the runner can only source it from the drop copy,
-        # which is one of the sinks under test.
+        # `liquidity:` is sourced directly from order_fill's liquidity_flag
+        # (G9, closed 2026-09-04) — no longer inferred by joining to drop copy.
         - {price: "100.00", qty: 100, maker: M1, liquidity: TAKER}
         - {price: "100.01", qty:  50, maker: M2, liquidity: TAKER}
       book:
@@ -929,7 +1038,7 @@ This is where most defects will actually be caught.
 | I1 | Book is not crossed: `best_bid < best_ask` in continuous session |
 | I2 | Conservation: `Σ filled_qty(buys) == Σ filled_qty(sells)` per symbol |
 | I3 | Per order: `filled + remaining + cancelled == original_qty` |
-| I4 | Every trade has exactly one maker and one taker, on opposite sides — *evaluable from E7 only until G9 lands (§0.2)* |
+| I4 | Every trade has exactly one maker and one taker, on opposite sides — evaluable directly from E1 (`order_fill.liquidity_flag`, G9 closed, §0.2) |
 | I5 | Trade price is within the maker order's limit and (if limited) the taker's |
 | I6 | Price–time priority: no trade at a worse price while a better resting level exists |
 | I7 | Position sum across all gateways per symbol == 0 |
@@ -937,7 +1046,8 @@ This is where most defects will actually be caught.
 | I9 | No sequence gaps or duplicates in any WS/CALF/RALF/DC stream |
 | I10 | ~~Every price is an exact multiple of the symbol's tick size~~ — **withdrawn (§0.3)**: prices are *stored* as integer ticks, so this cannot fail. Replaced by I10′ |
 | I10′ | The display price a client submitted round-trips unchanged through every sink. A sub-tick submission is silently rounded by `to_ticks`, so this invariant is what would *detect* that, rather than asserting a rejection that does not happen |
-| I11 | ~~Every quantity is an exact multiple of the symbol's lot size~~ — **withdrawn (§0.3)**: no lot size exists. Reinstate with the pre-trade-risk subsystem |
+| I11 | ~~Every quantity is an exact multiple of the symbol's lot size~~ — **withdrawn (§0.3), not applicable**: EduMatcher trades in single-share granularity by design; there is no lot-size concept to reinstate |
+| I11′ | Every accepted order leaves the submitting gateway's net position (`Engine._gateway_positions`) within its configured `position_limit`, if one is set — pending the `POSITION_LIMIT` product decision (§0.3) |
 | I12 | No `ERROR`/`CRITICAL` log rows outside the allow-list |
 | I13 | Terminal orders are absent from the live book and from `GET /orders?open=true` |
 | I14 | Stats aggregates recompute exactly from the trade list (last, high, low, volume, VWAP) |
@@ -1036,7 +1146,8 @@ tests. **Reduction strategy:**
 4. Add every boundary case from Method C.
 
 Result: roughly **60–80 system scenarios** for LIMIT/MARKET, each run under
-2–3 bindings. §12 currently enumerates 60, of which 6 are blocked on G12.
+2–3 bindings. §12 currently enumerates 60 (LM-009 and LM-045 deleted as not
+applicable, §0.3), of which 1 is blocked on G12 (LM-011).
 
 The ~600 reduced-away combinations are **not** discarded — they are delegated
 to a parameterised in-process test that drives the same decision table against
@@ -1064,12 +1175,15 @@ max, max+1:
 - Book depth: 0, 1, 2, and "more levels than the order can consume".
 - Queue depth at a price: 1, 2, 3 (to prove FIFO, not just "some order").
 
-> **Corrected 2026-09-03 (§0.3, G12), amended later the same day.** The
+> **Corrected 2026-09-03 (§0.3, G12), amended 2026-09-04.** The
 > original list also carried "lot size ± 1", "max order qty ± 1",
-> "tick − ε (invalid)" and "notional at and over `max_order_value`". Lot size
-> and order-size/notional limits still do not exist in EduMatcher and those
-> boundary cases stay removed, reinstated only with the pre-trade-risk
-> subsystem. The tick case is different: `to_ticks_exact` now rejects an
+> "tick − ε (invalid)" and "notional at and over `max_order_value`". "Lot
+> size ± 1" is removed permanently — not applicable, EduMatcher trades in
+> single-share granularity by design (§0.3). "Max order qty ± 1" and
+> "notional at and over `max_order_value`" are **back**, later on 2026-09-04:
+> `order_limits` shipped, so both are rejection boundaries with a control
+> behind them (§0.3). The tick case is
+> different: `to_ticks_exact` now rejects an
 > off-grid price at order entry with `TICK_VIOLATION` (§0.3), so "tick − ε
 > (invalid)" is back as a rejection boundary, not a rounding one — the
 > `price_required and off-grid` case in §11.3's list should assert
@@ -1136,13 +1250,14 @@ Deriving this table from the specs *before* running anything is essential: it
 is the reference against which the fan-out matrix (§8.1) is judged. Building it
 from observed behaviour would make the test tautological.
 
-Two cells of this table cannot be filled from the specs as they stand. The
-`✓✓` in the DC column is "one per involved gateway", not literally two (§8.1),
-and the maker/taker distinction the *Full match* and *Partial match* rows rely
-on is absent from `order_fill` — so the E1 columns cannot say which side of the
-match each event describes until **G9** (§0.2) lands. Both are recorded here
-rather than papered over, because a matrix with an unstated assumption in it is
-worse than one with a hole.
+One cell of this table could not be filled from the specs as they stand. The
+`✓✓` in the DC column is "one per involved gateway", not literally two (§8.1).
+The maker/taker distinction the *Full match* and *Partial match* rows rely on
+was, until **G9** closed (§0.2), absent from `order_fill`; the E1 columns can
+now say which side of the match each event describes directly from
+`liquidity_flag`. The DC-column note is recorded here rather than papered
+over, because a matrix with an unstated assumption in it is worse than one
+with a hole.
 
 ### 11.6 The coverage ledger
 
@@ -1185,7 +1300,6 @@ ALF-only, REST-only, and at least one mixed binding.
 | LM-006 | LIMIT at price 0 or negative → reject, `PRICE_OUT_OF_RANGE` |
 | LM-007 | LIMIT at sub-tick price on `TST2`/`TST4` → **reject, `TICK_VIOLATION`**, at order entry on all three transports (`to_ticks_exact`). No longer blocked — G12's tick half is closed; superseded the earlier "accepted and rounded" draft, which described `to_ticks` (engine-internal rounding), not the order-entry check |
 | LM-008 | LIMIT with qty 0 / negative → reject, `QTY_OUT_OF_RANGE` |
-| LM-009 | ~~LIMIT with qty not a multiple of lot size~~ — **`blocked: G12`**, no lot size exists |
 | LM-010 | LIMIT above/below collar band → reject, `COLLAR_BREACH` |
 | LM-011 | ~~LIMIT exceeding `max_order_qty` / `max_order_value`~~ — **`blocked: G12`**, no size or notional limit exists |
 | LM-012 | LIMIT on unknown symbol → reject, `UNKNOWN_SYMBOL` |
@@ -1218,7 +1332,6 @@ ALF-only, REST-only, and at least one mixed binding.
 | LM-042 | MARKET into empty book in `CONTINUOUS` → `order.ack accepted=true` followed by `order.cancelled` with `cancel_reason=INSUFFICIENT_LIQUIDITY`; **no trade, no CALF TRADE**. Asserts the *absence* of a reject, and the *presence* of the reason (G11, §0.2, closed) |
 | LM-043 | MARKET sweeping multiple levels → multiple trades, ascending/descending price order |
 | LM-044 | MARKET with a price field supplied → reject at the REST schema (422) and at the ALF parser; assert both map to the same `reject_code` |
-| LM-045 | ~~MARKET with qty violating lot size~~ — **`blocked: G12`**, no lot size exists |
 | LM-046 | MARKET never appears in the book at any point (asserted on every depth snapshot) |
 | LM-047 | MARKET triggering the collar on the far level → correct partial behaviour |
 | LM-048 | MARKET both sides in quick succession → last price, high, low all correct |
@@ -1270,11 +1383,11 @@ ALF-only, REST-only, and at least one mixed binding.
 | LM-121 | Same as LM-120 with 2 actors on ALF and 2 on REST → fan-out complete |
 | LM-122 | Engine restart mid-scenario → resting orders recovered, no duplicate fills |
 
-**Totals (recounted 2026-09-03).** 62 scenarios are enumerated above: 15 in
-§12.1, 11 in §12.2, 10 in §12.3, 10 in §12.4, 6 in §12.5, 7 in §12.6 and 3 in
-§12.7. Three are struck as `blocked: G12` (LM-009, LM-011, LM-045); LM-007 is
-no longer reduced — its rejection variant now runs as written, leaving **60
-runnable**. At the
+**Totals (recounted 2026-09-04).** 60 scenarios are enumerated above (LM-009
+and LM-045 deleted as not applicable to lot size, §0.3): 14 in §12.1, 11 in
+§12.2, 9 in §12.3, 10 in §12.4, 6 in §12.5, 7 in §12.6 and 3 in §12.7. One is
+struck as `blocked: G12` (LM-011); LM-007 is no longer reduced — its
+rejection variant now runs as written, leaving **59 runnable**. At the
 {all-ALF, all-REST, one-mixed} binding set of §17 Q5 that is ≈ 177 executions.
 At an estimated few seconds each with probe-based quiescence, a full Phase 1
 run is a nightly-CI-sized job, not a per-commit one. A `--tag smoke` subset
@@ -1303,15 +1416,16 @@ unverifiable. The table below is the live register; §0.1 is its summary and
 | **G6** | Audit journal may not record rejected orders | ✅ **Was never a gap** | — | `audit/main.py` subscribes with an empty filter; every rejection is an `order.ack` with `accepted=false` and is journalled |
 | **G7** | Trade identity not durable; CALF and drop copy carried none | ✅ **Closed 2026-09-01** | Fan-out joins would need field/time heuristics | `run_seq-counter` ids; CALF `TRADE_ID`/`RUN_SEQ`; private, drop-copy and ALF `TRADE_IDS` (§A.3) |
 | **G8** | Stats flush timing unobservable | ⬜ Open, mitigated | Test cannot know when `stats.db` is safe to read | §5.3's rowid-stability probe suffices. A flush marker would make the quiesce cheaper, not more correct — downgraded to nice-to-have |
-| **G9** | `order_fill` carries no `liquidity_flag`; only the drop copy does | 🟥 **Open — blocking Phase 1** | Maker/taker attribution unverifiable from the client-facing path; I4 and §11.5 depend on it | Add `liquidity_flag` to `order_fill`; echo `LIQUIDITY=` on the ALF `FILL` line. REST needs no change (spike S3). See §0.2 |
+| **G9** | `order_fill` carried no `liquidity_flag`; only the drop copy did | ✅ **Closed 2026-09-04** | Maker/taker attribution now verifiable from the client-facing path; I4 and §11.5 no longer depend on E7 | `liquidity_flag` added to `order_fill`; `LIQUIDITY=` echoed on the ALF `FILL` line; REST needed no change (spike S3 confirmed). `tests/test_liquidity_flag.py`. See §0.2 |
 | **G10** | Session/halt matrix describes the implementation, not a rulebook | ⬜ Open, non-blocking | A test written from observed behaviour cannot show the behaviour is wrong | Spike S4 determined every cell, so scenarios can be written now; ratification remains. Note `spec/` holds *message* specs — the rulebook needs a new home, not `spec/` |
-| **G11** | An unfilled MARKET is cancelled with no reason on the wire | 🟥 **Open — new 2026-09-03** | `order.cancelled` for a discarded MARKET remainder is indistinguishable from a kill-switch, halt or expiry cancel | Optional nullable `reject_code` on `order_cancelled`. See §0.2 |
-| **G12** | No tick, lot, order-size or notional validation exists | 🟥 **Open — new 2026-09-03** | Eight `reject_code` members are unreachable; six catalogue scenarios and two invariants assert behaviour the system does not have | Product decision: implement pre-trade risk, or delete the scenarios and the unreachable codes. See §0.3 |
+| **G11** | An unfilled MARKET is cancelled with no reason on the wire | ✅ **Closed 2026-09-04** | `order.cancelled` for a discarded MARKET remainder is indistinguishable from a kill-switch, halt or expiry cancel | `cancel_reason` on `order_cancelled` (`INSUFFICIENT_LIQUIDITY`). See §0.2 |
+| **G12** | Tick validation and order-size/notional validation closed; lot size withdrawn as not applicable; position validation still open | 🟨 **Mostly closed — updated 2026-09-04 (later)** | `TICK_VIOLATION`, `MAX_ORDER_QTY` and `MAX_ORDER_VALUE` are all reachable and tested (`tests/test_order_limits.py`). `LOT_VIOLATION` is out of scope by design (single-share granularity). `LM-011` is unblocked. Only `POSITION_LIMIT` remains unreachable, and invariant I11′ still asserts behaviour the system does not have | Product decision, now narrowed to one control: implement `POSITION_LIMIT` pre-trade, or delete it and the I11′ sketch. See §0.3 |
 
-**G1, G4 and G7 were the blocking three and all are closed.** The blocking set
-is now **G9** alone, which is small and additive; **G12** blocks six specific
-scenarios rather than the framework, and **G11** blocks only the *reason* half
-of LM-042.
+**G1, G4 and G7 were the blocking three and all are closed. G9 and G11 are
+now closed too.** Nothing blocks the framework itself, and as of
+2026-09-04 (later) **G12** no longer blocks `LM-011` either — its order-size
+and notional half shipped, its lot-size half is closed as not applicable, and
+only `POSITION_LIMIT` is outstanding.
 
 **[Appendix A](#appendix-a--prerequisite-system-changes-g1-g4-g7) specifies
 G1, G4 and G7 in implementation-ready detail**, and
@@ -1376,18 +1490,18 @@ to UI confidence before Playwright.
 | 2 | Ratify §11.4's session and halt matrices (**G10**) | ⬜ Outstanding, **not blocking** — spike S4 determined every cell, so the scenarios can be written against it |
 | 3 | Machine-readable spy output (**G2**) | ✅ **Done** — `--format json`, one object per line on stdout |
 | 4 | Lift `tests/engine_invariants.py` I1–I6 into `edumatcher/systest/invariants.py`, shared by unit and system tests | 🟥 **Not started** — `src/edumatcher/systest/` does not exist. The first task of the whole effort |
-| 5 | **New:** close **G9** — `liquidity_flag` on `order_fill`, `LIQUIDITY=` on ALF `FILL` (§0.2) | 🟥 **Not started, blocking** |
+| 5 | **New:** close **G9** — `liquidity_flag` on `order_fill`, `LIQUIDITY=` on ALF `FILL` (§0.2) | ✅ **Done** — `tests/test_liquidity_flag.py`, audited 2026-09-04 |
 | 6 | **New:** write `docs/developer/ui-manual-verification.md` (§14) | 🟥 **Not started** |
-| 7 | **New:** decide G12's remainder — implement lot-size/order-size/notional controls, or delete the corresponding scenarios and enum members; tick validation is done (§0.3) | 🟥 **Decision outstanding**; blocks LM-009, LM-011, LM-045 and two invariants only |
+| 7 | **New:** decide G12's remainder — implement order-size/notional/position controls, or delete `LM-011` and the corresponding enum members; tick validation is done and lot size is not applicable (§0.3) | 🟥 **Decision outstanding**; blocks LM-011 and invariant I11′ only |
 
 *Verify:* unit tests still pass; each new field is visible end-to-end in a
 manual smoke run.
 
-**Items 1 and 3 are complete, so Phase 1 is unblocked.** Item 4 is the real
-starting task; item 5 (G9) must land before any scenario asserts maker/taker
-attribution; item 7 (G12's remainder) is a product decision that can be taken
-in parallel. G11 shipped since this table was drafted and has been removed
-from the outstanding list.
+**Items 1, 3 and 5 are complete, so Phase 1 is unblocked** — any scenario may
+now assert maker/taker attribution directly from E1. Item 4 is the real
+starting task; item 7 (G12's remainder) is a product decision that can be
+taken in parallel. G9 and G11 both shipped since this table was drafted and
+have been removed from the outstanding list.
 
 ### Phase 1 — Framework skeleton + first scenario
 
@@ -1439,11 +1553,15 @@ automation reusing the same scenario files and the same canonicaliser.
 - [x] Gate **G-δ** passed: `tests/test_cross_transport_rejects.py` proves ALF
       and REST agree on `reject_code`. §9.3's premise is no longer an
       assumption.
-- [ ] **G9** closed, so maker/taker attribution is assertable from E1.
-- [ ] **G12**'s remainder (lot size / order-size / notional) decided, and
-      every remaining `blocked:` scenario either implemented or deleted — not
-      left in the catalogue unmarked. (Tick validation closed; LM-007 no
-      longer blocked.)
+- [x] **G9** closed, so maker/taker attribution is assertable from E1 —
+      `liquidity_flag` on `order_fill`, `LIQUIDITY=` on ALF `FILL`,
+      `tests/test_liquidity_flag.py`, audited 2026-09-04.
+- [x] **G12**'s order-size and notional half decided and built —
+      `order_limits` shipped 2026-09-04 (later), so `LM-011` is implemented
+      rather than deleted. (Tick validation closed; LM-007 no longer blocked;
+      lot size withdrawn as not applicable, LM-009/LM-045 deleted.)
+- [ ] **G12**'s remainder (`POSITION_LIMIT`) decided, and the `I11′` sketch
+      either implemented or deleted — not left in the document unmarked.
 - [ ] Every remaining Phase 0 item in §15 closed and covered by a unit test.
 - [ ] `pm-systest run <id> --all-bindings --assert-equivalent` passes for
       every scenario in §12.
@@ -1507,12 +1625,16 @@ rather than deleted, so a reader of the earlier version can see what changed.
    more honest if the UI automation is eventually to reuse them — but see Q1:
    `spec/` is `pm-msgen`'s input tree and will reject unknown files. If the
    "specification" framing wins, the directory needs a different name.
-7. **G12's remainder — build lot-size/order-size/notional controls, or drop
-   the claim?** Tick validation shipped and is closed. §0.3 lays out the two
-   options for what's left. This is the largest remaining open decision in
-   the document, because it determines whether "verified to specification"
-   covers the rest of instrument rules and pre-trade risk, or explicitly
-   excludes them.
+7. **G12's remainder — build `POSITION_LIMIT`, or drop the claim?** Tick
+   validation shipped and is closed; lot size is withdrawn as not applicable
+   (single-share granularity is a design choice, not a gap); `MAX_ORDER_QTY`
+   and `MAX_ORDER_VALUE` shipped 2026-09-04 (later) as `order_limits`,
+   following the `collar` config pattern §0.3 recommended. What is left is
+   `POSITION_LIMIT`, whose recommended shape in §0.3 reuses the existing
+   `_gateway_positions` ledger, and the option to drop it instead. This
+   remains an open decision, because it determines
+   whether "verified to specification" covers pre-trade risk, or explicitly
+   excludes it.
 8. **Does the framework belong in the package?** §5 ships `systest/` inside
    `src/edumatcher/` so it installs on the test VM without dev extras. That
    also ships an order-injection harness in every production install. The
@@ -2180,12 +2302,19 @@ CI asserts it never appears in a systest run.
 > ahead of use is consistent with this section's own promise that members may
 > be added — but it means the enum is *not* a description of what the system
 > can currently tell you, and §12 read it as if it were. See §0.3, gap G12.
+> **Snapshot as of the 2026-09-03 audit — since updated**: `TICK_VIOLATION`
+> is now live; `LOT_VIOLATION` is withdrawn as not applicable rather than
+> pending (§0.3, 2026-09-04); and `MAX_ORDER_QTY` and `MAX_ORDER_VALUE` went
+> live later on 2026-09-04 with the `order_limits` config field. Only
+> `POSITION_LIMIT`, `CIRCUIT_BREAKER_ACTIVE` and `SELF_MATCH_PREVENTED`
+> remain in the never-emitted set for the reasons given above.
 >
 > The live set is: `MALFORMED_MESSAGE`, `MISSING_FIELD`, `INVALID_VALUE`,
 > `UNSUPPORTED_FIELD`, `AUTH_REQUIRED`, `AUTH_FAILED`, `ROLE_DENIED`,
 > `NOT_OWNER`, `RATE_LIMITED`, `GATEWAY_NOT_CONFIGURED`, `UNKNOWN_SYMBOL`,
-> `SYMBOL_NOT_READY`, `PRICE_OUT_OF_RANGE`, `QTY_OUT_OF_RANGE`,
-> `COLLAR_BREACH`, `MARKET_CLOSED`, `SESSION_NOT_PERMITTED`,
+> `SYMBOL_NOT_READY`, `TICK_VIOLATION`, `PRICE_OUT_OF_RANGE`,
+> `QTY_OUT_OF_RANGE`, `COLLAR_BREACH`, `MAX_ORDER_QTY`, `MAX_ORDER_VALUE`,
+> `MARKET_CLOSED`, `SESSION_NOT_PERMITTED`,
 > `INSTRUMENT_HALTED`, `ORDER_NOT_FOUND`, `ORDER_ALREADY_TERMINAL`,
 > `AMEND_NOT_PERMITTED`, `DUPLICATE_ORDER`, `INSUFFICIENT_LIQUIDITY`,
 > `INTERNAL_ERROR`. A test asserting "every member is reachable" would be
@@ -2729,10 +2858,14 @@ unwound later at higher cost.
 > qualifications, none of which reopens a gap:
 >
 > - The `reject_code` exhaustiveness criterion is satisfied for every rejection
->   path that *exists*. Eight enum members are never emitted by any path —
->   `TICK_VIOLATION`, `LOT_VIOLATION`, `MAX_ORDER_QTY`, `MAX_ORDER_VALUE`,
->   `POSITION_LIMIT`, `CIRCUIT_BREAKER_ACTIVE`, `SELF_MATCH_PREVENTED` and the
->   deliberate `UNKNOWN`. That is correct for a forward-looking enum (A.2.3
+>   path that *exists*. Eight enum members were never emitted by any path at
+>   the time of the audit — `TICK_VIOLATION`, `LOT_VIOLATION`,
+>   `MAX_ORDER_QTY`, `MAX_ORDER_VALUE`, `POSITION_LIMIT`,
+>   `CIRCUIT_BREAKER_ACTIVE`, `SELF_MATCH_PREVENTED` and the deliberate
+>   `UNKNOWN`. Four of those have since changed: `TICK_VIOLATION`,
+>   `CIRCUIT_BREAKER_ACTIVE`, `MAX_ORDER_QTY` and `MAX_ORDER_VALUE` are now
+>   emitted, and `LOT_VIOLATION` is withdrawn as not applicable (§0.3). That is
+>   correct for a forward-looking enum (A.2.3
 >   says members may be added ahead of use) but it means "every code both
 >   transports can produce" is a smaller set than the enum, and the
 >   cross-transport test's coverage should be read that way. See §0.3.

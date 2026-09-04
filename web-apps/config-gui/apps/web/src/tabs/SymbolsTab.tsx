@@ -191,7 +191,7 @@ export function SymbolsTab() {
               <Tabs.List className="mb-3 flex gap-1 border-b border-border">
                 {[
                   { v: "general", label: "General", show: true },
-                  { v: "collar", label: "Collar", show: true },
+                  { v: "collar", label: "Collar & Limits", show: true },
                   { v: "cb", label: "Circuit Breaker", show: canSee("E") },
                   { v: "mm", label: "Market Maker", show: true },
                   { v: "mmq", label: "MM Quotes", show: canSee("I") },
@@ -326,6 +326,51 @@ export function SymbolsTab() {
                     }
                   />
                   <span className="text-sm text-fg-subtle">%</span>
+                </FieldRow>
+                <FieldRow
+                  label="Max order quantity"
+                  path={`symbols.${symbol}.orderLimits.maxOrderQty`}
+                  help={{ text: "Largest quantity a single order in this symbol may carry. Leave empty for no cap — there is no level or global default.", cliFlag: "--symbol-opts max_order_qty" }}
+                  defaultHint="Default: no cap"
+                  isSet={config.orderLimits?.maxOrderQty !== undefined}
+                  onReset={() => update((d) => { if (d.symbols[symbol]!.orderLimits) d.symbols[symbol]!.orderLimits!.maxOrderQty = undefined; })}
+                >
+                  <NumberInput
+                    aria-label="Max order quantity override"
+                    value={config.orderLimits?.maxOrderQty}
+                    min={1}
+                    step={1}
+                    onChange={(v) =>
+                      update((d) => {
+                        const s = d.symbols[symbol]!;
+                        s.orderLimits = s.orderLimits ?? {};
+                        s.orderLimits.maxOrderQty = v;
+                      })
+                    }
+                  />
+                  <span className="text-sm text-fg-subtle">shares</span>
+                </FieldRow>
+                <FieldRow
+                  label="Max order value"
+                  path={`symbols.${symbol}.orderLimits.maxOrderValue`}
+                  help={{ text: "Largest notional a single priced order in this symbol may carry. Not applied to MARKET or IOC orders, which carry no price. Leave empty for no cap.", cliFlag: "--symbol-opts max_order_value" }}
+                  defaultHint="Default: no cap"
+                  isSet={config.orderLimits?.maxOrderValue !== undefined}
+                  onReset={() => update((d) => { if (d.symbols[symbol]!.orderLimits) d.symbols[symbol]!.orderLimits!.maxOrderValue = undefined; })}
+                >
+                  <NumberInput
+                    aria-label="Max order value override"
+                    value={config.orderLimits?.maxOrderValue}
+                    min={0}
+                    step={1000}
+                    onChange={(v) =>
+                      update((d) => {
+                        const s = d.symbols[symbol]!;
+                        s.orderLimits = s.orderLimits ?? {};
+                        s.orderLimits.maxOrderValue = v;
+                      })
+                    }
+                  />
                 </FieldRow>
               </Tabs.Content>
 

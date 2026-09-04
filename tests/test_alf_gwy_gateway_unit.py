@@ -418,6 +418,72 @@ def test_order_events_echo_client_tag(gateway: AlfGateway) -> None:
     peer.close()
 
 
+def test_fill_carries_the_liquidity_flag(gateway: AlfGateway) -> None:
+    """G9: maker/taker attribution on the private ALF FILL line."""
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    gateway._clients[session.sock.fileno()] = session
+    gateway._active_gateway_sessions["TRADER01"] = session.sock.fileno()
+
+    fake_sub = gateway._sub
+    assert isinstance(fake_sub, _FakeSub)
+    fake_sub._queue.append(
+        encode(
+            "order.fill.TRADER01",
+            {
+                "order_id": "ORD1",
+                "fill_qty": 1,
+                "fill_price": 100.0,
+                "remaining_qty": 0,
+                "status": "FILLED",
+                "trade_ids": ["000001-000000001"],
+                "liquidity_flag": "TAKER",
+            },
+        )
+    )
+
+    gateway._poll_engine_events()
+
+    frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    assert frame.command == "FILL"
+    assert frame.fields["LIQUIDITY"] == "TAKER"
+    peer.close()
+
+
+def test_fill_omits_liquidity_when_the_engine_did_not_send_one(
+    gateway: AlfGateway,
+) -> None:
+    """No default, no guess -- absent upstream means absent on the wire."""
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    gateway._clients[session.sock.fileno()] = session
+    gateway._active_gateway_sessions["TRADER01"] = session.sock.fileno()
+
+    fake_sub = gateway._sub
+    assert isinstance(fake_sub, _FakeSub)
+    fake_sub._queue.append(
+        encode(
+            "order.fill.TRADER01",
+            {
+                "order_id": "ORD1",
+                "fill_qty": 1,
+                "fill_price": 100.0,
+                "remaining_qty": 0,
+                "status": "FILLED",
+            },
+        )
+    )
+
+    gateway._poll_engine_events()
+
+    frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    assert frame.command == "FILL"
+    assert "LIQUIDITY" not in frame.fields
+    peer.close()
+
+
 def test_rejected_order_ack_echoes_reject_code(gateway: AlfGateway) -> None:
     session, peer = _make_session()
     session.authenticated = True

@@ -1,3 +1,30 @@
+## [v0.31.0] - 2026-09-04
+
+Release Type: minor
+
+### 📋 Summary
+This release adds maker/taker fill attribution and configurable per-symbol
+pre-trade order quantity and notional limits. It also expands configuration,
+operator, and GUI visibility for the new risk controls.
+
+### ✨ Additions
+- Added `liquidity_flag` (`MAKER` or `TAKER`) to private fill notifications across engine, ALF, REST/WebSocket, and drop-copy flows
+- Added per-symbol `max_order_qty` and `max_order_value` pre-trade risk limits updated generators (CLIO+GUI) to support this
+- Added day-aware timestamps to the Log GUI
+
+### 🚀 Improvements
+- Improved `pm-opctl-cli show` with more detailed runtime information
+
+### 📚 Documentation
+- Updated configuration, risk-control, protocol, API, training, and first-trade documentation for liquidity attribution and order limits
+- Updated the system trading verification design documentation for the current implementation
+- Significant rewrite of the "Your-first-trade" in the concept section of the documentation
+
+### 🛠 Internal
+- Added regression coverage for liquidity flags, order-limit validation, configuration artifacts, and generated order-message events
+- Regenerated bundled example configurations with the latest configuration generator
+
+
 ## [v0.29.2] - 2026-09-04
 
 Release Type: patch

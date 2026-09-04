@@ -149,6 +149,35 @@ types:
       - { name: static_band_pct, type: float, unit: percent, validate: { ge: 0 } }
       - { name: dynamic_band_pct, type: float, unit: percent, validate: { ge: 0 } }
 
+  OrderLimits:
+    doc: >
+      Pre-trade order-size and notional caps, as configured on a symbol.
+      Each cap is independently optional: an absent cap is not enforced, the
+      same way an absent `collar` leaves a symbol uncollared.
+    fields:
+      - name: max_order_qty
+        type: int
+        required: false
+        nullable: true
+        omit_when_none: true
+        unit: shares
+        validate: { gt: 0 }
+        doc: >
+          Largest quantity a single order may carry. Absent when no cap is
+          configured.
+      - name: max_order_value
+        type: float
+        required: false
+        nullable: true
+        omit_when_none: true
+        unit: money
+        validate: { gt: 0 }
+        doc: >
+          Largest notional (`quantity * price`) a single order may carry.
+          Absent when no cap is configured, and never evaluated for an order
+          that carries no price on the wire -- MARKET and IOC -- which the
+          collar's price bands already skip for the same reason.
+
   CircuitBreakerLevel:
     doc: >
       One rung of a symbol's circuit-breaker ladder, as configured. `name` is
@@ -203,6 +232,16 @@ types:
       - { name: collar, type: nested, ref: Collar, required: false,
           nullable: true, omit_when_none: true,
           doc: "Both bands or neither -- section 16.2's combination." }
+      - name: order_limits
+        type: nested
+        ref: OrderLimits
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: >
+          The symbol's order-size and notional caps. Configured per symbol and
+          nowhere else -- there is no level or global default -- so an absent
+          cap is one that is not enforced.
       - { name: circuit_breaker, type: nested, ref: SymbolCircuitBreaker,
           required: false, nullable: true, omit_when_none: true }
 

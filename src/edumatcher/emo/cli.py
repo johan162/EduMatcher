@@ -89,8 +89,11 @@ Commands
 ``init``
     Write the built-in profiles to ``<DATA_DIR>/emo-config.yaml``, refusing to
     overwrite an existing file.
-``show``
-    Print the resolved data directory.
+``show [--json]``
+    Print the version, resolved data directory, and the deployed
+    configuration paths (source and compiled -- same paths as
+    ``pm-config-deploy --show``). ``--json`` emits the same information as a
+    JSON object instead of plain text.
 ``clear (--state | --all) [--yes]``
     Delete persisted data under the data directory. ``--state`` removes only
     engine/session state (order books, GTC orders, derived stats, index and
@@ -108,6 +111,7 @@ tool and the processes it launches agree on ``EDUMATCHER_DATA_DIR``.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shlex
 import shutil
@@ -121,12 +125,15 @@ from typing import Any
 
 import yaml
 
+from edumatcher.cli_version import package_version
 from edumatcher.config import (
     AUDIT_INDEX_DB_FILE,
     AUDIT_LOG_FILE,
     CLEARING_DB_FILE,
     CLEARING_REPORT_FILE,
+    COMPILED_CONFIG_FILE,
     DATA_DIR,
+    ENGINE_CONFIG_FILE,
     GTC_COMBOS_FILE,
     GTC_ORDERS_FILE,
     BOOK_STATS_FILE,
@@ -756,8 +763,31 @@ def kill_all_processes() -> int:
     return result.returncode
 
 
-def show_data_dir() -> int:
-    print(DATA_DIR)
+def show_info(*, json_output: bool) -> int:
+    """Print version, data directory, and the deployed config paths.
+
+    The config paths mirror ``pm-config-deploy --show`` exactly -- both read
+    the same ``ENGINE_CONFIG_FILE``/``COMPILED_CONFIG_FILE`` constants -- so
+    the two commands can never disagree about where configuration lives.
+    """
+    version = package_version()
+    if json_output:
+        print(
+            json.dumps(
+                {
+                    "version": version,
+                    "data_dir": str(DATA_DIR),
+                    "config_source": str(ENGINE_CONFIG_FILE),
+                    "config_compiled": str(COMPILED_CONFIG_FILE),
+                },
+                indent=2,
+            )
+        )
+        return 0
+    print(f"Version: v{version}")
+    print(f"EduMatcher data: {DATA_DIR}")
+    print(f"Config source:  {ENGINE_CONFIG_FILE}")
+    print(f"Config compiled:  {COMPILED_CONFIG_FILE}")
     return 0
 
 
@@ -919,7 +949,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="print nothing; exit 0 when all processes are running, 1 otherwise",
     )
-    subparsers.add_parser("show", help="print the current data directory path")
+    show = subparsers.add_parser(
+        "show", help="print version, data directory and configuration paths"
+    )
+    show.add_argument(
+        "--json",
+        action="store_true",
+        help="emit machine-readable JSON instead of plain text",
+    )
     clear = subparsers.add_parser(
         "clear",
         help="delete persisted data under the data directory",
@@ -967,7 +1004,7 @@ def main() -> int:
         if args.command == "health":
             return health_profile(args.quiet)
         if args.command == "show":
-            return show_data_dir()
+            return show_info(json_output=args.json)
         if args.command == "clear":
             if args.state and args.clear_all:
                 print(

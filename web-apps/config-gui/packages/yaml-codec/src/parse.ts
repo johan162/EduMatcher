@@ -202,6 +202,14 @@ function parseSymbols(node: unknown, draft: EngineConfigDraft): void {
         dynamicBandPct: asNumber(value.collar.dynamic_band_pct),
       };
     }
+    if (isDict(value.order_limits)) {
+      const limits: { maxOrderQty?: number; maxOrderValue?: number } = {};
+      const maxQty = asNumber(value.order_limits.max_order_qty);
+      if (maxQty !== undefined) limits.maxOrderQty = maxQty;
+      const maxValue = asNumber(value.order_limits.max_order_value);
+      if (maxValue !== undefined) limits.maxOrderValue = maxValue;
+      if (Object.keys(limits).length > 0) config.orderLimits = limits;
+    }
     if (isDict(value.circuit_breaker)) {
       const cbRaw = value.circuit_breaker;
       const levels: Record<string, Partial<CbLevel>> = {};

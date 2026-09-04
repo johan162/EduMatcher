@@ -1456,6 +1456,10 @@ class AlfGateway:
             }
             if payload.get("client_tag") is not None:
                 fields["TAG"] = str(payload["client_tag"])
+            # G9: maker/taker attribution on the private fill, matching the
+            # drop-copy DC_FILL line's existing LIQUIDITY field.
+            if payload.get("liquidity_flag") is not None:
+                fields["LIQUIDITY"] = str(payload["liquidity_flag"])
         elif topic.startswith(PREFIX_ORDER_AMENDED):
             msg_type = "AMENDED"
             fields = {

@@ -1256,7 +1256,8 @@ Every event on every one of the three sockets uses the same envelope:
     "fill_qty": 50,
     "fill_price": 150.50,
     "remaining_qty": 50,
-    "status": "PARTIAL"
+    "status": "PARTIAL",
+    "liquidity_flag": "TAKER"
   }
 }
 ```
@@ -1270,6 +1271,17 @@ Every event on every one of the three sockets uses the same envelope:
 | `ts` | Exchange time, not browser receipt time |
 | `gateway_id` | Present on private events only |
 | `data` | The event payload |
+
+`order.fill.data.liquidity_flag` is `"MAKER"` when this order was resting on
+the book and got matched into, `"TAKER"` when it crossed the spread and
+matched immediately — derived from the trade's aggressor side. Every current
+fill notification comes from a real trade, so in practice the field is
+always present; it is nullable/omittable only as a defensive schema
+allowance (mirroring `trade_ids`, which is likewise never actually empty
+today). The same attribution is available today from the drop-copy feed's
+own `order.fill` event (see [Drop Copy](200-drop-copy.md#orderfill-event));
+on this path it now needs no cross-reference — a client reading only its own
+private fills can tell which side of the spread it was on.
 
 Order lifecycle events — `order.ack`, `order.fill`, `order.cancelled`,
 `order.expired` — additionally carry the identifiers that tie the order to the

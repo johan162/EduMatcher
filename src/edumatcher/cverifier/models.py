@@ -32,6 +32,8 @@ class RiskSummary:
     collars_enforced: bool = False
     collars_configured: bool = False
     collar_description: str = ""
+    order_limits_configured: bool = False
+    order_limits_description: str = ""
     circuit_breakers_enforced: bool = False
     circuit_breakers_configured: bool = False
     cb_description: str = ""

@@ -747,6 +747,17 @@ class ConfigBuilder:
                     collar["dynamic_band_pct"] = override.dynamic_band_pct
                 payload["collar"] = collar
 
+            if (
+                override.max_order_qty is not None
+                or override.max_order_value is not None
+            ):
+                order_limits: dict[str, Any] = {}
+                if override.max_order_qty is not None:
+                    order_limits["max_order_qty"] = override.max_order_qty
+                if override.max_order_value is not None:
+                    order_limits["max_order_value"] = override.max_order_value
+                payload["order_limits"] = order_limits
+
             cb_levels: dict[str, dict[str, Any]] = {}
             for level_name in sorted(
                 set(override.cb_shift) | set(override.cb_halt_mins)

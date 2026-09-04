@@ -19,6 +19,8 @@ def test_pm_config_gen_help_runs() -> None:
     assert "--comment-default-config-fields" in result.stdout
     assert "--symbol-static-band" in result.stdout
     assert "--symbol-dynamic-band" in result.stdout
+    assert "--symbol-max-order-qty" in result.stdout
+    assert "--symbol-max-order-value" in result.stdout
     assert "--symbol-risk-level" in result.stdout
     assert "--api-gateway-order-retention-sec" in result.stdout
     assert "--gateway-smp" in result.stdout

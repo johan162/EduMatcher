@@ -443,17 +443,24 @@ exposes the same activity to other clients.
 
 After the first trade, add observers. This is the safest way to learn the
 system: start with the engine and gateways, then add one new responsibility at a
-time. 
+time.
 
-**Note:** The fundamental structure in an exchange is the *"Order Book"* and it 
-is absolutely crucial to fully understand and internalise what structure this is
-and how it works. To support this learning there are two chapters in the exchange concept
-guide to help:
+!!! tip "New to trading?"
+    If exchanges and trading are new to you, don't stop at the five-minute
+    quickstart above — read these two concept chapters next, in order:
 
-1. [The Order Book](../concepts/01-concepts-order-book.md)
-2. [The Order Book: Deep Dive](../concepts/02-concepts-order-book-deep-dive.md)
+    1. [The Order Book](../concepts/01-concepts-order-book.md) — the
+       fundamental structure every exchange is built on. It is absolutely
+       crucial to fully understand and internalise what this structure is
+       and how it works before going further. Follow up with
+       [The Order Book: Deep Dive](../concepts/02-concepts-order-book-deep-dive.md)
+       once the basics are solid.
+    2. [Your First Trade](../concepts/04-concepts-first-trade.md) — a
+       guided, hands-on walkthrough that re-runs the quickstart above one
+       step at a time, explaining every field, every response, and the
+       maker/taker and P&L concepts behind them.
 
-To explore the processes the folling table will be helpful
+To explore the processes the following table will be helpful
 
 | When you want to... | Start this | Then read |
 |---|---|---|

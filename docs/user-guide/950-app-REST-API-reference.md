@@ -1253,6 +1253,14 @@ Purpose: return per-symbol tick and risk metadata.
 |---|---|---|
 | `200 OK` | `{ "symbols": [...], "config_version": "..." }` | One object per symbol (each carries its own `symbol`) |
 
+Each symbol object carries `tick_decimals`, `level`, and — when configured —
+`collar`, `order_limits` (`max_order_qty` / `max_order_value`) and
+`circuit_breaker`. `collar` is the symbol's **effective** band, its risk
+level's defaults already merged under any per-symbol override; `order_limits`
+is configured per symbol only, so it is simply what that symbol declared.
+Either is omitted entirely when not configured. Full field law:
+`ReferenceSymbol` in the [message reference](270-message-reference.md).
+
 **Errors**
 
 | Code | When |
@@ -1275,6 +1283,11 @@ Purpose: return risk-band definitions and the default risk level.
 | Status | Shape | Meaning |
 |---|---|---|
 | `200 OK` | `{ "default_level", "levels", "config_version" }` | Risk-band configuration |
+
+Each entry of `levels` carries its `name` and, when the level configures one,
+`collar` — as configured, before any per-symbol override. Levels do not carry
+order limits; those are per symbol and appear on `/reference/symbols`. Full
+field law: `RiskLevel` in the [message reference](270-message-reference.md).
 
 **Errors**
 

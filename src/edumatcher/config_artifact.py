@@ -353,17 +353,39 @@ def decode(text: str) -> CompiledConfig:
     result = from_jsonable(CompiledConfig, payload)
     assert isinstance(result, CompiledConfig)
 
-    # A recorded digest that no longer matches means the artifact was changed
-    # after it was compiled — the sections and the meta block now describe
-    # different configurations. Treat that as corruption rather than as a new
-    # configuration, because whatever is in the file was never validated.
+    # A recorded digest that no longer matches has two quite different causes,
+    # and reporting both as "modified" sent people hunting for an edit that
+    # never happened.
+    #
+    # `content_digest` hashes the decoded tree re-serialised by *this* build,
+    # not the file's bytes. `from_jsonable` fills a key the file lacks from the
+    # field's default and `to_jsonable` writes every declared field back out,
+    # so the round trip stops being the identity the moment a configuration
+    # dataclass gains or loses a field — on an artifact nobody touched.
+    #
+    # Hashing the payload exactly as it sits on disk tells the two apart
+    # precisely rather than heuristically: if that still matches what was
+    # recorded, the file is intact and only the schema moved.
     recorded = result.meta.content_sha256
     if recorded:
         actual = content_digest(result)
         if actual != recorded:
+            on_disk = hashlib.sha256(
+                _payload_text({k: v for k, v in payload.items() if k != "meta"}).encode(
+                    "utf-8"
+                )
+            ).hexdigest()
+            if on_disk == recorded:
+                raise ArtifactError(
+                    "compiled config is intact but was compiled against a "
+                    "different configuration schema: it was written by version "
+                    f"{result.meta.compiler_version}, and this build declares a "
+                    "different set of configuration fields. Nothing has been "
+                    "edited — run pm-config-deploy to recompile it"
+                )
             raise ArtifactError(
                 "compiled config has been modified since it was compiled "
-                f"(payload digest {actual[:12]}… does not match the recorded "
+                f"(payload digest {on_disk[:12]}… does not match the recorded "
                 f"{recorded[:12]}…) — edit the source and run pm-config-deploy "
                 "rather than editing the deployed artifact"
             )

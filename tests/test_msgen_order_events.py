@@ -195,6 +195,20 @@ class TestPresenceSemantics:
         assert topic == "order.ack.GW1"
         assert "gateway_id" not in payload
 
+    def test_fill_liquidity_flag_absent_by_default(self) -> None:
+        """G9: no default, no guess -- absent unless the caller says which."""
+        _topic, payload = M.decode(M.make_fill_msg("GW1", "O1", 5, 1.25, 3, "PARTIAL"))
+        assert "liquidity_flag" not in payload
+
+    @pytest.mark.parametrize("flag", ["MAKER", "TAKER"])
+    def test_fill_liquidity_flag_present_when_given(self, flag: str) -> None:
+        _topic, payload = M.decode(
+            M.make_fill_msg(
+                "GW1", "O1", 5, 1.25, 3, "PARTIAL", liquidity_flag=flag  # type: ignore[arg-type]
+            )
+        )
+        assert payload["liquidity_flag"] == flag
+
 
 class TestTheOneDeliberateWireChange:
     """A MARKET order's ack/fill no longer carries ``"price": null``.

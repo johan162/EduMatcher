@@ -137,6 +137,31 @@ export function SymbolOverviewDialog({ open, onOpenChange, symbol }: Props) {
                 )}
               </Section>
 
+              {/* Order limits */}
+              <Section title="Order limits (effective)">
+                {!eff.orderLimits.applies ? (
+                  <p className="text-sm text-fg-subtle">
+                    No order limits — orders for this symbol are not size- or
+                    notional-capped.
+                  </p>
+                ) : (
+                  <>
+                    {eff.orderLimits.maxOrderQty !== undefined && (
+                      <DefRow label="Max order quantity">
+                        {eff.orderLimits.maxOrderQty}
+                        <Src>symbol</Src>
+                      </DefRow>
+                    )}
+                    {eff.orderLimits.maxOrderValue !== undefined && (
+                      <DefRow label="Max order value">
+                        {eff.orderLimits.maxOrderValue}
+                        <Src>symbol</Src>
+                      </DefRow>
+                    )}
+                  </>
+                )}
+              </Section>
+
               {/* Circuit breaker */}
               <Section title="Circuit breaker (effective)">
                 {!eff.circuitBreaker.enforcedGlobally && (

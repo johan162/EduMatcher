@@ -234,6 +234,20 @@ function buildSymbol(
     payload.collar = collar;
   }
 
+  if (
+    config.orderLimits?.maxOrderQty !== undefined ||
+    config.orderLimits?.maxOrderValue !== undefined
+  ) {
+    const orderLimits: PlainConfig = {};
+    if (config.orderLimits.maxOrderQty !== undefined) {
+      orderLimits.max_order_qty = config.orderLimits.maxOrderQty;
+    }
+    if (config.orderLimits.maxOrderValue !== undefined) {
+      orderLimits.max_order_value = config.orderLimits.maxOrderValue;
+    }
+    payload.order_limits = orderLimits;
+  }
+
   if (config.circuitBreaker) {
     const hasLevels = Object.keys(config.circuitBreaker.levels).length > 0;
     const hasWindow = config.circuitBreaker.referenceWindowNs !== undefined;

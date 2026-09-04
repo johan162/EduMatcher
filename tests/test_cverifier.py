@@ -990,6 +990,101 @@ class TestLayer2RiskControls:
         assert "S041" not in _codes(results)
 
 
+class TestLayer2OrderLimits:
+    """S114–S119 — order_limits at symbol and risk-level scope."""
+
+    @staticmethod
+    def _symbol(block: str) -> dict[str, Any]:
+        return _raw(
+            "symbols:\n  AAPL:\n" + block + "gateways:\n  alf:\n    - id: GW01\n"
+        )
+
+    @staticmethod
+    def _level(block: str) -> dict[str, Any]:
+        return _raw(
+            "symbols:\n  AAPL: {}\ngateways:\n  alf:\n    - id: GW01\n"
+            "risk_controls:\n  levels:\n    DEFAULT:\n" + block
+        )
+
+    def test_s114_symbol_block_not_a_mapping(self) -> None:
+        results = layer2_schema.check(
+            self._symbol("    order_limits: 5\n"), Path("x.yaml")
+        )
+        assert "S114" in _codes(results)
+
+    @pytest.mark.parametrize("value", ["0", "-3", "1.5", "nope", "true"])
+    def test_s115_symbol_max_order_qty_invalid(self, value: str) -> None:
+        results = layer2_schema.check(
+            self._symbol(f"    order_limits:\n      max_order_qty: {value}\n"),
+            Path("x.yaml"),
+        )
+        assert "S115" in _codes(results)
+
+    @pytest.mark.parametrize("value", ["0", "-1.0", "nope"])
+    def test_s116_symbol_max_order_value_invalid(self, value: str) -> None:
+        results = layer2_schema.check(
+            self._symbol(f"    order_limits:\n      max_order_value: {value}\n"),
+            Path("x.yaml"),
+        )
+        assert "S116" in _codes(results)
+
+    def test_s117_a_level_may_not_carry_caps(self) -> None:
+        """Even a well-formed block is refused: caps are a per-symbol control."""
+        results = layer2_schema.check(
+            self._level("      order_limits:\n        max_order_qty: 100000\n"),
+            Path("x.yaml"),
+        )
+        assert "S117" in _codes(results)
+
+    def test_a_collar_only_level_is_still_fine(self) -> None:
+        codes = _codes(
+            layer2_schema.check(
+                self._level("      collar:\n        static_band_pct: 0.2\n"),
+                Path("x.yaml"),
+            )
+        )
+        assert "S117" not in codes
+
+    def test_valid_symbol_caps_pass(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL:\n    order_limits:\n      max_order_qty: 5000\n"
+            "      max_order_value: 250000\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+        )
+        codes = _codes(layer2_schema.check(raw, Path("x.yaml")))
+        assert not {"S114", "S115", "S116", "S117"} & set(codes)
+
+    def test_an_absent_block_is_legal(self) -> None:
+        codes = _codes(
+            layer2_schema.check(self._symbol("    tick_decimals: 2\n"), Path("x.yaml"))
+        )
+        assert not {"S114", "S115", "S116"} & set(codes)
+
+
+class TestRiskSummaryOrderLimits:
+    def test_configured_caps_are_summarised(self) -> None:
+        raw = _raw(
+            "symbols:\n"
+            "  AAPL:\n"
+            "    order_limits:\n"
+            "      max_order_qty: 100000\n"
+            "      max_order_value: 5000000\n"
+            "  MSFT: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+        )
+        summary = risk_summary_mod.build(raw)
+        assert summary.order_limits_configured is True
+        assert "AAPL" in summary.order_limits_description
+        assert "100000" in summary.order_limits_description
+        assert "MSFT" not in summary.order_limits_description
+
+    def test_absent_caps_say_so(self) -> None:
+        raw = _raw("symbols:\n  AAPL: {}\ngateways:\n  alf:\n    - id: GW01\n")
+        summary = risk_summary_mod.build(raw)
+        assert summary.order_limits_configured is False
+        assert summary.order_limits_description == "none configured"
+
+
 # ---------------------------------------------------------------------------
 # Layer 3 — Semantic
 # ---------------------------------------------------------------------------

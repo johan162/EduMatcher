@@ -89,6 +89,12 @@ export const symbolConfigSchema = z.object({
       dynamicBandPct: z.number().gt(0).lt(1).optional(),
     })
     .optional(),
+  orderLimits: z
+    .object({
+      maxOrderQty: z.number().int().positive().optional(),
+      maxOrderValue: z.number().positive().optional(),
+    })
+    .optional(),
   circuitBreaker: z
     .object({
       referenceWindowNs: z.number().int().positive().optional(),

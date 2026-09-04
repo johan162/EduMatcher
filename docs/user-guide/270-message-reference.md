@@ -1870,7 +1870,8 @@ Private fill notification for one order, addressed to the gateway that owns it. 
 | `combo_parent_id` | `string` | omitted when unset | max_len 64 |  |
 | `quote_id` | `string` | omitted when unset | max_len 64 |  |
 | `leg_index` | `int` | omitted when unset | unit `dimensionless` |  |
-| `trade_ids` | list of `string` | defaults to `[]` | — | The public trade.executed id(s) that composed this fill event. Usually one; more than one when an aggressor swept several resting orders and the engine coalesced them into a single VWAP fill (H5/H6). Empty only for a fill with no trade behind it. Lets a reader link a private fill to the public trade tape without re-deriving the join. |
+| `trade_ids` | list of `string` | defaults to `[]` | — | The public trade.executed id(s) that composed this fill event. Usually one; more than one when an aggressor swept several resting orders and the engine coalesced them into a single VWAP fill (H5/H6). Every current call site only publishes order_fill from a real trade, so in practice this is never empty; it is typed as a list (not required) defensively, for a fill notification that might one day exist without one. Lets a reader link a private fill to the public trade tape without re-deriving the join. |
+| `liquidity_flag` | enum: `MAKER`, `TAKER` | omitted when unset | — | Derived from the trade's aggressor side: the aggressor is the TAKER and the resting side the MAKER (same derivation as drop_copy.yaml::liquidity_flag). Nullable/omit_when_none for the same reason trade_ids is typed as an empty-able list: every current call site only publishes order_fill from a real trade, so this is never actually absent today, but nothing enforces that a future fill notification always has a trade behind it. |
 
 **See also:** `trade.executed`
 
@@ -2920,6 +2921,15 @@ Price-band configuration. The two bands `CollarConfig` reads; a deployment writi
 | `static_band_pct` | `float` | required | ge 0, unit `percent` |  |
 | `dynamic_band_pct` | `float` | required | ge 0, unit `percent` |  |
 
+#### `OrderLimits`
+
+Pre-trade order-size and notional caps, as configured on a symbol. Each cap is independently optional: an absent cap is not enforced, the same way an absent `collar` leaves a symbol uncollared.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `max_order_qty` | `int` | omitted when unset | gt 0, unit `shares` | Largest quantity a single order may carry. Absent when no cap is configured. |
+| `max_order_value` | `float` | omitted when unset | gt 0, unit `money` | Largest notional (`quantity * price`) a single order may carry. Absent when no cap is configured, and never evaluated for an order that carries no price on the wire -- MARKET and IOC -- which the collar's price bands already skip for the same reason. |
+
 #### `CircuitBreakerLevel`
 
 One rung of a symbol's circuit-breaker ladder, as configured. `name` is the string `circuit_breaker.halt.level` and `admin.action.scope.level` carry onward, and is bounded here to match them.
@@ -2949,6 +2959,7 @@ One instrument's static configuration. Distinct from `SymbolInfo`, which is the 
 | `tick_decimals` | `int` | required | ge 0, le 9, unit `dimensionless` | As on `SymbolInfo`; `tick_size` is gone from here too. |
 | `level` | `string` | omitted when unset | max_len 32 | Which risk-control level this symbol resolves to, naming an entry of `risk.levels`. Absent on a symbol with no level configured. |
 | `collar` | [`Collar`](#collar) | omitted when unset | — | Both bands or neither -- section 16.2's combination. |
+| `order_limits` | [`OrderLimits`](#orderlimits) | omitted when unset | — | The symbol's order-size and notional caps. Configured per symbol and nowhere else -- there is no level or global default -- so an absent cap is one that is not enforced. |
 | `circuit_breaker` | [`SymbolCircuitBreaker`](#symbolcircuitbreaker) | omitted when unset | — |  |
 
 #### `RiskLevel`

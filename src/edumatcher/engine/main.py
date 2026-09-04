@@ -53,6 +53,10 @@ from edumatcher.engine.auction import (
 from edumatcher.cli_version import add_version_argument
 from edumatcher.engine.circuit_breaker import CircuitBreakerLevel, CircuitBreakerState
 from edumatcher.engine.collar import CollarConfig, validate_collar
+from edumatcher.engine.order_limits import (
+    OrderLimitsConfig,
+    validate_order_limits,
+)
 from edumatcher.engine.config_loader import EngineConfig, load_engine_config
 from edumatcher.engine.drop_copy import DropCopyPublisher
 from edumatcher.engine.order_book import OrderBook
@@ -85,6 +89,7 @@ from edumatcher.models.generated.order import (
     TOPIC_ORDER_OCO_CANCEL,
     TOPIC_ORDERS_REQUEST,
     TOPIC_PRICE_LEVEL_ORDERS_REQUEST,
+    OrderFillLiquidityFlag,
     topic_order_ack,
     topic_order_cancelled,
     topic_order_fill,
@@ -414,6 +419,9 @@ class Engine:
         self._book_stats: dict[str, dict[str, Any]] = {}
         # Price collar configs — keyed by symbol; populated in _load_config()
         self._collars: dict[str, CollarConfig] = {}
+        # Order-size / notional caps — keyed by symbol; populated in
+        # _load_config(). Absent symbol means no cap is configured.
+        self._order_limits: dict[str, OrderLimitsConfig] = {}
         # Circuit breaker states — keyed by symbol; populated in _load_config()
         self._circuit_breakers: dict[str, CircuitBreakerState] = {}
         # Picks the random end of every reopening call phase. Seeded from
@@ -1001,6 +1009,9 @@ class Engine:
                                         trade_ids=self._order_trade_ids(trades).get(
                                             evt.id, []
                                         ),
+                                        liquidity_flag=self._order_liquidity_flags(
+                                            trades
+                                        ).get(evt.id),
                                     )
                                 )
                                 if evt.quote_id:
@@ -1070,6 +1081,8 @@ class Engine:
                     sym_cfg.collar.symbol = sym
                     sym_cfg.collar.reference_price = ref_ticks
                     self._collars[sym] = sym_cfg.collar
+            if sym_cfg.order_limits is not None:
+                self._order_limits[sym] = sym_cfg.order_limits
             if sym_cfg.circuit_breaker is not None:
                 sym_cfg.circuit_breaker.symbol = sym
                 cb_state = CircuitBreakerState(
@@ -1275,6 +1288,23 @@ class Engine:
                     "QTY_OUT_OF_RANGE",
                     "ICEBERG visible_qty must not exceed quantity",
                 )
+        # G12: pre-trade order-size and notional caps. Configured per risk
+        # level with a per-symbol override; an unconfigured symbol has no cap.
+        # A priceless order (MARKET, IOC) has no known notional, so only the
+        # quantity cap can apply to it.
+        limits = self._order_limits.get(order.symbol)
+        if limits is not None:
+            breach = validate_order_limits(
+                order.quantity,
+                (
+                    from_ticks(order.price, order.symbol)
+                    if order.price is not None
+                    else None
+                ),
+                limits,
+            )
+            if breach is not None:
+                return breach
         return None
 
     def _handle_new_order(self, payload: dict[str, Any]) -> None:
@@ -1556,6 +1586,7 @@ class Engine:
         # somehow missing from the trade map.
         _order_fill_px = self._order_fill_prices(trades)
         _order_trade_ids_map = self._order_trade_ids(trades)
+        _order_liquidity_flags_map = self._order_liquidity_flags(trades)
         _fill_px = (
             from_ticks(book.last_trade_price, order.symbol)
             if trades and book.last_trade_price is not None
@@ -1615,6 +1646,15 @@ class Engine:
                                     "PARTIAL_FILL" if evt.remaining_qty else "FILLED"
                                 ),
                                 "trade_ids": _order_trade_ids_map.get(evt.id, []),
+                                **(
+                                    {
+                                        "liquidity_flag": _order_liquidity_flags_map[
+                                            evt.id
+                                        ]
+                                    }
+                                    if evt.id in _order_liquidity_flags_map
+                                    else {}
+                                ),
                                 "symbol": evt.symbol,
                                 "side": _side_v if _is_agg else evt.side.value,
                                 "order_type": (
@@ -1774,6 +1814,13 @@ class Engine:
                 entry["collar"] = {
                     "static_band_pct": sym_cfg.collar.static_band_pct,
                     "dynamic_band_pct": sym_cfg.collar.dynamic_band_pct,
+                }
+            if sym_cfg.order_limits is not None:
+                # Caps are configured per symbol and nowhere else, so these are
+                # simply what the symbol declared.
+                entry["order_limits"] = {
+                    "max_order_qty": sym_cfg.order_limits.max_order_qty,
+                    "max_order_value": sym_cfg.order_limits.max_order_value,
                 }
             if sym_cfg.circuit_breaker is not None:
                 entry["circuit_breaker"] = {
@@ -2761,6 +2808,24 @@ class Engine:
                     bucket.append(t.id)
         return ids
 
+    @staticmethod
+    def _order_liquidity_flags(trades: list[Any]) -> dict[str, OrderFillLiquidityFlag]:
+        """Per-order MAKER/TAKER attribution, mirroring ``_order_trade_ids`` (G9).
+
+        Same derivation the drop-copy path (M13) already uses: the aggressor
+        side of a trade is TAKER, the resting side is MAKER. An order's side
+        (BUY/SELL) is constant across every trade that composes its fill, so
+        the first trade touching an order id settles its flag; a coalesced
+        multi-level sweep cannot disagree with itself because the order is
+        the aggressor for all of its own trades or for none of them.
+        """
+        flags: dict[str, OrderFillLiquidityFlag] = {}
+        for t in trades:
+            agg = t.aggressor_side
+            for oid, side in ((t.buy_order_id, "BUY"), (t.sell_order_id, "SELL")):
+                flags.setdefault(oid, "TAKER" if side == agg else "MAKER")
+        return flags
+
     def _check_circuit_breaker(self, symbol: str, trade_price: int, now: int) -> None:
         """
         Called after every fill to check whether a circuit breaker halt should fire.
@@ -3285,6 +3350,9 @@ class Engine:
                                 status=evt.status.value,
                                 order=evt.to_dict(),
                                 trade_ids=self._order_trade_ids(trades).get(evt.id, []),
+                                liquidity_flag=self._order_liquidity_flags(trades).get(
+                                    evt.id
+                                ),
                             )
                         )
                         if evt.quote_id:
@@ -4165,6 +4233,9 @@ class Engine:
                                 status=evt.status.value,
                                 order=evt.to_dict(),
                                 trade_ids=self._order_trade_ids(trades).get(evt.id, []),
+                                liquidity_flag=self._order_liquidity_flags(trades).get(
+                                    evt.id
+                                ),
                             )
                         )
                     if evt.combo_parent_id and evt.id != child.id:
@@ -4613,6 +4684,9 @@ class Engine:
                                     trade_ids=self._order_trade_ids(trades).get(
                                         evt.id, []
                                     ),
+                                    liquidity_flag=self._order_liquidity_flags(
+                                        trades
+                                    ).get(evt.id),
                                 )
                             )
                         if evt.combo_parent_id:
@@ -4653,6 +4727,9 @@ class Engine:
                                         trade_ids=self._order_trade_ids(sub_trades).get(
                                             sub_evt.id, []
                                         ),
+                                        liquidity_flag=self._order_liquidity_flags(
+                                            sub_trades
+                                        ).get(sub_evt.id),
                                     )
                                 )
                                 if sub_evt.combo_parent_id:
@@ -4922,6 +4999,9 @@ class Engine:
                                 status=evt.status.value,
                                 order=evt.to_dict(),
                                 trade_ids=self._order_trade_ids(trades).get(evt.id, []),
+                                liquidity_flag=self._order_liquidity_flags(trades).get(
+                                    evt.id
+                                ),
                             )
                         )
                         if evt.status == OrderStatus.FILLED and evt.oco_group_id:
@@ -5256,6 +5336,37 @@ class Engine:
                     )
                     return
 
+        # G12: the same order-size / notional caps a new order faces. `new_qty`
+        # is the amended order's *total* quantity and `new_price_ticks` its new
+        # price; either may be absent, in which case the resting value stands —
+        # the same resolution OrderBook.amend_order performs.
+        limits = self._order_limits.get(symbol)
+        if limits is not None and resting is not None:
+            amended_qty = new_qty if new_qty is not None else resting.quantity
+            amended_price = (
+                new_price_ticks if new_price_ticks is not None else resting.price
+            )
+            breach = validate_order_limits(
+                amended_qty,
+                (
+                    from_ticks(amended_price, symbol)
+                    if amended_price is not None
+                    else None
+                ),
+                limits,
+            )
+            if breach is not None:
+                self._dbg_count("amend_reject_order_limits")
+                self._reject(
+                    gateway_id=gateway_id,
+                    order_id=order_id,
+                    code=breach[0],
+                    reason=breach[1],
+                    client_tag=resting.client_tag,
+                    request_tag=request_tag,
+                )
+                return
+
         now = now_ns()
         amended, priority_reset, err = book.amend_order(
             order_id,
@@ -5367,6 +5478,7 @@ class Engine:
                         status=("PARTIAL_FILL" if evt.remaining_qty else "FILLED"),
                         order=evt.to_dict(),
                         trade_ids=self._order_trade_ids(trades).get(evt.id, []),
+                        liquidity_flag=self._order_liquidity_flags(trades).get(evt.id),
                     )
                 )
             if (

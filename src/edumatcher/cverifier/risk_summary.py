@@ -83,6 +83,31 @@ def build(raw: dict[str, Any]) -> RiskSummary:
     else:
         summary.collar_description = "disabled"
 
+    # Order-size / notional caps. Read from the symbols, which is the only
+    # scope that carries them — there is no level or global default.
+    limit_descs: list[str] = []
+    if isinstance(symbols, dict):
+        for sym_name, sym_cfg in symbols.items():
+            if not isinstance(sym_cfg, dict):
+                continue
+            limits = sym_cfg.get("order_limits")
+            if not isinstance(limits, dict):
+                continue
+            parts = []
+            qty = limits.get("max_order_qty")
+            if qty is not None:
+                parts.append(f"max qty {qty}")
+            value = limits.get("max_order_value")
+            if value is not None:
+                parts.append(f"max value {value}")
+            if parts:
+                summary.order_limits_configured = True
+                limit_descs.append(f"{str(sym_name).upper()}: {', '.join(parts)}")
+
+    summary.order_limits_description = (
+        "; ".join(limit_descs) if summary.order_limits_configured else "none configured"
+    )
+
     # Circuit breakers
     summary.circuit_breakers_enforced = bool(raw.get("enforce_circuit_breakers", True))
     cb_defaults = raw.get("circuit_breaker_defaults")

@@ -172,3 +172,38 @@ describe("resolveEffectiveSymbol", () => {
     expect(eff.combos).toEqual(["PAIR"]);
   });
 });
+
+describe("resolveEffectiveSymbol — order limits", () => {
+  it("reports no limits when the symbol caps nothing", () => {
+    const eff = resolveEffectiveSymbol(draftWith(), "AAPL")!;
+    expect(eff.orderLimits.applies).toBe(false);
+    expect(eff.orderLimits.maxOrderQty).toBeUndefined();
+  });
+
+  it("resolves the symbol's own caps", () => {
+    const d = draftWith();
+    d.symbols.AAPL!.orderLimits = { maxOrderQty: 5_000, maxOrderValue: 250_000 };
+    const eff = resolveEffectiveSymbol(d, "AAPL")!;
+    expect(eff.orderLimits.applies).toBe(true);
+    expect(eff.orderLimits.maxOrderQty).toBe(5_000);
+    expect(eff.orderLimits.maxOrderValue).toBe(250_000);
+  });
+
+  it("treats each cap independently", () => {
+    const d = draftWith();
+    d.symbols.AAPL!.orderLimits = { maxOrderValue: 250_000 };
+    const eff = resolveEffectiveSymbol(d, "AAPL")!;
+    expect(eff.orderLimits.applies).toBe(true);
+    expect(eff.orderLimits.maxOrderQty).toBeUndefined();
+  });
+
+  it("does not inherit caps from the symbol's risk level", () => {
+    // Levels carry collars and nothing else; a cap is per symbol or absent.
+    const d = draftWith();
+    d.riskControls.levels = { CORE: { staticBandPct: 0.18, dynamicBandPct: 0.03 } };
+    d.symbols.AAPL!.level = "CORE";
+    const eff = resolveEffectiveSymbol(d, "AAPL")!;
+    expect(eff.collar.applies).toBe(true);
+    expect(eff.orderLimits.applies).toBe(false);
+  });
+});

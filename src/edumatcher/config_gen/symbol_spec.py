@@ -10,6 +10,8 @@ class SymbolOverride:
     tick_decimals: int | None = None
     static_band_pct: float | None = None
     dynamic_band_pct: float | None = None
+    max_order_qty: int | None = None
+    max_order_value: float | None = None
     cb_shift: dict[str, float] = field(default_factory=dict)
     cb_halt_mins: dict[str, int | None] = field(default_factory=dict)
     level: str | None = None
@@ -28,6 +30,8 @@ _ALLOWED_KEYS = {
     "tick_decimals",
     "static_band",
     "dynamic_band",
+    "max_order_qty",
+    "max_order_value",
     "cb_shift_l1",
     "cb_halt_l1",
     "cb_shift_l2",
@@ -135,6 +139,20 @@ def _apply_symbol_option(
             if not (0 < parsed_float < 1):
                 raise ValueError("dynamic_band must be in (0, 1)")
             override.dynamic_band_pct = parsed_float
+            return
+
+        if key == "max_order_qty":
+            parsed_int = int(value)
+            if parsed_int <= 0:
+                raise ValueError("max_order_qty must be > 0")
+            override.max_order_qty = parsed_int
+            return
+
+        if key == "max_order_value":
+            parsed_float = float(value)
+            if parsed_float <= 0:
+                raise ValueError("max_order_value must be > 0")
+            override.max_order_value = parsed_float
             return
 
         if key.startswith("cb_shift_l"):
