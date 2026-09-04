@@ -3,7 +3,7 @@
 #          desk 1 TRADER02:TRADER:CANCEL_ALL:Student desk 2 OPS01:ADMIN:LEAVE_ALL:Instructor \
 #          console MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Market maker --seed-mm-mid-range 20:300 \
 #          --seed-last-prices-from-mm --output engine_config.yaml --force \
-#          --comment-default-config-fields --seed 1018797316 --outstanding-shares AAPL:15400000000 \
+#          --comment-default-config-fields --seed 66298888 --outstanding-shares AAPL:15400000000 \
 #          --outstanding-shares MSFT:7430000000 --outstanding-shares TSLA:3200000000 \
 #          --api-gateway-instance desk:TRADER01,TRADER02,MM01,OPS01:8080 --api-gateway-instance \
 #          dashboards::8081 --api-gateway-readonly-key --sessions-enabled --post-trade-gateway \
@@ -89,16 +89,10 @@
 #         collar:
 #           static_band_pct: 0.30
 #           dynamic_band_pct: 0.05
-#         order_limits:
-#           max_order_qty: 100000
-#           max_order_value: 5000000
 #       L2:
 #         collar:
 #           static_band_pct: 0.20
 #           dynamic_band_pct: 0.02
-#         order_limits:
-#           max_order_qty: 50000
-#           max_order_value: 2500000
 #
 #   circuit_breaker_defaults:
 #     reference_window_ns: 300000000000
@@ -351,16 +345,6 @@
 #     Tighter dynamic guardrail around near-live trading levels.
 #     Precedence: symbols.<SYM>.collar > symbols.<SYM>.level >
 #     risk_controls.default_level > built-in defaults.
-#   levels.<NAME>.order_limits:
-#     Pre-trade order-size and notional caps for this profile.
-#   levels.<NAME>.order_limits.max_order_qty: null
-#     Largest quantity a single order may carry. Omit for no cap.
-#   levels.<NAME>.order_limits.max_order_value: null
-#     Largest notional (quantity x price) a single order may carry.
-#     Omit for no cap. Not checked for MARKET/IOC orders, which carry
-#     no price. Each cap merges independently:
-#     symbols.<SYM>.order_limits.<KEY> > symbols.<SYM>.level.
-#     An unset cap is not enforced -- there is no built-in fallback.
 #     Note: levels.<NAME>.circuit_breaker is not supported; use
 #     circuit_breaker_defaults at the top level instead.
 #
@@ -432,12 +416,13 @@
 #   collar.dynamic_band_pct: 0.02
 #     Symbol-level dynamic guardrail around near-live prices.
 #   order_limits:
-#     Symbol-specific order-size / notional cap override, merged per key
-#     over the caps of this symbol's risk level.
+#     Pre-trade order-size and notional caps for this symbol. There is
+#     no level or global default: a cap set nowhere is not enforced.
 #   order_limits.max_order_qty: null
 #     Largest quantity a single order in this symbol may carry.
 #   order_limits.max_order_value: null
 #     Largest notional a single priced order in this symbol may carry.
+#     Not checked for MARKET/IOC orders, which carry no price.
 #   circuit_breaker:
 #     Symbol-specific halt policy override layered on top of circuit_breaker_defaults.
 #     Levels merge field-by-field, so each symbol can override only needed fields.
@@ -768,16 +753,16 @@ api_gateways:
     stats_db: data/stats.db
     order_retention_sec: 3600
     credentials:
-    - api_key: key-trader01-hak8tksi7gw8pqdaaus9552q6ppwmjia
+    - api_key: key-trader01-0z47m4t62n73w6le73hkohavkhjlwgzn
       gateway_id: TRADER01
       description: Generated key for TRADER01
-    - api_key: key-trader02-7uqrndezg45469y7jduii8381d8ldzvn
+    - api_key: key-trader02-7ejexjuz3mb7s3m984lol2r93jouzc3o
       gateway_id: TRADER02
       description: Generated key for TRADER02
-    - api_key: key-ops01-xmmopre2q0mfnv58e64ye0vvhm788nlp
+    - api_key: key-ops01-jq2ub84nnv566k0kzlhu8sm0cxff7xot
       gateway_id: OPS01
       description: Generated key for OPS01
-    - api_key: key-mm01-rk68u2a2o98vkd5lue5g8fi0yj9fuus0
+    - api_key: key-mm01-z34uhxv256bgubgd7rb7mf2qyum2jj8n
       gateway_id: MM01
       description: Generated key for MM01
     rate_limit:
@@ -796,7 +781,7 @@ api_gateways:
     stats_db: data/stats.db
     order_retention_sec: 3600
     credentials:
-    - api_key: key-readonly-250zlebtytga7dzq6yayt3rkz1bqj9dd
+    - api_key: key-readonly-h736d9ixjx5xswopr9rkeo2eda3ka57v
       gateway_id: null
       description: Generated read-only market-data key
     rate_limit:
@@ -812,12 +797,12 @@ api_gateways:
 symbols:
   AAPL:
     tick_decimals: 2
-    last_buy_price: 253.5
-    last_sell_price: 253.5
+    last_buy_price: 226.55
+    last_sell_price: 226.55
     market_maker_quotes:
     - gateway_id: MM01
-      bid_price: 253.49
-      ask_price: 253.51
+      bid_price: 226.54
+      ask_price: 226.56
       bid_qty: 1000
       ask_qty: 1000
       tif: DAY
@@ -825,12 +810,12 @@ symbols:
     outstanding_shares: 15400000000
   MSFT:
     tick_decimals: 2
-    last_buy_price: 167.29
-    last_sell_price: 167.29
+    last_buy_price: 56.53
+    last_sell_price: 56.53
     market_maker_quotes:
     - gateway_id: MM01
-      bid_price: 167.28
-      ask_price: 167.3
+      bid_price: 56.52
+      ask_price: 56.54
       bid_qty: 1000
       ask_qty: 1000
       tif: DAY
@@ -838,12 +823,12 @@ symbols:
     outstanding_shares: 7430000000
   TSLA:
     tick_decimals: 2
-    last_buy_price: 77.25
-    last_sell_price: 77.25
+    last_buy_price: 37.8
+    last_sell_price: 37.8
     market_maker_quotes:
     - gateway_id: MM01
-      bid_price: 77.24
-      ask_price: 77.26
+      bid_price: 37.79
+      ask_price: 37.81
       bid_qty: 1000
       ask_qty: 1000
       tif: DAY

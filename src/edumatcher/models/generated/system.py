@@ -163,7 +163,7 @@ class Collar:
 
 @dataclass(frozen=True, slots=True)
 class OrderLimits:
-    """Pre-trade order-size and notional caps, as configured. Each cap is
+    """Pre-trade order-size and notional caps, as configured on a symbol. Each cap is
     independently optional: an absent cap is not enforced, the same way an absent
     `collar` leaves a symbol uncollared.
     """
@@ -410,7 +410,6 @@ class RiskLevel:
 
     name: str
     collar: Collar | None = None
-    order_limits: OrderLimits | None = None
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -425,8 +424,6 @@ class RiskLevel:
             )
         if self.collar is not None:
             self.collar.validate()
-        if self.order_limits is not None:
-            self.order_limits.validate()
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "RiskLevel":
@@ -439,11 +436,6 @@ class RiskLevel:
         return cls(
             name=str(p["name"]),
             collar=None if p.get("collar") is None else Collar.from_dict(p["collar"]),
-            order_limits=(
-                None
-                if p.get("order_limits") is None
-                else OrderLimits.from_dict(p["order_limits"])
-            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -453,8 +445,6 @@ class RiskLevel:
         }
         if self.collar is not None:
             payload["collar"] = self.collar.to_dict()
-        if self.order_limits is not None:
-            payload["order_limits"] = self.order_limits.to_dict()
         return payload
 
 

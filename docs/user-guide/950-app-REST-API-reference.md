@@ -58,7 +58,7 @@ All paths are rooted at `/api/v1`.
 | [GET /api/v1/reference](#get-apiv1reference) | Authenticated key | Return the full reference bundle |
 | [GET /api/v1/reference/config-version](#get-apiv1referenceconfig-version) | Authenticated key | Return the reference bundle version |
 | [GET /api/v1/reference/symbols](#get-apiv1referencesymbols) | Authenticated key | Return per-symbol tick and risk metadata |
-| [GET /api/v1/reference/risk](#get-apiv1referencerisk) | Authenticated key | Return risk-band and order-limit definitions |
+| [GET /api/v1/reference/risk](#get-apiv1referencerisk) | Authenticated key | Return risk-band definitions |
 | [GET /api/v1/reference/indexes](#get-apiv1referenceindexes) | Authenticated key | Return configured exchange index definitions |
 | [GET /api/v1/reference/schedule](#get-apiv1referenceschedule) | Authenticated key | Return session schedule metadata |
 | [POST /api/v1/admin/reference/reload](#post-apiv1adminreferencereload) | Admin role | Reload the compiled reference bundle |
@@ -1255,11 +1255,11 @@ Purpose: return per-symbol tick and risk metadata.
 
 Each symbol object carries `tick_decimals`, `level`, and — when configured —
 `collar`, `order_limits` (`max_order_qty` / `max_order_value`) and
-`circuit_breaker`. `collar` and `order_limits` are the symbol's **effective**
-values, its risk level's defaults already merged under any per-symbol
-override; a field is omitted entirely when neither scope configures it. Full
-field law: `ReferenceSymbol` in the
-[message reference](270-message-reference.md).
+`circuit_breaker`. `collar` is the symbol's **effective** band, its risk
+level's defaults already merged under any per-symbol override; `order_limits`
+is configured per symbol only, so it is simply what that symbol declared.
+Either is omitted entirely when not configured. Full field law:
+`ReferenceSymbol` in the [message reference](270-message-reference.md).
 
 **Errors**
 
@@ -1270,8 +1270,7 @@ field law: `ReferenceSymbol` in the
 
 ### `GET /api/v1/reference/risk`
 
-Purpose: return risk-band definitions, order-limit profiles, and the default
-risk level.
+Purpose: return risk-band definitions and the default risk level.
 
 **Arguments**
 
@@ -1283,12 +1282,12 @@ risk level.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | `{ "default_level", "levels", "config_version" }` | Risk-level configuration |
+| `200 OK` | `{ "default_level", "levels", "config_version" }` | Risk-band configuration |
 
-Each entry of `levels` carries its `name` and, when the level configures them,
-`collar` and `order_limits` — as configured, before any per-symbol override.
-Full field law: `RiskLevel` in the
-[message reference](270-message-reference.md).
+Each entry of `levels` carries its `name` and, when the level configures one,
+`collar` — as configured, before any per-symbol override. Levels do not carry
+order limits; those are per symbol and appear on `/reference/symbols`. Full
+field law: `RiskLevel` in the [message reference](270-message-reference.md).
 
 **Errors**
 

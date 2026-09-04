@@ -1028,36 +1028,31 @@ class TestLayer2OrderLimits:
         )
         assert "S116" in _codes(results)
 
-    def test_s117_level_block_not_a_mapping(self) -> None:
+    def test_s117_a_level_may_not_carry_caps(self) -> None:
+        """Even a well-formed block is refused: caps are a per-symbol control."""
         results = layer2_schema.check(
-            self._level("      order_limits: 5\n"), Path("x.yaml")
+            self._level("      order_limits:\n        max_order_qty: 100000\n"),
+            Path("x.yaml"),
         )
         assert "S117" in _codes(results)
 
-    def test_s118_level_max_order_qty_invalid(self) -> None:
-        results = layer2_schema.check(
-            self._level("      order_limits:\n        max_order_qty: 0\n"),
-            Path("x.yaml"),
+    def test_a_collar_only_level_is_still_fine(self) -> None:
+        codes = _codes(
+            layer2_schema.check(
+                self._level("      collar:\n        static_band_pct: 0.2\n"),
+                Path("x.yaml"),
+            )
         )
-        assert "S118" in _codes(results)
+        assert "S117" not in codes
 
-    def test_s119_level_max_order_value_invalid(self) -> None:
-        results = layer2_schema.check(
-            self._level("      order_limits:\n        max_order_value: -2\n"),
-            Path("x.yaml"),
-        )
-        assert "S119" in _codes(results)
-
-    def test_valid_caps_pass_at_both_scopes(self) -> None:
+    def test_valid_symbol_caps_pass(self) -> None:
         raw = _raw(
             "symbols:\n  AAPL:\n    order_limits:\n      max_order_qty: 5000\n"
+            "      max_order_value: 250000\n"
             "gateways:\n  alf:\n    - id: GW01\n"
-            "risk_controls:\n  levels:\n    DEFAULT:\n"
-            "      order_limits:\n        max_order_qty: 100000\n"
-            "        max_order_value: 5000000\n"
         )
         codes = _codes(layer2_schema.check(raw, Path("x.yaml")))
-        assert not {"S114", "S115", "S116", "S117", "S118", "S119"} & set(codes)
+        assert not {"S114", "S115", "S116", "S117"} & set(codes)
 
     def test_an_absent_block_is_legal(self) -> None:
         codes = _codes(
@@ -1069,15 +1064,19 @@ class TestLayer2OrderLimits:
 class TestRiskSummaryOrderLimits:
     def test_configured_caps_are_summarised(self) -> None:
         raw = _raw(
-            "symbols:\n  AAPL: {}\ngateways:\n  alf:\n    - id: GW01\n"
-            "risk_controls:\n  levels:\n    CORE:\n"
-            "      order_limits:\n        max_order_qty: 100000\n"
-            "        max_order_value: 5000000\n"
+            "symbols:\n"
+            "  AAPL:\n"
+            "    order_limits:\n"
+            "      max_order_qty: 100000\n"
+            "      max_order_value: 5000000\n"
+            "  MSFT: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
         )
         summary = risk_summary_mod.build(raw)
         assert summary.order_limits_configured is True
-        assert "CORE" in summary.order_limits_description
+        assert "AAPL" in summary.order_limits_description
         assert "100000" in summary.order_limits_description
+        assert "MSFT" not in summary.order_limits_description
 
     def test_absent_caps_say_so(self) -> None:
         raw = _raw("symbols:\n  AAPL: {}\ngateways:\n  alf:\n    - id: GW01\n")

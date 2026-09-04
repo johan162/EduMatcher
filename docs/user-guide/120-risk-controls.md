@@ -77,10 +77,10 @@ flowchart TD
 
 !!! note "Order limits have no global switch"
     Unlike collars and circuit breakers, order limits are turned off by simply
-    not configuring them: an absent cap is not enforced. There is deliberately
-    no `enforce_order_limits` flag and no built-in fallback number — a limit
-    that exists only in code and not in the configuration file is not auditable
-    as a requirement.
+    not setting them on a symbol: an absent cap is not enforced. There is
+    deliberately no `enforce_order_limits` flag, no risk-level tier and no
+    built-in fallback number — a limit that exists only in code and not in the
+    configuration file is not auditable as a requirement.
 
 !!! note "Global on/off switches"
     Collar and circuit-breaker enforcement can each be disabled engine-wide
@@ -335,30 +335,23 @@ with `MAX_ORDER_QTY`.
 
 ### Configuration
 
-Add an `order_limits` sub-section to any symbol, or to a risk level:
+Add an `order_limits` sub-section to any symbol:
 
 ```yaml
-risk_controls:
-  default_level: L2
-  levels:
-    L1:
-      order_limits:
-        max_order_qty: 100000
-        max_order_value: 5000000
-    L2:
-      order_limits:
-        max_order_qty: 50000
-        max_order_value: 2500000
-
 symbols:
   AAPL:
     tick_decimals: 2
-    # inherits L2's two caps
-  TSLA:
-    level: L1
     order_limits:
-      # tighter quantity cap; L1's max_order_value: 5000000 still applies
+      max_order_qty: 50000
+      max_order_value: 2500000
+  TSLA:
+    tick_decimals: 2
+    order_limits:
+      # a quantity cap only; notional is left unlimited
       max_order_qty: 5000
+  MSFT:
+    tick_decimals: 2
+    # no order_limits at all — neither cap is enforced for MSFT
 ```
 
 | Parameter | Type | Default | Meaning |
@@ -366,25 +359,36 @@ symbols:
 | `max_order_qty` | int | *none* | Maximum quantity on a single order (`> 0`) |
 | `max_order_value` | float | *none* | Maximum notional on a single priced order, in display money (`> 0`) |
 
-Resolution precedence, **per cap**:
+`pm-config-gen` can write both, either with the explicit per-symbol flags or
+as `--symbol-opts` keys:
 
-1. `symbols.<symbol>.order_limits.<cap>` (symbol override)
-2. `symbols.<symbol>.level` profile from `risk_controls.levels`
-3. `risk_controls.default_level` profile
-4. **no cap** — the limit is not enforced
+```bash
+pm-config-gen --symbols AAPL MSFT --gateways TRADER01 \
+  --symbol-max-order-qty AAPL:50000 \
+  --symbol-max-order-value AAPL:2500000
+```
 
-Note the difference from collars at step 4. A collar falls back to a built-in
-band; an order limit does not fall back to anything. That is deliberate: a
-number that only exists in the engine's source is not a requirement anyone can
-review in the configuration file.
+**Order limits are configured per symbol and nowhere else.** There is no
+risk-level tier and no global default, so the rule is simply:
 
-Because the merge is per cap and not per block, a symbol can tighten one cap
-and inherit the other — as `TSLA` does above.
+1. `symbols.<symbol>.order_limits.<cap>` — the cap applies
+2. absent — the cap is **not enforced**
+
+Note how this differs from collars. A collar can be defined once on a
+`risk_controls` level and shared by every symbol that references it, because a
+percentage band means the same thing on a $10 stock and a $1,000 one. A size or
+notional cap does not: the right number depends on the individual instrument's
+price and typical trade size, so there is nothing useful for a shared profile to
+say. `risk_controls.levels.<L>.order_limits` is therefore **rejected** — by the
+engine loader at startup and by `pm-cverifier` as check `S117` — rather than
+silently accepted and ignored.
+
+Each cap is independent: `TSLA` above caps quantity while leaving notional
+unlimited.
 
 ### Querying the effective limits
 
-`GET /api/v1/reference/symbols` reports each symbol's **effective** caps, its
-level defaults already merged under any per-symbol override, alongside its
+`GET /api/v1/reference/symbols` reports each symbol's caps alongside its
 collar:
 
 ```json
@@ -392,13 +396,12 @@ collar:
   "symbol": "TSLA",
   "tick_decimals": 2,
   "level": "L1",
-  "order_limits": { "max_order_qty": 5000, "max_order_value": 5000000 }
+  "order_limits": { "max_order_qty": 5000 }
 }
 ```
 
-`GET /api/v1/reference/risk` reports the same field on each named level, as
-configured. A symbol with no cap at either scope omits `order_limits`
-entirely — see [REST API reference](950-app-REST-API-reference.md).
+A symbol that sets neither cap omits `order_limits` entirely — see
+[REST API reference](950-app-REST-API-reference.md).
 
 
 

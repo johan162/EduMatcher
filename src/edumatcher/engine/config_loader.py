@@ -496,10 +496,9 @@ def load_engine_config(path: Path) -> EngineConfig:
                     f"Engine config 'risk_controls.levels.{level_name}.collar' must be a mapping"
                 )
 
-            level_limits_raw = level_cfg_raw.get("order_limits")
-            if level_limits_raw is not None and not isinstance(level_limits_raw, dict):
+            if level_cfg_raw.get("order_limits") is not None:
                 raise ValueError(
-                    f"Engine config 'risk_controls.levels.{level_name}.order_limits' must be a mapping"
+                    f"Engine config 'risk_controls.levels.{level_name}.order_limits' is not supported; set order_limits on each symbol instead"
                 )
 
             level_cb_raw = level_cfg_raw.get("circuit_breaker")
@@ -510,7 +509,6 @@ def load_engine_config(path: Path) -> EngineConfig:
 
             risk_control_levels[level_name] = {
                 "collar": dict(level_collar_raw or {}),
-                "order_limits": dict(level_limits_raw or {}),
             }
 
         if (
@@ -684,12 +682,9 @@ def load_engine_config(path: Path) -> EngineConfig:
         limits_raw = cfg.get("order_limits")
         if limits_raw is not None and not isinstance(limits_raw, dict):
             raise ValueError(f"Symbol '{sym}': order_limits must be a mapping")
-        level_limits = level_cfg.get("order_limits")
-        effective_limits_raw: dict[str, Any] = {}
-        if isinstance(level_limits, dict):
-            effective_limits_raw.update(level_limits)
-        if isinstance(limits_raw, dict):
-            effective_limits_raw.update(limits_raw)
+        # Symbol scope only: there is no level default and no global default,
+        # so an unconfigured cap is simply not enforced.
+        effective_limits_raw: dict[str, Any] = dict(limits_raw or {})
 
         max_qty: int | None = None
         max_qty_raw = effective_limits_raw.get("max_order_qty")

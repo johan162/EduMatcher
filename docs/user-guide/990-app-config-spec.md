@@ -185,22 +185,24 @@ AlfGatewaySpec:                              # one entry of gateways.alf
 A per-symbol `collar` is merged over the symbol's resolved `level` collar
 (symbol keys win). When neither is present, no collar applies to the symbol.
 
-### 4.3 `OrderLimitsSpec` — `symbols.<S>.order_limits` and `risk_controls.levels.<L>.order_limits`
+### 4.3 `OrderLimitsSpec` — `symbols.<S>.order_limits`
 
 | Field | Type | Req | Default | Constraints |
 |-------|------|:---:|---------|-------------|
 | `max_order_qty` | `Qty` | – | — | `> 0` |
 | `max_order_value` | `Float` | – | — | `> 0`; display money |
 
-Pre-trade caps on a **single order**. A per-symbol `order_limits` is merged over
-the symbol's resolved `level` order limits **per key** (symbol keys win), the
-same way `collar` merges — so a symbol may tighten `max_order_qty` while
-inheriting its level's `max_order_value`.
+Pre-trade caps on a **single order**, configured **per symbol and nowhere
+else**. Unlike `collar`, `order_limits` has no risk-level tier and no global
+default: an appropriate cap depends on the individual instrument's price and
+typical size, so there is nothing sensible for a shared profile to say.
+`risk_controls.levels.<L>.order_limits` is **NOT supported** and MUST be
+rejected (§5.5).
 
-Each cap is independently optional and has **no default**: an absent cap is not
-enforced. There is deliberately no built-in fallback number — a limit that
-exists only in code and not in the configuration file is not auditable as a
-requirement.
+Each cap is independently optional and has **no default**: a cap the symbol
+does not set is not enforced. There is deliberately no built-in fallback number
+— a limit that exists only in code and not in the configuration file is not
+auditable as a requirement.
 
 An order breaching `max_order_qty` is rejected with reject code
 `MAX_ORDER_QTY`; one breaching `max_order_value` (`quantity × price`, in
@@ -319,10 +321,12 @@ These values supply the defaults inherited by `gateways.alf[]` obligation fields
 | Field | Type | Req | Default | Constraints |
 |-------|------|:---:|---------|-------------|
 | `default_level` | `Str` | – | `null` | non-empty; MUST be a key of `levels` |
-| `levels` | `Map<Str, {collar: CollarSpec, order_limits: OrderLimitsSpec}>` | – | `{}` | level names upper-cased; both members optional |
+| `levels` | `Map<Str, {collar: CollarSpec}>` | – | `{}` | level names upper-cased |
 
 `risk_controls.levels.<L>.circuit_breaker` is **NOT supported** and MUST be
 rejected; define circuit breakers under `circuit_breaker_defaults` (§5.6) instead.
+`risk_controls.levels.<L>.order_limits` is likewise **NOT supported** and MUST
+be rejected; set `order_limits` on each symbol that needs a cap (§4.3).
 
 ### 5.6 `circuit_breaker_defaults` and `symbols.<S>.circuit_breaker` — `CircuitBreakerSpec`
 

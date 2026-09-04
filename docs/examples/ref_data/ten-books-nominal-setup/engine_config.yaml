@@ -3,7 +3,7 @@
 #          TRADER01:TRADER:CANCEL_ALL:Student desk 1 TRADER02:TRADER:CANCEL_ALL:Student desk 2 \
 #          OPS01:ADMIN:LEAVE_ALL:Instructor console MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Market \
 #          maker --seed-mm-mid-range 20:300 --seed-last-prices-from-mm --output engine_config.yaml \
-#          --force --comment-default-config-fields --seed 857875310 --outstanding-shares \
+#          --force --comment-default-config-fields --seed 397599370 --outstanding-shares \
 #          AAPL:15400000000 --outstanding-shares MSFT:7430000000 --outstanding-shares \
 #          TSLA:3200000000 --outstanding-shares AMZN:10600000000 --outstanding-shares \
 #          GOOGL:12200000000 --outstanding-shares META:2560000000 --outstanding-shares \
@@ -93,16 +93,10 @@
 #         collar:
 #           static_band_pct: 0.30
 #           dynamic_band_pct: 0.05
-#         order_limits:
-#           max_order_qty: 100000
-#           max_order_value: 5000000
 #       L2:
 #         collar:
 #           static_band_pct: 0.20
 #           dynamic_band_pct: 0.02
-#         order_limits:
-#           max_order_qty: 50000
-#           max_order_value: 2500000
 #
 #   circuit_breaker_defaults:
 #     reference_window_ns: 300000000000
@@ -355,16 +349,6 @@
 #     Tighter dynamic guardrail around near-live trading levels.
 #     Precedence: symbols.<SYM>.collar > symbols.<SYM>.level >
 #     risk_controls.default_level > built-in defaults.
-#   levels.<NAME>.order_limits:
-#     Pre-trade order-size and notional caps for this profile.
-#   levels.<NAME>.order_limits.max_order_qty: null
-#     Largest quantity a single order may carry. Omit for no cap.
-#   levels.<NAME>.order_limits.max_order_value: null
-#     Largest notional (quantity x price) a single order may carry.
-#     Omit for no cap. Not checked for MARKET/IOC orders, which carry
-#     no price. Each cap merges independently:
-#     symbols.<SYM>.order_limits.<KEY> > symbols.<SYM>.level.
-#     An unset cap is not enforced -- there is no built-in fallback.
 #     Note: levels.<NAME>.circuit_breaker is not supported; use
 #     circuit_breaker_defaults at the top level instead.
 #
@@ -436,12 +420,13 @@
 #   collar.dynamic_band_pct: 0.02
 #     Symbol-level dynamic guardrail around near-live prices.
 #   order_limits:
-#     Symbol-specific order-size / notional cap override, merged per key
-#     over the caps of this symbol's risk level.
+#     Pre-trade order-size and notional caps for this symbol. There is
+#     no level or global default: a cap set nowhere is not enforced.
 #   order_limits.max_order_qty: null
 #     Largest quantity a single order in this symbol may carry.
 #   order_limits.max_order_value: null
 #     Largest notional a single priced order in this symbol may carry.
+#     Not checked for MARKET/IOC orders, which carry no price.
 #   circuit_breaker:
 #     Symbol-specific halt policy override layered on top of circuit_breaker_defaults.
 #     Levels merge field-by-field, so each symbol can override only needed fields.
@@ -772,16 +757,16 @@ api_gateways:
     stats_db: data/stats.db
     order_retention_sec: 3600
     credentials:
-    - api_key: key-trader01-s2vo07vspa81uc6r58777v3inavmksfn
+    - api_key: key-trader01-0krd4xjh7mvctagktm7yrilx3961dvd3
       gateway_id: TRADER01
       description: Generated key for TRADER01
-    - api_key: key-trader02-e4bc98n6yfrqvlzmwedu1eheeomegb40
+    - api_key: key-trader02-40tdldzloni0hfpi6b7lv3f8296bwmn9
       gateway_id: TRADER02
       description: Generated key for TRADER02
-    - api_key: key-ops01-clka0u06gghmwrk0i7xs1e6yj5132jem
+    - api_key: key-ops01-exsng8mpoih0krgj7wzizzblwdu1m6tv
       gateway_id: OPS01
       description: Generated key for OPS01
-    - api_key: key-mm01-3dfo0vtp45pjq34xp21rcr2lzcw4xt6v
+    - api_key: key-mm01-ptt6m4iornjyvdk9kkggnximgiisbxvg
       gateway_id: MM01
       description: Generated key for MM01
     rate_limit:
@@ -800,7 +785,7 @@ api_gateways:
     stats_db: data/stats.db
     order_retention_sec: 3600
     credentials:
-    - api_key: key-readonly-vdzahpalvaoyn7yirp5qrmxscckiabxg
+    - api_key: key-readonly-9as41vt0ihwrvg4hkqjifwax6tpkiqqv
       gateway_id: null
       description: Generated read-only market-data key
     rate_limit:
@@ -816,12 +801,12 @@ api_gateways:
 symbols:
   AAPL:
     tick_decimals: 2
-    last_buy_price: 247.55
-    last_sell_price: 247.55
+    last_buy_price: 150.23
+    last_sell_price: 150.23
     market_maker_quotes:
     - gateway_id: MM01
-      bid_price: 247.54
-      ask_price: 247.56
+      bid_price: 150.22
+      ask_price: 150.24
       bid_qty: 1000
       ask_qty: 1000
       tif: DAY
@@ -829,12 +814,12 @@ symbols:
     outstanding_shares: 15400000000
   MSFT:
     tick_decimals: 2
-    last_buy_price: 196.93
-    last_sell_price: 196.93
+    last_buy_price: 57.82
+    last_sell_price: 57.82
     market_maker_quotes:
     - gateway_id: MM01
-      bid_price: 196.92
-      ask_price: 196.94
+      bid_price: 57.81
+      ask_price: 57.83
       bid_qty: 1000
       ask_qty: 1000
       tif: DAY
@@ -842,12 +827,12 @@ symbols:
     outstanding_shares: 7430000000
   TSLA:
     tick_decimals: 2
-    last_buy_price: 65.64
-    last_sell_price: 65.64
+    last_buy_price: 94.68
+    last_sell_price: 94.68
     market_maker_quotes:
     - gateway_id: MM01
-      bid_price: 65.63
-      ask_price: 65.65
+      bid_price: 94.67
+      ask_price: 94.69
       bid_qty: 1000
       ask_qty: 1000
       tif: DAY
@@ -855,12 +840,12 @@ symbols:
     outstanding_shares: 3200000000
   AMZN:
     tick_decimals: 2
-    last_buy_price: 189.55
-    last_sell_price: 189.55
+    last_buy_price: 39.26
+    last_sell_price: 39.26
     market_maker_quotes:
     - gateway_id: MM01
-      bid_price: 189.54
-      ask_price: 189.56
+      bid_price: 39.25
+      ask_price: 39.27
       bid_qty: 1000
       ask_qty: 1000
       tif: DAY
@@ -868,12 +853,12 @@ symbols:
     outstanding_shares: 10600000000
   GOOGL:
     tick_decimals: 2
-    last_buy_price: 58.75
-    last_sell_price: 58.75
+    last_buy_price: 120.09
+    last_sell_price: 120.09
     market_maker_quotes:
     - gateway_id: MM01
-      bid_price: 58.74
-      ask_price: 58.76
+      bid_price: 120.08
+      ask_price: 120.1
       bid_qty: 1000
       ask_qty: 1000
       tif: DAY
@@ -881,12 +866,12 @@ symbols:
     outstanding_shares: 12200000000
   META:
     tick_decimals: 2
-    last_buy_price: 110.52
-    last_sell_price: 110.52
+    last_buy_price: 91.2
+    last_sell_price: 91.2
     market_maker_quotes:
     - gateway_id: MM01
-      bid_price: 110.51
-      ask_price: 110.53
+      bid_price: 91.19
+      ask_price: 91.21
       bid_qty: 1000
       ask_qty: 1000
       tif: DAY
@@ -894,12 +879,12 @@ symbols:
     outstanding_shares: 2560000000
   NVDA:
     tick_decimals: 2
-    last_buy_price: 239.52
-    last_sell_price: 239.52
+    last_buy_price: 275.14
+    last_sell_price: 275.14
     market_maker_quotes:
     - gateway_id: MM01
-      bid_price: 239.51
-      ask_price: 239.53
+      bid_price: 275.13
+      ask_price: 275.15
       bid_qty: 1000
       ask_qty: 1000
       tif: DAY
@@ -907,12 +892,12 @@ symbols:
     outstanding_shares: 24600000000
   NFLX:
     tick_decimals: 2
-    last_buy_price: 225.63
-    last_sell_price: 225.63
+    last_buy_price: 212.66
+    last_sell_price: 212.66
     market_maker_quotes:
     - gateway_id: MM01
-      bid_price: 225.62
-      ask_price: 225.64
+      bid_price: 212.65
+      ask_price: 212.67
       bid_qty: 1000
       ask_qty: 1000
       tif: DAY
@@ -920,12 +905,12 @@ symbols:
     outstanding_shares: 430000000
   INTC:
     tick_decimals: 2
-    last_buy_price: 95.09
-    last_sell_price: 95.09
+    last_buy_price: 214.92
+    last_sell_price: 214.92
     market_maker_quotes:
     - gateway_id: MM01
-      bid_price: 95.08
-      ask_price: 95.1
+      bid_price: 214.91
+      ask_price: 214.93
       bid_qty: 1000
       ask_qty: 1000
       tif: DAY
@@ -933,12 +918,12 @@ symbols:
     outstanding_shares: 4300000000
   ORCL:
     tick_decimals: 2
-    last_buy_price: 155.87
-    last_sell_price: 155.87
+    last_buy_price: 104.16
+    last_sell_price: 104.16
     market_maker_quotes:
     - gateway_id: MM01
-      bid_price: 155.86
-      ask_price: 155.88
+      bid_price: 104.15
+      ask_price: 104.17
       bid_qty: 1000
       ask_qty: 1000
       tif: DAY

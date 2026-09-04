@@ -151,9 +151,9 @@ types:
 
   OrderLimits:
     doc: >
-      Pre-trade order-size and notional caps, as configured. Each cap is
-      independently optional: an absent cap is not enforced, the same way an
-      absent `collar` leaves a symbol uncollared.
+      Pre-trade order-size and notional caps, as configured on a symbol.
+      Each cap is independently optional: an absent cap is not enforced, the
+      same way an absent `collar` leaves a symbol uncollared.
     fields:
       - name: max_order_qty
         type: int
@@ -239,9 +239,9 @@ types:
         nullable: true
         omit_when_none: true
         doc: >
-          The symbol's effective order-size and notional caps, its `level`
-          defaults already merged under any per-symbol override. Absent when
-          neither scope configures a cap.
+          The symbol's order-size and notional caps. Configured per symbol and
+          nowhere else -- there is no level or global default -- so an absent
+          cap is one that is not enforced.
       - { name: circuit_breaker, type: nested, ref: SymbolCircuitBreaker,
           required: false, nullable: true, omit_when_none: true }
 
@@ -261,15 +261,6 @@ types:
           The level's default bands, which a symbol may override. Absent when
           the level configures none -- previously an empty `collar` object,
           which said the same thing in more bytes.
-      - name: order_limits
-        type: nested
-        ref: OrderLimits
-        required: false
-        nullable: true
-        omit_when_none: true
-        doc: >
-          The level's default order-size and notional caps, which a symbol may
-          override. Absent when the level configures none.
 
   ReferenceRisk:
     doc: "The risk-control ladder as configured, and which rung is the default."

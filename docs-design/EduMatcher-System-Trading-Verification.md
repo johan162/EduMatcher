@@ -155,25 +155,37 @@ cancels from client ones (A.1.7); `cancel_reason` now says why.
 ### 0.3 G12 — the instrument-rule and risk rejections (order-size and notional caps now shipped; only `POSITION_LIMIT` remains)
 
 **Update, later on 2026-09-04: `MAX_ORDER_QTY` and `MAX_ORDER_VALUE` have
-shipped**, built as option 1 below recommended: a per-symbol
-`order_limits` config field following the `risk_controls.levels.<L>.collar`
-pattern, with a per-symbol override merged over the level's defaults *per
-cap*, resolved onto `SymbolConfig.order_limits` and checked in
+shipped**, though *not* with the inheritance option 1 below sketched. They are
+a **per-symbol `order_limits` config field with no other scope**: no
+risk-level tier and no top-level default. `engine/order_limits.py` holds the
+config dataclass and the check, mirroring `engine/collar.py`; the caps resolve
+onto `SymbolConfig.order_limits` and are checked in
 `Engine._validate_new_order` next to `QTY_OUT_OF_RANGE` /
 `PRICE_OUT_OF_RANGE`, and re-checked in `Engine._handle_amend` beside the
-existing collar re-check. `engine/order_limits.py` holds the config
-dataclass and the check, mirroring `engine/collar.py`. An absent cap is not
-enforced and there is no hidden fallback number; the top-level
-`risk_controls.default_max_order_qty` / `default_max_order_value` suggested
-below was **not** built — the level scope already gives unconfigured symbols
-a visible, auditable default, and a third precedence tier the collar does
-not have would have been asymmetry for its own sake.
+existing collar re-check.
+
+**Correction to option 1's shape.** Option 1 proposed following the
+`risk_controls.levels.<L>.collar` pattern — a level default with a per-symbol
+override — and additionally recommended a visible top-level
+`risk_controls.default_max_order_qty` / `default_max_order_value`. Neither was
+built, and the reason is that the analogy to `collar` does not hold. A collar
+band is a **percentage**: ±20% is the same protection on a $10 instrument and
+a $1,000 one, which is exactly what makes a shared, named profile useful. An
+order-size or notional cap is an **absolute** quantity, so the appropriate
+number is a property of the individual instrument's price and typical trade
+size. A cap shared across a level would be either meaningless for the small
+names on it or useless for the large ones, and a top-level default is the same
+objection one tier further out. `risk_controls.levels.<L>.order_limits` is
+therefore *rejected* rather than merely unused — by the loader at startup and
+by `pm-cverifier` as `S117` — so a deployment cannot write one and believe it
+is being enforced. An absent cap is simply not enforced, with no hidden
+fallback number.
 `max_order_value` is skipped for MARKET and IOC orders, which carry no price
 on the wire, rather than being priced against a reference — the same orders
-the collar's bands already skip. The caps travel on `ReferenceSymbol` and
-`RiskLevel` (`spec/messages/system.yaml`), so
-`GET /api/v1/reference/symbols` and `GET /api/v1/reference/risk` report a
-symbol's effective caps with no new endpoint. `tests/test_order_limits.py`.
+the collar's bands already skip. The caps travel on `ReferenceSymbol`
+(`spec/messages/system.yaml`), so `GET /api/v1/reference/symbols` reports a
+symbol's caps with no new endpoint; `RiskLevel` deliberately does not carry
+them. `tests/test_order_limits.py`.
 `POSITION_LIMIT` (option 2) is untouched and remains the only open half of
 G12.
 
@@ -279,7 +291,9 @@ shapes sketched here are kept as written; option 1 has since been built
 essentially as described (see the update at the head of this section), and
 option 2 has not:
 
-1. **`MAX_ORDER_QTY` / `MAX_ORDER_VALUE`** — a per-symbol config field,
+1. **`MAX_ORDER_QTY` / `MAX_ORDER_VALUE`** — *(as-built: see the correction
+   at the head of this section — the level tier and the top-level default
+   sketched here were both dropped)* — a per-symbol config field,
    following the existing `risk_controls.levels.<level>.collar` pattern
    (`config_loader.py`, `CollarConfig`): a level default with per-symbol
    override, resolved onto `SymbolConfig` alongside `collar`, and checked in

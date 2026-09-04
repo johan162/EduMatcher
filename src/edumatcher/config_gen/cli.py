@@ -5,10 +5,12 @@ from __future__ import annotations
 import argparse
 import math
 import sys
+from collections.abc import Callable
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from typing import TypeVar
 
 from dataclasses import replace
 
@@ -303,10 +305,6 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
         raise ValueError("--static-band must be in (0, 1)")
     if args.dynamic_band is not None and not (0 < args.dynamic_band < 1):
         raise ValueError("--dynamic-band must be in (0, 1)")
-    if args.max_order_qty is not None and args.max_order_qty <= 0:
-        raise ValueError("--max-order-qty must be > 0")
-    if args.max_order_value is not None and args.max_order_value <= 0:
-        raise ValueError("--max-order-value must be > 0")
 
     if args.seed_mm_mid_range is not None:
         min_price, max_price = _parse_seed_mm_mid_range(args.seed_mm_mid_range)
@@ -547,6 +545,43 @@ def _parse_symbol_band_specs(
     return result
 
 
+#: Order-limit caps are integers (shares) or floats (notional); the parser is
+#: the same either way, so the numeric type travels with the caller's `cast`.
+_Cap = TypeVar("_Cap", int, float)
+
+
+def _parse_symbol_cap_specs(
+    specs: list[str],
+    allowed_symbols: set[str],
+    flag_name: str,
+    cast: Callable[[str], _Cap],
+) -> dict[str, _Cap]:
+    """Parse repeated ``SYM:VALUE`` order-limit flags.
+
+    Shares its shape with :func:`_parse_symbol_band_specs`; the difference is
+    the domain — a cap is any positive number, not a fraction in ``(0, 1)`` —
+    so the numeric type is the caller's to choose.
+    """
+    result: dict[str, _Cap] = {}
+    for raw in specs:
+        if ":" not in raw:
+            raise ValueError(f"Invalid {flag_name} '{raw}': expected SYM:VALUE")
+        sym_raw, val_raw = raw.split(":", 1)
+        sym = sym_raw.strip().upper()
+        if not sym:
+            raise ValueError(f"Invalid {flag_name} '{raw}': symbol cannot be empty")
+        if sym not in allowed_symbols:
+            raise ValueError(f"{flag_name} references unknown symbol '{sym}'")
+        try:
+            value = cast(val_raw.strip())
+        except ValueError:
+            raise ValueError(f"{flag_name} '{raw}': value must be numeric")
+        if value <= 0:
+            raise ValueError(f"{flag_name} '{raw}': value must be > 0")
+        result[sym] = value
+    return result
+
+
 def _parse_symbol_level_specs(
     specs: list[str],
     allowed_symbols: set[str],
@@ -746,6 +781,26 @@ def _parse_specs(args: argparse.Namespace) -> tuple[
     for sym, dynamic_band in symbol_dynamic_bands.items():
         symbol_overrides.setdefault(sym, SymbolOverride()).dynamic_band_pct = (
             dynamic_band
+        )
+
+    symbol_max_order_qtys = _parse_symbol_cap_specs(
+        specs=args.symbol_max_order_qty,
+        allowed_symbols=set(symbols),
+        flag_name="--symbol-max-order-qty",
+        cast=int,
+    )
+    for sym, max_order_qty in symbol_max_order_qtys.items():
+        symbol_overrides.setdefault(sym, SymbolOverride()).max_order_qty = max_order_qty
+
+    symbol_max_order_values = _parse_symbol_cap_specs(
+        specs=args.symbol_max_order_value,
+        allowed_symbols=set(symbols),
+        flag_name="--symbol-max-order-value",
+        cast=float,
+    )
+    for sym, max_order_value in symbol_max_order_values.items():
+        symbol_overrides.setdefault(sym, SymbolOverride()).max_order_value = (
+            max_order_value
         )
 
     symbol_risk_levels = _parse_symbol_level_specs(
@@ -1703,8 +1758,6 @@ def main() -> None:
             enforce_circuit_breakers=not args.no_circuit_breakers,
             static_band_pct=args.static_band,
             dynamic_band_pct=args.dynamic_band,
-            max_order_qty=args.max_order_qty,
-            max_order_value=args.max_order_value,
             risk_levels=risk_levels,
             cb_levels=cb_levels,
             ace_enabled=not args.no_ace,

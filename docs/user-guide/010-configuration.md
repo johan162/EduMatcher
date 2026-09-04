@@ -268,9 +268,9 @@ Core engine and risk options:
 | `--dynamic-band PCT`                     | float in `(0,1)` | unset           | Default risk-control dynamic band (`DEFAULT` level) |
 | `--symbol-static-band SYM:PCT`           | Repeatable       | none            | Per-symbol `collar.static_band_pct` override        |
 | `--symbol-dynamic-band SYM:PCT`          | Repeatable       | none            | Per-symbol `collar.dynamic_band_pct` override       |
+| `--symbol-max-order-qty SYM:N`           | Repeatable       | none            | Per-symbol `order_limits.max_order_qty` (shares, `> 0`) |
+| `--symbol-max-order-value SYM:AMOUNT`    | Repeatable       | none            | Per-symbol `order_limits.max_order_value` (notional, `> 0`) |
 | `--symbol-risk-level SYM:LEVEL`          | Repeatable       | none            | Per-symbol `symbols.<SYM>.level` override           |
-| `--max-order-qty N`                      | int (`> 0`)      | unset           | Default `order_limits.max_order_qty` (`DEFAULT` level) |
-| `--max-order-value AMOUNT`               | float (`> 0`)    | unset           | Default `order_limits.max_order_value` (`DEFAULT` level) |
 | `--risk-level NAME:STATIC[:DYNAMIC]`     | Repeatable       | none            | Add named risk levels under `risk_controls.levels`  |
 | `--cb-levels NAME:SHIFT[:HALT_MINS[:RESUMPTION_MODE]] ...` | List | built-in ladder | Circuit-breaker level specs; `RESUMPTION_MODE` is `AUCTION` (default) or `CONTINUOUS` |
 | `--cb-window-ns NS`                      | int (`> 0`)      | `300000000000`  | Circuit-breaker reference window                    |
@@ -575,15 +575,24 @@ Supported `KEY` values:
 | `mm_min_qty`                                                               | int `> 0`                 | Symbol MM minimum quantity                                          |
 | `enforce_mm_obligation`                                                    | `true` or `false`         | Override per-symbol `enforce_mm_obligation` in `mm_obligation_defaults.symbols` |
 
-For the two most common collar overrides, you can also use explicit flags:
+Four of these have explicit flags as well, which avoids the `KEY=VALUE`
+syntax when you are only setting one thing — the two collar bands and the two
+order-limit caps:
 
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT \
   --gateways TRADER01 \
   --symbol-static-band AAPL:0.18 \
-  --symbol-dynamic-band AAPL:0.03
+  --symbol-dynamic-band AAPL:0.03 \
+  --symbol-max-order-qty AAPL:50000 \
+  --symbol-max-order-value AAPL:2500000
 ```
+
+The caps are equivalent to
+`--symbol-opts "AAPL:max_order_qty=50000,max_order_value=2500000"`, and like
+every order limit they apply to that symbol alone — there is no risk-level or
+global form of them (see [Risk Controls](120-risk-controls.md)).
 
 Per-symbol risk-level assignment can also use an explicit flag:
 

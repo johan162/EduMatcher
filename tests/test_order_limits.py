@@ -105,28 +105,11 @@ def _write_config(tmp_path, *, symbols: str, level: str = "      collar: {}\n"):
 
 
 class TestConfigResolution:
-    def test_absent_everywhere_means_no_limits(self, tmp_path) -> None:
+    def test_absent_means_no_limits(self, tmp_path) -> None:
         cfg = _write_config(tmp_path, symbols="  AAPL:\n    tick_decimals: 2\n")
         assert cfg.symbols["AAPL"].order_limits is None
 
-    def test_level_defaults_reach_the_symbol(self, tmp_path) -> None:
-        cfg = _write_config(
-            tmp_path,
-            symbols="  AAPL:\n    tick_decimals: 2\n",
-            level=(
-                "      order_limits:\n"
-                "        max_order_qty: 100000\n"
-                "        max_order_value: 5000000\n"
-            ),
-        )
-        limits = cfg.symbols["AAPL"].order_limits
-        assert limits == OrderLimitsConfig(
-            max_order_qty=100000, max_order_value=5000000.0
-        )
-
-    def test_symbol_override_wins_per_key(self, tmp_path) -> None:
-        """The symbol overrides one cap and inherits the other, exactly as a
-        per-symbol ``collar`` override merges over its level's bands."""
+    def test_symbol_caps_are_read(self, tmp_path) -> None:
         cfg = _write_config(
             tmp_path,
             symbols=(
@@ -134,19 +117,14 @@ class TestConfigResolution:
                 "    tick_decimals: 2\n"
                 "    order_limits:\n"
                 "      max_order_qty: 5000\n"
-            ),
-            level=(
-                "      order_limits:\n"
-                "        max_order_qty: 100000\n"
-                "        max_order_value: 5000000\n"
+                "      max_order_value: 250000\n"
             ),
         )
-        limits = cfg.symbols["AAPL"].order_limits
-        assert limits == OrderLimitsConfig(
-            max_order_qty=5000, max_order_value=5000000.0
+        assert cfg.symbols["AAPL"].order_limits == OrderLimitsConfig(
+            max_order_qty=5000, max_order_value=250000.0
         )
 
-    def test_symbol_only_needs_no_level_block(self, tmp_path) -> None:
+    def test_each_cap_is_independent(self, tmp_path) -> None:
         cfg = _write_config(
             tmp_path,
             symbols=(
@@ -156,14 +134,37 @@ class TestConfigResolution:
                 "      max_order_value: 250000\n"
             ),
         )
-        limits = cfg.symbols["AAPL"].order_limits
-        assert limits == OrderLimitsConfig(max_order_qty=None, max_order_value=250000.0)
+        assert cfg.symbols["AAPL"].order_limits == OrderLimitsConfig(
+            max_order_qty=None, max_order_value=250000.0
+        )
 
     def test_empty_block_is_the_same_as_no_block(self, tmp_path) -> None:
         cfg = _write_config(
             tmp_path,
             symbols="  AAPL:\n    tick_decimals: 2\n    order_limits: {}\n",
         )
+        assert cfg.symbols["AAPL"].order_limits is None
+
+    def test_a_risk_level_may_not_carry_caps(self, tmp_path) -> None:
+        """Caps are per instrument, so a shared profile cannot express one.
+
+        Rejecting the key beats ignoring it: a deployment that wrote caps on a
+        level would otherwise believe they were being enforced.
+        """
+        with pytest.raises(ValueError, match="order_limits' is not supported"):
+            _write_config(
+                tmp_path,
+                symbols="  AAPL:\n    tick_decimals: 2\n",
+                level=("      order_limits:\n" "        max_order_qty: 100000\n"),
+            )
+
+    def test_a_symbol_does_not_inherit_caps_from_its_level(self, tmp_path) -> None:
+        cfg = _write_config(
+            tmp_path,
+            symbols="  AAPL:\n    tick_decimals: 2\n",
+            level="      collar:\n        static_band_pct: 0.2\n",
+        )
+        assert cfg.symbols["AAPL"].collar is not None  # the level still collars
         assert cfg.symbols["AAPL"].order_limits is None
 
     @pytest.mark.parametrize(
@@ -197,14 +198,6 @@ class TestConfigResolution:
     ) -> None:
         with pytest.raises(ValueError, match=message):
             _write_config(tmp_path, symbols=f"  AAPL:\n    tick_decimals: 2\n{block}")
-
-    def test_level_block_must_be_a_mapping(self, tmp_path) -> None:
-        with pytest.raises(ValueError, match="order_limits' must be a mapping"):
-            _write_config(
-                tmp_path,
-                symbols="  AAPL:\n    tick_decimals: 2\n",
-                level="      order_limits: 5\n",
-            )
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -395,14 +388,11 @@ class TestAmendEnforcement:
 
 
 class TestReferenceBundle:
-    def test_symbol_and_level_limits_reach_the_reference_bundle(self, engine) -> None:
+    def test_symbol_limits_reach_the_reference_bundle(self, engine) -> None:
         eng, _ = engine
         assert eng._engine_config is not None
         eng._engine_config.risk_control_levels = {
-            "CORE": {
-                "collar": {},
-                "order_limits": {"max_order_qty": 100000, "max_order_value": 5000000},
-            }
+            "CORE": {"collar": {"static_band_pct": 0.2, "dynamic_band_pct": 0.02}}
         }
         eng._rebuild_reference_cache()
         assert eng._reference_cache is not None
@@ -415,11 +405,17 @@ class TestReferenceBundle:
         }
         assert "order_limits" not in by_symbol["MSFT"]
 
-        levels = {lvl["name"]: lvl for lvl in bundle["risk"]["levels"]}
-        assert levels["CORE"]["order_limits"] == {
-            "max_order_qty": 100000,
-            "max_order_value": 5000000,
+    def test_risk_levels_never_carry_limits(self, engine) -> None:
+        eng, _ = engine
+        assert eng._engine_config is not None
+        eng._engine_config.risk_control_levels = {
+            "CORE": {"collar": {"static_band_pct": 0.2, "dynamic_band_pct": 0.02}}
         }
+        eng._rebuild_reference_cache()
+        assert eng._reference_cache is not None
+
+        for level in eng._reference_cache["risk"]["levels"]:
+            assert "order_limits" not in level
 
 
 class TestConfigWiring:

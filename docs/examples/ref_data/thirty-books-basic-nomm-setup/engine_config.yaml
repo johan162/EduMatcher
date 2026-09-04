@@ -4,7 +4,7 @@
 #          TRADER01:TRADER:CANCEL_ALL:Student desk 1 TRADER02:TRADER:CANCEL_ALL:Student desk 2 \
 #          OPS01:ADMIN:LEAVE_ALL:Instructor console MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Market \
 #          maker --no-mm-seed-quotes --no-collars --no-circuit-breakers --output \
-#          engine_config.yaml --force --comment-default-config-fields --seed 887662771 \
+#          engine_config.yaml --force --comment-default-config-fields --seed 919576551 \
 #          --outstanding-shares AAPL:15400000000 --outstanding-shares MSFT:7430000000 \
 #          --outstanding-shares TSLA:3200000000 --outstanding-shares AMZN:10600000000 \
 #          --outstanding-shares GOOGL:12200000000 --outstanding-shares META:2560000000 \
@@ -104,16 +104,10 @@
 #         collar:
 #           static_band_pct: 0.30
 #           dynamic_band_pct: 0.05
-#         order_limits:
-#           max_order_qty: 100000
-#           max_order_value: 5000000
 #       L2:
 #         collar:
 #           static_band_pct: 0.20
 #           dynamic_band_pct: 0.02
-#         order_limits:
-#           max_order_qty: 50000
-#           max_order_value: 2500000
 #
 #   circuit_breaker_defaults:
 #     reference_window_ns: 300000000000
@@ -366,16 +360,6 @@
 #     Tighter dynamic guardrail around near-live trading levels.
 #     Precedence: symbols.<SYM>.collar > symbols.<SYM>.level >
 #     risk_controls.default_level > built-in defaults.
-#   levels.<NAME>.order_limits:
-#     Pre-trade order-size and notional caps for this profile.
-#   levels.<NAME>.order_limits.max_order_qty: null
-#     Largest quantity a single order may carry. Omit for no cap.
-#   levels.<NAME>.order_limits.max_order_value: null
-#     Largest notional (quantity x price) a single order may carry.
-#     Omit for no cap. Not checked for MARKET/IOC orders, which carry
-#     no price. Each cap merges independently:
-#     symbols.<SYM>.order_limits.<KEY> > symbols.<SYM>.level.
-#     An unset cap is not enforced -- there is no built-in fallback.
 #     Note: levels.<NAME>.circuit_breaker is not supported; use
 #     circuit_breaker_defaults at the top level instead.
 #
@@ -447,12 +431,13 @@
 #   collar.dynamic_band_pct: 0.02
 #     Symbol-level dynamic guardrail around near-live prices.
 #   order_limits:
-#     Symbol-specific order-size / notional cap override, merged per key
-#     over the caps of this symbol's risk level.
+#     Pre-trade order-size and notional caps for this symbol. There is
+#     no level or global default: a cap set nowhere is not enforced.
 #   order_limits.max_order_qty: null
 #     Largest quantity a single order in this symbol may carry.
 #   order_limits.max_order_value: null
 #     Largest notional a single priced order in this symbol may carry.
+#     Not checked for MARKET/IOC orders, which carry no price.
 #   circuit_breaker:
 #     Symbol-specific halt policy override layered on top of circuit_breaker_defaults.
 #     Levels merge field-by-field, so each symbol can override only needed fields.
@@ -783,16 +768,16 @@ api_gateways:
     stats_db: data/stats.db
     order_retention_sec: 3600
     credentials:
-    - api_key: key-trader01-tohnmc20bujpba3da8p84vsi504xul1e
+    - api_key: key-trader01-oauoad4hc9jagpwutid5fii005m6c67x
       gateway_id: TRADER01
       description: Generated key for TRADER01
-    - api_key: key-trader02-j3gnwlht2wtca41cru5yb44l3s10l92i
+    - api_key: key-trader02-8j7bs2xibhgkvfvnhs6s52s2qydzephs
       gateway_id: TRADER02
       description: Generated key for TRADER02
-    - api_key: key-ops01-8eo1nk3z0o3igf61jq1k8v845eccmlml
+    - api_key: key-ops01-fvivugsy9qaf1a0zmkitlfvj1rfqp6wr
       gateway_id: OPS01
       description: Generated key for OPS01
-    - api_key: key-mm01-0hd34z8woxby0eqmqx15v7nloy3vtfua
+    - api_key: key-mm01-jit387r61jgfofvs0xp7ofpq3rd1ska4
       gateway_id: MM01
       description: Generated key for MM01
     rate_limit:
@@ -811,7 +796,7 @@ api_gateways:
     stats_db: data/stats.db
     order_retention_sec: 3600
     credentials:
-    - api_key: key-readonly-8szfqy5md0vgq94xzn9qafswur5beky0
+    - api_key: key-readonly-crj3d4b3h7g3stobdzls4201f6wiwy8g
       gateway_id: null
       description: Generated read-only market-data key
     rate_limit:

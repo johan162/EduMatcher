@@ -1816,9 +1816,8 @@ class Engine:
                     "dynamic_band_pct": sym_cfg.collar.dynamic_band_pct,
                 }
             if sym_cfg.order_limits is not None:
-                # Already the effective caps: the loader merged the symbol's
-                # override over its level's defaults, so a caller reads one
-                # number per cap rather than resolving precedence itself.
+                # Caps are configured per symbol and nowhere else, so these are
+                # simply what the symbol declared.
                 entry["order_limits"] = {
                     "max_order_qty": sym_cfg.order_limits.max_order_qty,
                     "max_order_value": sym_cfg.order_limits.max_order_value,
@@ -1840,17 +1839,11 @@ class Engine:
         risk_levels: list[dict[str, Any]] = []
         for name, level_cfg in sorted(engine_cfg.risk_control_levels.items()):
             collar_raw = level_cfg.get("collar") or {}
-            limits_raw = level_cfg.get("order_limits") or {}
             level_entry: dict[str, Any] = {"name": name}
             if collar_raw:
                 level_entry["collar"] = {
                     "static_band_pct": collar_raw.get("static_band_pct"),
                     "dynamic_band_pct": collar_raw.get("dynamic_band_pct"),
-                }
-            if limits_raw:
-                level_entry["order_limits"] = {
-                    "max_order_qty": limits_raw.get("max_order_qty"),
-                    "max_order_value": limits_raw.get("max_order_value"),
                 }
             risk_levels.append(level_entry)
 

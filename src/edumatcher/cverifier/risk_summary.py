@@ -83,29 +83,26 @@ def build(raw: dict[str, Any]) -> RiskSummary:
     else:
         summary.collar_description = "disabled"
 
-    # Order-size / notional caps. Read from the same risk levels the collars
-    # come from; a per-symbol override refines a level's caps rather than
-    # replacing the policy, so the levels are what a reader wants summarised.
+    # Order-size / notional caps. Read from the symbols, which is the only
+    # scope that carries them — there is no level or global default.
     limit_descs: list[str] = []
-    if isinstance(rc, dict):
-        levels = rc.get("levels", {})
-        if isinstance(levels, dict):
-            for level_name, level_cfg in levels.items():
-                if not isinstance(level_cfg, dict):
-                    continue
-                limits = level_cfg.get("order_limits")
-                if not isinstance(limits, dict):
-                    continue
-                parts = []
-                qty = limits.get("max_order_qty")
-                if qty is not None:
-                    parts.append(f"max qty {qty}")
-                value = limits.get("max_order_value")
-                if value is not None:
-                    parts.append(f"max value {value}")
-                if parts:
-                    summary.order_limits_configured = True
-                    limit_descs.append(f"{level_name}: {', '.join(parts)}")
+    if isinstance(symbols, dict):
+        for sym_name, sym_cfg in symbols.items():
+            if not isinstance(sym_cfg, dict):
+                continue
+            limits = sym_cfg.get("order_limits")
+            if not isinstance(limits, dict):
+                continue
+            parts = []
+            qty = limits.get("max_order_qty")
+            if qty is not None:
+                parts.append(f"max qty {qty}")
+            value = limits.get("max_order_value")
+            if value is not None:
+                parts.append(f"max value {value}")
+            if parts:
+                summary.order_limits_configured = True
+                limit_descs.append(f"{str(sym_name).upper()}: {', '.join(parts)}")
 
     summary.order_limits_description = (
         "; ".join(limit_descs) if summary.order_limits_configured else "none configured"

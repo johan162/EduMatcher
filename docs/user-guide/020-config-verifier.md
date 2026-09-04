@@ -194,7 +194,7 @@ reporting scripts.
 | `Y003` | YAML parse error                    |
 | `Y004` | Top-level document is not a mapping |
 
-### Layer 2 — Schema (`S001`–`S119`)
+### Layer 2 — Schema (`S001`–`S117`)
 
 **Top-level structure**
 
@@ -226,8 +226,10 @@ reporting scripts.
 `symbols.<SYMBOL>.collar` and `symbols.<SYMBOL>.circuit_breaker.levels` are
 inline per-symbol overrides that the engine loader validates just as strictly
 as the top-level `risk_controls.levels.*.collar` and
-`circuit_breaker_defaults.levels` sections (`S030`–`S034`, `S041`–`S042`,
-`S117`–`S119`) — these codes cover the per-symbol equivalents.
+`circuit_breaker_defaults.levels` sections (`S030`–`S034`, `S041`–`S042`) —
+these codes cover the per-symbol equivalents. `order_limits` has no level-scope
+equivalent at all: `S114`–`S116` are the only value checks, and `S117` refuses
+the key if it appears on a risk level.
 
 | Code   | Condition                                                              |
 |--------|--------------------------------------------------------------------------|
@@ -276,9 +278,7 @@ as the top-level `risk_controls.levels.*.collar` and
 | `S040` | `risk_controls.default_level` references an undefined level |
 | `S041` | `collar.static_band_pct` not in `(0, 1)`                    |
 | `S042` | `collar.dynamic_band_pct` not in `(0, 1)`                   |
-| `S117` | `risk_controls.levels.<LEVEL>.order_limits` not a mapping   |
-| `S118` | `order_limits.max_order_qty` not a positive integer         |
-| `S119` | `order_limits.max_order_value` not a positive number        |
+| `S117` | `risk_controls.levels.<LEVEL>.order_limits` is present — order limits are a per-symbol control and are not supported here |
 
 **Indices (`indices`)**
 

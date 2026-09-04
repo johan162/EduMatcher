@@ -107,19 +107,6 @@ from .gateway_spec import GatewaySpec
 from .symbol_spec import SymbolOverride
 
 
-def _order_limits_payload(
-    max_order_qty: int | None,
-    max_order_value: float | None,
-) -> dict[str, Any] | None:
-    """The ``order_limits`` mapping, or None when neither cap is set."""
-    payload: dict[str, Any] = {}
-    if max_order_qty is not None:
-        payload["max_order_qty"] = max_order_qty
-    if max_order_value is not None:
-        payload["max_order_value"] = max_order_value
-    return payload or None
-
-
 @dataclass
 class ConfigSpec:
     symbols: list[str]
@@ -136,8 +123,6 @@ class ConfigSpec:
     enforce_circuit_breakers: bool = True
     static_band_pct: float | None = None
     dynamic_band_pct: float | None = None
-    max_order_qty: int | None = None
-    max_order_value: float | None = None
     risk_levels: dict[str, tuple[float, float | None]] = field(default_factory=dict)
     cb_levels: list[CbSpec] = field(default_factory=list)
     cb_window_ns: int = DEFAULT_CB_WINDOW_NS
@@ -633,32 +618,24 @@ class ConfigBuilder:
         levels: dict[str, Any] = {}
         default_level: str | None = None
 
-        default_entry: dict[str, Any] = {}
         if (
             self.spec.static_band_pct is not None
             or self.spec.dynamic_band_pct is not None
         ):
-            default_entry["collar"] = {
-                "static_band_pct": (
-                    self.spec.static_band_pct
-                    if self.spec.static_band_pct is not None
-                    else DEFAULT_STATIC_BAND_PCT
-                ),
-                "dynamic_band_pct": (
-                    self.spec.dynamic_band_pct
-                    if self.spec.dynamic_band_pct is not None
-                    else DEFAULT_DYNAMIC_BAND_PCT
-                ),
+            levels["DEFAULT"] = {
+                "collar": {
+                    "static_band_pct": (
+                        self.spec.static_band_pct
+                        if self.spec.static_band_pct is not None
+                        else DEFAULT_STATIC_BAND_PCT
+                    ),
+                    "dynamic_band_pct": (
+                        self.spec.dynamic_band_pct
+                        if self.spec.dynamic_band_pct is not None
+                        else DEFAULT_DYNAMIC_BAND_PCT
+                    ),
+                }
             }
-        # Unlike a collar band, an unset cap has no sensible stand-in value:
-        # emit only the caps that were actually asked for.
-        order_limits = _order_limits_payload(
-            self.spec.max_order_qty, self.spec.max_order_value
-        )
-        if order_limits is not None:
-            default_entry["order_limits"] = order_limits
-        if default_entry:
-            levels["DEFAULT"] = default_entry
             default_level = "DEFAULT"
 
         for name, (static_pct, dynamic_pct) in self.spec.risk_levels.items():
@@ -770,11 +747,16 @@ class ConfigBuilder:
                     collar["dynamic_band_pct"] = override.dynamic_band_pct
                 payload["collar"] = collar
 
-            symbol_limits = _order_limits_payload(
-                override.max_order_qty, override.max_order_value
-            )
-            if symbol_limits is not None:
-                payload["order_limits"] = symbol_limits
+            if (
+                override.max_order_qty is not None
+                or override.max_order_value is not None
+            ):
+                order_limits: dict[str, Any] = {}
+                if override.max_order_qty is not None:
+                    order_limits["max_order_qty"] = override.max_order_qty
+                if override.max_order_value is not None:
+                    order_limits["max_order_value"] = override.max_order_value
+                payload["order_limits"] = order_limits
 
             cb_levels: dict[str, dict[str, Any]] = {}
             for level_name in sorted(
