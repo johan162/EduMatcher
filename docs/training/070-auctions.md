@@ -36,7 +36,7 @@ Key properties:
 ## Exercise 1: Set Up for an Opening Auction
 
 Stop the scheduler and use manual phase control instead (see
-[06 — Freeze/Advance Procedure](06-time-in-force-sessions.md#freezeadvance-procedure-deterministic-session-control)).
+[06 — Freeze/Advance Procedure](060-time-in-force-sessions.md#freezeadvance-procedure-deterministic-session-control)).
 You want to be sitting in `OPENING_AUCTION` — **not** `PRE_OPEN` — before
 sending the `TIF=ATO` orders below: the engine only accepts `ATO` orders
 while the session state is exactly `OPENING_AUCTION` and rejects them during
@@ -176,4 +176,4 @@ order filled at its own price instead?
 
  
 
-**Next:** [08 — Cancelling & Managing Orders](08-cancelling-orders.md)
+**Next:** [08 — Cancelling & Managing Orders](080-cancelling-orders.md)

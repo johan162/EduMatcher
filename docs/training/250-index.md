@@ -31,7 +31,7 @@ You will practice:
 - Chapters 01–03 completed (engine running, at least one gateway, a few trades).
 - Every constituent symbol must have `outstanding_shares` set in `symbols:`.
 - To follow Exercise 9 (level/EOD queries via `pm-stats-cli`), `pm-stats` must
-  also be running (see [Chapter 15](15-statistics-reporting.md)) — it needs to
+  also be running (see [Chapter 15](150-statistics-reporting.md)) — it needs to
   be up *before* the trades happen so it can capture the `index.update` ticks
   live.
 
@@ -643,6 +643,6 @@ types?
 - [Index Admin CLI](../user-guide/152-index-admin-cli.md) — full `pm-index-admin-cli` subcommand reference, `--dry-run`, and confirmation-prompt behaviour
 - [pm-index-cli reference](../user-guide/160-exchange-commands.md) — `events`/`indices` subcommands, column descriptions, and output-format options
 - [Statistics and Reporting](../user-guide/140-statistics-and-reporting.md) — `pm-stats-cli index-daily` / `index-snapshots` / `index-ids` reference
-- [Chapter 15 — Statistics & Reporting](15-statistics-reporting.md) — starting `pm-stats` and querying its SQLite database
+- [Chapter 15 — Statistics & Reporting](150-statistics-reporting.md) — starting `pm-stats` and querying its SQLite database
 - [Engine Configuration](../user-guide/010-configuration.md#configuring-pm-index) — `indices:` YAML field reference
 - [Process Reference — pm-index](../user-guide/170-processes.md#pm-index-index-calculation-process) — socket layout and message types

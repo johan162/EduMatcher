@@ -1,8 +1,11 @@
-Version: 1.1.0
+Version: 1.3.0
 
-Date: 2026-06-18
+Date: 2026-09-05
 
-Status: Implemented
+Status: Implemented (v1.0-v1.2 scope); §14.3 (multi-symbol mode) updated
+from implementation plan to shipped — one process can now quote several
+symbols behind one gateway ID via `--symbols`/`--label`, per the review
+doc's §5a
 
 # EduMatcher — Market-Maker Bot (pm-mm-bot)
 
@@ -646,7 +649,9 @@ poetry run pm-mm-bot --symbol AAPL --gap 0.10 --qty 500 -v
 
 | Argument | Required | Default | Description |
 |---|---|---|---|
-| `--symbol SYM` | **Yes** | — | Instrument to make a market in (e.g. `AAPL`) |
+| `--config PATH` | No | unset | YAML file supplying any flag below by long name (dashes as underscores); see §14.4. A CLI flag overrides the same key from the file |
+| `--symbol SYM` | **Yes, unless supplied by `--config`** | — | Instrument to make a market in (e.g. `AAPL`) |
+| `--strategy NAME` | No | `symmetric` | Pricing strategy; only `symmetric` is registered today (see §14.4) |
 | `--gap PRICE` | No | `0.10` | Total spread in price units (bid placed at mid−gap/2, ask at mid+gap/2). Must be ≥ 2 ticks |
 | `--qty N` | No | `500` | Quote size on each leg |
 | `--id-suffix NN` | No | `01` | Running number appended to the gateway ID (`MM_AAPL_01`). Allows multiple instances |
@@ -748,8 +753,11 @@ gateways:
       quote_refresh_policy: INACTIVATE_ON_ANY_FILL
 ```
 
-> **Tip:** Use `pm-config-gen --gateways MM_AAPL_01:MARKET_MAKER MM_MSFT_01:MARKET_MAKER`
-> to generate the gateway stanzas automatically. *(To be created as part of this feature.)*
+> **Tip:** `pm-config-gen` can generate these gateway stanzas automatically:
+> `pm-config-gen --symbols AAPL MSFT --gateways MM_AAPL_01:MARKET_MAKER MM_MSFT_01:MARKET_MAKER`.
+> `--gateways` accepts `ID[:ROLE[:DISCONNECT]]` specs, and a `MARKET_MAKER`
+> gateway automatically defaults to `disconnect_behaviour: CANCEL_QUOTES_ONLY`
+> (see §9.3) unless a spec overrides it explicitly.
 
 ### 9.3 Recommended disconnect_behaviour
 
@@ -851,8 +859,10 @@ sequenceDiagram
 | `src/edumatcher/mm_bot/__init__.py` | Package marker |
 | `src/edumatcher/mm_bot/main.py` | Entry point; `main()` function; argument parsing |
 | `src/edumatcher/mm_bot/bot.py` | `MMBot` class; state machine; event loop |
-| `src/edumatcher/mm_bot/pricer.py` | `QuotePricer` class; mid-price, quote price calculation, drift detection |
+| `src/edumatcher/mm_bot/pricer.py` | `QuotePricer` class; mid-price, quote price calculation, drift detection; `PricingStrategy` protocol and `create_strategy()` factory (added v1.2.0, §14.4) |
+| `src/edumatcher/mm_bot/config.py` | `--config` YAML file loading and validation (added v1.2.0, §14.4) |
 | `tests/test_mm_bot.py` | Unit tests (see Section 13) |
+| `tests/test_mm_bot_config.py` | Unit tests for `config.py` (added v1.2.0) |
 
 ### 11.2 Changes to Existing Files
 
@@ -875,6 +885,10 @@ reconciliation.
 #### `mm_bot/main.py`
 
 - Parse CLI arguments.
+- (v1.2.0) Load `--config` via `mm_bot/config.py` and apply its values as
+  parser defaults before the real parse, so an explicit CLI flag always wins;
+  fail fast on an unreadable file, invalid YAML, or an unknown key.
+- (v1.2.0) Require `--symbol` from either the CLI or the config file.
 - Validate `--gap` against `mm_max_spread_ticks` after receiving symbol config.
 - Validate `--initial_min`/`--initial_max` pair and ordering.
 - Validate `--startup-session-timeout-sec` is positive.
@@ -898,14 +912,20 @@ reconciliation.
   before first quote.
 - Reconcile local quote state against `QLEGS` periodically and trigger safe
   cancel/reissue convergence on mismatch.
-- Delegate price calculation to `QuotePricer`.
+- Delegate price calculation to the active `PricingStrategy` (constructed via
+  `create_strategy(self.strategy, ...)`; v1.2.0), not directly to `QuotePricer`.
 
 #### `mm_bot/pricer.py`
 
-- `QuotePricer(tick_size, gap, drift_ticks)` — pure logic with no ZMQ dependency.
+- `PricingStrategy` (v1.2.0) — the `Protocol` `MMBot` depends on: `mid_price`,
+  `price_decimals`, `update_mid`, `set_mid`, `compute_prices`, `has_drifted`.
+- `QuotePricer(tick_size, gap, drift_ticks)` — pure logic with no ZMQ
+  dependency; today's only implementation, registered as `"symmetric"`.
 - `update_mid(best_bid, best_ask)` → updates internal mid.
 - `compute_prices()` → `(bid, ask)`.
 - `has_drifted(quoted_at_mid)` → `bool`.
+- `create_strategy(name, *, tick_size, gap, drift_ticks)` (v1.2.0) — factory
+  keyed by `--strategy`; raises `ValueError` for an unregistered name.
 - Fully testable without any ZMQ or engine dependency.
 
 
@@ -973,8 +993,14 @@ that detects pipx vs. Poetry mode:
 
 ### 12.3 Parameter Quick Reference
 
+The "YAML (gateway)" column below is `engine_config.yaml`'s gateway stanza
+(§9.2) — obligations enforced by the engine. It is a different file from the
+bot's own optional `--config mm_aapl.yaml` (§14.4), which can supply any row
+marked "runtime only" instead of passing it on the CLI.
+
 | Parameter | CLI Flag | YAML (gateway) | Default | Notes |
 |---|---|---|---|---|
+| Strategy | `--strategy` | — (runtime only) | `symmetric` | Only `symmetric` is registered today; see §14.4 |
 | Gap (total spread) | `--gap` | — (runtime only) | `0.10` or auto from `mm_max_spread_ticks/2 × tick_size` | Must satisfy `mm_max_spread_ticks` obligation if set |
 | Quote quantity | `--qty` | — (runtime only) | `500` | Must satisfy `mm_min_qty` obligation if set |
 | Drift threshold | `--drift-ticks` | — (runtime only) | `3` | Ticks from posted mid before reprice |
@@ -1075,19 +1101,64 @@ selection risk. A future version could subscribe to a rolling volatility estimat
 effective_gap = base_gap × max(1.0, vol_factor)
 ```
 
-### 14.3 Multi-Symbol Mode
+### 14.3 Multi-Symbol Mode — Implemented (v1.5.0, via the review doc's §5a)
 
-Running one process per symbol is simple and isolated but requires more terminals
-in a classroom. A future `--symbols AAPL,MSFT,TSLA` mode could manage multiple
-quotes from a single process, similar to how `pm-ai-swarm` manages multiple
-single-trader bots.
+Running one process per symbol is simple and isolated but requires more
+terminals in a classroom. This was always a `pm-mm-bot` implementation
+choice, not an exchange-side restriction — nothing in the engine ties a
+`MARKET_MAKER` gateway or its quotes to a single symbol (`QuoteIndex` keys
+quotes by `(gateway_id, symbol)` and tracks a set of them per gateway); a
+real exchange market maker routinely quotes many symbols from one session.
+Two distinct options exist side by side, not one superseding the other:
 
-### 14.4 Config-File Mode
+- A `pm-ai-swarm`-style **launcher** that starts N separate `pm-mm-bot`
+  processes (one per symbol, one gateway ID each) from a single command —
+  saves typing, but is still N gateway identities, each still quoting one
+  symbol. This remains a proposed convenience wrapper, not yet built (see
+  the review doc's Phase C).
+- A true **multi-symbol `pm-mm-bot`** — one process, one gateway ID, quoting
+  several symbols at once via `--symbols AAPL,MSFT,TSLA` (optionally with
+  `--label` to keep the derived gateway ID short) — which more closely
+  matches how a real exchange session works. **This is now shipped.**
+  `MMBot`'s per-symbol instance state (`self.symbol`, `self._pricer`,
+  `self._quote_id`, and the rest) is refactored into a `dict[str,
+  _SymbolState]` keyed by symbol, with backward-compatible properties so a
+  single-symbol `--symbol` invocation is unaffected. The ZMQ topics
+  involved needed no protocol change, as anticipated: `book`/
+  `circuit_breaker` topics are per-symbol and accept multiple subscriptions
+  on one socket; `quote`/`order` topics are per-gateway and demultiplex via
+  `symbol` in their payload (`quote.new`, `order.fill`/`order.cancelled`)
+  or via a `quote_id -> symbol` map populated once a quote is acked
+  (`quote.status`) — `quote.ack` itself needed a small addition beyond the
+  original plan, a send-order FIFO, since its payload carries neither
+  `symbol` nor (yet) `quote_id`; see the review doc's v1.5.0 update note for
+  the detail.
 
-All bot parameters are currently CLI flags. A YAML config file mode
-(`pm-mm-bot --config mm_aapl.yaml`) would allow complex configurations to be
-version-controlled alongside `engine_config.yaml`, and would make the launch
-script simpler.
+See `docs-design/EduMatcher-MM-Bot-review.md` §5a for the full implementation
+record — staged steps (all done), CLI/config-file changes, gateway-identity
+naming, per-symbol failure-isolation design, and test coverage — kept there
+rather than duplicated here since the review doc is the living record of
+what the bot's internals actually require. See
+`docs/user-guide/100-mm-bot.md` for the user-facing CLI reference, config
+file schema, and per-symbol failure isolation behavior.
+
+### 14.4 Config-File Mode — Implemented (v1.2.0)
+
+`pm-mm-bot --config mm_aapl.yaml` now loads any CLI flag (except `--config`
+itself and the logging flags) from a YAML file, keyed by the flag's long name
+with dashes as underscores; an explicit CLI flag overrides the same key from
+the file. `--symbol` may live in the file instead of the CLI. See
+`docs/user-guide/100-mm-bot.md` § Config file for the full schema and
+examples, and `mm_bot/config.py` for the loader.
+
+This also introduced a `--strategy` flag and a `PricingStrategy` protocol
+(`mm_bot/pricer.py`) that `MMBot` talks to instead of the concrete
+`QuotePricer` class directly. Only `symmetric` (today's `QuotePricer`) is
+registered — this is the seam for §14.1's inventory skewing and §14.2's
+volatility-adaptive spread to land as new strategy classes later, without
+touching the bot's state machine or ZMQ handling. Multi-symbol mode (§14.3)
+is unaffected by this change and has since shipped separately (see §14.3);
+coordination between instances (§14.5) remains open.
 
 ### 14.5 Coordination Between MM Instances
 

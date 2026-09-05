@@ -3,10 +3,13 @@
 ## Objective
 
 Get a working EduMatcher, understand **where its files live**, and know **how to
-change them**. There are four ways to install; you need exactly one. By the end
-of this chapter you will have an exchange you can start and stop, a deployed
-configuration, and a clear picture of which directory holds your trades and
-logs.
+change them**. There are four ways to install; you need exactly one, and
+**Containers is the recommended default** — it needs no Python setup, gives
+you the exchange plus four web applications in a single command, and is what
+the rest of this chapter assumes unless you have a specific reason to choose
+otherwise. By the end of this chapter you will have an exchange you can start
+and stop, a deployed configuration, and a clear picture of which directory
+holds your trades and logs.
 
 
 
@@ -29,27 +32,34 @@ in action.
 
 | Route | You need | You get | Best for |
 |---|---|---|---|
-| **A — Containers** | Podman or Docker | The exchange **and four web applications**, in one command | Seeing the whole system quickly; classrooms; anyone who would rather not install Python |
-| **B — pipx** | Python 3.13 | `pm-*` commands on your PATH | Working through this training guide as it is written |
+| **A — Containers (recommended)** | Podman or Docker | The exchange **and four web applications**, in one command | Most students: no Python to install, the fastest path to a live market, and works through every chapter that follows |
+| **B — pipx** | Python 3.13 | `pm-*` commands on your PATH | You would rather work outside a container, or Podman/Docker is not available to you |
 | **C — Multipass VM** | Multipass | A Linux VM with `pm-*` inside it | Workshops; keeping your own machine untouched; a snapshot you can reset |
 | **D — Poetry checkout** | Python 3.13, Git | The repository plus dev dependencies | Changing EduMatcher itself |
 
 !!! warning "How this affects the rest of the training"
     From Chapter 01 onward you start and stop **individual processes by hand**,
     one per terminal — that is how the exercises teach you what each process
-    does. Routes B and C give you that directly.
+    does. Routes B and C give you that directly, in your own terminals.
 
-    Route A can do it too, but the containerised exchange starts its processes
-    for you, so you have one extra step: open a shell *inside* the container
-    and stop them first. Exercise 1A shows exactly how. If your goal is to work
-    through every chapter, Route B is the smoothest; if your goal is to see a
-    live market with the web applications, Route A is the fastest.
+    Route A gives you the same thing with one extra step: the containerised
+    exchange starts its processes for itself, so before following Chapter 01
+    you open a shell *inside* the container and stop them first. Exercise 1
+    below shows exactly how, and it is a one-time step per session — after
+    that, every `pm-*` command in the chapters works unchanged. This is why
+    Route A is still the recommended default even though the chapters are
+    demonstrated as bare commands: the only difference is prefixing your first
+    command with `./edumatcher.sh shell`.
 
 Pick one route below, then continue from Exercise 2 — the remaining exercises
 apply to all of them.
 
 
-## Exercise 1A: Containers — the whole system in one command
+## Exercise 1: Containers — the whole system in one command
+
+You need Podman or Docker Desktop installed and running before you start. If
+neither is available, the installer stops immediately and tells you so; there
+is nothing else to prepare.
 
 ### Where everything will be stored
 
@@ -63,7 +73,7 @@ directory removes the installation.
 | `~/.edumatcher/data` | **Every trade, order book, log and database the exchange produces.** It is mounted into the containers, so it lives on your disk rather than inside a container, and survives stop, start and update |
 | `~/.edumatcher/config` | An engine configuration of your own, once you supply one |
 | `~/.edumatcher/.env` | Your settings — version, configuration, ports, timezone |
-| `~/.edumatcher/compose.yaml` | The container definitions. You will not normally edit this |
+| `~/.edumatcher/compose.yaml`, `compose.zmq.yaml` | The container definitions. You will not normally edit these |
 | `~/.edumatcher/edumatcher.sh` | The command you drive everything with |
 
 Use `--dir` to put it somewhere else; the layout underneath is the same.
@@ -83,8 +93,9 @@ curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment
     ```
 
 The installer checks for Podman or Docker, resolves the newest release,
-downloads three small files, pulls five images and starts them. Nothing is
-compiled on your machine.
+downloads four small support files (`compose.yaml`, `compose.zmq.yaml`,
+`edumatcher.sh`, `.env.example`), pulls five images and starts them. Nothing
+is compiled on your machine.
 
 When it finishes you have a complete exchange **and** four web applications:
 
@@ -96,8 +107,26 @@ When it finishes you have a complete exchange **and** four web applications:
 | Trader GUI | <http://localhost:8093> | Submit and manage orders as a participant |
 | REST API docs | <http://localhost:8080/docs> | Swagger UI for the `desk` API gateway |
 
-Open the trading terminal. You should see order books with live quotes — the
-bundled `three-basic` configuration comes with market makers already quoting.
+Open the trading terminal. You should see order books with live quotes: the
+bundled `three-basic` configuration seeds each symbol with a resting
+market-maker bid and ask the moment `pm-engine` starts, so there is a two-sided
+book before anyone has traded.
+
+!!! note "If a port is already taken"
+    The published ports (`8080`, `8090`–`8093`) are fixed. If another program
+    on your machine already uses one of them, `./edumatcher.sh start` fails
+    with a bind error naming that port. Free it, or move the conflicting
+    service, then run `./edumatcher.sh start` again — nothing was left
+    half-started.
+
+!!! warning "Running a second install on the same machine"
+    Every container and its ports are fixed by name, so a second `curl |
+    bash` into a different `--dir` will refuse to start once it reaches the
+    point of creating the exchange container, naming the other install's data
+    directory and telling you to stop it first (`./edumatcher.sh stop` in that
+    other directory, or `make -C <repo>/deployment/docker down-all` for a
+    source checkout). Stop one before starting the other; the two are not
+    designed to run side by side.
 
 ### Driving it
 
@@ -156,9 +185,18 @@ order books, and `./edumatcher.sh shell pm-engine --version` prints a version
 number.
 
 
-## Exercise 1B: pipx — commands on your own machine
+## Alternate Routes
 
-The route the rest of this training guide is written for.
+Skip this section if you took Route A. It covers three routes for specific
+situations: working outside a container, a disposable sandbox, and
+contributing to EduMatcher itself. Each still ends at the same place —
+`pm-engine --version` resolving and a data directory you can name — so
+Exercise 2 onward works the same regardless of which one you picked.
+
+### Route B: pipx — commands on your own machine
+
+Choose this when you would rather not run a container, or Podman/Docker is not
+available to you.
 
 | Requirement | Notes |
 |---|---|
@@ -167,8 +205,27 @@ The route the rest of this training guide is written for.
 | Several terminals | Or `tmux` / `screen`; one process per pane is normal |
 
 ```bash
-pip install pipx
+# macOS with Homebrew
+brew install pipx
 pipx ensurepath
+
+# Linux, or macOS without Homebrew
+python -m pip install --user pipx
+python -m pipx ensurepath
+```
+
+!!! warning "`pip install pipx` on its own often fails"
+    On a system Python (most Linux distributions since 2023, including
+    Debian and Ubuntu), a bare `pip install pipx` refuses with `error:
+    externally-managed-environment`. The `--user` flag above installs into
+    your own home directory instead of the system site-packages, which is
+    both what avoids that error and the setup pipx itself recommends.
+
+`pipx ensurepath` edits your shell's startup file but cannot update the
+*current* shell. **Open a new terminal** before continuing, then install
+EduMatcher into it:
+
+```bash
 pipx install edumatcher
 ```
 
@@ -178,6 +235,11 @@ Verify:
 pm-engine --version
 ```
 
+!!! note "`command not found: pm-engine`"
+    Almost always the same cause: you are still in the terminal that was open
+    when you ran `pipx ensurepath`. Open a new one (or `exec $SHELL`) and try
+    again before suspecting anything else.
+
 Then bootstrap your workspace:
 
 ```bash
@@ -185,37 +247,47 @@ pm-setup
 ```
 
 `pm-setup` creates the data directory, compiles a bundled example
-configuration and installs it as the deployed artifact, and prints the one
-environment variable you need:
+configuration (`three-basic` unless you say otherwise) and installs it as the
+deployed artifact, then prints the one environment variable you need. The
+output looks like this — yours will show your own home directory and shell:
 
 ```text
 pm-setup — EduMatcher session initialisation
 ==================================================
   ✓ Created data directory:          /Users/you/.local/share/edumatcher
-  ✓ Sample config compiled to:       /Users/you/.local/share/edumatcher/ref_data/engine_config.json
+  ✓ Example config 'three-basic' compiled to: /Users/you/.local/share/edumatcher/ref_data/engine_config.json
     3 symbol(s) ready to trade.
 
   Shell environment snippet — add to your shell profile:
+  (~/.zshrc)
   ----------------------------------------------
   export EDUMATCHER_DATA_DIR="/Users/you/.local/share/edumatcher"
   ----------------------------------------------
+
+  This is the only variable to set. Every process derives its
+  configuration, database and log paths from it, so they cannot
+  drift apart.
+  ...
 ```
 
-Add that line to `~/.zshrc` (macOS) or `~/.bashrc` (Linux) and reload:
+Add the `export` line to `~/.zshrc` (macOS default shell) or `~/.bashrc`
+(Linux, or bash on macOS) — `pm-setup` names the right file for your shell in
+its own output — then reload it:
 
 ```bash
-source ~/.zshrc     # or source ~/.bashrc
+source ~/.zshrc     # or source ~/.bashrc — whichever pm-setup named
 ```
 
 !!! note "Re-running pm-setup"
     `pm-setup --force` replaces an already-deployed configuration with the
     bundled example. `pm-setup --config ten-nominal` picks a different one.
+    `pm-setup --no-config` creates only the data directory.
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-engine --version` prints a
-version, and `echo $EDUMATCHER_DATA_DIR` prints a path.
+version, and `echo $EDUMATCHER_DATA_DIR` prints a path — **in a new terminal**,
+not just the one where you ran `pm-setup`.
 
-
-## Exercise 1C: Multipass VM — a disposable Linux sandbox
+### Route C: Multipass VM — a disposable Linux sandbox
 
 A ready-to-run Linux environment without installing Python tooling on your
 host. Install Multipass from [multipass.run](https://multipass.run/install),
@@ -224,11 +296,16 @@ verify it, then bootstrap:
 ```bash
 multipass version
 
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | bash -s -- --version 0.31.0
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | bash -s -- --version 0.32.0
 ```
 
+If `multipass version` fails with `command not found`, the install did not
+complete or your shell has not picked up its PATH change yet — open a new
+terminal and retry before moving on.
+
 This launches a VM (default name `ems`), installs the runtime inside it, runs
-`pm-setup` for you, takes a snapshot, and prints the VM's address and API keys.
+`pm-setup` for you, takes a snapshot named `clean`, and prints the VM's
+address and API keys.
 
 ```bash
 multipass shell ems
@@ -247,22 +324,30 @@ multipass delete --purge ems    # remove it entirely
 
 !!! tip "The snapshot is the point"
     Provisioning takes a snapshot named `clean`. After an exercise leaves the
-    order books in a mess, `multipass restore ems.clean` returns the VM to its
-    freshly installed state.
+    order books in a mess, restore it with the `-d` (destructive) flag, which
+    skips the confirmation prompt and discards everything since:
+    ```bash
+    multipass restore -d ems.clean
+    ```
 
 :material-checkbox-blank-outline: **Checkpoint:** `multipass shell ems` works and
 `pm-engine --version` succeeds inside the VM.
 
+### Route D: Poetry checkout — for changing EduMatcher itself
 
-!!! tip "Route D: Poetry, for changing EduMatcher itself"
-    ```bash
-    git clone https://github.com/johan162/EduMatcher.git
-    cd EduMatcher
-    poetry install --with dev
-    ```
-    Every command is then prefixed with `poetry run`, e.g.
-    `poetry run pm-engine`. The data directory is the repository's own
-    `src/data/` unless you set `EDUMATCHER_DATA_DIR`.
+Choose this only if you intend to modify EduMatcher's own source, not to run
+it as a student.
+
+```bash
+git clone https://github.com/johan162/EduMatcher.git
+cd EduMatcher
+poetry config virtualenvs.in-project true
+poetry install --with dev,docs
+```
+
+Every command is then prefixed with `poetry run`, e.g. `poetry run pm-engine`.
+The data directory is the repository's own `src/data/` unless you set
+`EDUMATCHER_DATA_DIR`.
 
 
 ## Exercise 2: Find where your files live
@@ -469,11 +554,34 @@ Each should print usage information without errors.
 `--help`.
 
 
+## Troubleshooting
+
+A quick index of the problems most students hit, and where above each one is
+handled in full:
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Installer exits immediately with "Neither podman nor docker is installed" | No container engine on this machine | Install Podman or Docker Desktop, then re-run the install command |
+| `./edumatcher.sh start` fails with a bind error naming a port | Something else on your machine already uses `8080` or `8090`–`8093` | Free the port or stop the other service, then `./edumatcher.sh start` again |
+| Starting a second install fails, naming another install's data directory | Container names and ports are fixed, so two installs cannot run side by side | Stop the other one (`./edumatcher.sh stop` in its directory), then retry — see the warning in Exercise 1 |
+| `pip install pipx` fails with `externally-managed-environment` | Modern Linux distributions block installing into the system Python | Use `python -m pip install --user pipx` instead, as Route B now shows |
+| `command not found: pm-engine` right after `pipx install edumatcher` | `pipx ensurepath` only takes effect in a *new* shell | Open a new terminal (or `exec $SHELL`) and try again |
+| `pm-engine --version` works in one terminal but not another | `EDUMATCHER_DATA_DIR` was exported in one shell but never added to your shell profile | Add the `export` line from `pm-setup`'s output to `~/.zshrc` or `~/.bashrc`, then open a new terminal |
+| `multipass version` reports `command not found` | Multipass did not finish installing, or your shell has not picked up its PATH change | Reinstall from [multipass.run](https://multipass.run/install), then open a new terminal |
+| Container route: chapter exercises see a market that already has orders in it | The `default` profile is still running from install | `pm-opctl-cli stop` inside `./edumatcher.sh shell`, as the "Before You Continue" checklist below requires |
+
+If something goes wrong that is not on this list, `./edumatcher.sh logs` (container
+route) or the relevant process's own `--verbose` output is the next place to
+look, and [Running the Exchange](../user-guide/040-running-the-exchange.md) has
+a fuller troubleshooting section for problems that show up after startup.
+
+
 ## Summary
 
 You now have:
 
-- EduMatcher installed by one of four routes, and you know which one you chose.
+- EduMatcher installed — Containers by default, or one of the three alternate
+  routes for a reason of your own — and you know which one you chose.
 - A data directory you can name, holding the deployed configuration and
   everything the exchange writes.
 - A deployed configuration you can display, swap for another bundled example,
@@ -515,4 +623,4 @@ more confusing?
 - [Running the Exchange](../user-guide/040-running-the-exchange.md)
 - [Processes](../user-guide/170-processes.md)
 
-**Next:** [01 — Configuring & Starting Up](01-configuring-startup.md)
+**Next:** [01 — Configuring & Starting Up](010-configuring-startup.md)

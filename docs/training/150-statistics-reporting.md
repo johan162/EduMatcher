@@ -219,8 +219,8 @@ queries itself, in-process, for every connected client?
 - [Persistence](../user-guide/180-persistence.md)
 - [Market Data Feed](../concepts/06-concepts-market-data-feed.md)
 
-**Next:** [16 — Persistence & Recovery](16-persistence-recovery.md)
+**Next:** [16 — Persistence & Recovery](160-persistence-recovery.md)
 
 For a fuller hands-on tour of every viewer and observer process (including
 `pm-stats` alongside `pm-viewer`, `pm-orders`, `pm-audit`, and `pm-board`),
-see [18 — Exchange Observer Processes](18-exchange-observer-processes.md).
+see [18 — Exchange Observer Processes](180-exchange-observer-processes.md).

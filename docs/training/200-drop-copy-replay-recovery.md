@@ -235,4 +235,4 @@ subscriber's socket briefly dropped messages?
 - [Messages](../user-guide/270-message-reference.md)
 - [Persistence](../user-guide/180-persistence.md)
 
-**Next:** [21 - Automation with CommandClient & MM Bot Tuning](21-automation-commandclient-mm-bot.md)
+**Next:** [21 - Automation with CommandClient & MM Bot Tuning](210-automation-commandclient-mm-bot.md)

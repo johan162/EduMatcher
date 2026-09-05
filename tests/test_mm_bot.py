@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import time
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 from edumatcher.mm_bot.bot import BotState, MMBot
-from edumatcher.mm_bot.pricer import QuotePricer
+from edumatcher.mm_bot.pricer import available_strategies, create_strategy, QuotePricer
 from edumatcher.models.message import decode as msg_decode, encode
+from edumatcher.models.price import clear_tick_registry, get_tick_decimals, to_ticks
 
 # ========================================================================
 # Unit Tests — QuotePricer
@@ -234,6 +236,26 @@ class TestQuotePricerDecimals:
         assert p._price_decimals == 0
 
 
+class TestStrategyFactory:
+    """Test the strategy-selection factory in pricer.py."""
+
+    def test_symmetric_is_available(self) -> None:
+        assert "symmetric" in available_strategies()
+
+    def test_create_symmetric_returns_quote_pricer(self) -> None:
+        strategy = create_strategy("symmetric", tick_size=0.01, gap=0.10, drift_ticks=3)
+        assert isinstance(strategy, QuotePricer)
+
+    def test_create_unknown_strategy_raises(self) -> None:
+        with pytest.raises(ValueError, match="Unknown strategy 'skewed'"):
+            create_strategy("skewed", tick_size=0.01, gap=0.10, drift_ticks=3)
+
+    def test_create_propagates_constructor_validation(self) -> None:
+        """Invalid strategy parameters (e.g. gap too small) still raise."""
+        with pytest.raises(ValueError, match="gap.*must be at least"):
+            create_strategy("symmetric", tick_size=0.01, gap=0.01, drift_ticks=3)
+
+
 # ========================================================================
 # Tests — main.py argument parsing and validation
 # ========================================================================
@@ -267,7 +289,7 @@ class TestMainParsing:
         assert len(bot_instances) == 1
         bot = bot_instances[0]
         assert bot.kwargs["gateway_id"] == "MM_AAPL_01"  # type: ignore[attr-defined]
-        assert bot.kwargs["symbol"] == "AAPL"  # type: ignore[attr-defined]
+        assert bot.kwargs["symbols"] == ["AAPL"]  # type: ignore[attr-defined]
         assert bot.kwargs["gap"] == 0.10  # type: ignore[attr-defined]
         assert bot.kwargs["qty"] == 500  # type: ignore[attr-defined]
 
@@ -294,6 +316,151 @@ class TestMainParsing:
             mm_main.main(["--symbol", "MSFT", "--id-suffix", "03"])
         bot = bot_instances[0]
         assert bot.kwargs["gateway_id"] == "MM_MSFT_03"  # type: ignore[attr-defined]
+
+    def test_main_default_strategy_is_symmetric(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """--strategy defaults to symmetric when not given."""
+        from edumatcher.mm_bot import main as mm_main
+
+        bot_instances: list[object] = []
+
+        class FakeBot:
+            def __init__(self, **kwargs: object) -> None:
+                self.kwargs = kwargs
+                bot_instances.append(self)
+                self._running = True
+
+            def run(self) -> int:
+                return 0
+
+            def shutdown(self) -> None:
+                pass
+
+        monkeypatch.setattr("edumatcher.mm_bot.bot.MMBot", FakeBot)
+        with pytest.raises(SystemExit):
+            mm_main.main(["--symbol", "AAPL"])
+        bot = bot_instances[0]
+        assert bot.kwargs["strategy"] == "symmetric"  # type: ignore[attr-defined]
+
+    def test_main_config_file_supplies_symbol_and_params(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """--config alone (no --symbol on the CLI) fully configures the bot."""
+        from edumatcher.mm_bot import main as mm_main
+
+        config_path = tmp_path / "mm_aapl.yaml"
+        config_path.write_text("symbol: AAPL\ngap: 0.08\nqty: 300\ntif: GTC\n")
+
+        bot_instances: list[object] = []
+
+        class FakeBot:
+            def __init__(self, **kwargs: object) -> None:
+                self.kwargs = kwargs
+                bot_instances.append(self)
+                self._running = True
+
+            def run(self) -> int:
+                return 0
+
+            def shutdown(self) -> None:
+                pass
+
+        monkeypatch.setattr("edumatcher.mm_bot.bot.MMBot", FakeBot)
+        with pytest.raises(SystemExit) as exc_info:
+            mm_main.main(["--config", str(config_path)])
+        assert exc_info.value.code == 0
+        bot = bot_instances[0]
+        assert bot.kwargs["symbols"] == ["AAPL"]  # type: ignore[attr-defined]
+        assert bot.kwargs["gap"] == 0.08  # type: ignore[attr-defined]
+        assert bot.kwargs["qty"] == 300  # type: ignore[attr-defined]
+        assert bot.kwargs["tif"] == "GTC"  # type: ignore[attr-defined]
+
+    def test_main_cli_flag_overrides_config_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An explicit CLI flag wins over the same key in --config."""
+        from edumatcher.mm_bot import main as mm_main
+
+        config_path = tmp_path / "mm_aapl.yaml"
+        config_path.write_text("symbol: AAPL\ngap: 0.08\n")
+
+        bot_instances: list[object] = []
+
+        class FakeBot:
+            def __init__(self, **kwargs: object) -> None:
+                self.kwargs = kwargs
+                bot_instances.append(self)
+                self._running = True
+
+            def run(self) -> int:
+                return 0
+
+            def shutdown(self) -> None:
+                pass
+
+        monkeypatch.setattr("edumatcher.mm_bot.bot.MMBot", FakeBot)
+        with pytest.raises(SystemExit):
+            mm_main.main(["--config", str(config_path), "--gap", "0.20"])
+        bot = bot_instances[0]
+        assert bot.kwargs["gap"] == 0.20  # type: ignore[attr-defined]
+
+    def test_main_config_gap_counts_as_explicit(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A gap pinned by --config (not typed on the CLI) still counts as
+        explicit, so bot.py's MM-obligation auto-derivation must not
+        override it."""
+        from edumatcher.mm_bot import main as mm_main
+
+        config_path = tmp_path / "mm_aapl.yaml"
+        config_path.write_text("symbol: AAPL\ngap: 0.08\n")
+
+        bot_instances: list[object] = []
+
+        class FakeBot:
+            def __init__(self, **kwargs: object) -> None:
+                self.kwargs = kwargs
+                bot_instances.append(self)
+                self._running = True
+
+            def run(self) -> int:
+                return 0
+
+            def shutdown(self) -> None:
+                pass
+
+        monkeypatch.setattr("edumatcher.mm_bot.bot.MMBot", FakeBot)
+        with pytest.raises(SystemExit):
+            mm_main.main(["--config", str(config_path)])
+        bot = bot_instances[0]
+        assert bot.kwargs["gap_was_explicit"] is True  # type: ignore[attr-defined]
+
+    def test_main_missing_symbol_exits(self) -> None:
+        """No --symbol and no --config exits with a usage error."""
+        from edumatcher.mm_bot import main as mm_main
+
+        with pytest.raises(SystemExit) as exc_info:
+            mm_main.main([])
+        assert exc_info.value.code == 2
+
+    def test_main_config_file_not_found_exits(self, tmp_path: Path) -> None:
+        """A --config path that doesn't exist exits cleanly with rc=1."""
+        from edumatcher.mm_bot import main as mm_main
+
+        with pytest.raises(SystemExit) as exc_info:
+            mm_main.main(["--config", str(tmp_path / "missing.yaml")])
+        assert exc_info.value.code == 1
+
+    def test_main_config_unknown_key_exits(self, tmp_path: Path) -> None:
+        """A --config file with an unrecognized key exits cleanly with rc=1."""
+        from edumatcher.mm_bot import main as mm_main
+
+        config_path = tmp_path / "bad.yaml"
+        config_path.write_text("symbol: AAPL\nbogus_key: 1\n")
+        with pytest.raises(SystemExit) as exc_info:
+            mm_main.main(["--config", str(config_path)])
+        assert exc_info.value.code == 1
 
     def test_main_invalid_bootstrap_range(self) -> None:
         """Only initial_min without max raises SystemExit via ValueError."""
@@ -459,6 +626,7 @@ def _make_bot(
     bot = MMBot(
         gateway_id="MM_AAPL_01",
         symbol="AAPL",
+        strategy="symmetric",
         gap=0.10,
         gap_was_explicit=gap_was_explicit,
         qty=500,
@@ -513,6 +681,559 @@ def _book_msg(
     bids = [{"price": best_bid}] if best_bid is not None else []
     asks = [{"price": best_ask}] if best_ask is not None else []
     return encode("book.AAPL", {"bids": bids, "asks": asks})
+
+
+def _book_msg_for(
+    symbol: str, best_bid: float | None = None, best_ask: float | None = None
+) -> list[bytes]:
+    bids = [{"price": best_bid}] if best_bid is not None else []
+    asks = [{"price": best_ask}] if best_ask is not None else []
+    return encode(f"book.{symbol}", {"bids": bids, "asks": asks})
+
+
+def _make_multi_bot(
+    monkeypatch: pytest.MonkeyPatch,
+    symbols: list[str],
+    *,
+    gateway_id: str = "MM_MULTI_01",
+    initial_min: float | None = None,
+    initial_max: float | None = None,
+    gap_was_explicit: bool = True,
+    startup_session_timeout_sec: float = 0.1,
+    bootstrap_timeout_sec: float = 0.1,
+) -> tuple[MMBot, _FakeSock, _FakeSock]:
+    """Create a multi-symbol bot with mocked sockets.
+
+    Mirrors ``_make_bot`` above but takes an explicit ``symbols`` list and a
+    gateway ID that isn't tied to any one symbol, since topics like
+    system.gateway_auth.<gateway_id> must match whatever ID the bot itself
+    uses.
+    """
+    import edumatcher.mm_bot.bot as bot_mod
+
+    push = _FakeSock()
+    sub = _FakeSock()
+
+    monkeypatch.setattr(bot_mod, "make_pusher", lambda _addr: push)
+    monkeypatch.setattr(bot_mod, "make_subscriber", lambda _addr, *_topics: sub)
+
+    bot_ref: list[MMBot | None] = [None]
+
+    def _make_poller() -> _FakePoller:
+        return _FakePoller(sub, bot_ref[0])
+
+    monkeypatch.setattr("edumatcher.mm_bot.bot.zmq.Poller", _make_poller)
+
+    bot = MMBot(
+        gateway_id=gateway_id,
+        symbols=symbols,
+        strategy="symmetric",
+        gap=0.10,
+        gap_was_explicit=gap_was_explicit,
+        qty=500,
+        drift_ticks=3,
+        reissue_delay_ms=200,
+        tif="DAY",
+        heartbeat_interval_sec=5.0,
+        startup_session_timeout_sec=startup_session_timeout_sec,
+        bootstrap_timeout_sec=bootstrap_timeout_sec,
+        cancel_timeout_sec=1.0,
+        shutdown_timeout_sec=0.1,
+        qlegs_reconcile_interval_sec=15.0,
+        initial_min=initial_min,
+        initial_max=initial_max,
+        engine_pull="tcp://127.0.0.1:5555",
+        engine_pub="tcp://127.0.0.1:5556",
+        verbose=False,
+    )
+    bot_ref[0] = bot
+    return bot, push, sub
+
+
+def _auth_msg_for(gateway_id: str, accepted: bool = True) -> list[bytes]:
+    return encode(f"system.gateway_auth.{gateway_id}", {"accepted": accepted})
+
+
+def _symbols_msg_for(
+    gateway_id: str,
+    symbols: list[str],
+    *,
+    mm_max_spread_ticks: dict[str, int] | None = None,
+) -> list[bytes]:
+    mm_max_spread_ticks = mm_max_spread_ticks or {}
+    entries = [
+        {
+            "symbol": s,
+            "tick_decimals": 2,
+            **(
+                {"mm_max_spread_ticks": mm_max_spread_ticks[s]}
+                if s in mm_max_spread_ticks
+                else {}
+            ),
+        }
+        for s in symbols
+    ]
+    return encode(f"system.symbols.{gateway_id}", {"symbols": entries})
+
+
+def _boot_msg_for(
+    gateway_id: str, quotes: list[dict[str, Any]] | None = None
+) -> list[bytes]:
+    return encode(f"system.quote_bootstrap.{gateway_id}", {"quotes": quotes or []})
+
+
+def _qlegs_msg_for(
+    gateway_id: str, legs: list[dict[str, Any]] | None = None
+) -> list[bytes]:
+    return encode(f"system.quote_legs.{gateway_id}", {"legs": legs or []})
+
+
+class TestMainParsingMultiSymbol:
+    """CLI parsing for --symbols/--label (docs-design/EduMatcher-MM-Bot-review.md
+    §5a.3)."""
+
+    def _fake_bot_class(self, bot_instances: list[object]) -> type:
+        class FakeBot:
+            def __init__(self, **kwargs: object) -> None:
+                self.kwargs = kwargs
+                bot_instances.append(self)
+                self._running = True
+
+            def run(self) -> int:
+                return 0
+
+            def shutdown(self) -> None:
+                pass
+
+        return FakeBot
+
+    def test_symbols_flag_builds_symbol_list_and_derived_gateway_id(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """--symbols AAPL,MSFT -> symbols=["AAPL","MSFT"], gateway_id
+        derived as MM_AAPL_MSFT_<suffix>."""
+        from edumatcher.mm_bot import main as mm_main
+
+        bot_instances: list[object] = []
+        monkeypatch.setattr(
+            "edumatcher.mm_bot.bot.MMBot", self._fake_bot_class(bot_instances)
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            mm_main.main(["--symbols", "AAPL,MSFT"])
+        assert exc_info.value.code == 0
+        bot = bot_instances[0]
+        assert bot.kwargs["symbols"] == ["AAPL", "MSFT"]  # type: ignore[attr-defined]
+        assert bot.kwargs["gateway_id"] == "MM_AAPL_MSFT_01"  # type: ignore[attr-defined]
+
+    def test_symbols_flag_lowercase_and_spaces_normalized(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """--symbols accepts lowercase and stray whitespace around commas."""
+        from edumatcher.mm_bot import main as mm_main
+
+        bot_instances: list[object] = []
+        monkeypatch.setattr(
+            "edumatcher.mm_bot.bot.MMBot", self._fake_bot_class(bot_instances)
+        )
+        with pytest.raises(SystemExit):
+            mm_main.main(["--symbols", " aapl , msft "])
+        bot = bot_instances[0]
+        assert bot.kwargs["symbols"] == ["AAPL", "MSFT"]  # type: ignore[attr-defined]
+
+    def test_label_overrides_derived_gateway_id_segment(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """--label shortens a multi-symbol gateway ID."""
+        from edumatcher.mm_bot import main as mm_main
+
+        bot_instances: list[object] = []
+        monkeypatch.setattr(
+            "edumatcher.mm_bot.bot.MMBot", self._fake_bot_class(bot_instances)
+        )
+        with pytest.raises(SystemExit):
+            mm_main.main(["--symbols", "AAPL,MSFT", "--label", "TECH"])
+        bot = bot_instances[0]
+        assert bot.kwargs["gateway_id"] == "MM_TECH_01"  # type: ignore[attr-defined]
+
+    def test_symbol_and_symbols_both_given_errors(self) -> None:
+        """--symbol and --symbols together is a usage error."""
+        from edumatcher.mm_bot import main as mm_main
+
+        with pytest.raises(SystemExit):
+            mm_main.main(["--symbol", "AAPL", "--symbols", "MSFT"])
+
+    def test_neither_symbol_nor_symbols_errors(self) -> None:
+        """Omitting both --symbol and --symbols is a usage error."""
+        from edumatcher.mm_bot import main as mm_main
+
+        with pytest.raises(SystemExit):
+            mm_main.main([])
+
+    def test_config_file_symbols_as_yaml_list(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A config file's symbols: [AAPL, MSFT] YAML list is accepted."""
+        from edumatcher.mm_bot import main as mm_main
+
+        config_path = tmp_path / "mm_multi.yaml"
+        config_path.write_text("symbols:\n  - AAPL\n  - MSFT\n")
+
+        bot_instances: list[object] = []
+        monkeypatch.setattr(
+            "edumatcher.mm_bot.bot.MMBot", self._fake_bot_class(bot_instances)
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            mm_main.main(["--config", str(config_path)])
+        assert exc_info.value.code == 0
+        bot = bot_instances[0]
+        assert bot.kwargs["symbols"] == ["AAPL", "MSFT"]  # type: ignore[attr-defined]
+
+    def test_config_file_symbols_as_comma_string(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A config file's symbols: AAPL,MSFT comma-string is also accepted."""
+        from edumatcher.mm_bot import main as mm_main
+
+        config_path = tmp_path / "mm_multi.yaml"
+        config_path.write_text("symbols: AAPL,MSFT\n")
+
+        bot_instances: list[object] = []
+        monkeypatch.setattr(
+            "edumatcher.mm_bot.bot.MMBot", self._fake_bot_class(bot_instances)
+        )
+        with pytest.raises(SystemExit):
+            mm_main.main(["--config", str(config_path)])
+        bot = bot_instances[0]
+        assert bot.kwargs["symbols"] == ["AAPL", "MSFT"]  # type: ignore[attr-defined]
+
+
+class TestMMBotMultiSymbol:
+    """Multi-symbol support (docs-design/EduMatcher-MM-Bot-review.md §5a).
+
+    One bot process quoting several symbols behind one gateway ID: each
+    symbol's state, quoting lifecycle, and startup failure is independent
+    of the others.
+    """
+
+    GW = "MM_MULTI_01"
+
+    def _full_startup(
+        self,
+        sub: _FakeSock,
+        symbols: list[str],
+        *,
+        mm_max_spread_ticks: dict[str, int] | None = None,
+        session: str = "CONTINUOUS",
+    ) -> None:
+        sub.recv_queue.extend(
+            [
+                _auth_msg_for(self.GW),
+                _symbols_msg_for(
+                    self.GW, symbols, mm_max_spread_ticks=mm_max_spread_ticks
+                ),
+                _boot_msg_for(self.GW),
+                _qlegs_msg_for(self.GW),
+                _session_msg(session),
+            ]
+        )
+
+    def test_construct_with_symbols_list(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """symbols= constructs one _SymbolState per symbol, in order."""
+        bot, _push, _sub = _make_multi_bot(monkeypatch, ["AAPL", "MSFT"])
+        assert bot.symbols == ["AAPL", "MSFT"]
+        assert set(bot._symbols_state.keys()) == {"AAPL", "MSFT"}
+        assert bot.symbol == "AAPL"  # primary-symbol proxy
+
+    def test_symbol_and_symbols_both_given_must_agree(self) -> None:
+        """symbol= that isn't in symbols= is rejected."""
+        with pytest.raises(ValueError, match="not in symbols"):
+            MMBot(
+                gateway_id="MM_X_01",
+                symbol="MSFT",
+                symbols=["AAPL"],
+                strategy="symmetric",
+                gap=0.10,
+                gap_was_explicit=True,
+                qty=500,
+                drift_ticks=3,
+                reissue_delay_ms=200,
+                tif="DAY",
+                heartbeat_interval_sec=5.0,
+                startup_session_timeout_sec=5.0,
+                bootstrap_timeout_sec=1.0,
+                cancel_timeout_sec=1.0,
+                shutdown_timeout_sec=2.0,
+                qlegs_reconcile_interval_sec=15.0,
+                initial_min=None,
+                initial_max=None,
+                engine_pull="tcp://127.0.0.1:5555",
+                engine_pub="tcp://127.0.0.1:5556",
+                verbose=False,
+            )
+
+    def test_symbols_list_deduplicates(self) -> None:
+        """A repeated entry in symbols= collapses to one _SymbolState."""
+        bot = MMBot(
+            gateway_id="MM_X_01",
+            symbols=["AAPL", "aapl", "MSFT", "AAPL"],
+            strategy="symmetric",
+            gap=0.10,
+            gap_was_explicit=True,
+            qty=500,
+            drift_ticks=3,
+            reissue_delay_ms=200,
+            tif="DAY",
+            heartbeat_interval_sec=5.0,
+            startup_session_timeout_sec=5.0,
+            bootstrap_timeout_sec=1.0,
+            cancel_timeout_sec=1.0,
+            shutdown_timeout_sec=2.0,
+            qlegs_reconcile_interval_sec=15.0,
+            initial_min=None,
+            initial_max=None,
+            engine_pull="tcp://127.0.0.1:5555",
+            engine_pub="tcp://127.0.0.1:5556",
+            verbose=False,
+        )
+        assert bot.symbols == ["AAPL", "MSFT"]
+
+    def test_neither_symbol_nor_symbols_raises(self) -> None:
+        """Constructing with neither symbol= nor symbols= is rejected."""
+        with pytest.raises(ValueError, match="requires either"):
+            MMBot(
+                gateway_id="MM_X_01",
+                strategy="symmetric",
+                gap=0.10,
+                gap_was_explicit=True,
+                qty=500,
+                drift_ticks=3,
+                reissue_delay_ms=200,
+                tif="DAY",
+                heartbeat_interval_sec=5.0,
+                startup_session_timeout_sec=5.0,
+                bootstrap_timeout_sec=1.0,
+                cancel_timeout_sec=1.0,
+                shutdown_timeout_sec=2.0,
+                qlegs_reconcile_interval_sec=15.0,
+                initial_min=None,
+                initial_max=None,
+                engine_pull="tcp://127.0.0.1:5555",
+                engine_pub="tcp://127.0.0.1:5556",
+                verbose=False,
+            )
+
+    def test_two_symbols_both_quote_after_startup(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Both symbols reach QUOTING and each gets its own quote.new."""
+        bot, push, sub = _make_multi_bot(
+            monkeypatch, ["AAPL", "MSFT"], initial_min=95.0, initial_max=105.0
+        )
+        self._full_startup(sub, ["AAPL", "MSFT"])
+        monkeypatch.setattr(
+            "edumatcher.mm_bot.bot.signal.signal", lambda *a, **kw: None
+        )
+        bot.run()
+
+        sent_symbols = set()
+        for frames in push.sent:
+            topic, payload = msg_decode(frames)
+            if topic == "quote.new":
+                sent_symbols.add(payload["symbol"])
+        assert sent_symbols == {"AAPL", "MSFT"}
+        assert bot._symbols_state["AAPL"].state == BotState.REISSUING
+        assert bot._symbols_state["MSFT"].state == BotState.REISSUING
+
+    def test_quote_ack_fifo_demuxes_two_outstanding_quotes(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Two quote.new sent back-to-back → acks matched in send order."""
+        bot, push, sub = _make_multi_bot(
+            monkeypatch, ["AAPL", "MSFT"], initial_min=95.0, initial_max=105.0
+        )
+        self._full_startup(sub, ["AAPL", "MSFT"])
+        monkeypatch.setattr(
+            "edumatcher.mm_bot.bot.signal.signal", lambda *a, **kw: None
+        )
+        bot._setup_sockets = lambda: None
+        bot._push_sock = push
+        bot._sub_sock = sub
+        bot._close_sockets = lambda: None
+
+        assert bot._authenticate(timeout_sec=0.1)
+        bot._request_symbols(timeout_sec=0.1)
+        for sym in bot.symbols:
+            st = bot._symbols_state[sym]
+            st.pricer = QuotePricer(tick_size=0.01, gap=bot.gap, drift_ticks=3)
+            st.pricer.set_mid(100.0)
+
+        # Send both quotes before either is acked — FIFO order is AAPL, MSFT.
+        bot._send_quote("AAPL")
+        bot._send_quote("MSFT")
+        assert list(bot._pending_ack_symbols) == ["AAPL", "MSFT"]
+
+        bot._handle_quote_ack(
+            {
+                "accepted": True,
+                "quote_id": "q-aapl",
+                "bid_order_id": "bid-aapl",
+                "ask_order_id": "ask-aapl",
+            }
+        )
+        assert bot._symbols_state["AAPL"].quote_id == "q-aapl"
+        assert bot._symbols_state["MSFT"].quote_id is None
+        assert list(bot._pending_ack_symbols) == ["MSFT"]
+
+        bot._handle_quote_ack(
+            {
+                "accepted": True,
+                "quote_id": "q-msft",
+                "bid_order_id": "bid-msft",
+                "ask_order_id": "ask-msft",
+            }
+        )
+        assert bot._symbols_state["MSFT"].quote_id == "q-msft"
+        assert bot._quote_id_to_symbol == {"q-aapl": "AAPL", "q-msft": "MSFT"}
+
+    def test_book_update_only_affects_its_own_symbol(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """book.AAPL must not move MSFT's mid, and vice versa."""
+        bot, push, sub = _make_multi_bot(
+            monkeypatch, ["AAPL", "MSFT"], initial_min=95.0, initial_max=105.0
+        )
+        for sym in bot.symbols:
+            st = bot._symbols_state[sym]
+            st.pricer = QuotePricer(tick_size=0.01, gap=0.10, drift_ticks=3)
+
+        aapl_pricer = bot._symbols_state["AAPL"].pricer
+        msft_pricer = bot._symbols_state["MSFT"].pricer
+        assert aapl_pricer is not None
+        assert msft_pricer is not None
+
+        topic, payload = msg_decode(_book_msg_for("AAPL", 99.99, 100.01))
+        bot._dispatch(topic, payload)
+        assert aapl_pricer.mid_price == pytest.approx(100.0)
+        assert msft_pricer.mid_price is None
+
+        topic, payload = msg_decode(_book_msg_for("MSFT", 49.99, 50.01))
+        bot._dispatch(topic, payload)
+        assert msft_pricer.mid_price == pytest.approx(50.0)
+        assert aapl_pricer.mid_price == pytest.approx(100.0)
+
+    def test_order_fill_routes_to_the_right_symbol(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """order.fill for MSFT's leg must not touch AAPL's reissue timer."""
+        bot, push, sub = _make_multi_bot(
+            monkeypatch, ["AAPL", "MSFT"], initial_min=95.0, initial_max=105.0
+        )
+        for sym in bot.symbols:
+            st = bot._symbols_state[sym]
+            st.pricer = QuotePricer(tick_size=0.01, gap=0.10, drift_ticks=3)
+            st.pricer.set_mid(100.0)
+            st.state = BotState.QUOTING
+        bot._symbols_state["AAPL"].bid_order_id = "bid-aapl"
+        bot._symbols_state["AAPL"].ask_order_id = "ask-aapl"
+        bot._symbols_state["MSFT"].bid_order_id = "bid-msft"
+        bot._symbols_state["MSFT"].ask_order_id = "ask-msft"
+
+        bot._handle_order_fill(
+            {
+                "order_id": "ask-msft",
+                "fill_qty": 100,
+                "fill_price": 100.05,
+                "remaining_qty": 400,
+            }
+        )
+        assert bot._symbols_state["MSFT"].reissue_at is not None
+        assert bot._symbols_state["AAPL"].reissue_at is None
+
+    def test_circuit_breaker_halt_only_pauses_its_symbol(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """circuit_breaker.halt.AAPL pauses AAPL only; MSFT keeps quoting."""
+        bot, push, sub = _make_multi_bot(
+            monkeypatch, ["AAPL", "MSFT"], initial_min=95.0, initial_max=105.0
+        )
+        for sym in bot.symbols:
+            st = bot._symbols_state[sym]
+            st.pricer = QuotePricer(tick_size=0.01, gap=0.10, drift_ticks=3)
+            st.pricer.set_mid(100.0)
+            st.state = BotState.QUOTING
+            st.quote_id = f"q-{sym.lower()}"
+
+        bot._handle_circuit_breaker_halt("AAPL")
+
+        assert bot._symbols_state["AAPL"].state == BotState.PAUSED
+        assert bot._symbols_state["MSFT"].state == BotState.QUOTING
+
+    def test_one_symbol_fails_gap_validation_other_still_quotes(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """§5a.4: a symbol whose --gap exceeds its MM obligation is excluded
+        from quoting rather than failing the whole process, as long as at
+        least one other symbol survives startup."""
+        bot, push, sub = _make_multi_bot(
+            monkeypatch,
+            ["AAPL", "MSFT"],
+            initial_min=95.0,
+            initial_max=105.0,
+            gap_was_explicit=True,
+        )
+        # AAPL's obligation (2 ticks * 0.01 = 0.02) is stricter than the
+        # bot's explicit gap (0.10) → AAPL fails; MSFT has no obligation.
+        self._full_startup(sub, ["AAPL", "MSFT"], mm_max_spread_ticks={"AAPL": 2})
+        monkeypatch.setattr(
+            "edumatcher.mm_bot.bot.signal.signal", lambda *a, **kw: None
+        )
+        rc = bot.run()
+
+        assert rc == 0
+        assert bot._symbols_state["AAPL"].startup_failed_reason is not None
+        assert bot._symbols_state["MSFT"].startup_failed_reason is None
+        assert bot._active_symbols() == ["MSFT"]
+
+    def test_all_symbols_failing_startup_fails_the_process(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """If every symbol fails startup, run() returns 1 (same as the
+        single-symbol case)."""
+        bot, push, sub = _make_multi_bot(
+            monkeypatch, ["AAPL", "MSFT"]  # no initial_min/max, no book/trade
+        )
+        self._full_startup(sub, ["AAPL", "MSFT"])
+        monkeypatch.setattr(
+            "edumatcher.mm_bot.bot.signal.signal", lambda *a, **kw: None
+        )
+        rc = bot.run()
+
+        assert rc == 1
+
+    def test_shutdown_cancels_every_quoting_symbol(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """_do_shutdown sends CANCEL for every symbol still quoting."""
+        bot, push, sub = _make_multi_bot(
+            monkeypatch, ["AAPL", "MSFT"], initial_min=95.0, initial_max=105.0
+        )
+        for sym in bot.symbols:
+            st = bot._symbols_state[sym]
+            st.pricer = QuotePricer(tick_size=0.01, gap=0.10, drift_ticks=3)
+            st.pricer.set_mid(100.0)
+            st.state = BotState.QUOTING
+            st.quote_id = f"q-{sym.lower()}"
+        bot._sub_sock = sub
+        bot._push_sock = push
+
+        bot._do_shutdown()
+
+        cancelled_symbols = set()
+        for frames in push.sent:
+            topic, payload = msg_decode(frames)
+            if topic == "quote.cancel":
+                cancelled_symbols.add(payload["symbol"])
+        assert cancelled_symbols == {"AAPL", "MSFT"}
 
 
 def _setup_full_startup(sub: _FakeSock, session: str = "CONTINUOUS") -> None:
@@ -787,6 +1508,42 @@ class TestMMBotStartup:
         )
         rc = bot.run()
         assert rc == 1
+
+    def test_symbols_reply_registers_tick_decimals_globally(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """tick_decimals from the symbols reply must reach the shared price
+        registry, not just the bot's own ``_tick_size`` — otherwise
+        ``to_ticks()`` (used to build the outgoing quote) silently falls back
+        to the 2-decimal default for any other tick size."""
+        bot, push, sub = _make_bot(monkeypatch, initial_min=95.0, initial_max=105.0)
+        sub.recv_queue.extend(
+            [
+                _auth_msg(),
+                encode(
+                    "system.symbols.MM_AAPL_01",
+                    {"symbols": [{"symbol": "AAPL", "tick_decimals": 4}]},
+                ),
+                _boot_msg(),
+                _qlegs_msg(),
+                _session_msg("CONTINUOUS"),
+            ]
+        )
+
+        monkeypatch.setattr(
+            "edumatcher.mm_bot.bot.signal.signal", lambda *a, **kw: None
+        )
+        # register_tick_decimals mutates a process-wide registry (see
+        # models/price.py) — clear it before and after so this test's
+        # non-default 4-decimal AAPL registration can't leak into any other
+        # test file's assumption that AAPL is 2 decimals.
+        clear_tick_registry()
+        try:
+            bot.run()
+            assert get_tick_decimals("AAPL") == 4
+            assert to_ticks(100.1234, "AAPL") == 1001234
+        finally:
+            clear_tick_registry()
 
 
 class TestMMBotQuoting:
@@ -1176,7 +1933,7 @@ class TestMMBotDispatch:
     def test_dispatch_trade_executed(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Dispatch trade.executed updates mid when no book data."""
         bot, push, sub = self._ready_bot(monkeypatch)
-        assert bot._pricer is not None
+        assert isinstance(bot._pricer, QuotePricer)
         bot._pricer._mid_price = None  # reset mid
 
         bot._dispatch("trade.executed", {"symbol": "AAPL", "price": 99.50})
@@ -1187,7 +1944,7 @@ class TestMMBotDispatch:
     ) -> None:
         """trade.executed for different symbol is ignored."""
         bot, push, sub = self._ready_bot(monkeypatch)
-        assert bot._pricer is not None
+        assert isinstance(bot._pricer, QuotePricer)
         bot._pricer._mid_price = None
 
         bot._dispatch("trade.executed", {"symbol": "MSFT", "price": 50.0})
@@ -1567,6 +2324,19 @@ class TestRunLoopInvalidGap:
         rc = bot.run()
         assert rc == 1
 
+    def test_unknown_strategy_exits_cleanly(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An unrecognized --strategy name is a startup failure, not a crash."""
+        bot, push, sub = _make_bot(monkeypatch)
+        bot.strategy = "skewed"
+        _setup_full_startup(sub)
+        monkeypatch.setattr(
+            "edumatcher.mm_bot.bot.signal.signal", lambda *a, **kw: None
+        )
+        rc = bot.run()
+        assert rc == 1
+
 
 class TestHandleBookMissingPrice:
     """Bug fix: _handle_book must not raise KeyError on malformed level."""
@@ -1799,7 +2569,7 @@ class TestAdditionalBotPaths:
     def test_send_quote_no_mid_skips(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """_send_quote does nothing when no mid-price is set."""
         bot, push, sub = self._ready_bot(monkeypatch)
-        assert bot._pricer is not None
+        assert isinstance(bot._pricer, QuotePricer)
         bot._pricer._mid_price = None
         push.sent.clear()
 

@@ -20,7 +20,7 @@ In addition you have become familiar with the three tools:
 
 ## Prerequisites
 
-- EduMatcher installed and `pm-setup` completed (see [00 — Installation & Setup](00-installation.md)).
+- EduMatcher installed and `pm-setup` completed (see [00 — Installation & Setup](000-installation.md)).
 
 ## Background
 
@@ -35,9 +35,16 @@ Neither process reads `engine_config.yaml` directly, and neither accepts a
 config path on its command line. `engine_config.yaml` is the file *you*
 author and edit; what they actually read is a **compiled artifact** at
 `$EDUMATCHER_DATA_DIR/ref_data/engine_config.json`, produced by
-`pm-config-deploy` (see [00 — Installation & Setup](00-installation.md) for
+`pm-config-deploy` (see [00 — Installation & Setup](000-installation.md) for
 where that directory comes from). This chapter's exercises follow that exact
 pipeline: author → verify → deploy → start.
+
+The artifact carries its own tamper and staleness checks: every load
+recomputes a SHA-256 over the artifact's own content and refuses to start if
+it no longer matches what was recorded at compile time, and every process
+separately checks the artifact's recorded hash of the *source* YAML against
+the YAML currently on disk, warning (but still starting) if you edited the
+source and forgot to redeploy. Exercise 12 walks through both.
 
  
 
@@ -442,6 +449,111 @@ obligation settings when configured.
 
  
 
+## Exercise 12: Break — and Recognise — the Artifact's Hash Checks
+
+The compiled artifact records two independent SHA-256 hashes in its `meta`
+block: `content_sha256` (the artifact against itself) and `source_sha256`
+(the artifact against the `engine_config.yaml` it was built from). This
+exercise reproduces both failures on purpose, so you recognise the real
+message the first time you see it instead of the first time it costs you an
+afternoon. See [Configuration — Verifying the Deployed
+Artifact](../user-guide/010-configuration.md#verifying-the-deployed-artifact)
+for the full explanation this exercise is drilling.
+
+**Part A — trip the content-digest check (an error).**
+
+In the engine's terminal, stop it with `Ctrl-C`. Then hand-edit the
+*deployed* artifact directly — something `pm-config-deploy` never does and
+nothing should:
+
+```bash
+python3 -c "
+import json
+p = '$EDUMATCHER_DATA_DIR/ref_data/engine_config.json'
+data = json.load(open(p))
+data['symbols']['AAPL']['tick_decimals'] = 4
+json.dump(data, open(p, 'w'), indent=2)
+"
+```
+
+Start the engine again in the same terminal:
+
+```bash
+pm-engine
+```
+
+Expected: the engine refuses to start, reporting that the compiled config's
+payload no longer matches its recorded content digest — naming
+`pm-config-deploy`, not manual editing, as the fix.
+
+Recover by recompiling the (untouched) source that is still sitting next to
+the artifact, then start the engine again:
+
+```bash
+pm-config-deploy engine_config.yaml
+pm-engine
+```
+
+!!! note "A second, different message can come from the same digest check"
+    The content-digest check actually distinguishes two separate causes for
+    the same mismatch, and reports each with a different message. What you
+    just triggered — editing the payload's *values* — is reported as
+    `compiled config has been modified since it was compiled (payload digest
+    ... does not match the recorded ...)`. If instead the artifact's on-disk
+    bytes are untouched but a newer/older build of EduMatcher declares a
+    different set of configuration fields than the artifact was compiled
+    with, you get a different message: `compiled config is intact but was
+    compiled against a different configuration schema ... Nothing has been
+    edited — run pm-config-deploy to recompile it`. Both are fixed the same
+    way (`pm-config-deploy`), but only the second one means nobody touched
+    anything — the check tells the two apart by separately hashing the
+    payload exactly as it sits on disk, so don't go hunting for an edit that
+    never happened if you see that second message after, say, upgrading
+    EduMatcher itself without redeploying.
+
+**Part B — trip the source-staleness check (a warning).**
+
+Leave this engine running. In another terminal, edit the *authored* YAML and
+deliberately skip the deploy step — this only changes the file on disk, it
+does not affect the already-running engine:
+
+```bash
+sed -i.bak 's/tick_decimals: 2/tick_decimals: 3/' engine_config.yaml   # edits AAPL's line, the first match
+```
+
+Now stop the engine (`Ctrl-C`) and start it again without redeploying:
+
+```bash
+pm-engine
+```
+
+Expected: the engine **starts anyway**, but logs a warning that
+`engine_config.yaml` has changed since the running configuration was
+compiled and that the exchange is still serving the previous one. Confirm
+with `SYMBOLS` from a gateway that AAPL still reports the old
+`tick_decimals` — the warning told the truth, nothing was silently applied.
+
+Restore the file and redeploy to clear the warning:
+
+```bash
+mv engine_config.yaml.bak engine_config.yaml
+pm-config-deploy engine_config.yaml
+```
+
+!!! note "Why the two checks fail differently"
+    A hand-edited artifact is refused outright because a process cannot tell
+    a malicious edit from a benign one, and either way the file no longer
+    means what it claims to. A stale *source* file is only a warning because
+    the deployed artifact is still perfectly valid — you just have an edit
+    sitting uncommitted next to it. `pm-config-deploy` is the only fix for
+    either case.
+
+:material-checkbox-blank-outline: **Checkpoint:** you have seen both the
+content-digest error and the source-staleness warning fire for real, and can
+state which of the two blocks startup and which only warns.
+
+ 
+
 ## Summary
 
 You now have:
@@ -452,6 +564,8 @@ You now have:
   `pm-scheduler` actually read.
 - A running engine, scheduler, and at least one trader gateway.
 - Confirmation that all symbols accept orders.
+- Firsthand experience of the artifact's content-digest error and
+  source-staleness warning, and which fix (`pm-config-deploy`) clears both.
 
 ## Reflection
 
@@ -465,13 +579,19 @@ the engine kept running?
 through one compiled artifact (`pm-config-deploy`) solve that letting each
 process parse its own copy of the YAML would not?
 
+Exercise 12's two checks fail at different severities — one refuses to
+start, the other only warns. Why is a hand-edited *artifact* treated as more
+serious than a stale *source* file, given that both mean the running
+configuration is not what `engine_config.yaml` currently says?
+
 ## Further Reading
 
 - [Configuration](../user-guide/010-configuration.md)
+- [Configuration — Verifying the Deployed Artifact](../user-guide/010-configuration.md#verifying-the-deployed-artifact)
 - [Config Verifier (`pm-cverifier`)](../user-guide/020-config-verifier.md)
 - [Running the Engine](../user-guide/040-running-the-exchange.md)
 - [Gateway Concepts](../user-guide/051-gateway-intro.md)
 - [ALF Console (pm-alf-console)](../user-guide/055-alf-console.md)
 - [Message Types (system.symbols)](../user-guide/270-message-reference.md)
 
-**Next:** [02 — Setting Up Market-Maker Liquidity](02-setting-up-MM-bots.md)
+**Next:** [02 — Setting Up Market-Maker Liquidity](020-setting-up-MM-bots.md)

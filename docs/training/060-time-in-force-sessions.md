@@ -49,7 +49,7 @@ Different TIF values control when orders are active and when they expire.
     discarded, at the *next* startup, once its own timestamp is from a prior
     business day. See [Persistence](../user-guide/180-persistence.md#impact-of-a-business-day-change)
     for the full restart-vs-session-close distinction, and chapter
-    [16 — Persistence & Recovery](16-persistence-recovery.md) for a hands-on
+    [16 — Persistence & Recovery](160-persistence-recovery.md) for a hands-on
     exercise.
 
 ## Exercise 1: Observe Session Phases
@@ -258,4 +258,4 @@ were accidentally submitted as DAY instead of GTC?
 
  
 
-**Next:** [07 — Auctions](07-auctions.md)
+**Next:** [07 — Auctions](070-auctions.md)

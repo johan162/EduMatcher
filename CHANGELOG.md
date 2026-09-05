@@ -1,3 +1,33 @@
+## [v0.32.0] - 2026-09-05
+
+Release Type: major
+
+### 📋 Summary
+This release fixes broken market-maker quote replacement after partial fills
+and expands configuration options for the market-making bot. It also enhances the mm-bot so it may support being
+a MM in multiple order books (symbols).
+
+### ✨ Additions
+- Make one instance of mm-bot able to support multiple symbols
+- Added YAML configuration file support to `pm-mm-bot` with command-line overrides
+- Added pluggable pricing strategy selection to `pm-mm-bot`, including the default `symmetric` strategy
+
+### 🚀 Improvements
+- Improved ticker startup recovery by requesting drop-copy state immediately
+- Improved matching-engine performance and Multipass VM recovery tooling
+
+### 🐛 Bug Fixes
+- Fixed partially filled market-maker quote legs remaining on the order book after replacement
+- Fixed tick-decimal registration in `pm-mm-bot`
+
+### 📚 Documentation
+- Updated market-maker bot and quote-handling documentation for configuration, pricing strategies, and partial-fill behavior
+- Updated training material to make container installation the primary setup path and use consistent chapter numbering
+
+### 🛠 Internal
+- Added regression coverage for market-maker partial fills, quote replacement, configuration, and pricing behavior
+- Updated performance test handling so per-test benchmarks are skipped by default in regular and CI test runs
+
 ## [v0.31.0] - 2026-09-04
 
 Release Type: minor

@@ -142,6 +142,20 @@ Representative startup sequence:
 
 :material-checkbox-blank-outline: **Checkpoint:** you can identify and tune the timeout knobs that control startup behavior.
 
+!!! note "These knobs apply per symbol on a --symbols bot"
+    Every flag in this exercise — `--bootstrap-timeout-sec`,
+    `--qlegs-reconcile-interval-sec`, `--startup-session-timeout-sec`, and the
+    gap/spread validation from [02 — Setting Up Market-Maker
+    Liquidity](020-setting-up-MM-bots.md) — is still a single process-wide
+    value even when the bot covers several symbols with `--symbols`, but the
+    QBOOT/QLEGS *requests themselves*, and the startup/gap checks they
+    inform, run once per symbol. A `pm-mm-bot --symbols AAPL,MSFT,TSLA -v`
+    run shows three independent `[AAPL]`/`[MSFT]`/`[TSLA]`-tagged QBOOT and
+    QLEGS exchanges in the startup log, not one. If you tune
+    `--bootstrap-timeout-sec` down aggressively for a fast classroom demo,
+    remember it is one shared timeout budget applied to *each* symbol's
+    QBOOT/QLEGS round trip in turn, not split across them.
+
  
 
 ## Exercise 5: Empty-Book Bootstrap Drill
@@ -158,6 +172,18 @@ Expected understanding:
 
 - With range: bot can start quoting on fresh books.
 - Without any bootstrap source: bot fails fast with clear reason.
+
+!!! note "Fails fast per symbol, not necessarily for the whole process"
+    On a `--symbols` bot, "without any bootstrap source" excludes *that*
+    symbol from quoting rather than stopping the process outright, as long
+    as at least one other symbol resolves a reference price — see
+    [Per-symbol failure isolation](../user-guide/100-mm-bot.md#per-symbol-failure-isolation).
+    The single-symbol case in this exercise is the special case where there
+    is no "other symbol" left, so the process-level failure you'll observe
+    here is the same behavior applied to a symbol set of one. `--initial_min`/
+    `--initial_max` are also one shared range applied independently to each
+    symbol — with two symbols configured this way, expect two different
+    random prices, one per symbol, both drawn from the same range.
 
 :material-checkbox-blank-outline: **Checkpoint:** you can choose a bootstrap strategy appropriate for your environment.
 
@@ -216,6 +242,8 @@ engineer reruns a non-idempotent halt/clear/resume script by mistake?
 - [Controlling the Exchange](../user-guide/160-exchange-commands.md)
 - [Market-Maker Bot (pm-mm-bot)](../user-guide/100-mm-bot.md)
 - [Market-Maker Bot CLI Reference](../user-guide/100-mm-bot.md#cli-reference)
+- [Market-Maker Bot — Per-symbol failure isolation](../user-guide/100-mm-bot.md#per-symbol-failure-isolation)
+- [02 — Setting Up Market-Maker Liquidity — one bot, multiple symbols](020-setting-up-MM-bots.md)
 - [Processes](../user-guide/170-processes.md)
 
 You have completed the operator track. The remaining chapters (22–27) cover the external protocols — RALF, CALF, the REST/WebSocket API, the market index, and the ALF/BALF TCP gateways.

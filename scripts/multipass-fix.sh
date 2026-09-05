@@ -7,8 +7,8 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 PLIST_PATH="/Library/LaunchDaemons/com.canonical.multipassd.plist"
-CLIENT_CERT_DIR="$HOME/Library/Application Support/multipass"
-DAEMON_CERT_DIR="/var/root/Library/Application Support/multipassd"
+CLIENT_DIR="$HOME/Library/Application Support/multipass"
+DAEMON_DIR="/var/root/Library/Application Support/multipassd"
 SOCKET_PATH="/var/run/multipass_socket"
 
 # --- Helper Functions ---
@@ -27,35 +27,50 @@ usage() {
     echo "Usage: $0 [OPTION]"
     echo ""
     echo "Options:"
-    echo "  --restart    Full restart of Multipass, clears SSL certs/keys, and re-initializes connection."
+    echo "  --restart    Unloads daemon, purges all leaf certs/keychains, resets keys, and restarts service."
     echo "  --reinstall  Thorough cleanup of all data/configs and fresh reinstall via Homebrew."
     echo "  --health     Runs diagnostics on Multipass process, sockets, and driver status."
+    echo "  --logs       Stream or query recent macOS unified logs for multipassd."
     echo "  --help       Show this help message."
     exit 1
 }
 
-# --- 1) RESTART & RE-INITIALIZE KEYS ---
+# --- 1) RESTART & DEEP PURGE EXPIRED LEAF CERTS ---
 do_restart() {
     require_sudo
-    log_info "Stopping Multipass service..."
+    log_info "Unloading Multipass service and killing lingering daemon processes..."
     sudo launchctl unload "$PLIST_PATH" 2>/dev/null
+    sudo pkill -9 multipassd 2>/dev/null || true
 
-    log_info "Purging stale SSL certificates and sockets..."
-    sudo rm -rf "$CLIENT_CERT_DIR/authenticated"
-    sudo rm -rf "$DAEMON_CERT_DIR/authenticated"
+    log_info "Purging root Keychains and Security framework caches for multipassd..."
+    sudo security delete-certificate -c "multipass" /Library/Keychains/System.keychain 2>/dev/null || true
+    sudo security delete-certificate -c "multipassd" /Library/Keychains/System.keychain 2>/dev/null || true
+
+    log_info "Wiping all daemon certificates, CAs, and authenticated sessions in /var/root..."
+    sudo rm -rf "$DAEMON_DIR/authenticated"
+    sudo rm -rf "$DAEMON_DIR/vault/certs" 2>/dev/null || true
+    sudo rm -rf "$DAEMON_DIR/vault/instances/certs" 2>/dev/null || true
+    sudo rm -f "$DAEMON_DIR/"*.pem 2>/dev/null || true
+    sudo rm -f "$DAEMON_DIR/"*.crt 2>/dev/null || true
+
+    log_info "Wiping client certificate caches and socket locks..."
+    sudo rm -rf "$CLIENT_DIR/authenticated"
+    sudo rm -f "$CLIENT_DIR/"*.pem 2>/dev/null || true
     sudo rm -f "$SOCKET_PATH"
+    sudo rm -f /var/run/multipass*
 
-    log_info "Starting Multipass service..."
+    log_info "Reloading Multipass service to regenerate PKI hierarchy..."
     sudo launchctl load "$PLIST_PATH"
 
-    log_info "Waiting for service to initialize..."
+    log_info "Waiting for daemon initialization and certificate generation..."
     sleep 5
 
-    log_info "Re-authenticating CLI client..."
-    if multipass version >/dev/null 2>&1; then
-        log_info "Multipass daemon restarted successfully and keys are re-established!"
+    log_info "Testing CLI connection..."
+    if multipass list >/dev/null 2>&1; then
+        log_info "Multipass daemon restarted successfully with valid certificates!"
     else
-        log_error "Connection failed. Run '$0 --health' to diagnose."
+        log_error "CLI connection test failed. Checking latest log entry:"
+        sudo log show --predicate 'process == "multipassd"' --style compact --last 1m | tail -n 15
     fi
 }
 
@@ -76,16 +91,18 @@ do_reinstall() {
 
     log_info "Unloading Multipass service..."
     sudo launchctl unload "$PLIST_PATH" 2>/dev/null
+    sudo pkill -9 multipassd 2>/dev/null || true
 
     log_info "Uninstalling Multipass cask via Homebrew..."
     brew uninstall --cask --zap multipass 2>/dev/null || true
 
-    log_info "Wiping residual data and system artifacts..."
-    sudo rm -rf "$DAEMON_CERT_DIR"
+    log_info "Wiping all residual daemon data, leaf certs, and system artifacts..."
+    sudo rm -rf "$DAEMON_DIR"
     sudo rm -rf "/var/root/Library/Caches/multipassd"
-    sudo rm -rf "$CLIENT_CERT_DIR"
+    sudo rm -rf "$CLIENT_DIR"
     sudo rm -rf "$HOME/Library/Caches/multipass"
     sudo rm -f "$SOCKET_PATH"
+    sudo rm -f /var/run/multipass*
 
     log_info "Reinstalling Multipass via Homebrew..."
     brew install --cask multipass
@@ -127,18 +144,27 @@ do_health() {
         echo -e "${GREEN}PRESENT${NC}"
     else
         echo -e "${RED}MISSING${NC}"
-        echo "    -> Recommendation: Restart daemon to regenerate socket."
+        echo "    -> Recommendation: Daemon failed during boot/cert initialization."
     fi
 
-    # 4. Driver Setting
+    # 4. Check Daemon Leaf Cert Directory
+    echo -n "[?] Daemon Cert Directory (/var/root): "
+    if [ -d "$DAEMON_DIR/authenticated" ]; then
+        echo -e "${GREEN}PRESENT${NC}"
+    else
+        echo -e "${YELLOW}MISSING OR CLEARED${NC}"
+    fi
+
+    # 5. Driver Setting
     echo -n "[?] Default Driver Configuration: "
     DRIVER=$(multipass get local.driver 2>/dev/null || echo "Unknown/Failed")
     echo "$DRIVER"
     if [[ "$DRIVER" == "Unknown/Failed" ]] && [[ $(uname -m) == "arm64" ]]; then
-        echo -e "${YELLOW}    -> Note (Apple Silicon): If daemon crashes, force driver: 'sudo multipass set local.driver=qemu'${NC}"
+        echo -e "${YELLOW}    -> Note (Apple Silicon): If driver fails, set via defaults:${NC}"
+        echo "       sudo defaults write /Library/Preferences/com.canonical.multipassd.plist local.driver qemu"
     fi
 
-    # 5. Socket Connection / SSL Test
+    # 6. Socket Connection / SSL Test
     echo -n "[?] CLI Connection Test: "
     OUTPUT=$(multipass list 2>&1)
     if [ $? -eq 0 ]; then
@@ -150,13 +176,24 @@ do_health() {
         echo "$OUTPUT"
         echo "------------------------------------------"
         if echo "$OUTPUT" | grep -q "certificate verify failed"; then
-            echo -e "${YELLOW}RECOMMENDATION:${NC} Broken SSL certificates detected."
+            echo -e "${YELLOW}RECOMMENDATION:${NC} Expired or untrusted leaf certificate detected."
             echo "Run: sudo $0 --restart"
         elif echo "$OUTPUT" | grep -q "cannot connect to the multipass socket"; then
             echo -e "${YELLOW}RECOMMENDATION:${NC} Daemon is uncommunicative or socket is missing."
             echo "Run: sudo $0 --restart"
         fi
     fi
+}
+
+# --- 4) VIEW SYSTEM LOGS ---
+do_logs() {
+    require_sudo
+    log_info "Querying macOS Unified Log for 'multipassd' (Last 15 minutes)..."
+    echo "================================================================================"
+    sudo log show --predicate 'process == "multipassd"' --style compact --last 15m
+    echo "================================================================================"
+    log_info "To stream live logs in real time, run:"
+    echo "  sudo log stream --predicate 'process == \"multipassd\"' --level debug"
 }
 
 # --- Main Entrypoint ---
@@ -170,7 +207,11 @@ case "$1" in
     --health)
         do_health
         ;;
+    --logs)
+        do_logs
+        ;;
     *)
         usage
         ;;
 esac
+

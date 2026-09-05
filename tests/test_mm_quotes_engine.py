@@ -7,9 +7,10 @@ import pytest
 from edumatcher.engine.config_loader import EngineConfig, FixGatewayConfig, SymbolConfig
 from edumatcher.engine.main import Engine
 from edumatcher.models.message import decode
-from edumatcher.models.order import Order, OrderType, Side, SmpAction, TIF
+from edumatcher.models.order import Order, OrderType, OrderStatus, Side, SmpAction, TIF
 from edumatcher.models.participant import DisconnectBehaviour, ParticipantRole
 from edumatcher.models.price import to_ticks
+from edumatcher.models.quote import QuoteRefreshPolicy
 
 
 @dataclass
@@ -33,6 +34,7 @@ def _make_engine(
     mm_max_spread_ticks: int = 10,
     mm_min_qty: int = 100,
     smp_action: SmpAction = SmpAction.NONE,
+    quote_refresh_policy: QuoteRefreshPolicy = QuoteRefreshPolicy.INACTIVATE_ON_ANY_FILL,
 ) -> tuple[Engine, _FakeSock]:
     pull_sock = _FakeSock(sent=[])
     pub_sock = _FakeSock(sent=[])
@@ -49,6 +51,7 @@ def _make_engine(
                 mm_max_spread_ticks=mm_max_spread_ticks,
                 mm_min_qty=mm_min_qty,
                 smp_action=smp_action,
+                quote_refresh_policy=quote_refresh_policy,
             )
         },
         sessions_enabled=False,
@@ -533,3 +536,348 @@ def test_global_circuit_breaker_halt_then_resume_all(monkeypatch, tmp_path) -> N
     assert topic == "risk.circuit_breaker_resume_all_ack.GW01"
     assert payload["accepted"] is True
     assert payload["resumed_symbols"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Partial-fill quote-leg semantics (docs-design/EduMatcher-MM-Bot-review.md
+# §4 item 3): under INACTIVATE_ON_ANY_FILL, a *partially* filled quote leg
+# must (a) stay resting and tradeable after the fill -- it is not cancelled
+# by the fill itself, only its sibling is -- and (b) be cancelled once, and
+# only once, a replacement quote actually arrives for that (gateway, symbol).
+# Before the fix in _handle_quote_new, (a) held but (b) did not: the stale
+# remainder was never cancelled and rested alongside the new quote's legs.
+# ---------------------------------------------------------------------------
+
+
+def _resting_ids(book) -> set[str]:
+    return {o.id for o in book.resting_orders()}
+
+
+def test_partial_fill_sibling_cancelled_but_hit_leg_survives(
+    monkeypatch, tmp_path
+) -> None:
+    """INACTIVATE_ON_ANY_FILL on a *partial* fill: sibling is cancelled and
+    the quote is inactivated, but the hit leg's own remainder is untouched
+    -- still resting, still PARTIAL, not FILLED, not removed from the book.
+    This is the documented intent (see the QuoteRefreshPolicy docstring in
+    EduMatcher-MM_Quotes_Implementation_Plan.md): only the untouched sibling
+    is pulled immediately; the hit leg's remainder stays live until a new
+    quote replaces it.
+    """
+    engine, pub_sock = _make_engine(
+        monkeypatch,
+        tmp_path,
+        role=ParticipantRole.MARKET_MAKER,
+        quote_refresh_policy=QuoteRefreshPolicy.INACTIVATE_ON_ANY_FILL,
+    )
+    engine._handle_quote_new(
+        {
+            "gateway_id": "GW01",
+            "symbol": "AAPL",
+            "quote_id": "Q1",
+            "bid_price": to_ticks(100.0, "AAPL"),
+            "bid_qty": 500,
+            "ask_price": to_ticks(101.0, "AAPL"),
+            "ask_qty": 500,
+        }
+    )
+    entry = engine._quote_index.get("GW01", "AAPL")
+    assert entry is not None
+    bid_leg_id = entry.bid_order_id
+    ask_leg_id = entry.ask_order_id
+    book = engine._book("AAPL")
+
+    pub_sock.sent.clear()
+    # Same-gateway counterparty order partially fills the bid leg (100 of
+    # 500), mirroring the existing SMP tests' pattern of using GW01 itself
+    # as the crossing counterparty rather than standing up a second
+    # configured gateway.
+    taker = Order.create(
+        symbol="AAPL",
+        side=Side.SELL,
+        order_type=OrderType.LIMIT,
+        quantity=100,
+        gateway_id="GW01",
+        tif=TIF.DAY,
+        price=to_ticks(100.0, "AAPL"),
+    )
+    engine._handle_new_order(taker.to_dict())
+
+    # Quote is inactivated and the sibling ask leg is gone...
+    assert engine._quote_index.get("GW01", "AAPL") is None
+    assert "quote.status.GW01" in _topics(pub_sock)
+    _, status_payload = next(
+        (decode(f) for f in pub_sock.sent if decode(f)[0] == "quote.status.GW01")
+    )
+    assert status_payload["status"] == "INACTIVE_BID_FILLED"
+    assert ask_leg_id not in _resting_ids(book)
+
+    # ...but the HIT bid leg's remainder is still there, still PARTIAL, and
+    # still real liquidity: another taker can still trade against it.
+    bid_order = book._order_index.get(bid_leg_id)
+    assert bid_order is not None
+    assert bid_order.status == OrderStatus.PARTIAL
+    assert bid_order.remaining_qty == 400
+    assert bid_leg_id in _resting_ids(book)
+
+    taker2 = Order.create(
+        symbol="AAPL",
+        side=Side.SELL,
+        order_type=OrderType.LIMIT,
+        quantity=50,
+        gateway_id="GW01",
+        tif=TIF.DAY,
+        price=to_ticks(100.0, "AAPL"),
+    )
+    engine._handle_new_order(taker2.to_dict())
+    bid_order = book._order_index.get(bid_leg_id)
+    assert bid_order is not None
+    assert bid_order.status == OrderStatus.PARTIAL
+    assert bid_order.remaining_qty == 350
+
+
+def test_reissue_after_partial_fill_cancels_stale_remainder(
+    monkeypatch, tmp_path
+) -> None:
+    """The bug itself, as a regression test: after a partial fill under
+    INACTIVATE_ON_ANY_FILL, a fresh two-sided quote for the same
+    (gateway, symbol) -- exactly what pm-mm-bot sends on seeing
+    quote.status INACTIVE_BID_FILLED -- must cancel the stale partially
+    filled leg from the old quote. Before the fix, _handle_quote_new found
+    no QuoteIndex entry (already popped by _on_quote_leg_filled) and never
+    looked at the book, leaving two live BUY orders resting simultaneously.
+    """
+    engine, pub_sock = _make_engine(
+        monkeypatch,
+        tmp_path,
+        role=ParticipantRole.MARKET_MAKER,
+        quote_refresh_policy=QuoteRefreshPolicy.INACTIVATE_ON_ANY_FILL,
+    )
+    engine._handle_quote_new(
+        {
+            "gateway_id": "GW01",
+            "symbol": "AAPL",
+            "quote_id": "Q1",
+            "bid_price": to_ticks(100.0, "AAPL"),
+            "bid_qty": 500,
+            "ask_price": to_ticks(101.0, "AAPL"),
+            "ask_qty": 500,
+        }
+    )
+    entry = engine._quote_index.get("GW01", "AAPL")
+    assert entry is not None
+    stale_bid_id = entry.bid_order_id
+    book = engine._book("AAPL")
+
+    taker = Order.create(
+        symbol="AAPL",
+        side=Side.SELL,
+        order_type=OrderType.LIMIT,
+        quantity=100,
+        gateway_id="GW01",
+        tif=TIF.DAY,
+        price=to_ticks(100.0, "AAPL"),
+    )
+    engine._handle_new_order(taker.to_dict())
+    assert stale_bid_id in _resting_ids(book)  # sanity: still there pre-reissue
+
+    pub_sock.sent.clear()
+    # pm-mm-bot's reissue: a fresh two-sided quote for the same slot.
+    engine._handle_quote_new(
+        {
+            "gateway_id": "GW01",
+            "symbol": "AAPL",
+            "quote_id": "Q2",
+            "bid_price": to_ticks(100.05, "AAPL"),
+            "bid_qty": 500,
+            "ask_price": to_ticks(101.05, "AAPL"),
+            "ask_qty": 500,
+        }
+    )
+
+    new_entry = engine._quote_index.get("GW01", "AAPL")
+    assert new_entry is not None
+    assert new_entry.quote_id == "Q2"
+
+    resting = _resting_ids(book)
+    # The stale partial remainder from Q1 must be gone...
+    assert stale_bid_id not in resting
+    # ...an order.cancelled for it must have been published...
+    cancelled_ids = {
+        decode(f)[1]["order_id"]
+        for f in pub_sock.sent
+        if decode(f)[0] == "order.cancelled.GW01"
+    }
+    assert stale_bid_id in cancelled_ids
+    # ...and exactly Q2's two fresh legs are resting for GW01 -- not three,
+    # not one.
+    gw01_resting = {o.id for o in book.resting_orders() if o.gateway_id == "GW01"}
+    assert gw01_resting == {new_entry.bid_order_id, new_entry.ask_order_id}
+
+
+def test_reissue_with_no_prior_quote_is_unaffected(monkeypatch, tmp_path) -> None:
+    """The new orphaned-leg fallback must not do anything when there simply
+    is no prior quote for this (gateway, symbol) -- the ordinary first-quote
+    path is unaffected by the fix."""
+    engine, pub_sock = _make_engine(
+        monkeypatch, tmp_path, role=ParticipantRole.MARKET_MAKER
+    )
+    book = engine._book("AAPL")
+    assert _resting_ids(book) == set()
+
+    engine._handle_quote_new(
+        {
+            "gateway_id": "GW01",
+            "symbol": "AAPL",
+            "quote_id": "Q1",
+            "bid_price": to_ticks(100.0, "AAPL"),
+            "bid_qty": 500,
+            "ask_price": to_ticks(101.0, "AAPL"),
+            "ask_qty": 500,
+        }
+    )
+    entry = engine._quote_index.get("GW01", "AAPL")
+    assert entry is not None
+    assert _resting_ids(book) == {entry.bid_order_id, entry.ask_order_id}
+    assert "order.cancelled.GW01" not in _topics(pub_sock)
+
+
+def test_reissue_after_full_fill_still_finds_nothing_stray(
+    monkeypatch, tmp_path
+) -> None:
+    """Full-fill case, for contrast with the partial-fill regression test
+    above: when the hit leg is fully consumed, the book already purged it
+    (OrderBook._apply_fill), so the new orphaned-leg fallback in
+    _handle_quote_new finds nothing to cancel -- it is a no-op here, exactly
+    as before the fix."""
+    engine, pub_sock = _make_engine(
+        monkeypatch,
+        tmp_path,
+        role=ParticipantRole.MARKET_MAKER,
+        quote_refresh_policy=QuoteRefreshPolicy.INACTIVATE_ON_ANY_FILL,
+    )
+    engine._handle_quote_new(
+        {
+            "gateway_id": "GW01",
+            "symbol": "AAPL",
+            "quote_id": "Q1",
+            "bid_price": to_ticks(100.0, "AAPL"),
+            "bid_qty": 500,
+            "ask_price": to_ticks(101.0, "AAPL"),
+            "ask_qty": 500,
+        }
+    )
+    entry = engine._quote_index.get("GW01", "AAPL")
+    assert entry is not None
+    full_bid_id = entry.bid_order_id
+    book = engine._book("AAPL")
+
+    # Fully consume the bid leg (500 of 500).
+    taker = Order.create(
+        symbol="AAPL",
+        side=Side.SELL,
+        order_type=OrderType.LIMIT,
+        quantity=500,
+        gateway_id="GW01",
+        tif=TIF.DAY,
+        price=to_ticks(100.0, "AAPL"),
+    )
+    engine._handle_new_order(taker.to_dict())
+    assert full_bid_id not in _resting_ids(book)  # already purged, full fill
+
+    pub_sock.sent.clear()
+    engine._handle_quote_new(
+        {
+            "gateway_id": "GW01",
+            "symbol": "AAPL",
+            "quote_id": "Q2",
+            "bid_price": to_ticks(100.05, "AAPL"),
+            "bid_qty": 500,
+            "ask_price": to_ticks(101.05, "AAPL"),
+            "ask_qty": 500,
+        }
+    )
+    # No extra order.cancelled -- there was nothing stray left to cancel.
+    assert "order.cancelled.GW01" not in _topics(pub_sock)
+    new_entry = engine._quote_index.get("GW01", "AAPL")
+    assert new_entry is not None
+    gw01_resting = {o.id for o in book.resting_orders() if o.gateway_id == "GW01"}
+    assert gw01_resting == {new_entry.bid_order_id, new_entry.ask_order_id}
+
+
+def test_inactivate_on_full_fill_partial_leg_stays_active_and_unaffected(
+    monkeypatch, tmp_path
+) -> None:
+    """INACTIVATE_ON_FULL_FILL's deliberate 'accumulate partials, stay
+    active' behavior (design doc's own Example 2) must be completely
+    unaffected by the fix: a partial fill under this policy does not
+    inactivate the quote at all, so _handle_quote_new's new fallback path
+    is never even reached on the next quote.new for this slot -- the
+    QuoteIndex entry is still there, so the ordinary `previous` branch
+    handles it exactly as before.
+    """
+    engine, pub_sock = _make_engine(
+        monkeypatch,
+        tmp_path,
+        role=ParticipantRole.MARKET_MAKER,
+        quote_refresh_policy=QuoteRefreshPolicy.INACTIVATE_ON_FULL_FILL,
+    )
+    engine._handle_quote_new(
+        {
+            "gateway_id": "GW01",
+            "symbol": "AAPL",
+            "quote_id": "Q1",
+            "bid_price": to_ticks(100.0, "AAPL"),
+            "bid_qty": 500,
+            "ask_price": to_ticks(101.0, "AAPL"),
+            "ask_qty": 500,
+        }
+    )
+    entry = engine._quote_index.get("GW01", "AAPL")
+    assert entry is not None
+    bid_leg_id = entry.bid_order_id
+    ask_leg_id = entry.ask_order_id
+    book = engine._book("AAPL")
+
+    pub_sock.sent.clear()
+    taker = Order.create(
+        symbol="AAPL",
+        side=Side.SELL,
+        order_type=OrderType.LIMIT,
+        quantity=100,
+        gateway_id="GW01",
+        tif=TIF.DAY,
+        price=to_ticks(100.0, "AAPL"),
+    )
+    engine._handle_new_order(taker.to_dict())
+
+    # Quote remains fully active -- no inactivation, sibling untouched, and
+    # (unlike INACTIVATE_ON_ANY_FILL) no quote.status is published for a
+    # fill that doesn't inactivate anything.
+    active_entry = engine._quote_index.get("GW01", "AAPL")
+    assert active_entry is not None
+    assert active_entry.quote_id == "Q1"
+    assert bid_leg_id in _resting_ids(book)
+    assert ask_leg_id in _resting_ids(book)
+    assert "quote.status.GW01" not in _topics(pub_sock)
+
+    pub_sock.sent.clear()
+    # MM explicitly replaces the quote (not a fill-driven reissue, since the
+    # policy never inactivated it) -- ordinary replace path, `previous` is
+    # found, `_cancel_quote_entry` runs exactly as it always has.
+    engine._handle_quote_new(
+        {
+            "gateway_id": "GW01",
+            "symbol": "AAPL",
+            "quote_id": "Q2",
+            "bid_price": to_ticks(100.05, "AAPL"),
+            "bid_qty": 500,
+            "ask_price": to_ticks(101.05, "AAPL"),
+            "ask_qty": 500,
+        }
+    )
+    new_entry = engine._quote_index.get("GW01", "AAPL")
+    assert new_entry is not None
+    assert new_entry.quote_id == "Q2"
+    gw01_resting = {o.id for o in book.resting_orders() if o.gateway_id == "GW01"}
+    assert gw01_resting == {new_entry.bid_order_id, new_entry.ask_order_id}

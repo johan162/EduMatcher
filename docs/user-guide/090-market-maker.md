@@ -181,6 +181,58 @@ flowchart TD
     [`seed_once`](#controlling-when-seeds-are-applied-seed_once) above) or
     switch the leg's `tif` to `DAY` and let a business-day rollover clear it.
 
+### What happens to the *hit* leg itself, not just the sibling
+
+The table and flowchart above describe what happens to the quote as a whole
+and to the **untouched sibling leg**. They deliberately say nothing about
+the **hit leg's own remaining quantity** on a *partial* fill, because the
+answer is the same across all three policies and is easy to get wrong by
+assuming the fill and the cancellation happen together. They do not.
+
+**A partial fill never cancels the leg that was hit — under any policy.**
+The exchange's order book only removes a leg from its indexes once that
+leg reaches `remaining_qty == 0` (status `FILLED`). A `PARTIAL` fill leaves
+the hit leg resting at its original price with its reduced quantity,
+exactly like any ordinary partially-filled order — it is genuine, live,
+matchable liquidity, not a stale artifact. A second, independent taker can
+still trade against that same remainder before the MM does anything else.
+This is true whether or not `quote_refresh_policy` decides to inactivate
+the *quote* as a bookkeeping concept:
+
+| Policy                    | On a **partial** fill of the hit leg                                                                  | When is the hit leg's remainder actually cancelled?                                   |
+|---------------------------|---------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|
+| `INACTIVATE_ON_ANY_FILL`  | Quote is inactivated immediately; **sibling** is cancelled; **hit leg's remainder keeps resting**       | Only when the MM's next `QUOTE_CANCEL` or replacement `QUOTE` for this symbol arrives    |
+| `INACTIVATE_ON_FULL_FILL` | Quote stays active; no cancellation of either leg; hit leg's remainder keeps resting                    | Same as above — cancellation is never automatic until a full fill happens, or the MM acts |
+| `NEVER_INACTIVATE`        | Quote stays active; no cancellation of either leg; hit leg's remainder keeps resting                    | Only when the MM explicitly cancels or replaces                                          |
+
+In other words: **the "inactivation" a policy decides on is a statement
+about the *sibling* leg and about whether the engine considers the quote
+slot still active — it is never a statement that the hit leg's own
+remainder disappears.** That remainder is cleaned up by exactly one
+mechanism, common to all three policies: the engine's **replace-in-slot
+logic**, which runs whenever a `QUOTE_CANCEL` or a new `QUOTE` arrives for
+that `(gateway_id, symbol)`. That logic cancels *every* order it can still
+find resting for this gateway's quote on this symbol — the untouched
+sibling if one is still there, and the hit leg's own partial remainder if
+one is still there — before installing the new quote (or, for
+`QUOTE_CANCEL`, before confirming the cancel). This holds even when the
+engine's own bookkeeping for "which quote was this" has already been
+cleared by an earlier fill-driven inactivation (`INACTIVATE_ON_ANY_FILL`):
+the replace logic still finds and cancels the leftover order by scanning
+the gateway's own resting quote legs directly, not only through that
+bookkeeping record. See [Replace-by-new-quote
+case](#replace-by-new-quote-case) below for the exact mechanism and
+[Case A](#case-a-inactivate_on_any_fill) for the operator-facing
+consequence.
+
+!!! tip "Practical takeaway for every policy"
+    Never assume "the quote is inactive" means "nothing from that quote is
+    resting anymore." After any partial fill, run `QLEGS|SYM=<symbol>|SHOW=ALL`
+    if you want to see exactly what is still on the book before you decide
+    how much to quote next — or simply trust that your next `QUOTE` or
+    `QUOTE_CANCEL` for that symbol will clean up whatever is left, because
+    the engine's replace-in-slot logic guarantees it.
+
 ---
 
 ## MM obligations enforcement
@@ -621,13 +673,21 @@ Then the rule is simple:
 
 #### When cancellation is automatic
 
-Automatic sibling cancellation depends on `quote_refresh_policy`:
+Automatic **sibling** cancellation depends on `quote_refresh_policy`:
 
 - `INACTIVATE_ON_ANY_FILL`: sibling leg is auto-cancelled on any fill
 - `INACTIVATE_ON_FULL_FILL`: sibling leg is auto-cancelled only when the filled leg reaches `remaining_qty=0`
 - `NEVER_INACTIVATE`: no automatic sibling cancellation due to fills
 
 The `quote_refresh_policy` is set per gateway in `engine_config.yaml` under `gateways.alf[].quote_refresh_policy`.
+
+!!! note "This is about the sibling leg — not the leg that was actually hit"
+    None of these three policies ever automatically cancels the *hit* leg's
+    own remaining quantity on a partial fill; that remainder rests, live and
+    tradeable, until the MM's own next `QUOTE`/`QUOTE_CANCEL` for that symbol
+    replaces it. See [What happens to the hit leg itself, not just the
+    sibling](#what-happens-to-the-hit-leg-itself-not-just-the-sibling) for
+    the full explanation and a policy-by-policy table.
 
 #### What the MM needs in order to re-issue a quote
 
@@ -824,14 +884,47 @@ So in this path, `quote.status CANCELLED` comes **before** the final successful
 
 #### Replace-by-new-quote case
 
-On a new `QUOTE` for the same `(gateway_id, symbol)`:
+On a new `QUOTE` for the same `(gateway_id, symbol)`, the engine looks up
+the active `QuoteIndex` entry for that slot. What happens next depends on
+whether one is still there:
 
-1. the engine removes the previous `QuoteIndex` entry
-2. cancels any still-resting old quote legs
-3. emits old-quote `quote.status CANCELLED`
+**If an active `QuoteIndex` entry is found** (the ordinary case — no fill
+has inactivated this quote since it was last (re)issued):
+
+1. the engine removes that `QuoteIndex` entry
+2. cancels the old quote's two tracked legs (whichever of them are still
+   resting — one may already be gone from an earlier fill or cancel)
+3. emits old-quote `quote.status CANCELLED`, with per-leg fill/cancel
+   detail attached
 4. creates new legs
 5. eventually emits new-quote `quote.ack accepted=true`
 6. emits new-quote `quote.status ACTIVE`
+
+**If no active `QuoteIndex` entry is found** — most commonly because
+`INACTIVATE_ON_ANY_FILL` already inactivated this quote at fill time (see
+[the table above](#what-happens-to-the-hit-leg-itself-not-just-the-sibling)) —
+there is nothing left in the `QuoteIndex` bookkeeping to replace, but there
+can still be a genuinely resting order on the book: the hit leg's own
+partial remainder, which that earlier fill deliberately left in place. The
+engine handles this with a fallback: it scans the gateway's own resting
+orders on this symbol directly (by `gateway_id` and quote origin, not
+through the `QuoteIndex`) and cancels anything it finds there too, **before**
+creating the new legs. No `quote.status CANCELLED` is emitted for this
+fallback cancellation — the quote was already announced
+`INACTIVE_BID_FILLED`/`INACTIVE_ASK_FILLED` at fill time, so there is no
+quote-level status left to transition — but an ordinary `order.cancelled`
+is still published for the cancelled leg, exactly as for any other engine-
+initiated cancellation. Then:
+
+1. creates new legs
+2. eventually emits new-quote `quote.ack accepted=true`
+3. emits new-quote `quote.status ACTIVE`
+
+Either way, the practical guarantee for the MM is the same: **sending a new
+`QUOTE` for a symbol you already have a quote on always leaves at most that
+one new quote's two legs resting for your gateway on that symbol** — never
+a leftover from whatever came before, regardless of which policy or which
+fill pattern produced that leftover.
 
 Again, the lifecycle is not simply “ack first, status second” across all paths.
 
@@ -869,10 +962,13 @@ At this point the MM must persist:
 
 #### Later the bid leg is hit
 
-Suppose another participant sells into the MM bid. The MM may see:
+Suppose another participant sells 100 into the MM's 500-quantity bid — a
+**partial** fill, chosen deliberately for this example because it is the
+case that is easy to get wrong (a full fill collapses the nuance below,
+since there is no remainder left to reason about). The MM may see:
 
 ```text
-[09:31:02] FILL  B1A8C2D4  AAPL BUY 100@209.80
+[09:31:02] FILL  B1A8C2D4  AAPL BUY 100@209.80  remaining=400  status=PARTIAL
 [09:31:02] CANCELLED  S9F3E1AA
 [09:31:02] QUOTE INACTIVE_BID_FILLED  Q123
 ```
@@ -893,10 +989,25 @@ No, not in this policy.
 Under `INACTIVATE_ON_ANY_FILL`, the engine already did both of these things:
 
 - removed the quote from the active quote index
-- cancelled the sibling ask leg automatically
+- cancelled the sibling ask leg (`S9F3E1AA`) automatically
 
 The `order.cancelled` and `quote.status INACTIVE_BID_FILLED` messages are the
 observable confirmation of that automatic cleanup.
+
+**But notice what is conspicuously absent from that list: `B1A8C2D4` itself
+— the leg that was actually hit.** Its `remaining=400` is not cancelled by
+this fill. It stays resting on the book, at `209.80`, as genuine tradeable
+liquidity, for as long as the MM takes to react — a slow MM, or one that
+never re-quotes at all, leaves that 400 quantity live indefinitely. This is
+correct, documented engine behavior, not a bug: `INACTIVATE_ON_ANY_FILL`'s
+job is to protect the MM from the untouched *sibling* leg going stale, not
+to instantly zero out a leg's own inventory the moment it starts trading.
+The MM does not need to send anything to clean up `B1A8C2D4` — sending its
+replacement `QUOTE` (next section) does that automatically as a side effect
+of the engine's replace-in-slot logic, described in [Replace-by-new-quote
+case](#replace-by-new-quote-case) above. Until that replacement `QUOTE`
+arrives, though, `B1A8C2D4`'s remaining 400 keeps trading exactly like any
+other resting order.
 
 ### Example 2: full-fill-only policy
 
@@ -1161,14 +1272,19 @@ Typical terminal output:
 
 Operator interpretation:
 
-- the bid leg traded
-- the engine automatically cancelled the sibling ask leg
-- the quote is no longer active
+- the bid leg traded, but only partially — `7c4a91e2` still has 400 quantity
+  resting at its original price, live and tradeable, right now
+- the engine automatically cancelled the sibling ask leg (`be2170fd`)
+- the quote is no longer active as a bookkeeping concept, but `7c4a91e2`'s
+  remaining 400 is **not** cancelled by this — it keeps resting until the
+  operator's next `QUOTE` or `QUOTE_CANCEL` for this symbol arrives
 - the operator may now prepare and submit a replacement quote
 
 Operator action:
 
-- no manual `QUOTE_CANCEL` is needed
+- no manual `QUOTE_CANCEL` is needed — the next `QUOTE` for this symbol
+  will cancel `7c4a91e2`'s leftover 400 automatically as part of its
+  ordinary replace-in-slot handling, alongside installing the new legs
 - compute the new bid/ask and send a fresh `QUOTE`
 - optionally run `QLEGS|SYM=AAPL|SHOW=ALL` before re-quoting to confirm final leg state
 
@@ -1513,7 +1629,8 @@ sequenceDiagram
 - Under `INACTIVATE_ON_ANY_FILL`, sibling cancellation is automatic.
 - Under `INACTIVATE_ON_FULL_FILL`, sibling cancellation happens only after full fill.
 - Under `NEVER_INACTIVATE`, the MM must decide when to cancel or replace.
-- Re-quoting can be done either by explicit `QUOTE_CANCEL` followed by new `QUOTE`, or by sending a replacement `QUOTE` directly on the same symbol.
+- **No policy ever automatically cancels the *hit* leg's own remainder on a partial fill, under any policy** — sibling cancellation and quote inactivation are statements about the untouched leg and the bookkeeping slot, not about the traded leg's own resting quantity. The hit leg's remainder is cleaned up by exactly one mechanism regardless of policy: the engine's replace-in-slot logic, triggered by the MM's own next `QUOTE` or `QUOTE_CANCEL` for that symbol.
+- Re-quoting can be done either by explicit `QUOTE_CANCEL` followed by new `QUOTE`, or by sending a replacement `QUOTE` directly on the same symbol — either path guarantees any leftover resting quantity from the previous quote (sibling or hit-leg remainder alike) is cancelled first.
 - The MM must tolerate edge cases where `order.fill` and even `quote.status INACTIVE_*` arrive before `quote.ack`.
 
 ### Operational checklist for the MM implementation
@@ -1528,8 +1645,8 @@ sequenceDiagram
   - `quote.ack.<gateway_id>`
   - `quote.status.<gateway_id>`
 - Add pending-submit buffering for the immediate-fill-before-ack edge case.
-- Treat `quote.status INACTIVE_*` or `quote.status CANCELLED` as the authoritative signal that the previous quote slot is no longer active.
-- Use direct replacement `QUOTE` when you want the engine to perform atomic replace semantics on the same symbol.
+- Treat `quote.status INACTIVE_*` or `quote.status CANCELLED` as the authoritative signal that the previous quote slot is no longer active — **not** as a signal that every previously resting order from that quote is gone; a partially-filled leg can still be resting after either status.
+- Use direct replacement `QUOTE` when you want the engine to perform atomic replace semantics on the same symbol — this is also what cancels any leftover partially-filled leg from the previous quote, whether or not `quote.status` ever reported it as inactive.
 
 ---
 

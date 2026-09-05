@@ -78,7 +78,7 @@ jobs:
         run: |
           poetry run pytest \
             tests/ \
-            -m "not heavy" \
+            -m "not heavy and not perf" \
             -n auto \
             --cov=src/edumatcher \
             --cov-report=term-missing \
