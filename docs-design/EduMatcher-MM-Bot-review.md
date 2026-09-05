@@ -1,11 +1,11 @@
-Version: 1.4.0
+Version: 1.5.0
 
 Date: 2026-09-05
 
 Status: Phases A and B implemented (see §5); the engine-side correctness bug
 found in v1.2.0 follow-up review (§4 item 3) is now fixed; §2.1's "why not
-multi-symbol" premise corrected and Phase C given a concrete implementation
-plan (§5a)
+multi-symbol" premise corrected and §5a (true multi-symbol `pm-mm-bot`)
+implemented and shipped
 
 # EduMatcher — Market-Maker Bot Functional Review (pm-mm-bot)
 
@@ -58,6 +58,35 @@ plan (§5a)
 > genuinely single-process, single-gateway multi-symbol `pm-mm-bot` is added
 > as new §5a, ahead of the existing Phase C swarm-of-processes plan, which
 > is now the fallback option rather than the default.
+
+> **Update (v1.5.0):** §5a is implemented and shipped — all six staged steps
+> in §5a.5, `bot.py` refactored to `dict[str, _SymbolState]` behind
+> backward-compatible single-symbol proxies, `--symbols`/`--label` landed in
+> `main.py` and `mm_bot/config.py`, per-symbol startup failure isolation
+> (§5a.4 option 2) implemented, and both `docs/user-guide/100-mm-bot.md` and
+> the training chapters (`020-setting-up-MM-bots.md`,
+> `210-automation-commandclient-mm-bot.md`) updated. One implementation
+> detail in §5a.2 needed correcting during the build: `quote.ack`'s payload
+> was assumed to carry `symbol` directly (as `quote.new`'s request does);
+> checking `models/generated/quote.py` showed it does not — `quote.ack`
+> carries only `quote_id`/`accepted`/`reason`/`bid_order_id`/`ask_order_id`,
+> and arrives *before* any `quote_id` exists locally to key off of (that's
+> the whole point of the message). The `quote_id -> symbol` map from §5a.2
+> still demultiplexes the later `quote.status` event as planned, but
+> `quote.ack` needed a second, distinct mechanism: a FIFO of symbols with an
+> outstanding `quote.new` (`_pending_ack_symbols`, appended in `_send_quote`,
+> popped in `_handle_quote_ack`), relying on the engine acking one gateway's
+> `quote.new` requests in the order it received them on that gateway's single
+> PUSH connection. All 126 pre-existing `tests/test_mm_bot.py` +
+> `tests/test_mm_bot_config.py` tests pass unmodified except the two
+> `TestMainParsing` assertions that directly inspected the `symbol=` kwarg
+> `main.py` passes to `MMBot` (now `symbols=[...]`, a deliberate, documented
+> `main.py` behavior change rather than a refactor regression); 24 new tests
+> cover multi-symbol construction, the ack-FIFO demux, per-symbol book/fill/
+> circuit-breaker isolation, per-symbol startup failure isolation, and the
+> new CLI/config surface. Full `black`/`flake8`/`mypy`/`pyright` clean and
+> the whole repo's test suite (6214 tests outside `mm_bot`) verified
+> unaffected.
 
 ## Table of Contents
 
@@ -783,7 +812,7 @@ files, which is why the original pass did not surface it.
   (plus new tests from Phase A) as the release gate, per the project's
   standing verification requirement.
 
-## 5a. Implementation Plan — True Multi-Symbol `pm-mm-bot`
+## 5a. Implementation Plan — True Multi-Symbol `pm-mm-bot` — Done (v1.5.0)
 
 *(Added v1.4.0.)* This section lays out what it would actually take to make
 one `pm-mm-bot` process, behind one gateway ID, quote N symbols at once —
@@ -986,31 +1015,52 @@ multi-symbol MM bot unattended would actually want, and it is a direct,
 foreseeable consequence of moving from "one thing to keep alive" to "N
 independent things sharing a process."
 
-### 5a.5 Staged implementation steps
+### 5a.5 Staged implementation steps — all Done (v1.5.0)
 
-1. Introduce `_SymbolState` and refactor `MMBot.__init__`/all the
-   attributes listed in §5a.2 to hold `dict[str, _SymbolState]` — with the
-   bot still constructed for exactly one symbol, so this step is a pure
-   refactor with **no behavior change**, verifiable against the full
-   existing `tests/test_mm_bot.py` suite (120 tests) unmodified.
-2. Extend `_setup_sockets`/`_dispatch`/`_tick` to loop over
-   `self._symbols` instead of assuming one entry — still driven by a
-   single-symbol CLI invocation, so still no behavior change, but now
-   exercising the loop machinery with N=1.
-3. Add the `quote_id -> symbol` map for demultiplexing `quote_ack`/
-   `quote_status` (the one genuinely new piece of state from §5a.2).
-4. Land `--symbols` (plural) in `main.py` and `mm_bot/config.py`, plus
-   `--label` for gateway identity, keeping `--symbol` (singular) as a
-   backward-compatible alias.
-5. Implement per-symbol startup degrade (§5a.4 option 2) and the
+1. **Done.** Introduced `_SymbolState` and refactored `MMBot.__init__`/all
+   the attributes listed in §5a.2 to hold `dict[str, _SymbolState]`, with
+   backward-compatible properties (`symbol`, `gap`, `_tick_size`, `_pricer`,
+   `_state`, `_quote_id`, and the rest of §5a.2's list) proxying to the
+   first/only symbol so every pre-existing single-symbol call site — test
+   or production — keeps working unchanged. Verified against the full
+   existing `tests/test_mm_bot.py` suite (120 tests) unmodified, after
+   fixing two real gaps the refactor surfaced: `_last_heartbeat` was not
+   initialized until `run()`'s startup path (tests driving `_tick()`
+   directly need it set in `__init__`), and the resolved per-symbol `gap`
+   was not reflected back onto the old scalar `self.gap` some tests and
+   `main.py` read directly (`gap` joined the backward-compatible proxies).
+2. **Done.** Extended `_setup_sockets`/`_dispatch`/`_tick` to loop over
+   `self.symbols` instead of assuming one entry, with new
+   `_active_symbols()`/`_tick_symbol()`/`_symbol_for_book_topic()`/
+   `_symbol_for_topic()` helpers. No behavior change at N=1, confirmed by
+   the same unmodified single-symbol suite.
+3. **Done, with one correction from the original plan.** The
+   `quote_id -> symbol` map (`_quote_id_to_symbol`) demultiplexes
+   `quote_status` as planned, but `quote_ack` turned out to need a second
+   mechanism: its payload carries no `symbol` and arrives before any
+   `quote_id` is known locally (see the v1.5.0 update note at the top of
+   this document for the full detail). Added `_pending_ack_symbols`, a FIFO
+   of symbols with an outstanding `quote.new`, appended in `_send_quote`
+   and popped in `_handle_quote_ack`.
+4. **Done.** Landed `--symbols` (comma-separated, mirroring
+   `pm-ai-trader --symbols`) and `--label` in `main.py`, with `--symbol`
+   kept as the backward-compatible single-symbol form (mutually exclusive
+   with `--symbols`, not simultaneously required). `mm_bot/config.py`
+   accepts `symbols:` as either a YAML list or the same comma-separated
+   string, normalized to the CLI's string form, plus a `label:` key.
+5. **Done.** Implemented per-symbol startup degrade (§5a.4 option 2) via
+   `_SymbolState.startup_failed_reason` and `_active_symbols()`, plus the
    process-level "exit non-zero only if zero symbols survived startup"
-   check.
-6. Update `docs/user-guide/100-mm-bot.md` (a new "Multi-symbol mode"
-   section, CLI table row for `--symbols`/`--label`, an updated
-   architecture diagram) and the training chapters that reference
-   `pm-mm-bot` (`docs/training/020-setting-up-MM-bots.md`,
-   `210-automation-commandclient-mm-bot.md`) to show a single multi-symbol
-   invocation as an alternative to N single-symbol processes.
+   check — applied after both the pre-session-wait checks (steps 3-5 of
+   the startup sequence) and the post-session-wait initial-reference-price
+   resolution (step 7), since a symbol can fail either.
+6. **Done.** Updated `docs/user-guide/100-mm-bot.md` (multi-symbol framing
+   throughout, an updated CLI table, gateway-identity and engine-config
+   sections, a new "Per-symbol failure isolation" section, updated log
+   output examples) and both training chapters
+   (`docs/training/020-setting-up-MM-bots.md` gained a new Exercise 8;
+   `210-automation-commandclient-mm-bot.md` gained notes connecting its
+   existing tuning-flag exercises to per-symbol behavior).
 
 ### 5a.6 Testing
 

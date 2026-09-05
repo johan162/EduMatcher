@@ -232,10 +232,13 @@ Interpretation guide:
 
 ## Exercise 6: Run the Equivalent Bot Workflow (Optional)
 
-The manual quote sequence above can be automated with one bot per symbol.
-Stop your manual quotes first (`QUOTE_CANCEL|SYM=<symbol>` from each MM
-console, or just leave them — the bot's own startup reconciliation handles
-either case, see the note below) and run:
+The manual quote sequence above can be automated with one bot per symbol —
+independent processes, each free to crash, restart, or be tuned without
+touching the others. (Exercise 8 below shows the alternative: one process
+covering several symbols at once.) Stop your manual quotes first
+(`QUOTE_CANCEL|SYM=<symbol>` from each MM console, or just leave them — the
+bot's own startup reconciliation handles either case, see the note below)
+and run:
 
 ```bash
 pm-mm-bot --symbol AAPL --gap 0.10 --qty 500
@@ -330,6 +333,81 @@ CLI value won.
 
  
 
+## Exercise 8: One Bot, Three Symbols
+
+Exercise 6 ran three separate `pm-mm-bot` processes, one per symbol — that's
+still the right choice when symbols need genuinely different parameters, or
+when you want a bad symbol to be unable to affect any other symbol's
+process. But nothing on the engine side actually requires a `MARKET_MAKER`
+gateway to quote only one symbol: the engine's `QuoteIndex` keys every active
+quote by `(gateway_id, symbol)` and tracks a *set* of such keys per gateway,
+so one gateway can hold AAPL's quote and MSFT's quote and TSLA's quote at
+the same time.
+
+Stop the three bots from Exercise 6 (Ctrl+C each, or leave them — startup
+reconciliation handles either case) and register one gateway that will
+quote all three symbols instead:
+
+```yaml
+gateways:
+  alf:
+    - id: MM_TECH_01
+      description: "AAPL+MSFT+TSLA market-maker"
+      role: MARKET_MAKER
+      disconnect_behaviour: CANCEL_QUOTES_ONLY
+      quote_refresh_policy: INACTIVATE_ON_ANY_FILL
+```
+
+!!! warning "The market_maker_quotes seed requirement still applies to every symbol"
+    `pm-cverifier`'s **M001** check fires whenever *any* `MARKET_MAKER`
+    gateway exists and a symbol has no `market_maker_quotes` entry — it does
+    not check which gateway is meant to quote which symbol. So `MM_TECH_01`
+    still needs a seed under `symbols.AAPL`, `symbols.MSFT`, *and*
+    `symbols.TSLA`, exactly as if it were three separate single-symbol
+    gateways. If you regenerate with `pm-config-gen`, point
+    `--gateways ... MM_TECH_01:MARKET_MAKER` at the one new ID and it will
+    seed all three symbols against it automatically.
+
+Check and deploy as before, then start one bot covering all three symbols:
+
+```bash
+pm-cverifier engine_config.yaml       # expect 0 errors
+pm-config-deploy engine_config.yaml
+pm-mm-bot --symbols AAPL,MSFT,TSLA --label TECH --gap 0.10 --qty 500
+```
+
+`--label TECH` is what makes the gateway ID `MM_TECH_01` instead of the
+default `MM_AAPL_MSFT_TSLA_01` the bot would otherwise derive by joining
+every symbol — useful once the symbol list is longer than a couple of
+entries. Watch the log output: the `starting:` line reports
+`symbols=AAPL,MSFT,TSLA`, and every per-symbol decision afterwards (a quote
+sent, a fill, a reprice) is tagged with `[AAPL]`, `[MSFT]`, or `[TSLA]` so
+you can tell which symbol it belongs to — one process, three independent
+quoting lifecycles.
+
+Confirm all three books are still served from `TRADER01`:
+
+```
+[GW_ADMIN|ADMIN]> BOOK|SYM=AAPL
+[GW_ADMIN|ADMIN]> BOOK|SYM=MSFT
+[GW_ADMIN|ADMIN]> BOOK|SYM=TSLA
+```
+
+!!! tip "A struggling symbol doesn't take the others down with it"
+    If one symbol's `--gap` were to violate its own `mm_max_spread_ticks`
+    obligation, that symbol alone would be excluded from quoting at startup
+    (logged as `[SYM] excluded from quoting: ...`) while the rest of
+    `MM_TECH_01`'s symbols keep quoting normally — the whole process only
+    exits if *every* symbol fails. Try it: add
+    `mm_max_spread_ticks: 2` under one symbol's config, redeploy, and
+    restart the bot with the same `--gap 0.10` to see it happen.
+
+:material-checkbox-blank-outline: **Checkpoint:** one `pm-mm-bot` process is
+quoting all three symbols, its log lines are tagged per symbol, and all
+three books still show two-sided liquidity.
+
+ 
+
 ## Summary
 
 You now have:
@@ -340,6 +418,8 @@ You now have:
 - Familiarity with `QLEGS` as the quote-leg inspection tool.
 - A clear picture of what `pm-mm-bot` automates, and how to drive it from
   either the CLI or a committed config file.
+- Experience running one `pm-mm-bot` process across multiple symbols with
+  `--symbols`/`--label`, and seeing per-symbol failure isolation in action.
 
 ## Reflection
 
@@ -356,12 +436,21 @@ and can you think of a reason the two checks are allowed to diverge like
 this rather than the verifier being made strict enough to catch everything
 `pm-config-deploy` would?
 
+Exercise 8 put three symbols behind one gateway ID and one process. Given
+that the engine places no limit on how many symbols a `MARKET_MAKER`
+gateway may quote, what's actually driving the choice between "one process,
+many symbols" and "one process per symbol" in a real deployment? Think
+about failure blast radius, independent parameter tuning per symbol, and
+process/operational overhead — is there a symbol count where you'd expect
+to switch from one pattern to the other?
+
 ## Further Reading
 
 - [Market Making](../user-guide/090-market-maker.md)
 - [Market-Maker Bot (pm-mm-bot)](../user-guide/100-mm-bot.md)
 - [Market-Maker Bot CLI Reference](../user-guide/100-mm-bot.md#cli-reference)
 - [Market-Maker Bot — Config File](../user-guide/100-mm-bot.md#config-file)
+- [Market-Maker Bot — Per-symbol failure isolation](../user-guide/100-mm-bot.md#per-symbol-failure-isolation)
 - [ALF Console (pm-alf-console)](../user-guide/055-alf-console.md)
 - [ALF Protocol Reference](../user-guide/900-app-alf-protocol.md)
 - [Config Verifier (`pm-cverifier`)](../user-guide/020-config-verifier.md)

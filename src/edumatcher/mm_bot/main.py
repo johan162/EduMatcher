@@ -40,7 +40,27 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--symbol",
         help="Instrument to make a market in (e.g. AAPL) — required unless "
-        "supplied by --config",
+        "--symbols or --config supplies one or more symbols",
+    )
+    parser.add_argument(
+        "--symbols",
+        default="",
+        help=(
+            "Comma-separated symbols to make markets in from one process "
+            "(e.g. AAPL,MSFT) — mutually exclusive with --symbol; each "
+            "symbol runs through the same startup/failure-isolation checks "
+            "independently (see docs-design/EduMatcher-MM-Bot-review.md "
+            "§5a)"
+        ),
+    )
+    parser.add_argument(
+        "--label",
+        default=None,
+        help=(
+            "Override the gateway-ID symbol segment (default: the single "
+            "--symbol, or SYM1_SYM2_... derived from --symbols) — mainly "
+            "useful to keep a multi-symbol gateway ID short"
+        ),
     )
     parser.add_argument(
         "--strategy",
@@ -249,8 +269,10 @@ def main(argv: list[str] | None = None) -> None:
     )
 
     args = parser.parse_args(argv)
-    if not args.symbol:
-        parser.error("--symbol is required (directly or via --config)")
+    if args.symbol and args.symbols:
+        parser.error("--symbol and --symbols are mutually exclusive")
+    if not args.symbol and not args.symbols:
+        parser.error("--symbol or --symbols is required (directly or via --config)")
 
     log_level = _configure_logging(args)
     log.info("starting pm-mm-bot with log level %s", logging.getLevelName(log_level))
@@ -286,14 +308,25 @@ def main(argv: list[str] | None = None) -> None:
         )
         raise SystemExit(1)
 
-    symbol = args.symbol.upper()
-    gateway_id = f"MM_{symbol}_{args.id_suffix}"
+    symbol_list = (
+        [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
+        if args.symbols
+        else [args.symbol.upper()]
+    )
+    if not symbol_list:
+        parser.error("--symbols must contain at least one non-empty symbol")
+
+    # The gateway ID's symbol segment: a single --symbol keeps today's
+    # MM_<SYMBOL>_<suffix> form unchanged; multiple --symbols derives
+    # SYM1_SYM2_..._<suffix> unless --label shortens it explicitly.
+    label = args.label if args.label else "_".join(symbol_list)
+    gateway_id = f"MM_{label}_{args.id_suffix}"
     bot_verbose = bool(args.verbose >= 1 or log_level <= logging.DEBUG)
     log.info(
-        "resolved mm_bot config gateway_id=%s symbol=%s strategy=%s gap=%s qty=%s "
+        "resolved mm_bot config gateway_id=%s symbols=%s strategy=%s gap=%s qty=%s "
         "tif=%s",
         gateway_id,
-        symbol,
+        ",".join(symbol_list),
         args.strategy,
         args.gap,
         args.qty,
@@ -314,7 +347,7 @@ def main(argv: list[str] | None = None) -> None:
     try:
         bot = MMBot(
             gateway_id=gateway_id,
-            symbol=symbol,
+            symbols=symbol_list,
             strategy=args.strategy,
             gap=args.gap,
             gap_was_explicit=gap_was_explicit,

@@ -1,10 +1,11 @@
-Version: 1.2.1
+Version: 1.3.0
 
 Date: 2026-09-05
 
-Status: Implemented (v1.0-v1.2 scope); §14.3 corrected to note multi-symbol
-mode is a bot-side choice, not an exchange-side limit, with a link to the
-review doc's implementation plan
+Status: Implemented (v1.0-v1.2 scope); §14.3 (multi-symbol mode) updated
+from implementation plan to shipped — one process can now quote several
+symbols behind one gateway ID via `--symbols`/`--label`, per the review
+doc's §5a
 
 # EduMatcher — Market-Maker Bot (pm-mm-bot)
 
@@ -1100,35 +1101,46 @@ selection risk. A future version could subscribe to a rolling volatility estimat
 effective_gap = base_gap × max(1.0, vol_factor)
 ```
 
-### 14.3 Multi-Symbol Mode
+### 14.3 Multi-Symbol Mode — Implemented (v1.5.0, via the review doc's §5a)
 
-Running one process per symbol is simple and isolated but requires more terminals
-in a classroom. Note that this is a `pm-mm-bot` implementation choice, not an
-exchange-side restriction — nothing in the engine ties a `MARKET_MAKER` gateway
-or its quotes to a single symbol (`QuoteIndex` keys quotes by `(gateway_id,
-symbol)` and tracks a set of them per gateway); a real exchange market maker
-routinely quotes many symbols from one session. Two distinct future options,
-not one:
+Running one process per symbol is simple and isolated but requires more
+terminals in a classroom. This was always a `pm-mm-bot` implementation
+choice, not an exchange-side restriction — nothing in the engine ties a
+`MARKET_MAKER` gateway or its quotes to a single symbol (`QuoteIndex` keys
+quotes by `(gateway_id, symbol)` and tracks a set of them per gateway); a
+real exchange market maker routinely quotes many symbols from one session.
+Two distinct options exist side by side, not one superseding the other:
 
 - A `pm-ai-swarm`-style **launcher** that starts N separate `pm-mm-bot`
   processes (one per symbol, one gateway ID each) from a single command —
   saves typing, but is still N gateway identities, each still quoting one
-  symbol.
+  symbol. This remains a proposed convenience wrapper, not yet built (see
+  the review doc's Phase C).
 - A true **multi-symbol `pm-mm-bot`** — one process, one gateway ID, quoting
-  several symbols at once via `--symbols AAPL,MSFT,TSLA` — which more closely
-  matches how a real exchange session works. This requires refactoring
+  several symbols at once via `--symbols AAPL,MSFT,TSLA` (optionally with
+  `--label` to keep the derived gateway ID short) — which more closely
+  matches how a real exchange session works. **This is now shipped.**
   `MMBot`'s per-symbol instance state (`self.symbol`, `self._pricer`,
-  `self._quote_id`, and the rest) into a `dict` keyed by symbol; the ZMQ
-  topics involved already support it (`book`/`circuit_breaker` topics are
-  per-symbol and already accept multiple subscriptions on one socket;
-  `quote`/`order` topics are per-gateway and already carry `symbol` in their
-  payload or `quote_id`, so demultiplexing needs no protocol change).
+  `self._quote_id`, and the rest) is refactored into a `dict[str,
+  _SymbolState]` keyed by symbol, with backward-compatible properties so a
+  single-symbol `--symbol` invocation is unaffected. The ZMQ topics
+  involved needed no protocol change, as anticipated: `book`/
+  `circuit_breaker` topics are per-symbol and accept multiple subscriptions
+  on one socket; `quote`/`order` topics are per-gateway and demultiplex via
+  `symbol` in their payload (`quote.new`, `order.fill`/`order.cancelled`)
+  or via a `quote_id -> symbol` map populated once a quote is acked
+  (`quote.status`) — `quote.ack` itself needed a small addition beyond the
+  original plan, a send-order FIFO, since its payload carries neither
+  `symbol` nor (yet) `quote_id`; see the review doc's v1.5.0 update note for
+  the detail.
 
 See `docs-design/EduMatcher-MM-Bot-review.md` §5a for the full implementation
-plan for the second option, including staged steps, CLI/config-file changes,
-gateway-identity naming, per-symbol failure-isolation design, and test
-coverage — added there rather than duplicated here since the review doc is
-the living record of what the bot's internals actually require.
+record — staged steps (all done), CLI/config-file changes, gateway-identity
+naming, per-symbol failure-isolation design, and test coverage — kept there
+rather than duplicated here since the review doc is the living record of
+what the bot's internals actually require. See
+`docs/user-guide/100-mm-bot.md` for the user-facing CLI reference, config
+file schema, and per-symbol failure isolation behavior.
 
 ### 14.4 Config-File Mode — Implemented (v1.2.0)
 
@@ -1145,8 +1157,8 @@ This also introduced a `--strategy` flag and a `PricingStrategy` protocol
 registered — this is the seam for §14.1's inventory skewing and §14.2's
 volatility-adaptive spread to land as new strategy classes later, without
 touching the bot's state machine or ZMQ handling. Multi-symbol mode (§14.3)
-and coordination between instances (§14.5) are unaffected by this change and
-remain open.
+is unaffected by this change and has since shipped separately (see §14.3);
+coordination between instances (§14.5) remains open.
 
 ### 14.5 Coordination Between MM Instances
 

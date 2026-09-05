@@ -20,6 +20,8 @@ import yaml
 # unrecognized key is almost certainly a typo rather than a new feature.
 _ALLOWED_KEYS = {
     "symbol",
+    "symbols",
+    "label",
     "id_suffix",
     "strategy",
     "gap",
@@ -64,4 +66,26 @@ def load_config_file(path: Path) -> dict[str, Any]:
             f"config file {path} has unknown key(s): {', '.join(sorted(unknown))}"
         )
 
+    if "symbols" in raw:
+        raw["symbols"] = _normalize_symbols_value(raw["symbols"], path)
+
     return raw
+
+
+def _normalize_symbols_value(value: Any, path: Path) -> str:
+    """Coerce a config file's ``symbols`` key to the CLI's comma-string form.
+
+    ``main.py`` treats ``args.symbols`` as a single comma-separated string
+    (matching ``pm-ai-trader --symbols``, and identical whether it came from
+    ``--symbols`` on the command line or from this file) so this is the one
+    place a YAML-native ``symbols: [AAPL, MSFT]`` list gets flattened to
+    that shape; a plain ``symbols: AAPL,MSFT`` string is accepted as-is.
+    """
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list) and all(isinstance(item, str) for item in value):
+        return ",".join(value)
+    raise ValueError(
+        f"config file {path}: 'symbols' must be a comma-separated string "
+        "or a list of strings"
+    )

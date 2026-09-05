@@ -58,3 +58,40 @@ def test_load_unknown_key_raises(tmp_path: Path) -> None:
     p.write_text("symbol: AAPL\nbogus_key: 123\n")
     with pytest.raises(ValueError, match="unknown key.*bogus_key"):
         load_config_file(p)
+
+
+def test_load_symbols_as_yaml_list_normalized_to_comma_string(
+    tmp_path: Path,
+) -> None:
+    p = tmp_path / "multi.yaml"
+    p.write_text("symbols:\n  - AAPL\n  - MSFT\n")
+    values = load_config_file(p)
+    assert values == {"symbols": "AAPL,MSFT"}
+
+
+def test_load_symbols_as_comma_string_passed_through(tmp_path: Path) -> None:
+    p = tmp_path / "multi.yaml"
+    p.write_text("symbols: AAPL,MSFT\n")
+    values = load_config_file(p)
+    assert values == {"symbols": "AAPL,MSFT"}
+
+
+def test_load_symbols_wrong_type_raises(tmp_path: Path) -> None:
+    p = tmp_path / "bad_symbols.yaml"
+    p.write_text("symbols:\n  AAPL: 1\n")
+    with pytest.raises(ValueError, match="must be a comma-separated string"):
+        load_config_file(p)
+
+
+def test_load_symbols_list_with_non_string_item_raises(tmp_path: Path) -> None:
+    p = tmp_path / "bad_symbols.yaml"
+    p.write_text("symbols:\n  - AAPL\n  - 42\n")
+    with pytest.raises(ValueError, match="must be a comma-separated string"):
+        load_config_file(p)
+
+
+def test_load_label_key_accepted(tmp_path: Path) -> None:
+    p = tmp_path / "labeled.yaml"
+    p.write_text("symbols: AAPL,MSFT\nlabel: TECH\n")
+    values = load_config_file(p)
+    assert values == {"symbols": "AAPL,MSFT", "label": "TECH"}
