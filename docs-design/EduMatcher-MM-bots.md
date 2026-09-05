@@ -1,8 +1,10 @@
-Version: 1.2.0
+Version: 1.2.1
 
 Date: 2026-09-05
 
-Status: Implemented
+Status: Implemented (v1.0-v1.2 scope); §14.3 corrected to note multi-symbol
+mode is a bot-side choice, not an exchange-side limit, with a link to the
+review doc's implementation plan
 
 # EduMatcher — Market-Maker Bot (pm-mm-bot)
 
@@ -1101,9 +1103,32 @@ effective_gap = base_gap × max(1.0, vol_factor)
 ### 14.3 Multi-Symbol Mode
 
 Running one process per symbol is simple and isolated but requires more terminals
-in a classroom. A future `--symbols AAPL,MSFT,TSLA` mode could manage multiple
-quotes from a single process, similar to how `pm-ai-swarm` manages multiple
-single-trader bots.
+in a classroom. Note that this is a `pm-mm-bot` implementation choice, not an
+exchange-side restriction — nothing in the engine ties a `MARKET_MAKER` gateway
+or its quotes to a single symbol (`QuoteIndex` keys quotes by `(gateway_id,
+symbol)` and tracks a set of them per gateway); a real exchange market maker
+routinely quotes many symbols from one session. Two distinct future options,
+not one:
+
+- A `pm-ai-swarm`-style **launcher** that starts N separate `pm-mm-bot`
+  processes (one per symbol, one gateway ID each) from a single command —
+  saves typing, but is still N gateway identities, each still quoting one
+  symbol.
+- A true **multi-symbol `pm-mm-bot`** — one process, one gateway ID, quoting
+  several symbols at once via `--symbols AAPL,MSFT,TSLA` — which more closely
+  matches how a real exchange session works. This requires refactoring
+  `MMBot`'s per-symbol instance state (`self.symbol`, `self._pricer`,
+  `self._quote_id`, and the rest) into a `dict` keyed by symbol; the ZMQ
+  topics involved already support it (`book`/`circuit_breaker` topics are
+  per-symbol and already accept multiple subscriptions on one socket;
+  `quote`/`order` topics are per-gateway and already carry `symbol` in their
+  payload or `quote_id`, so demultiplexing needs no protocol change).
+
+See `docs-design/EduMatcher-MM-Bot-review.md` §5a for the full implementation
+plan for the second option, including staged steps, CLI/config-file changes,
+gateway-identity naming, per-symbol failure-isolation design, and test
+coverage — added there rather than duplicated here since the review doc is
+the living record of what the bot's internals actually require.
 
 ### 14.4 Config-File Mode — Implemented (v1.2.0)
 

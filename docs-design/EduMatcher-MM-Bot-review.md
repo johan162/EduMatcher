@@ -1,9 +1,11 @@
-Version: 1.3.0
+Version: 1.4.0
 
 Date: 2026-09-05
 
 Status: Phases A and B implemented (see §5); the engine-side correctness bug
-found in v1.2.0 follow-up review (§4 item 3) is now fixed
+found in v1.2.0 follow-up review (§4 item 3) is now fixed; §2.1's "why not
+multi-symbol" premise corrected and Phase C given a concrete implementation
+plan (§5a)
 
 # EduMatcher — Market-Maker Bot Functional Review (pm-mm-bot)
 
@@ -41,6 +43,22 @@ found in v1.2.0 follow-up review (§4 item 3) is now fixed
 > in v1.3.0)" subsection for the full detail, the five new regression tests
 > in `tests/test_mm_quotes_engine.py`, and the corrected §2.3.
 
+> **Update (v1.4.0):** §2.1's original answer explained the single-symbol
+> constraint correctly as a fact, but its framing invited the wrong
+> conclusion — that N processes (Phase C's swarm-of-processes proposal) is
+> the only way to get multi-symbol coverage. A direct question from the
+> project owner surfaced this: **nothing on the engine side ties a
+> `MARKET_MAKER` gateway, or its quotes, to a single symbol.** The engine's
+> `QuoteIndex` keys every active quote by `(gateway_id, symbol)` and
+> explicitly tracks a *set* of such keys per gateway
+> (`models/quote.py:92-116`) — one gateway can hold as many concurrent
+> quotes across as many symbols as it likes, exactly like a real MM's single
+> exchange session quoting a whole book of names. §2.1 is corrected in place
+> below (marked, not rewritten) and a concrete implementation plan for a
+> genuinely single-process, single-gateway multi-symbol `pm-mm-bot` is added
+> as new §5a, ahead of the existing Phase C swarm-of-processes plan, which
+> is now the fallback option rather than the default.
+
 ## Table of Contents
 
 - [EduMatcher — Market-Maker Bot Functional Review (pm-mm-bot)](#edumatcher--market-maker-bot-functional-review-pm-mm-bot)
@@ -62,6 +80,15 @@ found in v1.2.0 follow-up review (§4 item 3) is now fixed
     - [Phase C — Multi-symbol mode](#phase-c--multi-symbol-mode)
     - [Phase D — Operability](#phase-d--operability)
     - [Phase E — Documentation and sign-off](#phase-e--documentation-and-sign-off)
+  - [5a. Implementation Plan — True Multi-Symbol `pm-mm-bot`](#5a-implementation-plan--true-multi-symbol-pm-mm-bot)
+    - [5a.1 Why this is possible](#5a1-why-this-is-possible)
+    - [5a.2 What has to change in `bot.py`](#5a2-what-has-to-change-in-botpy)
+    - [5a.3 CLI, config file, and gateway identity](#5a3-cli-config-file-and-gateway-identity)
+    - [5a.4 Per-symbol failure isolation](#5a4-per-symbol-failure-isolation)
+    - [5a.5 Staged implementation steps](#5a5-staged-implementation-steps)
+    - [5a.6 Testing](#5a6-testing)
+    - [5a.7 What this does *not* change](#5a7-what-this-does-not-change)
+    - [5a.8 Relationship to Phase C](#5a8-relationship-to-phase-c)
   - [6. Explicitly Out of Scope for v1.0.0](#6-explicitly-out-of-scope-for-v100)
 
 ## 1. Scope and Method
@@ -82,20 +109,48 @@ rather than style or typing.
 
 ### 2.1 Single symbol or multiple symbols per instance?
 
-**One instance quotes exactly one symbol.** `MMBot.__init__` takes a single
-`symbol: str` (`bot.py:77`), and the class docstring says so directly:
-"Autonomous market-maker bot for **a single symbol**" (`bot.py:71`). The CLI
-(`main.py:29-31`) requires exactly one `--symbol`. To make markets in three
-symbols today you run three OS processes, each with its own gateway ID
-(`MM_AAPL_01`, `MM_MSFT_01`, `MM_TSLA_01` — see §9.1 of the design doc).
+> **Correction (v1.4.0):** everything below about *today's* code is
+> accurate and unchanged. What was missing is the "why" — the original
+> answer read as though one-symbol-per-instance were a constraint the
+> exchange imposes, and it is not. **Nothing on the engine side limits a
+> `MARKET_MAKER` gateway to one symbol.** `QuoteIndex` (`models/quote.py`)
+> keys every active quote by `(gateway_id, symbol)` and tracks a *set* of
+> such keys per gateway (`_keys_by_gateway: dict[str, set[tuple[str,
+> str]]]`, `quote.py:95`) — one gateway ID can hold as many simultaneous
+> active quotes, across as many symbols, as it likes. There is no schema
+> check, no config constraint, and no protocol restriction anywhere that
+> ties a gateway to a single symbol; a real exchange market maker quoting
+> a whole book of names from one session is exactly this shape. The
+> one-symbol-per-instance rule below is entirely a `pm-mm-bot`
+> implementation choice — every per-symbol assumption lives in `MMBot`'s
+> own instance attributes (`self.symbol`, `self._pricer`, `self._quote_id`,
+> etc.), not in anything the engine requires. **A concrete plan to remove
+> that constraint — refactoring `MMBot` itself to hold N symbols' worth of
+> state in one process behind one gateway ID, rather than running N
+> processes — is now §5a**, ahead of the swarm-of-processes Phase C
+> proposal below, which remains a valid *fallback* (see §5a.8 for when it's
+> still the better choice) but is no longer the only path to multi-symbol
+> coverage.
+
+**One instance quotes exactly one symbol, today.** `MMBot.__init__` takes a
+single `symbol: str` (`bot.py:77`), and the class docstring says so
+directly: "Autonomous market-maker bot for **a single symbol**"
+(`bot.py:71`). The CLI (`main.py:29-31`) requires exactly one `--symbol`. To
+make markets in three symbols today you run three OS processes, each with
+its own gateway ID (`MM_AAPL_01`, `MM_MSFT_01`, `MM_TSLA_01` — see §9.1 of
+the design doc).
 
 The design doc already flags this as a known limitation, not an oversight:
 §14.3 "Multi-Symbol Mode" proposes a future `--symbols AAPL,MSFT,TSLA` mode
 "similar to how `pm-ai-swarm` manages multiple single-trader bots" — and that
-sibling process already exists and does exactly this pattern for the AI
-trader (`src/edumatcher/ai_trader/swarm.py` fans out one `AITraderBot` per
-symbol inside one process). That is the template to reuse rather than
-inventing a new supervision model (see §5, Phase C).
+sibling process already exists and does a related pattern for the AI trader
+(`src/edumatcher/ai_trader/swarm.py`, which launches one `pm-ai-trader`
+**subprocess** per bot via Python's `subprocess` module — see
+`build_bot_command`/`build_gateway_ids`, not an in-process fan-out — each
+with its own gateway ID and, in swarm mode, its own single assigned symbol).
+§14.3 and the original Phase C below took that as the template to reuse
+rather than inventing a new supervision model; §5a below proposes the
+alternative of removing the constraint from `MMBot` directly instead.
 
 ### 2.2 Config file vs. CLI options for strategy selection
 
@@ -677,16 +732,30 @@ files, which is why the original pass did not surface it.
   suite: 126/126 passing; black, flake8, mypy, and pyright all clean on
   every changed file.
 
-### Phase C — Multi-symbol mode
+### Phase C — Multi-symbol mode (fallback option — see §5a)
 
-- Port the `pm-ai-swarm` supervision pattern
-  (`ai_trader/swarm.py`) to run N `MMBot` instances (one per symbol) inside
-  one OS process, sharing one `argparse` invocation
-  (`--symbols AAPL,MSFT,TSLA`). Each `MMBot` instance keeps its own
-  sockets, state machine, and gateway ID exactly as today — this is a
-  supervisory wrapper, not a change to `MMBot` itself.
+> **Correction (v1.4.0):** this phase, as originally scoped, is not the
+> only way to reach multi-symbol coverage — see §5a for a plan that gives
+> `pm-mm-bot` real multi-symbol support (one process, one gateway ID)
+> instead of this supervisory-wrapper approach. This phase is retained as
+> the lower-effort fallback; §5a.8 says when to prefer it.
+
+- A `pm-ai-swarm`-style **launcher**
+  (`ai_trader/swarm.py` is the template — it launches one `pm-ai-trader`
+  **subprocess** per bot via Python's `subprocess` module, each with its own
+  gateway ID and, in swarm mode, its own single assigned symbol; it is not
+  an in-process fan-out) that starts N separate `pm-mm-bot` **processes**
+  (one per symbol, one gateway ID each: `MM_AAPL_01`, `MM_MSFT_01`, …) from
+  one `argparse` invocation (`pm-mm-swarm --symbols AAPL,MSFT,TSLA`). Each
+  `MMBot` instance keeps its own sockets, state machine, and gateway ID
+  exactly as today — this is a process launcher, not a change to `MMBot`
+  itself, and it does not give one gateway multiple symbols; it just saves
+  typing N `pm-mm-bot` invocations by hand.
 - Resolves §14.3 of the existing design doc and the "how many terminals do
-  I need for a classroom" pain point that motivated it.
+  I need for a classroom" pain point that motivated it, without the larger
+  `MMBot` refactor §5a describes. Worth doing regardless of whether §5a
+  ships, since some classroom/ops scenarios genuinely want N independent
+  gateway identities (see §5a.8).
 
 ### Phase D — Operability
 
@@ -713,6 +782,282 @@ files, which is why the original pass did not surface it.
 - Re-run black/flake8/mypy/pyright and the full `tests/test_mm_bot.py` suite
   (plus new tests from Phase A) as the release gate, per the project's
   standing verification requirement.
+
+## 5a. Implementation Plan — True Multi-Symbol `pm-mm-bot`
+
+*(Added v1.4.0.)* This section lays out what it would actually take to make
+one `pm-mm-bot` process, behind one gateway ID, quote N symbols at once —
+the option §2.1's correction says the engine already permits and Phase C's
+swarm launcher does not attempt.
+
+### 5a.1 Why this is possible
+
+Every wire-level fact needed to support this was checked directly against
+current source, not assumed:
+
+- **Quotes are keyed `(gateway_id, symbol)`, not `gateway_id` alone.**
+  `models/quote.py`'s `QuoteIndex._index: dict[tuple[str, str], QuoteEntry]`
+  and its `_keys_by_gateway: dict[str, set[tuple[str, str]]]` both allow a
+  set of symbols per gateway. Nothing rejects a second `quote.new` for the
+  same gateway on a different symbol.
+- **The topics `MMBot` subscribes to split into two groups**, and this
+  split is exactly what makes the refactor tractable:
+  - *Per-gateway* topics — `gateway_auth`, `symbols`, `quote_bootstrap`,
+    `quote_legs`, `quote_ack`, `quote_status`, `order_fill`,
+    `order_cancelled` (all `topic_*(gateway_id)` in
+    `models/generated/{system,quote,order}.py`) — carry events for *every*
+    symbol the gateway is active on, multiplexed onto one topic. The
+    payload itself carries `symbol` (confirmed in
+    `models/generated/order.py`, `"symbol": self.symbol` appears in every
+    order/fill message builder), so demultiplexing is a matter of reading
+    a field already present, not a protocol change.
+  - *Per-symbol* topics — `book_snapshot(symbol)`,
+    `circuit_breaker_halt/resume(symbol)` — already require one
+    `SUBSCRIBE` per symbol. `make_subscriber(addr, *topics)`
+    (`messaging/bus.py:107`) already accepts an arbitrary number of topics
+    on one SUB socket — subscribing to N symbols' book/circuit-breaker
+    topics instead of one is a longer argument list, not a new mechanism.
+- **Tick-size/price-scale registration is already global and per-symbol.**
+  `register_tick_decimals(symbol, tick_decimals)` /
+  `to_ticks(price, symbol)` (`models/price.py`) key their cache by symbol
+  already — this is the exact mechanism Phase A's bug fix (§4) plugged the
+  bot into. A multi-symbol bot calling `register_tick_decimals` once per
+  symbol at startup needs no change here at all.
+- **`PricingStrategy` (`pricer.py`) is already a self-contained per-symbol
+  unit.** One `QuotePricer` instance holds exactly one symbol's tick size,
+  gap, drift threshold, and tracked mid — there is no cross-symbol state
+  inside it. A dict of `{symbol: PricingStrategy}` is a direct, natural fit
+  for the existing abstraction; the Protocol itself needs no changes.
+
+In short: **one PUSH socket and one SUB socket, subscribed to a wider topic
+list, are already sufficient to run N symbols behind one gateway ID.** The
+entire constraint lives in `MMBot`'s own instance attributes, which are
+scalars (`self.symbol`, `self._quote_id`, `self._pricer`, …) where they
+would need to be per-symbol collections.
+
+### 5a.2 What has to change in `bot.py`
+
+Every scalar, symbol-shaped piece of `MMBot` state becomes a per-symbol
+entry, most naturally as one small `_SymbolState` dataclass held in a
+`dict[str, _SymbolState]` keyed by symbol, rather than scattering N parallel
+dicts:
+
+```python
+@dataclass
+class _SymbolState:
+    tick_size: float = 0.01
+    mm_max_spread_ticks: int | None = None
+    gap: float = 0.0
+    gap_was_explicit: bool = False
+    pricer: PricingStrategy | None = None
+    state: BotState = BotState.CONNECTING
+    quote_id: str | None = None
+    bid_order_id: str | None = None
+    ask_order_id: str | None = None
+    quoted_at_mid: float | None = None
+    reissue_at: float | None = None
+    last_quote_sent_at: float = 0.0
+    last_qlegs_reconcile: float = 0.0
+    awaiting_cancel_for_reissue: bool = False
+    pending_fills: list[dict] = field(default_factory=list)
+```
+
+Fields that stay scalar (genuinely gateway-level, not symbol-level):
+`gateway_id`, `strategy` name, `qty`/`drift_ticks`/`tif`/timeout config
+(today these are shared across all symbols the bot quotes — see §5a.3 for
+whether that should be overridable per symbol), `_session_state` (session
+phase is exchange-wide, not per-symbol), the two sockets, and the
+verbose/debug plumbing.
+
+Mechanical consequences, by area:
+
+- **`_setup_sockets`**: subscribe to `topic_book_snapshot(sym)` and
+  `topic_circuit_breaker_halt/resume(sym)` for every symbol in
+  `self.symbols`, in addition to the unchanged per-gateway subscriptions
+  (those stay singular — one `gateway_id`, not N).
+- **`_dispatch`**: the per-symbol topics (`book_snapshot`,
+  `circuit_breaker_*`) already carry the symbol in the topic string itself,
+  so routing to the right `_SymbolState` is a dict lookup by parsing it
+  back out (or, cleaner, precomputing a `{topic: symbol}` reverse map at
+  startup since the symbol set is fixed for the process's life). The
+  per-gateway topics (`order_fill`, `order_cancelled`, `quote_ack`,
+  `quote_status`) carry `symbol` in the *payload*, not the topic — for
+  `order_fill`/`order_cancelled` this is a direct payload read; for
+  `quote_ack`/`quote_status`, the payload does not carry `symbol` directly
+  today (only `quote_id`), so the bot needs a `quote_id -> symbol` map,
+  populated when a quote is sent and consulted on the matching ack/status.
+  This is the one place a genuinely new piece of local bookkeeping is
+  needed, not just a reshape of existing fields.
+- **`_send_quote`/`_cancel_quote`/`_cancel_and_reissue`/`_clear_quote_state`**:
+  become symbol-parametrized, operating on one `_SymbolState` entry;
+  callers pass the symbol they mean instead of relying on `self.symbol`.
+- **`_tick`**: today's single reissue-timer/heartbeat/QLEGS-reconcile check
+  becomes a loop over `self._symbols.values()`, each checked against its
+  own `reissue_at`/`last_qlegs_reconcile`, independently. This is
+  mechanical but touches every branch in the current method.
+- **`_request_symbols`**: today filters the `SYMBOLS` reply down to the one
+  symbol the bot cares about; it needs to instead register
+  `tick_size`/`mm_max_spread_ticks` for every symbol in `self.symbols` and
+  fail startup only if *none* of them are present (see §5a.4 on whether one
+  missing symbol should fail the whole bot or just that symbol).
+- **`_request_bootstrap`/`_request_qlegs`/`_try_adopt_from_bootstrap`/
+  `_resolve_bootstrap_reference`/`_reconcile_qlegs`**: `QBOOT`/`QLEGS`
+  already accept a `SYM=` filter (per the training-chapter and protocol-doc
+  review done earlier this project) — one request per symbol at startup
+  (they are cheap, infrequent, and already have their own timeout), rather
+  than trying to invent a bulk multi-symbol query the protocol does not
+  offer. Reconciliation logic is otherwise identical, just addressed at one
+  `_SymbolState` per response instead of `self`.
+- **`run`/`_run_loop`**: the startup sequence (authenticate → symbols →
+  gap/pricer setup per symbol → QBOOT/QLEGS per symbol → wait for session →
+  initial quote per symbol) is the same shape repeated per symbol instead
+  of once; session-state handling (`_handle_session_state`,
+  `_handle_circuit_breaker_halt/resume`) stays mostly as-is for the parts
+  that are genuinely gateway/session-wide, but the "cancel and pause" /
+  "resume and reissue" actions become a loop over symbols instead of a
+  single quote.
+
+### 5a.3 CLI, config file, and gateway identity
+
+- **`--symbol SYM` becomes `--symbols SYM[,SYM...]`**, mirroring the
+  existing `pm-ai-trader --symbols AAPL,MSFT` convention
+  (`ai_trader/main.py`) rather than inventing a new flag shape. Singular
+  `--symbols AAPL` (one symbol) must keep working unchanged — this is an
+  additive CLI change, not a breaking one, for anyone still running one
+  symbol per bot.
+- **`--gap`/`--qty`/`--drift-ticks` stay single values applied to every
+  symbol** for the initial version — a genuinely per-symbol override syntax
+  (`--gap AAPL:0.10,MSFT:0.20`, echoing `config_gen`'s `SYM:KEY=VALUE`
+  convention) is a reasonable v2 addition but adds real parsing complexity
+  that isn't needed to answer "can one bot quote multiple symbols" — call
+  this out explicitly as deferred rather than silently missing.
+- **`mm_bot/config.py`'s `_ALLOWED_KEYS`** gains `symbols` (plural) as an
+  alias resolving the same way `--symbols` does; `symbol` (singular) stays
+  supported for one-symbol config files already in use.
+- **Gateway identity**: `MM_<SYMBOL>_<nn>` (today's `main.py:290`) has no
+  sensible multi-symbol form — there is no single `<SYMBOL>` to interpolate.
+  A multi-symbol bot needs an operator-chosen label instead:
+  `MM_<LABEL>_<nn>` (e.g. `MM_TECH_01` for a bot quoting `AAPL,MSFT`), via a
+  new `--label` flag (falls back to the first symbol if omitted, so a
+  single-symbol invocation with no `--label` reproduces today's ID
+  unchanged — this is the detail that keeps the change backward
+  compatible). This needs a config-side decision too: the gateway still
+  needs one `role: MARKET_MAKER` entry in `engine_config.yaml`, and every
+  symbol it quotes needs a `market_maker_quotes` seed naming that one
+  gateway ID — nothing new required there, since `market_maker_quotes` is
+  already per-symbol config referencing a `gateway_id` (confirmed in the
+  training-chapter review — `config_gen/builder.py`'s
+  `_build_mm_quote_seed`), it just needs to name the *same* gateway ID
+  under multiple symbols instead of a different gateway ID under each.
+
+### 5a.4 Per-symbol failure isolation
+
+This is the real design question, not a mechanical one: **should one
+symbol's problem take down the whole bot, or just that symbol?** Today,
+every startup failure (`auth rejected`, `no reference price`, `gap exceeds
+mm_max_spread_ticks`, an unknown symbol) is fatal to the one thing the bot
+does. With N symbols in one process, the options are:
+
+1. **All-or-nothing startup** (simplest): if any symbol fails a startup
+   check (missing from `SYMBOLS`, gap validation fails, no reference price
+   resolvable), the whole process exits non-zero, same as today. Easiest to
+   implement and reason about, worst operationally — one bad symbol name
+   in a 10-symbol `--symbols` list takes down quoting for the other 9.
+2. **Per-symbol degrade** (recommended): a symbol that fails its own
+   startup checks is logged and excluded from `self._symbols` for the rest
+   of the run — the bot proceeds quoting whichever symbols *did* pass, and
+   exits non-zero only if *zero* symbols are left quotable. This mirrors
+   the "fail closed at every step, but scoped to what actually failed"
+   philosophy the existing single-symbol state machine already has
+   (§2.4's review explicitly praised this property) — it should be
+   preserved at the per-symbol level, not lost in the transition to
+   multi-symbol.
+3. **Runtime isolation once running**: an unhandled error path for one
+   symbol (e.g. a QLEGS mismatch loop that never converges) should log and
+   keep that symbol in a paused/retrying state rather than crashing the
+   process and silently pulling every other symbol's live quotes down with
+   it — this is arguably the single biggest operational argument *for*
+   option 2's degrade-not-crash posture over option 1.
+
+Recommendation: implement option 2. It costs a bit more code (the loop
+bodies in §5a.2 need a try/except boundary per symbol instead of one
+top-level fail-fast return) but it is the behavior an operator running a
+multi-symbol MM bot unattended would actually want, and it is a direct,
+foreseeable consequence of moving from "one thing to keep alive" to "N
+independent things sharing a process."
+
+### 5a.5 Staged implementation steps
+
+1. Introduce `_SymbolState` and refactor `MMBot.__init__`/all the
+   attributes listed in §5a.2 to hold `dict[str, _SymbolState]` — with the
+   bot still constructed for exactly one symbol, so this step is a pure
+   refactor with **no behavior change**, verifiable against the full
+   existing `tests/test_mm_bot.py` suite (120 tests) unmodified.
+2. Extend `_setup_sockets`/`_dispatch`/`_tick` to loop over
+   `self._symbols` instead of assuming one entry — still driven by a
+   single-symbol CLI invocation, so still no behavior change, but now
+   exercising the loop machinery with N=1.
+3. Add the `quote_id -> symbol` map for demultiplexing `quote_ack`/
+   `quote_status` (the one genuinely new piece of state from §5a.2).
+4. Land `--symbols` (plural) in `main.py` and `mm_bot/config.py`, plus
+   `--label` for gateway identity, keeping `--symbol` (singular) as a
+   backward-compatible alias.
+5. Implement per-symbol startup degrade (§5a.4 option 2) and the
+   process-level "exit non-zero only if zero symbols survived startup"
+   check.
+6. Update `docs/user-guide/100-mm-bot.md` (a new "Multi-symbol mode"
+   section, CLI table row for `--symbols`/`--label`, an updated
+   architecture diagram) and the training chapters that reference
+   `pm-mm-bot` (`docs/training/020-setting-up-MM-bots.md`,
+   `210-automation-commandclient-mm-bot.md`) to show a single multi-symbol
+   invocation as an alternative to N single-symbol processes.
+
+### 5a.6 Testing
+
+- Every existing single-symbol test in `tests/test_mm_bot.py` must keep
+  passing unmodified through steps 1-2 above — this is the regression
+  safety net for the refactor itself.
+- New coverage needed: N=2 startup (both succeed), N=2 startup with one
+  symbol failing gap validation (confirm the other still quotes, per
+  §5a.4), a fill on symbol A's leg while symbol B has an independent
+  in-flight cancel (confirming no cross-symbol state leakage — this is
+  exactly the class of bug `TestFillDuringCancelInFlight` already guards
+  against for the single-symbol case, so the multi-symbol equivalent
+  should follow the same pattern), independent drift-triggered reprice on
+  one symbol while the other is idle, and independent QLEGS-reconciliation
+  divergence on one symbol while the other's quote is untouched.
+- `tests/test_mm_bot_config.py` needs the `--symbols`/`symbols:` plural
+  form and the `--label` flag added to its config-file coverage.
+
+### 5a.7 What this does *not* change
+
+- No engine change of any kind — everything in §5a.1 already works today.
+- No protocol/message-schema change — `quote.new`/`quote.cancel` already
+  take `symbol` per call; the bot just calls them more than once per
+  process now.
+- `QBOOT`/`QLEGS` usage pattern is unchanged in shape (one request per
+  symbol, same as today's one request for the bot's one symbol) — just
+  issued N times at startup instead of once.
+
+### 5a.8 Relationship to Phase C
+
+Phase C's swarm-of-processes launcher is not obsoleted by this plan — the
+two solve different problems:
+
+- **§5a (this section)** gives *one gateway identity* multiple symbols.
+  Use it when the goal is genuinely fewer processes/gateways to manage, or
+  when the classroom/production scenario wants to model a single MM
+  session quoting a whole sector, the way a real exchange participant
+  would.
+- **Phase C** gives *N gateway identities*, each still one symbol, just
+  launched together. Use it when the scenario specifically wants N
+  independently-attributable market makers (e.g. teaching self-match
+  prevention or per-gateway risk controls, where having a *different*
+  `gateway_id` per symbol is the point, not a limitation to work around).
+
+Both are legitimate; §5a is the answer to "why can't one bot do what one
+real MM session does," and Phase C remains the answer to "I want N
+independent bot identities without typing N commands by hand."
 
 ## 6. Explicitly Out of Scope for v1.0.0
 
