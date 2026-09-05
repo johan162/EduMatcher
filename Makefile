@@ -158,7 +158,7 @@ EPUB_DEPS           := \
 	$(EPUB_CSS_IN)
 
 TRAINING_GUIDE_MD_SOURCES := \
-	$(sort $(wildcard $(DOCS_DIR)/training/[0-9][0-9]-*.md))
+	$(sort $(wildcard $(DOCS_DIR)/training/[0-9][0-9][0-9]-*.md))
 
 TRAINING_GUIDE_TEMPLATE_DEPS := \
 	$(DOCS_DIR)/training/template_a4.tex.in \
