@@ -182,7 +182,69 @@ QUOTE CANCELLED  Q003
 
  
 
-## Exercise 7: Check Quote Bootstrap State (QBOOT)
+## Exercise 7: Cancel a Single Leg Directly — and See Why You Shouldn't
+
+`QLEGS` gives you each leg's full order ID (Exercise 2's note about
+truncation). Nothing stops you from feeding that ID straight into a plain
+`CANCEL`, bypassing `QUOTE_CANCEL` entirely. Try it.
+
+Submit a fresh quote and note the bid's full order ID from the `QUOTE ACK` line:
+
+```
+[MM_MANUAL_01]> QUOTE|SYM=AAPL|BID=149.90|ASK=150.10|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q004
+```
+
+Now cancel *only* the bid leg, by order ID, with plain `CANCEL` — not
+`QUOTE_CANCEL`:
+
+```
+[MM_MANUAL_01]> CANCEL|ID=<bid_id>
+```
+
+Expected:
+
+```
+CANCELLED <bid_id>
+```
+
+That's it — no `QUOTE CANCELLED` line, no sibling cancel. Now inspect both views:
+
+```
+[MM_MANUAL_01]> QLEGS|SYM=AAPL|SHOW=ALL
+[MM_MANUAL_01]> QBOOT|SYM=AAPL
+```
+
+You should see the bid leg's `Leg status` as `CANCELLED`, but the ask leg is
+still `NEW` and resting, and **`Quote status` on both rows still reads
+`ACTIVE`** — `QBOOT` agrees, still showing `Q004` as the active slot for this
+symbol. Compare this with Exercise 3: a fill on one leg makes the engine
+cancel the sibling and publish `QUOTE INACTIVE_*_FILLED` for you. A manual
+`CANCEL` on one leg does not — the engine treats it as an ordinary,
+independent order cancel and never consults the quote it belongs to.
+
+!!! warning "This is a real trap, not just an exercise"
+    The engine has no special handling for cancelling a single quote leg by
+    order ID. Only `QUOTE_CANCEL` (whole quote, both legs) and a fill
+    (subject to `quote_refresh_policy`) keep the quote's state consistent.
+    If you cancel one leg manually, the other leg keeps resting — silently
+    carrying one-sided market risk — while your own state and the engine's
+    have quietly diverged. Always use `QUOTE_CANCEL|SYM=<symbol>` to pull a
+    quote, never a bare `CANCEL` on one of its legs.
+
+Clean up before moving on:
+
+```
+[MM_MANUAL_01]> QUOTE_CANCEL|SYM=AAPL
+```
+
+:material-checkbox-blank-outline: **Checkpoint:** you have seen a single-leg
+`CANCEL` leave the sibling resting and both `Quote status` rows stuck on
+`ACTIVE`, and can explain why `QUOTE_CANCEL` is the only safe way to pull a
+whole quote.
+
+ 
+
+## Exercise 8: Check Quote Bootstrap State (QBOOT)
 
 After submitting a quote, inspect the bootstrap state:
 
@@ -245,7 +307,7 @@ line — and can say which one tells a restarting bot it is safe to quote.
 
  
 
-## Exercise 8: Compare Inactivation Policies
+## Exercise 9: Compare Inactivation Policies
 
 | Policy | Behaviour |
 |--------|-----------|
@@ -296,6 +358,87 @@ have observed at least two of them.
 
  
 
+## Exercise 10: Disconnect and Bulk-Cancel Behaviour
+
+Two more ways a quote gets pulled that have nothing to do with `QUOTE_CANCEL`
+or a fill: your gateway disconnecting, and the self-service kill switch.
+Both matter for risk — a quote left resting after your process dies is the
+one-sided exposure Exercise 7 warned about, just caused by a dropped
+connection instead of a stray `CANCEL`.
+
+**Part A — disconnect behaviour.** Recall the Prerequisites config:
+
+```yaml
+disconnect_behaviour: CANCEL_QUOTES_ONLY
+```
+
+Quote a symbol, add a plain resting order too, then disconnect the gateway
+(Ctrl+C or close the console):
+
+```
+[MM_MANUAL_01]> QUOTE|SYM=AAPL|BID=149.90|ASK=150.10|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q020
+[MM_MANUAL_01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=300.00|TIF=DAY
+```
+
+Disconnect `MM_MANUAL_01` (Ctrl+C), then reconnect the same way as in the
+Prerequisites and check both:
+
+```bash
+pm-alf-console --id MM_MANUAL_01
+```
+
+```
+[MM_MANUAL_01]> QBOOT|SYM=AAPL
+[MM_MANUAL_01]> ORDERS
+```
+
+`ORDERS` has no symbol filter — it lists everything resting under this
+gateway. Expected: the `AAPL` quote is gone (`QBOOT` reports no active entry
+for it), but the `MSFT` limit order is still listed by `ORDERS`, resting
+exactly as you left it.
+`CANCEL_QUOTES_ONLY` — the default — cancels only quotes on disconnect;
+ordinary resting orders are untouched. There are two other values: `CANCEL_ALL`
+additionally sweeps every plain resting order too, and `LEAVE_ALL` cancels
+nothing at all, leaving both quotes and orders resting across the
+disconnect. Which one you want is a risk decision, not a technical one —
+`LEAVE_ALL` trusts the MM to reconcile via `QBOOT`/`QLEGS` on reconnect
+(Exercise 8's note on surviving quotes); `CANCEL_QUOTES_ONLY` assumes a
+disconnected quoting engine can no longer manage its own risk and should not
+keep resting prices in the book; `CANCEL_ALL` extends that same assumption
+to every order, not just quotes.
+
+**Part B — self-service `KILL`.** `QUOTE_CANCEL` is symbol-scoped and only
+touches quotes. When you need to pull everything for your own gateway in one
+shot — every active quote *and* every plain resting order, across every
+symbol — use `KILL`:
+
+```
+[MM_MANUAL_01]> KILL
+```
+
+Expected:
+
+```
+KILL ACK  cancelled_orders=<n> cancelled_quotes=<n>
+```
+
+`cancelled_quotes` counts individual legs, not quote records, so a single
+two-sided quote contributes up to 2 to that count. Scope it to one symbol
+with `KILL|SYM=<symbol>` instead of clearing every symbol at once.
+
+!!! note "This is not the admin `KILL|GW=...`"
+    `KILL` on its own is self-service — a gateway can only kill its *own*
+    exposure this way. An admin pulling another participant's exposure uses
+    `KILL|GW=<gateway_id>` instead, covered in
+    [19 — Advanced Admin Operations](190-advanced-admin-operations.md).
+
+:material-checkbox-blank-outline: **Checkpoint:** you have seen a quote
+disappear on disconnect while a plain order survived under
+`CANCEL_QUOTES_ONLY`, and used `KILL` to clear all of your own gateway's
+exposure in one command.
+
+ 
+
 ## Key Takeaways
 
 - The QUOTE command creates two linked limit orders (bid + ask).
@@ -306,6 +449,17 @@ have observed at least two of them.
 - Use QBOOT first during startup, then QLEGS for leg-level reconciliation.
 - Replacement quotes don't require explicit cancel first.
 - `order.fill` **does** include `quote_id` for a quote-leg fill, so you can correlate a fill back to the quote directly as well as via the leg order IDs.
+- A plain `CANCEL` on one leg's order ID does **not** cancel the sibling or
+  update `Quote status` — only `QUOTE_CANCEL`, or a fill under your
+  `quote_refresh_policy`, keep the quote consistent. Never cancel a single
+  leg manually.
+- On disconnect, `disconnect_behaviour` decides what happens to your
+  exposure: `CANCEL_QUOTES_ONLY` (default) cancels quotes only,
+  `CANCEL_ALL` also cancels plain resting orders, `LEAVE_ALL` cancels
+  neither.
+- `KILL` (optionally `KILL|SYM=<symbol>`) is the self-service bulk cancel —
+  every quote and every plain order for your own gateway in one command;
+  `KILL|GW=<gateway_id>` is the admin equivalent for another gateway.
 
  
 
@@ -317,6 +471,12 @@ completely independent? What could go wrong for a market maker's risk
 exposure if one leg filled and the sibling stayed resting under a
 `NEVER_INACTIVATE` policy?
 
+Why do you think the engine cascades a sibling cancel on a *fill* but not on
+a manual `CANCEL` of one leg? What would have to change internally for
+single-leg `CANCEL` to be quote-aware, and can you think of a reason the
+engine might deliberately *not* want that — i.e., a case where cancelling
+one leg without touching the other is exactly what you'd want?
+
 ## Further Reading
 
 - [Market Making](../user-guide/090-market-maker.md)
@@ -325,6 +485,7 @@ exposure if one leg filled and the sibling stayed resting under a
 - [ALF Console (pm-alf-console)](../user-guide/055-alf-console.md)
 - [MM Quotes Concept](../concepts/03-concepts-mm-quotes.md)
 - [ALF Protocol Reference](../user-guide/900-app-alf-protocol.md)
+- [Advanced Admin Operations — admin-side KILL and QCANCEL](190-advanced-admin-operations.md)
 
  
 
