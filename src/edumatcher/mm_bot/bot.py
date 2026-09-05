@@ -13,7 +13,7 @@ from typing import Any
 import zmq
 
 from edumatcher.messaging.bus import make_pusher, make_subscriber
-from edumatcher.models.price import to_ticks
+from edumatcher.models.price import register_tick_decimals, to_ticks
 from edumatcher.models.message import (
     decode,
     make_gateway_connect_msg,
@@ -23,7 +23,7 @@ from edumatcher.models.message import (
     make_quote_new_msg,
     make_symbols_request_msg,
 )
-from edumatcher.mm_bot.pricer import QuotePricer
+from edumatcher.mm_bot.pricer import PricingStrategy, create_strategy
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 from edumatcher.models.generated.circuit_breaker import (
@@ -75,6 +75,7 @@ class MMBot:
         *,
         gateway_id: str,
         symbol: str,
+        strategy: str,
         gap: float,
         gap_was_explicit: bool,
         qty: int,
@@ -95,6 +96,7 @@ class MMBot:
     ) -> None:
         self.gateway_id = gateway_id
         self.symbol = symbol
+        self.strategy = strategy
         self.gap = gap
         self._gap_was_explicit = gap_was_explicit
         self.qty = qty
@@ -119,7 +121,7 @@ class MMBot:
         self._state = BotState.CONNECTING
         self._session_state: str | None = None
         self._tick_size = 0.01  # default; updated from symbol metadata
-        self._pricer: QuotePricer | None = None
+        self._pricer: PricingStrategy | None = None
         self._mm_max_spread_ticks: int | None = None
 
         # Quote tracking
@@ -289,7 +291,9 @@ class MMBot:
                     if str(meta.get("symbol", "")).upper() != self.symbol:
                         continue
                     if "tick_decimals" in meta:
-                        self._tick_size = 10 ** -int(meta["tick_decimals"])
+                        tick_decimals = int(meta["tick_decimals"])
+                        self._tick_size = 10**-tick_decimals
+                        register_tick_decimals(self.symbol, tick_decimals)
                     if "mm_max_spread_ticks" in meta:
                         try:
                             self._mm_max_spread_ticks = int(meta["mm_max_spread_ticks"])
@@ -795,7 +799,8 @@ class MMBot:
     def run(self) -> int:
         """Run the bot event loop. Returns exit code."""
         self._log(
-            f"starting: symbol={self.symbol} gap={self.gap} qty={self.qty} "
+            f"starting: symbol={self.symbol} strategy={self.strategy} "
+            f"gap={self.gap} qty={self.qty} "
             f"tif={self.tif} drift_ticks={self.drift_ticks}"
         )
         self._setup_sockets()
@@ -841,15 +846,16 @@ class MMBot:
                 )
                 return 1
 
-        # Step 3: Initialize pricer
+        # Step 3: Initialize pricing strategy
         try:
-            self._pricer = QuotePricer(
+            self._pricer = create_strategy(
+                self.strategy,
                 tick_size=self._tick_size,
                 gap=self.gap,
                 drift_ticks=self.drift_ticks,
             )
         except ValueError as exc:
-            self._log(f"startup failed: invalid gap/tick configuration: {exc}")
+            self._log(f"startup failed: invalid strategy/gap/tick configuration: {exc}")
             return 1
 
         # Step 4: QBOOT — try adoption

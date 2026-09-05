@@ -9,6 +9,7 @@
     - How quote refresh works after fills and mid-price drift
     - How to configure gateway entries in `engine_config.yaml` for MM bots
     - How to bootstrap a fresh exchange with no existing book data
+    - How to keep a bot's parameters in a version-controlled `--config` file
 
     **Prerequisites**: [Market Making](090-market-maker.md) — understand the `QUOTE` command,
     `quote_refresh_policy`, and `disconnect_behaviour` before using the bot.
@@ -279,7 +280,9 @@ pm-mm-bot --symbol AAPL --initial_min 95.00 --initial_max 105.00
 
 | Argument                           | Default                | Description                                                        |
 |------------------------------------|------------------------|--------------------------------------------------------------------|
-| `--symbol SYM`                     | *required*             | Instrument to make a market in                                     |
+| `--config PATH`                    | *unset*                | YAML file supplying any flag below by long name (see [Config file](#config-file)) |
+| `--symbol SYM`                     | *required*              | Instrument to make a market in — required unless supplied by `--config` |
+| `--strategy NAME`                  | `symmetric`            | Pricing strategy (only `symmetric` exists today)                   |
 | `--gap PRICE`                      | `0.10`                 | Total spread (bid at mid−gap/2, ask at mid+gap/2)                  |
 | `--qty N`                          | `500`                  | Quote size on each leg                                             |
 | `--id-suffix NN`                   | `01`                   | Running number for gateway ID (`MM_AAPL_01`)                       |
@@ -299,6 +302,57 @@ pm-mm-bot --symbol AAPL --initial_min 95.00 --initial_max 105.00
 | `--log-level`                      | `WARNING`              | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`    |
 | `-v`, `--verbose`                  | `false`                | Increase verbosity (`-v` enables bot debug prints, `-vv` sets DEBUG) |
 | `-q`, `--quiet`                    | `false`                | Reduce output to warnings/errors                                   |
+
+---
+
+## Config file
+
+Every flag above except `--config` itself and the logging flags
+(`--log-level`, `-v`/`--verbose`, `-q`/`--quiet`, `--log-target`, `--log-file`,
+`--log-failover-timeout`) can instead live in a YAML file, keyed by the flag's
+long name with dashes replaced by underscores:
+
+```yaml
+# mm_aapl.yaml
+symbol: AAPL
+id_suffix: "01"
+strategy: symmetric
+gap: 0.08
+qty: 300
+tif: GTC
+drift_ticks: 4
+```
+
+```bash
+pm-mm-bot --config mm_aapl.yaml
+```
+
+An explicit CLI flag always overrides the same key from the file — so
+`pm-mm-bot --config mm_aapl.yaml --gap 0.12` quotes with `gap=0.12` even
+though the file says `0.08`. This makes it easy to keep one committed file
+per symbol for a classroom session while still overriding a single value
+from the command line for a one-off run. A gap set in the file (like a
+`--gap` typed on the CLI) counts as an explicit choice: the bot will not
+silently override it with the MM-obligation default described in
+[Gap validation](#gap-validation) below.
+
+`--symbol` may be omitted from the CLI as long as the config file supplies
+it; `pm-mm-bot` fails fast with a usage error if neither does. An unknown
+key in the file (a typo, or a flag name spelled with dashes instead of
+underscores) is also a fast, explicit startup failure rather than being
+silently ignored.
+
+### Pricing strategies
+
+`--strategy` (or the file's `strategy:` key) selects which pricing logic the
+bot uses to compute bid/ask from the tracked mid-price. `symmetric` — quote
+symmetrically around mid at a fixed `--gap`, described in
+[Pricing logic](#pricing-logic) above — is the only strategy shipped today.
+The bot fails fast at startup if `--strategy` names anything else. The
+selection point exists so a future strategy (e.g. one that skews the quote
+by inventory, or widens the gap with volatility) can be added as a new
+pricing module without changing the bot's state machine, ZMQ handling, or
+CLI plumbing.
 
 ---
 
@@ -401,6 +455,12 @@ pm-mm-bot --symbol AAPL --initial_min 95.00 --initial_max 105.00
 pm-mm-bot --symbol AAPL --gap 0.10 --qty 500 -v
 ```
 
+### Config file, with one value overridden on the CLI
+
+```bash
+pm-mm-bot --config mm_aapl.yaml --gap 0.12
+```
+
 ---
 
 ## Understanding bot output
@@ -410,7 +470,7 @@ verbosity the bot is quiet — it only logs milestones and problems, not routine
 quoting activity:
 
 ```
-[MM:MM_AAPL_01 09:30:00] starting: symbol=AAPL gap=0.1 qty=500 tif=DAY drift_ticks=3
+[MM:MM_AAPL_01 09:30:00] starting: symbol=AAPL strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
 [MM:MM_AAPL_01 09:30:01] authenticated
 [MM:MM_AAPL_01 09:30:01] bootstrap from random range: 150.00
 [MM:MM_AAPL_01 09:30:14] quote REJECTED: gap exceeds mm_max_spread_ticks
@@ -453,6 +513,8 @@ low-level flow tracing (e.g. `book mid=...`, `session: OLD -> NEW`, and
 | Symptom | Cause | Fix |
 |---|---|---|
 | `auth rejected` | Gateway ID not in `engine_config.yaml` | Add the `MM_<SYM>_<nn>` entry with `role: MARKET_MAKER` |
+| `invalid config file: ... unknown key(s)` | A `--config` file has a typo'd or unsupported key | Check the key against [Config file](#config-file) — long flag name, dashes as underscores |
+| `--symbol is required (directly or via --config)` | Neither `--symbol` nor the config file's `symbol:` key was given | Add one of the two |
 | `startup failed: no reference price` | Empty book + no `--initial_min`/`--initial_max` | Add bootstrap range flags |
 | `startup failed: no session.state` | Engine not running or scheduler not started | Start the engine and scheduler |
 | `quote REJECTED` | Gap or qty violates MM obligation policy | Reduce `--gap` / increase `--qty` or adjust gateway MM settings |

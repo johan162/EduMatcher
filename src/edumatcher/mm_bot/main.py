@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from pathlib import Path
 
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
@@ -12,6 +13,7 @@ from edumatcher.log_srv.config import (
     resolve_host_default,
 )
 from edumatcher.logclient.discovery import resolve_handler
+from edumatcher.mm_bot.config import load_config_file
 
 log = logging.getLogger(__name__)
 
@@ -27,7 +29,23 @@ def _build_parser() -> argparse.ArgumentParser:
 
     add_version_argument(parser, "pm-mm-bot")
     parser.add_argument(
-        "--symbol", required=True, help="Instrument to make a market in (e.g. AAPL)"
+        "--config",
+        metavar="PATH",
+        help=(
+            "YAML file supplying any of these flags by long name "
+            "(dashes as underscores); an explicit CLI flag overrides the "
+            "same key from the file"
+        ),
+    )
+    parser.add_argument(
+        "--symbol",
+        help="Instrument to make a market in (e.g. AAPL) — required unless "
+        "supplied by --config",
+    )
+    parser.add_argument(
+        "--strategy",
+        default="symmetric",
+        help="Pricing strategy (default: symmetric)",
     )
     parser.add_argument(
         "--gap",
@@ -207,12 +225,33 @@ def _configure_logging(args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> None:
     """Main entry point for pm-mm-bot."""
     cli_args = argv if argv is not None else sys.argv[1:]
-    # Detect both the "--gap 0.10" and "--gap=0.10" forms.
-    gap_was_explicit = any(
+    parser = _build_parser()
+
+    # First pass: only to find --config, before applying its values as
+    # parser defaults below. A bare parse (no config-file defaults in play
+    # yet) is enough for this — argparse ignores --symbol being unset here.
+    config_path = parser.parse_known_args(cli_args)[0].config
+    file_values: dict[str, object] = {}
+    if config_path is not None:
+        try:
+            file_values = load_config_file(Path(config_path))
+        except ValueError as exc:
+            log.error("invalid config file: %s", exc)
+            raise SystemExit(1)
+        parser.set_defaults(**file_values)
+
+    # Detect both the "--gap 0.10" and "--gap=0.10" forms. A gap pinned by
+    # the config file counts the same as one pinned on the CLI — either way
+    # the user (not the built-in 0.10 default) chose it, so the MM-obligation
+    # auto-derivation in bot.py must not override it.
+    gap_was_explicit = "gap" in file_values or any(
         arg == "--gap" or arg.startswith("--gap=") for arg in cli_args
     )
-    parser = _build_parser()
+
     args = parser.parse_args(argv)
+    if not args.symbol:
+        parser.error("--symbol is required (directly or via --config)")
+
     log_level = _configure_logging(args)
     log.info("starting pm-mm-bot with log level %s", logging.getLevelName(log_level))
 
@@ -251,9 +290,11 @@ def main(argv: list[str] | None = None) -> None:
     gateway_id = f"MM_{symbol}_{args.id_suffix}"
     bot_verbose = bool(args.verbose >= 1 or log_level <= logging.DEBUG)
     log.info(
-        "resolved mm_bot config gateway_id=%s symbol=%s gap=%s qty=%s tif=%s",
+        "resolved mm_bot config gateway_id=%s symbol=%s strategy=%s gap=%s qty=%s "
+        "tif=%s",
         gateway_id,
         symbol,
+        args.strategy,
         args.gap,
         args.qty,
         args.tif,
@@ -274,6 +315,7 @@ def main(argv: list[str] | None = None) -> None:
         bot = MMBot(
             gateway_id=gateway_id,
             symbol=symbol,
+            strategy=args.strategy,
             gap=args.gap,
             gap_was_explicit=gap_was_explicit,
             qty=args.qty,

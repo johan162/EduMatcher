@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import time
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 from edumatcher.mm_bot.bot import BotState, MMBot
-from edumatcher.mm_bot.pricer import QuotePricer
+from edumatcher.mm_bot.pricer import available_strategies, create_strategy, QuotePricer
 from edumatcher.models.message import decode as msg_decode, encode
+from edumatcher.models.price import clear_tick_registry, get_tick_decimals, to_ticks
 
 # ========================================================================
 # Unit Tests — QuotePricer
@@ -234,6 +236,26 @@ class TestQuotePricerDecimals:
         assert p._price_decimals == 0
 
 
+class TestStrategyFactory:
+    """Test the strategy-selection factory in pricer.py."""
+
+    def test_symmetric_is_available(self) -> None:
+        assert "symmetric" in available_strategies()
+
+    def test_create_symmetric_returns_quote_pricer(self) -> None:
+        strategy = create_strategy("symmetric", tick_size=0.01, gap=0.10, drift_ticks=3)
+        assert isinstance(strategy, QuotePricer)
+
+    def test_create_unknown_strategy_raises(self) -> None:
+        with pytest.raises(ValueError, match="Unknown strategy 'skewed'"):
+            create_strategy("skewed", tick_size=0.01, gap=0.10, drift_ticks=3)
+
+    def test_create_propagates_constructor_validation(self) -> None:
+        """Invalid strategy parameters (e.g. gap too small) still raise."""
+        with pytest.raises(ValueError, match="gap.*must be at least"):
+            create_strategy("symmetric", tick_size=0.01, gap=0.01, drift_ticks=3)
+
+
 # ========================================================================
 # Tests — main.py argument parsing and validation
 # ========================================================================
@@ -294,6 +316,151 @@ class TestMainParsing:
             mm_main.main(["--symbol", "MSFT", "--id-suffix", "03"])
         bot = bot_instances[0]
         assert bot.kwargs["gateway_id"] == "MM_MSFT_03"  # type: ignore[attr-defined]
+
+    def test_main_default_strategy_is_symmetric(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """--strategy defaults to symmetric when not given."""
+        from edumatcher.mm_bot import main as mm_main
+
+        bot_instances: list[object] = []
+
+        class FakeBot:
+            def __init__(self, **kwargs: object) -> None:
+                self.kwargs = kwargs
+                bot_instances.append(self)
+                self._running = True
+
+            def run(self) -> int:
+                return 0
+
+            def shutdown(self) -> None:
+                pass
+
+        monkeypatch.setattr("edumatcher.mm_bot.bot.MMBot", FakeBot)
+        with pytest.raises(SystemExit):
+            mm_main.main(["--symbol", "AAPL"])
+        bot = bot_instances[0]
+        assert bot.kwargs["strategy"] == "symmetric"  # type: ignore[attr-defined]
+
+    def test_main_config_file_supplies_symbol_and_params(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """--config alone (no --symbol on the CLI) fully configures the bot."""
+        from edumatcher.mm_bot import main as mm_main
+
+        config_path = tmp_path / "mm_aapl.yaml"
+        config_path.write_text("symbol: AAPL\ngap: 0.08\nqty: 300\ntif: GTC\n")
+
+        bot_instances: list[object] = []
+
+        class FakeBot:
+            def __init__(self, **kwargs: object) -> None:
+                self.kwargs = kwargs
+                bot_instances.append(self)
+                self._running = True
+
+            def run(self) -> int:
+                return 0
+
+            def shutdown(self) -> None:
+                pass
+
+        monkeypatch.setattr("edumatcher.mm_bot.bot.MMBot", FakeBot)
+        with pytest.raises(SystemExit) as exc_info:
+            mm_main.main(["--config", str(config_path)])
+        assert exc_info.value.code == 0
+        bot = bot_instances[0]
+        assert bot.kwargs["symbol"] == "AAPL"  # type: ignore[attr-defined]
+        assert bot.kwargs["gap"] == 0.08  # type: ignore[attr-defined]
+        assert bot.kwargs["qty"] == 300  # type: ignore[attr-defined]
+        assert bot.kwargs["tif"] == "GTC"  # type: ignore[attr-defined]
+
+    def test_main_cli_flag_overrides_config_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An explicit CLI flag wins over the same key in --config."""
+        from edumatcher.mm_bot import main as mm_main
+
+        config_path = tmp_path / "mm_aapl.yaml"
+        config_path.write_text("symbol: AAPL\ngap: 0.08\n")
+
+        bot_instances: list[object] = []
+
+        class FakeBot:
+            def __init__(self, **kwargs: object) -> None:
+                self.kwargs = kwargs
+                bot_instances.append(self)
+                self._running = True
+
+            def run(self) -> int:
+                return 0
+
+            def shutdown(self) -> None:
+                pass
+
+        monkeypatch.setattr("edumatcher.mm_bot.bot.MMBot", FakeBot)
+        with pytest.raises(SystemExit):
+            mm_main.main(["--config", str(config_path), "--gap", "0.20"])
+        bot = bot_instances[0]
+        assert bot.kwargs["gap"] == 0.20  # type: ignore[attr-defined]
+
+    def test_main_config_gap_counts_as_explicit(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A gap pinned by --config (not typed on the CLI) still counts as
+        explicit, so bot.py's MM-obligation auto-derivation must not
+        override it."""
+        from edumatcher.mm_bot import main as mm_main
+
+        config_path = tmp_path / "mm_aapl.yaml"
+        config_path.write_text("symbol: AAPL\ngap: 0.08\n")
+
+        bot_instances: list[object] = []
+
+        class FakeBot:
+            def __init__(self, **kwargs: object) -> None:
+                self.kwargs = kwargs
+                bot_instances.append(self)
+                self._running = True
+
+            def run(self) -> int:
+                return 0
+
+            def shutdown(self) -> None:
+                pass
+
+        monkeypatch.setattr("edumatcher.mm_bot.bot.MMBot", FakeBot)
+        with pytest.raises(SystemExit):
+            mm_main.main(["--config", str(config_path)])
+        bot = bot_instances[0]
+        assert bot.kwargs["gap_was_explicit"] is True  # type: ignore[attr-defined]
+
+    def test_main_missing_symbol_exits(self) -> None:
+        """No --symbol and no --config exits with a usage error."""
+        from edumatcher.mm_bot import main as mm_main
+
+        with pytest.raises(SystemExit) as exc_info:
+            mm_main.main([])
+        assert exc_info.value.code == 2
+
+    def test_main_config_file_not_found_exits(self, tmp_path: Path) -> None:
+        """A --config path that doesn't exist exits cleanly with rc=1."""
+        from edumatcher.mm_bot import main as mm_main
+
+        with pytest.raises(SystemExit) as exc_info:
+            mm_main.main(["--config", str(tmp_path / "missing.yaml")])
+        assert exc_info.value.code == 1
+
+    def test_main_config_unknown_key_exits(self, tmp_path: Path) -> None:
+        """A --config file with an unrecognized key exits cleanly with rc=1."""
+        from edumatcher.mm_bot import main as mm_main
+
+        config_path = tmp_path / "bad.yaml"
+        config_path.write_text("symbol: AAPL\nbogus_key: 1\n")
+        with pytest.raises(SystemExit) as exc_info:
+            mm_main.main(["--config", str(config_path)])
+        assert exc_info.value.code == 1
 
     def test_main_invalid_bootstrap_range(self) -> None:
         """Only initial_min without max raises SystemExit via ValueError."""
@@ -459,6 +626,7 @@ def _make_bot(
     bot = MMBot(
         gateway_id="MM_AAPL_01",
         symbol="AAPL",
+        strategy="symmetric",
         gap=0.10,
         gap_was_explicit=gap_was_explicit,
         qty=500,
@@ -787,6 +955,42 @@ class TestMMBotStartup:
         )
         rc = bot.run()
         assert rc == 1
+
+    def test_symbols_reply_registers_tick_decimals_globally(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """tick_decimals from the symbols reply must reach the shared price
+        registry, not just the bot's own ``_tick_size`` — otherwise
+        ``to_ticks()`` (used to build the outgoing quote) silently falls back
+        to the 2-decimal default for any other tick size."""
+        bot, push, sub = _make_bot(monkeypatch, initial_min=95.0, initial_max=105.0)
+        sub.recv_queue.extend(
+            [
+                _auth_msg(),
+                encode(
+                    "system.symbols.MM_AAPL_01",
+                    {"symbols": [{"symbol": "AAPL", "tick_decimals": 4}]},
+                ),
+                _boot_msg(),
+                _qlegs_msg(),
+                _session_msg("CONTINUOUS"),
+            ]
+        )
+
+        monkeypatch.setattr(
+            "edumatcher.mm_bot.bot.signal.signal", lambda *a, **kw: None
+        )
+        # register_tick_decimals mutates a process-wide registry (see
+        # models/price.py) — clear it before and after so this test's
+        # non-default 4-decimal AAPL registration can't leak into any other
+        # test file's assumption that AAPL is 2 decimals.
+        clear_tick_registry()
+        try:
+            bot.run()
+            assert get_tick_decimals("AAPL") == 4
+            assert to_ticks(100.1234, "AAPL") == 1001234
+        finally:
+            clear_tick_registry()
 
 
 class TestMMBotQuoting:
@@ -1176,7 +1380,7 @@ class TestMMBotDispatch:
     def test_dispatch_trade_executed(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Dispatch trade.executed updates mid when no book data."""
         bot, push, sub = self._ready_bot(monkeypatch)
-        assert bot._pricer is not None
+        assert isinstance(bot._pricer, QuotePricer)
         bot._pricer._mid_price = None  # reset mid
 
         bot._dispatch("trade.executed", {"symbol": "AAPL", "price": 99.50})
@@ -1187,7 +1391,7 @@ class TestMMBotDispatch:
     ) -> None:
         """trade.executed for different symbol is ignored."""
         bot, push, sub = self._ready_bot(monkeypatch)
-        assert bot._pricer is not None
+        assert isinstance(bot._pricer, QuotePricer)
         bot._pricer._mid_price = None
 
         bot._dispatch("trade.executed", {"symbol": "MSFT", "price": 50.0})
@@ -1567,6 +1771,19 @@ class TestRunLoopInvalidGap:
         rc = bot.run()
         assert rc == 1
 
+    def test_unknown_strategy_exits_cleanly(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An unrecognized --strategy name is a startup failure, not a crash."""
+        bot, push, sub = _make_bot(monkeypatch)
+        bot.strategy = "skewed"
+        _setup_full_startup(sub)
+        monkeypatch.setattr(
+            "edumatcher.mm_bot.bot.signal.signal", lambda *a, **kw: None
+        )
+        rc = bot.run()
+        assert rc == 1
+
 
 class TestHandleBookMissingPrice:
     """Bug fix: _handle_book must not raise KeyError on malformed level."""
@@ -1799,7 +2016,7 @@ class TestAdditionalBotPaths:
     def test_send_quote_no_mid_skips(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """_send_quote does nothing when no mid-price is set."""
         bot, push, sub = self._ready_bot(monkeypatch)
-        assert bot._pricer is not None
+        assert isinstance(bot._pricer, QuotePricer)
         bot._pricer._mid_price = None
         push.sent.clear()
 

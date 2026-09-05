@@ -7,10 +7,39 @@ bid/ask prices, tracks mid-price, and detects drift.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
+from typing import Protocol
+
+
+class PricingStrategy(Protocol):
+    """The surface ``MMBot`` needs from a pricing strategy.
+
+    Any class implementing these six members can stand in for
+    ``QuotePricer`` in ``MMBot._pricer`` — the state machine, ZMQ handling,
+    and reissue/heartbeat logic never depend on which concrete strategy is
+    active. ``QuotePricer`` (below) is today's only implementation.
+    """
+
+    @property
+    def mid_price(self) -> float | None: ...
+
+    @property
+    def price_decimals(self) -> int: ...
+
+    def update_mid(self, best_bid: float | None, best_ask: float | None) -> None: ...
+
+    def set_mid(self, price: float) -> None: ...
+
+    def compute_prices(self) -> tuple[float, float]: ...
+
+    def has_drifted(self, quoted_at_mid: float) -> bool: ...
 
 
 class QuotePricer:
     """Compute symmetric two-sided quote prices around a mid-price.
+
+    This is the ``"symmetric"`` strategy referenced by ``--strategy`` /
+    ``mm_bot/config.py`` — it satisfies :class:`PricingStrategy` structurally.
 
     Parameters
     ----------
@@ -124,3 +153,38 @@ class QuotePricer:
                     f"--initial_min ({initial_min}) must be less than "
                     f"--initial_max ({initial_max})"
                 )
+
+
+# Registered strategy names -> constructor function. "symmetric"
+# (QuotePricer) is the only one today; a future strategy (e.g.
+# inventory-skewed) registers here under its own name and MMBot picks it up
+# via --strategy / the config file's `strategy:` key with no other code
+# changes. A Callable, not `type[PricingStrategy]`, because Protocol does
+# not model constructor signatures — this keeps each strategy free to take
+# whatever __init__ arguments it needs behind a common factory signature.
+_StrategyFactory = Callable[[float, float, int], PricingStrategy]
+_STRATEGIES: dict[str, _StrategyFactory] = {
+    "symmetric": lambda tick_size, gap, drift_ticks: QuotePricer(
+        tick_size=tick_size, gap=gap, drift_ticks=drift_ticks
+    ),
+}
+
+
+def create_strategy(
+    name: str, *, tick_size: float, gap: float, drift_ticks: int
+) -> PricingStrategy:
+    """Construct the named pricing strategy.
+
+    Raises ValueError for an unknown strategy name or invalid parameters
+    (the latter propagated from the strategy's own constructor).
+    """
+    try:
+        factory = _STRATEGIES[name]
+    except KeyError:
+        allowed = ", ".join(sorted(_STRATEGIES))
+        raise ValueError(f"Unknown strategy '{name}'. Allowed: {allowed}") from None
+    return factory(tick_size, gap, drift_ticks)
+
+
+def available_strategies() -> list[str]:
+    return sorted(_STRATEGIES)

@@ -1,10 +1,20 @@
-Version: 1.0.0
+Version: 1.1.0
 
 Date: 2026-09-05
 
-Status: Review — for discussion
+Status: Phases A and B implemented (see §5) — remaining phases still for discussion
 
 # EduMatcher — Market-Maker Bot Functional Review (pm-mm-bot)
+
+> **Update (v1.1.0):** Phase A (the `register_tick_decimals` fix and the
+> stale `pm-config-gen` doc note) and Phase B (config-file support and the
+> `PricingStrategy` interface) from §5 below have been implemented — see
+> `docs-design/EduMatcher-MM-bots.md` §14.4 (now marked Implemented, v1.2.0)
+> and `docs/user-guide/100-mm-bot.md` § Config file for the shipped design
+> and usage. The rest of this document is left as originally written: an
+> accurate record of the review that motivated the change, not a live status
+> page. Phases C–E (multi-symbol mode, risk/operability items, and the final
+> documentation/sign-off pass) remain open.
 
 ## Table of Contents
 
@@ -63,6 +73,11 @@ symbol inside one process). That is the template to reuse rather than
 inventing a new supervision model (see §5, Phase C).
 
 ### 2.2 Config file vs. CLI options for strategy selection
+
+**As of v1.1.0 of this document, this has been implemented — see the update
+note at the top of this file and §5 Phase B.** The analysis below describes
+the state at the time of the original review and remains accurate as a
+record of why the change was made.
 
 **CLI flags only — there is no config-file mode.** `main.py` builds an
 `argparse` parser with about 20 flags (`--gap`, `--qty`, `--drift-ticks`,
@@ -308,6 +323,9 @@ standardize one way or the other.
 
 ## 4. Confirmed Bugs and Discrepancies
 
+**Both items below are fixed as of v1.1.0 of this document — see the update
+note at the top of this file.**
+
 1. **Missing `register_tick_decimals()` call — silent wrong price scale on
    non-default-tick symbols.** `_request_symbols()` (`bot.py:269-303`)
    extracts `tick_decimals` from the symbol-metadata reply and sets
@@ -345,30 +363,67 @@ all fixed per the CHANGELOG and covered by dedicated regression tests.
 
 ## 5. Plan to v1.0.0
 
-### Phase A — Correctness fixes (blocking)
+### Phase A — Correctness fixes (blocking) — Done
 
-- Add the missing `register_tick_decimals()` call in `_request_symbols()`
-  (§4.1). Add a regression test asserting `to_ticks()` uses the bot's own
-  registered scale even when no other process has registered the symbol
-  first (construct the test so the global registry starts empty for that
-  symbol).
-- Correct the stale `pm-config-gen` note in §9.2 of
-  `EduMatcher-MM-bots.md` (§4.2).
+- Added the missing `register_tick_decimals()` call in `_request_symbols()`
+  (§4.1), alongside the existing `self._tick_size` assignment. Added
+  `TestMMBotStartup::test_symbols_reply_registers_tick_decimals_globally` in
+  `tests/test_mm_bot.py`, which registers a non-default (4-decimal) tick size
+  and asserts both `get_tick_decimals()` and `to_ticks()` pick it up; the
+  test clears the shared tick registry before and after itself so a
+  non-default registration for `AAPL` can't leak into other test files.
+- Corrected the stale `pm-config-gen` note in §9.2 of `EduMatcher-MM-bots.md`
+  (§4.2) — it now gives the full, working command (`--symbols` is required
+  alongside `--gateways`) and notes the `MARKET_MAKER` default
+  `disconnect_behaviour`.
 
-### Phase B — Config-file strategy support
+### Phase B — Config-file strategy support — Done
 
-- Introduce a `StrategyConfig` YAML schema (`strategy: symmetric | ...` plus
-  per-strategy parameters) and a `--config PATH` flag, with CLI flags
-  continuing to override config-file values for the fields they both cover.
-  Keep `symmetric` (the current, only strategy) as the default so existing
-  CLI-only invocations keep working unchanged.
-- Refactor `pricer.py`'s `QuotePricer` interface (`update_mid`/`set_mid`,
-  `compute_prices`, `has_drifted`) into a small `Strategy` protocol so a
-  second strategy class can be added later without touching `bot.py`'s
-  state machine.
-- This directly resolves §14.4 of the existing design doc and unblocks
-  §2.6's answer above (skewed/volatility-adaptive strategies become new
-  pricer classes, not state-machine changes).
+- Added `mm_bot/config.py`: `load_config_file(path) -> dict`, validating the
+  file is a YAML mapping whose keys are a fixed allow-list mirroring every
+  CLI flag's argparse `dest` name (this includes `symbol` and `id_suffix`,
+  not just tuning parameters — the file can fully replace the CLI for a
+  given bot instance). Unknown keys, unreadable files, and invalid YAML all
+  raise `ValueError` with the file path and reason.
+- `main.py` now takes `--config PATH` and `--strategy NAME` (default
+  `symmetric`). Loading is a two-pass `argparse` parse: a bare
+  `parse_known_args` finds `--config`, its values are applied via
+  `parser.set_defaults(**file_values)`, then the real `parse_args()` runs —
+  so an explicit CLI flag always overrides the same key from the file, with
+  no per-field bookkeeping. `--symbol` is no longer `required=True` at the
+  argparse level; `main()` checks after parsing that it ended up set one way
+  or the other. The existing `--gap`-was-explicit detection (which suppresses
+  the MM-obligation auto-default) was extended to also treat a `gap:` key in
+  the config file as explicit, not just a CLI flag.
+- Added `PricingStrategy` (a `Protocol` in `pricer.py`) covering the six
+  members `bot.py` actually calls on `self._pricer`
+  (`mid_price`, `price_decimals`, `update_mid`, `set_mid`, `compute_prices`,
+  `has_drifted`). `QuotePricer` is unchanged and satisfies it structurally —
+  no inheritance, no renaming, so existing callers and tests were unaffected
+  beyond one constructor-signature change (see below). Added
+  `create_strategy(name, *, tick_size, gap, drift_ticks) -> PricingStrategy`,
+  a small registry (`{"symmetric": ...}` today) keyed by `--strategy`,
+  raising `ValueError` for an unknown name; `bot.py`'s `_run_loop` now calls
+  this factory instead of constructing `QuotePricer` directly, and `_pricer`
+  is typed as `PricingStrategy | None`.
+- `MMBot.__init__` gained a required `strategy: str` parameter (threaded
+  through from `main.py`'s `--strategy`/config value) — every direct
+  `MMBot(...)` call site, including the test fixture, needed a `strategy=`
+  kwarg added.
+- This directly resolves §14.4 of the existing design doc (now marked
+  Implemented, v1.2.0) and unblocks §2.6's answer above: a future
+  skewed/volatility-adaptive strategy is a new class registered in
+  `pricer.py`'s factory, with no change to `bot.py`'s state machine, ZMQ
+  handling, or CLI plumbing.
+- Added `tests/test_mm_bot_config.py` (6 tests for `config.py` in isolation)
+  and 18 new tests in `tests/test_mm_bot.py` covering: the strategy factory
+  (available/create/unknown/constructor-validation-propagation), `main.py`
+  config-file integration (symbol-from-file, CLI-overrides-file,
+  gap-from-file-counts-as-explicit, missing-symbol exit, file-not-found
+  exit, unknown-key exit, default-strategy), and an end-to-end
+  unknown-`--strategy` startup failure via the real `MMBot.run()`. Full
+  suite: 126/126 passing; black, flake8, mypy, and pyright all clean on
+  every changed file.
 
 ### Phase C — Multi-symbol mode
 
