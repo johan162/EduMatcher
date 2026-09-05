@@ -4,9 +4,11 @@ Release Type: major
 
 ### 📋 Summary
 This release fixes broken market-maker quote replacement after partial fills
-and expands configuration options for the market-making bot.
+and expands configuration options for the market-making bot. It also enhances the mm-bot so it may support being
+a MM in multiple order books (symbols).
 
 ### ✨ Additions
+- Make one instance of mm-bot able to support multiple symbols
 - Added YAML configuration file support to `pm-mm-bot` with command-line overrides
 - Added pluggable pricing strategy selection to `pm-mm-bot`, including the default `symmetric` strategy
 
