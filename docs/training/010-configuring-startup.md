@@ -494,6 +494,23 @@ pm-config-deploy engine_config.yaml
 pm-engine
 ```
 
+!!! note "A second, different message can come from the same digest check"
+    The content-digest check actually distinguishes two separate causes for
+    the same mismatch, and reports each with a different message. What you
+    just triggered — editing the payload's *values* — is reported as
+    `compiled config has been modified since it was compiled (payload digest
+    ... does not match the recorded ...)`. If instead the artifact's on-disk
+    bytes are untouched but a newer/older build of EduMatcher declares a
+    different set of configuration fields than the artifact was compiled
+    with, you get a different message: `compiled config is intact but was
+    compiled against a different configuration schema ... Nothing has been
+    edited — run pm-config-deploy to recompile it`. Both are fixed the same
+    way (`pm-config-deploy`), but only the second one means nobody touched
+    anything — the check tells the two apart by separately hashing the
+    payload exactly as it sits on disk, so don't go hunting for an edit that
+    never happened if you see that second message after, say, upgrading
+    EduMatcher itself without redeploying.
+
 **Part B — trip the source-staleness check (a warning).**
 
 Leave this engine running. In another terminal, edit the *authored* YAML and
