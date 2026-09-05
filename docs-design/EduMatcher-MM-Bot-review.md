@@ -1,8 +1,9 @@
-Version: 1.1.0
+Version: 1.3.0
 
 Date: 2026-09-05
 
-Status: Phases A and B implemented (see §5) — remaining phases still for discussion
+Status: Phases A and B implemented (see §5); the engine-side correctness bug
+found in v1.2.0 follow-up review (§4 item 3) is now fixed
 
 # EduMatcher — Market-Maker Bot Functional Review (pm-mm-bot)
 
@@ -15,6 +16,30 @@ Status: Phases A and B implemented (see §5) — remaining phases still for disc
 > accurate record of the review that motivated the change, not a live status
 > page. Phases C–E (multi-symbol mode, risk/operability items, and the final
 > documentation/sign-off pass) remain open.
+
+> **Update (v1.2.0):** A follow-up Q&A pass on §2.3's fill/reissue timing
+> answer surfaced a real engine-side bug that §2.3 (as originally written)
+> did not know about and stated incorrectly: **a *partial* fill on a quote
+> leg does not get that leg's own resting remainder cancelled anywhere**,
+> only its sibling. See the corrected §2.3, the new §4 item 3, and the
+> reproduction script referenced there. This is an `engine/main.py` bug, not
+> a `pm-mm-bot` bug — the bot has no visibility into it and cannot work
+> around it — but it directly affects the bot's real-world exposure under
+> `INACTIVATE_ON_ANY_FILL` (the bot's assumed policy), so it is recorded
+> here rather than in a separate engine-only document.
+
+> **Update (v1.3.0):** §4 item 3's *first* proposed fix (cancel the hit
+> leg's own remainder inside `_on_quote_leg_filled`, at fill time) was
+> caught as wrong before it shipped — it would have contradicted the
+> documented intent of `INACTIVATE_ON_ANY_FILL` by killing live, tradeable
+> quote liquidity the instant it was touched, rather than only once a
+> replacement quote actually arrives. The **correct** fix — implemented and
+> tested in this version — is in `_handle_quote_new`'s replace-in-slot
+> logic instead: a new fallback, `_cancel_orphaned_quote_legs`, cancels any
+> stray resting quote-origin order for the gateway/symbol when no active
+> `QuoteIndex` entry is found to replace. See §4 item 3's "Fix (implemented
+> in v1.3.0)" subsection for the full detail, the five new regression tests
+> in `tests/test_mm_quotes_engine.py`, and the corrected §2.3.
 
 ## Table of Contents
 
@@ -99,22 +124,44 @@ presets nor a file. See §5 Phase B for a concrete, minimal proposal.
 
 ### 2.3 One leg fills — does the bot cancel the other leg and re-quote both sides?
 
+> **Correction (v1.2.0, fixed in v1.3.0):** the original answer below said
+> the engine "has already torn down both legs" by the time the bot
+> reissues. That was true only when the hit leg is *fully* filled. **On a
+> partial fill, the hit leg's own remainder was never cancelled by the
+> engine at fill time — it was left resting** — which is actually the
+> documented, intended behavior (see §4 item 3's "Correction (v1.3.0)"),
+> **but the bot's reissue was not cleaning it up either**, because the
+> replace-in-slot logic that was supposed to do exactly that
+> ("cancel any surviving old child orders") only ran when it found a live
+> `QuoteIndex` entry, and the engine had already removed that entry at fill
+> time, before the reissue ever arrived. **As of v1.3.0 this is fixed**: the
+> replace-in-slot logic now falls back to scanning the book directly for
+> the stray leg when no `QuoteIndex` entry is found. See §4 item 3 for the
+> full trace, the fix, and the reproduction/tests. The bullets below are
+> left as originally written except where marked, so the correction is
+> visible in context rather than silently rewritten.
+
 **The exchange cancels the sibling leg, not the bot — and the bot always
 re-quotes both sides together; it never leaves one leg resting alone.**
 Tracing the actual message flow:
 
 1. A fill on either leg is reported by the **engine**, not decided by the
    bot. `quote_refresh_policy: INACTIVATE_ON_ANY_FILL` (configured per
-   gateway, §9.2 of the design doc) means the engine's fill handler pulls
-   the *entire* quote — both legs — out of its internal `QuoteIndex` and
-   explicitly cancels the sibling order itself. The bot is a passive
-   recipient of `order.fill.{GW}` and `quote.status.{GW}
+   gateway, §9.2 of the design doc) means the engine's fill handler removes
+   the quote from its internal `QuoteIndex` and explicitly cancels the
+   *sibling* order — **not** the filled order itself (see §4 item 3: for a
+   full fill this is moot, since a fully filled order has nothing left to
+   cancel, but for a partial fill it means the filled leg's remainder is
+   never cancelled by this path). The bot is a passive recipient of
+   `order.fill.{GW}` and `quote.status.{GW}
    status=INACTIVE_BID_FILLED`/`INACTIVE_ASK_FILLED`.
 2. On seeing `INACTIVE_*_FILLED` (`bot.py:550-556`), the bot clears its
    local quote/leg state (`_clear_quote_state()`) and arms a reissue timer
    `reissue_delay_ms` (default **200 ms**) in the future. It does **not**
-   send a `quote.cancel` on this path — one isn't needed, because the
-   engine has already torn down both legs.
+   send a `quote.cancel` on this path — the bot believes one isn't needed,
+   because it (like the original text here) assumes the engine has already
+   torn down both legs. **That assumption is false for a partial fill** —
+   see §4 item 3.
 3. When the timer fires, `_cancel_and_reissue()` sees `_quote_id is None`
    and calls `_send_quote()` directly (`bot.py:484-494`), which always sends
    one `quote.new` carrying **both** `bid_price`/`ask_price` and
@@ -128,27 +175,38 @@ Tracing the actual message flow:
    `quote.cancel` before the new `quote.new` (`_cancel_and_reissue`'s other
    branch, used when the bot still believes a quote is live), are being
    extra cautious rather than relying on a race-prone assumption — the
-   explicit cancel there is defensive, not load-bearing.
+   explicit cancel there is defensive, not load-bearing. **Caveat added in
+   v1.2.0: this atomic replace only cancels a quote it can still find in the
+   index. When the previous fill already removed the index entry (the
+   `INACTIVATE_ON_ANY_FILL` reissue path, steps 1–3 above), `_handle_quote_new`
+   finds nothing to replace and skips the cancel entirely — it never falls
+   back to scanning the book for stray orders from this gateway/symbol.**
 
 **Typical timing:** fill → `quote.status` → **~200 ms** (`--reissue-delay-ms`,
 configurable) → fresh two-sided `quote.new` → `quote.ack`. That is the
-whole one-sided gap in the normal case. The cancel-first paths (drift
-reprice, heartbeat recovery) that *do* wait for a `quote.cancel`
-confirmation are bounded by `--cancel-timeout-sec` (default **1.0 s**); if no
-confirmation arrives in that window, `_tick()` forces the local state clear
-and reissues anyway (`bot.py:702-708`), so the bot can never wait
-indefinitely on a lost cancel ack. Net: the bot is out of the market for at
-most ~200 ms after an ordinary fill, and for at most ~1 s in the (rarer)
-drift/heartbeat-recovery paths.
+whole one-sided gap in the normal case, **for a full fill**. The
+cancel-first paths (drift reprice, heartbeat recovery) that *do* wait for a
+`quote.cancel` confirmation are bounded by `--cancel-timeout-sec` (default
+**1.0 s**); if no confirmation arrives in that window, `_tick()` forces the
+local state clear and reissues anyway (`bot.py:702-708`), so the bot can
+never wait indefinitely on a lost cancel ack. Net: the bot is out of the
+market for at most ~200 ms after an ordinary (full) fill, and for at most
+~1 s in the (rarer) drift/heartbeat-recovery paths — but see §4 item 3 for
+what actually happens on a *partial* fill, which is not "out of the
+market," it is "quoting twice."
 
 One nuance worth flagging: **while quoting normally, a fill is one-sided by
 definition** (only the leg that got hit fills), but the *engine* inactivates
 the untouched sibling leg too, so "the bot cancels the other leg" is not
-quite accurate framing — the bot never has to, because the exchange enforces
-"filled or nothing" for MM quotes under `INACTIVATE_ON_ANY_FILL`. If the
-project ever wants a policy where the surviving leg stays resting after a
-partial fill on the other side, that would be a new `quote_refresh_policy`
-value on the engine, not a bot change.
+quite accurate framing — the bot never has to, because the exchange
+*intends* to enforce "filled or nothing" for MM quotes under
+`INACTIVATE_ON_ANY_FILL`. **As of this v1.2.0 correction, that enforcement
+is known to be incomplete for partial fills — see §4 item 3.** If the
+project ever wants a policy where the surviving *sibling* leg stays resting
+after a partial fill on the other side, that would be a new
+`quote_refresh_policy` value on the engine (a legitimate, separate feature
+request); it is not the same thing as the bug in item 3, which is about the
+*hit* leg's own remainder, not the sibling.
 
 ### 2.4 Will the bot work, as far as code review can tell?
 
@@ -323,8 +381,9 @@ standardize one way or the other.
 
 ## 4. Confirmed Bugs and Discrepancies
 
-**Both items below are fixed as of v1.1.0 of this document — see the update
-note at the top of this file.**
+**Items 1 and 2 are fixed as of v1.1.0 of this document. Item 3 was found in
+v1.2.0 follow-up review and fixed in v1.3.0 — see the update notes at the
+top of this file. It is an `engine/main.py` bug, not a `pm-mm-bot` bug.**
 
 1. **Missing `register_tick_decimals()` call — silent wrong price scale on
    non-default-tick symbols.** `_request_symbols()` (`bot.py:269-303`)
@@ -356,10 +415,203 @@ note at the top of this file.**
    severity (documentation only) but should be corrected so instructors
    don't think they have to hand-write gateway YAML stanzas.
 
+3. **Engine never cancels a quote leg's own remainder on a *partial* fill —
+   the MM ends up quoting the same side twice.** (Found in v1.2.0 follow-up
+   review; **fixed in v1.3.0** — see the corrected "Fix" subsection below,
+   which replaces this item's original, incorrect proposed fix.)
+
+   **Symptom.** Under `quote_refresh_policy: INACTIVATE_ON_ANY_FILL` (the
+   policy `pm-mm-bot` is designed around — see §2.3), when a resting quote
+   leg is only *partially* filled (a taker takes less than the full
+   quoted quantity), the engine inactivates the quote and cancels the
+   sibling leg exactly as documented — but it never cancels the **hit
+   leg's own remaining quantity**. That remainder stays resting on the
+   book, at its old price, indefinitely. `pm-mm-bot` then immediately
+   reissues a brand-new two-sided quote on top of it (per §2.3), because
+   `quote.status INACTIVE_*_FILLED` is the bot's signal that both legs are
+   already gone — which is only true for a full fill. **Net effect: the
+   gateway ends up with two live resting orders on the same side** (the old
+   partial remainder plus the new leg) until the stale one is separately
+   hit, expires on its own `TIF`, or the whole gateway's quotes are torn
+   down (disconnect, kill switch, explicit cancel) — silently doubling the
+   MM's real one-sided exposure versus what it believes it has quoted.
+
+   **Root cause, traced end to end in `engine/main.py`:**
+
+   - `_on_quote_leg_filled()` (~line 3057) is the engine's fill handler for
+     quote legs. On `INACTIVATE_ON_ANY_FILL` it does exactly two things:
+     `self._quote_index.remove(gateway_id, symbol, ...)` (pops the
+     bookkeeping entry — a pure in-memory dict operation, **not** a book
+     operation) and `self._cancel_order_by_id(sibling_id)` (cancels the
+     *other* leg). It never calls `_cancel_order_by_id(order.id)` for
+     `order` — the leg that was actually hit — anywhere in the function.
+     The function's own comment states the (incomplete) assumption
+     outright: *"`order` is the filled leg — already terminal, its final
+     state is available directly."* That is true when `order.status ==
+     FILLED`; it is false when `order.status == PARTIAL`.
+   - Whether a hit leg is actually terminal depends on
+     `OrderBook._apply_fill()` (`order_book.py` ~line 1213):
+     `passive.status = OrderStatus.FILLED if passive.remaining_qty == 0
+     else OrderStatus.PARTIAL`, and `_purge_from_indexes(passive)` — the
+     function that actually removes an order from the book's price-level
+     structures — is called **only** `if passive.status == OrderStatus.FILLED`.
+     A `PARTIAL` order is deliberately left resting with its reduced
+     `remaining_qty`; `_handle_new_order`'s own fill-loop comment agrees
+     ("a partially filled order that rests keeps it [routing entry]").
+   - The bot's reissue does not accidentally clean this up either.
+     `_handle_quote_new()`'s replace-in-slot logic (~line 3278) is:
+     `previous = self._quote_index.remove(gateway_id, symbol, ...); if
+     previous: self._cancel_quote_entry(previous, ...)`. `_cancel_quote_entry`
+     is the **only** code path that ever calls `_cancel_order_by_id` on a
+     quote's tracked bid/ask ids. But by the time the reissue's `quote.new`
+     arrives, `_on_quote_leg_filled` has *already* popped the `QuoteIndex`
+     entry (first bullet above) — so `previous` is `None`, `_cancel_quote_entry`
+     never runs, and nothing else in `_handle_quote_new` looks at the book
+     itself. The replace path relies entirely on the `QuoteIndex` entry
+     still existing and still accurately describing what is resting; a
+     partial fill silently breaks that invariant without removing the
+     entry in a way that lets the replace path notice.
+   - This is **not a new regression** — `git log -S"_on_quote_leg_filled"`
+     shows only three commits ever touched this function
+     (`91d8365c` introducing it, `1cf2bdb2` and `9a000897` adding QLEGS
+     history capture), none changing the sibling-only cancellation logic.
+     The gap has existed since MM quotes were first implemented. It is also
+     not caught by any existing test: no test in `tests/test_mm_quotes_engine.py`,
+     `tests/test_engine_quote_legs.py`, or elsewhere asserts book state
+     after a *partial* fill on a quote leg followed by a reissue.
+   - **The design docs describe the same incomplete picture.** Both
+     `docs-design/EduMatcher-MM_Quotes_Implementation_Plan.md` (`QuoteIndex`
+     docstring: "Enforces the rule: at most one active quote per
+     (gateway_id, symbol) pair") and `docs-design/mm-quote-identification.md`
+     ("there can be only one active quote slot per gateway and symbol") are
+     accurate as written — they describe the `QuoteIndex` *slot*, which
+     genuinely never holds more than one entry — but neither claims, and
+     neither the code nor any test verifies, that the physical book can
+     never hold a stray resting order outside that slot. The
+     `mm-quote-identification.md` walkthrough for exactly this policy
+     (`INACTIVATE_ON_ANY_FILL`, its "Example 1") shows a fill with no
+     `remaining=` figure at all — i.e. it silently illustrates only the
+     full-fill case — while its full-fill-only-policy example
+     (`INACTIVATE_ON_FULL_FILL`, "Example 2") does show a partial fill, but
+     for a policy where the engine deliberately leaves the quote active.
+     The partial-fill-under-`ANY_FILL` combination this bug lives in was
+     never walked through anywhere.
+   - **Empirically confirmed, not just read from the source.** A standalone
+     repro against the real `Engine` (using the project's own
+     `tests/test_mm_quotes_engine.py::_make_engine` harness): post a
+     500x500 quote, submit a same-gateway 100-lot order that partially fills
+     the bid leg, then immediately reissue a fresh 500x500 quote (as the bot
+     does). Result: `book.resting_orders()` for that gateway shows **two**
+     live `BUY` orders — the stale one at `remaining_qty=400,
+     status=PARTIAL` from the original quote, and the new 500-qty leg from
+     the reissue — plus the fresh ask leg. The stale order is never touched
+     by the reissue.
+
+   > **Correction (v1.3.0): the fix below was wrong and was never shipped.**
+   > The original text here proposed cancelling the hit leg's own remainder
+   > *inside* `_on_quote_leg_filled`, i.e. immediately on the fill. That
+   > would have been a real behavior regression, not a fix: it directly
+   > contradicts the documented intent of `INACTIVATE_ON_ANY_FILL` itself.
+   > The `QuoteRefreshPolicy` docstring in
+   > `EduMatcher-MM_Quotes_Implementation_Plan.md` gives its own worked
+   > example — "Someone buys 100 from the ask. Bid still has 500. **Ask has
+   > 400 remaining.** `INACTIVATE_ON_ANY_FILL`: pull the **bid** immediately"
+   > — pulling the *sibling* (bid), never the hit leg's (ask's) own 400
+   > remaining. The hit leg's remainder is meant to stay live and tradeable
+   > until the bot's *reissue* actually replaces it, not to be killed the
+   > instant it's touched — cancelling it immediately would leave the book
+   > with zero resting quantity from this MM on that side for the whole
+   > `--reissue-delay-ms` gap (~200 ms) on every partial fill, which is
+   > exactly the kind of stale-exposure/no-liquidity gap
+   > `INACTIVATE_ON_ANY_FILL` exists to prevent, not cause. The actual,
+   > implemented fix is below.
+
+   **Fix (implemented in v1.3.0).** The real gap is narrower: it's in
+   `_handle_quote_new`'s replace-in-slot logic, not in
+   `_on_quote_leg_filled`. `docs-design/mm-quote-identification.md`'s
+   own replace-by-new-quote walkthrough already states the intended
+   behavior — "remove the current active quote slot... **cancel any
+   surviving old child orders**... install the new quote" — but the actual
+   code only did that when `self._quote_index.remove(...)` found a live
+   `QuoteEntry` (`previous`). When a prior fill had already removed that
+   entry (the `INACTIVATE_ON_ANY_FILL` case this bug lives in), `previous`
+   is `None` and the "cancel any surviving old child orders" step silently
+   never ran. The fix adds exactly that fallback, at replace time, without
+   touching `_on_quote_leg_filled` or the fill-time behavior at all:
+
+   ```python
+   previous = self._quote_index.remove(
+       gateway_id, symbol, reason="Replaced by new quote"
+   )
+   if previous:
+       self._cancel_quote_entry(previous, reason="Replaced by new quote")
+   else:
+       # No active QuoteIndex entry — most commonly because a prior fill
+       # already inactivated this gateway/symbol's quote. Under
+       # INACTIVATE_ON_ANY_FILL, that path cancels only the untouched
+       # sibling leg — by design, the *hit* leg's own remainder (if the
+       # fill was partial) is meant to stay resting, live and tradeable,
+       # until this replacement quote actually supersedes it.
+       self._cancel_orphaned_quote_legs(gateway_id, symbol)
+   ```
+
+   `_cancel_orphaned_quote_legs(gateway_id, symbol)` is a new small helper
+   next to `_cancel_quote_entry`: it scans `book.resting_orders()` for any
+   order matching `gateway_id` and `origin == OrderOrigin.QUOTE` and cancels
+   it via the existing `_cancel_order_by_id`. It deliberately does **not**
+   touch ordinary (`origin=ORDER`) orders — this mirrors
+   `_handle_gateway_disconnect`'s `CANCEL_ALL` sweep, which excludes
+   quote-origin orders for the opposite reason (it expects `QuoteIndex`
+   -driven cancellation, not a book scan, to handle those). No `quote.status
+   CANCELLED` is re-published for the orphaned leg — the quote was already
+   announced `INACTIVE_*_FILLED` at fill time; only an ordinary
+   `order.cancelled` is emitted, via `_cancel_order_by_id`'s existing
+   publish.
+
+   **Verified.** The standalone repro from the original finding now shows
+   the fix working end to end: immediately after the partial fill (before
+   any reissue), the hit leg is still `PARTIAL` with its full remainder
+   resting and genuinely tradeable — a second taker order was confirmed to
+   still fill against it. Only once the bot's reissue actually arrives does
+   `_cancel_orphaned_quote_legs` find and cancel it; `book.resting_orders()`
+   for that gateway then shows exactly the new quote's two legs, never
+   three. Five new tests were added to `tests/test_mm_quotes_engine.py`:
+   `test_partial_fill_sibling_cancelled_but_hit_leg_survives` (the hit leg
+   stays live and tradeable right after the fill — the policy's actual
+   intent),
+   `test_reissue_after_partial_fill_cancels_stale_remainder` (the
+   regression test for the bug itself — the stale remainder is gone and
+   `order.cancelled` was published for it after the reissue),
+   `test_reissue_with_no_prior_quote_is_unaffected` and
+   `test_reissue_after_full_fill_still_finds_nothing_stray` (the new
+   fallback is a true no-op when there is nothing stray to find), and
+   `test_inactivate_on_full_fill_partial_leg_stays_active_and_unaffected`
+   (confirms `INACTIVATE_ON_FULL_FILL`'s deliberate "accumulate partials,
+   stay active" behavior — design doc's own "Example 2" — is completely
+   unaffected, since that policy never inactivates on a partial fill in the
+   first place, so the ordinary `previous`-found branch handles its replace
+   exactly as before). Full suite (`tests/test_mm_quotes_engine.py` plus the
+   broader `-k "quote or engine"` sweep, 778 tests): all passing; black,
+   flake8, mypy, and pyright all clean on both changed files
+   (`engine/main.py`, `tests/test_mm_quotes_engine.py`).
+
+   **This is an engine bug, not a `pm-mm-bot` bug** — the bot has no
+   visibility into it (`quote.status INACTIVE_*_FILLED` carries no
+   remaining-qty information about the hit leg) and had no way to detect or
+   work around it from its own side. It is recorded in this document rather
+   than a separate engine-only one because it directly affects the answer
+   to §2.3 and the bot's real-world exposure under the policy the bot is
+   built to assume; `pm-mm-bot` itself required no changes.
+
 No other functional defects were found; the fill/cancel/reissue races that
 were previously bugs (dropped ack, orphaned `CANCELLED`, overwritten cancel
 timeout, malformed book `KeyError`, uncaught `QuotePricer` `ValueError`) are
-all fixed per the CHANGELOG and covered by dedicated regression tests.
+all fixed per the CHANGELOG and covered by dedicated regression tests. Item
+3 above is a new finding from v1.2.0 follow-up review, found by tracing
+`quote_refresh_policy` handling end to end rather than by the original
+review's method (comparing `mm_bot/*` against its own design doc and
+tests) — it lives entirely in `engine/main.py`, outside `mm_bot/`'s three
+files, which is why the original pass did not surface it.
 
 ## 5. Plan to v1.0.0
 
@@ -471,8 +723,11 @@ deliberately deferred rather than silently dropped:
   existing design doc already judges this added complexity not worth it for
   educational use, and this review agrees; revisit only if a classroom
   scenario actually needs two bots quoting the same symbol simultaneously.
-- Any change to the engine's `quote_refresh_policy` semantics (e.g., a
-  policy that keeps a surviving leg resting after a partial fill) — that is
-  an engine-side design question independent of the bot, and no evidence
-  from this review suggests the current `INACTIVATE_ON_ANY_FILL` behavior is
-  wrong for the bot's intended use.
+- Any *new* `quote_refresh_policy` value or semantics (e.g., a policy that
+  deliberately keeps a surviving *sibling* leg resting after a partial
+  fill) — that is a genuine engine-side design question independent of the
+  bot. **This is distinct from §4 item 3** (fixed in v1.3.0), which was a
+  bug in the existing `INACTIVATE_ON_ANY_FILL` policy's implementation (the
+  *hit* leg's own partial remainder was never cancelled by the reissue,
+  regardless of what any new policy might decide about the sibling) — that
+  was a correctness gap to close, not a request for new policy semantics.

@@ -2709,6 +2709,36 @@ class Engine:
         )
         return cancelled
 
+    def _cancel_orphaned_quote_legs(self, gateway_id: str, symbol: str) -> int:
+        """Cancel any resting quote-origin order(s) for this gateway/symbol
+        that are no longer tracked by an active ``QuoteIndex`` entry.
+
+        This is the fallback half of ``_handle_quote_new``'s replace-in-slot
+        cleanup (see its call site). It exists because
+        ``_on_quote_leg_filled`` (``INACTIVATE_ON_ANY_FILL``) removes the
+        ``QuoteIndex`` entry at fill time but deliberately leaves a
+        *partially* filled hit leg resting — by design, that remainder stays
+        live until a new quote actually replaces it, not until the fill
+        happens. When no ``QuoteIndex`` entry is found on replace, this is
+        the only remaining place that can find and clear such a leftover:
+        it scans the book directly by ``(gateway_id, symbol, origin=QUOTE)``
+        rather than trusting index bookkeeping that has already been popped.
+
+        Ordinary orders (``origin=ORDER``) are never touched here — this
+        mirrors ``_handle_gateway_disconnect``'s ``CANCEL_ALL`` sweep, which
+        excludes quote-origin orders for the same reason in reverse (it
+        expects `QuoteIndex`-driven cancellation to handle those instead).
+        """
+        book = self.books.get(symbol)
+        if book is None:
+            return 0
+        cancelled = 0
+        for order in list(book.resting_orders()):
+            if order.gateway_id == gateway_id and order.origin == OrderOrigin.QUOTE:
+                if self._cancel_order_by_id(order.id) is not None:
+                    cancelled += 1
+        return cancelled
+
     def _publish_trade(self, trade: Any) -> None:
         # Generated from spec/messages/trade.yaml. The field list used to be a
         # dict literal here, which meant adding a field to trade.executed took
@@ -3280,6 +3310,20 @@ class Engine:
         )
         if previous:
             self._cancel_quote_entry(previous, reason="Replaced by new quote")
+        else:
+            # No active QuoteIndex entry — most commonly because a prior fill
+            # already inactivated this gateway/symbol's quote (see
+            # _on_quote_leg_filled). Under INACTIVATE_ON_ANY_FILL, that path
+            # cancels only the untouched sibling leg — by design, the *hit*
+            # leg's own remainder (if the fill was partial) is meant to stay
+            # resting, live and tradeable, until this replacement quote
+            # actually supersedes it (docs-design/EduMatcher-MM-Bot-review.md
+            # §4 item 3; docs-design/mm-quote-identification.md's
+            # replace-by-new-quote walkthrough: "cancel any surviving old
+            # child orders"). Without this fallback, such a stray order is
+            # never cancelled and rests alongside the fresh leg below,
+            # silently doubling this gateway's exposure on that side.
+            self._cancel_orphaned_quote_legs(gateway_id, symbol)
 
         if not quote_id:
             quote_id = f"{gateway_id}-{symbol}-{now_ns()}"
