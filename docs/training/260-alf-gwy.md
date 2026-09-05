@@ -250,7 +250,7 @@ if you place a resting `LIMIT` and a later order crosses it, that later
 `FILL` (for the counterparty) says `TAKER` while yours says `MAKER`. It is
 the same attribution the drop-copy `DC_FILL` line has always reported (see
 [Exercise 8 → DC](#exercise-8-control-commands-and-the-kill-switch) below,
-or [Market Data & Drop Copy](13-market-data-drop-copy.md)) — you no longer
+or [Market Data & Drop Copy](130-market-data-drop-copy.md)) — you no longer
 need drop copy just to find out which side of a trade you were on.
 
 Cancel the resting order using the UUID from the `ACK` and a request tag:

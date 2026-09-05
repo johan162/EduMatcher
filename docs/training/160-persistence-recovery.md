@@ -47,7 +47,7 @@ echo "$EDUMATCHER_DATA_DIR"
 ls -la "$EDUMATCHER_DATA_DIR"
 ```
 
-If the variable is empty, revisit [00 — Installation & Setup](00-installation.md)
+If the variable is empty, revisit [00 — Installation & Setup](000-installation.md)
 and run `pm-setup`.
 
 :material-checkbox-blank-outline: **Checkpoint:** you can locate the persistent data directory.
@@ -146,7 +146,7 @@ after any restart, same-day or not.
     - **Session close** (`pm-scheduler` transitioning to `CLOSED`, or you
       forcing it with `SESSION|STATE=CLOSED`): every resting DAY order is
       cancelled *live*, with an `order.expired` event, regardless of restart.
-      See [06 — Time-in-Force & Sessions](06-time-in-force-sessions.md).
+      See [06 — Time-in-Force & Sessions](060-time-in-force-sessions.md).
     - **Engine restart after the business day has rolled over**: a resting
       DAY order from a prior business day is silently discarded during
       restore — logged at `INFO`, but with **no** `order.expired` published.
@@ -224,4 +224,4 @@ since it was placed"?
 - [Processes](../user-guide/170-processes.md)
 - [A Full Trading Day](../concepts/05-concepts-trading-day.md)
 
-**Next:** [17 — Capstone Scenario](17-capstone-scenario.md)
+**Next:** [17 — Capstone Scenario](170-capstone-scenario.md)

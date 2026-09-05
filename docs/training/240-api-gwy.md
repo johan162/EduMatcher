@@ -676,7 +676,7 @@ trusted a role embedded directly in the key?
 
 ## Handoff for Chapter 25
 
-Before starting [25 — Market Index (pm-index)](25-index.md), you can stop
+Before starting [25 — Market Index (pm-index)](250-index.md), you can stop
 `pm-api-gwy`; it is not required there. Keep `pm-engine` and `pm-stats`
 running if you want to reuse the same session, or start fresh — Chapter 25
 generates its own config with `pm-config-gen`.

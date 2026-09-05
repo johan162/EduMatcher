@@ -160,7 +160,7 @@ pm-stats-cli daily --symbol AAPL
 ```
 
 (`daily` gives the day's OHLCV summary, including a `vwap` column — see
-[15 — Statistics & Reporting](15-statistics-reporting.md) for the full
+[15 — Statistics & Reporting](150-statistics-reporting.md) for the full
 `pm-stats-cli` verb reference; there is no separate `ohlcv`, `vwap`, or
 `summary` verb.)
 
@@ -267,8 +267,8 @@ had to be restarted together?
 
 - [Processes](../user-guide/170-processes.md)
 - [Messages](../user-guide/270-message-reference.md)
-- [Market Data & Drop Copy](13-market-data-drop-copy.md)
-- [Statistics & Reporting](15-statistics-reporting.md)
+- [Market Data & Drop Copy](130-market-data-drop-copy.md)
+- [Statistics & Reporting](150-statistics-reporting.md)
 - [Market Data Feed](../concepts/06-concepts-market-data-feed.md)
 
-**Next:** [19 - Advanced Admin Operations](19-advanced-admin-operations.md)
+**Next:** [19 - Advanced Admin Operations](190-advanced-admin-operations.md)

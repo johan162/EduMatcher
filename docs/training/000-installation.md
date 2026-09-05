@@ -515,4 +515,4 @@ more confusing?
 - [Running the Exchange](../user-guide/040-running-the-exchange.md)
 - [Processes](../user-guide/170-processes.md)
 
-**Next:** [01 — Configuring & Starting Up](01-configuring-startup.md)
+**Next:** [01 — Configuring & Starting Up](010-configuring-startup.md)

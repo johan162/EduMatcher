@@ -232,7 +232,7 @@ pm-stats-cli daily
 ```
 
 (`daily` with no `--symbol` filter gives one OHLCV summary row per symbol —
-see [15 — Statistics & Reporting](15-statistics-reporting.md) for the full
+see [15 — Statistics & Reporting](150-statistics-reporting.md) for the full
 `pm-stats-cli` verb reference; there is no separate `summary` verb.)
 
 Explain what each observer showed:
@@ -296,9 +296,9 @@ Review map:
 - [User Guide](../user-guide/000-getting-started.md)
 - [Architecture Overview](../architecture/01-architecture.md)
 - [Glossary](../glossary.md)
-- [Exchange Observer Processes](18-exchange-observer-processes.md)
+- [Exchange Observer Processes](180-exchange-observer-processes.md)
 - [Order Book Deep Dive](../concepts/02-concepts-order-book-deep-dive.md)
 
 You have completed the capstone. Finish with
-[18 — Exchange Observer Processes](18-exchange-observer-processes.md) to compare
+[18 — Exchange Observer Processes](180-exchange-observer-processes.md) to compare
 the different live views of the exchange.

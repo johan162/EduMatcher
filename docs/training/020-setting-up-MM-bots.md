@@ -215,7 +215,7 @@ Quick primer:
 - `QLEGS` reconciles leg-level state (order IDs, remaining, fills) so the bot
   can adopt or replace safely instead of duplicating quotes.
 
-See the detailed walkthrough in [09 — Market Making](09-market-making.md).
+See the detailed walkthrough in [09 — Market Making](090-market-making.md).
 
 :material-checkbox-blank-outline: **Checkpoint:** explain what the bot automates compared with your manual `QUOTE` workflow.
 
@@ -245,4 +245,4 @@ letting students discover an empty book on their own?
 - [ALF Console (pm-alf-console)](../user-guide/055-alf-console.md)
 - [ALF Protocol Reference](../user-guide/900-app-alf-protocol.md)
 
-**Next:** [03 — The First Trade](03-the-first-trade.md)
+**Next:** [03 — The First Trade](030-the-first-trade.md)
