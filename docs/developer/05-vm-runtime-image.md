@@ -73,7 +73,7 @@ Without a repository checkout:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh \
-    | bash -s -- --version 0.32.0
+    | bash -s -- --version 0.32.1
 ```
 
 `curl_setup_vm.sh` downloads `mknode.sh` and `install_edumatcher.sh` into a
