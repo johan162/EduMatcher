@@ -8,7 +8,7 @@ Additional order_book tests targeting uncovered lines:
   - resting_orders / restore_stats
   - snapshot with icebergs and cancelled entries
   - FOK _available_qty with price filter
-  - quote_orders_for_gateway / _quote_orders_by_gateway secondary index
+  - quote_orders_for_gateway / orders_for_gateway / _orders_by_gateway index
 """
 
 from __future__ import annotations
@@ -483,7 +483,7 @@ class TestIcebergPassiveReplenishment:
 
 
 # ---------------------------------------------------------------------------
-# quote_orders_for_gateway / _quote_orders_by_gateway secondary index
+# quote_orders_for_gateway / _orders_by_gateway secondary index
 # ---------------------------------------------------------------------------
 
 
@@ -613,16 +613,16 @@ class TestQuoteOrdersByGatewayIndex:
 
     def test_gateway_entry_pruned_once_last_leg_removed(self) -> None:
         # Internal invariant: an empty per-gateway set must not linger in
-        # _quote_orders_by_gateway (mirrors the analogous cleanup QuoteIndex
+        # _orders_by_gateway (mirrors the analogous cleanup QuoteIndex
         # does for _keys_by_gateway) — confirmed both externally (empty
         # list back) and internally (key actually gone, not just empty).
         book = OrderBook("TEST")
         bid = _make_quote_leg(Side.BUY, 500, price=100)
         book.process(bid, match=False)
-        assert "GW01" in book._quote_orders_by_gateway
+        assert "GW01" in book._orders_by_gateway
         book.cancel_order(bid.id)
         assert book.quote_orders_for_gateway("GW01") == []
-        assert "GW01" not in book._quote_orders_by_gateway
+        assert "GW01" not in book._orders_by_gateway
 
     def test_reinsert_iceberg_path_never_touches_quote_index(self) -> None:
         # Icebergs are never quote legs in practice (_handle_quote_new only
@@ -647,25 +647,32 @@ class TestQuoteOrdersByGatewayIndex:
         found = book.quote_orders_for_gateway("GW01")
         assert [o.id for o in found] == [iceberg.id]
 
-    def test_stop_order_tagged_quote_never_enters_index(self) -> None:
-        # Documents a real scope boundary: _add_stop is a separate
-        # insertion funnel from _rest and does not populate this index.
-        # Quote legs are always plain LIMIT in this engine, so this can't
-        # happen via Engine, but the index's behavior here must stay a
-        # deliberate, tested no-op rather than an accident.
+    def test_stop_order_tagged_quote_enters_both_broad_and_quote_view(self) -> None:
+        # _orders_by_gateway is populated by _add_stop just like _rest (see
+        # its definition) -- a stop order joins the broad index regardless
+        # of origin, unlike before this index covered all origins, when
+        # _add_stop was a separate funnel that never populated it at all.
+        # quote_orders_for_gateway is a plain origin filter over that same
+        # broad index (see its docstring) -- it does not also require
+        # order_type == LIMIT, so a QUOTE-tagged stop, a case that can't
+        # happen via Engine (quote legs are always plain LIMIT) but is
+        # exercised here as a boundary case, now shows up in both views.
+        # See TestOrdersByGatewayIndexStops for full stop-order coverage of
+        # the broad index with realistic (origin=ORDER) stops.
         book = OrderBook("TEST")
         stop = _make(Side.BUY, OrderType.STOP, 100, stop_price=105, gateway="GW01")
         stop.origin = OrderOrigin.QUOTE
         stop.quote_id = "Q1"
         book.process(stop, match=False)
-        assert book.quote_orders_for_gateway("GW01") == []
+        assert [o.id for o in book.orders_for_gateway("GW01")] == [stop.id]
+        assert [o.id for o in book.quote_orders_for_gateway("GW01")] == [stop.id]
 
     def test_smp_cancel_resting_quote_leg_removes_it_from_index(self) -> None:
         """Regression test for a real bug found in review: _smp_cancel_resting
         is a *third* removal funnel (besides cancel_order and _apply_fill's
         full-fill purge) that used to bypass _purge_from_indexes entirely --
         it popped _order_index directly and never touched
-        _quote_orders_by_gateway. A same-gateway aggressor crossing its own
+        _orders_by_gateway. A same-gateway aggressor crossing its own
         resting QUOTE-origin leg under SmpAction.CANCEL_RESTING left a stale
         order_id in the index; the very next quote_orders_for_gateway call
         (exactly what Engine._cancel_orphaned_quote_legs does on every quote
@@ -708,7 +715,15 @@ class TestQuoteOrdersByGatewayIndex:
         # Must not raise KeyError, and must correctly report no resting
         # quote legs left for this gateway.
         assert book.quote_orders_for_gateway("GW01") == []
-        assert "GW01" not in book._quote_orders_by_gateway
+        # The cancelled leg itself is gone from the broad index too -- but
+        # GW01 still has one entry: the aggressor, an origin=ORDER LIMIT
+        # that (nothing left to match after its counterparty was SMP-
+        # cancelled) went on to rest via _rest(), same as any other order
+        # with no resting counterpart. That's a legitimate, different
+        # resting order for the same gateway, not a leak of the cancelled
+        # leg -- confirmed explicitly below.
+        assert [o.id for o in book.orders_for_gateway("GW01")] == [aggressor.id]
+        assert resting_quote_leg.id not in book._orders_by_gateway.get("GW01", set())
         # Also fixes the pre-existing _entry_index leak in the same path.
         assert resting_quote_leg.id not in book._entry_index
         assert resting_quote_leg.id not in book._order_index
@@ -747,4 +762,206 @@ class TestQuoteOrdersByGatewayIndex:
         assert aggressor.status == OrderStatus.CANCELLED
 
         assert book.quote_orders_for_gateway("GW01") == []
-        assert "GW01" not in book._quote_orders_by_gateway
+        assert "GW01" not in book._orders_by_gateway
+
+
+# ---------------------------------------------------------------------------
+# orders_for_gateway / _orders_by_gateway — stop & trailing-stop coverage
+# ---------------------------------------------------------------------------
+#
+# TestQuoteOrdersByGatewayIndex above covers the index's original scope
+# (plain vs. quote-origin LIMIT orders). This class covers the part that's
+# new now that _orders_by_gateway tracks every resting order: STOP,
+# STOP_LIMIT and TRAILING_STOP orders, which enter and leave the book
+# through their own funnels (_add_stop / _add_trailing_stop, and the direct
+# _order_index pops in _check_stops / _check_trailing_stops) rather than
+# _rest() / _purge_from_indexes().
+
+
+class TestOrdersByGatewayIndexStops:
+    def test_resting_stop_is_indexed(self) -> None:
+        book = OrderBook("TEST")
+        stop = _make(Side.BUY, OrderType.STOP, 100, stop_price=105, gateway="GW01")
+        book.process(stop, match=False)
+        assert [o.id for o in book.orders_for_gateway("GW01")] == [stop.id]
+
+    def test_resting_stop_limit_is_indexed(self) -> None:
+        book = OrderBook("TEST")
+        stop = _make(
+            Side.BUY,
+            OrderType.STOP_LIMIT,
+            100,
+            price=106,
+            stop_price=105,
+            gateway="GW01",
+        )
+        book.process(stop, match=False)
+        assert [o.id for o in book.orders_for_gateway("GW01")] == [stop.id]
+
+    def test_resting_trailing_stop_is_indexed(self) -> None:
+        book = OrderBook("TEST")
+        ts = _make(
+            Side.SELL, OrderType.TRAILING_STOP, 100, trail_offset=5, gateway="GW01"
+        )
+        ts.stop_price = 95
+        book.process(ts, match=False)
+        assert [o.id for o in book.orders_for_gateway("GW01")] == [ts.id]
+
+    def test_cancelled_stop_removed_from_index(self) -> None:
+        book = OrderBook("TEST")
+        stop = _make(Side.BUY, OrderType.STOP, 100, stop_price=105, gateway="GW01")
+        book.process(stop, match=False)
+        assert book.orders_for_gateway("GW01") != []
+        book.cancel_order(stop.id)
+        assert book.orders_for_gateway("GW01") == []
+        assert "GW01" not in book._orders_by_gateway
+
+    def test_cancelled_trailing_stop_removed_from_index(self) -> None:
+        # cancel_order looks the order up via _order_index (populated by
+        # _add_trailing_stop, unlike _entry_index which trailing stops
+        # never join) and purges it through the normal
+        # _purge_from_indexes funnel -- confirms that path reaches
+        # _orders_by_gateway for a trailing stop too.
+        book = OrderBook("TEST")
+        ts = _make(
+            Side.SELL, OrderType.TRAILING_STOP, 100, trail_offset=5, gateway="GW01"
+        )
+        ts.stop_price = 95
+        book.process(ts, match=False)
+        assert book.orders_for_gateway("GW01") != []
+        book.cancel_order(ts.id)
+        assert book.orders_for_gateway("GW01") == []
+        assert "GW01" not in book._orders_by_gateway
+
+    def test_triggered_stop_to_market_that_fills_is_removed_from_index(self) -> None:
+        # A STOP that triggers converts to MARKET; if it fully matches it
+        # never rests again, so _check_stops' direct _order_index pop must
+        # also discard it from _orders_by_gateway or it would leak forever
+        # (the order never revisits _rest()/_purge_from_indexes).
+        book = OrderBook("TEST")
+        book.process(_make(Side.SELL, OrderType.LIMIT, 100, price=100, gateway="GW02"))
+        stop = _make(Side.BUY, OrderType.STOP, 100, stop_price=105, gateway="GW01")
+        book.process(stop, match=False)
+        assert [o.id for o in book.orders_for_gateway("GW01")] == [stop.id]
+
+        book.last_trade_price = 106
+        triggered = book._check_stops(time.time_ns())
+        assert len(triggered) == 1
+        # Feed the converted MARKET order back through matching, as the
+        # engine does with _check_stops' return value.
+        trades, _events = book.process(triggered[0], match=True)
+        assert len(trades) == 1
+        assert stop.status == OrderStatus.FILLED
+        assert book.orders_for_gateway("GW01") == []
+        assert "GW01" not in book._orders_by_gateway
+
+    def test_triggered_stop_limit_that_rests_again_is_indexed_exactly_once(
+        self,
+    ) -> None:
+        # A STOP_LIMIT that triggers converts to LIMIT; if there's nothing
+        # to match it rests again via _rest(), which must re-add it to
+        # _orders_by_gateway -- exactly once, not zero (leaked) and not
+        # twice (stale entry from before the trigger plus a fresh one).
+        book = OrderBook("TEST")
+        stop = _make(
+            Side.BUY,
+            OrderType.STOP_LIMIT,
+            100,
+            price=106,
+            stop_price=105,
+            gateway="GW01",
+        )
+        book.process(stop, match=False)
+        assert [o.id for o in book.orders_for_gateway("GW01")] == [stop.id]
+
+        book.last_trade_price = 106
+        triggered = book._check_stops(time.time_ns())
+        assert len(triggered) == 1
+        assert triggered[0].order_type == OrderType.LIMIT
+        # Nothing resting on the other side -- it rests as an ordinary LIMIT.
+        trades, _events = book.process(triggered[0], match=True)
+        assert trades == []
+        assert stop.status == OrderStatus.NEW
+        found = book.orders_for_gateway("GW01")
+        assert [o.id for o in found] == [stop.id]
+        assert len(book._orders_by_gateway["GW01"]) == 1
+
+    def test_triggered_trailing_stop_that_fills_is_removed_from_index(self) -> None:
+        book = OrderBook("TEST")
+        book.process(_make(Side.BUY, OrderType.LIMIT, 100, price=100, gateway="GW02"))
+        ts = _make(
+            Side.SELL, OrderType.TRAILING_STOP, 100, trail_offset=5, gateway="GW01"
+        )
+        ts.stop_price = 103
+        book.process(ts, match=False)
+        assert [o.id for o in book.orders_for_gateway("GW01")] == [ts.id]
+
+        book.last_trade_price = 100  # <= stop_price(103) -- triggers
+        triggered = book._check_trailing_stops(time.time_ns())
+        assert len(triggered) == 1
+        trades, _events = book.process(triggered[0], match=True)
+        assert len(trades) == 1
+        assert ts.status == OrderStatus.FILLED
+        assert book.orders_for_gateway("GW01") == []
+        assert "GW01" not in book._orders_by_gateway
+
+    def test_buy_trailing_stop_trigger_path_also_clears_index(self) -> None:
+        # Same as above via the BUY-side branch of _check_trailing_stops,
+        # a separate code path from the SELL-side branch exercised above.
+        book = OrderBook("TEST")
+        book.process(_make(Side.SELL, OrderType.LIMIT, 100, price=100, gateway="GW02"))
+        ts = _make(
+            Side.BUY, OrderType.TRAILING_STOP, 100, trail_offset=5, gateway="GW01"
+        )
+        ts.stop_price = 97
+        book.process(ts, match=False)
+        assert [o.id for o in book.orders_for_gateway("GW01")] == [ts.id]
+
+        book.last_trade_price = 100  # >= stop_price(97) -- triggers
+        triggered = book._check_trailing_stops(time.time_ns())
+        assert len(triggered) == 1
+        trades, _events = book.process(triggered[0], match=True)
+        assert len(trades) == 1
+        assert book.orders_for_gateway("GW01") == []
+        assert "GW01" not in book._orders_by_gateway
+
+    def test_stop_triggered_before_last_trade_price_set_stays_indexed(self) -> None:
+        # _check_stops is a no-op before any trade has happened in this
+        # book -- confirms that a not-yet-triggerable stop just sits in
+        # the index rather than being dropped or mis-handled.
+        book = OrderBook("TEST")
+        stop = _make(Side.BUY, OrderType.STOP, 100, stop_price=105, gateway="GW01")
+        book.process(stop, match=False)
+        triggered = book._check_stops(time.time_ns())
+        assert triggered == []
+        assert [o.id for o in book.orders_for_gateway("GW01")] == [stop.id]
+
+    def test_mixed_origins_and_types_all_indexed_for_one_gateway(self) -> None:
+        # A gateway with a plain LIMIT, a QUOTE leg, a STOP and a
+        # TRAILING_STOP all resting at once -- orders_for_gateway (used by
+        # Engine._handle_gateway_disconnect's CANCEL_ALL sweep and the
+        # kill-switch handlers) must return all four; quote_orders_for_gateway
+        # (used by _cancel_orphaned_quote_legs) must return only the leg.
+        book = OrderBook("TEST")
+        plain = _make(Side.BUY, OrderType.LIMIT, 100, price=90, gateway="GW01")
+        quote_leg = _make_quote_leg(Side.BUY, 50, price=91, gateway="GW01")
+        stop = _make(Side.SELL, OrderType.STOP, 100, stop_price=110, gateway="GW01")
+        ts = _make(
+            Side.SELL, OrderType.TRAILING_STOP, 100, trail_offset=5, gateway="GW01"
+        )
+        ts.stop_price = 115
+        for o in (plain, quote_leg, stop, ts):
+            book.process(o, match=False)
+
+        all_ids = {o.id for o in book.orders_for_gateway("GW01")}
+        assert all_ids == {plain.id, quote_leg.id, stop.id, ts.id}
+        assert [o.id for o in book.quote_orders_for_gateway("GW01")] == [quote_leg.id]
+
+    def test_different_gateways_stops_do_not_cross_contaminate(self) -> None:
+        book = OrderBook("TEST")
+        stop_gw1 = _make(Side.BUY, OrderType.STOP, 100, stop_price=105, gateway="GW01")
+        stop_gw2 = _make(Side.SELL, OrderType.STOP, 100, stop_price=95, gateway="GW02")
+        book.process(stop_gw1, match=False)
+        book.process(stop_gw2, match=False)
+        assert [o.id for o in book.orders_for_gateway("GW01")] == [stop_gw1.id]
+        assert [o.id for o in book.orders_for_gateway("GW02")] == [stop_gw2.id]

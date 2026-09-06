@@ -1397,7 +1397,7 @@ orders are still resting, still partially filled, or already gone — it is a
 bookkeeping record of intent, not a live view of the book. That gap is exactly
 why a second index exists.
 
-### Index 2 — `OrderBook._quote_orders_by_gateway`: Which Quote-Origin Orders Are *Still Resting*?
+### Index 2 — `OrderBook._orders_by_gateway`: Which Orders Are *Still Resting*, Per Gateway?
 
 `QuoteIndex` is popped the moment a fill inactivates a quote (see below) — but
 under the engine's default refresh policy, a *partial* fill deliberately leaves
@@ -1409,75 +1409,136 @@ for exactly this:
 
 ```python
 # engine/order_book.py
-self._quote_orders_by_gateway: dict[str, set[str]] = {}
+self._orders_by_gateway: dict[str, set[str]] = {}
 ```
 
 `gateway_id → set of order_ids`, scoped to this one symbol's book, holding every
-order that is simultaneously (a) still resting and (b) `origin == OrderOrigin.QUOTE`.
-It is maintained by the same two funnels every other index in `OrderBook` goes
-through — insert in `_rest()`, remove in `_purge_from_indexes()` — so it follows
-the same "Dual-Index Pattern" discipline as `_order_index`/`_entry_index` from
-Section 5:
+order — any origin, any type — that is currently resting there. It started life
+scoped to `origin == OrderOrigin.QUOTE` only, built for exactly the quote-reissue
+question this section opens with; it was broadened to cover every resting order
+once an unrelated problem turned out to need the identical shape of index (see
+"A Second Consumer: Mass-Cancel on Disconnect" below). It is maintained by every
+funnel that can make an order start or stop resting — insert in `_rest()`,
+`_add_stop()`, `_add_trailing_stop()`; remove in `_purge_from_indexes()` and the
+direct `_order_index` pops in `_check_stops()`/`_check_trailing_stops()` — so it
+follows the same "Dual-Index Pattern" discipline as `_order_index`/`_entry_index`
+from Section 5:
 
 ```python
-# _rest() — the sole insertion point for a newly-resting order
+# _rest() — plain and quote-leg LIMIT orders
 self._order_index[order.id] = order
 self._entry_index[order.id] = entry
-if order.origin == OrderOrigin.QUOTE:
-    self._quote_orders_by_gateway.setdefault(order.gateway_id, set()).add(order.id)
+self._orders_by_gateway.setdefault(order.gateway_id, set()).add(order.id)
+```
+
+```python
+# _add_stop() / _add_trailing_stop() — STOP, STOP_LIMIT, TRAILING_STOP
+# (a separate insertion funnel from _rest(), see Section 7)
+self._order_index[order.id] = order
+self._orders_by_gateway.setdefault(order.gateway_id, set()).add(order.id)
 ```
 
 ```python
 # _purge_from_indexes() — the sole point where an order stops resting
-# (called from both cancel_order() and _apply_fill()'s full-fill branch)
+# via cancel_order() or _apply_fill()'s full-fill branch
 entry = self._entry_index.pop(order.id, None)
 if entry is not None:
     entry.valid = False
 self._order_index.pop(order.id, None)
-gateway_orders = self._quote_orders_by_gateway.get(order.gateway_id)
-if gateway_orders is not None:
-    gateway_orders.discard(order.id)
-    if not gateway_orders:
-        del self._quote_orders_by_gateway[order.gateway_id]
+self._discard_from_gateway_index(order)  # shared by every removal path below
 ```
 
-`quote_orders_for_gateway(gateway_id)` is the read side — an O(k) lookup (k = that
-gateway's resting quote legs in this book, at most 2 in steady state) instead of
-the O(n) `resting_orders()` scan it replaces:
+A triggered stop is a fourth removal path, and a subtler one: `_check_stops`/
+`_check_trailing_stops` pop a triggered order out of `_order_index` directly,
+*before* `_purge_from_indexes` ever runs, because a triggered `STOP` that
+matches immediately (converts to `MARKET`, never rests again) would otherwise
+leak in `_orders_by_gateway` forever — nothing else would ever discard it. Both
+methods call the same `_discard_from_gateway_index` helper `_purge_from_indexes`
+uses. A triggered `STOP_LIMIT`, by contrast, converts to `LIMIT` and typically
+rests again immediately afterward through the normal `_rest()` call — so it is
+discarded and re-added within the same `process()` call, never double-counted
+and never missing.
+
+`orders_for_gateway(gateway_id)` is the read side — an O(k) lookup (k = that
+gateway's resting orders in this book) instead of the O(n) `resting_orders()`
+scan it replaces:
 
 ```python
-def quote_orders_for_gateway(self, gateway_id: str) -> list[Order]:
-    order_ids = self._quote_orders_by_gateway.get(gateway_id, ())
+def orders_for_gateway(self, gateway_id: str) -> list[Order]:
+    order_ids = self._orders_by_gateway.get(gateway_id, ())
     return [self._order_index[oid] for oid in order_ids]
 ```
 
-Stop orders are inserted via a separate funnel (`_add_stop`, not `_rest`) and so
-never join this index — a deliberate scope boundary, harmless in practice because
-`_handle_quote_new` only ever creates plain `LIMIT` legs. Self-match prevention's
-`_smp_cancel_resting` funnels through `_purge_from_indexes` too, for the same
-reason `cancel_order` and `_apply_fill` do: a resting quote leg can be the
-"resting" side SMP cancels when a market maker's own later order crosses its own
-still-live quote, and that removal has to be visible to this index exactly like
-any other.
+`quote_orders_for_gateway(gateway_id)` — the method this section originally
+motivated — is now a thin origin filter on top of it:
+
+```python
+def quote_orders_for_gateway(self, gateway_id: str) -> list[Order]:
+    return [o for o in self.orders_for_gateway(gateway_id) if o.origin == OrderOrigin.QUOTE]
+```
+
+Self-match prevention's `_smp_cancel_resting` funnels through
+`_purge_from_indexes` too, for the same reason `cancel_order` and `_apply_fill`
+do: a resting order — quote leg or otherwise — can be the "resting" side SMP
+cancels when a later order from the same gateway crosses its own still-live
+order, and that removal has to be visible to this index exactly like any other.
+
+### A Second Consumer: Mass-Cancel on Disconnect
+
+`Engine._handle_gateway_disconnect`'s `CANCEL_ALL` behaviour, and the three
+kill-switch handlers (`_handle_kill_switch`, `..._gateway`, and the per-symbol
+branch of `..._global`), all need to answer "which of gateway G's orders are
+resting in this book?" — the same question this index already answered for
+quote legs, just without the `origin == QUOTE` filter. Before this index
+covered every origin, those handlers scanned `resting_orders()` — every resting
+order in every book — and filtered in Python for a matching `gateway_id`.  On a
+real exchange, walking every resting order across every book on every gateway
+disconnect is not a performance nitpick: with enough symbols and enough resting
+orders, that sweep runs long enough to block the (deliberately single-threaded,
+see Section 12) engine thread for a visible stretch, during which no other
+gateway's orders can be acknowledged, matched, or cancelled either — the kind of
+latency spike a real venue's risk and monitoring would treat as an incident, not
+a shrug. `orders_for_gateway` turns that O(total resting orders) scan into
+O(k) per book (k = that one gateway's resting orders there):
+
+```python
+# engine/main.py — _handle_gateway_disconnect(), CANCEL_ALL branch
+for book in self.books.values():
+    for order in list(book.orders_for_gateway(gateway_id)):
+        if order.origin != OrderOrigin.QUOTE:
+            self._cancel_order_by_id(order.id)
+```
+
+Quote-origin orders are still excluded here — not because the index cannot see
+them, but because `_quote_index.cancel_all_for_gateway`, called just above this
+loop, already retires them through `QuoteIndex`'s own path (quote cancellation
+publishes `quote.status` messages this loop does not know how to produce).
+
+Two admin handlers were deliberately left alone: `_handle_kill_switch_global`
+(cancels every gateway, not one) and `_handle_cancel_symbol` (cancels every
+gateway on one symbol). Neither is keyed by a single gateway, so
+`orders_for_gateway` does not help them — a true "cancel everyone in scope"
+sweep has to touch every resting order in that scope regardless of how it is
+indexed, and `resting_orders()` remains the right tool for that job.
 
 ### Why Two Indexes, Not One
 
-`QuoteIndex` and `_quote_orders_by_gateway` look like they overlap, but they
-answer different questions and go stale at different moments:
+`QuoteIndex` and `_orders_by_gateway` look like they overlap, but they answer
+different questions and go stale at different moments:
 
-| | `QuoteIndex` | `_quote_orders_by_gateway` |
+| | `QuoteIndex` | `_orders_by_gateway` |
 |---|---|---|
 | Lives in | `Engine` (one instance, all symbols) | `OrderBook` (one per symbol) |
-| Answers | "What is gateway G's *current* quote (by `quote_id`) on symbol S?" | "Which of gateway G's orders in *this book* are quote-origin and still resting?" |
+| Answers | "What is gateway G's *current* quote (by `quote_id`) on symbol S?" | "Which of gateway G's orders in *this book* are still resting, of any origin/type?" |
 | Entry removed when | A fill inactivates the quote, a replace/cancel supersedes it, a disconnect/kill-switch/halt clears it | The specific order is cancelled or fully filled — regardless of `QuoteIndex`'s state |
 | Survives a partial fill? | No — inactivation policy can remove the entry immediately | Yes — the hit leg's resting remainder stays indexed until it actually stops resting |
 
 The second row is the crux: after `INACTIVATE_ON_ANY_FILL` pops `QuoteIndex` on a
 partial fill, `QuoteIndex` has *forgotten this quote ever existed*, but the hit
 leg's remainder is still real, resting, matchable liquidity — and
-`_quote_orders_by_gateway` is the only structure still tracking it. Without it,
-finding that leftover on the next quote would mean scanning every resting order
-in the book.
+`_orders_by_gateway` (via `quote_orders_for_gateway`'s origin filter) is the
+only structure still tracking it. Without it, finding that leftover on the next
+quote would mean scanning every resting order in the book.
 
 ### The Fallback: Cancelling a Leftover Leg `QuoteIndex` No Longer Knows About
 
@@ -1494,9 +1555,9 @@ else:
 
 The `if previous` branch is the common, cheap case: `QuoteIndex` still has an
 entry, both legs (whichever are still resting) get cancelled through it, and
-`_quote_orders_by_gateway` is updated as a side effect of each cancel going
-through `_purge_from_indexes`. The `else` branch is what runs after a partial
-fill already popped `QuoteIndex`:
+`_orders_by_gateway` is updated as a side effect of each cancel going through
+`_purge_from_indexes`. The `else` branch is what runs after a partial fill
+already popped `QuoteIndex`:
 
 ```python
 # engine/main.py
@@ -1511,14 +1572,15 @@ def _cancel_orphaned_quote_legs(self, gateway_id: str, symbol: str) -> int:
     return cancelled
 ```
 
-This is an O(k) index lookup, not a scan — `quote_orders_for_gateway` returns
-this gateway's resting quote legs directly from `_quote_orders_by_gateway`. An
-earlier version of this function scanned `book.resting_orders()` (every resting
-order in the whole book) and filtered in Python for `gateway_id` and
-`origin == QUOTE`; that scan was replaced by this index once it became clear that
-a partial fill under `INACTIVATE_ON_ANY_FILL` — leaving a resting remainder with
-no `QuoteIndex` entry — is the ordinary case for an active market maker, not an
-edge case worth paying an O(n) scan for on every reissue.
+This is an O(k) index lookup, not a scan — `quote_orders_for_gateway` filters
+`orders_for_gateway`, which reads this gateway's resting orders directly from
+`_orders_by_gateway`. An earlier version of this function scanned
+`book.resting_orders()` (every resting order in the whole book) and filtered in
+Python for `gateway_id` and `origin == QUOTE`; that scan was replaced by this
+index once it became clear that a partial fill under `INACTIVATE_ON_ANY_FILL` —
+leaving a resting remainder with no `QuoteIndex` entry — is the ordinary case
+for an active market maker, not an edge case worth paying an O(n) scan for on
+every reissue.
 
 ### Walkthrough: A Fill, a Stray Leg, and a Reissue
 
@@ -1531,7 +1593,7 @@ sequenceDiagram
 
     MM->>E: QUOTE bid=100.00x500 ask=101.00x500
     E->>OB: rest both legs (origin=QUOTE)
-    OB->>OB: _quote_orders_by_gateway["GW01"] = {bid_id, ask_id}
+    OB->>OB: _orders_by_gateway["GW01"] = {bid_id, ask_id}
     E->>QI: put(GW01, AAPL) -> {bid_id, ask_id}
 
     Note over OB: An independent taker buys 100 from the bid
@@ -1539,16 +1601,16 @@ sequenceDiagram
     E->>E: _on_quote_leg_filled: INACTIVATE_ON_ANY_FILL
     E->>QI: remove(GW01, AAPL)  -- entry gone
     E->>OB: cancel sibling ask (via _purge_from_indexes)
-    OB->>OB: _quote_orders_by_gateway["GW01"] = {bid_id}
+    OB->>OB: _orders_by_gateway["GW01"] = {bid_id}
     Note over OB: bid's 400 remainder still rests -- genuine,<br/>tradeable liquidity, by design
 
     MM->>E: QUOTE bid=100.05x500 ask=101.05x500 (reissue)
     E->>QI: remove(GW01, AAPL) -> None (already gone)
     E->>OB: quote_orders_for_gateway(GW01) -> [stale bid]
     E->>OB: cancel stale bid (via _purge_from_indexes)
-    OB->>OB: _quote_orders_by_gateway["GW01"] = {}  (key pruned)
+    OB->>OB: _orders_by_gateway["GW01"] = {}  (key pruned)
     E->>OB: rest fresh bid + ask (origin=QUOTE)
-    OB->>OB: _quote_orders_by_gateway["GW01"] = {new_bid_id, new_ask_id}
+    OB->>OB: _orders_by_gateway["GW01"] = {new_bid_id, new_ask_id}
     E->>QI: put(GW01, AAPL) -> {new_bid_id, new_ask_id}
 ```
 
@@ -1560,13 +1622,14 @@ indexes hold themselves to.
 
 ### Restart: Both Indexes Rebuild From the Same Source
 
-Neither index has its own on-disk format. `QuoteIndex` and
-`_quote_orders_by_gateway` are both pure derivations from the persisted `Order`
-records' `origin`/`quote_id` fields (Section 13 covers GTC persistence in full).
-On restore, `Engine._restore_gtc` calls `book.process(order, match=False)` for
-every persisted order; for a resting `LIMIT` order this reaches `_rest()`, which
-populates `_quote_orders_by_gateway` exactly as it would for a brand-new quote —
-no separate rebuild code needed. `QuoteIndex` does need an explicit rebuild,
+Neither index has its own on-disk format. `QuoteIndex` and `_orders_by_gateway`
+are both pure derivations from the persisted `Order` records (Section 13 covers
+GTC persistence in full). On restore, `Engine._restore_gtc` calls
+`book.process(order, match=False)` for every persisted order; whichever funnel
+that order's type reaches — `_rest()` for a resting `LIMIT`, `_add_stop()` for a
+`STOP`/`STOP_LIMIT`, `_add_trailing_stop()` for a `TRAILING_STOP` — populates
+`_orders_by_gateway` exactly as it would for a brand-new order, no separate
+rebuild code needed. `QuoteIndex` does need an explicit rebuild,
 because it groups legs by `quote_id` rather than being a pure by-product of
 resting one order: `_restore_gtc` collects every restored quote-origin order,
 groups them by `(gateway_id, quote_id)`, and re-inserts a `QuoteEntry` only for

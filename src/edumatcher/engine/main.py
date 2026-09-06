@@ -3491,12 +3491,14 @@ class Engine:
             self._cancel_quote_entry(entry, reason="Gateway disconnected")
 
         if session.disconnect_behaviour == DisconnectBehaviour.CANCEL_ALL:
+            # O(k) per book via OrderBook._orders_by_gateway (k = this
+            # gateway's resting orders there), not a scan of every resting
+            # order in every book — see docs/architecture/02-architecture-guide.md
+            # §10. Quote-origin orders are excluded: the cancel_all_for_gateway
+            # call above already handles those via QuoteIndex.
             for book in self.books.values():
-                for order in list(book.resting_orders()):
-                    if (
-                        order.gateway_id == gateway_id
-                        and order.origin != OrderOrigin.QUOTE
-                    ):
+                for order in list(book.orders_for_gateway(gateway_id)):
+                    if order.origin != OrderOrigin.QUOTE:
                         self._cancel_order_by_id(order.id)
 
     def _handle_kill_switch(self, payload: dict[str, Any]) -> None:
@@ -3545,11 +3547,14 @@ class Engine:
                     entry, reason="Kill switch"
                 )
 
+        # O(k) per book via OrderBook._orders_by_gateway (k = this gateway's
+        # resting orders there) instead of a scan of every resting order in
+        # every book — see docs/architecture/02-architecture-guide.md §10.
         for book in self.books.values():
             if symbol_filter and book.symbol != symbol_filter:
                 continue
-            for order in list(book.resting_orders()):
-                if order.gateway_id == gateway_id and order.origin != OrderOrigin.QUOTE:
+            for order in list(book.orders_for_gateway(gateway_id)):
+                if order.origin != OrderOrigin.QUOTE:
                     if self._cancel_order_by_id(order.id):
                         cancelled_orders += 1
 
@@ -3629,12 +3634,12 @@ class Engine:
                 entry, reason="ADMIN kill switch"
             )
 
+        # O(k) per book via OrderBook._orders_by_gateway (k = this gateway's
+        # resting orders there) instead of a scan of every resting order in
+        # every book — see docs/architecture/02-architecture-guide.md §10.
         for book in self.books.values():
-            for order in list(book.resting_orders()):
-                if (
-                    order.gateway_id == target_gateway_id
-                    and order.origin != OrderOrigin.QUOTE
-                ):
+            for order in list(book.orders_for_gateway(target_gateway_id)):
+                if order.origin != OrderOrigin.QUOTE:
                     if self._cancel_order_by_id(order.id):
                         cancelled_orders += 1
 
