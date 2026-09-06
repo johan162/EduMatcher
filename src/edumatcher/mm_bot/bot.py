@@ -77,6 +77,64 @@ _QUOTING_SESSIONS = {"CONTINUOUS"}
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 
 
+def _update_position(
+    prior_position: int,
+    prior_avg_cost: float,
+    side: str,
+    fill_qty: int,
+    fill_price: float,
+) -> tuple[int, float]:
+    """Update a signed net position and VWAP average cost after one fill.
+
+    Same cross-zero-through-flat algorithm as
+    ``engine/main.py::MatchingEngine._update_position`` (kept in sync
+    deliberately -- both compute the same ledger from the same fills, one
+    server-side per gateway, one here purely local to this bot): buying
+    adds to the position, selling subtracts. Average cost is recomputed
+    (volume-weighted) when the position grows in its current direction,
+    held steady when a fill only reduces it, reset to the fill price when
+    a single fill crosses the position through zero to the other side, and
+    zeroed out exactly at flat.
+
+    Returns (new_position, new_avg_cost).
+    """
+    if side == "BUY":
+        new_position = prior_position + fill_qty
+        if prior_position >= 0:
+            # Opening or adding to a long position.
+            new_cost = (
+                prior_avg_cost * prior_position + fill_price * fill_qty
+            ) / new_position
+        elif new_position < 0:
+            # Reducing a short, still net short: avg_cost unchanged.
+            new_cost = prior_avg_cost
+        elif new_position == 0:
+            # Closed the short exactly flat.
+            new_cost = 0.0
+        else:
+            # Crossed from short to long: reset cost to fill price.
+            new_cost = fill_price
+    else:  # SELL
+        new_position = prior_position - fill_qty
+        if prior_position <= 0:
+            # Opening or adding to a short position.
+            abs_new = abs(new_position)
+            new_cost = (
+                prior_avg_cost * abs(prior_position) + fill_price * fill_qty
+            ) / abs_new
+        elif new_position > 0:
+            # Reducing a long, still net long: avg_cost unchanged.
+            new_cost = prior_avg_cost
+        elif new_position == 0:
+            # Closed the long exactly flat.
+            new_cost = 0.0
+        else:
+            # Crossed from long to short: reset cost to fill price.
+            new_cost = fill_price
+
+    return new_position, (new_cost if new_position != 0 else 0.0)
+
+
 @dataclass
 class _SymbolState:
     """Everything MMBot tracks that is scoped to one symbol.
@@ -108,6 +166,13 @@ class _SymbolState:
     # crashing the whole process. None while startup is still in progress
     # or has succeeded.
     startup_failed_reason: str | None = None
+    # Net position and VWAP average cost tracked locally from this symbol's
+    # own fills (see _update_position). Feeds the "inventory_skew" pricing
+    # strategy; unused by "symmetric". Mirrors the engine's own per-gateway
+    # ledger (engine/main.py::_update_position) but is purely local
+    # bookkeeping -- the bot never queries the engine for it.
+    net_position: int = 0
+    avg_cost: float = 0.0
 
 
 class MMBot:
@@ -144,12 +209,14 @@ class MMBot:
         engine_pull: str,
         engine_pub: str,
         verbose: bool,
+        max_position: int | None = None,
     ) -> None:
         resolved_symbols = _resolve_symbols_arg(symbol=symbol, symbols=symbols)
 
         self.gateway_id = gateway_id
         self.symbols = resolved_symbols
         self.strategy = strategy
+        self._max_position = max_position
         self.qty = qty
         self.drift_ticks = drift_ticks
         self.tif = tif
@@ -237,6 +304,22 @@ class MMBot:
     @gap.setter
     def gap(self, value: float) -> None:
         self._primary.gap = value
+
+    @property
+    def net_position(self) -> int:
+        """Locally tracked net position for the primary (or only) symbol.
+
+        For a multi-symbol bot, index ``self._symbols_state[symbol]
+        .net_position`` directly instead.
+        """
+        return self._primary.net_position
+
+    @property
+    def avg_cost(self) -> float:
+        """Locally tracked VWAP average cost for the primary (or only)
+        symbol. 0.0 when flat. See ``net_position`` for the multi-symbol
+        equivalent."""
+        return self._primary.avg_cost
 
     @property
     def _tick_size(self) -> float:
@@ -878,10 +961,22 @@ class MMBot:
 
         st = self._symbols_state[symbol]
         side = "BID" if order_id == st.bid_order_id else "ASK"
-        fill_qty = payload.get("fill_qty", 0)
+        fill_qty = int(payload.get("fill_qty", 0))
+        fill_price = float(payload.get("fill_price", 0.0))
         self._debug(
             f"[{symbol}] fill: {side} {fill_qty}@{payload.get('fill_price', '?')}"
         )
+
+        # A filled BID leg means the bot bought; a filled ASK leg means it
+        # sold. Update the local position ledger the same way regardless of
+        # which pricing strategy is active -- inventory_skew reads it below,
+        # symmetric simply never looks.
+        order_side = "BUY" if side == "BID" else "SELL"
+        st.net_position, st.avg_cost = _update_position(
+            st.net_position, st.avg_cost, order_side, fill_qty, fill_price
+        )
+        if hasattr(st.pricer, "update_position"):
+            st.pricer.update_position(st.net_position)  # type: ignore[union-attr]
 
         # Reset or start the reissue timer — but only when no cancel is already
         # in flight.  Overwriting the cancel-confirmation timeout with a shorter
@@ -1283,6 +1378,7 @@ class MMBot:
                 tick_size=st.tick_size,
                 gap=st.gap,
                 drift_ticks=self.drift_ticks,
+                max_position=self._max_position,
             )
         except ValueError as exc:
             st.startup_failed_reason = f"invalid strategy/gap/tick configuration: {exc}"

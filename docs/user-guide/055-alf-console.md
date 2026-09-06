@@ -787,7 +787,47 @@ last trade price, unrealized P&L, and realized P&L for each symbol traded:
 !!! tip
     Use `POS` after each fill to monitor your exposure without switching to `pm-orders`.
 
+### POS|GW=&lt;gateway_id&gt; — Query Another Gateway's Position
 
+```
+POS|GW=MM_AAPL_01
+```
+
+Unlike bare `POS` above, this does **not** use this session's local fill
+ledger. It asks the *engine* what the given `gateway_id` — typically a
+running `pm-mm-bot` instance, but any connected gateway works, including
+your own — is currently holding, via `system.position_request` /
+`system.position_snapshot.{gateway_id}`. The reply is rendered as a
+simpler table (the engine's ledger has no P&L, only net position and
+average cost):
+
+```
+┌───────────────────────────────────┐
+│      Position — MM_AAPL_01        │
+├──────────┬─────────┬──────────────┤
+│ Symbol   │ Net Qty │ Avg Cost     │
+├──────────┼─────────┼──────────────┤
+│ AAPL     │    -300 │       150.05 │
+└──────────┴─────────┴──────────────┘
+```
+
+A gateway with no open positions prints `<gateway_id>: flat (no open
+positions).` instead of an empty table.
+
+**How it works:**
+
+- The console sends `system.position_request` for the given `gateway_id`
+  and dynamically subscribes to `system.position_snapshot.{gateway_id}`
+  just for the duration of this one query, unsubscribing once the reply
+  arrives — a mistyped or offline gateway_id does not leave a stray
+  subscription behind.
+- A second `POS|GW=` query before the first one's reply arrives replaces
+  it (the earlier subscription is dropped).
+- This works for *any* gateway_id known to the engine, not just MM bots —
+  it is exactly the same query a `pm-mm-bot`'s own inventory-skewing logic
+  effectively answers itself, just visible to an operator from outside.
+  See [Market-Maker Bot → Inventory skewing](100-mm-bot.md#inventory-skewing)
+  for the bot side of this.
 
 ### SYMBOLS — List Active Instruments
 

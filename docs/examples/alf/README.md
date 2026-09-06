@@ -161,6 +161,7 @@ write(sockfd, buf, strlen(buf));
 | Machine | Same host as engine | Any host |
 | Dependencies | `edumatcher` package + ZMQ | stdlib only |
 | P&L / POS | From local fill tracking | From local fill tracking |
+| `POS\|GW=<id>` (query another gateway) | Yes | Yes |
 | STATUS | Rich terminal display | Text table |
 | QLEGS | Yes (local cache) | Not available |
 | Tab completion | Full context-aware | Commands, fields, enums |

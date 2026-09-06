@@ -25,6 +25,7 @@ _ALLOWED_KEYS = {
     "id_suffix",
     "strategy",
     "gap",
+    "max_position",
     "qty",
     "drift_ticks",
     "reissue_delay_ms",

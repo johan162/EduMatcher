@@ -8,8 +8,13 @@ from typing import Any
 
 import pytest
 
-from edumatcher.mm_bot.bot import BotState, MMBot
-from edumatcher.mm_bot.pricer import available_strategies, create_strategy, QuotePricer
+from edumatcher.mm_bot.bot import BotState, MMBot, _update_position
+from edumatcher.mm_bot.pricer import (
+    available_strategies,
+    create_strategy,
+    InventorySkewPricer,
+    QuotePricer,
+)
 from edumatcher.models.message import decode as msg_decode, encode
 from edumatcher.models.price import clear_tick_registry, get_tick_decimals, to_ticks
 
@@ -236,15 +241,239 @@ class TestQuotePricerDecimals:
         assert p._price_decimals == 0
 
 
+class TestInventorySkewPricerConstruction:
+    """Parameter validation at construction time."""
+
+    def test_missing_max_position_raises(self) -> None:
+        with pytest.raises(ValueError, match="requires max_position"):
+            InventorySkewPricer(
+                tick_size=0.01, gap=0.10, drift_ticks=3, max_position=None
+            )
+
+    def test_zero_max_position_raises(self) -> None:
+        with pytest.raises(ValueError, match="must be positive"):
+            InventorySkewPricer(tick_size=0.01, gap=0.10, drift_ticks=3, max_position=0)
+
+    def test_negative_max_position_raises(self) -> None:
+        with pytest.raises(ValueError, match="must be positive"):
+            InventorySkewPricer(
+                tick_size=0.01, gap=0.10, drift_ticks=3, max_position=-100
+            )
+
+    def test_valid_construction(self) -> None:
+        p = InventorySkewPricer(
+            tick_size=0.01, gap=0.10, drift_ticks=3, max_position=1000
+        )
+        assert p is not None
+
+    def test_satisfies_pricing_strategy_protocol(self) -> None:
+        """Structural check: every PricingStrategy member is present."""
+        p = InventorySkewPricer(
+            tick_size=0.01, gap=0.10, drift_ticks=3, max_position=1000
+        )
+        assert p.mid_price is None
+        assert p.price_decimals == 2
+        p.update_mid(99.95, 100.05)
+        p.set_mid(100.0)
+        assert p.compute_prices() == (pytest.approx(99.95), pytest.approx(100.05))
+        assert p.has_drifted(90.0) is True
+
+
+class TestInventorySkewPricerFlat:
+    """At net_position == 0, behavior must match QuotePricer exactly."""
+
+    def test_flat_matches_symmetric(self) -> None:
+        skew = InventorySkewPricer(
+            tick_size=0.01, gap=0.10, drift_ticks=3, max_position=1000
+        )
+        sym = QuotePricer(tick_size=0.01, gap=0.10, drift_ticks=3)
+        skew.set_mid(100.0)
+        sym.set_mid(100.0)
+        skew.update_position(0)
+        assert skew.compute_prices() == sym.compute_prices()
+
+    def test_flat_is_the_default_before_any_update_position_call(self) -> None:
+        skew = InventorySkewPricer(
+            tick_size=0.01, gap=0.10, drift_ticks=3, max_position=1000
+        )
+        sym = QuotePricer(tick_size=0.01, gap=0.10, drift_ticks=3)
+        skew.set_mid(100.0)
+        sym.set_mid(100.0)
+        # update_position() never called -- must default to flat (0).
+        assert skew.compute_prices() == sym.compute_prices()
+
+
+class TestInventorySkewPricerDirection:
+    """A long position must skew down (easier to sell); short skews up."""
+
+    def test_long_position_lowers_both_bid_and_ask(self) -> None:
+        skew = InventorySkewPricer(
+            tick_size=0.01, gap=0.10, drift_ticks=3, max_position=1000
+        )
+        sym = QuotePricer(tick_size=0.01, gap=0.10, drift_ticks=3)
+        skew.set_mid(100.0)
+        sym.set_mid(100.0)
+        skew.update_position(500)  # long
+        bid, ask = skew.compute_prices()
+        flat_bid, flat_ask = sym.compute_prices()
+        assert bid < flat_bid
+        assert ask < flat_ask
+
+    def test_short_position_raises_both_bid_and_ask(self) -> None:
+        skew = InventorySkewPricer(
+            tick_size=0.01, gap=0.10, drift_ticks=3, max_position=1000
+        )
+        sym = QuotePricer(tick_size=0.01, gap=0.10, drift_ticks=3)
+        skew.set_mid(100.0)
+        sym.set_mid(100.0)
+        skew.update_position(-500)  # short
+        bid, ask = skew.compute_prices()
+        flat_bid, flat_ask = sym.compute_prices()
+        assert bid > flat_bid
+        assert ask > flat_ask
+
+    def test_long_and_short_of_equal_magnitude_are_mirror_images(self) -> None:
+        skew = InventorySkewPricer(
+            tick_size=0.01, gap=0.10, drift_ticks=3, max_position=1000
+        )
+        skew.set_mid(100.0)
+        skew.update_position(400)
+        long_bid, long_ask = skew.compute_prices()
+        skew.update_position(-400)
+        short_bid, short_ask = skew.compute_prices()
+        assert long_bid == pytest.approx(200.0 - short_ask, abs=1e-9)
+        assert long_ask == pytest.approx(200.0 - short_bid, abs=1e-9)
+
+
+class TestInventorySkewPricerScaling:
+    """Skew magnitude scales with position size, saturating at max_position."""
+
+    def test_larger_position_skews_further(self) -> None:
+        skew = InventorySkewPricer(
+            tick_size=0.01, gap=0.10, drift_ticks=3, max_position=1000
+        )
+        skew.set_mid(100.0)
+        skew.update_position(200)
+        _bid_small, ask_small = skew.compute_prices()
+        skew.update_position(800)
+        _bid_large, ask_large = skew.compute_prices()
+        assert ask_large < ask_small
+
+    def test_saturates_at_max_position(self) -> None:
+        """Beyond max_position the skew must not keep growing."""
+        skew = InventorySkewPricer(
+            tick_size=0.01, gap=0.10, drift_ticks=3, max_position=1000
+        )
+        skew.set_mid(100.0)
+        skew.update_position(1000)
+        at_cap = skew.compute_prices()
+        skew.update_position(2000)  # 2x the cap
+        beyond_cap = skew.compute_prices()
+        skew.update_position(10_000)  # 10x the cap
+        way_beyond_cap = skew.compute_prices()
+        assert at_cap == beyond_cap == way_beyond_cap
+
+    def test_saturates_at_negative_max_position(self) -> None:
+        skew = InventorySkewPricer(
+            tick_size=0.01, gap=0.10, drift_ticks=3, max_position=1000
+        )
+        skew.set_mid(100.0)
+        skew.update_position(-1000)
+        at_cap = skew.compute_prices()
+        skew.update_position(-5000)
+        beyond_cap = skew.compute_prices()
+        assert at_cap == beyond_cap
+
+    def test_never_stops_quoting_at_or_beyond_cap(self) -> None:
+        """compute_prices() keeps returning valid (bid < ask) prices past
+        the cap -- the bot must keep quoting, just maximally skewed."""
+        skew = InventorySkewPricer(
+            tick_size=0.01, gap=0.10, drift_ticks=3, max_position=1000
+        )
+        skew.set_mid(100.0)
+        skew.update_position(50_000)
+        bid, ask = skew.compute_prices()
+        assert bid < ask
+
+
+class TestInventorySkewPricerMinimumSpread:
+    """The 2-tick minimum spread floor must hold even at full skew."""
+
+    def test_minimum_spread_holds_at_saturation(self) -> None:
+        skew = InventorySkewPricer(
+            tick_size=0.01, gap=0.02, drift_ticks=3, max_position=100
+        )
+        skew.set_mid(100.0)
+        skew.update_position(100)
+        bid, ask = skew.compute_prices()
+        # 2-tick minimum floor (tick_size=0.01) -- allow float rounding.
+        assert ask - bid >= 0.02 - 1e-9
+
+
+class TestInventorySkewPricerDelegation:
+    """Mid-tracking and drift detection are delegated to an inner
+    QuotePricer and must behave identically."""
+
+    def test_update_mid_delegates(self) -> None:
+        skew = InventorySkewPricer(
+            tick_size=0.01, gap=0.10, drift_ticks=3, max_position=1000
+        )
+        skew.update_mid(99.95, 100.05)
+        assert skew.mid_price == pytest.approx(100.0)
+
+    def test_drift_detection_delegates(self) -> None:
+        skew = InventorySkewPricer(
+            tick_size=0.01, gap=0.10, drift_ticks=3, max_position=1000
+        )
+        skew.set_mid(100.10)
+        assert skew.has_drifted(100.0) is True
+        assert skew.has_drifted(100.09) is False
+
+    def test_compute_prices_does_not_permanently_perturb_mid(self) -> None:
+        """compute_prices() must restore the true mid afterwards so drift
+        detection keeps comparing against the real market."""
+        skew = InventorySkewPricer(
+            tick_size=0.01, gap=0.10, drift_ticks=3, max_position=1000
+        )
+        skew.set_mid(100.0)
+        skew.update_position(1000)
+        skew.compute_prices()
+        assert skew.mid_price == pytest.approx(100.0)
+
+    def test_no_mid_raises(self) -> None:
+        skew = InventorySkewPricer(
+            tick_size=0.01, gap=0.10, drift_ticks=3, max_position=1000
+        )
+        with pytest.raises(RuntimeError, match="No mid-price available"):
+            skew.compute_prices()
+
+
 class TestStrategyFactory:
     """Test the strategy-selection factory in pricer.py."""
 
     def test_symmetric_is_available(self) -> None:
         assert "symmetric" in available_strategies()
 
+    def test_inventory_skew_is_available(self) -> None:
+        assert "inventory_skew" in available_strategies()
+
     def test_create_symmetric_returns_quote_pricer(self) -> None:
         strategy = create_strategy("symmetric", tick_size=0.01, gap=0.10, drift_ticks=3)
         assert isinstance(strategy, QuotePricer)
+
+    def test_create_inventory_skew_returns_inventory_skew_pricer(self) -> None:
+        strategy = create_strategy(
+            "inventory_skew",
+            tick_size=0.01,
+            gap=0.10,
+            drift_ticks=3,
+            max_position=1000,
+        )
+        assert isinstance(strategy, InventorySkewPricer)
+
+    def test_create_inventory_skew_without_max_position_raises(self) -> None:
+        with pytest.raises(ValueError, match="requires max_position"):
+            create_strategy("inventory_skew", tick_size=0.01, gap=0.10, drift_ticks=3)
 
     def test_create_unknown_strategy_raises(self) -> None:
         with pytest.raises(ValueError, match="Unknown strategy 'skewed'"):
@@ -254,6 +483,14 @@ class TestStrategyFactory:
         """Invalid strategy parameters (e.g. gap too small) still raise."""
         with pytest.raises(ValueError, match="gap.*must be at least"):
             create_strategy("symmetric", tick_size=0.01, gap=0.01, drift_ticks=3)
+
+    def test_symmetric_unaffected_by_extraneous_max_position(self) -> None:
+        """The symmetric factory ignores max_position -- widening the
+        create_strategy signature must not affect it."""
+        strategy = create_strategy(
+            "symmetric", tick_size=0.01, gap=0.10, drift_ticks=3, max_position=1000
+        )
+        assert isinstance(strategy, QuotePricer)
 
 
 # ========================================================================
@@ -342,6 +579,110 @@ class TestMainParsing:
             mm_main.main(["--symbol", "AAPL"])
         bot = bot_instances[0]
         assert bot.kwargs["strategy"] == "symmetric"  # type: ignore[attr-defined]
+
+    def test_main_inventory_skew_without_max_position_exits(self) -> None:
+        """--strategy inventory_skew requires --max-position."""
+        from edumatcher.mm_bot import main as mm_main
+
+        with pytest.raises(SystemExit) as exc_info:
+            mm_main.main(["--symbol", "AAPL", "--strategy", "inventory_skew"])
+        assert exc_info.value.code == 1
+
+    def test_main_inventory_skew_with_zero_max_position_exits(self) -> None:
+        """--max-position must be positive."""
+        from edumatcher.mm_bot import main as mm_main
+
+        with pytest.raises(SystemExit) as exc_info:
+            mm_main.main(
+                [
+                    "--symbol",
+                    "AAPL",
+                    "--strategy",
+                    "inventory_skew",
+                    "--max-position",
+                    "0",
+                ]
+            )
+        assert exc_info.value.code == 1
+
+    def test_main_max_position_with_symmetric_strategy_exits(self) -> None:
+        """--max-position is rejected outright with the default strategy."""
+        from edumatcher.mm_bot import main as mm_main
+
+        with pytest.raises(SystemExit) as exc_info:
+            mm_main.main(["--symbol", "AAPL", "--max-position", "1000"])
+        assert exc_info.value.code == 1
+
+    def test_main_inventory_skew_with_valid_max_position(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A valid --strategy inventory_skew --max-position combination
+        constructs the bot and passes max_position through."""
+        from edumatcher.mm_bot import main as mm_main
+
+        bot_instances: list[object] = []
+
+        class FakeBot:
+            def __init__(self, **kwargs: object) -> None:
+                self.kwargs = kwargs
+                bot_instances.append(self)
+                self._running = True
+
+            def run(self) -> int:
+                return 0
+
+            def shutdown(self) -> None:
+                pass
+
+        monkeypatch.setattr("edumatcher.mm_bot.bot.MMBot", FakeBot)
+        with pytest.raises(SystemExit) as exc_info:
+            mm_main.main(
+                [
+                    "--symbol",
+                    "AAPL",
+                    "--strategy",
+                    "inventory_skew",
+                    "--max-position",
+                    "1000",
+                ]
+            )
+        assert exc_info.value.code == 0
+        bot = bot_instances[0]
+        assert bot.kwargs["strategy"] == "inventory_skew"  # type: ignore[attr-defined]
+        assert bot.kwargs["max_position"] == 1000  # type: ignore[attr-defined]
+
+    def test_main_config_file_inventory_skew_and_max_position(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """strategy: inventory_skew + max_position: N parse via --config."""
+        from edumatcher.mm_bot import main as mm_main
+
+        config_path = tmp_path / "mm_skew.yaml"
+        config_path.write_text(
+            "symbol: AAPL\nstrategy: inventory_skew\nmax_position: 750\n"
+        )
+
+        bot_instances: list[object] = []
+
+        class FakeBot:
+            def __init__(self, **kwargs: object) -> None:
+                self.kwargs = kwargs
+                bot_instances.append(self)
+                self._running = True
+
+            def run(self) -> int:
+                return 0
+
+            def shutdown(self) -> None:
+                pass
+
+        monkeypatch.setattr("edumatcher.mm_bot.bot.MMBot", FakeBot)
+        with pytest.raises(SystemExit) as exc_info:
+            mm_main.main(["--config", str(config_path)])
+        assert exc_info.value.code == 0
+        bot = bot_instances[0]
+        assert bot.kwargs["strategy"] == "inventory_skew"  # type: ignore[attr-defined]
+        assert bot.kwargs["max_position"] == 750  # type: ignore[attr-defined]
 
     def test_main_config_file_supplies_symbol_and_params(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -1249,6 +1590,177 @@ def _setup_full_startup(sub: _FakeSock, session: str = "CONTINUOUS") -> None:
     )
 
 
+# ========================================================================
+# Tests — position tracking (_update_position, MMBot fill handling)
+# ========================================================================
+
+# (prior_position, prior_avg_cost, side, fill_qty, fill_price,
+#  expected_position, expected_avg_cost)
+# Mirrors the 10-branch matrix engine/main.py::_update_position covers;
+# this is the same algorithm run purely locally in the bot.
+_POSITION_UPDATE_CASES = [
+    # Starting flat
+    pytest.param(0, 0.0, "BUY", 100, 50.0, 100, 50.0, id="open_long_from_flat"),
+    pytest.param(0, 0.0, "SELL", 100, 50.0, -100, 50.0, id="open_short_from_flat"),
+    # Adding to an existing long
+    pytest.param(
+        100, 50.0, "BUY", 100, 60.0, 200, 55.0, id="add_to_long_recomputes_vwap"
+    ),
+    # Reducing a long (avg_cost unchanged)
+    pytest.param(
+        200, 55.0, "SELL", 50, 70.0, 150, 55.0, id="reduce_long_avg_cost_unchanged"
+    ),
+    # Closing a long exactly flat
+    pytest.param(150, 55.0, "SELL", 150, 70.0, 0, 0.0, id="close_long_to_flat"),
+    # Crossing long -> short in one fill
+    pytest.param(100, 50.0, "SELL", 300, 60.0, -200, 60.0, id="cross_long_to_short"),
+    # Adding to an existing short
+    pytest.param(
+        -100, 50.0, "SELL", 100, 60.0, -200, 55.0, id="add_to_short_recomputes_vwap"
+    ),
+    # Reducing a short (avg_cost unchanged)
+    pytest.param(
+        -200, 55.0, "BUY", 50, 70.0, -150, 55.0, id="reduce_short_avg_cost_unchanged"
+    ),
+    # Closing a short exactly flat
+    pytest.param(-150, 55.0, "BUY", 150, 70.0, 0, 0.0, id="close_short_to_flat"),
+    # Crossing short -> long in one fill
+    pytest.param(-100, 50.0, "BUY", 300, 60.0, 200, 60.0, id="cross_short_to_long"),
+]
+
+
+class TestUpdatePositionFunction:
+    """Direct tests of the pure _update_position helper."""
+
+    @pytest.mark.parametrize(
+        "prior_pos,prior_cost,side,qty,price,expected_pos,expected_cost",
+        _POSITION_UPDATE_CASES,
+    )
+    def test_position_update_matrix(
+        self,
+        prior_pos: int,
+        prior_cost: float,
+        side: str,
+        qty: int,
+        price: float,
+        expected_pos: int,
+        expected_cost: float,
+    ) -> None:
+        new_pos, new_cost = _update_position(prior_pos, prior_cost, side, qty, price)
+        assert new_pos == expected_pos
+        assert new_cost == pytest.approx(expected_cost)
+
+
+class TestMMBotPositionTracking:
+    """MMBot._handle_order_fill updates per-symbol position/avg_cost."""
+
+    def test_bid_fill_is_a_buy(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        bot, _push, _sub = _make_bot(monkeypatch)
+        st = bot._symbols_state["AAPL"]
+        st.pricer = QuotePricer(tick_size=0.01, gap=0.10, drift_ticks=3)
+        st.pricer.set_mid(100.0)
+        st.bid_order_id = "bid-001"
+        st.ask_order_id = "ask-001"
+
+        bot._handle_order_fill(
+            {"order_id": "bid-001", "fill_qty": 100, "fill_price": 99.95}
+        )
+        assert bot.net_position == 100
+        assert bot.avg_cost == pytest.approx(99.95)
+
+    def test_ask_fill_is_a_sell(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        bot, _push, _sub = _make_bot(monkeypatch)
+        st = bot._symbols_state["AAPL"]
+        st.pricer = QuotePricer(tick_size=0.01, gap=0.10, drift_ticks=3)
+        st.pricer.set_mid(100.0)
+        st.bid_order_id = "bid-001"
+        st.ask_order_id = "ask-001"
+
+        bot._handle_order_fill(
+            {"order_id": "ask-001", "fill_qty": 100, "fill_price": 100.05}
+        )
+        assert bot.net_position == -100
+        assert bot.avg_cost == pytest.approx(100.05)
+
+    def test_accumulates_across_multiple_fills(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        bot, _push, _sub = _make_bot(monkeypatch)
+        st = bot._symbols_state["AAPL"]
+        st.pricer = QuotePricer(tick_size=0.01, gap=0.10, drift_ticks=3)
+        st.pricer.set_mid(100.0)
+        st.bid_order_id = "bid-001"
+        st.ask_order_id = "ask-001"
+
+        bot._handle_order_fill(
+            {"order_id": "bid-001", "fill_qty": 100, "fill_price": 100.00}
+        )
+        bot._handle_order_fill(
+            {"order_id": "bid-001", "fill_qty": 100, "fill_price": 102.00}
+        )
+        assert bot.net_position == 200
+        assert bot.avg_cost == pytest.approx(101.00)
+
+    def test_multi_symbol_fill_isolation(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A fill on MSFT's leg must never change AAPL's tracked position."""
+        bot, _push, _sub = _make_multi_bot(
+            monkeypatch, ["AAPL", "MSFT"], initial_min=95.0, initial_max=105.0
+        )
+        for sym in bot.symbols:
+            st = bot._symbols_state[sym]
+            st.pricer = QuotePricer(tick_size=0.01, gap=0.10, drift_ticks=3)
+            st.pricer.set_mid(100.0)
+        bot._symbols_state["AAPL"].bid_order_id = "bid-aapl"
+        bot._symbols_state["AAPL"].ask_order_id = "ask-aapl"
+        bot._symbols_state["MSFT"].bid_order_id = "bid-msft"
+        bot._symbols_state["MSFT"].ask_order_id = "ask-msft"
+
+        bot._handle_order_fill(
+            {"order_id": "bid-msft", "fill_qty": 300, "fill_price": 200.0}
+        )
+        assert bot._symbols_state["MSFT"].net_position == 300
+        assert bot._symbols_state["AAPL"].net_position == 0
+        assert bot._symbols_state["AAPL"].avg_cost == 0.0
+
+    def test_inventory_skew_pricer_receives_position_updates(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """When inventory_skew is active, every fill must push the fresh
+        net_position into the pricer."""
+        bot, _push, _sub = _make_bot(monkeypatch)
+        st = bot._symbols_state["AAPL"]
+        st.pricer = InventorySkewPricer(
+            tick_size=0.01, gap=0.10, drift_ticks=3, max_position=1000
+        )
+        st.pricer.set_mid(100.0)
+        st.bid_order_id = "bid-001"
+        st.ask_order_id = "ask-001"
+
+        bot._handle_order_fill(
+            {"order_id": "bid-001", "fill_qty": 100, "fill_price": 100.0}
+        )
+        assert st.pricer._net_position == 100  # noqa: SLF001 (test-only introspection)
+
+    def test_symmetric_pricer_is_not_crashed_by_fills(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The plain symmetric strategy has no update_position -- fills
+        must not raise AttributeError against it."""
+        bot, _push, _sub = _make_bot(monkeypatch)
+        st = bot._symbols_state["AAPL"]
+        st.pricer = QuotePricer(tick_size=0.01, gap=0.10, drift_ticks=3)
+        st.pricer.set_mid(100.0)
+        st.bid_order_id = "bid-001"
+        st.ask_order_id = "ask-001"
+        assert not hasattr(st.pricer, "update_position")
+
+        # Must not raise.
+        bot._handle_order_fill(
+            {"order_id": "bid-001", "fill_qty": 100, "fill_price": 100.0}
+        )
+        assert bot.net_position == 100
+
+
 class TestMMBotStartup:
     """Integration tests for bot startup sequence."""
 
@@ -1650,6 +2162,96 @@ class TestMMBotQuoting:
         bot._tick()
         topic1, _ = msg_decode(push.sent[-1])
         assert topic1 == "quote.new"
+
+    def test_inventory_skew_end_to_end_never_stops_quoting(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Fills that push net_position toward and past max_position keep
+        producing progressively skewed quotes, saturating at the cap --
+        the bot must never leave the normal QUOTING/REISSUING/REPRICING
+        cycle for a "stopped" state."""
+        bot, push, sub = _make_bot(monkeypatch, initial_min=95.0, initial_max=105.0)
+        bot.strategy = "inventory_skew"
+        bot._max_position = 500
+        _setup_full_startup(sub)
+
+        monkeypatch.setattr(
+            "edumatcher.mm_bot.bot.signal.signal", lambda *a, **kw: None
+        )
+        # Don't actually run the event loop -- just do startup manually,
+        # mirroring _start_bot() above but with inventory_skew active.
+        bot._setup_sockets = lambda: None
+        bot._push_sock = push
+        bot._sub_sock = sub
+        bot._close_sockets = lambda: None
+
+        assert bot._authenticate(timeout_sec=0.1)
+        bot._request_symbols(timeout_sec=0.1)
+        bot._pricer = InventorySkewPricer(
+            tick_size=0.01, gap=bot.gap, drift_ticks=bot.drift_ticks, max_position=500
+        )
+        bot._request_bootstrap()
+        bot._request_qlegs()
+        bot._session_state = "CONTINUOUS"
+        bot._resolve_bootstrap_reference(None)
+        bot._pricer.set_mid(100.0)
+        bot._state = BotState.QUOTING
+        bot._running = True
+
+        bot._quote_id = "q-001"
+        bot._bid_order_id = "bid-001"
+        bot._ask_order_id = "ask-001"
+        bot._quoted_at_mid = 100.0
+
+        def _fill_and_reissue(order_id: str, qty: int) -> tuple[float, float]:
+            push.sent.clear()
+            bot._handle_order_fill(
+                {"order_id": order_id, "fill_qty": qty, "fill_price": 100.0}
+            )
+            bot._reissue_at = 0
+            bot._tick()  # sends quote.cancel
+            bot._reissue_at = 0
+            bot._tick()  # sends quote.new (replacement)
+            new_topic, new_payload = msg_decode(push.sent[-1])
+            assert new_topic == "quote.new"
+            bot._quote_id = "q-002"
+            bot._bid_order_id = "bid-002"
+            bot._ask_order_id = "ask-002"
+            return new_payload["bid_price"], new_payload["ask_price"]
+
+        # Buy fills (BID leg) push the bot long, widening/lowering ask.
+        # The first fill must reference the order id already live on the
+        # bot ("bid-001", set above) -- _fill_and_reissue always rotates
+        # bid_order_id to "bid-002" for the *next* round after reissuing,
+        # so every later call correctly uses "bid-002".
+        _fill_and_reissue("bid-001", 200)
+        assert bot.net_position == 200
+        assert bot._state in (
+            BotState.QUOTING,
+            BotState.REISSUING,
+            BotState.REPRICING,
+        )
+
+        prices_2 = _fill_and_reissue("bid-002", 200)
+        assert bot.net_position == 400
+
+        # Push well past max_position (500) — must keep quoting, saturated.
+        prices_3 = _fill_and_reissue("bid-002", 500)
+        assert bot.net_position == 900
+        assert bot._state in (
+            BotState.QUOTING,
+            BotState.REISSUING,
+            BotState.REPRICING,
+        )
+
+        # One more fill past the cap must reproduce identical (saturated)
+        # prices, not keep widening further.
+        prices_4 = _fill_and_reissue("bid-002", 1000)
+        assert bot.net_position == 1900
+        assert prices_3 == prices_4
+        # Sanity: ask kept dropping from step 2 to step 3 (still within
+        # the ramp) before saturating.
+        assert prices_3[1] <= prices_2[1]
 
     def test_reissue_batches_rapid_fills(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Three fills in rapid succession produce exactly one reissue."""

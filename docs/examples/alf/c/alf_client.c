@@ -96,7 +96,7 @@ static Position g_positions[MAX_POSITIONS];
 static int      g_npositions = 0;
 
 /* Multi-line response state */
-typedef enum { COL_NONE, COL_SYMBOLS, COL_ORDERS, COL_QBOOT } CollectMode;
+typedef enum { COL_NONE, COL_SYMBOLS, COL_ORDERS, COL_QBOOT, COL_POSITION } CollectMode;
 static CollectMode g_collecting = COL_NONE;
 #define MAX_COLLECT_ROWS 512
 static alf_message_t g_collect_rows[MAX_COLLECT_ROWS];
@@ -319,6 +319,20 @@ static void flush_collected(void)
         }
         if (g_collect_count == 0)
             event_print("  (no active quotes)");
+        break;
+
+    case COL_POSITION:
+        event_print("%sPosition — %s%s", COL_BOLD, g_collect_gw, COL_RESET);
+        event_print("  %-10s %10s %10s", "SYM", "NET_QTY", "AVG_COST");
+        for (i = 0; i < g_collect_count && i < MAX_COLLECT_ROWS; i++) {
+            const alf_message_t *r = &g_collect_rows[i];
+            event_print("  %-10s %10s %10s",
+                        alf_get_field(r, "SYM")      ? alf_get_field(r, "SYM")      : "?",
+                        alf_get_field(r, "NET_QTY")  ? alf_get_field(r, "NET_QTY")  : "-",
+                        alf_get_field(r, "AVG_COST") ? alf_get_field(r, "AVG_COST") : "-");
+        }
+        if (g_collect_count == 0)
+            event_print("  (flat — no open positions)");
         break;
 
     default:
@@ -647,6 +661,12 @@ static void process_socket_data(void)
                 start = nl + 1;
                 continue;
             }
+            if (strcmp(msg.msg_type, "POS_ENTRY") == 0 && g_collecting == COL_POSITION) {
+                if (g_collect_count < MAX_COLLECT_ROWS)
+                    g_collect_rows[g_collect_count++] = msg;
+                start = nl + 1;
+                continue;
+            }
             if (strcmp(msg.msg_type, "END") == 0) {
                 flush_collected();
                 start = nl + 1;
@@ -672,6 +692,14 @@ static void process_socket_data(void)
         if (strcmp(msg.msg_type, "QBOOT") == 0) {
             g_collecting   = COL_QBOOT;
             g_collect_count = 0;
+            start = nl + 1;
+            continue;
+        }
+        if (strcmp(msg.msg_type, "POSITION") == 0) {
+            g_collecting   = COL_POSITION;
+            g_collect_count = 0;
+            const char *gw = alf_get_field(&msg, "GW");
+            snprintf(g_collect_gw, sizeof(g_collect_gw), "%s", gw ? gw : "");
             start = nl + 1;
             continue;
         }
@@ -889,7 +917,7 @@ static void cmd_help(void)
     puts("  QUOTE|SYM=<s>|BID=<p>|ASK=<p>|BID_QTY=<n>|ASK_QTY=<n>[|TIF=...|QUOTE_ID=...]");
     puts("  QUOTE_CANCEL|SYM=<s>");
     puts("  KILL[|SYM=<s>]    SYMBOLS    ORDERS    QBOOT[|SYM=<s>]");
-    puts("  PING    POS    STATUS    HELP    EXIT / QUIT\n");
+    puts("  PING    POS    POS|GW=<gateway_id>    STATUS    HELP    EXIT / QUIT\n");
 }
 
 /* --------------------------------------------------------------------------
@@ -931,8 +959,16 @@ static void line_handler(char *line)
         return;
     }
     if (strcmp(cmd, "HELP") == 0)   { cmd_help();   free(line); return; }
-    if (strcmp(cmd, "POS") == 0)    { cmd_pos();    free(line); return; }
     if (strcmp(cmd, "STATUS") == 0) { cmd_status(); free(line); return; }
+    if (strcmp(cmd, "POS") == 0) {
+        /* POS|GW=<gateway_id> is a genuine engine round trip (unlike bare
+         * POS, which prints this session's local fill ledger below) --
+         * fall through to the generic send path so the gateway answers it
+         * with a POSITION/POS_ENTRY/END multi-line reply. */
+        int has_gw = (strcasestr(t, "|GW=") != NULL);
+        if (!has_gw) { cmd_pos(); free(line); return; }
+        /* has GW= -- fall through to the generic send path below */
+    }
 
     /* Send to gateway with uppercased verb */
     char sendline[ALF_MAX_LINE_LEN];

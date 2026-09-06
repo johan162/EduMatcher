@@ -267,8 +267,8 @@ ALF commands fall into five groups:
 | Group                                            | Commands                                                                        |
 |---------------------------------------------------|--------------------------------------------------------------------------------|
 | Trading commands forwarded to the engine           | `NEW`, `AMEND`, `CANCEL`, `QUOTE`, `QUOTE_CANCEL`, `KILL`, `SYMBOLS`, `ORDERS`, `QBOOT`, `SESSION` |
-| Client-local informational commands                | `STATUS`, `POS`, `HELP`                                                         |
-| Divergent between clients (see note below)         | `QLEGS`                                                                         |
+| Client-local informational commands                | `STATUS`, `HELP`                                                                |
+| Divergent between clients (see note below)         | `QLEGS`, `POS`                                                                  |
 | Drop-copy relay control (gateway-local)            | `DC`                                                                            |
 | Session-control commands for the CLI process       | `EXIT`, `QUIT`                                                                  |
 
@@ -312,9 +312,20 @@ transport-independent order rejection class used for ALF/REST comparison.
     below and [ALF TCP Gateway → QLEGS](220-alf-gateway.md#qlegs-quote-leg-snapshot-active-recent)
     for the `pm-alf-gwy` wire format.
 
-    `STATUS` and `POS` are `pm-alf-console`-only: `pm-alf-gwy` rejects both
-    with `ERR|CODE=UNKNOWN_COMMAND` since it has no interactive terminal to
-    print a summary to.
+    `STATUS` is `pm-alf-console`-only: `pm-alf-gwy` rejects it with
+    `ERR|CODE=UNKNOWN_COMMAND` since it has no interactive terminal to print
+    a summary to.
+
+    `POS` also behaves differently in each client, but in the other
+    direction from `QLEGS`: bare `POS` (no `GW=`) in `pm-alf-console` prints
+    that session's own locally-tracked fills and P&L, and `pm-alf-gwy` still
+    rejects a bare `POS` — it keeps no such local ledger. `POS|GW=<gateway_id>`
+    is the form that **is** a genuine engine round trip in both clients:
+    it asks the engine's `system.position_request` / `system.
+    position_snapshot.{GW_ID}` for *any* gateway's position (an MM bot's,
+    typically), not just the caller's own. See
+    [ALF TCP Gateway → POS](220-alf-gateway.md#posgwgateway_id-query-another-gateways-position)
+    for the `pm-alf-gwy` wire format.
 
 
 
@@ -1047,9 +1058,22 @@ last update time.
 
 ```text
 POS
+POS|GW=<gateway_id>
 ```
 
-Prints positions and P&L computed from fills seen by this gateway instance.
+Bare `POS` prints positions and P&L computed from fills seen by this
+gateway session's own local ledger — `pm-alf-console` only; `pm-alf-gwy`
+rejects it (see the note above).
+
+`POS|GW=<gateway_id>` asks the engine what *any* gateway is holding —
+typically a running `pm-mm-bot` instance, but any connected gateway_id
+works, including your own. Both clients send `system.position_request` for
+that `gateway_id` and render the engine's `system.position_snapshot.
+{gateway_id}` reply: net quantity and average cost per symbol, for every
+symbol that gateway has a non-zero position in. This is always a genuine
+engine round trip, in both clients — it does not use either client's local
+fill ledger. See [ALF TCP Gateway → POS](220-alf-gateway.md#posgwgateway_id-query-another-gateways-position)
+for the wire-level request/reply shape.
 
 ### `SYMBOLS`
 

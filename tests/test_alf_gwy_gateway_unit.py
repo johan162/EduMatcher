@@ -888,6 +888,247 @@ def test_session_status_response_dropped_when_client_disconnected(
     gateway._poll_engine_events()  # should not raise
 
 
+def test_pos_without_gw_is_rejected_as_missing_field(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "MM01"
+    session.role = "MARKET_MAKER"
+    session.rate_tokens = 10.0
+
+    gateway._handle_client_line(session, "POS")
+
+    assert session.out_queue
+    frame = parse_alf_line(session.out_queue[-1].decode("utf-8"))
+    assert frame.command == "ERR"
+    assert frame.fields["CODE"] == "MISSING_FIELD"
+    peer.close()
+
+
+def test_pos_gw_sends_position_request_and_subscribes(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    session.role = "TRADER"
+    session.rate_tokens = 10.0
+
+    gateway._handle_client_line(session, "POS|GW=MM_AAPL_01")
+
+    fake_push = gateway._push
+    assert isinstance(fake_push, _FakePush)
+    assert fake_push.sent
+    topic = fake_push.sent[-1][0].decode("utf-8")
+    assert topic == "system.position_request"
+    assert session.pending_position_query == "MM_AAPL_01"
+    assert "system.position_snapshot.MM_AAPL_01" in session.subscriptions
+    assert gateway._topic_refcounts["system.position_snapshot.MM_AAPL_01"] == 1
+    peer.close()
+
+
+def test_pos_gw_lowercase_is_uppercased(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    session.role = "TRADER"
+    session.rate_tokens = 10.0
+
+    gateway._handle_client_line(session, "POS|GW=mm_aapl_01")
+
+    assert session.pending_position_query == "MM_AAPL_01"
+    peer.close()
+
+
+def test_second_pos_gw_query_unsubscribes_the_first(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    session.role = "TRADER"
+    session.rate_tokens = 10.0
+
+    gateway._handle_client_line(session, "POS|GW=MM_AAPL_01")
+    session.rate_tokens = 10.0
+    gateway._handle_client_line(session, "POS|GW=MM_MSFT_01")
+
+    assert session.pending_position_query == "MM_MSFT_01"
+    assert "system.position_snapshot.MM_AAPL_01" not in session.subscriptions
+    assert "system.position_snapshot.MM_MSFT_01" in session.subscriptions
+    assert "system.position_snapshot.MM_AAPL_01" not in gateway._topic_refcounts
+    peer.close()
+
+
+def test_position_snapshot_reply_routed_to_querying_client(
+    gateway: AlfGateway,
+) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    gateway._clients[session.sock.fileno()] = session
+    gateway._active_gateway_sessions["TRADER01"] = session.sock.fileno()
+
+    gateway._handle_client_line(session, "POS|GW=MM_AAPL_01")
+    session.out_queue.clear()
+
+    fake_sub = gateway._sub
+    assert isinstance(fake_sub, _FakeSub)
+    fake_sub._queue.append(
+        encode(
+            "system.position_snapshot.MM_AAPL_01",
+            {"positions": [{"symbol": "AAPL", "net_qty": -300, "avg_cost": 150.05}]},
+        )
+    )
+
+    gateway._poll_engine_events()
+
+    assert len(session.out_queue) == 3
+    header = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    assert header.command == "POSITION"
+    assert header.fields["GW"] == "MM_AAPL_01"
+    assert header.fields["COUNT"] == "1"
+    entry = parse_alf_line(session.out_queue[1].decode("utf-8"))
+    assert entry.command == "POS_ENTRY"
+    assert entry.fields["SYM"] == "AAPL"
+    assert entry.fields["NET_QTY"] == "-300"
+    assert entry.fields["AVG_COST"] == "150.05"
+    end = parse_alf_line(session.out_queue[2].decode("utf-8"))
+    assert end.command == "END"
+    assert end.fields["TYPE"] == "POSITION"
+    assert session.pending_position_query is None
+    assert "system.position_snapshot.MM_AAPL_01" not in session.subscriptions
+    assert "system.position_snapshot.MM_AAPL_01" not in gateway._topic_refcounts
+    peer.close()
+
+
+def test_position_snapshot_reply_with_no_positions_ends_with_zero_count(
+    gateway: AlfGateway,
+) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    gateway._clients[session.sock.fileno()] = session
+    gateway._active_gateway_sessions["TRADER01"] = session.sock.fileno()
+
+    gateway._handle_client_line(session, "POS|GW=MM_AAPL_01")
+    session.out_queue.clear()
+
+    fake_sub = gateway._sub
+    assert isinstance(fake_sub, _FakeSub)
+    fake_sub._queue.append(
+        encode("system.position_snapshot.MM_AAPL_01", {"positions": []})
+    )
+
+    gateway._poll_engine_events()
+
+    assert len(session.out_queue) == 2
+    header = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    assert header.fields["COUNT"] == "0"
+    end = parse_alf_line(session.out_queue[1].decode("utf-8"))
+    assert end.command == "END"
+    peer.close()
+
+
+def test_position_snapshot_reply_dropped_when_no_outstanding_query(
+    gateway: AlfGateway,
+) -> None:
+    # No session ever asked about MM_AAPL_01 -- response must be silently
+    # dropped, matching the QLEGS/QBOOT/SESSION response pattern.
+    fake_sub = gateway._sub
+    assert isinstance(fake_sub, _FakeSub)
+    fake_sub._queue.append(
+        encode(
+            "system.position_snapshot.MM_AAPL_01",
+            {"positions": [{"symbol": "AAPL", "net_qty": 0, "avg_cost": 0.0}]},
+        )
+    )
+
+    gateway._poll_engine_events()  # should not raise
+
+
+def test_position_snapshot_reply_for_different_gateway_is_ignored(
+    gateway: AlfGateway,
+) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    gateway._clients[session.sock.fileno()] = session
+    gateway._active_gateway_sessions["TRADER01"] = session.sock.fileno()
+
+    gateway._handle_client_line(session, "POS|GW=MM_AAPL_01")
+    session.out_queue.clear()
+
+    fake_sub = gateway._sub
+    assert isinstance(fake_sub, _FakeSub)
+    fake_sub._queue.append(
+        encode(
+            "system.position_snapshot.MM_MSFT_01",
+            {"positions": [{"symbol": "MSFT", "net_qty": 100, "avg_cost": 300.0}]},
+        )
+    )
+
+    gateway._poll_engine_events()
+
+    assert not session.out_queue
+    assert session.pending_position_query == "MM_AAPL_01"
+    peer.close()
+
+
+def test_disconnect_while_position_query_outstanding_unsubscribes(
+    gateway: AlfGateway,
+) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    gateway._clients[session.sock.fileno()] = session
+    gateway._active_gateway_sessions["TRADER01"] = session.sock.fileno()
+
+    gateway._handle_client_line(session, "POS|GW=MM_AAPL_01")
+    assert "system.position_snapshot.MM_AAPL_01" in gateway._topic_refcounts
+
+    gateway._disconnect(session, reason="client closed")
+
+    assert "system.position_snapshot.MM_AAPL_01" not in gateway._topic_refcounts
+    peer.close()
+
+
+def test_two_sessions_querying_the_same_gateway_are_both_answered(
+    gateway: AlfGateway,
+) -> None:
+    session_a, peer_a = _make_session()
+    session_a.authenticated = True
+    session_a.gateway_id = "TRADER01"
+    gateway._clients[session_a.sock.fileno()] = session_a
+    gateway._active_gateway_sessions["TRADER01"] = session_a.sock.fileno()
+
+    session_b, peer_b = _make_session()
+    session_b.authenticated = True
+    session_b.gateway_id = "MM01"
+    gateway._clients[session_b.sock.fileno()] = session_b
+    gateway._active_gateway_sessions["MM01"] = session_b.sock.fileno()
+
+    gateway._handle_client_line(session_a, "POS|GW=MM_AAPL_01")
+    gateway._handle_client_line(session_b, "POS|GW=MM_AAPL_01")
+    assert gateway._topic_refcounts["system.position_snapshot.MM_AAPL_01"] == 2
+    session_a.out_queue.clear()
+    session_b.out_queue.clear()
+
+    fake_sub = gateway._sub
+    assert isinstance(fake_sub, _FakeSub)
+    fake_sub._queue.append(
+        encode(
+            "system.position_snapshot.MM_AAPL_01",
+            {"positions": [{"symbol": "AAPL", "net_qty": 50, "avg_cost": 149.5}]},
+        )
+    )
+
+    gateway._poll_engine_events()
+
+    assert session_a.out_queue
+    assert session_b.out_queue
+    assert session_a.pending_position_query is None
+    assert session_b.pending_position_query is None
+    assert "system.position_snapshot.MM_AAPL_01" not in gateway._topic_refcounts
+    peer_a.close()
+    peer_b.close()
+
+
 def test_cancelled_event_echoes_cancel_reason(gateway: AlfGateway) -> None:
     """An exchange-initiated cancel reaches an ALF client with its cause.
 
