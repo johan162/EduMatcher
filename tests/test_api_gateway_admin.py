@@ -78,6 +78,10 @@ class AdminFakeEngine:
             }
         if topic.startswith("system.halt_status."):
             return {"halted": [{"symbol": "AAPL"}]}
+        if topic.startswith("system.position_snapshot."):
+            return {
+                "positions": [{"symbol": "AAPL", "net_qty": -300, "avg_cost": 150.05}]
+            }
         if topic.startswith("risk.symbol_halt_ack."):
             return {"accepted": self.ack_accepted, "symbol": "AAPL", "reason": "nope"}
         if topic.startswith("risk.symbol_resume_ack."):
@@ -139,6 +143,9 @@ class AdminFakeEngine:
 
     def request_halt_status(self, gateway_id: str) -> None:
         self.calls.append(("request_halt_status", gateway_id))
+
+    def request_position(self, gateway_id: str) -> None:
+        self.calls.append(("request_position", gateway_id))
 
     def add_admin_sink(self, queue: Any) -> None:
         self.admin_sinks.append(queue)
@@ -292,6 +299,69 @@ async def test_reply_timeout_returns_503() -> None:
     with pytest.raises(HTTPException) as exc:
         await admin.halt_status(request, admin_session())
     assert exc.value.status_code == 503
+
+
+@pytest.mark.anyio
+async def test_admin_positions_returns_target_gateways_holdings() -> None:
+    """GET /admin/positions?gateway_id=<target> is a genuine engine round
+    trip for *any* gateway_id, not just the caller's own -- unlike
+    GET /positions (own-gateway, local cache, no avg_cost)."""
+    engine = AdminFakeEngine()
+    request = admin_request(engine)
+    result = await admin.admin_positions("mm_aapl_01", request, admin_session())
+
+    assert result == {
+        "gateway_id": "MM_AAPL_01",
+        "count": 1,
+        "positions": [{"symbol": "AAPL", "net_qty": -300, "avg_cost": 150.05}],
+    }
+    assert ("request_position", "MM_AAPL_01") in engine.calls
+
+
+@pytest.mark.anyio
+async def test_admin_positions_uppercases_target_gateway_id() -> None:
+    engine = AdminFakeEngine()
+    request = admin_request(engine)
+    await admin.admin_positions("gw01", request, admin_session())
+
+    await_event_calls = [call for call in engine.calls if call[0] == "await_event"]
+    topic, _match, _timeout = await_event_calls[-1][1]
+    assert topic == "system.position_snapshot.GW01"
+
+
+@pytest.mark.anyio
+async def test_admin_positions_rejects_non_admin_role() -> None:
+    engine = AdminFakeEngine(role="TRADER")
+    request = admin_request(engine)
+    with pytest.raises(HTTPException) as exc:
+        await admin.admin_positions("GW02", request, admin_session())
+    assert exc.value.status_code == 403
+    assert cast(dict[str, Any], exc.value.detail)["error"]["code"] == "ROLE_DENIED"
+
+
+@pytest.mark.anyio
+async def test_admin_positions_timeout_returns_503() -> None:
+    engine = TimeoutAdminEngine()
+    request = admin_request(engine)
+    with pytest.raises(HTTPException) as exc:
+        await admin.admin_positions("GW02", request, admin_session())
+    assert exc.value.status_code == 503
+
+
+@pytest.mark.anyio
+async def test_admin_positions_empty_reply_renders_empty_list() -> None:
+    class FlatAdminEngine(AdminFakeEngine):
+        async def await_event(
+            self, topic: str, match: dict[str, str] | None, timeout: float
+        ) -> dict[str, Any]:
+            if topic.startswith("system.position_snapshot."):
+                return {"positions": []}
+            return await super().await_event(topic, match, timeout)
+
+    engine = FlatAdminEngine()
+    request = admin_request(engine)
+    result = await admin.admin_positions("GW02", request, admin_session())
+    assert result == {"gateway_id": "GW02", "count": 0, "positions": []}
 
 
 @pytest.mark.anyio

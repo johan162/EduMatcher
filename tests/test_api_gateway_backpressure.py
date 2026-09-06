@@ -181,6 +181,7 @@ def test_every_sender_is_guarded(client: EngineClient) -> None:
         lambda: client.request_gateways("GW01"),
         lambda: client.request_session_schedule("GW01"),
         lambda: client.request_halt_status("GW01"),
+        lambda: client.request_position("GW01"),
     ]
     for call in calls:
         with pytest.raises(HTTPException) as excinfo:

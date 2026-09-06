@@ -571,6 +571,13 @@ parallel bookkeeping of the same fills — the two should always agree, since
 both are derived from the same fill stream, but only the engine's ledger
 is reachable remotely via `POS|GW=`.
 
+The same query is available over REST for an admin-role caller, via
+[`GET /api/v1/admin/positions?gateway_id=MM_AAPL_01`](950-app-REST-API-reference.md#get-apiv1adminpositions)
+— useful for a dashboard or a script that wants to watch a bot's position
+without an interactive console session. It reads the same
+`system.position_request`/`system.position_snapshot` pair `POS|GW=` uses,
+so both surfaces always agree.
+
 ---
 
 ## Engine configuration
