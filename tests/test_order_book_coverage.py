@@ -8,6 +8,7 @@ Additional order_book tests targeting uncovered lines:
   - resting_orders / restore_stats
   - snapshot with icebergs and cancelled entries
   - FOK _available_qty with price filter
+  - quote_orders_for_gateway / _quote_orders_by_gateway secondary index
 """
 
 from __future__ import annotations
@@ -19,9 +20,11 @@ import pytest
 from edumatcher.engine.order_book import OrderBook
 from edumatcher.models.order import (
     Order,
+    OrderOrigin,
     OrderStatus,
     OrderType,
     Side,
+    SmpAction,
     TIF,
 )
 
@@ -477,3 +480,271 @@ class TestIcebergPassiveReplenishment:
         buyer = _make(Side.BUY, OrderType.LIMIT, 50, price=100)
         trades, events = book.process(buyer, match=True)
         assert iceberg.status == OrderStatus.FILLED
+
+
+# ---------------------------------------------------------------------------
+# quote_orders_for_gateway / _quote_orders_by_gateway secondary index
+# ---------------------------------------------------------------------------
+
+
+def _make_quote_leg(
+    side: Side,
+    qty: int,
+    price: int,
+    gateway: str = "GW01",
+    quote_id: str = "Q1",
+) -> Order:
+    """Build a resting LIMIT order tagged origin=QUOTE, the way
+    Engine._handle_quote_new tags each of a quote's two legs (it sets
+    .origin/.quote_id on the Order *after* Order.create(), since those are
+    not create() parameters)."""
+    o = Order.create(
+        symbol="TEST",
+        side=side,
+        order_type=OrderType.LIMIT,
+        quantity=qty,
+        gateway_id=gateway,
+        tif=TIF.DAY,
+        price=price,
+    )
+    o.origin = OrderOrigin.QUOTE
+    o.quote_id = quote_id
+    return o
+
+
+class TestQuoteOrdersByGatewayIndex:
+    def test_unknown_gateway_returns_empty_list(self) -> None:
+        book = OrderBook("TEST")
+        assert book.quote_orders_for_gateway("NOSUCHGW") == []
+
+    def test_resting_quote_leg_is_indexed(self) -> None:
+        book = OrderBook("TEST")
+        bid = _make_quote_leg(Side.BUY, 500, price=100)
+        book.process(bid, match=False)
+        found = book.quote_orders_for_gateway("GW01")
+        assert [o.id for o in found] == [bid.id]
+
+    def test_both_legs_of_one_quote_are_indexed(self) -> None:
+        book = OrderBook("TEST")
+        bid = _make_quote_leg(Side.BUY, 500, price=100)
+        ask = _make_quote_leg(Side.SELL, 500, price=101)
+        book.process(bid, match=False)
+        book.process(ask, match=False)
+        found_ids = {o.id for o in book.quote_orders_for_gateway("GW01")}
+        assert found_ids == {bid.id, ask.id}
+
+    def test_ordinary_order_is_never_indexed(self) -> None:
+        # origin defaults to OrderOrigin.ORDER — must not appear in the
+        # quote-only index even though it rests in the same book/gateway.
+        book = OrderBook("TEST")
+        ordinary = _make(Side.BUY, OrderType.LIMIT, 100, price=100, gateway="GW01")
+        assert ordinary.origin == OrderOrigin.ORDER
+        book.process(ordinary, match=False)
+        assert book.quote_orders_for_gateway("GW01") == []
+
+    def test_mixed_quote_and_ordinary_orders_only_quote_returned(self) -> None:
+        book = OrderBook("TEST")
+        quote_leg = _make_quote_leg(Side.BUY, 500, price=100)
+        ordinary = _make(Side.SELL, OrderType.LIMIT, 100, price=105, gateway="GW01")
+        book.process(quote_leg, match=False)
+        book.process(ordinary, match=False)
+        found_ids = {o.id for o in book.quote_orders_for_gateway("GW01")}
+        assert found_ids == {quote_leg.id}
+
+    def test_different_gateways_do_not_cross_contaminate(self) -> None:
+        book = OrderBook("TEST")
+        leg_gw1 = _make_quote_leg(Side.BUY, 500, price=100, gateway="GW01")
+        leg_gw2 = _make_quote_leg(Side.SELL, 500, price=101, gateway="GW02")
+        book.process(leg_gw1, match=False)
+        book.process(leg_gw2, match=False)
+        assert [o.id for o in book.quote_orders_for_gateway("GW01")] == [leg_gw1.id]
+        assert [o.id for o in book.quote_orders_for_gateway("GW02")] == [leg_gw2.id]
+
+    def test_cancel_removes_leg_from_index(self) -> None:
+        book = OrderBook("TEST")
+        bid = _make_quote_leg(Side.BUY, 500, price=100)
+        book.process(bid, match=False)
+        assert book.quote_orders_for_gateway("GW01") != []
+        book.cancel_order(bid.id)
+        assert book.quote_orders_for_gateway("GW01") == []
+
+    def test_cancel_one_leg_leaves_sibling_indexed(self) -> None:
+        # Mirrors _on_quote_leg_filled cancelling only the sibling: the
+        # index must reflect exactly one remaining leg, not zero and not
+        # a stale reference to the cancelled one.
+        book = OrderBook("TEST")
+        bid = _make_quote_leg(Side.BUY, 500, price=100)
+        ask = _make_quote_leg(Side.SELL, 500, price=101)
+        book.process(bid, match=False)
+        book.process(ask, match=False)
+        book.cancel_order(ask.id)
+        found = book.quote_orders_for_gateway("GW01")
+        assert [o.id for o in found] == [bid.id]
+
+    def test_full_fill_removes_leg_from_index(self) -> None:
+        # A full fill purges via _apply_fill -> _purge_from_indexes, a
+        # different code path from cancel_order but the same funnel this
+        # index hooks — must be removed here too.
+        book = OrderBook("TEST")
+        bid = _make_quote_leg(Side.BUY, 500, price=100)
+        book.process(bid, match=False)
+        taker = _make(Side.SELL, OrderType.LIMIT, 500, price=100, gateway="GW02")
+        trades, _events = book.process(taker, match=True)
+        assert len(trades) == 1
+        assert bid.status == OrderStatus.FILLED
+        assert book.quote_orders_for_gateway("GW01") == []
+
+    def test_partial_fill_leaves_leg_indexed_with_reduced_qty(self) -> None:
+        # This is the exact scenario _cancel_orphaned_quote_legs exists for:
+        # a partial fill must NOT remove the hit leg from the index — its
+        # remainder keeps resting and must still be found (and eventually
+        # cancelled) by a later replace.
+        book = OrderBook("TEST")
+        bid = _make_quote_leg(Side.BUY, 500, price=100)
+        book.process(bid, match=False)
+        taker = _make(Side.SELL, OrderType.LIMIT, 100, price=100, gateway="GW02")
+        trades, _events = book.process(taker, match=True)
+        assert len(trades) == 1
+        assert bid.status == OrderStatus.PARTIAL
+        assert bid.remaining_qty == 400
+        found = book.quote_orders_for_gateway("GW01")
+        assert [o.id for o in found] == [bid.id]
+        assert found[0].remaining_qty == 400
+
+    def test_gateway_entry_pruned_once_last_leg_removed(self) -> None:
+        # Internal invariant: an empty per-gateway set must not linger in
+        # _quote_orders_by_gateway (mirrors the analogous cleanup QuoteIndex
+        # does for _keys_by_gateway) — confirmed both externally (empty
+        # list back) and internally (key actually gone, not just empty).
+        book = OrderBook("TEST")
+        bid = _make_quote_leg(Side.BUY, 500, price=100)
+        book.process(bid, match=False)
+        assert "GW01" in book._quote_orders_by_gateway
+        book.cancel_order(bid.id)
+        assert book.quote_orders_for_gateway("GW01") == []
+        assert "GW01" not in book._quote_orders_by_gateway
+
+    def test_reinsert_iceberg_path_never_touches_quote_index(self) -> None:
+        # Icebergs are never quote legs in practice (_handle_quote_new only
+        # creates LIMIT legs), but this pins that _reinsert_iceberg's
+        # replenishment path — which does not call _rest — cannot
+        # accidentally leave a quote-origin iceberg untracked or
+        # double-tracked if that ever changed. Belt-and-braces: an iceberg
+        # tagged origin=QUOTE by hand should still be tracked once (from its
+        # initial _rest call) and remain tracked through replenishment.
+        book = OrderBook("TEST")
+        iceberg = _make(Side.SELL, OrderType.ICEBERG, 200, price=100, visible_qty=50)
+        iceberg.origin = OrderOrigin.QUOTE
+        iceberg.quote_id = "Q1"
+        book.process(iceberg, match=False)
+        assert [o.id for o in book.quote_orders_for_gateway("GW01")] == [iceberg.id]
+        buyer = _make(Side.BUY, OrderType.LIMIT, 50, price=100, gateway="GW02")
+        trades, _events = book.process(buyer, match=True)
+        assert len(trades) == 1
+        assert iceberg.remaining_qty == 150
+        # Still indexed exactly once after replenishment — no duplicate
+        # entry, no drop.
+        found = book.quote_orders_for_gateway("GW01")
+        assert [o.id for o in found] == [iceberg.id]
+
+    def test_stop_order_tagged_quote_never_enters_index(self) -> None:
+        # Documents a real scope boundary: _add_stop is a separate
+        # insertion funnel from _rest and does not populate this index.
+        # Quote legs are always plain LIMIT in this engine, so this can't
+        # happen via Engine, but the index's behavior here must stay a
+        # deliberate, tested no-op rather than an accident.
+        book = OrderBook("TEST")
+        stop = _make(Side.BUY, OrderType.STOP, 100, stop_price=105, gateway="GW01")
+        stop.origin = OrderOrigin.QUOTE
+        stop.quote_id = "Q1"
+        book.process(stop, match=False)
+        assert book.quote_orders_for_gateway("GW01") == []
+
+    def test_smp_cancel_resting_quote_leg_removes_it_from_index(self) -> None:
+        """Regression test for a real bug found in review: _smp_cancel_resting
+        is a *third* removal funnel (besides cancel_order and _apply_fill's
+        full-fill purge) that used to bypass _purge_from_indexes entirely --
+        it popped _order_index directly and never touched
+        _quote_orders_by_gateway. A same-gateway aggressor crossing its own
+        resting QUOTE-origin leg under SmpAction.CANCEL_RESTING left a stale
+        order_id in the index; the very next quote_orders_for_gateway call
+        (exactly what Engine._cancel_orphaned_quote_legs does on every quote
+        reissue) raised KeyError trying to resolve it back through
+        _order_index. _smp_cancel_resting now funnels through
+        _purge_from_indexes, which fixes this."""
+        book = OrderBook("TEST")
+        resting_quote_leg = Order.create(
+            symbol="TEST",
+            side=Side.SELL,
+            order_type=OrderType.LIMIT,
+            quantity=100,
+            gateway_id="GW01",
+            tif=TIF.DAY,
+            price=100,
+            smp_action=SmpAction.CANCEL_RESTING,
+        )
+        resting_quote_leg.origin = OrderOrigin.QUOTE
+        resting_quote_leg.quote_id = "Q1"
+        book.process(resting_quote_leg, match=False)
+        assert [o.id for o in book.quote_orders_for_gateway("GW01")] == [
+            resting_quote_leg.id
+        ]
+
+        # Same-gateway aggressor crosses it -- SMP fires CANCEL_RESTING.
+        aggressor = Order.create(
+            symbol="TEST",
+            side=Side.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=100,
+            gateway_id="GW01",
+            tif=TIF.DAY,
+            price=100,
+            smp_action=SmpAction.CANCEL_RESTING,
+        )
+        trades, events = book.process(aggressor, match=True)
+        assert trades == []  # no fill -- SMP prevented it
+        assert resting_quote_leg.status == OrderStatus.CANCELLED
+
+        # Must not raise KeyError, and must correctly report no resting
+        # quote legs left for this gateway.
+        assert book.quote_orders_for_gateway("GW01") == []
+        assert "GW01" not in book._quote_orders_by_gateway
+        # Also fixes the pre-existing _entry_index leak in the same path.
+        assert resting_quote_leg.id not in book._entry_index
+        assert resting_quote_leg.id not in book._order_index
+
+    def test_smp_cancel_both_resting_quote_leg_removes_it_from_index(self) -> None:
+        """Same bug, via the CANCEL_BOTH branch (a separate call site from
+        CANCEL_RESTING in _sweep, and a third in _match_fok's pre-check)."""
+        book = OrderBook("TEST")
+        resting_quote_leg = Order.create(
+            symbol="TEST",
+            side=Side.SELL,
+            order_type=OrderType.LIMIT,
+            quantity=100,
+            gateway_id="GW01",
+            tif=TIF.DAY,
+            price=100,
+            smp_action=SmpAction.CANCEL_BOTH,
+        )
+        resting_quote_leg.origin = OrderOrigin.QUOTE
+        resting_quote_leg.quote_id = "Q1"
+        book.process(resting_quote_leg, match=False)
+
+        aggressor = Order.create(
+            symbol="TEST",
+            side=Side.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=100,
+            gateway_id="GW01",
+            tif=TIF.DAY,
+            price=100,
+            smp_action=SmpAction.CANCEL_BOTH,
+        )
+        trades, events = book.process(aggressor, match=True)
+        assert trades == []
+        assert resting_quote_leg.status == OrderStatus.CANCELLED
+        assert aggressor.status == OrderStatus.CANCELLED
+
+        assert book.quote_orders_for_gateway("GW01") == []
+        assert "GW01" not in book._quote_orders_by_gateway

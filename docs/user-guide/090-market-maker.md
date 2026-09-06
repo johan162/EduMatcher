@@ -906,10 +906,13 @@ has inactivated this quote since it was last (re)issued):
 there is nothing left in the `QuoteIndex` bookkeeping to replace, but there
 can still be a genuinely resting order on the book: the hit leg's own
 partial remainder, which that earlier fill deliberately left in place. The
-engine handles this with a fallback: it scans the gateway's own resting
-orders on this symbol directly (by `gateway_id` and quote origin, not
-through the `QuoteIndex`) and cancels anything it finds there too, **before**
-creating the new legs. No `quote.status CANCELLED` is emitted for this
+engine handles this with a fallback: it looks up the gateway's own resting
+quote-origin orders on this symbol directly (via `OrderBook`'s
+per-gateway index of resting quote legs, not through the `QuoteIndex`) and
+cancels anything it finds there too, **before** creating the new legs. See
+[docs/architecture/02-architecture-guide.md §10](../architecture/02-architecture-guide.md#10-market-maker-quotes-two-orders-one-obligation)
+for exactly how that index is kept in sync and why it exists alongside
+`QuoteIndex` rather than replacing it. No `quote.status CANCELLED` is emitted for this
 fallback cancellation — the quote was already announced
 `INACTIVE_BID_FILLED`/`INACTIVE_ASK_FILLED` at fill time, so there is no
 quote-level status left to transition — but an ordinary `order.cancelled`

@@ -27,6 +27,7 @@ from edumatcher.models.price import from_ticks, get_tick_decimals
 
 from edumatcher.models.order import (
     Order,
+    OrderOrigin,
     OrderStatus,
     OrderType,
     Side,
@@ -80,6 +81,7 @@ class OrderBook:
         "_ask_qty",
         "_order_index",
         "_entry_index",
+        "_quote_orders_by_gateway",
         "last_trade_price",
         "last_trade_qty",
         "last_buy_price",
@@ -114,6 +116,23 @@ class OrderBook:
         # order_id → _HeapEntry (for bid/ask) or Order (for stops)
         self._order_index: dict[str, Order] = {}
         self._entry_index: dict[str, _HeapEntry] = {}
+
+        # Secondary index over _order_index: gateway_id → set of order_ids
+        # that are both currently resting in this book AND origin=QUOTE.
+        # Answers "does this gateway have any resting quote-origin order(s)
+        # left in this book?" in O(1) instead of scanning resting_orders().
+        # See Engine._cancel_orphaned_quote_legs, the only consumer, and
+        # docs/architecture/02-architecture-guide.md §10 for the rationale.
+        # Maintained by the same two funnels as every other index here:
+        # populated in _rest() (the sole insertion point for a NEW resting
+        # order), removed in _purge_from_indexes() (the sole point where an
+        # order stops resting — cancel or full fill). Stop orders bypass
+        # both funnels via _add_stop() instead, so they never enter this
+        # index — harmless in practice since quote legs are always plain
+        # LIMIT orders (Engine._handle_quote_new only ever creates those),
+        # but noted here since this differs from _order_index/_entry_index,
+        # which stop orders do join.
+        self._quote_orders_by_gateway: dict[str, set[str]] = {}
 
         self.last_trade_price: Optional[int] = None
         self.last_trade_qty: Optional[int] = None
@@ -441,6 +460,19 @@ class OrderBook:
             for o in self._order_index.values()
             if o.status in (OrderStatus.NEW, OrderStatus.PARTIAL)
         ]
+
+    def quote_orders_for_gateway(self, gateway_id: str) -> list[Order]:
+        """Return this gateway's resting QUOTE-origin orders in this book.
+
+        O(k) in the number of matching orders (k), via
+        ``_quote_orders_by_gateway`` — never a scan of ``resting_orders()``.
+        Every id in the index names a resting order in ``_order_index`` (the
+        two are kept in lock-step by ``_rest``/``_purge_from_indexes``), so
+        no result needs a liveness re-check; ``.get(..., ())`` handles a
+        gateway with no resting quote legs without a KeyError.
+        """
+        order_ids = self._quote_orders_by_gateway.get(gateway_id, ())
+        return [self._order_index[oid] for oid in order_ids]
 
     def best_bid_ticks(self) -> int | None:
         """Return best bid price in ticks, or None if no active bid exists."""
@@ -946,16 +978,23 @@ class OrderBook:
         order.status = OrderStatus.CANCELLED
         order.cancel_reason = "SELF_MATCH_PREVENTED"
         entry = self._entry_index.get(order.id)
-        if entry:
-            entry.valid = False
-            if order.price is not None:
-                qty = (
-                    order.displayed_qty or 0
-                    if order.order_type == OrderType.ICEBERG
-                    else order.remaining_qty
-                )
-                self._deduct_qty_index(order, qty)
-        self._order_index.pop(order.id, None)
+        if entry and order.price is not None:
+            qty = (
+                order.displayed_qty or 0
+                if order.order_type == OrderType.ICEBERG
+                else order.remaining_qty
+            )
+            self._deduct_qty_index(order, qty)
+        # H7 / quote-index parity: funnel through the same purge every other
+        # removal path uses (cancel_order, _apply_fill) instead of popping
+        # _order_index directly. Before this, _smp_cancel_resting left
+        # _entry_index's heap entry invalidated-but-not-popped (a harmless
+        # leak — lazy deletion still skips it) and, more importantly, never
+        # cleared _quote_orders_by_gateway: a same-gateway SMP cancel of a
+        # resting QUOTE-origin leg left a stale order_id there, which then
+        # raised KeyError out of quote_orders_for_gateway on that gateway's
+        # next quote reissue. Routing through _purge_from_indexes fixes both.
+        self._purge_from_indexes(order)
         events.append(order)
 
     def _sweep(
@@ -1236,6 +1275,14 @@ class OrderBook:
         if entry is not None:
             entry.valid = False
         self._order_index.pop(order.id, None)
+        # Mirror the removal in the quote-legs-by-gateway index (see _rest).
+        # No-op if this order was never a resting QUOTE-origin order, or was
+        # already purged — same idempotency guarantee as the pops above.
+        gateway_orders = self._quote_orders_by_gateway.get(order.gateway_id)
+        if gateway_orders is not None:
+            gateway_orders.discard(order.id)
+            if not gateway_orders:
+                del self._quote_orders_by_gateway[order.gateway_id]
 
     # ------------------------------------------------------------------
     # Heap management
@@ -1282,6 +1329,10 @@ class OrderBook:
         heapq.heappush(heap, entry)
         self._order_index[order.id] = order
         self._entry_index[order.id] = entry
+        if order.origin == OrderOrigin.QUOTE:
+            self._quote_orders_by_gateway.setdefault(order.gateway_id, set()).add(
+                order.id
+            )
 
     def _reinsert_iceberg(self, order: Order) -> None:
         """Invalidate old heap entry and push fresh one after peak replenishment."""

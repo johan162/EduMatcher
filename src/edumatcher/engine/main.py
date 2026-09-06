@@ -2721,8 +2721,13 @@ class Engine:
         live until a new quote actually replaces it, not until the fill
         happens. When no ``QuoteIndex`` entry is found on replace, this is
         the only remaining place that can find and clear such a leftover:
-        it scans the book directly by ``(gateway_id, symbol, origin=QUOTE)``
-        rather than trusting index bookkeeping that has already been popped.
+        it looks the gateway's resting quote-origin order(s) up directly via
+        ``OrderBook.quote_orders_for_gateway`` — an O(k) index lookup (k =
+        this gateway's resting quote legs in this book, at most 2) — rather
+        than trusting ``QuoteIndex`` bookkeeping that has already been
+        popped, and rather than scanning every resting order in the book.
+        See docs/architecture/02-architecture-guide.md §10 for the index's
+        full rationale.
 
         Ordinary orders (``origin=ORDER``) are never touched here — this
         mirrors ``_handle_gateway_disconnect``'s ``CANCEL_ALL`` sweep, which
@@ -2733,10 +2738,9 @@ class Engine:
         if book is None:
             return 0
         cancelled = 0
-        for order in list(book.resting_orders()):
-            if order.gateway_id == gateway_id and order.origin == OrderOrigin.QUOTE:
-                if self._cancel_order_by_id(order.id) is not None:
-                    cancelled += 1
+        for order in list(book.quote_orders_for_gateway(gateway_id)):
+            if self._cancel_order_by_id(order.id) is not None:
+                cancelled += 1
         return cancelled
 
     def _publish_trade(self, trade: Any) -> None:

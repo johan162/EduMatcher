@@ -881,3 +881,329 @@ def test_inactivate_on_full_fill_partial_leg_stays_active_and_unaffected(
     assert new_entry.quote_id == "Q2"
     gw01_resting = {o.id for o in book.resting_orders() if o.gateway_id == "GW01"}
     assert gw01_resting == {new_entry.bid_order_id, new_entry.ask_order_id}
+
+
+def test_reissue_after_partial_fill_uses_orderbook_index_not_a_scan(
+    monkeypatch, tmp_path
+) -> None:
+    """Same scenario as test_reissue_after_partial_fill_cancels_stale_remainder,
+    but asserting on the OrderBook-level index directly rather than only the
+    externally observable outcome. Pins the *mechanism*
+    (_cancel_orphaned_quote_legs -> OrderBook.quote_orders_for_gateway, an
+    O(k) index lookup) so a future change that reintroduces a
+    resting_orders() scan, or that lets the index drift from reality, fails
+    a test even if the black-box behavior still happens to look right.
+    """
+    engine, pub_sock = _make_engine(
+        monkeypatch,
+        tmp_path,
+        role=ParticipantRole.MARKET_MAKER,
+        quote_refresh_policy=QuoteRefreshPolicy.INACTIVATE_ON_ANY_FILL,
+    )
+    engine._handle_quote_new(
+        {
+            "gateway_id": "GW01",
+            "symbol": "AAPL",
+            "quote_id": "Q1",
+            "bid_price": to_ticks(100.0, "AAPL"),
+            "bid_qty": 500,
+            "ask_price": to_ticks(101.0, "AAPL"),
+            "ask_qty": 500,
+        }
+    )
+    book = engine._book("AAPL")
+    entry = engine._quote_index.get("GW01", "AAPL")
+    assert entry is not None
+    stale_bid_id = entry.bid_order_id
+
+    # Before any fill: both legs live in the index.
+    assert {o.id for o in book.quote_orders_for_gateway("GW01")} == {
+        entry.bid_order_id,
+        entry.ask_order_id,
+    }
+
+    taker = Order.create(
+        symbol="AAPL",
+        side=Side.SELL,
+        order_type=OrderType.LIMIT,
+        quantity=100,
+        gateway_id="GW01",
+        tif=TIF.DAY,
+        price=to_ticks(100.0, "AAPL"),
+    )
+    engine._handle_new_order(taker.to_dict())
+
+    # After the partial fill: INACTIVATE_ON_ANY_FILL popped QuoteIndex and
+    # cancelled the sibling ask -- so the OrderBook index must now show
+    # exactly the stale partial bid, and nothing else, for this gateway.
+    assert engine._quote_index.get("GW01", "AAPL") is None
+    remaining = book.quote_orders_for_gateway("GW01")
+    assert [o.id for o in remaining] == [stale_bid_id]
+    assert remaining[0].remaining_qty == 400
+
+    # The reissue must find and cancel exactly that one stale order via the
+    # index (_cancel_orphaned_quote_legs), then the index must show only
+    # the two fresh Q2 legs.
+    engine._handle_quote_new(
+        {
+            "gateway_id": "GW01",
+            "symbol": "AAPL",
+            "quote_id": "Q2",
+            "bid_price": to_ticks(100.05, "AAPL"),
+            "bid_qty": 500,
+            "ask_price": to_ticks(101.05, "AAPL"),
+            "ask_qty": 500,
+        }
+    )
+    new_entry = engine._quote_index.get("GW01", "AAPL")
+    assert new_entry is not None
+    final_ids = {o.id for o in book.quote_orders_for_gateway("GW01")}
+    assert final_ids == {new_entry.bid_order_id, new_entry.ask_order_id}
+    assert stale_bid_id not in final_ids
+
+
+def test_orphaned_leg_cleanup_does_not_affect_other_gateways_index_entries(
+    monkeypatch, tmp_path
+) -> None:
+    """Two market makers quoting the same symbol: GW01's orphaned-leg
+    cleanup on reissue must never touch GW02's still-active quote legs,
+    even though both live in the same OrderBook and (before this fix) would
+    have been scanned together via resting_orders(). Guards against a
+    gateway-id mixup in the new per-gateway index.
+
+    Builds its own two-gateway engine (rather than extending the shared
+    single-gateway _make_engine fixture used by every other test in this
+    file) since _allowed_fix_gateways is a frozenset snapshot taken once at
+    Engine construction from the config passed in -- adding a gateway to
+    engine._engine_config.fix_gateways afterwards would not be recognised
+    by _handle_gateway_connect.
+    """
+    pull_sock = _FakeSock(sent=[])
+    pub_sock = _FakeSock(sent=[])
+    cfg = EngineConfig(
+        symbols={"AAPL": SymbolConfig(name="AAPL")},
+        fix_gateways={
+            "GW01": FixGatewayConfig(
+                id="GW01",
+                role=ParticipantRole.MARKET_MAKER,
+                disconnect_behaviour=DisconnectBehaviour.CANCEL_QUOTES_ONLY,
+                quote_refresh_policy=QuoteRefreshPolicy.INACTIVATE_ON_ANY_FILL,
+            ),
+            "GW02": FixGatewayConfig(
+                id="GW02",
+                role=ParticipantRole.MARKET_MAKER,
+                disconnect_behaviour=DisconnectBehaviour.CANCEL_QUOTES_ONLY,
+                quote_refresh_policy=QuoteRefreshPolicy.INACTIVATE_ON_ANY_FILL,
+            ),
+        },
+        sessions_enabled=False,
+    )
+    monkeypatch.setattr("edumatcher.engine.main.make_puller", lambda _: pull_sock)
+    monkeypatch.setattr("edumatcher.engine.main.make_publisher", lambda _: pub_sock)
+    monkeypatch.setattr("edumatcher.engine.main.load_engine_config", lambda _: cfg)
+    monkeypatch.setattr("edumatcher.engine.main.load_gtc_orders", lambda _: [])
+    monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: {})
+    monkeypatch.setattr("edumatcher.engine.main.time.sleep", lambda *_: None)
+    cfg_path = tmp_path / "engine_config.yaml"
+    cfg_path.write_text("dummy: true\n")
+    engine = Engine(config_path=str(cfg_path))
+    engine._handle_gateway_connect({"gateway_id": "GW01"})
+    engine._handle_gateway_connect({"gateway_id": "GW02"})
+    pub_sock.sent.clear()
+
+    book = engine._book("AAPL")
+
+    engine._handle_quote_new(
+        {
+            "gateway_id": "GW01",
+            "symbol": "AAPL",
+            "quote_id": "Q1",
+            "bid_price": to_ticks(100.0, "AAPL"),
+            "bid_qty": 500,
+            "ask_price": to_ticks(101.0, "AAPL"),
+            "ask_qty": 500,
+        }
+    )
+    engine._handle_quote_new(
+        {
+            "gateway_id": "GW02",
+            "symbol": "AAPL",
+            "quote_id": "QG2",
+            "bid_price": to_ticks(99.0, "AAPL"),
+            "bid_qty": 300,
+            "ask_price": to_ticks(102.0, "AAPL"),
+            "ask_qty": 300,
+        }
+    )
+    gw2_entry = engine._quote_index.get("GW02", "AAPL")
+    assert gw2_entry is not None
+    gw2_leg_ids = {gw2_entry.bid_order_id, gw2_entry.ask_order_id}
+
+    # Partially fill GW01's bid only -- GW02 is untouched by this taker.
+    taker = Order.create(
+        symbol="AAPL",
+        side=Side.SELL,
+        order_type=OrderType.LIMIT,
+        quantity=100,
+        gateway_id="GW01",
+        tif=TIF.DAY,
+        price=to_ticks(100.0, "AAPL"),
+    )
+    engine._handle_new_order(taker.to_dict())
+    assert engine._quote_index.get("GW01", "AAPL") is None
+    # GW02's quote must still be fully active and untouched.
+    assert engine._quote_index.get("GW02", "AAPL") is gw2_entry
+    assert {o.id for o in book.quote_orders_for_gateway("GW02")} == gw2_leg_ids
+
+    pub_sock.sent.clear()
+    # GW01 reissues -- its own orphaned-leg cleanup must only ever look at
+    # GW01's index bucket, never GW02's.
+    engine._handle_quote_new(
+        {
+            "gateway_id": "GW01",
+            "symbol": "AAPL",
+            "quote_id": "Q2",
+            "bid_price": to_ticks(100.05, "AAPL"),
+            "bid_qty": 500,
+            "ask_price": to_ticks(101.05, "AAPL"),
+            "ask_qty": 500,
+        }
+    )
+    cancelled_ids = {
+        decode(f)[1]["order_id"]
+        for f in pub_sock.sent
+        if decode(f)[0] == "order.cancelled.GW01"
+    }
+    # Only GW01's stale leg was cancelled -- none of GW02's.
+    assert cancelled_ids.isdisjoint(gw2_leg_ids)
+    assert engine._quote_index.get("GW02", "AAPL") is gw2_entry
+    assert {o.id for o in book.quote_orders_for_gateway("GW02")} == gw2_leg_ids
+
+
+def test_smp_cancel_of_stale_quote_remainder_does_not_crash_reissue(
+    monkeypatch, tmp_path
+) -> None:
+    """Regression test for a real bug found in review of the new
+    OrderBook._quote_orders_by_gateway index: _smp_cancel_resting is a
+    third order-removal path (besides cancel_order and a full fill) that
+    used to bypass OrderBook._purge_from_indexes entirely, leaving a stale
+    order_id behind whenever it cancelled a resting QUOTE-origin leg. That
+    stale id then raised KeyError out of quote_orders_for_gateway on the
+    gateway's next reissue -- i.e. it crashed exactly the fallback path
+    _cancel_orphaned_quote_legs exists to run safely.
+
+    Sequence that reaches it: INACTIVATE_ON_ANY_FILL partially fills the
+    bid leg (sibling ask cancelled, QuoteIndex entry popped, stale bid
+    remainder left resting -- same setup as
+    test_reissue_after_partial_fill_cancels_stale_remainder). Before that
+    stale remainder gets a chance to be cleaned up by a reissue, a second,
+    unrelated same-gateway order crosses it with SmpAction.CANCEL_RESTING
+    configured, so it dies via _smp_cancel_resting instead. The gateway's
+    reissue must still succeed (no KeyError) and end up with exactly the
+    two fresh legs resting.
+
+    Builds its own two-gateway engine (GW01 the market maker, GW03 an
+    ordinary trader) rather than extending the shared single-gateway
+    _make_engine fixture, for the same reason as
+    test_orphaned_leg_cleanup_does_not_affect_other_gateways_index_entries:
+    _allowed_fix_gateways is a frozenset snapshot taken once at Engine
+    construction, so a second gateway must be present in the config passed
+    to Engine(), not added afterwards.
+    """
+    pull_sock = _FakeSock(sent=[])
+    pub_sock = _FakeSock(sent=[])
+    cfg = EngineConfig(
+        symbols={"AAPL": SymbolConfig(name="AAPL")},
+        fix_gateways={
+            "GW01": FixGatewayConfig(
+                id="GW01",
+                role=ParticipantRole.MARKET_MAKER,
+                disconnect_behaviour=DisconnectBehaviour.CANCEL_QUOTES_ONLY,
+                quote_refresh_policy=QuoteRefreshPolicy.INACTIVATE_ON_ANY_FILL,
+                smp_action=SmpAction.CANCEL_RESTING,
+            ),
+            "GW03": FixGatewayConfig(
+                id="GW03",
+                role=ParticipantRole.TRADER,
+            ),
+        },
+        sessions_enabled=False,
+    )
+    monkeypatch.setattr("edumatcher.engine.main.make_puller", lambda _: pull_sock)
+    monkeypatch.setattr("edumatcher.engine.main.make_publisher", lambda _: pub_sock)
+    monkeypatch.setattr("edumatcher.engine.main.load_engine_config", lambda _: cfg)
+    monkeypatch.setattr("edumatcher.engine.main.load_gtc_orders", lambda _: [])
+    monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: {})
+    monkeypatch.setattr("edumatcher.engine.main.time.sleep", lambda *_: None)
+    cfg_path = tmp_path / "engine_config.yaml"
+    cfg_path.write_text("dummy: true\n")
+    engine = Engine(config_path=str(cfg_path))
+    engine._handle_gateway_connect({"gateway_id": "GW01"})
+    engine._handle_gateway_connect({"gateway_id": "GW03"})
+    pub_sock.sent.clear()
+
+    engine._handle_quote_new(
+        {
+            "gateway_id": "GW01",
+            "symbol": "AAPL",
+            "quote_id": "Q1",
+            "bid_price": to_ticks(100.0, "AAPL"),
+            "bid_qty": 500,
+            "ask_price": to_ticks(101.0, "AAPL"),
+            "ask_qty": 500,
+        }
+    )
+    entry = engine._quote_index.get("GW01", "AAPL")
+    assert entry is not None
+    stale_bid_id = entry.bid_order_id
+    book = engine._book("AAPL")
+
+    # Partial fill from a genuinely different, unrelated gateway -- ordinary
+    # INACTIVATE_ON_ANY_FILL path, leaves the bid's 400-qty remainder
+    # resting (SMP never applies across different gateway_ids).
+    other_gw_taker = Order.create(
+        symbol="AAPL",
+        side=Side.SELL,
+        order_type=OrderType.LIMIT,
+        quantity=100,
+        gateway_id="GW03",
+        tif=TIF.DAY,
+        price=to_ticks(100.0, "AAPL"),
+    )
+    engine._handle_new_order(other_gw_taker.to_dict())
+    assert engine._quote_index.get("GW01", "AAPL") is None
+    assert stale_bid_id in _resting_ids(book)
+
+    # Now GW01 itself crosses its own stale remainder -- SMP fires
+    # CANCEL_RESTING instead of a second fill.
+    same_gw_aggressor = Order.create(
+        symbol="AAPL",
+        side=Side.SELL,
+        order_type=OrderType.LIMIT,
+        quantity=400,
+        gateway_id="GW01",
+        tif=TIF.DAY,
+        price=to_ticks(100.0, "AAPL"),
+    )
+    engine._handle_new_order(same_gw_aggressor.to_dict())
+    assert stale_bid_id not in _resting_ids(book)  # SMP-cancelled, not filled
+
+    pub_sock.sent.clear()
+    # The reissue must not raise KeyError (the bug) and must succeed
+    # normally, ending up with exactly the two fresh Q2 legs.
+    engine._handle_quote_new(
+        {
+            "gateway_id": "GW01",
+            "symbol": "AAPL",
+            "quote_id": "Q2",
+            "bid_price": to_ticks(100.05, "AAPL"),
+            "bid_qty": 500,
+            "ask_price": to_ticks(101.05, "AAPL"),
+            "ask_qty": 500,
+        }
+    )
+    new_entry = engine._quote_index.get("GW01", "AAPL")
+    assert new_entry is not None
+    assert new_entry.quote_id == "Q2"
+    gw01_resting = {o.id for o in book.resting_orders() if o.gateway_id == "GW01"}
+    assert gw01_resting == {new_entry.bid_order_id, new_entry.ask_order_id}

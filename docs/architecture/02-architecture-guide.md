@@ -77,12 +77,13 @@ Terms you will encounter throughout this document, defined up front:
 1. [Beyond Limit Orders: The Full Order Type Taxonomy](#7-beyond-limit-orders-the-full-order-type-taxonomy)
 1. [The Trading Day: Auctions and Continuous Matching](#8-the-trading-day-auctions-and-continuous-matching)
 1. [Complex Orders: Combos and OCO](#9-complex-orders-combos-and-oco)
-1. [The Message Bus: Why ZeroMQ?](#10-the-message-bus-why-zeromq)
-1. [The Full Process Architecture](#11-the-full-process-architecture)
-1. [Optimisations: Speed, Memory, and Latency](#12-optimisations-speed-memory-and-latency)
-1. [Persistence: Surviving a Restart](#13-persistence-surviving-a-restart)
-1. [Clearing and Settlement: Following the Money](#14-clearing-and-settlement-following-the-money)
-1. [What Is Missing: The Gap to Production](#15-what-is-missing-the-gap-to-production)
+1. [Market-Maker Quotes: Two Orders, One Obligation](#10-market-maker-quotes-two-orders-one-obligation)
+1. [The Message Bus: Why ZeroMQ?](#11-the-message-bus-why-zeromq)
+1. [The Full Process Architecture](#12-the-full-process-architecture)
+1. [Optimisations: Speed, Memory, and Latency](#13-optimisations-speed-memory-and-latency)
+1. [Persistence: Surviving a Restart](#14-persistence-surviving-a-restart)
+1. [Clearing and Settlement: Following the Money](#15-clearing-and-settlement-following-the-money)
+1. [What Is Missing: The Gap to Production](#16-what-is-missing-the-gap-to-production)
 
 
 
@@ -327,7 +328,7 @@ def _match_limit(self, order, trades, events, now):
 ```python
 def _sweep(self, aggressor, opposite_heap, price_limit, trades, events, now):
     # Cache frequently-accessed attributes as locals for speed.
-    # (Section 12 shows the full set of cached locals including _smp_action
+    # (Section 13 shows the full set of cached locals including _smp_action
     # and _gw_id for self-match prevention; this version is simplified.)
     _side = aggressor.side
     _peek = self._peek
@@ -1322,7 +1323,260 @@ legs are evaluated together before any fills are committed.
 
 
 
-## 10. The Message Bus: Why ZeroMQ?
+## 10. Market-Maker Quotes: Two Orders, One Obligation
+
+A `QUOTE` is how a market maker posts continuous two-sided liquidity: one message
+carries a bid and an ask together, and replacing it is a single atomic operation
+rather than two independent cancel/new pairs. Underneath, a quote is nothing more
+than two ordinary `LIMIT` orders in the book — same heaps, same price-time
+priority, same matching logic as Section 4. What is different is bookkeeping: the
+engine needs to answer "which two orders belong to this gateway's current quote on
+this symbol?" cheaply, and it needs to keep that answer correct through fills,
+cancels, disconnects, and restarts. This section covers the two indexes that make
+that possible, and the one cancellation path that has to fall back to a third
+mechanism when both indexes have already forgotten about a leg.
+
+### The Two Orders
+
+`Engine._handle_quote_new` builds a quote's bid and ask exactly like any other
+order, then tags them:
+
+```python
+# engine/main.py — _handle_quote_new()
+bid = Order.create(
+    symbol=symbol, side=Side.BUY, order_type=OrderType.LIMIT,
+    quantity=bid_qty, gateway_id=gateway_id, tif=tif,
+    price=bid_price, smp_action=smp_action,
+)
+ask = Order.create(
+    symbol=symbol, side=Side.SELL, order_type=OrderType.LIMIT,
+    quantity=ask_qty, gateway_id=gateway_id, tif=tif,
+    price=ask_price, smp_action=smp_action,
+)
+bid.origin = OrderOrigin.QUOTE
+ask.origin = OrderOrigin.QUOTE
+bid.quote_id = quote_id
+ask.quote_id = quote_id
+```
+
+`origin` and `quote_id` are not `Order.create()` parameters — they are set
+afterward, because they exist to answer "was this order created by a `QUOTE`
+message, and which one?", a question ordinary `NEW` orders never need to ask.
+Both legs are then rested via `book.process(...)` exactly like any other limit
+order.
+
+### Index 1 — `QuoteIndex`: Which Two Orders Make Up *This* Quote?
+
+`models/quote.py`'s `QuoteIndex` is the engine-level index of *active* quotes,
+one entry per `(gateway_id, symbol)`:
+
+```python
+# models/quote.py
+class QuoteIndex:
+    def __init__(self, history_maxlen: int = DEFAULT_QUOTE_HISTORY_MAXLEN) -> None:
+        self._index: dict[tuple[str, str], QuoteEntry] = {}
+        self._keys_by_gateway: dict[str, set[tuple[str, str]]] = {}
+        self._keys_by_symbol: dict[str, set[tuple[str, str]]] = {}
+        self._history: dict[str, deque[QuoteHistoryEntry]] = {}
+```
+
+`_index` is the primary map: `(gateway_id, symbol) → QuoteEntry`, where a
+`QuoteEntry` is little more than `{quote_id, bid_order_id, ask_order_id}`. At most
+one entry exists per `(gateway_id, symbol)` — a `put()` for a key that already
+holds an entry silently replaces it, mirroring the fact that a gateway can only
+ever have one live quote per symbol. `_keys_by_gateway`/`_keys_by_symbol` are
+secondary indexes over the same key space, so "cancel everything this gateway
+has quoted" (`cancel_all_for_gateway`, used by gateway disconnect and kill switch)
+and "cancel every quote on this symbol" (`cancel_all_for_symbol`, used by circuit
+breakers and symbol halts) are O(k) in the number of that gateway's/symbol's
+active quotes, not a scan of every quote in the engine.
+
+`QuoteIndex` answers exactly one question well: *"what are the two order ids for
+gateway G's current quote on symbol S?"* It does not know whether those two
+orders are still resting, still partially filled, or already gone — it is a
+bookkeeping record of intent, not a live view of the book. That gap is exactly
+why a second index exists.
+
+### Index 2 — `OrderBook._quote_orders_by_gateway`: Which Quote-Origin Orders Are *Still Resting*?
+
+`QuoteIndex` is popped the moment a fill inactivates a quote (see below) — but
+under the engine's default refresh policy, a *partial* fill deliberately leaves
+the hit leg's remainder resting, live and tradeable, with no `QuoteIndex` entry
+pointing at it any more. Something still needs to find that leftover order when
+the market maker's next quote arrives, without paying for a scan of every
+resting order in the book to do it. `OrderBook` carries a small secondary index
+for exactly this:
+
+```python
+# engine/order_book.py
+self._quote_orders_by_gateway: dict[str, set[str]] = {}
+```
+
+`gateway_id → set of order_ids`, scoped to this one symbol's book, holding every
+order that is simultaneously (a) still resting and (b) `origin == OrderOrigin.QUOTE`.
+It is maintained by the same two funnels every other index in `OrderBook` goes
+through — insert in `_rest()`, remove in `_purge_from_indexes()` — so it follows
+the same "Dual-Index Pattern" discipline as `_order_index`/`_entry_index` from
+Section 5:
+
+```python
+# _rest() — the sole insertion point for a newly-resting order
+self._order_index[order.id] = order
+self._entry_index[order.id] = entry
+if order.origin == OrderOrigin.QUOTE:
+    self._quote_orders_by_gateway.setdefault(order.gateway_id, set()).add(order.id)
+```
+
+```python
+# _purge_from_indexes() — the sole point where an order stops resting
+# (called from both cancel_order() and _apply_fill()'s full-fill branch)
+entry = self._entry_index.pop(order.id, None)
+if entry is not None:
+    entry.valid = False
+self._order_index.pop(order.id, None)
+gateway_orders = self._quote_orders_by_gateway.get(order.gateway_id)
+if gateway_orders is not None:
+    gateway_orders.discard(order.id)
+    if not gateway_orders:
+        del self._quote_orders_by_gateway[order.gateway_id]
+```
+
+`quote_orders_for_gateway(gateway_id)` is the read side — an O(k) lookup (k = that
+gateway's resting quote legs in this book, at most 2 in steady state) instead of
+the O(n) `resting_orders()` scan it replaces:
+
+```python
+def quote_orders_for_gateway(self, gateway_id: str) -> list[Order]:
+    order_ids = self._quote_orders_by_gateway.get(gateway_id, ())
+    return [self._order_index[oid] for oid in order_ids]
+```
+
+Stop orders are inserted via a separate funnel (`_add_stop`, not `_rest`) and so
+never join this index — a deliberate scope boundary, harmless in practice because
+`_handle_quote_new` only ever creates plain `LIMIT` legs. Self-match prevention's
+`_smp_cancel_resting` funnels through `_purge_from_indexes` too, for the same
+reason `cancel_order` and `_apply_fill` do: a resting quote leg can be the
+"resting" side SMP cancels when a market maker's own later order crosses its own
+still-live quote, and that removal has to be visible to this index exactly like
+any other.
+
+### Why Two Indexes, Not One
+
+`QuoteIndex` and `_quote_orders_by_gateway` look like they overlap, but they
+answer different questions and go stale at different moments:
+
+| | `QuoteIndex` | `_quote_orders_by_gateway` |
+|---|---|---|
+| Lives in | `Engine` (one instance, all symbols) | `OrderBook` (one per symbol) |
+| Answers | "What is gateway G's *current* quote (by `quote_id`) on symbol S?" | "Which of gateway G's orders in *this book* are quote-origin and still resting?" |
+| Entry removed when | A fill inactivates the quote, a replace/cancel supersedes it, a disconnect/kill-switch/halt clears it | The specific order is cancelled or fully filled — regardless of `QuoteIndex`'s state |
+| Survives a partial fill? | No — inactivation policy can remove the entry immediately | Yes — the hit leg's resting remainder stays indexed until it actually stops resting |
+
+The second row is the crux: after `INACTIVATE_ON_ANY_FILL` pops `QuoteIndex` on a
+partial fill, `QuoteIndex` has *forgotten this quote ever existed*, but the hit
+leg's remainder is still real, resting, matchable liquidity — and
+`_quote_orders_by_gateway` is the only structure still tracking it. Without it,
+finding that leftover on the next quote would mean scanning every resting order
+in the book.
+
+### The Fallback: Cancelling a Leftover Leg `QuoteIndex` No Longer Knows About
+
+`Engine._handle_quote_new`'s replace logic tries `QuoteIndex` first:
+
+```python
+# engine/main.py — _handle_quote_new()
+previous = self._quote_index.remove(gateway_id, symbol, reason="Replaced by new quote")
+if previous:
+    self._cancel_quote_entry(previous, reason="Replaced by new quote")
+else:
+    self._cancel_orphaned_quote_legs(gateway_id, symbol)
+```
+
+The `if previous` branch is the common, cheap case: `QuoteIndex` still has an
+entry, both legs (whichever are still resting) get cancelled through it, and
+`_quote_orders_by_gateway` is updated as a side effect of each cancel going
+through `_purge_from_indexes`. The `else` branch is what runs after a partial
+fill already popped `QuoteIndex`:
+
+```python
+# engine/main.py
+def _cancel_orphaned_quote_legs(self, gateway_id: str, symbol: str) -> int:
+    book = self.books.get(symbol)
+    if book is None:
+        return 0
+    cancelled = 0
+    for order in list(book.quote_orders_for_gateway(gateway_id)):
+        if self._cancel_order_by_id(order.id) is not None:
+            cancelled += 1
+    return cancelled
+```
+
+This is an O(k) index lookup, not a scan — `quote_orders_for_gateway` returns
+this gateway's resting quote legs directly from `_quote_orders_by_gateway`. An
+earlier version of this function scanned `book.resting_orders()` (every resting
+order in the whole book) and filtered in Python for `gateway_id` and
+`origin == QUOTE`; that scan was replaced by this index once it became clear that
+a partial fill under `INACTIVATE_ON_ANY_FILL` — leaving a resting remainder with
+no `QuoteIndex` entry — is the ordinary case for an active market maker, not an
+edge case worth paying an O(n) scan for on every reissue.
+
+### Walkthrough: A Fill, a Stray Leg, and a Reissue
+
+```mermaid
+sequenceDiagram
+    participant MM as Market Maker (GW01)
+    participant E as Engine
+    participant QI as QuoteIndex
+    participant OB as OrderBook (AAPL)
+
+    MM->>E: QUOTE bid=100.00x500 ask=101.00x500
+    E->>OB: rest both legs (origin=QUOTE)
+    OB->>OB: _quote_orders_by_gateway["GW01"] = {bid_id, ask_id}
+    E->>QI: put(GW01, AAPL) -> {bid_id, ask_id}
+
+    Note over OB: An independent taker buys 100 from the bid
+    OB->>E: bid PARTIAL, remaining=400
+    E->>E: _on_quote_leg_filled: INACTIVATE_ON_ANY_FILL
+    E->>QI: remove(GW01, AAPL)  -- entry gone
+    E->>OB: cancel sibling ask (via _purge_from_indexes)
+    OB->>OB: _quote_orders_by_gateway["GW01"] = {bid_id}
+    Note over OB: bid's 400 remainder still rests -- genuine,<br/>tradeable liquidity, by design
+
+    MM->>E: QUOTE bid=100.05x500 ask=101.05x500 (reissue)
+    E->>QI: remove(GW01, AAPL) -> None (already gone)
+    E->>OB: quote_orders_for_gateway(GW01) -> [stale bid]
+    E->>OB: cancel stale bid (via _purge_from_indexes)
+    OB->>OB: _quote_orders_by_gateway["GW01"] = {}  (key pruned)
+    E->>OB: rest fresh bid + ask (origin=QUOTE)
+    OB->>OB: _quote_orders_by_gateway["GW01"] = {new_bid_id, new_ask_id}
+    E->>QI: put(GW01, AAPL) -> {new_bid_id, new_ask_id}
+```
+
+The stale 400-remainder is never orphaned indefinitely: it is genuinely
+tradeable until the moment the reissue arrives, at which point
+`quote_orders_for_gateway` finds it in O(1) and `_cancel_order_by_id` retires it
+— the same guarantee the design intended, at the complexity the engine's other
+indexes hold themselves to.
+
+### Restart: Both Indexes Rebuild From the Same Source
+
+Neither index has its own on-disk format. `QuoteIndex` and
+`_quote_orders_by_gateway` are both pure derivations from the persisted `Order`
+records' `origin`/`quote_id` fields (Section 13 covers GTC persistence in full).
+On restore, `Engine._restore_gtc` calls `book.process(order, match=False)` for
+every persisted order; for a resting `LIMIT` order this reaches `_rest()`, which
+populates `_quote_orders_by_gateway` exactly as it would for a brand-new quote —
+no separate rebuild code needed. `QuoteIndex` does need an explicit rebuild,
+because it groups legs by `quote_id` rather than being a pure by-product of
+resting one order: `_restore_gtc` collects every restored quote-origin order,
+groups them by `(gateway_id, quote_id)`, and re-inserts a `QuoteEntry` only for
+groups where *both* legs survived. A group with only one surviving leg is left
+as an ordinary resting order — logged as a "single-leg quote remnant" — rather
+than synthesizing a `QuoteEntry` for a quote that is missing half of itself.
+
+
+
+## 11. The Message Bus: Why ZeroMQ?
 
 ### The Problem with Direct Function Calls
 
@@ -1475,7 +1729,7 @@ registry. Just connect and start sending.
 
 
 
-## 11. The Full Process Architecture
+## 12. The Full Process Architecture
 
 EduMatcher is a **multi-process system**. Each process is a separate Python program
 with its own memory space, started independently. The diagram below shows the
@@ -1643,7 +1897,7 @@ is the closest thing to a full audit trail in the system.
 
 
 
-## 12. Optimisations: Speed, Memory, and Latency
+## 13. Optimisations: Speed, Memory, and Latency
 
 This section collects all performance-oriented decisions in one place, explains
 the reasoning, and quantifies the expected impact where possible.
@@ -1920,7 +2174,7 @@ O(P) price levels before any fills are attempted, and rejection is clean.
 
 
 
-## 13. Persistence: Surviving a Restart
+## 14. Persistence: Surviving a Restart
 
 When the engine restarts, two categories of state need to be restored:
 
@@ -2006,7 +2260,7 @@ after restart.
 
 
 
-## 14. Clearing and Settlement: Following the Money
+## 15. Clearing and Settlement: Following the Money
 
 Clearing is the process of ensuring both sides of a trade actually deliver what they
 promised: the buyer delivers money, the seller delivers shares. EduMatcher
@@ -2094,7 +2348,7 @@ and legal infrastructure.
 
 
 
-## 15. What Is Missing: The Gap to Production
+## 16. What Is Missing: The Gap to Production
 
 EduMatcher is explicitly educational. Here is a complete and honest accounting of
 what would need to be added to make it production-grade. Each item is a
