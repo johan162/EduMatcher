@@ -27,7 +27,7 @@ else
 	SED_INPLACE := -i
 endif
 
-.PHONY: docs pdf-docs pdf-training chapters-pdf-a4 epub-docs epub-docs-verify clean really-clean serve check-latex-engine \
+.PHONY: docs pdf-docs pdf-training chapters-pdf-a4 epub-docs epub-docs-verify epub-training epub-training-verify clean really-clean serve check-latex-engine \
 	cover-user-guide cover-training-guide covers \
 	docs-container-build docs-container-start docs-container-stop docs-container-restart docs-container-status docs-container-logs \
 	help _covers covers cover-user-guide cover-training-guide
@@ -167,6 +167,23 @@ TRAINING_GUIDE_TEMPLATE_DEPS := \
 	$(DOCS_DIR)/training/template_dark_b5.tex.in \
 	$(DOCS_DIR)/assets/cover-training-guide.png
 
+# Training Guide EPUB output path, source CSS template, and generated CSS —
+# mirrors USER_GUIDE_EPUB/EPUB_CSS_IN/EPUB_CSS above (EPUB_FIGURE_MAX_WIDTH
+# is substituted into the latter, same @@VAR@@ pattern as the LaTeX
+# templates' @@VERSION@@). Lua filters are the same shared pair the training
+# PDF build already reuses (USER_GUIDE_LUA_FILTER_FLAGS) — no training-only
+# Lua filter exists.
+TRAINING_GUIDE_EPUB      := $(DIST_DIR)/$(PROJECT)_training-guide-$(VERSION).epub
+TRAINING_EPUB_CSS_IN     := $(DOCS_DIR)/training/epub.css.in
+TRAINING_EPUB_CSS        := $(TRAINING_GUIDE_BUILD_DIR)/epub.css
+TRAINING_EPUB_CONCAT_MD  := $(TRAINING_GUIDE_BUILD_DIR)/training-guide_concat-epub.md
+TRAINING_EPUB_EXPANDED_DIR := $(TRAINING_GUIDE_BUILD_DIR)/expanded-epub
+TRAINING_EPUB_COVER      := $(ASSETS_DIR)/cover-training-guide.png
+TRAINING_EPUB_DEPS       := \
+	$(USER_GUIDE_LUA_FILTER) \
+	$(USER_GUIDE_ADMONITIONS_LUA_FILTER) \
+	$(TRAINING_EPUB_CSS_IN)
+
 CONCEPTS_MD_SOURCES := \
 	$(sort $(wildcard $(DOCS_DIR)/concepts/[0-9][0-9]-*.md))
 
@@ -216,7 +233,7 @@ endef
 
 help: ## Show this help message
 	@echo -e "$(DARKYELLOW)OneSelect - Makefile Targets$(NC)"
-	@$(call print_section,Documentation,docs|pdf-docs|epub-docs|epub-docs-verify|chapters-pdf-a4|exchange-intro)
+	@$(call print_section,Documentation,docs|pdf-docs|pdf-training|epub-docs|epub-docs-verify|epub-training|epub-training-verify|chapters-pdf-a4|exchange-intro)
 	@$(call print_section,Container,docs-container-build|docs-container-start|docs-container-stop|docs-container-restart|docs-container-status|docs-container-logs)
 	@echo ""
 
@@ -406,6 +423,65 @@ epub-docs-verify: epub-docs ## Build the User Guide EPUB and validate it with ep
 	fi
 	@epubcheck $(USER_GUIDE_EPUB)
 	@echo -e "$(GREEN)✓ EPUB validated: $(BRIGHTCYAN)\"$(notdir $(USER_GUIDE_EPUB))\"$(GREEN)$(NC)"
+
+# ============================================================================================
+# Training Guide EPUB target
+#
+# Same approach as the User Guide EPUB target above: one EPUB3 book,
+# reflowable, from the same TRAINING_GUIDE_MD_SOURCES as the training PDF
+# variants. No paper size and no LaTeX; expand-shell-outputs.py runs with
+# --format a4 for the same reason as the user-guide EPUB (no @EPUB spec for
+# the {{!cmd@...}} truncation rules, so a4 is equivalent to full output).
+# Mermaid diagrams render to SVG (not PDF) so they scale losslessly on any
+# reader — see the User Guide EPUB target's comment block above for the full
+# rationale behind --from=markdown-raw_html, --mathml, and --no-highlight,
+# all of which apply here unchanged.
+# ============================================================================================
+$(TRAINING_EPUB_CSS): $(TRAINING_EPUB_CSS_IN)
+	@mkdir -p $(TRAINING_GUIDE_BUILD_DIR)
+	@sed -e "s/@@EPUB_FIGURE_MAX_WIDTH@@/$(EPUB_FIGURE_MAX_WIDTH)/g" $(TRAINING_EPUB_CSS_IN) > $(TRAINING_EPUB_CSS)
+
+$(TRAINING_GUIDE_EPUB): $(TRAINING_GUIDE_MD_SOURCES) $(TRAINING_EPUB_DEPS) $(TRAINING_EPUB_CSS) | $(NODE_MODULES_PATH) $(DIST_DIR) $(BUILD_DIR)
+	@echo -e "$(DARKYELLOW)- Building $(BRIGHTCYAN)\"$(notdir $(TRAINING_GUIDE_EPUB))\"$(DARKYELLOW)...$(NC)"
+	@mkdir -p $(TRAINING_GUIDE_BUILD_DIR)
+	@echo -e "$(DARKYELLOW)  - Expanding shell command outputs in training markdown sources...$(NC)"
+	@mkdir -p $(TRAINING_EPUB_EXPANDED_DIR)
+	@poetry run python $(SCRIPTS_DIR)/expand-shell-outputs.py \
+		--output-dir $(TRAINING_EPUB_EXPANDED_DIR) \
+		--cwd $(SCRIPTS_DIR)/.. \
+		--format a4 \
+		$(TRAINING_GUIDE_MD_SOURCES)
+	@echo -e "$(DARKYELLOW)  - Concatenating training markdown sources...$(NC)"
+	@awk 'FNR==1 && NR!=1{print ""; print ""}1' $(foreach f,$(TRAINING_GUIDE_MD_SOURCES),$(TRAINING_EPUB_EXPANDED_DIR)/$(notdir $f)) > $(TRAINING_EPUB_CONCAT_MD)
+	@echo -e "$(DARKYELLOW)  - Converting training markdown to EPUB3 via pandoc...$(NC)"
+	@mkdir -p $(TRAINING_EPUB_EXPANDED_DIR)/.mermaid-img
+	@PUPPETEER_EXECUTABLE_PATH="$(PUPPETEER_EXECUTABLE_PATH)" \
+	MERMAID_FILTER_FORMAT="svg" \
+	MERMAID_FILTER_WIDTH="$(MERMAID_FILTER_WIDTH)" \
+	MERMAID_FILTER_LOC="$(TRAINING_EPUB_EXPANDED_DIR)/.mermaid-img" \
+	pandoc --from=markdown-raw_html --to=epub3 \
+		--mathml --syntax-highlighting=none \
+		--toc --toc-depth=2 \
+		--css $(TRAINING_EPUB_CSS) \
+		--epub-cover-image=$(TRAINING_EPUB_COVER) \
+		--metadata title="EduMatcher Training Guide (v$(VERSION))" \
+		--metadata author="J. Persson, 2026 v$(VERSION)" \
+		--metadata lang=en-US \
+		--filter "$(MERMAID_FILTER)" $(USER_GUIDE_LUA_FILTER_FLAGS) \
+		$(TRAINING_EPUB_CONCAT_MD) -o $(TRAINING_GUIDE_EPUB)
+	@echo -e "$(GREEN)✓ Training guide EPUB built: $(BRIGHTCYAN)\"$(notdir $(TRAINING_GUIDE_EPUB))\"$(GREEN)$(NC)"
+
+epub-training: cover-training-guide $(TRAINING_GUIDE_EPUB) ## Build the Training Guide as a single reflowable EPUB3 book
+
+epub-training-verify: epub-training ## Build the Training Guide EPUB and validate it with epubcheck
+	@echo -e "$(DARKYELLOW)- Validating $(BRIGHTCYAN)\"$(notdir $(TRAINING_GUIDE_EPUB))\"$(DARKYELLOW) with epubcheck...$(NC)"
+	@if ! command -v epubcheck >/dev/null 2>&1; then \
+		echo -e "$(RED)✗ epubcheck not found in PATH.$(NC)" >&2; \
+		echo -e "$(RED)  Install with: brew install epubcheck$(NC)" >&2; \
+		exit 1; \
+	fi
+	@epubcheck $(TRAINING_GUIDE_EPUB)
+	@echo -e "$(GREEN)✓ EPUB validated: $(BRIGHTCYAN)\"$(notdir $(TRAINING_GUIDE_EPUB))\"$(GREEN)$(NC)"
 
 # ============================================================================================
 # Macro: BUILD_TRAINING_GUIDE_PDF
