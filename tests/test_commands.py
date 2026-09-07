@@ -36,6 +36,7 @@ from edumatcher.models.message import (
     make_gateways_msg,
     make_kill_switch_ack_msg,
     make_orders_msg,
+    make_position_snapshot_msg,
     make_price_level_orders_msg,
     make_quote_ack_msg,
     make_quote_bootstrap_msg,
@@ -489,6 +490,48 @@ class TestDataQueries:
         assert len(result) == 1
         assert result[0]["symbol"] == "AAPL"
         assert result[0]["quote_id"] == "SEED-MM_AAPL_01-AAPL-1"
+
+
+class TestPositionSnapshot:
+    def test_position_snapshot_returns_positions(self) -> None:
+        positions = [
+            {"symbol": "AAPL", "net_qty": 500, "avg_cost": 149.75},
+            {"symbol": "MSFT", "net_qty": -200, "avg_cost": 310.10},
+        ]
+        client, push = _client(
+            recv_queue=_q(make_position_snapshot_msg("MM_AAPL_01", positions))
+        )
+        result = client.position_snapshot("mm_aapl_01")
+
+        topic, payload = _last_sent(push)
+        assert topic == "system.position_request"
+        assert payload["gateway_id"] == "MM_AAPL_01"
+
+        assert len(result) == 2
+        assert result[0]["symbol"] == "AAPL"
+        assert result[0]["net_qty"] == 500
+        assert result[1]["symbol"] == "MSFT"
+        assert result[1]["net_qty"] == -200
+
+    def test_position_snapshot_empty_when_flat(self) -> None:
+        client, push = _client(
+            recv_queue=_q(make_position_snapshot_msg("MM_AAPL_01", []))
+        )
+        result = client.position_snapshot("mm_aapl_01")
+
+        topic, payload = _last_sent(push)
+        assert topic == "system.position_request"
+        assert payload["gateway_id"] == "MM_AAPL_01"
+        assert result == []
+
+    def test_position_snapshot_uppercases_gateway_id(self) -> None:
+        client, push = _client(
+            recv_queue=_q(make_position_snapshot_msg("MM_AAPL_01", []))
+        )
+        client.position_snapshot("mm_aapl_01")
+
+        _topic, payload = _last_sent(push)
+        assert payload["gateway_id"] == "MM_AAPL_01"
 
 
 class TestIndexCommands:

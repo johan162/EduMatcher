@@ -275,7 +275,9 @@ class TestInventorySkewPricerConstruction:
         assert p.price_decimals == 2
         p.update_mid(99.95, 100.05)
         p.set_mid(100.0)
-        assert p.compute_prices() == (pytest.approx(99.95), pytest.approx(100.05))
+        bid, ask = p.compute_prices()
+        assert bid == pytest.approx(99.95)
+        assert ask == pytest.approx(100.05)
         assert p.has_drifted(90.0) is True
 
 

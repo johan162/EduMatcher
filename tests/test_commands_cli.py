@@ -63,6 +63,35 @@ def test_build_parser_enforces_required_fields_and_state_upper() -> None:
     assert args4.price == "149.50"
 
 
+def test_build_parser_format_defaults_to_text_and_accepts_json() -> None:
+    parser = cli_mod._build_parser()
+
+    args = parser.parse_args(["--id", "GW_ADMIN", "symbols"])
+    assert args.format == "text"
+
+    args2 = parser.parse_args(["--id", "GW_ADMIN", "--format", "json", "symbols"])
+    assert args2.format == "json"
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--id", "GW_ADMIN", "--format", "xml", "symbols"])
+
+
+def test_build_parser_position_requires_gw_and_accepts_sym() -> None:
+    parser = cli_mod._build_parser()
+
+    args = parser.parse_args(["--id", "GW_ADMIN", "position", "--gw", "MM_AAPL_01"])
+    assert args.gw == "MM_AAPL_01"
+    assert args.sym == ""
+
+    args2 = parser.parse_args(
+        ["--id", "GW_ADMIN", "position", "--gw", "MM_AAPL_01", "--sym", "AAPL,MSFT"]
+    )
+    assert args2.sym == "AAPL,MSFT"
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--id", "GW_ADMIN", "position"])
+
+
 def test_args_to_fields_maps_only_present_keys() -> None:
     class _Args:
         gw = "TRADER01"
@@ -104,10 +133,13 @@ def test_main_success_executes_and_exits_zero(monkeypatch: pytest.MonkeyPatch) -
 
     seen: dict[str, Any] = {}
 
-    def _exec(client: Any, cmd: str, fields: dict[str, str]) -> bool:
+    def _exec(
+        client: Any, cmd: str, fields: dict[str, str], *, json_output: bool = False
+    ) -> tuple[bool, Any]:
         seen["cmd"] = cmd
         seen["fields"] = fields
-        return True
+        seen["json_output"] = json_output
+        return True, {}
 
     monkeypatch.setattr(cli_mod, "ExchangeCommandClient", _make_client)
     monkeypatch.setattr(cli_mod, "execute_command", _exec)
@@ -146,6 +178,52 @@ def test_main_success_executes_and_exits_zero(monkeypatch: pytest.MonkeyPatch) -
     assert "close" in names
 
 
+def test_main_format_json_propagates_to_execute_command(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _make_client(
+        gw_id: str, push_addr: str, pub_addr: str, timeout_ms: int
+    ) -> _FakeClient:
+        return _FakeClient(
+            gw_id=gw_id, push_addr=push_addr, pub_addr=pub_addr, timeout_ms=timeout_ms
+        )
+
+    seen: dict[str, Any] = {}
+
+    def _exec(
+        client: Any, cmd: str, fields: dict[str, str], *, json_output: bool = False
+    ) -> tuple[bool, Any]:
+        seen["json_output"] = json_output
+        seen["cmd"] = cmd
+        seen["fields"] = fields
+        return True, {"gateway_id": fields.get("GW", "")}
+
+    monkeypatch.setattr(cli_mod, "ExchangeCommandClient", _make_client)
+    monkeypatch.setattr(cli_mod, "execute_command", _exec)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "pm-admin-cli",
+            "--id",
+            "GW_ADMIN",
+            "--format",
+            "json",
+            "position",
+            "--gw",
+            "MM_AAPL_01",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        cli_mod.main()
+
+    assert exc.value.code == 0
+    assert seen["json_output"] is True
+    assert seen["cmd"] == "POSITION"
+    assert seen["fields"] == {"GW": "MM_AAPL_01"}
+
+
 def test_main_normalizes_hyphen_command(monkeypatch: pytest.MonkeyPatch) -> None:
     def _make_client(
         gw_id: str, push_addr: str, pub_addr: str, timeout_ms: int
@@ -156,9 +234,11 @@ def test_main_normalizes_hyphen_command(monkeypatch: pytest.MonkeyPatch) -> None
 
     observed: dict[str, Any] = {}
 
-    def _exec(client: Any, cmd: str, fields: dict[str, str]) -> bool:
+    def _exec(
+        client: Any, cmd: str, fields: dict[str, str], *, json_output: bool = False
+    ) -> tuple[bool, Any]:
         observed["cmd"] = cmd
-        return True
+        return True, {}
 
     monkeypatch.setattr(cli_mod, "ExchangeCommandClient", _make_client)
     monkeypatch.setattr(cli_mod, "execute_command", _exec)
@@ -259,7 +339,9 @@ def test_main_execute_timeout_exits_one(
         created["client"] = c
         return c
 
-    def _exec(client: Any, cmd: str, fields: dict[str, str]) -> bool:
+    def _exec(
+        client: Any, cmd: str, fields: dict[str, str], *, json_output: bool = False
+    ) -> tuple[bool, Any]:
         raise CommandTimeoutError("late ack")
 
     monkeypatch.setattr(cli_mod, "ExchangeCommandClient", _make_client)
@@ -290,7 +372,7 @@ def test_main_execute_rejected_exits_one(monkeypatch: pytest.MonkeyPatch) -> Non
         )
 
     monkeypatch.setattr(cli_mod, "ExchangeCommandClient", _make_client)
-    monkeypatch.setattr(cli_mod, "execute_command", lambda *_: False)
+    monkeypatch.setattr(cli_mod, "execute_command", lambda *_, **__: (False, {}))
     monkeypatch.setattr(
         sys,
         "argv",

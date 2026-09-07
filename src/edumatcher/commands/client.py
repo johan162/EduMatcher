@@ -44,6 +44,7 @@ from edumatcher.models.message import (
     make_gateways_request_msg,
     make_kill_switch_msg,
     make_orders_request_msg,
+    make_position_request_msg,
     make_price_level_orders_request_msg,
     make_quote_bootstrap_request_msg,
     make_quote_cancel_msg,
@@ -100,6 +101,7 @@ from edumatcher.models.generated.quote import (
 from edumatcher.models.generated.system import (
     PREFIX_GATEWAYS,
     PREFIX_GATEWAY_AUTH,
+    PREFIX_POSITION_SNAPSHOT,
     PREFIX_QUOTE_BOOTSTRAP,
     PREFIX_SESSION_SCHEDULE,
     PREFIX_SESSION_STATUS,
@@ -107,6 +109,7 @@ from edumatcher.models.generated.system import (
     PREFIX_VOLUME,
     topic_gateway_auth,
     topic_gateways,
+    topic_position_snapshot,
     topic_quote_bootstrap,
     topic_session_schedule,
     topic_session_status,
@@ -131,6 +134,7 @@ _ACK_SUB_PREFIXES: tuple[str, ...] = (
     PREFIX_ORDERS,
     PREFIX_PRICE_LEVEL_ORDERS,
     PREFIX_QUOTE_BOOTSTRAP,
+    PREFIX_POSITION_SNAPSHOT,
     PREFIX_SESSION_STATUS,
     PREFIX_SESSION_SCHEDULE,
     PREFIX_GATEWAYS,
@@ -623,6 +627,23 @@ class ExchangeCommandClient:
         self._send(make_quote_bootstrap_request_msg(target_gw.upper(), symbol.upper()))
         result = self._recv(topic_quote_bootstrap(target_gw.upper()))
         return list(result.get("quotes", []))
+
+    def position_snapshot(self, target_gw: str) -> list[dict[str, Any]]:
+        """
+        Return *target_gw*'s signed net position and volume-weighted average
+        cost per symbol, from the engine's own per-gateway ledger
+        (``_gateway_positions``/``_gateway_avg_cost`` in ``engine/main.py``).
+
+        Works for any gateway, not just a market maker -- this is the same
+        ``system.position_request``/``system.position_snapshot.<gateway_id>``
+        pair ``pm-alf-console``'s and ``pm-alf-gwy``'s ``POS|GW=`` and the
+        REST ``GET /api/v1/admin/positions`` endpoint already use, so all
+        four surfaces always agree.
+        """
+        self._send(make_position_request_msg(target_gw.upper()))
+        result = self._recv(topic_position_snapshot(target_gw.upper()))
+        positions = result.get("positions", [])
+        return positions if isinstance(positions, list) else []
 
     # ------------------------------------------------------------------
     # Session control

@@ -224,6 +224,16 @@ rejection, or timeout).  This makes it safe to use in `set -e` shell scripts.
 | `--push ADDR` | `tcp://127.0.0.1:5555` | Engine PULL socket address |
 | `--sub ADDR` | `tcp://127.0.0.1:5556` | Engine PUB socket address |
 | `--timeout MS` | `3000` | Ack wait timeout in milliseconds |
+| `--format {text,json}` | `text` | Output format — `text` is the human-readable form shown throughout this page; `json` prints the same result as machine-readable JSON to stdout instead |
+
+`--format json` works identically for **every** subcommand below — it is a
+global flag handled once in the shared `execute_command` dispatcher, not a
+per-command option. This is useful for scripting: pipe the output through
+`jq` rather than parsing the text tables.
+
+```bash
+pm-admin-cli --id GW_ADMIN --format json volume | jq '.total_qty'
+```
 
 ### Subcommands
 
@@ -535,6 +545,65 @@ pm-admin-cli --id GW_ADMIN volume
 Counters reset when the engine restarts.  There is currently no
 automatic end-of-day reset; daily volume accumulates across the
 entire engine session.
+
+
+
+#### `position` — Show a gateway's net position and live quote
+
+```bash
+pm-admin-cli --id GW_ADMIN position --gw MM_AAPL_01
+```
+```
+MM_AAPL_01
+  AAPL
+    Position : +500   Avg cost: 149.7500
+    Quote    : bid 149.7000  ask 149.9000   spread 0.2000   mid 149.8000
+```
+
+Combines two independent engine queries into one row per symbol:
+
+- **Position** — signed net quantity and volume-weighted average cost,
+  from the engine's own fill ledger (`_gateway_positions`/`_gateway_avg_cost`
+  in `engine/main.py`). Works for **any** gateway, not just a market maker —
+  a `TRADER` or `MM` gateway ID is equally valid.
+- **Quote** — the gateway's live resting bid/ask, if it currently has an
+  active two-sided quote on that symbol, plus the derived spread and mid.
+  A gateway with a position but no active quote (e.g. a `TRADER` that
+  bought via limit orders) shows `(no active quote)` for that line.
+
+Add `--sym` to narrow to one or more comma-separated symbols; a symbol with
+neither a position nor an active quote is omitted from the result:
+
+```bash
+pm-admin-cli --id GW_ADMIN position --gw MM_AAPL_01 --sym AAPL,MSFT
+```
+
+Machine-readable form (`--format json`):
+
+```bash
+pm-admin-cli --id GW_ADMIN --format json position --gw MM_AAPL_01
+```
+```json
+[
+  {
+    "symbol": "AAPL",
+    "net_qty": 500,
+    "avg_cost": 149.75,
+    "bid_price": 149.70,
+    "ask_price": 149.90,
+    "spread": 0.20,
+    "mid": 149.80
+  }
+]
+```
+
+This is the same `system.position_request`/`system.position_snapshot.{GW}`
+message pair used by `POS|GW=<gateway_id>` on
+[`pm-alf-console` and `pm-alf-gwy`](055-alf-console.md#posgwgateway_id-query-another-gateways-position)
+and by `GET /api/v1/admin/positions` on the [REST API](950-app-REST-API-reference.md) —
+all four surfaces agree on the position figures, since they all read the
+same engine ledger. The bid/ask/spread/mid addition here is specific to
+`pm-admin-cli`'s `position` command.
 
 
 
@@ -888,6 +957,7 @@ with ExchangeCommandClient("GW_ADMIN") as client:
 | `session_schedule()`            | —                             | Any connected GW | `system.session_schedule_request` | `system.session_schedule.{GW}`             |
 | `gateway_list()`                | —                             | Any connected GW | `system.gateways_request`         | `system.gateways.{GW}`                     |
 | `volume()`                      | —                             | Any connected GW | `system.volume_request`           | `system.volume.{GW}`                       |
+| `position_snapshot(target)`     | target GW ID                  | Any connected GW | `system.position_request`         | `system.position_snapshot.{target}`        |
 | `symbol_halt(symbol)`           | symbol                        | **ADMIN**        | `risk.symbol_halt`                | `risk.symbol_halt_ack.{GW}`                |
 | `symbol_resume(symbol)`         | symbol                        | **ADMIN**        | `risk.symbol_resume`              | `risk.symbol_resume_ack.{GW}`              |
 | `cancel_symbol(symbol)`         | symbol                        | **ADMIN**        | `risk.cancel_symbol`              | `risk.cancel_symbol_ack.{GW}`              |

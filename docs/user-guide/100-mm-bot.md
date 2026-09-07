@@ -578,6 +578,14 @@ without an interactive console session. It reads the same
 `system.position_request`/`system.position_snapshot` pair `POS|GW=` uses,
 so both surfaces always agree.
 
+A fourth surface,
+[`pm-admin-cli position --gw MM_AAPL_01`](160-exchange-commands.md#position-show-a-gateways-net-position-and-live-quote),
+adds the bot's **live quote** to the same net-position figures — bid, ask,
+spread, and mid derived from its currently resting quote order, alongside
+`net_qty`/`avg_cost` — in one command, with a `--format json` option for
+scripting. Handy for confirming that inventory skewing is actually doing
+something: watch `spread`/`mid` shift as `net_qty` moves away from zero.
+
 ---
 
 ## Engine configuration

@@ -124,6 +124,22 @@ static const char *nowts(void)
     return buf;
 }
 
+/* Case-insensitive substring search. strcasestr() is a GNU/BSD extension --
+ * present under glibc's _GNU_SOURCE, but macOS's libc only exposes it under
+ * _DARWIN_C_SOURCE, which the _POSIX_C_SOURCE define above suppresses. A
+ * small portable helper avoids depending on either platform's extensions. */
+static int str_has_ci(const char *haystack, const char *needle)
+{
+    size_t nlen = strlen(needle);
+    if (nlen == 0)
+        return 1;
+    for (const char *p = haystack; *p; p++) {
+        if (strncasecmp(p, needle, nlen) == 0)
+            return 1;
+    }
+    return 0;
+}
+
 /* Print an event line without corrupting the readline prompt. */
 static void event_print(const char *fmt, ...)
 {
@@ -965,7 +981,7 @@ static void line_handler(char *line)
          * POS, which prints this session's local fill ledger below) --
          * fall through to the generic send path so the gateway answers it
          * with a POSITION/POS_ENTRY/END multi-line reply. */
-        int has_gw = (strcasestr(t, "|GW=") != NULL);
+        int has_gw = str_has_ci(t, "|GW=");
         if (!has_gw) { cmd_pos(); free(line); return; }
         /* has GW= -- fall through to the generic send path below */
     }

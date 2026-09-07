@@ -16,6 +16,7 @@ Exit codes
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from typing import Any
 
@@ -81,6 +82,15 @@ def _build_parser() -> argparse.ArgumentParser:
         default=3000,
         metavar="MS",
         help="Ack timeout in milliseconds (default: 3000)",
+    )
+    parser.add_argument(
+        "--format",
+        choices=("text", "json"),
+        default="text",
+        help=(
+            "Output format for the command's result: 'text' (default, "
+            "human-readable) or 'json' (machine-readable, printed to stdout)"
+        ),
     )
 
     sub = parser.add_subparsers(dest="command", required=True, metavar="COMMAND")
@@ -212,6 +222,21 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Show daily traded volume per symbol and exchange total",
     )
 
+    p = sub.add_parser(
+        "position",
+        help=(
+            "Show net position, avg cost, and live bid/ask/spread/mid per "
+            "symbol for a gateway (any gateway, not just a market maker)"
+        ),
+    )
+    p.add_argument("--gw", required=True, metavar="GW_ID", help="Target gateway ID")
+    p.add_argument(
+        "--sym",
+        default="",
+        metavar="SYMBOL[,SYMBOL...]",
+        help="Narrow to one or more comma-separated symbols (omit for all)",
+    )
+
     return parser
 
 
@@ -268,9 +293,14 @@ def main() -> None:
     fields = _args_to_fields(args)
     ok = True
     try:
-        ok = execute_command(client, cmd, fields)
+        ok, _result = execute_command(
+            client, cmd, fields, json_output=args.format == "json"
+        )
     except CommandTimeoutError as exc:
-        print(f"Timeout: {exc}", file=sys.stderr)
+        if args.format == "json":
+            print(json.dumps({"error": "timeout", "detail": str(exc)}))
+        else:
+            print(f"Timeout: {exc}", file=sys.stderr)
         ok = False
     finally:
         client.disconnect()
