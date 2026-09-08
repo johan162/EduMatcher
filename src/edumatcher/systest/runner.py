@@ -146,9 +146,7 @@ class Runner:
         Barrier ordering log) for the Canonicaliser to consume.
         """
         label_map: LabelMap = {}
-        events: dict[str, list[Event]] = {
-            actor: [] for actor in self._scenario.actors
-        }
+        events: dict[str, list[Event]] = {actor: [] for actor in self._scenario.actors}
         barrier_markers: list[BarrierMarker] = []
 
         for index, step in enumerate(self._scenario.steps):

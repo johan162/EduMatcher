@@ -30,7 +30,10 @@ from edumatcher.models.order import Order, OrderStatus, OrderType
 from edumatcher.models.trade import Trade
 
 if TYPE_CHECKING:
-    from edumatcher.engine.order_book import OrderBook
+    from edumatcher.engine.order_book import (
+        OrderBook,
+        _HeapEntry,  # pyright: ignore[reportPrivateUsage]
+    )
 
 __all__ = [
     "InvariantViolation",
@@ -68,7 +71,7 @@ def _visible_qty(order: Order) -> int:
     return order.remaining_qty
 
 
-def _live_level_qty(book: "OrderBook", side_heap) -> dict[int, int]:
+def _live_level_qty(book: "OrderBook", side_heap: "list[_HeapEntry]") -> dict[int, int]:
     """Recompute per-price visible quantity from live heap entries.
 
     An order may appear in the heap through multiple entries (amend,
@@ -97,8 +100,8 @@ def check_i1_price_level_qty(book: "OrderBook", *, context: str = "") -> None:
     ctx = f" [{context}]" if context else ""
 
     for side_name, heap, index in (
-        ("bid", book._bids, book._bid_qty),
-        ("ask", book._asks, book._ask_qty),
+        ("bid", book._bids, book._bid_qty),  # pyright: ignore[reportPrivateUsage]
+        ("ask", book._asks, book._ask_qty),  # pyright: ignore[reportPrivateUsage]
     ):
         expected = _live_level_qty(book, heap)
         actual = {p: q for p, q in index.items() if q != 0}
@@ -123,8 +126,8 @@ def check_i2_not_crossed(book: "OrderBook", *, context: str = "") -> None:
     """
     ctx = f" [{context}]" if context else ""
 
-    live_bids = _live_level_qty(book, book._bids)
-    live_asks = _live_level_qty(book, book._asks)
+    live_bids = _live_level_qty(book, book._bids)  # pyright: ignore[reportPrivateUsage]
+    live_asks = _live_level_qty(book, book._asks)  # pyright: ignore[reportPrivateUsage]
     if live_bids and live_asks:
         best_bid, best_ask = max(live_bids), min(live_asks)
         if not (best_bid < best_ask):
@@ -139,7 +142,7 @@ def check_i3_order_qty_bounds(book: "OrderBook", *, context: str = "") -> None:
     """I3 — per-order quantity sanity."""
     ctx = f" [{context}]" if context else ""
 
-    for o in book._order_index.values():
+    for o in book._order_index.values():  # pyright: ignore[reportPrivateUsage]
         if o.status in _DEAD:
             continue
         if not (0 <= o.remaining_qty <= o.quantity):
@@ -160,11 +163,13 @@ def check_i4_heap_entry_consistency(book: "OrderBook", *, context: str = "") -> 
     """I4 — every live bid/ask heap entry agrees with _entry_index."""
     ctx = f" [{context}]" if context else ""
 
-    for heap in (book._bids, book._asks):
+    for heap in (book._bids, book._asks):  # pyright: ignore[reportPrivateUsage]
         for entry in heap:
             if not entry.valid or entry.order.status in _DEAD:
                 continue
-            registered = book._entry_index.get(entry.order.id)
+            registered = book._entry_index.get(
+                entry.order.id
+            )  # pyright: ignore[reportPrivateUsage]
             if registered is not entry:
                 raise InvariantViolation(
                     f"I4{ctx}: live heap entry for order "
@@ -183,7 +188,9 @@ def check_i5_hygiene(book: "OrderBook", *, context: str = "") -> None:
     ctx = f" [{context}]" if context else ""
 
     dead_in_orders = [
-        o.id[:8] for o in book._order_index.values() if o.status in _DEAD
+        o.id[:8]
+        for o in book._order_index.values()  # pyright: ignore[reportPrivateUsage]
+        if o.status in _DEAD
     ]
     if dead_in_orders:
         raise InvariantViolation(
@@ -192,7 +199,7 @@ def check_i5_hygiene(book: "OrderBook", *, context: str = "") -> None:
         )
     dead_in_entries = [
         oid[:8]
-        for oid, entry in book._entry_index.items()
+        for oid, entry in book._entry_index.items()  # pyright: ignore[reportPrivateUsage]
         if entry.order.status in _DEAD
     ]
     if dead_in_entries:

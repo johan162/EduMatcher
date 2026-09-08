@@ -292,7 +292,9 @@ class TestDuplicateLabelRaises:
         del raw["steps"][1]["label"]
         path = _write(tmp_path, yaml.safe_dump(raw))
         scenario = load_scenario(path)
+        assert isinstance(scenario.steps[0], Step)
         assert scenario.steps[0].label is None
+        assert isinstance(scenario.steps[1], Step)
         assert scenario.steps[1].label is None
 
 
@@ -316,9 +318,7 @@ class TestUndeclaredActorRaises:
             for error in errors
         )
 
-    def test_sync_barrier_actor_not_declared_is_rejected(
-        self, tmp_path: Path
-    ) -> None:
+    def test_sync_barrier_actor_not_declared_is_rejected(self, tmp_path: Path) -> None:
         raw = yaml.safe_load(VALID_SCENARIO_YAML)
         raw["steps"][2] = {"barrier": "sync", "actors": ["GHOST"]}
         path = _write(tmp_path, yaml.safe_dump(raw))

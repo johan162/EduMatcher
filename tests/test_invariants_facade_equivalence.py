@@ -168,7 +168,9 @@ def _outcome(fn: Callable, /, *args, **kwargs) -> tuple[bool, str | None]:
     return True, None
 
 
-def _assert_equivalent(direct_fn: Callable, facade_fn: Callable, *args, **kwargs) -> bool:
+def _assert_equivalent(
+    direct_fn: Callable, facade_fn: Callable, *args, **kwargs
+) -> bool:
     """Assert *direct_fn* (systest/invariants.py) and *facade_fn*
     (tests/engine_invariants.py) agree exactly given the same args: same
     pass/fail outcome AND byte-identical violation content.
@@ -215,8 +217,12 @@ VIOLATION_BUILDERS: dict[str, Callable[[], OrderBook]] = {
 def test_valid_book_state_passes_identically_at_both_call_sites() -> None:
     book = _valid_book()
     for name, direct_fn, include_hygiene in INVARIANT_CHECKS:
-        facade_fn = functools.partial(assert_book_invariants, include_hygiene=include_hygiene)
-        passed = _assert_equivalent(direct_fn, facade_fn, book, context=f"{name} valid state")
+        facade_fn = functools.partial(
+            assert_book_invariants, include_hygiene=include_hygiene
+        )
+        passed = _assert_equivalent(
+            direct_fn, facade_fn, book, context=f"{name} valid state"
+        )
         assert passed is True, f"{name} should pass on a valid book at both call sites"
 
 
@@ -229,9 +235,15 @@ def test_violating_book_state_fails_identically_at_both_call_sites(
     name: str, direct_fn: Callable, include_hygiene: bool
 ) -> None:
     book = VIOLATION_BUILDERS[name]()
-    facade_fn = functools.partial(assert_book_invariants, include_hygiene=include_hygiene)
-    passed = _assert_equivalent(direct_fn, facade_fn, book, context=f"{name} violating state")
-    assert passed is False, f"{name} fixture should violate its own invariant at both call sites"
+    facade_fn = functools.partial(
+        assert_book_invariants, include_hygiene=include_hygiene
+    )
+    passed = _assert_equivalent(
+        direct_fn, facade_fn, book, context=f"{name} violating state"
+    )
+    assert (
+        passed is False
+    ), f"{name} fixture should violate its own invariant at both call sites"
 
 
 # ---------------------------------------------------------------------------
