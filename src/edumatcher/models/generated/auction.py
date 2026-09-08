@@ -260,8 +260,20 @@ PREFIX_AUCTION_RESULT = "auction.result."
 _AUCTION_RESULT_RE = re.compile("auction\\.result\\.(?P<symbol>[^.]+)")
 _AUCTION_RESULT_IMBALANCE_SIDE_VALUES = ("BUY", "SELL")
 AuctionResultImbalanceSide = Literal["BUY", "SELL"]
-_AUCTION_RESULT_REASON_VALUES = ("SCHEDULED", "REOPEN", "RECOVERY", "BACKSTOP")
-AuctionResultReason = Literal["SCHEDULED", "REOPEN", "RECOVERY", "BACKSTOP"]
+_AUCTION_RESULT_REASON_VALUES = (
+    "SCHEDULED",
+    "REOPEN",
+    "RECOVERY",
+    "BACKSTOP",
+    "ADMIN_MANUAL",
+)
+AuctionResultReason = Literal[
+    "SCHEDULED",
+    "REOPEN",
+    "RECOVERY",
+    "BACKSTOP",
+    "ADMIN_MANUAL",
+]
 
 
 _AUCTION_RESULT_FIELDS: tuple[dict[str, Any], ...] = (
@@ -318,7 +330,7 @@ _AUCTION_RESULT_FIELDS: tuple[dict[str, Any], ...] = (
         "type": "enum",
         "unit": None,
         "required": True,
-        "doc": "Which of the four uncross paths produced this event.",
+        "doc": "Which of the five uncross paths produced this event.",
         "values": _AUCTION_RESULT_REASON_VALUES,
     },
 )
@@ -329,14 +341,16 @@ class AuctionResult:
     """Engine to all: one symbol's uncross has completed. Published for every
     uncross, including the ones that printed nothing.
 
-    `reason` says which uncross this was, because the four are otherwise
+    `reason` says which uncross this was, because the five are otherwise
     indistinguishable to a consumer and a client cannot tell a circuit breaker reopening
     from the closing one: SCHEDULED - leaving an auction or other non-matching session
     phase REOPEN - a halted symbol reopening at the end of its halt RECOVERY - restored
     GTC orders uncrossed at engine startup BACKSTOP - the closing backstop forcing a
     still-halted symbol to reopen, printing at the corridor boundary rather than at the
-    outlying equilibrium There is no persistent state to snapshot here, unlike TOP or
-    DEPTH: every event is forwarded as its own independent CALF event.
+    outlying equilibrium ADMIN_MANUAL - an operator force-uncrossed one symbol via `pm-
+    admin-cli reopen`, optionally asserting the print price when no natural equilibrium
+    exists There is no persistent state to snapshot here, unlike TOP or DEPTH: every
+    event is forwarded as its own independent CALF event.
     """
 
     symbol: str

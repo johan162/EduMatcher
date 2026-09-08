@@ -144,6 +144,43 @@ class _FakeClient:
             quotes = [q for q in quotes if q["symbol"] == symbol.upper()]
         return quotes
 
+    def force_uncross(
+        self,
+        symbol: str,
+        price: float | None = None,
+        *,
+        dry_run: bool = False,
+        note: str = "",
+    ) -> dict[str, Any]:
+        self.calls.append(
+            (
+                "force_uncross",
+                (symbol,),
+                {"price": price, "dry_run": dry_run, "note": note},
+            )
+        )
+        if dry_run:
+            return {
+                "accepted": True,
+                "symbol": symbol.upper(),
+                "dry_run": True,
+                "indicative_price": 100.0,
+                "indicative_qty": 50,
+                "surplus": 10,
+                "imbalance_side": "BUY",
+            }
+        return {
+            "accepted": True,
+            "symbol": symbol.upper(),
+            "dry_run": False,
+            "indicative_price": 100.0,
+            "indicative_qty": 50,
+            "surplus": 10,
+            "imbalance_side": "BUY",
+            "printed_price": price if price is not None else 100.0,
+            "traded_qty": 50,
+        }
+
 
 def _capture_print(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
     calls: list[Any] = []
@@ -407,6 +444,79 @@ def test_execute_command_rejections(monkeypatch: pytest.MonkeyPatch) -> None:
         console_mod.execute_command(client, "QCANCEL", {"GW": "MM01", "SYM": "AAPL"})[0]
         is False
     )
+
+
+def test_cmd_reopen_requires_sym(monkeypatch: pytest.MonkeyPatch) -> None:
+    _capture_print(monkeypatch)
+    client = cast(ExchangeCommandClient, _FakeClient())
+    accepted, result = console_mod.execute_command(client, "REOPEN", {})
+    assert accepted is False
+    assert result == {}
+
+
+def test_cmd_reopen_dry_run_passes_flag_and_prints_indicative(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _capture_print(monkeypatch)
+    client = _FakeClient()
+    accepted, result = console_mod.execute_command(
+        cast(ExchangeCommandClient, client), "REOPEN", {"SYM": "aapl", "DRY_RUN": "1"}
+    )
+    assert accepted is True
+    name, args, kwargs = client.calls[-1]
+    assert name == "force_uncross"
+    assert args == ("aapl",)
+    assert kwargs == {"price": None, "dry_run": True, "note": ""}
+    assert result["dry_run"] is True
+    printed = " ".join(str(a) for a, _ in calls)
+    assert "DRY-RUN" in printed
+
+
+def test_cmd_reopen_live_passes_price_and_note(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_print(monkeypatch)
+    client = _FakeClient()
+    accepted, result = console_mod.execute_command(
+        cast(ExchangeCommandClient, client),
+        "REOPEN",
+        {"SYM": "AAPL", "PRICE": "100.5", "NOTE": "manual open"},
+    )
+    assert accepted is True
+    name, args, kwargs = client.calls[-1]
+    assert name == "force_uncross"
+    assert kwargs == {"price": 100.5, "dry_run": False, "note": "manual open"}
+    assert result["printed_price"] == 100.5
+    assert result["traded_qty"] == 50
+
+
+def test_cmd_reopen_invalid_price(monkeypatch: pytest.MonkeyPatch) -> None:
+    _capture_print(monkeypatch)
+    client = cast(ExchangeCommandClient, _FakeClient())
+    accepted, result = console_mod.execute_command(
+        client, "REOPEN", {"SYM": "AAPL", "PRICE": "abc"}
+    )
+    assert accepted is False
+    assert result == {}
+
+
+def test_cmd_reopen_rejection(monkeypatch: pytest.MonkeyPatch) -> None:
+    _capture_print(monkeypatch)
+
+    class _Rejecting(_FakeClient):
+        def force_uncross(
+            self,
+            symbol: str,
+            price: float | None = None,
+            *,
+            dry_run: bool = False,
+            note: str = "",
+        ) -> dict[str, Any]:
+            return {"accepted": False, "reason": "Unknown symbol: ZZZ"}
+
+    client = cast(ExchangeCommandClient, _Rejecting())
+    accepted, _result = console_mod.execute_command(client, "REOPEN", {"SYM": "ZZZ"})
+    assert accepted is False
 
 
 def test_cmd_position_requires_gw(monkeypatch: pytest.MonkeyPatch) -> None:

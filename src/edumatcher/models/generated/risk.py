@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any, Literal, Mapping, cast
 
 from edumatcher.models import message as _msg
 from edumatcher.models.generated._runtime import MessageValidationError
@@ -2379,6 +2379,545 @@ def describe_cancel_symbol_ack() -> tuple[dict[str, Any], ...]:
     return _CANCEL_SYMBOL_ACK_FIELDS
 
 
+TOPIC_FORCE_UNCROSS = "risk.force_uncross"
+_TOPIC_FORCE_UNCROSS_BYTES = "risk.force_uncross".encode()
+
+
+_FORCE_UNCROSS_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "symbol",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 16},
+    },
+    {
+        "name": "price",
+        "type": "float",
+        "unit": "display_price",
+        "required": False,
+        "doc": "Operator print price; null opens at the computed equilibrium.",
+        "constraints": {"gt": 0},
+    },
+    {
+        "name": "dry_run",
+        "type": "bool",
+        "unit": None,
+        "required": False,
+        "doc": "Peek the indicative print without changing any state.",
+    },
+    {
+        "name": "note",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Free-text reason, recorded on the admin monitor.",
+        "constraints": {"max_len": 256},
+    },
+    {
+        "name": "command_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "",
+        "constraints": {"max_len": 64},
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class ForceUncross:
+    """ADMIN to engine: force one symbol to uncross now, optionally asserting the
+    print price, and clear any halt in the same step. The operational recovery for
+    an auction that failed to discover a price - see risk.cancel_symbol for the
+    "abandon and re-collect" alternative.
+
+    `price` is null to open at the naturally computed equilibrium, or a value to assert
+    an operator opening price when no natural equilibrium exists (a failed-auction
+    recovery). It is nullable rather than a sentinel because "no price given" and "a
+    price of zero" are different requests, exactly as auction.result's `eq_price` is
+    null-not-zero. `dry_run` peeks the indicative print without mutating any state: no
+    halt is cleared, no uncross runs. It is the on-demand replacement for the
+    auction.indicative feed, which is push-only and skips halted symbols, so an operator
+    would otherwise set `price` blind.
+    """
+
+    gateway_id: str
+    symbol: str
+    price: float | None = None  # unit: display_price
+    dry_run: bool = False
+    note: str = ""
+    command_id: str = ""
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
+            )
+        if self.price is not None:
+            if self.price <= 0:
+                raise MessageValidationError(f"price: {self.price!r} must be > 0")
+        if len(self.note) > 256:
+            raise MessageValidationError(
+                f"note: length {len(self.note)} exceeds max_len 256"
+            )
+        if len(self.command_id) > 64:
+            raise MessageValidationError(
+                f"command_id: length {len(self.command_id)} exceeds max_len 64"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "ForceUncross":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            gateway_id=str(p["gateway_id"]),
+            symbol=str(p["symbol"]),
+            price=None if p.get("price") is None else float(p["price"]),
+            dry_run=bool(p.get("dry_run", False)),
+            note=str(p.get("note", "")),
+            command_id=str(p.get("command_id", "")),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        payload: dict[str, Any] = {
+            "gateway_id": self.gateway_id,
+            "symbol": self.symbol,
+            "dry_run": self.dry_run,
+        }
+        if self.price is not None:
+            payload["price"] = self.price
+        if self.note:
+            payload["note"] = self.note
+        if self.command_id:
+            payload["command_id"] = self.command_id
+        return payload
+
+
+def is_force_uncross(topic: str) -> bool:
+    """True when ``topic`` is this message's topic."""
+    return topic == TOPIC_FORCE_UNCROSS
+
+
+def make_force_uncross(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = ForceUncross.from_dict(kw)
+    obj.validate()
+    return _msg.encode(TOPIC_FORCE_UNCROSS, obj.to_dict())
+
+
+def make_force_uncross_unchecked(
+    *,
+    gateway_id: str,
+    symbol: str,
+    price: float | None = None,
+    dry_run: bool = False,
+    note: str = "",
+    command_id: str = "",
+) -> list[bytes]:
+    """Identical frames to ``make_force_uncross``, without ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    payload: dict[str, Any] = {
+        "gateway_id": str(gateway_id),
+        "symbol": str(symbol),
+        "dry_run": bool(dry_run),
+    }
+    if price is not None:
+        payload["price"] = float(price)
+    if note:
+        payload["note"] = str(note)
+    if command_id:
+        payload["command_id"] = str(command_id)
+    return [
+        _TOPIC_FORCE_UNCROSS_BYTES,
+        _msg.dumps(payload),
+    ]
+
+
+def parse_force_uncross(frames: list[bytes]) -> "ForceUncross":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    _topic, payload = _msg.decode(frames)
+    obj = ForceUncross.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_force_uncross() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _FORCE_UNCROSS_FIELDS
+
+
+TOPIC_FORCE_UNCROSS_ACK = "risk.force_uncross_ack.{gateway_id}"
+PREFIX_FORCE_UNCROSS_ACK = "risk.force_uncross_ack."
+_FORCE_UNCROSS_ACK_RE = re.compile("risk\\.force_uncross_ack\\.(?P<gateway_id>[^.]+)")
+_FORCE_UNCROSS_ACK_IMBALANCE_SIDE_VALUES = ("BUY", "SELL")
+ForceUncrossAckImbalanceSide = Literal["BUY", "SELL"]
+
+
+_FORCE_UNCROSS_ACK_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "accepted",
+        "type": "bool",
+        "unit": None,
+        "required": True,
+        "doc": "",
+    },
+    {
+        "name": "symbol",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "",
+        "constraints": {"max_len": 16},
+    },
+    {
+        "name": "reason",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "",
+        "constraints": {"max_len": 512},
+    },
+    {
+        "name": "dry_run",
+        "type": "bool",
+        "unit": None,
+        "required": False,
+        "doc": "True when this ack answers a peek rather than a live uncross.",
+    },
+    {
+        "name": "indicative_price",
+        "type": "float",
+        "unit": "display_price",
+        "required": False,
+        "doc": "Indicative equilibrium, or null if the book would not cross.",
+        "constraints": {"gt": 0},
+    },
+    {
+        "name": "indicative_qty",
+        "type": "int",
+        "unit": "shares",
+        "required": False,
+        "doc": "Quantity that would execute at the indicative price.",
+        "constraints": {"ge": 0},
+    },
+    {
+        "name": "surplus",
+        "type": "int",
+        "unit": "shares",
+        "required": False,
+        "doc": "Surplus on `imbalance_side`; zero when balanced.",
+        "constraints": {"ge": 0},
+    },
+    {
+        "name": "imbalance_side",
+        "type": "enum",
+        "unit": None,
+        "required": False,
+        "doc": "Which side would be left unfilled; absent when balanced.",
+        "values": _FORCE_UNCROSS_ACK_IMBALANCE_SIDE_VALUES,
+    },
+    {
+        "name": "printed_price",
+        "type": "float",
+        "unit": "display_price",
+        "required": False,
+        "doc": "Live-run print price, or null on a dry run or rejection.",
+        "constraints": {"gt": 0},
+    },
+    {
+        "name": "traded_qty",
+        "type": "int",
+        "unit": "shares",
+        "required": False,
+        "doc": "Quantity that actually executed on a live run.",
+        "constraints": {"ge": 0},
+    },
+    {
+        "name": "command_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "",
+        "constraints": {"max_len": 64},
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class ForceUncrossAck:
+    """Engine to ADMIN: the outcome of a force-uncross. On a dry run it carries the
+    indicative figures only; on a live run it also reports what actually printed.
+
+    `indicative_*` mirror auction.indicative: `indicative_price` is null when the book
+    would not cross. `printed_price` and `traded_qty` are the live-run outcome and stay
+    at null/zero on a dry run or a rejection.
+    """
+
+    gateway_id: str
+    accepted: bool
+    symbol: str = ""
+    reason: str = ""
+    dry_run: bool = False
+    indicative_price: float | None = None  # unit: display_price
+    indicative_qty: int = 0  # unit: shares
+    surplus: int = 0  # unit: shares
+    imbalance_side: ForceUncrossAckImbalanceSide | None = None
+    printed_price: float | None = None  # unit: display_price
+    traded_qty: int = 0  # unit: shares
+    command_id: str = ""
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
+            )
+        if len(self.reason) > 512:
+            raise MessageValidationError(
+                f"reason: length {len(self.reason)} exceeds max_len 512"
+            )
+        if self.indicative_price is not None:
+            if self.indicative_price <= 0:
+                raise MessageValidationError(
+                    f"indicative_price: {self.indicative_price!r} must be > 0"
+                )
+        if self.indicative_qty < 0:
+            raise MessageValidationError(
+                f"indicative_qty: {self.indicative_qty!r} must be >= 0"
+            )
+        if self.surplus < 0:
+            raise MessageValidationError(f"surplus: {self.surplus!r} must be >= 0")
+        if self.imbalance_side is not None:
+            if self.imbalance_side not in _FORCE_UNCROSS_ACK_IMBALANCE_SIDE_VALUES:
+                raise MessageValidationError(
+                    f"imbalance_side: {self.imbalance_side!r} is not one of {_FORCE_UNCROSS_ACK_IMBALANCE_SIDE_VALUES!r}"
+                )
+        if self.printed_price is not None:
+            if self.printed_price <= 0:
+                raise MessageValidationError(
+                    f"printed_price: {self.printed_price!r} must be > 0"
+                )
+        if self.traded_qty < 0:
+            raise MessageValidationError(
+                f"traded_qty: {self.traded_qty!r} must be >= 0"
+            )
+        if len(self.command_id) > 64:
+            raise MessageValidationError(
+                f"command_id: length {len(self.command_id)} exceeds max_len 64"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "ForceUncrossAck":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            gateway_id=str(p.get("gateway_id", "")),
+            accepted=bool(p["accepted"]),
+            symbol=str(p.get("symbol", "")),
+            reason=str(p.get("reason", "")),
+            dry_run=bool(p.get("dry_run", False)),
+            indicative_price=(
+                None
+                if p.get("indicative_price") is None
+                else float(p["indicative_price"])
+            ),
+            indicative_qty=int(p.get("indicative_qty", 0)),
+            surplus=int(p.get("surplus", 0)),
+            imbalance_side=(
+                None
+                if p.get("imbalance_side") is None
+                else cast(ForceUncrossAckImbalanceSide, str(p["imbalance_side"]))
+            ),
+            printed_price=(
+                None if p.get("printed_price") is None else float(p["printed_price"])
+            ),
+            traded_qty=int(p.get("traded_qty", 0)),
+            command_id=str(p.get("command_id", "")),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        payload: dict[str, Any] = {
+            "accepted": self.accepted,
+            "symbol": self.symbol,
+            "reason": self.reason,
+            "dry_run": self.dry_run,
+            "indicative_price": self.indicative_price,
+            "indicative_qty": self.indicative_qty,
+            "surplus": self.surplus,
+            "printed_price": self.printed_price,
+            "traded_qty": self.traded_qty,
+        }
+        if self.imbalance_side is not None:
+            payload["imbalance_side"] = self.imbalance_side
+        if self.command_id:
+            payload["command_id"] = self.command_id
+        return payload
+
+
+def topic_force_uncross_ack(gateway_id: str) -> str:
+    """Build this message's topic without a string literal."""
+    return f"risk.force_uncross_ack.{gateway_id}"
+
+
+def match_force_uncross_ack(topic: str) -> str | None:
+    """Return ``gateway_id`` when ``topic`` matches, else None."""
+    m = _FORCE_UNCROSS_ACK_RE.fullmatch(topic)
+    return m.group("gateway_id") if m else None
+
+
+def make_force_uncross_ack(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = ForceUncrossAck.from_dict(kw)
+    obj.validate()
+    return _msg.encode(topic_force_uncross_ack(obj.gateway_id), obj.to_dict())
+
+
+def make_force_uncross_ack_unchecked(
+    *,
+    gateway_id: str,
+    accepted: bool,
+    symbol: str = "",
+    reason: str = "",
+    dry_run: bool = False,
+    indicative_price: float | None = None,
+    indicative_qty: int = 0,
+    surplus: int = 0,
+    imbalance_side: ForceUncrossAckImbalanceSide | None = None,
+    printed_price: float | None = None,
+    traded_qty: int = 0,
+    command_id: str = "",
+) -> list[bytes]:
+    """Identical frames to ``make_force_uncross_ack``, without ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    payload: dict[str, Any] = {
+        "accepted": bool(accepted),
+        "symbol": str(symbol),
+        "reason": str(reason),
+        "dry_run": bool(dry_run),
+        "indicative_price": (
+            None if indicative_price is None else float(indicative_price)
+        ),
+        "indicative_qty": int(indicative_qty),
+        "surplus": int(surplus),
+        "printed_price": None if printed_price is None else float(printed_price),
+        "traded_qty": int(traded_qty),
+    }
+    if imbalance_side is not None:
+        payload["imbalance_side"] = str(imbalance_side)
+    if command_id:
+        payload["command_id"] = str(command_id)
+    return [
+        topic_force_uncross_ack(gateway_id).encode(),
+        _msg.dumps(payload),
+    ]
+
+
+def parse_force_uncross_ack(frames: list[bytes]) -> "ForceUncrossAck":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    topic, payload = _msg.decode(frames)
+    matched = match_force_uncross_ack(topic)
+    if matched is None:
+        raise MessageValidationError(
+            f"topic {topic!r} is not {TOPIC_FORCE_UNCROSS_ACK!r}"
+        )
+    payload = {**payload, "gateway_id": matched}
+    obj = ForceUncrossAck.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_force_uncross_ack() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _FORCE_UNCROSS_ACK_FIELDS
+
+
 TOPIC_CIRCUIT_BREAKER_HALT_ALL = "risk.circuit_breaker_halt_all"
 _TOPIC_CIRCUIT_BREAKER_HALT_ALL_BYTES = "risk.circuit_breaker_halt_all".encode()
 
@@ -3007,6 +3546,8 @@ FAMILY_TOPICS: tuple[str, ...] = (
     TOPIC_SYMBOL_RESUME_ACK,
     TOPIC_CANCEL_SYMBOL,
     TOPIC_CANCEL_SYMBOL_ACK,
+    TOPIC_FORCE_UNCROSS,
+    TOPIC_FORCE_UNCROSS_ACK,
     TOPIC_CIRCUIT_BREAKER_HALT_ALL,
     TOPIC_CIRCUIT_BREAKER_HALT_ALL_ACK,
     TOPIC_CIRCUIT_BREAKER_RESUME_ALL,

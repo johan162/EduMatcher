@@ -150,15 +150,17 @@ messages:
           - kill_switch.symbol
           - circuit_breaker.trigger
           - circuit_breaker.resume
+          - auction.reopen
         doc: >
-          Which command ran. The six the engine publishes, enumerated rather
-          than left a free string: a seventh admin command that forgets to
+          Which command ran. The seven the engine publishes, enumerated rather
+          than left a free string: an eighth admin command that forgets to
           declare itself here fails loudly at its first invocation, which is
           better than appearing in the monitor as a value no client renders.
 
           The values look like topics and are not: `circuit_breaker.trigger`
           is the action behind `risk.symbol_halt`, and there is no
-          `circuit_breaker.trigger` topic anywhere.
+          `circuit_breaker.trigger` topic anywhere. `auction.reopen` is the
+          action behind `risk.force_uncross`.
       - { name: scope, type: nested, ref: AdminActionScope }
       - { name: accepted, type: bool }
       - { name: reason, type: string, required: false, default: "",

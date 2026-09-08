@@ -16,6 +16,8 @@ Commands
   KILL|GW=<gw>[|SYM=<sym>]     — cancel all orders/quotes for a gateway
   KICK|GW=<gw>[|REASON=<text>] — forcefully disconnect a gateway
   QCANCEL|GW=<gw>|SYM=<sym>    — cancel the active quote for a gateway on one symbol
+  REOPEN|SYM=<sym>[|PRICE=<px>][|DRY_RUN=1][|NOTE=<text>]
+                                — force one symbol to uncross now, clearing any halt
   BOOK|SYM=<sym>                — print L1/L2 order-book snapshot
   ORDERS|GW=<gw>                — list resting orders for a gateway
   LEVEL|SYM=<sym>[|PRICE=<px>]  — show every resting order making up a symbol
@@ -113,6 +115,7 @@ _TOP_CMDS = [
     "HALT_SYM",
     "RESUME_SYM",
     "CANCEL_SYM",
+    "REOPEN",
     "KILL",
     "KICK",
     "QCANCEL",
@@ -136,6 +139,7 @@ _CMD_FIELDS: dict[str, list[str]] = {
     "HALT_SYM": ["SYM="],
     "RESUME_SYM": ["SYM="],
     "CANCEL_SYM": ["SYM="],
+    "REOPEN": ["SYM=", "PRICE=", "DRY_RUN=", "NOTE="],
     "KILL": ["GW=", "SYM="],
     "KICK": ["GW=", "REASON="],
     "QCANCEL": ["GW=", "SYM="],
@@ -155,6 +159,14 @@ _HELP_TEXT = """
   HALT_SYM|SYM=<sym>            — halt trading on a single symbol only
   RESUME_SYM|SYM=<sym>          — resume a single symbol halted by HALT_SYM or a circuit breaker
   CANCEL_SYM|SYM=<sym>          — cancel ALL resting orders on <sym> across every gateway
+  REOPEN|SYM=<sym>[|PRICE=<px>][|DRY_RUN=1][|NOTE=<text>]
+                                — force <sym> to uncross now and clear any halt in one
+                                   step. Omit PRICE to open at the computed equilibrium,
+                                   or set it to assert an operator opening price for a
+                                   failed auction. DRY_RUN=1 peeks the indicative print
+                                   without changing any state. ADMIN only.
+                                   e.g.  REOPEN|SYM=AAPL|DRY_RUN=1
+                                         REOPEN|SYM=AAPL|PRICE=100.00|NOTE=manual open
 
   KILL|GW=<gw>[|SYM=<sym>]     — cancel all resting orders and the active quote for <gw>
                                    (add SYM= to scope to a single instrument)
@@ -649,6 +661,63 @@ def _cmd_cancel_sym(
     )
 
 
+def _cmd_reopen(
+    client: ExchangeCommandClient,
+    fields: dict[str, str],
+    symbols_cache: list[str] | None,
+    json_output: bool,
+) -> tuple[bool, dict[str, Any]]:
+    sym = fields.get("SYM", "")
+    if not sym:
+        console.print(
+            "[yellow]Usage:[/yellow]  "
+            "REOPEN|SYM=<sym>[|PRICE=<px>][|DRY_RUN=1][|NOTE=<text>]"
+        )
+        return False, {}
+    price_str = fields.get("PRICE", "")
+    price: float | None = None
+    if price_str:
+        try:
+            price = float(price_str)
+        except ValueError:
+            console.print(f"[red]Invalid PRICE:[/red] {price_str!r} is not a number")
+            return False, {}
+    dry_run = fields.get("DRY_RUN", "").lower() in ("1", "true", "yes")
+    note = fields.get("NOTE", "")
+
+    result = client.force_uncross(sym, price, dry_run=dry_run, note=note)
+
+    if json_output:
+        _print_json(result)
+        return bool(result.get("accepted")), result
+
+    accepted = bool(result.get("accepted"))
+    if not accepted:
+        console.print(f"[red]REJECTED[/red]  {result.get('reason', '')}")
+        return False, result
+
+    symbol = result.get("symbol", sym)
+    ind_px = result.get("indicative_price")
+    ind_qty = result.get("indicative_qty", 0)
+    side = result.get("imbalance_side") or "balanced"
+    surplus = result.get("surplus", 0)
+    ind_txt = "no cross" if ind_px is None else f"{ind_px} x {ind_qty}"
+    if result.get("dry_run"):
+        console.print(
+            f"[cyan]REOPEN DRY-RUN[/cyan]  {symbol}  "
+            f"indicative={ind_txt}  imbalance={side} ({surplus})"
+        )
+    else:
+        printed = result.get("printed_price")
+        traded = result.get("traded_qty", 0)
+        printed_txt = "nothing printed" if printed is None else f"{printed} x {traded}"
+        console.print(
+            f"[bold green]REOPEN OK[/bold green]  {symbol}  "
+            f"printed={printed_txt}  (indicative was {ind_txt})"
+        )
+    return True, result
+
+
 def _cmd_kill(
     client: ExchangeCommandClient,
     fields: dict[str, str],
@@ -949,6 +1018,7 @@ _COMMAND_HANDLERS: dict[
     "HALT_SYM": _cmd_halt_sym,
     "RESUME_SYM": _cmd_resume_sym,
     "CANCEL_SYM": _cmd_cancel_sym,
+    "REOPEN": _cmd_reopen,
     "KILL": _cmd_kill,
     "KICK": _cmd_kick,
     "QCANCEL": _cmd_qcancel,

@@ -119,6 +119,61 @@ def test_args_to_fields_maps_only_present_keys() -> None:
     assert cli_mod._args_to_fields(_Args2) == {}
 
 
+def test_build_parser_reopen_parses_sym_price_dry_run_note() -> None:
+    parser = cli_mod._build_parser()
+
+    args = parser.parse_args(["--id", "GW_ADMIN", "reopen", "--sym", "AAPL"])
+    assert args.command == "reopen"
+    assert args.sym == "AAPL"
+    assert args.price is None
+    assert args.dry_run is False
+    assert args.note == ""
+
+    args2 = parser.parse_args(
+        [
+            "--id",
+            "GW_ADMIN",
+            "reopen",
+            "--sym",
+            "AAPL",
+            "--price",
+            "100.5",
+            "--dry-run",
+            "--note",
+            "manual open",
+        ]
+    )
+    assert args2.price == 100.5
+    assert args2.dry_run is True
+    assert args2.note == "manual open"
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--id", "GW_ADMIN", "reopen"])  # --sym is required
+
+
+def test_args_to_fields_maps_reopen_price_dry_run_note() -> None:
+    class _Args:
+        sym = "AAPL"
+        price = 100.5
+        dry_run = True
+        note = "manual open"
+
+    assert cli_mod._args_to_fields(_Args) == {
+        "SYM": "AAPL",
+        "PRICE": "100.5",
+        "DRY_RUN": "1",
+        "NOTE": "manual open",
+    }
+
+    class _Args2:
+        sym = "AAPL"
+        price = None
+        dry_run = False
+        note = ""
+
+    assert cli_mod._args_to_fields(_Args2) == {"SYM": "AAPL"}
+
+
 def test_main_success_executes_and_exits_zero(monkeypatch: pytest.MonkeyPatch) -> None:
     created: dict[str, Any] = {}
 
@@ -253,6 +308,56 @@ def test_main_normalizes_hyphen_command(monkeypatch: pytest.MonkeyPatch) -> None
 
     assert exc.value.code == 0
     assert observed["cmd"] == "SESSION_STATUS"
+
+
+def test_main_reopen_maps_command_and_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _make_client(
+        gw_id: str, push_addr: str, pub_addr: str, timeout_ms: int
+    ) -> _FakeClient:
+        return _FakeClient(
+            gw_id=gw_id, push_addr=push_addr, pub_addr=pub_addr, timeout_ms=timeout_ms
+        )
+
+    seen: dict[str, Any] = {}
+
+    def _exec(
+        client: Any, cmd: str, fields: dict[str, str], *, json_output: bool = False
+    ) -> tuple[bool, Any]:
+        seen["cmd"] = cmd
+        seen["fields"] = fields
+        return True, {}
+
+    monkeypatch.setattr(cli_mod, "ExchangeCommandClient", _make_client)
+    monkeypatch.setattr(cli_mod, "execute_command", _exec)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "pm-admin-cli",
+            "--id",
+            "GW_ADMIN",
+            "reopen",
+            "--sym",
+            "AAPL",
+            "--price",
+            "100.5",
+            "--dry-run",
+            "--note",
+            "manual open",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        cli_mod.main()
+
+    assert exc.value.code == 0
+    assert seen["cmd"] == "REOPEN"
+    assert seen["fields"] == {
+        "SYM": "AAPL",
+        "PRICE": "100.5",
+        "DRY_RUN": "1",
+        "NOTE": "manual open",
+    }
 
 
 def test_main_connect_timeout_exits_one_and_closes(

@@ -37,6 +37,9 @@ def _build_parser() -> argparse.ArgumentParser:
             "  pm-admin-cli --id GW_ADMIN halt-sym --sym AAPL\n"
             "  pm-admin-cli --id GW_ADMIN resume-sym --sym AAPL\n"
             "  pm-admin-cli --id GW_ADMIN cancel-sym --sym AAPL\n"
+            "  pm-admin-cli --id GW_ADMIN reopen --sym AAPL --dry-run\n"
+            "  pm-admin-cli --id GW_ADMIN reopen --sym AAPL\n"
+            "  pm-admin-cli --id GW_ADMIN reopen --sym AAPL --price 100.00 --note 'manual open'\n"
             "  pm-admin-cli --id GW_ADMIN kill --gw TRADER01\n"
             "  pm-admin-cli --id GW_ADMIN kill --gw TRADER01 --sym AAPL\n"
             "  pm-admin-cli --id GW_ADMIN kick --gw TRADER01 --reason 'Compliance hold'\n"
@@ -122,6 +125,36 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Cancel all resting orders on a symbol across every gateway (ADMIN role required)",
     )
     p.add_argument("--sym", required=True, metavar="SYMBOL", help="Symbol to clear")
+
+    p = sub.add_parser(
+        "reopen",
+        help=(
+            "Force one symbol to uncross now and clear any halt in one step "
+            "(ADMIN role required)"
+        ),
+    )
+    p.add_argument("--sym", required=True, metavar="SYMBOL", help="Symbol to reopen")
+    p.add_argument(
+        "--price",
+        type=float,
+        default=None,
+        metavar="PRICE",
+        help=(
+            "Operator opening price; omit to open at the naturally computed "
+            "equilibrium"
+        ),
+    )
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Peek the indicative print without changing any state",
+    )
+    p.add_argument(
+        "--note",
+        default="",
+        metavar="TEXT",
+        help="Reason string recorded in the engine log",
+    )
 
     # ---- Any connected gateway ----
     p = sub.add_parser(
@@ -249,10 +282,15 @@ def _args_to_fields(args: Any) -> dict[str, str]:
         fields["SYM"] = args.sym
     if getattr(args, "reason", None):
         fields["REASON"] = args.reason
+    if getattr(args, "note", None):
+        fields["NOTE"] = args.note
+    if getattr(args, "dry_run", False):
+        fields["DRY_RUN"] = "1"
     if getattr(args, "state", None):
         fields["STATE"] = args.state
-    if getattr(args, "price", None):
-        fields["PRICE"] = args.price
+    price = getattr(args, "price", None)
+    if price is not None and price != "":
+        fields["PRICE"] = str(price)
     return fields
 
 

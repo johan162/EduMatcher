@@ -364,6 +364,109 @@ messages:
     encoding:
       engine_pub: { frames: [topic, json_payload] }
 
+  - name: force_uncross
+    topic: "risk.force_uncross"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        ADMIN to engine: force one symbol to uncross now, optionally asserting
+        the print price, and clear any halt in the same step. The operational
+        recovery for an auction that failed to discover a price - see
+        risk.cancel_symbol for the "abandon and re-collect" alternative.
+      published_by: [admin]
+      since: "1.0"
+      see_also: ["risk.symbol_resume", "risk.cancel_symbol",
+                 "auction.result.{SYMBOL}"]
+      example_note: >
+        `price` is null to open at the naturally computed equilibrium, or a
+        value to assert an operator opening price when no natural equilibrium
+        exists (a failed-auction recovery). It is nullable rather than a
+        sentinel because "no price given" and "a price of zero" are different
+        requests, exactly as auction.result's `eq_price` is null-not-zero.
+
+        `dry_run` peeks the indicative print without mutating any state: no
+        halt is cleared, no uncross runs. It is the on-demand replacement for
+        the auction.indicative feed, which is push-only and skips halted
+        symbols, so an operator would otherwise set `price` blind.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - name: price
+        type: float
+        required: false
+        nullable: true
+        omit_when_none: true
+        unit: display_price
+        validate: { gt: 0 }
+        doc: "Operator print price; null opens at the computed equilibrium."
+      - { name: dry_run, type: bool, required: false, default: false,
+          doc: "Peek the indicative print without changing any state." }
+      - { name: note, type: string, required: false, omit_when_empty: true,
+          validate: { max_len: 256 },
+          doc: "Free-text reason, recorded on the admin monitor." }
+      - { name: command_id, type: string, required: false,
+          omit_when_empty: true, validate: { max_len: 64 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: force_uncross_ack
+    topic: "risk.force_uncross_ack.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to ADMIN: the outcome of a force-uncross. On a dry run it
+        carries the indicative figures only; on a live run it also reports
+        what actually printed.
+      published_by: [engine]
+      since: "1.0"
+      example_note: >
+        `indicative_*` mirror auction.indicative: `indicative_price` is null
+        when the book would not cross. `printed_price` and `traded_qty` are
+        the live-run outcome and stay at null/zero on a dry run or a rejection.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: accepted, type: bool }
+      - { name: symbol, type: string, required: false, default: "",
+          validate: { max_len: 16 } }
+      - { name: reason, type: string, required: false, default: "",
+          validate: { max_len: 512 } }
+      - { name: dry_run, type: bool, required: false, default: false,
+          doc: "True when this ack answers a peek rather than a live uncross." }
+      - name: indicative_price
+        type: float
+        required: false
+        nullable: true
+        unit: display_price
+        validate: { gt: 0 }
+        doc: "Indicative equilibrium, or null if the book would not cross."
+      - { name: indicative_qty, type: int, unit: shares,
+          required: false, default: 0, validate: { ge: 0 },
+          doc: "Quantity that would execute at the indicative price." }
+      - { name: surplus, type: int, unit: shares,
+          required: false, default: 0, validate: { ge: 0 },
+          doc: "Surplus on `imbalance_side`; zero when balanced." }
+      - name: imbalance_side
+        type: enum
+        values: [BUY, SELL]
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: "Which side would be left unfilled; absent when balanced."
+      - name: printed_price
+        type: float
+        required: false
+        nullable: true
+        unit: display_price
+        validate: { gt: 0 }
+        doc: "Live-run print price, or null on a dry run or rejection."
+      - { name: traded_qty, type: int, unit: shares,
+          required: false, default: 0, validate: { ge: 0 },
+          doc: "Quantity that actually executed on a live run." }
+      - { name: command_id, type: string, required: false,
+          omit_when_empty: true, validate: { max_len: 64 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
   - name: circuit_breaker_halt_all
     topic: "risk.circuit_breaker_halt_all"
     transport: [engine_pub]

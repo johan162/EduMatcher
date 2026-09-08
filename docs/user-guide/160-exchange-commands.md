@@ -185,6 +185,7 @@ same `execute_command()` function.  Every command maps 1-to-1:
 | `HALT_SYM\|SYM=X`      | `halt-sym --sym X`       | `client.symbol_halt("X")`              |
 | `RESUME_SYM\|SYM=X`    | `resume-sym --sym X`     | `client.symbol_resume("X")`            |
 | `CANCEL_SYM\|SYM=X`    | `cancel-sym --sym X`     | `client.cancel_symbol("X")`            |
+| `REOPEN\|SYM=X[\|PRICE=Y][\|DRY_RUN=1][\|NOTE=Z]` | `reopen --sym X [--price Y] [--dry-run] [--note Z]` | `client.force_uncross("X", price=Y, dry_run=..., note=Z)` |
 | `KILL\|GW=X\|SYM=Y`    | `kill --gw X --sym Y`    | `client.kill_switch("X", symbol="Y")`  |
 | `KICK\|GW=X\|REASON=Z` | `kick --gw X --reason Z` | `client.gateway_kick("X", reason="Z")` |
 | `QCANCEL\|GW=X\|SYM=Y` | `qcancel --gw X --sym Y` | `client.quote_cancel("X", "Y")`        |
@@ -314,6 +315,57 @@ Requires `role: ADMIN`.
 | Flag           | Required | Description                   |
 |----------------|----------|-------------------------------|
 | `--sym SYMBOL` | yes      | Symbol whose orders to cancel |
+
+
+
+#### `reopen` — Force a single symbol to uncross now
+
+```bash
+# Peek the indicative print WITHOUT changing any state:
+pm-admin-cli --id GW_ADMIN reopen --sym AAPL --dry-run
+```
+```
+REOPEN DRY-RUN  AAPL  indicative=100.00 x 500  imbalance=BUY (200)
+```
+```bash
+# Open at the naturally computed equilibrium (if any):
+pm-admin-cli --id GW_ADMIN reopen --sym AAPL
+```
+```
+REOPEN OK  AAPL  printed=100.00 x 500  (indicative was 100.00 x 500)
+```
+```bash
+# Assert an operator opening price (failed-auction recovery):
+pm-admin-cli --id GW_ADMIN reopen --sym AAPL --price 100.00 --note "manual open"
+```
+```
+REOPEN OK  AAPL  printed=100.00 x 500  (indicative was no cross)
+```
+Force-uncrosses one symbol and **clears any halt in the same step**. This is
+the hands-on recovery for a failed auction — one that discovered no price and
+left the symbol closed with its orders untouched (see the recovery recipe
+below). Whatever crosses at the chosen price executes with normal price-time
+priority; residual interest stays resting.
+
+- Omit `--price` to open at the naturally computed equilibrium. If the book
+  has no crossing interest, nothing prints (the reply shows `nothing printed`)
+  and you can retry with an asserted `--price`.
+- Pass `--price` to assert an operator opening price when a failed auction
+  discovered none. Whatever crosses at that price trades; the rest stays put.
+- `--dry-run` peeks the indicative print via a read-only calculation and
+  **mutates nothing** — no halt is cleared and no uncross runs. It is the
+  on-demand way to see what would print for a halted or closed symbol, whose
+  `auction.indicative` feed is otherwise silent. With `--price`, the peek
+  reports the quantity that would cross at that asserted price.
+
+Requires `role: ADMIN`.
+
+| Flag           | Required | Description                                                   |
+|----------------|----------|---------------------------------------------------------------|
+| `--sym SYMBOL` | yes      | Symbol to reopen                                              |
+| `--price PX`   | no       | Operator opening price; omit to use the computed equilibrium  |
+| `--dry-run`    | no       | Peek the indicative print without changing any state          |
+| `--note TEXT`  | no       | Reason string recorded on the admin monitor                   |
 
 
 
@@ -644,6 +696,27 @@ pm-admin-cli $ID cancel-sym --sym AAPL
 
 # Reopen AAPL when satisfied
 pm-admin-cli $ID resume-sym --sym AAPL
+```
+
+```bash
+#!/bin/bash
+# Recover a failed auction: an opening/closing uncross that found no price
+# leaves the symbol closed with its orders untouched. Reopen it by hand.
+set -e
+ID="--id GW_ADMIN"
+
+# 1. Peek what would print — the auction.indicative feed is silent for a
+#    halted/closed symbol, so this on-demand read is the only view.
+pm-admin-cli $ID reopen --sym AAPL --dry-run
+
+# 2a. If an equilibrium exists, open at it:
+pm-admin-cli $ID reopen --sym AAPL
+
+# 2b. If it would not cross, assert an operator opening price instead:
+pm-admin-cli $ID reopen --sym AAPL --price 100.00 --note "manual open"
+
+# (Or abandon the book entirely and let it re-collect next phase:)
+# pm-admin-cli $ID cancel-sym --sym AAPL
 ```
 
 

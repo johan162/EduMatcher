@@ -293,8 +293,9 @@ class TestTheFamilyIsCompleteNow:
     made them fail on the very change they existed to gate.
     """
 
-    def test_all_sixteen_topics_are_declared(self) -> None:
-        assert len(G.FAMILY_TOPICS) == 16
+    def test_all_eighteen_topics_are_declared(self) -> None:
+        # Sixteen at 5.3b, plus force_uncross + its ack for the operator reopen.
+        assert len(G.FAMILY_TOPICS) == 18
 
     def test_the_instrument_scoped_half_is_here(self) -> None:
         declared = set(G.FAMILY_TOPICS)

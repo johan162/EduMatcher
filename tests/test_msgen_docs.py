@@ -60,19 +60,18 @@ class TestTheAppendixDocumentsEveryMessage:
         assert missing == []
 
     def test_it_covers_more_than_the_page_it_replaced(self, families: list) -> None:
-        """110, where the hand-written file managed 67.
+        """112, where the hand-written file managed 67.
 
         This count moves whenever a new message is added to spec/ — most
-        recently order.price_level_orders_request/order.price_level_orders
-        (108 -> 110), the ADMIN all-gateway price-level query behind
-        pm-admin's LEVEL command. Bump the literal here alongside any spec
-        addition; the real regression this test (and
-        test_every_topic_has_a_section above it) guards against is the
+        recently risk.force_uncross/risk.force_uncross_ack (110 -> 112), the
+        ADMIN single-symbol reopen behind pm-admin's REOPEN command. Bump the
+        literal here alongside any spec addition; the real regression this test
+        (and test_every_topic_has_a_section above it) guards against is the
         generated reference page silently omitting a message, not the
         total staying fixed at some past value.
         """
         total = sum(len(f.messages) for f in families)
-        assert total == 110, total
+        assert total == 112, total
 
     def test_every_record_type_has_a_section(self, families: list, page: str) -> None:
         missing = [

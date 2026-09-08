@@ -1259,6 +1259,70 @@ def make_cancel_symbol_ack_msg(
 
 
 # ---------------------------------------------------------------------------
+# Operator force-uncross (single-symbol reopen, ADMIN role required)
+# ---------------------------------------------------------------------------
+
+
+def make_force_uncross_msg(
+    gateway_id: str,
+    symbol: str,
+    price: float | None = None,
+    dry_run: bool = False,
+    note: str = "",
+    command_id: str = "",
+) -> list[bytes]:
+    """Admin → engine: force one *symbol* to uncross now (ADMIN role required).
+
+    ``price`` is ``None`` to open at the naturally computed equilibrium, or a
+    value to assert an operator opening price when no natural equilibrium
+    exists. ``dry_run`` peeks the indicative print without mutating any state.
+    """
+    return _gen_risk.make_force_uncross(
+        gateway_id=gateway_id,
+        symbol=symbol.upper(),
+        price=price,
+        dry_run=dry_run,
+        note=note,
+        command_id=command_id,
+    )
+
+
+def make_force_uncross_ack_msg(
+    gateway_id: str,
+    accepted: bool,
+    symbol: str = "",
+    reason: str = "",
+    dry_run: bool = False,
+    indicative_price: float | None = None,
+    indicative_qty: int = 0,
+    surplus: int = 0,
+    imbalance_side: str = "",
+    printed_price: float | None = None,
+    traded_qty: int = 0,
+    command_id: str = "",
+) -> list[bytes]:
+    """Engine → admin: the outcome of a force-uncross.
+
+    On a dry run the ``indicative_*`` figures are the peek; on a live run
+    ``printed_price``/``traded_qty`` report what actually printed.
+    """
+    return _gen_risk.make_force_uncross_ack(
+        gateway_id=gateway_id,
+        accepted=accepted,
+        symbol=symbol,
+        reason=reason,
+        dry_run=dry_run,
+        indicative_price=indicative_price,
+        indicative_qty=indicative_qty,
+        surplus=surplus,
+        imbalance_side=imbalance_side or None,
+        printed_price=printed_price,
+        traded_qty=traded_qty,
+        command_id=command_id,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Gateway-scoped and market-wide kill switch (ADMIN targeting another
 # gateway, or every gateway at once) — distinct from risk.kill_switch, which
 # only ever acts on the caller's own gateway_id.

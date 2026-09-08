@@ -39,6 +39,7 @@ from edumatcher.models.message import (
     make_cancel_symbol_msg,
     make_circuit_breaker_halt_all_msg,
     make_circuit_breaker_resume_all_msg,
+    make_force_uncross_msg,
     make_gateway_connect_msg,
     make_gateway_disconnect_msg,
     make_gateways_request_msg,
@@ -74,12 +75,14 @@ from edumatcher.models.generated.risk import (
     PREFIX_CANCEL_SYMBOL_ACK,
     PREFIX_CIRCUIT_BREAKER_HALT_ALL_ACK,
     PREFIX_CIRCUIT_BREAKER_RESUME_ALL_ACK,
+    PREFIX_FORCE_UNCROSS_ACK,
     PREFIX_KILL_SWITCH_ACK,
     PREFIX_SYMBOL_HALT_ACK,
     PREFIX_SYMBOL_RESUME_ACK,
     topic_cancel_symbol_ack,
     topic_circuit_breaker_halt_all_ack,
     topic_circuit_breaker_resume_all_ack,
+    topic_force_uncross_ack,
     topic_kill_switch_ack,
     topic_symbol_halt_ack,
     topic_symbol_resume_ack,
@@ -126,6 +129,7 @@ _ACK_SUB_PREFIXES: tuple[str, ...] = (
     PREFIX_SYMBOL_HALT_ACK,
     PREFIX_SYMBOL_RESUME_ACK,
     PREFIX_CANCEL_SYMBOL_ACK,
+    PREFIX_FORCE_UNCROSS_ACK,
     PREFIX_KILL_SWITCH_ACK,
     PREFIX_QUOTE_ACK,
     PREFIX_BOOK_SNAPSHOT,
@@ -764,3 +768,36 @@ class ExchangeCommandClient:
         """
         self._send(make_cancel_symbol_msg(self._gw_id, symbol.upper()))
         return self._recv(topic_cancel_symbol_ack(self._gw_id))
+
+    def force_uncross(
+        self,
+        symbol: str,
+        price: float | None = None,
+        *,
+        dry_run: bool = False,
+        note: str = "",
+    ) -> dict[str, Any]:
+        """
+        Force *symbol* to uncross now and clear any halt in one step.
+
+        ``price`` is ``None`` to open at the naturally computed equilibrium,
+        or a value to assert an operator opening price when a failed auction
+        left no natural equilibrium.  ``dry_run=True`` peeks the indicative
+        print without changing any state.  Requires ``role: ADMIN``.
+
+        Returns
+        -------
+        dict with keys: ``accepted``, ``symbol``, ``reason``, ``dry_run``,
+        ``indicative_price`` (nullable), ``indicative_qty``, ``surplus``,
+        ``imbalance_side``, ``printed_price`` (nullable), ``traded_qty``.
+        """
+        self._send(
+            make_force_uncross_msg(
+                self._gw_id,
+                symbol.upper(),
+                price=price,
+                dry_run=dry_run,
+                note=note,
+            )
+        )
+        return self._recv(topic_force_uncross_ack(self._gw_id))

@@ -49,6 +49,7 @@ from edumatcher.engine.auction import (
     AuctionResult,
     compute_equilibrium,
     execute_uncross,
+    executable_at,
 )
 from edumatcher.cli_version import add_version_argument
 from edumatcher.engine.circuit_breaker import CircuitBreakerLevel, CircuitBreakerState
@@ -115,6 +116,7 @@ from edumatcher.models.message import (
     make_symbol_halt_ack_msg,
     make_symbol_resume_ack_msg,
     make_cancel_symbol_ack_msg,
+    make_force_uncross_ack_msg,
     make_kill_switch_ack_msg,
     make_kill_switch_gateway_ack_msg,
     make_kill_switch_global_ack_msg,
@@ -189,6 +191,7 @@ from edumatcher.models.generated.risk import (
     TOPIC_CANCEL_SYMBOL,
     TOPIC_CIRCUIT_BREAKER_HALT_ALL,
     TOPIC_CIRCUIT_BREAKER_RESUME_ALL,
+    TOPIC_FORCE_UNCROSS,
     TOPIC_KILL_SWITCH,
     TOPIC_KILL_SWITCH_GATEWAY,
     TOPIC_KILL_SWITCH_GLOBAL,
@@ -4164,6 +4167,168 @@ class Engine:
             f" orders={cancelled_orders} quotes={cancelled_quotes}"
         )
 
+    def _handle_force_uncross(self, payload: dict[str, Any]) -> None:
+        """Force one symbol to uncross now, optionally at an operator price,
+        clearing any halt in the same step (ADMIN only).
+
+        ``dry_run`` peeks the indicative print via a read-only equilibrium
+        calculation and mutates nothing. A live run clears the halt so the
+        ``_run_uncross`` guard does not skip the symbol, then uncrosses under
+        ``reason="ADMIN_MANUAL"`` — which honours an asserted price even when
+        the book has no natural equilibrium (a failed-auction recovery).
+        """
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
+        symbol = _clamp_wire_id(payload.get("symbol", ""), 16)
+        price_raw = payload.get("price")
+        dry_run = bool(payload.get("dry_run", False))
+        note = str(payload.get("note", ""))[:_MAX_WIRE_NOTE_LEN]
+        command_id = str(payload.get("command_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
+
+        def _reject(reason: str) -> None:
+            self.pub_sock.send_multipart(
+                make_force_uncross_ack_msg(
+                    gateway_id,
+                    False,
+                    symbol=symbol,
+                    reason=reason,
+                    dry_run=dry_run,
+                    command_id=command_id,
+                )
+            )
+            self._publish_admin_action(
+                gateway_id,
+                command_id,
+                "auction.reopen",
+                {"symbol": symbol},
+                accepted=False,
+                reason=reason,
+            )
+
+        ok, reason = self._gateway_status(gateway_id)
+        if not ok:
+            _reject(reason)
+            return
+
+        session = self._session_for_gateway(gateway_id)
+        if session.role != ParticipantRole.ADMIN:
+            _reject("Force-uncross is only allowed for ADMIN participants")
+            return
+
+        if not symbol:
+            _reject("symbol required")
+            return
+
+        if self._allowed_symbols is not None and symbol not in self._allowed_symbols:
+            _reject(f"Unknown symbol: {symbol}")
+            return
+
+        price_ticks: int | None = None
+        if price_raw is not None:
+            try:
+                price_val = float(price_raw)
+            except (TypeError, ValueError):
+                _reject(f"Invalid price: {price_raw!r}")
+                return
+            if price_val <= 0:
+                _reject("price must be positive")
+                return
+            try:
+                price_ticks = to_ticks_exact(price_val, symbol)
+            except TickViolation as exc:
+                _reject(str(exc))
+                return
+
+        book = self._book(symbol)
+
+        # Read-only peek. When a price is asserted, report what that price
+        # would print; otherwise the naturally computed equilibrium.
+        peek = (
+            executable_at(book, price_ticks)
+            if price_ticks is not None
+            else compute_equilibrium(book)
+        )
+        indicative_price = (
+            from_ticks(peek.eq_price, symbol) if peek.eq_price is not None else None
+        )
+
+        if dry_run:
+            self.pub_sock.send_multipart(
+                make_force_uncross_ack_msg(
+                    gateway_id,
+                    True,
+                    symbol=symbol,
+                    dry_run=True,
+                    indicative_price=indicative_price,
+                    indicative_qty=peek.eq_qty,
+                    surplus=peek.surplus,
+                    imbalance_side=peek.imbalance_side,
+                    command_id=command_id,
+                )
+            )
+            self._publish_admin_action(
+                gateway_id,
+                command_id,
+                "auction.reopen",
+                {"symbol": symbol, "note": note},
+                accepted=True,
+            )
+            log.info(
+                f"ADMIN REOPEN DRY-RUN — {symbol} by {gateway_id}: "
+                f"indicative={indicative_price} qty={peek.eq_qty}"
+            )
+            return
+
+        # Live run: clear the halt first so the _run_uncross guard admits the
+        # symbol, then force the uncross.
+        was_halted = self._halted_symbols.get(symbol, False)
+        self._halted_symbols[symbol] = False
+        cb = self._circuit_breakers.get(symbol)
+        if cb is not None:
+            cb.deactivate()
+        if was_halted:
+            self.pub_sock.send_multipart(
+                make_circuit_breaker_resume(symbol=symbol, halt_source="ADMIN")
+            )
+            self._mark_dirty(symbol)
+
+        outcomes = self._run_uncross(
+            symbol_filter=symbol,
+            reason="ADMIN_MANUAL",
+            price_override=price_ticks,
+        )
+        printed_ticks, traded_qty = outcomes.get(symbol, (None, 0))
+        printed_price = (
+            from_ticks(printed_ticks, symbol) if printed_ticks is not None else None
+        )
+
+        self.pub_sock.send_multipart(
+            make_force_uncross_ack_msg(
+                gateway_id,
+                True,
+                symbol=symbol,
+                dry_run=False,
+                indicative_price=indicative_price,
+                indicative_qty=peek.eq_qty,
+                surplus=peek.surplus,
+                imbalance_side=peek.imbalance_side,
+                printed_price=printed_price,
+                traded_qty=traded_qty,
+                command_id=command_id,
+            )
+        )
+        self._publish_admin_action(
+            gateway_id,
+            command_id,
+            "auction.reopen",
+            {"symbol": symbol, "note": note},
+            accepted=True,
+        )
+        log.info(
+            f"ADMIN REOPEN — {symbol} by {gateway_id}: "
+            f"printed={printed_price} qty={traded_qty} "
+            f"(price_override={price_ticks})"
+        )
+
     # ------------------------------------------------------------------
     # Combo-order handlers
     # ------------------------------------------------------------------
@@ -4671,7 +4836,7 @@ class Engine:
         *,
         reason: str,
         price_override: int | None = None,
-    ) -> None:
+    ) -> dict[str, tuple[int | None, int]]:
         """Run the equilibrium-price uncrossing on every (or one) symbol book.
 
         Parameters
@@ -4680,15 +4845,25 @@ class Engine:
                         Used by ``_flush_circuit_breakers()`` for per-symbol
                         reopening auctions.
         reason :        Why this uncross is happening — ``SCHEDULED``,
-                        ``REOPEN``, ``RECOVERY`` or ``BACKSTOP``. Published on
-                        every ``auction.result`` so a consumer can tell a
-                        reopening auction from the closing one.
+                        ``REOPEN``, ``RECOVERY``, ``BACKSTOP`` or
+                        ``ADMIN_MANUAL``. Published on every ``auction.result``
+                        so a consumer can tell a reopening auction from the
+                        closing one.
         price_override: Print at this price instead of the computed
-                        equilibrium. Used only by the closing backstop, where
-                        the corridor boundary is imposed on a symbol that
-                        could not reopen inside it. Executes less than the
-                        true equilibrium would, by design.
+                        equilibrium. Used by the closing backstop (where the
+                        corridor boundary is imposed on a symbol that could not
+                        reopen inside it) and by an ``ADMIN_MANUAL`` reopen. For
+                        ``ADMIN_MANUAL`` the override is honoured even when
+                        ``compute_equilibrium`` finds no natural equilibrium —
+                        the operator is asserting the opening price.
+
+        Returns
+        -------
+        Mapping of each uncrossed symbol to ``(printed_price_ticks, traded_qty)``
+        — ``printed_price_ticks`` is ``None`` when nothing printed. Callers that
+        do not need the outcome (the session sweep, recovery) ignore it.
         """
+        outcomes: dict[str, tuple[int | None, int]] = {}
         for symbol, book in self.books.items():
             if symbol_filter is not None and symbol != symbol_filter:
                 continue
@@ -4699,7 +4874,13 @@ class Engine:
             if self._halted_symbols.get(symbol):
                 continue
             result = compute_equilibrium(book)
-            if price_override is not None and result.eq_price is not None:
+            # An ADMIN_MANUAL reopen may assert a print price even when the book
+            # has no natural equilibrium (a failed auction). Every other caller
+            # only overrides a price the book already discovered.
+            force_manual = reason == "ADMIN_MANUAL" and price_override is not None
+            if price_override is not None and (
+                result.eq_price is not None or force_manual
+            ):
                 result = AuctionResult(
                     eq_price=price_override,
                     eq_qty=result.eq_qty,
@@ -4824,6 +5005,12 @@ class Engine:
                     reason=reason,
                 )
             )
+            outcomes[symbol] = (
+                result.eq_price if trades else None,
+                result.eq_qty if trades else 0,
+            )
+
+        return outcomes
 
     # ------------------------------------------------------------------
     # OCO-order handlers
@@ -5757,6 +5944,8 @@ class Engine:
                 self._handle_symbol_resume(payload)
             elif topic == TOPIC_CANCEL_SYMBOL:
                 self._handle_cancel_symbol(payload)
+            elif topic == TOPIC_FORCE_UNCROSS:
+                self._handle_force_uncross(payload)
             elif topic == TOPIC_SESSION_TRANSITION:
                 self._handle_session_transition(payload)
             elif topic == TOPIC_SESSION_STATE_REQUEST:
