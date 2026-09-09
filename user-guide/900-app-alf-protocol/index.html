@@ -5203,11 +5203,11 @@ as-is even if the gateway has a non-<code>NONE</code> default configured.</p>
 </tr>
 <tr>
 <td>Client-local informational commands</td>
-<td><code>STATUS</code>, <code>POS</code>, <code>HELP</code></td>
+<td><code>STATUS</code>, <code>HELP</code></td>
 </tr>
 <tr>
 <td>Divergent between clients (see note below)</td>
-<td><code>QLEGS</code></td>
+<td><code>QLEGS</code>, <code>POS</code></td>
 </tr>
 <tr>
 <td>Drop-copy relay control (gateway-local)</td>
@@ -5254,9 +5254,19 @@ renders the engine's authoritative reply. The command syntax and output
 columns are identical either way — see the <a href="#qlegs"><code>QLEGS</code></a> section
 below and <a href="../220-alf-gateway/#qlegs-quote-leg-snapshot-active-recent">ALF TCP Gateway → QLEGS</a>
 for the <code>pm-alf-gwy</code> wire format.</p>
-<p><code>STATUS</code> and <code>POS</code> are <code>pm-alf-console</code>-only: <code>pm-alf-gwy</code> rejects both
-with <code>ERR|CODE=UNKNOWN_COMMAND</code> since it has no interactive terminal to
-print a summary to.</p>
+<p><code>STATUS</code> is <code>pm-alf-console</code>-only: <code>pm-alf-gwy</code> rejects it with
+<code>ERR|CODE=UNKNOWN_COMMAND</code> since it has no interactive terminal to print
+a summary to.</p>
+<p><code>POS</code> also behaves differently in each client, but in the other
+direction from <code>QLEGS</code>: bare <code>POS</code> (no <code>GW=</code>) in <code>pm-alf-console</code> prints
+that session's own locally-tracked fills and P&amp;L, and <code>pm-alf-gwy</code> still
+rejects a bare <code>POS</code> — it keeps no such local ledger. <code>POS|GW=&lt;gateway_id&gt;</code>
+is the form that <strong>is</strong> a genuine engine round trip in both clients:
+it asks the engine's <code>system.position_request</code> / <code>system.
+position_snapshot.{GW_ID}</code> for <em>any</em> gateway's position (an MM bot's,
+typically), not just the caller's own. See
+<a href="../220-alf-gateway/#posgwgateway_id-query-another-gateways-position">ALF TCP Gateway → POS</a>
+for the <code>pm-alf-gwy</code> wire format.</p>
 </div>
 <h2 id="single-leg-new-orders">Single-leg <code>NEW</code> orders<a class="headerlink" href="#single-leg-new-orders" title="Permanent link">&para;</a></h2>
 <h3 id="generic-form">Generic form<a class="headerlink" href="#generic-form" title="Permanent link">&para;</a></h3>
@@ -5960,8 +5970,20 @@ type, TIF, quantity, remaining quantity, price, current lifecycle status, and
 last update time.</p>
 <h3 id="pos"><code>POS</code><a class="headerlink" href="#pos" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-57-1" name="__codelineno-57-1" href="#__codelineno-57-1"></a>POS
+<a id="__codelineno-57-2" name="__codelineno-57-2" href="#__codelineno-57-2"></a>POS|GW=&lt;gateway_id&gt;
 </code></pre></div>
-<p>Prints positions and P&amp;L computed from fills seen by this gateway instance.</p>
+<p>Bare <code>POS</code> prints positions and P&amp;L computed from fills seen by this
+gateway session's own local ledger — <code>pm-alf-console</code> only; <code>pm-alf-gwy</code>
+rejects it (see the note above).</p>
+<p><code>POS|GW=&lt;gateway_id&gt;</code> asks the engine what <em>any</em> gateway is holding —
+typically a running <code>pm-mm-bot</code> instance, but any connected gateway_id
+works, including your own. Both clients send <code>system.position_request</code> for
+that <code>gateway_id</code> and render the engine's <code>system.position_snapshot.
+{gateway_id}</code> reply: net quantity and average cost per symbol, for every
+symbol that gateway has a non-zero position in. This is always a genuine
+engine round trip, in both clients — it does not use either client's local
+fill ledger. See <a href="../220-alf-gateway/#posgwgateway_id-query-another-gateways-position">ALF TCP Gateway → POS</a>
+for the wire-level request/reply shape.</p>
 <h3 id="symbols"><code>SYMBOLS</code><a class="headerlink" href="#symbols" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-58-1" name="__codelineno-58-1" href="#__codelineno-58-1"></a>SYMBOLS
 </code></pre></div>

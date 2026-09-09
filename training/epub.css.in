@@ -1,0 +1,93 @@
+/* epub.css.in — stylesheet template for the EduMatcher Training Guide EPUB
+ * build.
+ *
+ * docs/Makefile's epub-training target substitutes @@EPUB_FIGURE_MAX_WIDTH@@
+ * below into .build/training-guide/epub.css, then loads it via
+ * `pandoc --css`. Identical to user-guide/epub.css.in (the styling has
+ * nothing guide-specific in it) — kept as two files rather than one shared
+ * template so either guide's EPUB styling can diverge later without
+ * affecting the other. Admonition boxes here are the EPUB counterpart of
+ * admonitions.lua's LaTeX tcolorbox output — see that file for the shared
+ * parsing logic.
+ */
+
+body {
+  font-family: Georgia, "DejaVu Serif", serif;
+  line-height: 1.5;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: Helvetica, Arial, "DejaVu Sans", sans-serif;
+}
+
+code, pre {
+  font-family: "DejaVu Sans Mono", Consolas, monospace;
+  /* Monospace faces read visually larger than the body serif/sans faces at
+     the same nominal size, so step code down slightly relative to body
+     text. em keeps it relative to the reader's own font-size setting. */
+  font-size: 0.85em;
+}
+
+pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* ── Figure sizing knob ──────────────────────────────────────────────────
+ * Every figure in the User Guide is a Mermaid diagram rendered to SVG by
+ * mermaid-filter-cached.js (MERMAID_FILTER_FORMAT=svg for this build). The
+ * filter renders at a fixed pixel width (MERMAID_FILTER_WIDTH) but does not
+ * set a display size, so without this rule each diagram displays at its
+ * native render width — routinely wider than an e-reader page. This single
+ * percentage is the tuning knob: lower it if diagrams still run large on a
+ * given reader, raise it if they render too small. EPUB_FIGURE_MAX_WIDTH in
+ * docs/Makefile substitutes the value below at build time.
+ */
+img {
+  max-width: @@EPUB_FIGURE_MAX_WIDTH@@;
+  height: auto;
+  display: block;
+  margin: 1.2em auto;
+}
+
+/* ── Admonitions (!!! note "Title" / tip / warning / info) ─────────────── */
+div.admonition {
+  margin: 1.2em 0;
+  padding: 0.7em 1em;
+  border-left: 4px solid #4b5563;
+  background: #f5f5f5;
+}
+
+p.admonition-title {
+  font-family: Helvetica, Arial, "DejaVu Sans", sans-serif;
+  font-weight: bold;
+  margin: 0 0 0.4em 0;
+}
+
+div.admonition.note {
+  border-left-color: #2b6cb0;
+  background: #eef4fb;
+}
+div.admonition.note p.admonition-title { color: #1e4e8c; }
+
+div.admonition.tip {
+  border-left-color: #2f855a;
+  background: #eef8f1;
+}
+div.admonition.tip p.admonition-title { color: #276749; }
+
+div.admonition.warning {
+  border-left-color: #c53030;
+  background: #fbeaea;
+}
+div.admonition.warning p.admonition-title { color: #9b2c2c; }
+
+div.admonition.info {
+  border-left-color: #4a5568;
+  background: #f0f0f1;
+}
+div.admonition.info p.admonition-title { color: #2d3748; }
+
+div.admonition > *:last-child {
+  margin-bottom: 0;
+}

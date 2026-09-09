@@ -841,6 +841,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#_orders_by_gateway-which-resting-orders-belong-to-this-gateway" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        _orders_by_gateway — Which Resting Orders Belong to This Gateway?
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4794,9 +4805,9 @@ resting orders, this saving compounds meaningfully.</p>
 <p><code>__slots__</code> on <code>OrderBook</code> itself gives the same benefit — faster attribute access
 on every <code>self.xxx</code> reference inside the matching loop.</p>
 <h3 id="the-data-structures">The Data Structures<a class="headerlink" href="#the-data-structures" title="Permanent link">&para;</a></h3>
-<p>The <code>OrderBook</code> maintains ten distinct data structures. Each answers a different
-question. They are all updated in sync — if you update one, you must update the
-others. This is the key discipline of the order book implementation.</p>
+<p>The <code>OrderBook</code> maintains eleven distinct data structures. Each answers a
+different question. They are all updated in sync — if you update one, you must
+update the others. This is the key discipline of the order book implementation.</p>
 <h4 id="_bids-and-_asks-the-price-time-queues"><code>_bids</code> and <code>_asks</code> — The Price-Time Queues<a class="headerlink" href="#_bids-and-_asks-the-price-time-queues" title="Permanent link">&para;</a></h4>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="bp">self</span><span class="o">.</span><span class="n">_bids</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">_HeapEntry</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>   <span class="c1"># max-heap via negated price</span>
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">_asks</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">_HeapEntry</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>   <span class="c1"># min-heap</span>
@@ -4866,17 +4877,53 @@ know how much sell-side liquidity is available, so it reads <code>_ask_qty</code
 filter then checks whether each level is within the order's limit price.</p>
 <p><strong>Depth snapshots</strong> — computing the available depth at a range of prices iterates
 this index rather than the heap, avoiding the O(n) cost of scanning all heap entries.</p>
+<h4 id="_orders_by_gateway-which-resting-orders-belong-to-this-gateway"><code>_orders_by_gateway</code> — Which Resting Orders Belong to This Gateway?<a class="headerlink" href="#_orders_by_gateway-which-resting-orders-belong-to-this-gateway" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="bp">self</span><span class="o">.</span><span class="n">_orders_by_gateway</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>   <span class="c1"># gateway_id → order_ids</span>
+</code></pre></div>
+<p>Every other structure on this page answers a question shaped like "what does the
+book look like right now" — best price, total quantity, an order by its own ID.
+This one answers a different shape of question: <strong>"which of gateway G's orders,
+of any type, are currently resting in this specific book?"</strong></p>
+<p>That question comes up in two places. A market maker's <code>QUOTE</code> message replaces a
+bid/ask pair as one atomic operation, and after a partial fill the engine has to
+find the leftover resting leg to retire it on the next reissue — see
+<code>docs/architecture/02-architecture-guide.md</code> §10 for that story in full. And when
+a gateway disconnects, or an admin fires a kill switch, the engine has to cancel
+that one gateway's resting orders — and only that gateway's — without touching
+anyone else's.</p>
+<p>The naive way to answer either question is to scan every resting order in the
+book and filter by <code>gateway_id</code> in Python — an O(n) walk of the whole book for a
+question about one gateway's small slice of it. <code>_orders_by_gateway</code> turns that
+into an O(k) lookup, where k is that one gateway's resting order count:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">orders_for_gateway</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">gateway_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Order</span><span class="p">]:</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>    <span class="n">order_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_orders_by_gateway</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">gateway_id</span><span class="p">,</span> <span class="p">())</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>    <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_order_index</span><span class="p">[</span><span class="n">oid</span><span class="p">]</span> <span class="k">for</span> <span class="n">oid</span> <span class="ow">in</span> <span class="n">order_ids</span><span class="p">]</span>
+</code></pre></div>
+<p>It is maintained by the same discipline as every index on this page: every
+funnel that can start an order resting adds to it (<code>_rest()</code> for plain and
+quote-leg <code>LIMIT</code> orders, <code>_add_stop()</code> for <code>STOP</code>/<code>STOP_LIMIT</code>,
+<code>_add_trailing_stop()</code> for <code>TRAILING_STOP</code>), and every funnel that can stop an
+order resting removes from it — including the two places a <em>triggered</em> stop is
+popped directly out of <code>_order_index</code> in <code>_check_stops()</code> /
+<code>_check_trailing_stops()</code> (see "Stop Orders — Two Heaps" and "Trailing Stops —
+The Ratchet" below), which would otherwise leak an entry every time a triggered
+<code>STOP</code> matched immediately and never rested again.</p>
+<p><strong>Why per-book rather than one engine-wide index?</strong> Because the question is
+always "in this book" — a gateway-disconnect sweep still has to visit every
+symbol's <code>OrderBook</code> regardless (a gateway can rest orders on many symbols at
+once), so the index lives at the same granularity as <code>_order_index</code> and
+<code>_entry_index</code> right next to it, not duplicated globally.</p>
 <h3 id="iceberg-orders-and-the-fok-undercount">Iceberg Orders and the FOK Undercount<a class="headerlink" href="#iceberg-orders-and-the-fok-undercount" title="Permanent link">&para;</a></h3>
 <p>There is an important limitation: <code>_bid_qty</code> and <code>_ask_qty</code> track only the
 <strong>visible</strong> quantity of iceberg orders, not their hidden reserve.</p>
 <p>When an iceberg order is placed via <code>_rest()</code>, the code adds only <code>displayed_qty</code>
 (the visible peak) to the quantity index:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="n">qty</span> <span class="o">=</span> <span class="p">(</span>
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>    <span class="n">order</span><span class="o">.</span><span class="n">displayed_qty</span>    <span class="c1"># iceberg: only the visible peak is counted here</span>
-<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>    <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">order_type</span> <span class="o">==</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">ICEBERG</span>
-<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>    <span class="k">else</span> <span class="n">order</span><span class="o">.</span><span class="n">remaining_qty</span>
-<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="p">)</span>
-<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="bp">self</span><span class="o">.</span><span class="n">_bid_qty</span><span class="p">[</span><span class="n">order</span><span class="o">.</span><span class="n">price</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bid_qty</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">order</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="n">qty</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="n">qty</span> <span class="o">=</span> <span class="p">(</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>    <span class="n">order</span><span class="o">.</span><span class="n">displayed_qty</span>    <span class="c1"># iceberg: only the visible peak is counted here</span>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>    <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">order_type</span> <span class="o">==</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">ICEBERG</span>
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>    <span class="k">else</span> <span class="n">order</span><span class="o">.</span><span class="n">remaining_qty</span>
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="p">)</span>
+<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a><span class="bp">self</span><span class="o">.</span><span class="n">_bid_qty</span><span class="p">[</span><span class="n">order</span><span class="o">.</span><span class="n">price</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bid_qty</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">order</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="n">qty</span>
 </code></pre></div>
 <p>This means <code>_available_qty()</code> — which the FOK check calls — will <strong>undercount</strong>
 available liquidity whenever icebergs are present at price levels within the FOK's
@@ -4951,8 +4998,8 @@ implementation, filled/cancelled orders can remain indexed and are guarded by st
 checks, so correctness depends on status + heap-entry validity + qty-index updates
 staying in sync.</p>
 <h4 id="_buy_stops-and-_sell_stops-the-stop-heaps"><code>_buy_stops</code> and <code>_sell_stops</code> — The Stop Heaps<a class="headerlink" href="#_buy_stops-and-_sell_stops-the-stop-heaps" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="bp">self</span><span class="o">.</span><span class="n">_buy_stops</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">_HeapEntry</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>    <span class="c1"># min-heap by stop_price</span>
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">_sell_stops</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">_HeapEntry</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>   <span class="c1"># max-heap by -stop_price</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="bp">self</span><span class="o">.</span><span class="n">_buy_stops</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">_HeapEntry</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>    <span class="c1"># min-heap by stop_price</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">_sell_stops</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">_HeapEntry</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>   <span class="c1"># max-heap by -stop_price</span>
 </code></pre></div>
 <p>Stop orders (defined in the glossary above) are not resting in the bid/ask book.
 They wait in their own heaps and convert to market or limit orders when triggered.</p>
@@ -4980,14 +5027,14 @@ stop hasn't triggered, none of the others have either.</p>
 that actually fire — typically zero or one. Without the split, you would need to
 check both heaps for every trade.</p>
 <h4 id="_trailing_stops-the-trailing-stop-list"><code>_trailing_stops</code> — The Trailing Stop List<a class="headerlink" href="#_trailing_stops-the-trailing-stop-list" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="bp">self</span><span class="o">.</span><span class="n">_trailing_stops</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Order</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="bp">self</span><span class="o">.</span><span class="n">_trailing_stops</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Order</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
 </code></pre></div>
 <p>A plain list of all active trailing stop orders. Unlike regular stops, the trigger
 price of a trailing stop changes every time the market price moves, so a heap is
 not useful here — we must scan all of them on every trade to update their trigger
 prices. In practice, trailing stop lists are short.</p>
 <h4 id="recent_trades-the-rolling-trade-window"><code>recent_trades</code> — The Rolling Trade Window<a class="headerlink" href="#recent_trades-the-rolling-trade-window" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="bp">self</span><span class="o">.</span><span class="n">recent_trades</span><span class="p">:</span> <span class="n">deque</span><span class="p">[</span><span class="n">Trade</span><span class="p">]</span> <span class="o">=</span> <span class="n">deque</span><span class="p">(</span><span class="n">maxlen</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="bp">self</span><span class="o">.</span><span class="n">recent_trades</span><span class="p">:</span> <span class="n">deque</span><span class="p">[</span><span class="n">Trade</span><span class="p">]</span> <span class="o">=</span> <span class="n">deque</span><span class="p">(</span><span class="n">maxlen</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
 </code></pre></div>
 <p>A bounded deque that holds the last 20 trades for this symbol. When the deque
 is full, the oldest trade is automatically evicted when a new one is appended —
@@ -5011,13 +5058,13 @@ trade history, <code>recent_trades</code> in the next snapshot is all it gets fr
 The stats database (<code>data/stats.db</code>) has the full OHLCV history, but display
 processes do not query it directly.</p>
 <h2 id="walking-through-process-the-main-entry-point">Walking Through <code>process()</code> — The Main Entry Point<a class="headerlink" href="#walking-through-process-the-main-entry-point" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">process</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">now</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">process</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">now</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 </code></pre></div>
 <p>Every incoming order enters through this single method. Let us walk through what
 happens for the most common case: an incoming limit order.</p>
 <h3 id="step-1-compute-the-timestamp-once">Step 1: Compute the Timestamp Once<a class="headerlink" href="#step-1-compute-the-timestamp-once" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="k">if</span> <span class="n">now</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>    <span class="n">now</span> <span class="o">=</span> <span class="n">now_ns</span><span class="p">()</span>   <span class="c1"># from models/clock.py</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="k">if</span> <span class="n">now</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>    <span class="n">now</span> <span class="o">=</span> <span class="n">now_ns</span><span class="p">()</span>   <span class="c1"># from models/clock.py</span>
 </code></pre></div>
 <p><code>now_ns()</code> is a thin wrapper around <code>time.time_ns()</code> that guarantees a
 strictly increasing integer nanosecond timestamp even if the system clock steps
@@ -5029,16 +5076,16 @@ avoids repeated calls.</p>
 <p>This is a micro-optimisation but it is the right instinct: <strong>identify the expensive
 operation, call it once, pass the result everywhere.</strong></p>
 <h3 id="step-2-no-matching-mode-check">Step 2: No-Matching Mode Check<a class="headerlink" href="#step-2-no-matching-mode-check" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="k">if</span> <span class="ow">not</span> <span class="n">match</span><span class="p">:</span>
-<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>    <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">order_type</span> <span class="ow">in</span> <span class="p">(</span><span class="n">OrderType</span><span class="o">.</span><span class="n">MARKET</span><span class="p">,</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">FOK</span><span class="p">,</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">IOC</span><span class="p">):</span>
-<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>        <span class="n">order</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">OrderStatus</span><span class="o">.</span><span class="n">REJECTED</span>
-<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>        <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
-<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>        <span class="k">return</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span>
-<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a>    <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">order_type</span> <span class="ow">in</span> <span class="p">(</span><span class="n">OrderType</span><span class="o">.</span><span class="n">STOP</span><span class="p">,</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">STOP_LIMIT</span><span class="p">):</span>
-<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_add_stop</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">events</span><span class="p">)</span>
-<a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a>        <span class="k">return</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span>
-<a id="__codelineno-24-9" name="__codelineno-24-9" href="#__codelineno-24-9"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_rest</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
-<a id="__codelineno-24-10" name="__codelineno-24-10" href="#__codelineno-24-10"></a>    <span class="k">return</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="k">if</span> <span class="ow">not</span> <span class="n">match</span><span class="p">:</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>    <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">order_type</span> <span class="ow">in</span> <span class="p">(</span><span class="n">OrderType</span><span class="o">.</span><span class="n">MARKET</span><span class="p">,</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">FOK</span><span class="p">,</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">IOC</span><span class="p">):</span>
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>        <span class="n">order</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">OrderStatus</span><span class="o">.</span><span class="n">REJECTED</span>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a>        <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>        <span class="k">return</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span>
+<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a>    <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">order_type</span> <span class="ow">in</span> <span class="p">(</span><span class="n">OrderType</span><span class="o">.</span><span class="n">STOP</span><span class="p">,</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">STOP_LIMIT</span><span class="p">):</span>
+<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_add_stop</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">events</span><span class="p">)</span>
+<a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a>        <span class="k">return</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span>
+<a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_rest</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+<a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a>    <span class="k">return</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span>
 </code></pre></div>
 <p>When <code>match=False</code>, the engine is in <strong>auction mode</strong> — the phase at the start and
 end of the trading day when orders are collected but not yet executed. During an
@@ -5049,11 +5096,11 @@ immediate execution, which is not possible when no matching is happening. Stop a
 stop-limit orders are accepted into their stop heaps, and limit/iceberg orders are
 accepted and placed directly onto the book with no sweep attempt.</p>
 <h3 id="step-3-dispatch-to-the-right-handler">Step 3: Dispatch to the Right Handler<a class="headerlink" href="#step-3-dispatch-to-the-right-handler" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">order_type</span> <span class="o">==</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">MARKET</span><span class="p">:</span>
-<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_match_market</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="n">now</span><span class="p">)</span>
-<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="k">elif</span> <span class="n">order</span><span class="o">.</span><span class="n">order_type</span> <span class="o">==</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">LIMIT</span><span class="p">:</span>
-<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_match_limit</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="n">now</span><span class="p">)</span>
-<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a><span class="c1"># ... etc</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">order_type</span> <span class="o">==</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">MARKET</span><span class="p">:</span>
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_match_market</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="n">now</span><span class="p">)</span>
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="k">elif</span> <span class="n">order</span><span class="o">.</span><span class="n">order_type</span> <span class="o">==</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">LIMIT</span><span class="p">:</span>
+<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_match_limit</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="n">now</span><span class="p">)</span>
+<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a><span class="c1"># ... etc</span>
 </code></pre></div>
 <p>Each order type has its own handler. They all ultimately call <code>_sweep()</code> or a
 variant of it, but differ in what happens to any quantity that cannot immediately
@@ -5071,13 +5118,13 @@ fill:</p>
   doing any fills.</li>
 </ul>
 <h3 id="step-4-check-stops-after-every-trade">Step 4: Check Stops After Every Trade<a class="headerlink" href="#step-4-check-stops-after-every-trade" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="k">if</span> <span class="n">trades</span><span class="p">:</span>
-<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>    <span class="n">triggered</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check_stops</span><span class="p">(</span><span class="n">now</span><span class="p">)</span>
-<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>    <span class="n">triggered</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check_trailing_stops</span><span class="p">(</span><span class="n">now</span><span class="p">)</span>
-<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a>    <span class="k">for</span> <span class="n">t_order</span> <span class="ow">in</span> <span class="n">triggered</span><span class="p">:</span>
-<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>        <span class="n">sub_trades</span><span class="p">,</span> <span class="n">sub_events</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">t_order</span><span class="p">,</span> <span class="n">now</span><span class="o">=</span><span class="n">now</span><span class="p">)</span>
-<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a>        <span class="n">trades</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">sub_trades</span><span class="p">)</span>
-<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a>        <span class="n">events</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">sub_events</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="k">if</span> <span class="n">trades</span><span class="p">:</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>    <span class="n">triggered</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check_stops</span><span class="p">(</span><span class="n">now</span><span class="p">)</span>
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>    <span class="n">triggered</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check_trailing_stops</span><span class="p">(</span><span class="n">now</span><span class="p">)</span>
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>    <span class="k">for</span> <span class="n">t_order</span> <span class="ow">in</span> <span class="n">triggered</span><span class="p">:</span>
+<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>        <span class="n">sub_trades</span><span class="p">,</span> <span class="n">sub_events</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">t_order</span><span class="p">,</span> <span class="n">now</span><span class="o">=</span><span class="n">now</span><span class="p">)</span>
+<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>        <span class="n">trades</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">sub_trades</span><span class="p">)</span>
+<a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a>        <span class="n">events</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">sub_events</span><span class="p">)</span>
 </code></pre></div>
 <p>After any fills occur, we check whether any stop orders should now trigger. This
 check only runs if <code>trades</code> is non-empty — no trades means prices did not move,
@@ -5178,6 +5225,18 @@ types (<code>MARKET</code>, <code>IOC</code>, <code>FOK</code>) because they can
 <li>It bounds risk from broken algos, network partitions, or runaway quoting.</li>
 <li>A slow/offline reconciliation loop is not an acceptable substitute.</li>
 </ul>
+<p>"Latency to cancel matters" cuts both ways: cancelling one gateway's orders fast
+is the point, but doing it by scanning every resting order in every book — most
+of which belong to other gateways entirely — would itself introduce the latency
+this control exists to avoid. <code>_orders_by_gateway</code> (see "The Data Structures"
+above) is what keeps that sweep at O(k) per book (k = the disconnecting or
+kill-switched gateway's own resting order count) instead of O(n) (every resting
+order, every gateway, every symbol). On a real exchange, walking the full book
+on every disconnect would mean a broken gateway's mass-cancel blocks the single
+matching thread for however long that scan takes — turning an emergency brake
+into a stall that also freezes every <em>other</em> gateway's trading for its duration.
+That is not a performance nitpick on a real venue; it is the kind of engine-wide
+outage a mass-cancel path exists to prevent, not cause.</p>
 <h3 id="circuit-breaker-monitor-post-trade-in-the-hot-path">Circuit-breaker monitor (post-trade in the hot path)<a class="headerlink" href="#circuit-breaker-monitor-post-trade-in-the-hot-path" title="Permanent link">&para;</a></h3>
 <p>After each trade publish, <code>_publish_trade()</code> performs:</p>
 <ul>
@@ -5216,12 +5275,12 @@ must dominate raw throughput</strong>.</p>
 <p>This is the innermost loop of the matching engine. It runs for every aggressive
 order (one that immediately tries to fill against resting orders on the opposite
 side of the book).</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_sweep</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">aggressor</span><span class="p">,</span> <span class="n">opposite_heap</span><span class="p">,</span> <span class="n">price_limit</span><span class="p">,</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="n">now</span><span class="p">):</span>
-<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>    <span class="n">_side</span> <span class="o">=</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">side</span>
-<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>    <span class="n">_smp_action</span> <span class="o">=</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">smp_action</span>
-<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>    <span class="n">_gw_id</span> <span class="o">=</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">gateway_id</span>
-<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>    <span class="n">_peek</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_peek</span>
-<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>    <span class="n">_apply_fill</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_apply_fill</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_sweep</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">aggressor</span><span class="p">,</span> <span class="n">opposite_heap</span><span class="p">,</span> <span class="n">price_limit</span><span class="p">,</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="n">now</span><span class="p">):</span>
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>    <span class="n">_side</span> <span class="o">=</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">side</span>
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>    <span class="n">_smp_action</span> <span class="o">=</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">smp_action</span>
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>    <span class="n">_gw_id</span> <span class="o">=</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">gateway_id</span>
+<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>    <span class="n">_peek</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_peek</span>
+<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a>    <span class="n">_apply_fill</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_apply_fill</span>
 </code></pre></div>
 <h3 id="caching-attributes-as-locals">Caching Attributes as Locals<a class="headerlink" href="#caching-attributes-as-locals" title="Permanent link">&para;</a></h3>
 <p>The first thing <code>_sweep</code> does is copy several attributes and method references into
@@ -5234,38 +5293,38 @@ Accessing a local variable costs roughly 30 nanoseconds.</p>
 By copying to locals before the loop, each loop iteration saves ~20-40 nanoseconds.</p>
 <p>This is a genuine optimisation in CPython (the standard Python interpreter). It is
 standard practice in performance-sensitive Python loops.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="c1"># Without caching — attribute lookup every iteration</span>
-<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="k">while</span> <span class="o">...</span><span class="p">:</span>
-<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>    <span class="k">if</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span> <span class="ow">and</span> <span class="n">best</span><span class="o">.</span><span class="n">price</span> <span class="o">&gt;</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">price</span><span class="p">:</span>
-<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>        <span class="k">break</span>
-<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>
-<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a><span class="c1"># With caching — local variable access every iteration</span>
-<a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a><span class="n">_side</span> <span class="o">=</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">side</span>
-<a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a><span class="k">while</span> <span class="o">...</span><span class="p">:</span>
-<a id="__codelineno-28-9" name="__codelineno-28-9" href="#__codelineno-28-9"></a>    <span class="k">if</span> <span class="n">_side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span> <span class="ow">and</span> <span class="n">best</span><span class="o">.</span><span class="n">price</span> <span class="o">&gt;</span> <span class="n">price_limit</span><span class="p">:</span>
-<a id="__codelineno-28-10" name="__codelineno-28-10" href="#__codelineno-28-10"></a>        <span class="k">break</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="c1"># Without caching — attribute lookup every iteration</span>
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a><span class="k">while</span> <span class="o">...</span><span class="p">:</span>
+<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>    <span class="k">if</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span> <span class="ow">and</span> <span class="n">best</span><span class="o">.</span><span class="n">price</span> <span class="o">&gt;</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">price</span><span class="p">:</span>
+<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>        <span class="k">break</span>
+<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>
+<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a><span class="c1"># With caching — local variable access every iteration</span>
+<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a><span class="n">_side</span> <span class="o">=</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">side</span>
+<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a><span class="k">while</span> <span class="o">...</span><span class="p">:</span>
+<a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a>    <span class="k">if</span> <span class="n">_side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span> <span class="ow">and</span> <span class="n">best</span><span class="o">.</span><span class="n">price</span> <span class="o">&gt;</span> <span class="n">price_limit</span><span class="p">:</span>
+<a id="__codelineno-30-10" name="__codelineno-30-10" href="#__codelineno-30-10"></a>        <span class="k">break</span>
 </code></pre></div>
 <h3 id="the-main-loop">The Main Loop<a class="headerlink" href="#the-main-loop" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="k">while</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">opposite_heap</span><span class="p">:</span>
-<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>    <span class="n">best</span> <span class="o">=</span> <span class="n">_peek</span><span class="p">(</span><span class="n">opposite_heap</span><span class="p">)</span>
-<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>    <span class="k">if</span> <span class="n">best</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>        <span class="k">break</span>
-<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>
-<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a>    <span class="c1"># Price check</span>
-<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a>    <span class="k">if</span> <span class="n">price_limit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a>        <span class="k">if</span> <span class="n">_side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span> <span class="ow">and</span> <span class="n">best</span><span class="o">.</span><span class="n">price</span> <span class="o">&gt;</span> <span class="n">price_limit</span><span class="p">:</span>
-<a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a>            <span class="k">break</span>
-<a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a>        <span class="k">if</span> <span class="n">_side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">SELL</span> <span class="ow">and</span> <span class="n">best</span><span class="o">.</span><span class="n">price</span> <span class="o">&lt;</span> <span class="n">price_limit</span><span class="p">:</span>
-<a id="__codelineno-29-11" name="__codelineno-29-11" href="#__codelineno-29-11"></a>            <span class="k">break</span>
-<a id="__codelineno-29-12" name="__codelineno-29-12" href="#__codelineno-29-12"></a>
-<a id="__codelineno-29-13" name="__codelineno-29-13" href="#__codelineno-29-13"></a>    <span class="c1"># Self-match check</span>
-<a id="__codelineno-29-14" name="__codelineno-29-14" href="#__codelineno-29-14"></a>    <span class="k">if</span> <span class="n">_smp_action</span> <span class="o">!=</span> <span class="n">SmpAction</span><span class="o">.</span><span class="n">NONE</span> <span class="ow">and</span> <span class="n">_gw_id</span> <span class="o">==</span> <span class="n">best</span><span class="o">.</span><span class="n">gateway_id</span><span class="p">:</span>
-<a id="__codelineno-29-15" name="__codelineno-29-15" href="#__codelineno-29-15"></a>        <span class="c1"># ... handle SMP</span>
-<a id="__codelineno-29-16" name="__codelineno-29-16" href="#__codelineno-29-16"></a>        <span class="k">pass</span>
-<a id="__codelineno-29-17" name="__codelineno-29-17" href="#__codelineno-29-17"></a>
-<a id="__codelineno-29-18" name="__codelineno-29-18" href="#__codelineno-29-18"></a>    <span class="n">fill_qty</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">aggressor</span><span class="o">.</span><span class="n">remaining_qty</span><span class="p">,</span> <span class="n">best</span><span class="o">.</span><span class="n">remaining_qty</span><span class="p">)</span>
-<a id="__codelineno-29-19" name="__codelineno-29-19" href="#__codelineno-29-19"></a>    <span class="n">fill_price</span> <span class="o">=</span> <span class="n">best</span><span class="o">.</span><span class="n">price</span>
-<a id="__codelineno-29-20" name="__codelineno-29-20" href="#__codelineno-29-20"></a>    <span class="n">_apply_fill</span><span class="p">(</span><span class="n">aggressor</span><span class="p">,</span> <span class="n">best</span><span class="p">,</span> <span class="n">fill_qty</span><span class="p">,</span> <span class="n">fill_price</span><span class="p">,</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="n">now</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="k">while</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">opposite_heap</span><span class="p">:</span>
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>    <span class="n">best</span> <span class="o">=</span> <span class="n">_peek</span><span class="p">(</span><span class="n">opposite_heap</span><span class="p">)</span>
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>    <span class="k">if</span> <span class="n">best</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>        <span class="k">break</span>
+<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>
+<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a>    <span class="c1"># Price check</span>
+<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a>    <span class="k">if</span> <span class="n">price_limit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a>        <span class="k">if</span> <span class="n">_side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span> <span class="ow">and</span> <span class="n">best</span><span class="o">.</span><span class="n">price</span> <span class="o">&gt;</span> <span class="n">price_limit</span><span class="p">:</span>
+<a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a>            <span class="k">break</span>
+<a id="__codelineno-31-10" name="__codelineno-31-10" href="#__codelineno-31-10"></a>        <span class="k">if</span> <span class="n">_side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">SELL</span> <span class="ow">and</span> <span class="n">best</span><span class="o">.</span><span class="n">price</span> <span class="o">&lt;</span> <span class="n">price_limit</span><span class="p">:</span>
+<a id="__codelineno-31-11" name="__codelineno-31-11" href="#__codelineno-31-11"></a>            <span class="k">break</span>
+<a id="__codelineno-31-12" name="__codelineno-31-12" href="#__codelineno-31-12"></a>
+<a id="__codelineno-31-13" name="__codelineno-31-13" href="#__codelineno-31-13"></a>    <span class="c1"># Self-match check</span>
+<a id="__codelineno-31-14" name="__codelineno-31-14" href="#__codelineno-31-14"></a>    <span class="k">if</span> <span class="n">_smp_action</span> <span class="o">!=</span> <span class="n">SmpAction</span><span class="o">.</span><span class="n">NONE</span> <span class="ow">and</span> <span class="n">_gw_id</span> <span class="o">==</span> <span class="n">best</span><span class="o">.</span><span class="n">gateway_id</span><span class="p">:</span>
+<a id="__codelineno-31-15" name="__codelineno-31-15" href="#__codelineno-31-15"></a>        <span class="c1"># ... handle SMP</span>
+<a id="__codelineno-31-16" name="__codelineno-31-16" href="#__codelineno-31-16"></a>        <span class="k">pass</span>
+<a id="__codelineno-31-17" name="__codelineno-31-17" href="#__codelineno-31-17"></a>
+<a id="__codelineno-31-18" name="__codelineno-31-18" href="#__codelineno-31-18"></a>    <span class="n">fill_qty</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">aggressor</span><span class="o">.</span><span class="n">remaining_qty</span><span class="p">,</span> <span class="n">best</span><span class="o">.</span><span class="n">remaining_qty</span><span class="p">)</span>
+<a id="__codelineno-31-19" name="__codelineno-31-19" href="#__codelineno-31-19"></a>    <span class="n">fill_price</span> <span class="o">=</span> <span class="n">best</span><span class="o">.</span><span class="n">price</span>
+<a id="__codelineno-31-20" name="__codelineno-31-20" href="#__codelineno-31-20"></a>    <span class="n">_apply_fill</span><span class="p">(</span><span class="n">aggressor</span><span class="p">,</span> <span class="n">best</span><span class="p">,</span> <span class="n">fill_qty</span><span class="p">,</span> <span class="n">fill_price</span><span class="p">,</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="n">now</span><span class="p">)</span>
 </code></pre></div>
 <p>Each iteration:</p>
 <ol>
@@ -5283,43 +5342,43 @@ standard practice in performance-sensitive Python loops.</p>
 <h2 id="_apply_fill-what-happens-when-two-orders-trade"><code>_apply_fill()</code> — What Happens When Two Orders Trade<a class="headerlink" href="#_apply_fill-what-happens-when-two-orders-trade" title="Permanent link">&para;</a></h2>
 <p><code>_apply_fill()</code> is called for every partial or full fill between an aggressive order
 and a resting order. It is the moment a trade is born.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_apply_fill</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">aggressor</span><span class="p">,</span> <span class="n">passive</span><span class="p">,</span> <span class="n">fill_qty</span><span class="p">,</span> <span class="n">fill_price</span><span class="p">,</span>
-<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>                <span class="n">trades</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="n">now</span><span class="p">):</span>
-<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>    <span class="c1"># Build trade and update last-trade stats</span>
-<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>    <span class="n">trade</span> <span class="o">=</span> <span class="n">Trade</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="o">...</span><span class="p">,</span> <span class="n">now</span><span class="o">=</span><span class="n">now</span><span class="p">)</span>
-<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>    <span class="n">trades</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">trade</span><span class="p">)</span>
-<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">last_trade_price</span> <span class="o">=</span> <span class="n">fill_price</span>
-<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">last_trade_qty</span> <span class="o">=</span> <span class="n">fill_qty</span>
-<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a>
-<a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a>    <span class="c1"># Side-specific last prices are keyed by AGGRESSOR side in current code</span>
-<a id="__codelineno-30-10" name="__codelineno-30-10" href="#__codelineno-30-10"></a>    <span class="k">if</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span><span class="p">:</span>
-<a id="__codelineno-30-11" name="__codelineno-30-11" href="#__codelineno-30-11"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">last_buy_price</span> <span class="o">=</span> <span class="n">fill_price</span>
-<a id="__codelineno-30-12" name="__codelineno-30-12" href="#__codelineno-30-12"></a>    <span class="k">else</span><span class="p">:</span>
-<a id="__codelineno-30-13" name="__codelineno-30-13" href="#__codelineno-30-13"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">last_sell_price</span> <span class="o">=</span> <span class="n">fill_price</span>
-<a id="__codelineno-30-14" name="__codelineno-30-14" href="#__codelineno-30-14"></a>
-<a id="__codelineno-30-15" name="__codelineno-30-15" href="#__codelineno-30-15"></a>    <span class="c1"># Reduce both orders</span>
-<a id="__codelineno-30-16" name="__codelineno-30-16" href="#__codelineno-30-16"></a>    <span class="n">aggressor</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">-=</span> <span class="n">fill_qty</span>
-<a id="__codelineno-30-17" name="__codelineno-30-17" href="#__codelineno-30-17"></a>    <span class="n">passive</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">-=</span> <span class="n">fill_qty</span>
-<a id="__codelineno-30-18" name="__codelineno-30-18" href="#__codelineno-30-18"></a>
-<a id="__codelineno-30-19" name="__codelineno-30-19" href="#__codelineno-30-19"></a>    <span class="c1"># Aggressor status</span>
-<a id="__codelineno-30-20" name="__codelineno-30-20" href="#__codelineno-30-20"></a>    <span class="n">aggressor</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">FILLED</span> <span class="k">if</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">PARTIAL</span>
-<a id="__codelineno-30-21" name="__codelineno-30-21" href="#__codelineno-30-21"></a>
-<a id="__codelineno-30-22" name="__codelineno-30-22" href="#__codelineno-30-22"></a>    <span class="c1"># Passive visible quantity / qty-index updates</span>
-<a id="__codelineno-30-23" name="__codelineno-30-23" href="#__codelineno-30-23"></a>    <span class="c1"># (icebergs replenish and reinsert, non-icebergs deduct fill_qty)</span>
-<a id="__codelineno-30-24" name="__codelineno-30-24" href="#__codelineno-30-24"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_deduct_qty_index</span><span class="p">(</span><span class="n">passive</span><span class="p">,</span> <span class="n">fill_qty</span><span class="p">)</span>
-<a id="__codelineno-30-25" name="__codelineno-30-25" href="#__codelineno-30-25"></a>
-<a id="__codelineno-30-26" name="__codelineno-30-26" href="#__codelineno-30-26"></a>    <span class="c1"># Passive status</span>
-<a id="__codelineno-30-27" name="__codelineno-30-27" href="#__codelineno-30-27"></a>    <span class="n">passive</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">FILLED</span> <span class="k">if</span> <span class="n">passive</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">PARTIAL</span>
-<a id="__codelineno-30-28" name="__codelineno-30-28" href="#__codelineno-30-28"></a>    <span class="k">if</span> <span class="n">passive</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="n">FILLED</span><span class="p">:</span>
-<a id="__codelineno-30-29" name="__codelineno-30-29" href="#__codelineno-30-29"></a>        <span class="c1"># Current implementation marks heap entry invalid; it does not</span>
-<a id="__codelineno-30-30" name="__codelineno-30-30" href="#__codelineno-30-30"></a>        <span class="c1"># immediately pop passive from _order_index/_entry_index here.</span>
-<a id="__codelineno-30-31" name="__codelineno-30-31" href="#__codelineno-30-31"></a>        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_entry_index</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">passive</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
-<a id="__codelineno-30-32" name="__codelineno-30-32" href="#__codelineno-30-32"></a>        <span class="k">if</span> <span class="n">entry</span><span class="p">:</span>
-<a id="__codelineno-30-33" name="__codelineno-30-33" href="#__codelineno-30-33"></a>            <span class="n">entry</span><span class="o">.</span><span class="n">valid</span> <span class="o">=</span> <span class="kc">False</span>
-<a id="__codelineno-30-34" name="__codelineno-30-34" href="#__codelineno-30-34"></a>
-<a id="__codelineno-30-35" name="__codelineno-30-35" href="#__codelineno-30-35"></a>    <span class="c1"># Notify both sides</span>
-<a id="__codelineno-30-36" name="__codelineno-30-36" href="#__codelineno-30-36"></a>    <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">aggressor</span><span class="p">)</span>
-<a id="__codelineno-30-37" name="__codelineno-30-37" href="#__codelineno-30-37"></a>    <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">passive</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_apply_fill</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">aggressor</span><span class="p">,</span> <span class="n">passive</span><span class="p">,</span> <span class="n">fill_qty</span><span class="p">,</span> <span class="n">fill_price</span><span class="p">,</span>
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>                <span class="n">trades</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="n">now</span><span class="p">):</span>
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>    <span class="c1"># Build trade and update last-trade stats</span>
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a>    <span class="n">trade</span> <span class="o">=</span> <span class="n">Trade</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="o">...</span><span class="p">,</span> <span class="n">now</span><span class="o">=</span><span class="n">now</span><span class="p">)</span>
+<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>    <span class="n">trades</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">trade</span><span class="p">)</span>
+<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">last_trade_price</span> <span class="o">=</span> <span class="n">fill_price</span>
+<a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">last_trade_qty</span> <span class="o">=</span> <span class="n">fill_qty</span>
+<a id="__codelineno-32-8" name="__codelineno-32-8" href="#__codelineno-32-8"></a>
+<a id="__codelineno-32-9" name="__codelineno-32-9" href="#__codelineno-32-9"></a>    <span class="c1"># Side-specific last prices are keyed by AGGRESSOR side in current code</span>
+<a id="__codelineno-32-10" name="__codelineno-32-10" href="#__codelineno-32-10"></a>    <span class="k">if</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span><span class="p">:</span>
+<a id="__codelineno-32-11" name="__codelineno-32-11" href="#__codelineno-32-11"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">last_buy_price</span> <span class="o">=</span> <span class="n">fill_price</span>
+<a id="__codelineno-32-12" name="__codelineno-32-12" href="#__codelineno-32-12"></a>    <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-32-13" name="__codelineno-32-13" href="#__codelineno-32-13"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">last_sell_price</span> <span class="o">=</span> <span class="n">fill_price</span>
+<a id="__codelineno-32-14" name="__codelineno-32-14" href="#__codelineno-32-14"></a>
+<a id="__codelineno-32-15" name="__codelineno-32-15" href="#__codelineno-32-15"></a>    <span class="c1"># Reduce both orders</span>
+<a id="__codelineno-32-16" name="__codelineno-32-16" href="#__codelineno-32-16"></a>    <span class="n">aggressor</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">-=</span> <span class="n">fill_qty</span>
+<a id="__codelineno-32-17" name="__codelineno-32-17" href="#__codelineno-32-17"></a>    <span class="n">passive</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">-=</span> <span class="n">fill_qty</span>
+<a id="__codelineno-32-18" name="__codelineno-32-18" href="#__codelineno-32-18"></a>
+<a id="__codelineno-32-19" name="__codelineno-32-19" href="#__codelineno-32-19"></a>    <span class="c1"># Aggressor status</span>
+<a id="__codelineno-32-20" name="__codelineno-32-20" href="#__codelineno-32-20"></a>    <span class="n">aggressor</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">FILLED</span> <span class="k">if</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">PARTIAL</span>
+<a id="__codelineno-32-21" name="__codelineno-32-21" href="#__codelineno-32-21"></a>
+<a id="__codelineno-32-22" name="__codelineno-32-22" href="#__codelineno-32-22"></a>    <span class="c1"># Passive visible quantity / qty-index updates</span>
+<a id="__codelineno-32-23" name="__codelineno-32-23" href="#__codelineno-32-23"></a>    <span class="c1"># (icebergs replenish and reinsert, non-icebergs deduct fill_qty)</span>
+<a id="__codelineno-32-24" name="__codelineno-32-24" href="#__codelineno-32-24"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_deduct_qty_index</span><span class="p">(</span><span class="n">passive</span><span class="p">,</span> <span class="n">fill_qty</span><span class="p">)</span>
+<a id="__codelineno-32-25" name="__codelineno-32-25" href="#__codelineno-32-25"></a>
+<a id="__codelineno-32-26" name="__codelineno-32-26" href="#__codelineno-32-26"></a>    <span class="c1"># Passive status</span>
+<a id="__codelineno-32-27" name="__codelineno-32-27" href="#__codelineno-32-27"></a>    <span class="n">passive</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">FILLED</span> <span class="k">if</span> <span class="n">passive</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">PARTIAL</span>
+<a id="__codelineno-32-28" name="__codelineno-32-28" href="#__codelineno-32-28"></a>    <span class="k">if</span> <span class="n">passive</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="n">FILLED</span><span class="p">:</span>
+<a id="__codelineno-32-29" name="__codelineno-32-29" href="#__codelineno-32-29"></a>        <span class="c1"># Current implementation marks heap entry invalid; it does not</span>
+<a id="__codelineno-32-30" name="__codelineno-32-30" href="#__codelineno-32-30"></a>        <span class="c1"># immediately pop passive from _order_index/_entry_index here.</span>
+<a id="__codelineno-32-31" name="__codelineno-32-31" href="#__codelineno-32-31"></a>        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_entry_index</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">passive</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+<a id="__codelineno-32-32" name="__codelineno-32-32" href="#__codelineno-32-32"></a>        <span class="k">if</span> <span class="n">entry</span><span class="p">:</span>
+<a id="__codelineno-32-33" name="__codelineno-32-33" href="#__codelineno-32-33"></a>            <span class="n">entry</span><span class="o">.</span><span class="n">valid</span> <span class="o">=</span> <span class="kc">False</span>
+<a id="__codelineno-32-34" name="__codelineno-32-34" href="#__codelineno-32-34"></a>
+<a id="__codelineno-32-35" name="__codelineno-32-35" href="#__codelineno-32-35"></a>    <span class="c1"># Notify both sides</span>
+<a id="__codelineno-32-36" name="__codelineno-32-36" href="#__codelineno-32-36"></a>    <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">aggressor</span><span class="p">)</span>
+<a id="__codelineno-32-37" name="__codelineno-32-37" href="#__codelineno-32-37"></a>    <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">passive</span><span class="p">)</span>
 </code></pre></div>
 <p>Key points:</p>
 <ul>
@@ -5337,11 +5396,11 @@ and a resting order. It is the moment a trade is born.</p>
 <h3 id="the-three-last-price-fields">The Three "Last Price" Fields<a class="headerlink" href="#the-three-last-price-fields" title="Permanent link">&para;</a></h3>
 <p><code>_apply_fill</code> updates three separate price fields on the <code>OrderBook</code>. They look
 similar but serve completely different purposes:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="bp">self</span><span class="o">.</span><span class="n">last_trade_price</span> <span class="o">=</span> <span class="n">fill_price</span>
-<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="k">if</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span><span class="p">:</span>
-<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">last_buy_price</span>  <span class="o">=</span> <span class="n">fill_price</span>
-<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="k">else</span><span class="p">:</span>
-<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">last_sell_price</span> <span class="o">=</span> <span class="n">fill_price</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="bp">self</span><span class="o">.</span><span class="n">last_trade_price</span> <span class="o">=</span> <span class="n">fill_price</span>
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="k">if</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span><span class="p">:</span>
+<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">last_buy_price</span>  <span class="o">=</span> <span class="n">fill_price</span>
+<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a><span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">last_sell_price</span> <span class="o">=</span> <span class="n">fill_price</span>
 </code></pre></div>
 <p><strong><code>last_trade_price</code></strong> — updated on every single fill, regardless of which side was
 aggressive. This is the field that stop-trigger checks use. After each fill,
@@ -5360,19 +5419,19 @@ sells hitting bids (rising <code>last_buy_price</code>) suggests downward pressu
 separate fields let statistics and display tools show this directionality without
 needing to examine the full trade history.</p>
 <h2 id="_peek-lazy-deletion-in-practice"><code>_peek()</code> — Lazy Deletion in Practice<a class="headerlink" href="#_peek-lazy-deletion-in-practice" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_peek</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">heap</span><span class="p">):</span>
-<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>    <span class="k">while</span> <span class="n">heap</span><span class="p">:</span>
-<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>        <span class="n">entry</span> <span class="o">=</span> <span class="n">heap</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">entry</span><span class="o">.</span><span class="n">valid</span><span class="p">:</span>
-<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>            <span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span>
-<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a>            <span class="k">continue</span>
-<a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a>        <span class="n">o</span> <span class="o">=</span> <span class="n">entry</span><span class="o">.</span><span class="n">order</span>
-<a id="__codelineno-32-8" name="__codelineno-32-8" href="#__codelineno-32-8"></a>        <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">status</span> <span class="ow">in</span> <span class="p">(</span><span class="n">FILLED</span><span class="p">,</span> <span class="n">CANCELLED</span><span class="p">,</span> <span class="n">REJECTED</span><span class="p">,</span> <span class="n">EXPIRED</span><span class="p">):</span>
-<a id="__codelineno-32-9" name="__codelineno-32-9" href="#__codelineno-32-9"></a>            <span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span>
-<a id="__codelineno-32-10" name="__codelineno-32-10" href="#__codelineno-32-10"></a>            <span class="n">entry</span><span class="o">.</span><span class="n">valid</span> <span class="o">=</span> <span class="kc">False</span>
-<a id="__codelineno-32-11" name="__codelineno-32-11" href="#__codelineno-32-11"></a>            <span class="k">continue</span>
-<a id="__codelineno-32-12" name="__codelineno-32-12" href="#__codelineno-32-12"></a>        <span class="k">return</span> <span class="n">o</span>
-<a id="__codelineno-32-13" name="__codelineno-32-13" href="#__codelineno-32-13"></a>    <span class="k">return</span> <span class="kc">None</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_peek</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">heap</span><span class="p">):</span>
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>    <span class="k">while</span> <span class="n">heap</span><span class="p">:</span>
+<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a>        <span class="n">entry</span> <span class="o">=</span> <span class="n">heap</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">entry</span><span class="o">.</span><span class="n">valid</span><span class="p">:</span>
+<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a>            <span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span>
+<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a>            <span class="k">continue</span>
+<a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a>        <span class="n">o</span> <span class="o">=</span> <span class="n">entry</span><span class="o">.</span><span class="n">order</span>
+<a id="__codelineno-34-8" name="__codelineno-34-8" href="#__codelineno-34-8"></a>        <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">status</span> <span class="ow">in</span> <span class="p">(</span><span class="n">FILLED</span><span class="p">,</span> <span class="n">CANCELLED</span><span class="p">,</span> <span class="n">REJECTED</span><span class="p">,</span> <span class="n">EXPIRED</span><span class="p">):</span>
+<a id="__codelineno-34-9" name="__codelineno-34-9" href="#__codelineno-34-9"></a>            <span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span>
+<a id="__codelineno-34-10" name="__codelineno-34-10" href="#__codelineno-34-10"></a>            <span class="n">entry</span><span class="o">.</span><span class="n">valid</span> <span class="o">=</span> <span class="kc">False</span>
+<a id="__codelineno-34-11" name="__codelineno-34-11" href="#__codelineno-34-11"></a>            <span class="k">continue</span>
+<a id="__codelineno-34-12" name="__codelineno-34-12" href="#__codelineno-34-12"></a>        <span class="k">return</span> <span class="n">o</span>
+<a id="__codelineno-34-13" name="__codelineno-34-13" href="#__codelineno-34-13"></a>    <span class="k">return</span> <span class="kc">None</span>
 </code></pre></div>
 <p>This is where lazy deletion pays off. <code>_peek</code> does not just return <code>heap[0].order</code>.
 It loops, discarding invalid or terminal entries, until it finds a valid resting order
@@ -5391,29 +5450,29 @@ surfaces at the top.</p>
 operations and replaces them with O(log n) cleanup spread across many calls to
 <code>_peek</code>.</p>
 <h2 id="_rest-placing-a-resting-order"><code>_rest()</code> — Placing a Resting Order<a class="headerlink" href="#_rest-placing-a-resting-order" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_rest</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="p">):</span>
-<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>    <span class="k">assert</span> <span class="n">order</span><span class="o">.</span><span class="n">price</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>    <span class="c1"># INVARIANT: order.timestamp is strictly monotonically increasing thanks to</span>
-<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a>    <span class="c1"># now_ns() (models/clock.py). No two orders share a timestamp, so</span>
-<a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a>    <span class="c1"># price-time priority within a price level is always deterministic.</span>
-<a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a>    <span class="n">qty</span> <span class="o">=</span> <span class="p">(</span>
-<a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a>        <span class="n">order</span><span class="o">.</span><span class="n">displayed_qty</span>
-<a id="__codelineno-33-8" name="__codelineno-33-8" href="#__codelineno-33-8"></a>        <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">order_type</span> <span class="o">==</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">ICEBERG</span>
-<a id="__codelineno-33-9" name="__codelineno-33-9" href="#__codelineno-33-9"></a>        <span class="k">else</span> <span class="n">order</span><span class="o">.</span><span class="n">remaining_qty</span>
-<a id="__codelineno-33-10" name="__codelineno-33-10" href="#__codelineno-33-10"></a>    <span class="p">)</span>
-<a id="__codelineno-33-11" name="__codelineno-33-11" href="#__codelineno-33-11"></a>    <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span><span class="p">:</span>
-<a id="__codelineno-33-12" name="__codelineno-33-12" href="#__codelineno-33-12"></a>        <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="n">order</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="n">order</span><span class="o">.</span><span class="n">timestamp</span><span class="p">)</span>
-<a id="__codelineno-33-13" name="__codelineno-33-13" href="#__codelineno-33-13"></a>        <span class="n">heap</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bids</span>
-<a id="__codelineno-33-14" name="__codelineno-33-14" href="#__codelineno-33-14"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_bid_qty</span><span class="p">[</span><span class="n">order</span><span class="o">.</span><span class="n">price</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bid_qty</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">order</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="n">qty</span>
-<a id="__codelineno-33-15" name="__codelineno-33-15" href="#__codelineno-33-15"></a>    <span class="k">else</span><span class="p">:</span>
-<a id="__codelineno-33-16" name="__codelineno-33-16" href="#__codelineno-33-16"></a>        <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="n">order</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="n">order</span><span class="o">.</span><span class="n">timestamp</span><span class="p">)</span>
-<a id="__codelineno-33-17" name="__codelineno-33-17" href="#__codelineno-33-17"></a>        <span class="n">heap</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_asks</span>
-<a id="__codelineno-33-18" name="__codelineno-33-18" href="#__codelineno-33-18"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_ask_qty</span><span class="p">[</span><span class="n">order</span><span class="o">.</span><span class="n">price</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ask_qty</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">order</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="n">qty</span>
-<a id="__codelineno-33-19" name="__codelineno-33-19" href="#__codelineno-33-19"></a>
-<a id="__codelineno-33-20" name="__codelineno-33-20" href="#__codelineno-33-20"></a>    <span class="n">entry</span> <span class="o">=</span> <span class="n">_HeapEntry</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">order</span><span class="p">)</span>
-<a id="__codelineno-33-21" name="__codelineno-33-21" href="#__codelineno-33-21"></a>    <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="n">entry</span><span class="p">)</span>
-<a id="__codelineno-33-22" name="__codelineno-33-22" href="#__codelineno-33-22"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_order_index</span><span class="p">[</span><span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="p">]</span> <span class="o">=</span> <span class="n">order</span>
-<a id="__codelineno-33-23" name="__codelineno-33-23" href="#__codelineno-33-23"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_entry_index</span><span class="p">[</span><span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="p">]</span> <span class="o">=</span> <span class="n">entry</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_rest</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="p">):</span>
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a>    <span class="k">assert</span> <span class="n">order</span><span class="o">.</span><span class="n">price</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a>    <span class="c1"># INVARIANT: order.timestamp is strictly monotonically increasing thanks to</span>
+<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a>    <span class="c1"># now_ns() (models/clock.py). No two orders share a timestamp, so</span>
+<a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a>    <span class="c1"># price-time priority within a price level is always deterministic.</span>
+<a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a>    <span class="n">qty</span> <span class="o">=</span> <span class="p">(</span>
+<a id="__codelineno-35-7" name="__codelineno-35-7" href="#__codelineno-35-7"></a>        <span class="n">order</span><span class="o">.</span><span class="n">displayed_qty</span>
+<a id="__codelineno-35-8" name="__codelineno-35-8" href="#__codelineno-35-8"></a>        <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">order_type</span> <span class="o">==</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">ICEBERG</span>
+<a id="__codelineno-35-9" name="__codelineno-35-9" href="#__codelineno-35-9"></a>        <span class="k">else</span> <span class="n">order</span><span class="o">.</span><span class="n">remaining_qty</span>
+<a id="__codelineno-35-10" name="__codelineno-35-10" href="#__codelineno-35-10"></a>    <span class="p">)</span>
+<a id="__codelineno-35-11" name="__codelineno-35-11" href="#__codelineno-35-11"></a>    <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span><span class="p">:</span>
+<a id="__codelineno-35-12" name="__codelineno-35-12" href="#__codelineno-35-12"></a>        <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="n">order</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="n">order</span><span class="o">.</span><span class="n">timestamp</span><span class="p">)</span>
+<a id="__codelineno-35-13" name="__codelineno-35-13" href="#__codelineno-35-13"></a>        <span class="n">heap</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bids</span>
+<a id="__codelineno-35-14" name="__codelineno-35-14" href="#__codelineno-35-14"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_bid_qty</span><span class="p">[</span><span class="n">order</span><span class="o">.</span><span class="n">price</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bid_qty</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">order</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="n">qty</span>
+<a id="__codelineno-35-15" name="__codelineno-35-15" href="#__codelineno-35-15"></a>    <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-35-16" name="__codelineno-35-16" href="#__codelineno-35-16"></a>        <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="n">order</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="n">order</span><span class="o">.</span><span class="n">timestamp</span><span class="p">)</span>
+<a id="__codelineno-35-17" name="__codelineno-35-17" href="#__codelineno-35-17"></a>        <span class="n">heap</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_asks</span>
+<a id="__codelineno-35-18" name="__codelineno-35-18" href="#__codelineno-35-18"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_ask_qty</span><span class="p">[</span><span class="n">order</span><span class="o">.</span><span class="n">price</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ask_qty</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">order</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="n">qty</span>
+<a id="__codelineno-35-19" name="__codelineno-35-19" href="#__codelineno-35-19"></a>
+<a id="__codelineno-35-20" name="__codelineno-35-20" href="#__codelineno-35-20"></a>    <span class="n">entry</span> <span class="o">=</span> <span class="n">_HeapEntry</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">order</span><span class="p">)</span>
+<a id="__codelineno-35-21" name="__codelineno-35-21" href="#__codelineno-35-21"></a>    <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="n">entry</span><span class="p">)</span>
+<a id="__codelineno-35-22" name="__codelineno-35-22" href="#__codelineno-35-22"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_order_index</span><span class="p">[</span><span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="p">]</span> <span class="o">=</span> <span class="n">order</span>
+<a id="__codelineno-35-23" name="__codelineno-35-23" href="#__codelineno-35-23"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_entry_index</span><span class="p">[</span><span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="p">]</span> <span class="o">=</span> <span class="n">entry</span>
 </code></pre></div>
 <p>When an order rests on the book, five things happen in the same function call:</p>
 <ol>
@@ -5444,21 +5503,21 @@ real exchanges:</p>
   quantity means the participant wants to trade more at the same price, which is
   treated as a new competitive act.</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">amend_order</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order_id</span><span class="p">,</span> <span class="n">new_price</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">new_qty</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">now</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>    <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_order_index</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">order_id</span><span class="p">)</span>
-<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a>    <span class="o">...</span>
-<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a>    <span class="n">price_changed</span> <span class="o">=</span> <span class="n">price</span> <span class="o">!=</span> <span class="n">old_price</span>
-<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a>    <span class="n">qty_increased</span> <span class="o">=</span> <span class="n">qty</span> <span class="o">&gt;</span> <span class="n">old_qty</span>
-<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a>    <span class="n">priority_reset</span> <span class="o">=</span> <span class="n">price_changed</span> <span class="ow">or</span> <span class="n">qty_increased</span>
-<a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a>
-<a id="__codelineno-34-8" name="__codelineno-34-8" href="#__codelineno-34-8"></a>    <span class="k">if</span> <span class="n">priority_reset</span><span class="p">:</span>
-<a id="__codelineno-34-9" name="__codelineno-34-9" href="#__codelineno-34-9"></a>        <span class="n">order</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="n">now</span>        <span class="c1"># new timestamp → back of queue</span>
-<a id="__codelineno-34-10" name="__codelineno-34-10" href="#__codelineno-34-10"></a>        <span class="n">entry</span><span class="o">.</span><span class="n">valid</span> <span class="o">=</span> <span class="kc">False</span>          <span class="c1"># lazy-delete the old heap entry</span>
-<a id="__codelineno-34-11" name="__codelineno-34-11" href="#__codelineno-34-11"></a>        <span class="c1"># Re-insert with new key (new price and/or new timestamp)</span>
-<a id="__codelineno-34-12" name="__codelineno-34-12" href="#__codelineno-34-12"></a>        <span class="n">new_entry</span> <span class="o">=</span> <span class="n">_HeapEntry</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">new_key</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">order</span><span class="p">)</span>
-<a id="__codelineno-34-13" name="__codelineno-34-13" href="#__codelineno-34-13"></a>        <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="n">new_entry</span><span class="p">)</span>
-<a id="__codelineno-34-14" name="__codelineno-34-14" href="#__codelineno-34-14"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_entry_index</span><span class="p">[</span><span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="p">]</span> <span class="o">=</span> <span class="n">new_entry</span>
-<a id="__codelineno-34-15" name="__codelineno-34-15" href="#__codelineno-34-15"></a>    <span class="c1"># If not priority_reset, just update the qty index — no heap change needed</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">amend_order</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order_id</span><span class="p">,</span> <span class="n">new_price</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">new_qty</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">now</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a>    <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_order_index</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">order_id</span><span class="p">)</span>
+<a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a>    <span class="o">...</span>
+<a id="__codelineno-36-4" name="__codelineno-36-4" href="#__codelineno-36-4"></a>    <span class="n">price_changed</span> <span class="o">=</span> <span class="n">price</span> <span class="o">!=</span> <span class="n">old_price</span>
+<a id="__codelineno-36-5" name="__codelineno-36-5" href="#__codelineno-36-5"></a>    <span class="n">qty_increased</span> <span class="o">=</span> <span class="n">qty</span> <span class="o">&gt;</span> <span class="n">old_qty</span>
+<a id="__codelineno-36-6" name="__codelineno-36-6" href="#__codelineno-36-6"></a>    <span class="n">priority_reset</span> <span class="o">=</span> <span class="n">price_changed</span> <span class="ow">or</span> <span class="n">qty_increased</span>
+<a id="__codelineno-36-7" name="__codelineno-36-7" href="#__codelineno-36-7"></a>
+<a id="__codelineno-36-8" name="__codelineno-36-8" href="#__codelineno-36-8"></a>    <span class="k">if</span> <span class="n">priority_reset</span><span class="p">:</span>
+<a id="__codelineno-36-9" name="__codelineno-36-9" href="#__codelineno-36-9"></a>        <span class="n">order</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="n">now</span>        <span class="c1"># new timestamp → back of queue</span>
+<a id="__codelineno-36-10" name="__codelineno-36-10" href="#__codelineno-36-10"></a>        <span class="n">entry</span><span class="o">.</span><span class="n">valid</span> <span class="o">=</span> <span class="kc">False</span>          <span class="c1"># lazy-delete the old heap entry</span>
+<a id="__codelineno-36-11" name="__codelineno-36-11" href="#__codelineno-36-11"></a>        <span class="c1"># Re-insert with new key (new price and/or new timestamp)</span>
+<a id="__codelineno-36-12" name="__codelineno-36-12" href="#__codelineno-36-12"></a>        <span class="n">new_entry</span> <span class="o">=</span> <span class="n">_HeapEntry</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">new_key</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">order</span><span class="p">)</span>
+<a id="__codelineno-36-13" name="__codelineno-36-13" href="#__codelineno-36-13"></a>        <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="n">new_entry</span><span class="p">)</span>
+<a id="__codelineno-36-14" name="__codelineno-36-14" href="#__codelineno-36-14"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_entry_index</span><span class="p">[</span><span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="p">]</span> <span class="o">=</span> <span class="n">new_entry</span>
+<a id="__codelineno-36-15" name="__codelineno-36-15" href="#__codelineno-36-15"></a>    <span class="c1"># If not priority_reset, just update the qty index — no heap change needed</span>
 </code></pre></div>
 <p>The <code>priority_reset</code> branch is why <code>_entry_index</code> exists. Without it, we would
 have no way to invalidate the old heap entry when the order is re-inserted at a
@@ -5472,12 +5531,12 @@ at its price level.</p>
 participants who were waiting in line at the same price should not be indefinitely
 displaced by a large iceberg that keeps recycling to the front. Once a slice is
 consumed, the iceberg must take its turn again.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="c1"># In _apply_fill, after filling a passive iceberg:</span>
-<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a><span class="k">if</span> <span class="n">passive</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">passive</span><span class="o">.</span><span class="n">displayed_qty</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a>    <span class="n">new_peak</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">passive</span><span class="o">.</span><span class="n">visible_qty</span><span class="p">,</span> <span class="n">passive</span><span class="o">.</span><span class="n">remaining_qty</span><span class="p">)</span>
-<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a>    <span class="n">passive</span><span class="o">.</span><span class="n">displayed_qty</span> <span class="o">=</span> <span class="n">new_peak</span>
-<a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a>    <span class="n">passive</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="n">now</span>   <span class="c1"># ← back of queue</span>
-<a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_reinsert_iceberg</span><span class="p">(</span><span class="n">passive</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a><span class="c1"># In _apply_fill, after filling a passive iceberg:</span>
+<a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a><span class="k">if</span> <span class="n">passive</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">passive</span><span class="o">.</span><span class="n">displayed_qty</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a>    <span class="n">new_peak</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">passive</span><span class="o">.</span><span class="n">visible_qty</span><span class="p">,</span> <span class="n">passive</span><span class="o">.</span><span class="n">remaining_qty</span><span class="p">)</span>
+<a id="__codelineno-37-4" name="__codelineno-37-4" href="#__codelineno-37-4"></a>    <span class="n">passive</span><span class="o">.</span><span class="n">displayed_qty</span> <span class="o">=</span> <span class="n">new_peak</span>
+<a id="__codelineno-37-5" name="__codelineno-37-5" href="#__codelineno-37-5"></a>    <span class="n">passive</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="n">now</span>   <span class="c1"># ← back of queue</span>
+<a id="__codelineno-37-6" name="__codelineno-37-6" href="#__codelineno-37-6"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_reinsert_iceberg</span><span class="p">(</span><span class="n">passive</span><span class="p">)</span>
 </code></pre></div>
 <p>The timestamp update is the key mechanism. By setting <code>passive.timestamp = now</code>,
 the replenished iceberg gets a new, later timestamp. When <code>_rest()</code> is called again,
@@ -5493,28 +5552,28 @@ is generating artificial volume) and could be used to manipulate prices. In
 EduMatcher, a "participant" corresponds to a <code>gateway_id</code>.</p>
 <p>When a firm's own orders might trade against each other, the exchange can apply one
 of three strategies:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">SmpAction</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">Enum</span><span class="p">):</span>
-<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a>    <span class="n">NONE</span>             <span class="o">=</span> <span class="s2">"NONE"</span>             <span class="c1"># no SMP — let the trade happen</span>
-<a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a>    <span class="n">CANCEL_AGGRESSOR</span> <span class="o">=</span> <span class="s2">"CANCEL_AGGRESSOR"</span> <span class="c1"># cancel the incoming order</span>
-<a id="__codelineno-36-4" name="__codelineno-36-4" href="#__codelineno-36-4"></a>    <span class="n">CANCEL_RESTING</span>   <span class="o">=</span> <span class="s2">"CANCEL_RESTING"</span>  <span class="c1"># cancel the resting order, try next</span>
-<a id="__codelineno-36-5" name="__codelineno-36-5" href="#__codelineno-36-5"></a>    <span class="n">CANCEL_BOTH</span>      <span class="o">=</span> <span class="s2">"CANCEL_BOTH"</span>     <span class="c1"># cancel both orders</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">SmpAction</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">Enum</span><span class="p">):</span>
+<a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a>    <span class="n">NONE</span>             <span class="o">=</span> <span class="s2">"NONE"</span>             <span class="c1"># no SMP — let the trade happen</span>
+<a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a>    <span class="n">CANCEL_AGGRESSOR</span> <span class="o">=</span> <span class="s2">"CANCEL_AGGRESSOR"</span> <span class="c1"># cancel the incoming order</span>
+<a id="__codelineno-38-4" name="__codelineno-38-4" href="#__codelineno-38-4"></a>    <span class="n">CANCEL_RESTING</span>   <span class="o">=</span> <span class="s2">"CANCEL_RESTING"</span>  <span class="c1"># cancel the resting order, try next</span>
+<a id="__codelineno-38-5" name="__codelineno-38-5" href="#__codelineno-38-5"></a>    <span class="n">CANCEL_BOTH</span>      <span class="o">=</span> <span class="s2">"CANCEL_BOTH"</span>     <span class="c1"># cancel both orders</span>
 </code></pre></div>
 <p>Detection is simple — compare <code>gateway_id</code> of the aggressor and the resting order:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a><span class="k">if</span> <span class="n">_smp_action</span> <span class="o">!=</span> <span class="n">SmpAction</span><span class="o">.</span><span class="n">NONE</span> <span class="ow">and</span> <span class="n">_gw_id</span> <span class="o">==</span> <span class="n">best</span><span class="o">.</span><span class="n">gateway_id</span><span class="p">:</span>
-<a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a>    <span class="k">if</span> <span class="n">_smp_action</span> <span class="o">==</span> <span class="n">SmpAction</span><span class="o">.</span><span class="n">CANCEL_AGGRESSOR</span><span class="p">:</span>
-<a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a>        <span class="n">aggressor</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">OrderStatus</span><span class="o">.</span><span class="n">CANCELLED</span>
-<a id="__codelineno-37-4" name="__codelineno-37-4" href="#__codelineno-37-4"></a>        <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">aggressor</span><span class="p">)</span>
-<a id="__codelineno-37-5" name="__codelineno-37-5" href="#__codelineno-37-5"></a>        <span class="k">return</span>                    <span class="c1"># stop sweeping entirely</span>
-<a id="__codelineno-37-6" name="__codelineno-37-6" href="#__codelineno-37-6"></a>
-<a id="__codelineno-37-7" name="__codelineno-37-7" href="#__codelineno-37-7"></a>    <span class="k">elif</span> <span class="n">_smp_action</span> <span class="o">==</span> <span class="n">SmpAction</span><span class="o">.</span><span class="n">CANCEL_RESTING</span><span class="p">:</span>
-<a id="__codelineno-37-8" name="__codelineno-37-8" href="#__codelineno-37-8"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_smp_cancel_resting</span><span class="p">(</span><span class="n">best</span><span class="p">,</span> <span class="n">events</span><span class="p">)</span>
-<a id="__codelineno-37-9" name="__codelineno-37-9" href="#__codelineno-37-9"></a>        <span class="k">continue</span>                  <span class="c1"># skip this resting order, try next</span>
-<a id="__codelineno-37-10" name="__codelineno-37-10" href="#__codelineno-37-10"></a>
-<a id="__codelineno-37-11" name="__codelineno-37-11" href="#__codelineno-37-11"></a>    <span class="k">elif</span> <span class="n">_smp_action</span> <span class="o">==</span> <span class="n">SmpAction</span><span class="o">.</span><span class="n">CANCEL_BOTH</span><span class="p">:</span>
-<a id="__codelineno-37-12" name="__codelineno-37-12" href="#__codelineno-37-12"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_smp_cancel_resting</span><span class="p">(</span><span class="n">best</span><span class="p">,</span> <span class="n">events</span><span class="p">)</span>
-<a id="__codelineno-37-13" name="__codelineno-37-13" href="#__codelineno-37-13"></a>        <span class="n">aggressor</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">OrderStatus</span><span class="o">.</span><span class="n">CANCELLED</span>
-<a id="__codelineno-37-14" name="__codelineno-37-14" href="#__codelineno-37-14"></a>        <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">aggressor</span><span class="p">)</span>
-<a id="__codelineno-37-15" name="__codelineno-37-15" href="#__codelineno-37-15"></a>        <span class="k">return</span>                    <span class="c1"># stop sweeping entirely</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a><span class="k">if</span> <span class="n">_smp_action</span> <span class="o">!=</span> <span class="n">SmpAction</span><span class="o">.</span><span class="n">NONE</span> <span class="ow">and</span> <span class="n">_gw_id</span> <span class="o">==</span> <span class="n">best</span><span class="o">.</span><span class="n">gateway_id</span><span class="p">:</span>
+<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>    <span class="k">if</span> <span class="n">_smp_action</span> <span class="o">==</span> <span class="n">SmpAction</span><span class="o">.</span><span class="n">CANCEL_AGGRESSOR</span><span class="p">:</span>
+<a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a>        <span class="n">aggressor</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">OrderStatus</span><span class="o">.</span><span class="n">CANCELLED</span>
+<a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a>        <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">aggressor</span><span class="p">)</span>
+<a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a>        <span class="k">return</span>                    <span class="c1"># stop sweeping entirely</span>
+<a id="__codelineno-39-6" name="__codelineno-39-6" href="#__codelineno-39-6"></a>
+<a id="__codelineno-39-7" name="__codelineno-39-7" href="#__codelineno-39-7"></a>    <span class="k">elif</span> <span class="n">_smp_action</span> <span class="o">==</span> <span class="n">SmpAction</span><span class="o">.</span><span class="n">CANCEL_RESTING</span><span class="p">:</span>
+<a id="__codelineno-39-8" name="__codelineno-39-8" href="#__codelineno-39-8"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_smp_cancel_resting</span><span class="p">(</span><span class="n">best</span><span class="p">,</span> <span class="n">events</span><span class="p">)</span>
+<a id="__codelineno-39-9" name="__codelineno-39-9" href="#__codelineno-39-9"></a>        <span class="k">continue</span>                  <span class="c1"># skip this resting order, try next</span>
+<a id="__codelineno-39-10" name="__codelineno-39-10" href="#__codelineno-39-10"></a>
+<a id="__codelineno-39-11" name="__codelineno-39-11" href="#__codelineno-39-11"></a>    <span class="k">elif</span> <span class="n">_smp_action</span> <span class="o">==</span> <span class="n">SmpAction</span><span class="o">.</span><span class="n">CANCEL_BOTH</span><span class="p">:</span>
+<a id="__codelineno-39-12" name="__codelineno-39-12" href="#__codelineno-39-12"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_smp_cancel_resting</span><span class="p">(</span><span class="n">best</span><span class="p">,</span> <span class="n">events</span><span class="p">)</span>
+<a id="__codelineno-39-13" name="__codelineno-39-13" href="#__codelineno-39-13"></a>        <span class="n">aggressor</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">OrderStatus</span><span class="o">.</span><span class="n">CANCELLED</span>
+<a id="__codelineno-39-14" name="__codelineno-39-14" href="#__codelineno-39-14"></a>        <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">aggressor</span><span class="p">)</span>
+<a id="__codelineno-39-15" name="__codelineno-39-15" href="#__codelineno-39-15"></a>        <span class="k">return</span>                    <span class="c1"># stop sweeping entirely</span>
 </code></pre></div>
 <p><code>CANCEL_RESTING</code> is the most interesting case — it removes the conflicting resting
 order and <strong>continues</strong> the sweep loop with <code>continue</code>, looking for the next resting
@@ -5524,30 +5583,30 @@ entry invalid via <code>_entry_index</code>, removes it from <code>_order_index<
 index, and appends the cancelled order to <code>events</code> so the gateway is notified.</p>
 <h2 id="stop-orders-two-heaps">Stop Orders — Two Heaps<a class="headerlink" href="#stop-orders-two-heaps" title="Permanent link">&para;</a></h2>
 <p>After every trade, <code>_check_stops</code> runs:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_check_stops</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">now</span><span class="p">):</span>
-<a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a>    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_trade_price</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a>        <span class="k">return</span> <span class="p">[]</span>
-<a id="__codelineno-38-4" name="__codelineno-38-4" href="#__codelineno-38-4"></a>
-<a id="__codelineno-38-5" name="__codelineno-38-5" href="#__codelineno-38-5"></a>    <span class="n">triggered</span> <span class="o">=</span> <span class="p">[]</span>
-<a id="__codelineno-38-6" name="__codelineno-38-6" href="#__codelineno-38-6"></a>
-<a id="__codelineno-38-7" name="__codelineno-38-7" href="#__codelineno-38-7"></a>    <span class="c1"># BUY stops: fire when price rises to/above stop_price</span>
-<a id="__codelineno-38-8" name="__codelineno-38-8" href="#__codelineno-38-8"></a>    <span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buy_stops</span><span class="p">:</span>
-<a id="__codelineno-38-9" name="__codelineno-38-9" href="#__codelineno-38-9"></a>        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buy_stops</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-<a id="__codelineno-38-10" name="__codelineno-38-10" href="#__codelineno-38-10"></a>        <span class="n">stop_price</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">entry</span><span class="o">.</span><span class="n">key</span>
-<a id="__codelineno-38-11" name="__codelineno-38-11" href="#__codelineno-38-11"></a>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_trade_price</span> <span class="o">&lt;</span> <span class="n">stop_price</span><span class="p">:</span>
-<a id="__codelineno-38-12" name="__codelineno-38-12" href="#__codelineno-38-12"></a>            <span class="k">break</span>            <span class="c1"># ← min-heap: if top hasn't triggered, none will</span>
-<a id="__codelineno-38-13" name="__codelineno-38-13" href="#__codelineno-38-13"></a>        <span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_buy_stops</span><span class="p">)</span>
-<a id="__codelineno-38-14" name="__codelineno-38-14" href="#__codelineno-38-14"></a>        <span class="c1"># convert to MARKET or LIMIT and add to triggered list</span>
-<a id="__codelineno-38-15" name="__codelineno-38-15" href="#__codelineno-38-15"></a>        <span class="o">...</span>
-<a id="__codelineno-38-16" name="__codelineno-38-16" href="#__codelineno-38-16"></a>
-<a id="__codelineno-38-17" name="__codelineno-38-17" href="#__codelineno-38-17"></a>    <span class="c1"># SELL stops: fire when price falls to/below stop_price</span>
-<a id="__codelineno-38-18" name="__codelineno-38-18" href="#__codelineno-38-18"></a>    <span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sell_stops</span><span class="p">:</span>
-<a id="__codelineno-38-19" name="__codelineno-38-19" href="#__codelineno-38-19"></a>        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sell_stops</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-<a id="__codelineno-38-20" name="__codelineno-38-20" href="#__codelineno-38-20"></a>        <span class="n">neg_stop_price</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">entry</span><span class="o">.</span><span class="n">key</span>
-<a id="__codelineno-38-21" name="__codelineno-38-21" href="#__codelineno-38-21"></a>        <span class="n">stop_price</span> <span class="o">=</span> <span class="o">-</span><span class="n">neg_stop_price</span>
-<a id="__codelineno-38-22" name="__codelineno-38-22" href="#__codelineno-38-22"></a>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_trade_price</span> <span class="o">&gt;</span> <span class="n">stop_price</span><span class="p">:</span>
-<a id="__codelineno-38-23" name="__codelineno-38-23" href="#__codelineno-38-23"></a>            <span class="k">break</span>            <span class="c1"># ← max-heap: if top hasn't triggered, none will</span>
-<a id="__codelineno-38-24" name="__codelineno-38-24" href="#__codelineno-38-24"></a>        <span class="o">...</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_check_stops</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">now</span><span class="p">):</span>
+<a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a>    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_trade_price</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a>        <span class="k">return</span> <span class="p">[]</span>
+<a id="__codelineno-40-4" name="__codelineno-40-4" href="#__codelineno-40-4"></a>
+<a id="__codelineno-40-5" name="__codelineno-40-5" href="#__codelineno-40-5"></a>    <span class="n">triggered</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="__codelineno-40-6" name="__codelineno-40-6" href="#__codelineno-40-6"></a>
+<a id="__codelineno-40-7" name="__codelineno-40-7" href="#__codelineno-40-7"></a>    <span class="c1"># BUY stops: fire when price rises to/above stop_price</span>
+<a id="__codelineno-40-8" name="__codelineno-40-8" href="#__codelineno-40-8"></a>    <span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buy_stops</span><span class="p">:</span>
+<a id="__codelineno-40-9" name="__codelineno-40-9" href="#__codelineno-40-9"></a>        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buy_stops</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<a id="__codelineno-40-10" name="__codelineno-40-10" href="#__codelineno-40-10"></a>        <span class="n">stop_price</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">entry</span><span class="o">.</span><span class="n">key</span>
+<a id="__codelineno-40-11" name="__codelineno-40-11" href="#__codelineno-40-11"></a>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_trade_price</span> <span class="o">&lt;</span> <span class="n">stop_price</span><span class="p">:</span>
+<a id="__codelineno-40-12" name="__codelineno-40-12" href="#__codelineno-40-12"></a>            <span class="k">break</span>            <span class="c1"># ← min-heap: if top hasn't triggered, none will</span>
+<a id="__codelineno-40-13" name="__codelineno-40-13" href="#__codelineno-40-13"></a>        <span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_buy_stops</span><span class="p">)</span>
+<a id="__codelineno-40-14" name="__codelineno-40-14" href="#__codelineno-40-14"></a>        <span class="c1"># convert to MARKET or LIMIT and add to triggered list</span>
+<a id="__codelineno-40-15" name="__codelineno-40-15" href="#__codelineno-40-15"></a>        <span class="o">...</span>
+<a id="__codelineno-40-16" name="__codelineno-40-16" href="#__codelineno-40-16"></a>
+<a id="__codelineno-40-17" name="__codelineno-40-17" href="#__codelineno-40-17"></a>    <span class="c1"># SELL stops: fire when price falls to/below stop_price</span>
+<a id="__codelineno-40-18" name="__codelineno-40-18" href="#__codelineno-40-18"></a>    <span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sell_stops</span><span class="p">:</span>
+<a id="__codelineno-40-19" name="__codelineno-40-19" href="#__codelineno-40-19"></a>        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sell_stops</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<a id="__codelineno-40-20" name="__codelineno-40-20" href="#__codelineno-40-20"></a>        <span class="n">neg_stop_price</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">entry</span><span class="o">.</span><span class="n">key</span>
+<a id="__codelineno-40-21" name="__codelineno-40-21" href="#__codelineno-40-21"></a>        <span class="n">stop_price</span> <span class="o">=</span> <span class="o">-</span><span class="n">neg_stop_price</span>
+<a id="__codelineno-40-22" name="__codelineno-40-22" href="#__codelineno-40-22"></a>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_trade_price</span> <span class="o">&gt;</span> <span class="n">stop_price</span><span class="p">:</span>
+<a id="__codelineno-40-23" name="__codelineno-40-23" href="#__codelineno-40-23"></a>            <span class="k">break</span>            <span class="c1"># ← max-heap: if top hasn't triggered, none will</span>
+<a id="__codelineno-40-24" name="__codelineno-40-24" href="#__codelineno-40-24"></a>        <span class="o">...</span>
 </code></pre></div>
 <p>The <code>break</code> statement is the crucial insight. Because the heap is sorted:</p>
 <ul>
@@ -5559,6 +5618,13 @@ index, and appends the cancelled order to <code>events</code> so the gateway is 
 <p>This makes stop checking O(1) in the common case (no stops triggered) and O(k log k)
 when k stops fire. A naive linear scan over all pending stops would be O(s) on every
 trade, where s is the total number of pending stops.</p>
+<p>The elided <code>...</code> above a real bookkeeping step: a triggered stop is popped out of
+<code>_order_index</code> (and, since a triggered stop that matches immediately never rests
+again, out of <code>_orders_by_gateway</code> too — see that structure's entry above) right
+there in <code>_check_stops</code>, before the converted order is handed back to <code>process()</code>.
+A <code>STOP_LIMIT</code> that converts to <code>LIMIT</code> and goes on to rest re-adds itself through
+the normal <code>_rest()</code> call a moment later; a <code>STOP</code> that converts to <code>MARKET</code> and
+fills immediately does not, so this is the only place that removal happens for it.</p>
 <h2 id="trailing-stops-the-ratchet">Trailing Stops — The Ratchet<a class="headerlink" href="#trailing-stops-the-ratchet" title="Permanent link">&para;</a></h2>
 <p><strong>A concrete scenario:</strong> You bought 100 shares of AAPL at $150.00. You want to
 protect your profit but also let the position run if the stock keeps rising. You set
@@ -5571,17 +5637,17 @@ a sell trailing stop with a trail offset of $2.00.</p>
 </ul>
 <p>The key rule: the stop only ever tightens (moves to protect more profit), never
 loosens. If the market falls from $160 to $159, the stop stays at $158.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a><span class="k">for</span> <span class="n">order</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_trailing_stops</span><span class="p">:</span>
-<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>    <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">SELL</span><span class="p">:</span>
-<a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a>        <span class="c1"># Ratchet up: if price rises, tighten the stop</span>
-<a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a>        <span class="n">candidate</span> <span class="o">=</span> <span class="n">trade_price</span> <span class="o">-</span> <span class="n">order</span><span class="o">.</span><span class="n">trail_offset</span>
-<a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a>        <span class="k">if</span> <span class="n">candidate</span> <span class="o">&gt;</span> <span class="n">order</span><span class="o">.</span><span class="n">stop_price</span><span class="p">:</span>
-<a id="__codelineno-39-6" name="__codelineno-39-6" href="#__codelineno-39-6"></a>            <span class="n">order</span><span class="o">.</span><span class="n">stop_price</span> <span class="o">=</span> <span class="n">candidate</span>   <span class="c1"># stop rises, never falls</span>
-<a id="__codelineno-39-7" name="__codelineno-39-7" href="#__codelineno-39-7"></a>
-<a id="__codelineno-39-8" name="__codelineno-39-8" href="#__codelineno-39-8"></a>        <span class="c1"># Trigger if price has fallen to the stop</span>
-<a id="__codelineno-39-9" name="__codelineno-39-9" href="#__codelineno-39-9"></a>        <span class="k">if</span> <span class="n">trade_price</span> <span class="o">&lt;=</span> <span class="n">order</span><span class="o">.</span><span class="n">stop_price</span><span class="p">:</span>
-<a id="__codelineno-39-10" name="__codelineno-39-10" href="#__codelineno-39-10"></a>            <span class="c1"># convert to MARKET and add to triggered</span>
-<a id="__codelineno-39-11" name="__codelineno-39-11" href="#__codelineno-39-11"></a>            <span class="o">...</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a><span class="k">for</span> <span class="n">order</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_trailing_stops</span><span class="p">:</span>
+<a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a>    <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">SELL</span><span class="p">:</span>
+<a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a>        <span class="c1"># Ratchet up: if price rises, tighten the stop</span>
+<a id="__codelineno-41-4" name="__codelineno-41-4" href="#__codelineno-41-4"></a>        <span class="n">candidate</span> <span class="o">=</span> <span class="n">trade_price</span> <span class="o">-</span> <span class="n">order</span><span class="o">.</span><span class="n">trail_offset</span>
+<a id="__codelineno-41-5" name="__codelineno-41-5" href="#__codelineno-41-5"></a>        <span class="k">if</span> <span class="n">candidate</span> <span class="o">&gt;</span> <span class="n">order</span><span class="o">.</span><span class="n">stop_price</span><span class="p">:</span>
+<a id="__codelineno-41-6" name="__codelineno-41-6" href="#__codelineno-41-6"></a>            <span class="n">order</span><span class="o">.</span><span class="n">stop_price</span> <span class="o">=</span> <span class="n">candidate</span>   <span class="c1"># stop rises, never falls</span>
+<a id="__codelineno-41-7" name="__codelineno-41-7" href="#__codelineno-41-7"></a>
+<a id="__codelineno-41-8" name="__codelineno-41-8" href="#__codelineno-41-8"></a>        <span class="c1"># Trigger if price has fallen to the stop</span>
+<a id="__codelineno-41-9" name="__codelineno-41-9" href="#__codelineno-41-9"></a>        <span class="k">if</span> <span class="n">trade_price</span> <span class="o">&lt;=</span> <span class="n">order</span><span class="o">.</span><span class="n">stop_price</span><span class="p">:</span>
+<a id="__codelineno-41-10" name="__codelineno-41-10" href="#__codelineno-41-10"></a>            <span class="c1"># convert to MARKET and add to triggered</span>
+<a id="__codelineno-41-11" name="__codelineno-41-11" href="#__codelineno-41-11"></a>            <span class="o">...</span>
 </code></pre></div>
 <p>The ratchet rule: <strong>the stop only tightens, never loosens.</strong> For a sell trailing
 stop, if the market rises the stop rises with it (protecting more profit). But if
@@ -5593,6 +5659,10 @@ trade, but trailing stop lists are typically short.</p>
 <p>In EduMatcher, both <code>trade_price</code> and <code>order.trail_offset</code> are integer tick counts,
 so the subtraction <code>candidate = trade_price - order.trail_offset</code> is exact integer
 arithmetic with no floating-point drift.</p>
+<p>Like a triggered <code>STOP</code>/<code>STOP_LIMIT</code>, a triggered trailing stop is popped out of
+<code>_order_index</code> (and <code>_orders_by_gateway</code>) directly inside <code>_check_trailing_stops</code>
+at the moment it converts to <code>MARKET</code> — the elided <code>...</code> above. It never returns
+to this list once triggered.</p>
 <h2 id="the-snapshot-method">The <code>snapshot()</code> Method<a class="headerlink" href="#the-snapshot-method" title="Permanent link">&para;</a></h2>
 <p><code>snapshot()</code> builds the view of the order book that gets published as market data to
 display processes (viewer, board, ticker). It produces the aggregated picture a
@@ -5607,22 +5677,22 @@ not individual orders.</p>
 <li><code>recent_trades</code> (last 5 trades from the deque)</li>
 </ul>
 <p>It does <strong>not</strong> currently compute or publish <code>spread</code> or <code>mid</code> fields.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>    <span class="n">bids</span> <span class="o">=</span> <span class="p">{}</span>
-<a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a>    <span class="n">asks</span> <span class="o">=</span> <span class="p">{}</span>
-<a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a>
-<a id="__codelineno-40-4" name="__codelineno-40-4" href="#__codelineno-40-4"></a>    <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bids</span><span class="p">:</span>
-<a id="__codelineno-40-5" name="__codelineno-40-5" href="#__codelineno-40-5"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">entry</span><span class="o">.</span><span class="n">valid</span><span class="p">:</span>
-<a id="__codelineno-40-6" name="__codelineno-40-6" href="#__codelineno-40-6"></a>            <span class="k">continue</span>
-<a id="__codelineno-40-7" name="__codelineno-40-7" href="#__codelineno-40-7"></a>        <span class="n">o</span> <span class="o">=</span> <span class="n">entry</span><span class="o">.</span><span class="n">order</span>
-<a id="__codelineno-40-8" name="__codelineno-40-8" href="#__codelineno-40-8"></a>        <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">status</span> <span class="ow">in</span> <span class="p">(</span><span class="n">FILLED</span><span class="p">,</span> <span class="n">CANCELLED</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span>
-<a id="__codelineno-40-9" name="__codelineno-40-9" href="#__codelineno-40-9"></a>            <span class="k">continue</span>
-<a id="__codelineno-40-10" name="__codelineno-40-10" href="#__codelineno-40-10"></a>        <span class="c1"># For iceberg: show only the visible peak, not the hidden reserve</span>
-<a id="__codelineno-40-11" name="__codelineno-40-11" href="#__codelineno-40-11"></a>        <span class="n">qty</span> <span class="o">=</span> <span class="n">o</span><span class="o">.</span><span class="n">displayed_qty</span> <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">order_type</span> <span class="o">==</span> <span class="n">ICEBERG</span> <span class="k">else</span> <span class="n">o</span><span class="o">.</span><span class="n">remaining_qty</span>
-<a id="__codelineno-40-12" name="__codelineno-40-12" href="#__codelineno-40-12"></a>        <span class="c1"># Aggregate into price levels</span>
-<a id="__codelineno-40-13" name="__codelineno-40-13" href="#__codelineno-40-13"></a>        <span class="n">lvl</span> <span class="o">=</span> <span class="n">bids</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="p">{</span><span class="s2">"price"</span><span class="p">:</span> <span class="n">o</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="s2">"qty"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">"count"</span><span class="p">:</span> <span class="mi">0</span><span class="p">})</span>
-<a id="__codelineno-40-14" name="__codelineno-40-14" href="#__codelineno-40-14"></a>        <span class="n">lvl</span><span class="p">[</span><span class="s2">"qty"</span><span class="p">]</span> <span class="o">+=</span> <span class="n">qty</span>
-<a id="__codelineno-40-15" name="__codelineno-40-15" href="#__codelineno-40-15"></a>        <span class="n">lvl</span><span class="p">[</span><span class="s2">"count"</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
-<a id="__codelineno-40-16" name="__codelineno-40-16" href="#__codelineno-40-16"></a>    <span class="o">...</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a>    <span class="n">bids</span> <span class="o">=</span> <span class="p">{}</span>
+<a id="__codelineno-42-2" name="__codelineno-42-2" href="#__codelineno-42-2"></a>    <span class="n">asks</span> <span class="o">=</span> <span class="p">{}</span>
+<a id="__codelineno-42-3" name="__codelineno-42-3" href="#__codelineno-42-3"></a>
+<a id="__codelineno-42-4" name="__codelineno-42-4" href="#__codelineno-42-4"></a>    <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bids</span><span class="p">:</span>
+<a id="__codelineno-42-5" name="__codelineno-42-5" href="#__codelineno-42-5"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">entry</span><span class="o">.</span><span class="n">valid</span><span class="p">:</span>
+<a id="__codelineno-42-6" name="__codelineno-42-6" href="#__codelineno-42-6"></a>            <span class="k">continue</span>
+<a id="__codelineno-42-7" name="__codelineno-42-7" href="#__codelineno-42-7"></a>        <span class="n">o</span> <span class="o">=</span> <span class="n">entry</span><span class="o">.</span><span class="n">order</span>
+<a id="__codelineno-42-8" name="__codelineno-42-8" href="#__codelineno-42-8"></a>        <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">status</span> <span class="ow">in</span> <span class="p">(</span><span class="n">FILLED</span><span class="p">,</span> <span class="n">CANCELLED</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span>
+<a id="__codelineno-42-9" name="__codelineno-42-9" href="#__codelineno-42-9"></a>            <span class="k">continue</span>
+<a id="__codelineno-42-10" name="__codelineno-42-10" href="#__codelineno-42-10"></a>        <span class="c1"># For iceberg: show only the visible peak, not the hidden reserve</span>
+<a id="__codelineno-42-11" name="__codelineno-42-11" href="#__codelineno-42-11"></a>        <span class="n">qty</span> <span class="o">=</span> <span class="n">o</span><span class="o">.</span><span class="n">displayed_qty</span> <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">order_type</span> <span class="o">==</span> <span class="n">ICEBERG</span> <span class="k">else</span> <span class="n">o</span><span class="o">.</span><span class="n">remaining_qty</span>
+<a id="__codelineno-42-12" name="__codelineno-42-12" href="#__codelineno-42-12"></a>        <span class="c1"># Aggregate into price levels</span>
+<a id="__codelineno-42-13" name="__codelineno-42-13" href="#__codelineno-42-13"></a>        <span class="n">lvl</span> <span class="o">=</span> <span class="n">bids</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="p">{</span><span class="s2">"price"</span><span class="p">:</span> <span class="n">o</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="s2">"qty"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">"count"</span><span class="p">:</span> <span class="mi">0</span><span class="p">})</span>
+<a id="__codelineno-42-14" name="__codelineno-42-14" href="#__codelineno-42-14"></a>        <span class="n">lvl</span><span class="p">[</span><span class="s2">"qty"</span><span class="p">]</span> <span class="o">+=</span> <span class="n">qty</span>
+<a id="__codelineno-42-15" name="__codelineno-42-15" href="#__codelineno-42-15"></a>        <span class="n">lvl</span><span class="p">[</span><span class="s2">"count"</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+<a id="__codelineno-42-16" name="__codelineno-42-16" href="#__codelineno-42-16"></a>    <span class="o">...</span>
 </code></pre></div>
 <p><code>snapshot()</code> iterates the entire heap — O(n) — to build the aggregated price
 levels needed for market data publication. This is correct but expensive if called
@@ -5713,6 +5783,13 @@ state.</p>
 <td>O(P) depth / FOK check</td>
 </tr>
 <tr>
+<td><code>_orders_by_gateway</code></td>
+<td>Dict</td>
+<td><code>gateway_id</code></td>
+<td><code>set[order_id]</code></td>
+<td>O(k) resting orders for one gateway (quote reissue, disconnect/kill-switch cancel)</td>
+</tr>
+<tr>
 <td><code>recent_trades</code></td>
 <td>Deque</td>
 <td>—</td>
@@ -5781,9 +5858,15 @@ state.</p>
 <td>O(k log k)</td>
 <td>k heappops + recursive <code>process()</code> call</td>
 </tr>
+<tr>
+<td>Resting orders for one gateway</td>
+<td>O(k)</td>
+<td><code>_orders_by_gateway</code> lookup, k = that gateway's resting count in this book</td>
+</tr>
 </tbody>
 </table>
-<p>Where n = total resting orders, P = distinct price levels (typically P &lt;&lt; n).</p>
+<p>Where n = total resting orders, P = distinct price levels (typically P &lt;&lt; n), k =
+one gateway's resting order count (typically k &lt;&lt; n).</p>
 <p><a href="../../glossary/">Glossary →</a></p>
 
 

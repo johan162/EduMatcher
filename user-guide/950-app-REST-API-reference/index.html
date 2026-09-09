@@ -3120,6 +3120,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#get-apiv1adminpositions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/admin/positions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#post-apiv1adminkill-switchsymbol" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5231,6 +5242,11 @@ here.</p>
 <td><a href="#get-apiv1adminordersorder_id">GET /api/v1/admin/orders/{order_id}</a></td>
 <td>Admin role</td>
 <td>Return the full cross-gateway lifecycle of one order</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1adminpositions">GET /api/v1/admin/positions</a></td>
+<td>Admin role</td>
+<td>Return net position and average cost for any one gateway</td>
 </tr>
 <tr>
 <td><a href="#post-apiv1adminkill-switchsymbol">POST /api/v1/admin/kill-switch/symbol</a></td>
@@ -7369,6 +7385,9 @@ the order at a price the client never sent. See
 </table>
 <h3 id="get-apiv1positions"><code>GET /api/v1/positions</code><a class="headerlink" href="#get-apiv1positions" title="Permanent link">&para;</a></h3>
 <p>Purpose: return current net positions by symbol.</p>
+<p>To query a <em>different</em> gateway's position (e.g. checking on a running
+<code>pm-mm-bot</code>), see <a href="#get-apiv1adminpositions">GET /api/v1/admin/positions</a>,
+which requires the ADMIN role and returns <code>avg_cost</code> as well.</p>
 <p><strong>Arguments</strong></p>
 <table>
 <thead>
@@ -9350,6 +9369,75 @@ gateway id; public history accepts any valid key.</p>
 <tr>
 <td><code>UNKNOWN_ORDER</code></td>
 <td>No audited events for the order</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1adminpositions"><code>GET /api/v1/admin/positions</code><a class="headerlink" href="#get-apiv1adminpositions" title="Permanent link">&para;</a></h3>
+<p>Purpose: return net position and average cost for <em>any one</em> gateway (not
+just the caller's own) -- the admin counterpart to
+<a href="#get-apiv1positions">GET /api/v1/positions</a>. Distinct in two ways: it can
+target any <code>gateway_id</code>, and it is a live engine round trip against the
+engine's authoritative VWAP ledger, so unlike <code>/positions</code> (own gateway,
+local cache) the reply carries <code>avg_cost</code> as well as <code>net_qty</code>. It is the
+REST equivalent of <code>pm-alf-console</code>'s and <code>pm-alf-gwy</code>'s <code>POS|GW=&lt;gateway_id&gt;</code>
+command -- all three read the same <code>system.position_request</code> /
+<code>system.position_snapshot.&lt;gateway_id&gt;</code> pair, so they always agree.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gateway_id</code></td>
+<td><code>GatewayId</code></td>
+<td>yes</td>
+<td>Gateway to query (any gateway, not just the caller's)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "gateway_id", "count", "positions": [{ "symbol", "net_qty", "avg_cost" }, ...] }</code></td>
+<td>Net position and average cost per symbol for the target gateway</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not reply in time</td>
 </tr>
 </tbody>
 </table>

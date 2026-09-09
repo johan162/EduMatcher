@@ -3234,6 +3234,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#riskforce_uncross" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        risk.force_uncross
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#riskforce_uncross_ackgateway_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        risk.force_uncross_ack.{gateway_id}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#riskcircuit_breaker_halt_all" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7360,6 +7382,16 @@ wire-format specification in the
 <td><code>engine</code></td>
 </tr>
 <tr>
+<td><code>risk.force_uncross</code></td>
+<td><code>risk</code></td>
+<td><code>admin</code></td>
+</tr>
+<tr>
+<td><code>risk.force_uncross_ack.{gateway_id}</code></td>
+<td><code>risk</code></td>
+<td><code>engine</code></td>
+</tr>
+<tr>
 <td><code>risk.kill_switch</code></td>
 <td><code>risk</code></td>
 <td><code>admin</code>, <code>api_gateway</code>, <code>gateway</code></td>
@@ -7681,10 +7713,10 @@ wire-format specification in the
 </tr>
 <tr>
 <td><code>action</code></td>
-<td>enum: <code>kill_switch.self</code>, <code>kill_switch.gateway</code>, <code>kill_switch.global</code>, <code>kill_switch.symbol</code>, <code>circuit_breaker.trigger</code>, <code>circuit_breaker.resume</code></td>
+<td>enum: <code>kill_switch.self</code>, <code>kill_switch.gateway</code>, <code>kill_switch.global</code>, <code>kill_switch.symbol</code>, <code>circuit_breaker.trigger</code>, <code>circuit_breaker.resume</code>, <code>auction.reopen</code></td>
 <td>required</td>
 <td>—</td>
-<td>Which command ran. The six the engine publishes, enumerated rather than left a free string: a seventh admin command that forgets to declare itself here fails loudly at its first invocation, which is better than appearing in the monitor as a value no client renders. The values look like topics and are not: <code>circuit_breaker.trigger</code> is the action behind <code>risk.symbol_halt</code>, and there is no <code>circuit_breaker.trigger</code> topic anywhere.</td>
+<td>Which command ran. The seven the engine publishes, enumerated rather than left a free string: an eighth admin command that forgets to declare itself here fails loudly at its first invocation, which is better than appearing in the monitor as a value no client renders. The values look like topics and are not: <code>circuit_breaker.trigger</code> is the action behind <code>risk.symbol_halt</code>, and there is no <code>circuit_breaker.trigger</code> topic anywhere. <code>auction.reopen</code> is the action behind <code>risk.force_uncross</code>.</td>
 </tr>
 <tr>
 <td><code>scope</code></td>
@@ -7849,16 +7881,16 @@ wire-format specification in the
 </tr>
 <tr>
 <td><code>reason</code></td>
-<td>enum: <code>SCHEDULED</code>, <code>REOPEN</code>, <code>RECOVERY</code>, <code>BACKSTOP</code></td>
+<td>enum: <code>SCHEDULED</code>, <code>REOPEN</code>, <code>RECOVERY</code>, <code>BACKSTOP</code>, <code>ADMIN_MANUAL</code></td>
 <td>required</td>
 <td>—</td>
-<td>Which of the four uncross paths produced this event.</td>
+<td>Which of the five uncross paths produced this event.</td>
 </tr>
 </tbody>
 </table>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p><code>reason</code> says which uncross this was, because the four are otherwise indistinguishable to a consumer and a client cannot tell a circuit breaker reopening from the closing one: SCHEDULED - leaving an auction or other non-matching session phase REOPEN - a halted symbol reopening at the end of its halt RECOVERY - restored GTC orders uncrossed at engine startup BACKSTOP - the closing backstop forcing a still-halted symbol to reopen, printing at the corridor boundary rather than at the outlying equilibrium There is no persistent state to snapshot here, unlike TOP or DEPTH: every event is forwarded as its own independent CALF event.</p>
+<p><code>reason</code> says which uncross this was, because the five are otherwise indistinguishable to a consumer and a client cannot tell a circuit breaker reopening from the closing one: SCHEDULED - leaving an auction or other non-matching session phase REOPEN - a halted symbol reopening at the end of its halt RECOVERY - restored GTC orders uncrossed at engine startup BACKSTOP - the closing backstop forcing a still-halted symbol to reopen, printing at the corridor boundary rather than at the outlying equilibrium ADMIN_MANUAL - an operator force-uncrossed one symbol via <code>pm-admin-cli reopen</code>, optionally asserting the print price when no natural equilibrium exists There is no persistent state to snapshot here, unlike TOP or DEPTH: every event is forwarded as its own independent CALF event.</p>
 </div>
 <p><strong>See also:</strong> <code>auction.indicative.{SYMBOL}</code>, <code>trade.executed</code></p>
 <h2 id="family-book">Family <code>book</code><a class="headerlink" href="#family-book" title="Permanent link">&para;</a></h2>
@@ -13407,6 +13439,181 @@ wire-format specification in the
 </tr>
 </tbody>
 </table>
+<h3 id="riskforce_uncross"><code>risk.force_uncross</code><a class="headerlink" href="#riskforce_uncross" title="Permanent link">&para;</a></h3>
+<p><strong>Published by:</strong> <code>admin</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Since:</strong> 1.0</p>
+<p>ADMIN to engine: force one symbol to uncross now, optionally asserting the print price, and clear any halt in the same step. The operational recovery for an auction that failed to discover a price - see risk.cancel_symbol for the "abandon and re-collect" alternative.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Presence</th>
+<th>Rules</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gateway_id</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 32</td>
+<td></td>
+</tr>
+<tr>
+<td><code>symbol</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 16</td>
+<td></td>
+</tr>
+<tr>
+<td><code>price</code></td>
+<td><code>float</code></td>
+<td>omitted when unset</td>
+<td>gt 0, unit <code>display_price</code></td>
+<td>Operator print price; null opens at the computed equilibrium.</td>
+</tr>
+<tr>
+<td><code>dry_run</code></td>
+<td><code>bool</code></td>
+<td>defaults to <code>False</code></td>
+<td>—</td>
+<td>Peek the indicative print without changing any state.</td>
+</tr>
+<tr>
+<td><code>note</code></td>
+<td><code>string</code></td>
+<td>omitted when empty</td>
+<td>max_len 256</td>
+<td>Free-text reason, recorded on the admin monitor.</td>
+</tr>
+<tr>
+<td><code>command_id</code></td>
+<td><code>string</code></td>
+<td>omitted when empty</td>
+<td>max_len 64</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code>price</code> is null to open at the naturally computed equilibrium, or a value to assert an operator opening price when no natural equilibrium exists (a failed-auction recovery).</p>
+<p>It is nullable rather than a sentinel because "no price given" and "a price of zero" are different requests, exactly as auction.result's <code>eq_price</code> is null-not-zero.</p>
+<p><code>dry_run</code> peeks the indicative print without mutating any state: no halt is cleared, no uncross runs.</p>
+<p>It is the on-demand replacement for the auction.indicative feed, which is push-only and skips halted symbols, so an operator would otherwise set <code>price</code> blind.</p>
+</div>
+<p><strong>See also:</strong> <code>risk.symbol_resume</code>, <code>risk.cancel_symbol</code>, <code>auction.result.{SYMBOL}</code></p>
+<h3 id="riskforce_uncross_ackgateway_id"><code>risk.force_uncross_ack.{gateway_id}</code><a class="headerlink" href="#riskforce_uncross_ackgateway_id" title="Permanent link">&para;</a></h3>
+<p><strong>Published by:</strong> <code>engine</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Since:</strong> 1.0</p>
+<p>Engine to ADMIN: the outcome of a force-uncross. On a dry run it carries the indicative figures only; on a live run it also reports what actually printed.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Presence</th>
+<th>Rules</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gateway_id</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 32</td>
+<td></td>
+</tr>
+<tr>
+<td><code>accepted</code></td>
+<td><code>bool</code></td>
+<td>required</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>symbol</code></td>
+<td><code>string</code></td>
+<td>defaults to <code>''</code></td>
+<td>max_len 16</td>
+<td></td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td><code>string</code></td>
+<td>defaults to <code>''</code></td>
+<td>max_len 512</td>
+<td></td>
+</tr>
+<tr>
+<td><code>dry_run</code></td>
+<td><code>bool</code></td>
+<td>defaults to <code>False</code></td>
+<td>—</td>
+<td>True when this ack answers a peek rather than a live uncross.</td>
+</tr>
+<tr>
+<td><code>indicative_price</code></td>
+<td><code>float</code></td>
+<td><code>null</code> when unset</td>
+<td>gt 0, unit <code>display_price</code></td>
+<td>Indicative equilibrium, or null if the book would not cross.</td>
+</tr>
+<tr>
+<td><code>indicative_qty</code></td>
+<td><code>int</code></td>
+<td>defaults to <code>0</code></td>
+<td>ge 0, unit <code>shares</code></td>
+<td>Quantity that would execute at the indicative price.</td>
+</tr>
+<tr>
+<td><code>surplus</code></td>
+<td><code>int</code></td>
+<td>defaults to <code>0</code></td>
+<td>ge 0, unit <code>shares</code></td>
+<td>Surplus on <code>imbalance_side</code>; zero when balanced.</td>
+</tr>
+<tr>
+<td><code>imbalance_side</code></td>
+<td>enum: <code>BUY</code>, <code>SELL</code></td>
+<td>omitted when unset</td>
+<td>—</td>
+<td>Which side would be left unfilled; absent when balanced.</td>
+</tr>
+<tr>
+<td><code>printed_price</code></td>
+<td><code>float</code></td>
+<td><code>null</code> when unset</td>
+<td>gt 0, unit <code>display_price</code></td>
+<td>Live-run print price, or null on a dry run or rejection.</td>
+</tr>
+<tr>
+<td><code>traded_qty</code></td>
+<td><code>int</code></td>
+<td>defaults to <code>0</code></td>
+<td>ge 0, unit <code>shares</code></td>
+<td>Quantity that actually executed on a live run.</td>
+</tr>
+<tr>
+<td><code>command_id</code></td>
+<td><code>string</code></td>
+<td>omitted when empty</td>
+<td>max_len 64</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code>indicative_*</code> mirror auction.indicative: <code>indicative_price</code> is null when the book would not cross.</p>
+<p><code>printed_price</code> and <code>traded_qty</code> are the live-run outcome and stay at null/zero on a dry run or a rejection.</p>
+</div>
 <h3 id="riskcircuit_breaker_halt_all"><code>risk.circuit_breaker_halt_all</code><a class="headerlink" href="#riskcircuit_breaker_halt_all" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>admin</code></p>
 <p><strong>Transport:</strong> <code>engine_pub</code></p>

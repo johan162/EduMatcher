@@ -1493,6 +1493,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#posgwgateway_id-query-another-gateways-position" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POS|GW=&lt;gateway_id&gt; — Query Another Gateway's Position
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#symbols-list-active-instruments" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5604,21 +5615,56 @@ last trade price, unrealized P&amp;L, and realized P&amp;L for each symbol trade
 <p class="admonition-title">Tip</p>
 <p>Use <code>POS</code> after each fill to monitor your exposure without switching to <code>pm-orders</code>.</p>
 </div>
+<h3 id="posgwgateway_id-query-another-gateways-position">POS|GW=&lt;gateway_id&gt; — Query Another Gateway's Position<a class="headerlink" href="#posgwgateway_id-query-another-gateways-position" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>POS|GW=MM_AAPL_01
+</code></pre></div>
+<p>Unlike bare <code>POS</code> above, this does <strong>not</strong> use this session's local fill
+ledger. It asks the <em>engine</em> what the given <code>gateway_id</code> — typically a
+running <code>pm-mm-bot</code> instance, but any connected gateway works, including
+your own — is currently holding, via <code>system.position_request</code> /
+<code>system.position_snapshot.{gateway_id}</code>. The reply is rendered as a
+simpler table (the engine's ledger has no P&amp;L, only net position and
+average cost):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>┌───────────────────────────────────┐
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>│      Position — MM_AAPL_01        │
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>├──────────┬─────────┬──────────────┤
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>│ Symbol   │ Net Qty │ Avg Cost     │
+<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>├──────────┼─────────┼──────────────┤
+<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a>│ AAPL     │    -300 │       150.05 │
+<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a>└──────────┴─────────┴──────────────┘
+</code></pre></div>
+<p>A gateway with no open positions prints <code>&lt;gateway_id&gt;: flat (no open
+positions).</code> instead of an empty table.</p>
+<p><strong>How it works:</strong></p>
+<ul>
+<li>The console sends <code>system.position_request</code> for the given <code>gateway_id</code>
+  and dynamically subscribes to <code>system.position_snapshot.{gateway_id}</code>
+  just for the duration of this one query, unsubscribing once the reply
+  arrives — a mistyped or offline gateway_id does not leave a stray
+  subscription behind.</li>
+<li>A second <code>POS|GW=</code> query before the first one's reply arrives replaces
+  it (the earlier subscription is dropped).</li>
+<li>This works for <em>any</em> gateway_id known to the engine, not just MM bots —
+  it is exactly the same query a <code>pm-mm-bot</code>'s own inventory-skewing logic
+  effectively answers itself, just visible to an operator from outside.
+  See <a href="../100-mm-bot/#inventory-skewing">Market-Maker Bot → Inventory skewing</a>
+  for the bot side of this.</li>
+</ul>
 <h3 id="symbols-list-active-instruments">SYMBOLS — List Active Instruments<a class="headerlink" href="#symbols-list-active-instruments" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>SYMBOLS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>SYMBOLS
 </code></pre></div>
 <p>Requests the list of all symbols that currently have an active order book in the engine.
 The terminal sends the request and the engine replies with the current instrument list
 plus any available <code>symbol_meta</code> fields, which are printed as a rich table:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>┌─────────────────────────────────────────────────────────┐
-<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>│                    Active Instruments                   │
-<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>├────┬────────┬──────┬─────────────┬────────────┬─────────┤
-<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>│  # │ Symbol │ Tick │ MM Enforced │ Max Spread │ Min Qty │
-<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>├────┼────────┼──────┼─────────────┼────────────┼─────────┤
-<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a>│  1 │ AAPL   │ 0.01 │ YES         │         10 │     100 │
-<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a>│  2 │ MSFT   │ 0.01 │ NO          │         10 │     100 │
-<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a>│  3 │ TSLA   │ 0.01 │ —           │          — │       — │
-<a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a>└────┴────────┴──────┴─────────────┴────────────┴─────────┘
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>┌─────────────────────────────────────────────────────────┐
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>│                    Active Instruments                   │
+<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>├────┬────────┬──────┬─────────────┬────────────┬─────────┤
+<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a>│  # │ Symbol │ Tick │ MM Enforced │ Max Spread │ Min Qty │
+<a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a>├────┼────────┼──────┼─────────────┼────────────┼─────────┤
+<a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a>│  1 │ AAPL   │ 0.01 │ YES         │         10 │     100 │
+<a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a>│  2 │ MSFT   │ 0.01 │ NO          │         10 │     100 │
+<a id="__codelineno-33-8" name="__codelineno-33-8" href="#__codelineno-33-8"></a>│  3 │ TSLA   │ 0.01 │ —           │          — │       — │
+<a id="__codelineno-33-9" name="__codelineno-33-9" href="#__codelineno-33-9"></a>└────┴────────┴──────┴─────────────┴────────────┴─────────┘
 </code></pre></div>
 <p>When metadata is available, the columns mean:</p>
 <ul>
@@ -5641,21 +5687,21 @@ startup authentication. If your ID is not listed under <code>gateways.alf</code>
 the engine refuses the connection.</p>
 </div>
 <h3 id="session-query-current-trading-session-state">SESSION — Query Current Trading Session State<a class="headerlink" href="#session-query-current-trading-session-state" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>SESSION
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>SESSION
 </code></pre></div>
 <p>Asks the engine for its current trading session state — <code>PRE_OPEN</code>,
 <code>OPENING_AUCTION</code>, <code>CONTINUOUS</code>, <code>CLOSING_AUCTION</code>, or <code>CLOSED</code> — right now,
 rather than waiting for the next unsolicited session-phase-change event.
 This is the fastest way to discover the current phase immediately after
 connecting or reconnecting.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>[SC01]&gt; SESSION
-<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>[09:31:02.104] SESSION  CONTINUOUS  (normal continuous matching)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>[SC01]&gt; SESSION
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a>[09:31:02.104] SESSION  CONTINUOUS  (normal continuous matching)
 </code></pre></div>
 <p>If session-phase enforcement is disabled for this engine, an additional note
 is printed:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>[SC01]&gt; SESSION
-<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>[09:31:02.104] SESSION  CONTINUOUS  (normal continuous matching)
-<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a>  [sessions gating disabled]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>[SC01]&gt; SESSION
+<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a>[09:31:02.104] SESSION  CONTINUOUS  (normal continuous matching)
+<a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a>  [sessions gating disabled]
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -5665,10 +5711,10 @@ unsolicited whenever the engine's session phase actually changes — see
 simply lets you ask for the current state on demand instead of waiting.</p>
 </div>
 <h3 id="help-command-reference">HELP — Command Reference<a class="headerlink" href="#help-command-reference" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>HELP
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>HELP
 </code></pre></div>
 <h3 id="exit-quit-disconnect">EXIT / QUIT — Disconnect<a class="headerlink" href="#exit-quit-disconnect" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>EXIT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>EXIT
 </code></pre></div>
 <h2 id="reconnect-and-state-re-sync-playbook">Reconnect and state re-sync playbook<a class="headerlink" href="#reconnect-and-state-re-sync-playbook" title="Permanent link">&para;</a></h2>
 <p>After restarting the terminal, rebuild local confidence in state with this sequence.</p>
@@ -5880,30 +5926,30 @@ simply lets you ask for the current state on demand instead of waiting.</p>
 </div>
 <h2 id="end-to-end-operator-walkthrough">End-to-end operator walkthrough<a class="headerlink" href="#end-to-end-operator-walkthrough" title="Permanent link">&para;</a></h2>
 <p>This transcript shows a realistic manual session from connect to disconnect.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a># Start terminal
-<a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a>$ poetry run pm-alf-console --id TRADER01
-<a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a>
-<a id="__codelineno-37-4" name="__codelineno-37-4" href="#__codelineno-37-4"></a>[TRADER01]&gt; SYMBOLS
-<a id="__codelineno-37-5" name="__codelineno-37-5" href="#__codelineno-37-5"></a># confirms AAPL/MSFT active
-<a id="__codelineno-37-6" name="__codelineno-37-6" href="#__codelineno-37-6"></a>
-<a id="__codelineno-37-7" name="__codelineno-37-7" href="#__codelineno-37-7"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001
-<a id="__codelineno-37-8" name="__codelineno-37-8" href="#__codelineno-37-8"></a>[09:30:00.100] ACK  7c4a91e2  order accepted
-<a id="__codelineno-37-9" name="__codelineno-37-9" href="#__codelineno-37-9"></a>
-<a id="__codelineno-37-10" name="__codelineno-37-10" href="#__codelineno-37-10"></a>[TRADER01]&gt; ORDERS
-<a id="__codelineno-37-11" name="__codelineno-37-11" href="#__codelineno-37-11"></a># copy full UUID from table if you plan to amend/cancel
-<a id="__codelineno-37-12" name="__codelineno-37-12" href="#__codelineno-37-12"></a>
-<a id="__codelineno-37-13" name="__codelineno-37-13" href="#__codelineno-37-13"></a>[TRADER01]&gt; AMEND|ID=7c4a91e2-...|PRICE=150.10|RTAG=AMD-001
-<a id="__codelineno-37-14" name="__codelineno-37-14" href="#__codelineno-37-14"></a>[09:30:01.500] AMENDED  7c4a91e2  price=150.1 qty=100 remaining=100 rtag=AMD-001
-<a id="__codelineno-37-15" name="__codelineno-37-15" href="#__codelineno-37-15"></a>
-<a id="__codelineno-37-16" name="__codelineno-37-16" href="#__codelineno-37-16"></a>[09:30:02.200] FILL  7c4a91e2  qty=40 @150.10  remaining=60  [PARTIAL]
-<a id="__codelineno-37-17" name="__codelineno-37-17" href="#__codelineno-37-17"></a>
-<a id="__codelineno-37-18" name="__codelineno-37-18" href="#__codelineno-37-18"></a>[TRADER01]&gt; POS
-<a id="__codelineno-37-19" name="__codelineno-37-19" href="#__codelineno-37-19"></a># exposure now reflects partial fill
-<a id="__codelineno-37-20" name="__codelineno-37-20" href="#__codelineno-37-20"></a>
-<a id="__codelineno-37-21" name="__codelineno-37-21" href="#__codelineno-37-21"></a>[TRADER01]&gt; CANCEL|ID=7c4a91e2-...
-<a id="__codelineno-37-22" name="__codelineno-37-22" href="#__codelineno-37-22"></a>[09:30:03.000] CANCELLED  7c4a91e2
-<a id="__codelineno-37-23" name="__codelineno-37-23" href="#__codelineno-37-23"></a>
-<a id="__codelineno-37-24" name="__codelineno-37-24" href="#__codelineno-37-24"></a>[TRADER01]&gt; EXIT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a># Start terminal
+<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>$ poetry run pm-alf-console --id TRADER01
+<a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a>
+<a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a>[TRADER01]&gt; SYMBOLS
+<a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a># confirms AAPL/MSFT active
+<a id="__codelineno-39-6" name="__codelineno-39-6" href="#__codelineno-39-6"></a>
+<a id="__codelineno-39-7" name="__codelineno-39-7" href="#__codelineno-39-7"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001
+<a id="__codelineno-39-8" name="__codelineno-39-8" href="#__codelineno-39-8"></a>[09:30:00.100] ACK  7c4a91e2  order accepted
+<a id="__codelineno-39-9" name="__codelineno-39-9" href="#__codelineno-39-9"></a>
+<a id="__codelineno-39-10" name="__codelineno-39-10" href="#__codelineno-39-10"></a>[TRADER01]&gt; ORDERS
+<a id="__codelineno-39-11" name="__codelineno-39-11" href="#__codelineno-39-11"></a># copy full UUID from table if you plan to amend/cancel
+<a id="__codelineno-39-12" name="__codelineno-39-12" href="#__codelineno-39-12"></a>
+<a id="__codelineno-39-13" name="__codelineno-39-13" href="#__codelineno-39-13"></a>[TRADER01]&gt; AMEND|ID=7c4a91e2-...|PRICE=150.10|RTAG=AMD-001
+<a id="__codelineno-39-14" name="__codelineno-39-14" href="#__codelineno-39-14"></a>[09:30:01.500] AMENDED  7c4a91e2  price=150.1 qty=100 remaining=100 rtag=AMD-001
+<a id="__codelineno-39-15" name="__codelineno-39-15" href="#__codelineno-39-15"></a>
+<a id="__codelineno-39-16" name="__codelineno-39-16" href="#__codelineno-39-16"></a>[09:30:02.200] FILL  7c4a91e2  qty=40 @150.10  remaining=60  [PARTIAL]
+<a id="__codelineno-39-17" name="__codelineno-39-17" href="#__codelineno-39-17"></a>
+<a id="__codelineno-39-18" name="__codelineno-39-18" href="#__codelineno-39-18"></a>[TRADER01]&gt; POS
+<a id="__codelineno-39-19" name="__codelineno-39-19" href="#__codelineno-39-19"></a># exposure now reflects partial fill
+<a id="__codelineno-39-20" name="__codelineno-39-20" href="#__codelineno-39-20"></a>
+<a id="__codelineno-39-21" name="__codelineno-39-21" href="#__codelineno-39-21"></a>[TRADER01]&gt; CANCEL|ID=7c4a91e2-...
+<a id="__codelineno-39-22" name="__codelineno-39-22" href="#__codelineno-39-22"></a>[09:30:03.000] CANCELLED  7c4a91e2
+<a id="__codelineno-39-23" name="__codelineno-39-23" href="#__codelineno-39-23"></a>
+<a id="__codelineno-39-24" name="__codelineno-39-24" href="#__codelineno-39-24"></a>[TRADER01]&gt; EXIT
 </code></pre></div>
 <p>Recommended habits:</p>
 <ul>
@@ -5913,14 +5959,14 @@ simply lets you ask for the current state on demand instead of waiting.</p>
 </ul>
 <h2 id="multiple-pm-alf-console-sessions">Multiple <code>pm-alf-console</code> Sessions<a class="headerlink" href="#multiple-pm-alf-console-sessions" title="Permanent link">&para;</a></h2>
 <p>Run as many sessions as needed — each in its own terminal window:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a><span class="c1"># Terminal A</span>
-<a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
-<a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a>
-<a id="__codelineno-38-4" name="__codelineno-38-4" href="#__codelineno-38-4"></a><span class="c1"># Terminal B  </span>
-<a id="__codelineno-38-5" name="__codelineno-38-5" href="#__codelineno-38-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER02
-<a id="__codelineno-38-6" name="__codelineno-38-6" href="#__codelineno-38-6"></a>
-<a id="__codelineno-38-7" name="__codelineno-38-7" href="#__codelineno-38-7"></a><span class="c1"># Terminal C</span>
-<a id="__codelineno-38-8" name="__codelineno-38-8" href="#__codelineno-38-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER03
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a><span class="c1"># Terminal A</span>
+<a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
+<a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a>
+<a id="__codelineno-40-4" name="__codelineno-40-4" href="#__codelineno-40-4"></a><span class="c1"># Terminal B  </span>
+<a id="__codelineno-40-5" name="__codelineno-40-5" href="#__codelineno-40-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER02
+<a id="__codelineno-40-6" name="__codelineno-40-6" href="#__codelineno-40-6"></a>
+<a id="__codelineno-40-7" name="__codelineno-40-7" href="#__codelineno-40-7"></a><span class="c1"># Terminal C</span>
+<a id="__codelineno-40-8" name="__codelineno-40-8" href="#__codelineno-40-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER03
 </code></pre></div>
 <p>Before starting a new gateway ID (for example <code>TRADER03</code>), add it to
 <code>engine_config.yaml</code> in <code>gateways.alf</code> and restart the engine.</p>
