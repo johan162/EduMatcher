@@ -163,5 +163,5 @@ write(sockfd, buf, strlen(buf));
 | P&L / POS | From local fill tracking | From local fill tracking |
 | `POS\|GW=<id>` (query another gateway) | Yes | Yes |
 | STATUS | Rich terminal display | Text table |
-| QLEGS | Yes (local cache) | Not available |
+| QLEGS | Yes (local cache) | Yes (engine round trip) |
 | Tab completion | Full context-aware | Commands, fields, enums |

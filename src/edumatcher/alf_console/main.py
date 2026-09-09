@@ -49,7 +49,7 @@ Commands
 from __future__ import annotations
 
 import argparse
-from collections import defaultdict
+from collections import defaultdict, deque
 import logging
 import threading
 import time
@@ -322,6 +322,10 @@ class Gateway:
             {}
         )  # order_id → quote leg state
         self._quote_id_by_order_id: dict[str, str] = {}  # order_id → quote_id
+        # quote.ack carries no symbol/qty (only quote_id/bid_order_id/
+        # ask_order_id) — resolved via the send-order FIFO populated in
+        # _send_quote, mirroring mm_bot.bot._pending_ack_symbols.
+        self._pending_quote_requests: deque[dict[str, Any]] = deque()
         self._known_symbols: list[str] = []
         self._positions: dict[str, dict[str, Any]] = (
             {}
@@ -488,6 +492,7 @@ class Gateway:
         remaining_qty: int,
         status: str,
         event_time: str,
+        price: float | None = None,
         quote_status: str = "",
     ) -> None:
         existing = self.quote_leg_cache.get(order_id, {})
@@ -497,6 +502,7 @@ class Gateway:
             "quote_id": quote_id,
             "symbol": symbol,
             "leg_side": leg_side,
+            "price": price if price is not None else existing.get("price"),
             "qty": quantity,
             "remaining": remaining_qty,
             "filled": filled_qty,
@@ -531,6 +537,7 @@ class Gateway:
         side: str,
         qty: int | None,
         event_time: str,
+        price: float | None = None,
     ) -> None:
         if order_id in self.quote_leg_cache:
             row = self.quote_leg_cache[order_id]
@@ -539,6 +546,8 @@ class Gateway:
             row["filled"] = int(row.get("filled", 0)) + fill_qty
             if qty is not None and int(row.get("qty", 0)) <= 0:
                 row["qty"] = qty
+            if price is not None and not row.get("price"):
+                row["price"] = price
             row["last_event_time"] = event_time
             return
 
@@ -553,6 +562,7 @@ class Gateway:
             remaining_qty=remaining_qty,
             status=status,
             event_time=event_time,
+            price=price,
         )
         self.quote_leg_cache[order_id]["filled"] = fill_qty
 
@@ -754,6 +764,9 @@ class Gateway:
             price = payload.get("fill_price")
             rem = payload.get("remaining_qty")
             status = payload.get("status")
+            order_price = payload.get(
+                "price"
+            )  # resting leg's own limit price, not fill_price
             console.print(
                 f"[{ts}] [cyan]FILL[/cyan]      {oid}  qty={qty} @{price}  remaining={rem}  [{status}]"
             )
@@ -784,6 +797,9 @@ class Gateway:
                     side=side,
                     qty=qty_total if isinstance(qty_total, int) else None,
                     event_time=ts,
+                    price=(
+                        order_price if isinstance(order_price, (int, float)) else None
+                    ),
                 )
 
         elif "order.cancelled" in topic:
@@ -903,6 +919,7 @@ class Gateway:
                     quantity = int(od.get("quantity") or 0)
                     remaining = int(od.get("remaining_qty") or 0)
                     status = str(od.get("status") or "NEW")
+                    leg_price = od.get("price")
                     self._upsert_quote_leg(
                         order_id=oid,
                         quote_id=quote_id,
@@ -912,6 +929,9 @@ class Gateway:
                         remaining_qty=remaining,
                         status=status,
                         event_time=ts,
+                        price=(
+                            leg_price if isinstance(leg_price, (int, float)) else None
+                        ),
                     )
 
         elif "combo.ack" in topic:
@@ -960,12 +980,23 @@ class Gateway:
 
         elif "quote.ack" in topic:
             quote_id = payload.get("quote_id", "?")
+            pending_req = (
+                self._pending_quote_requests.popleft()
+                if self._pending_quote_requests
+                else {}
+            )
             if payload.get("accepted"):
                 bid_id = payload.get("bid_order_id", "")[:8]
                 ask_id = payload.get("ask_order_id", "")[:8]
                 console.print(
                     f"[{ts}] [green]QUOTE ACK[/green]  {quote_id}  bid={bid_id} ask={ask_id}"
                 )
+
+                req_symbol = str(pending_req.get("symbol", "?"))
+                bid_qty = int(pending_req.get("bid_qty", 0))
+                ask_qty = int(pending_req.get("ask_qty", 0))
+                req_bid_price = pending_req.get("bid_px")
+                req_ask_price = pending_req.get("ask_px")
 
                 full_bid = payload.get("bid_order_id", "")
                 full_ask = payload.get("ask_order_id", "")
@@ -978,12 +1009,13 @@ class Gateway:
                         self._upsert_quote_leg(
                             order_id=full_bid,
                             quote_id=str(quote_id),
-                            symbol="?",
+                            symbol=req_symbol,
                             leg_side="BUY",
-                            quantity=0,
-                            remaining_qty=0,
-                            status="PENDING",
+                            quantity=bid_qty,
+                            remaining_qty=bid_qty,
+                            status="NEW",
                             event_time=ts,
+                            price=req_bid_price,
                         )
 
                 if isinstance(full_ask, str) and full_ask:
@@ -995,12 +1027,13 @@ class Gateway:
                         self._upsert_quote_leg(
                             order_id=full_ask,
                             quote_id=str(quote_id),
-                            symbol="?",
+                            symbol=req_symbol,
                             leg_side="SELL",
-                            quantity=0,
-                            remaining_qty=0,
-                            status="PENDING",
+                            quantity=ask_qty,
+                            remaining_qty=ask_qty,
+                            status="NEW",
                             event_time=ts,
+                            price=req_ask_price,
                         )
             else:
                 console.print(
@@ -1454,6 +1487,15 @@ class Gateway:
         if quote_id:
             payload["quote_id"] = quote_id
 
+        self._pending_quote_requests.append(
+            {
+                "symbol": symbol,
+                "bid_px": bid_price,
+                "ask_px": ask_price,
+                "bid_qty": bid_qty,
+                "ask_qty": ask_qty,
+            }
+        )
         self._send(self.push_sock, make_quote_new_msg(payload))
         self._dbg_count("quotes_submitted")
 

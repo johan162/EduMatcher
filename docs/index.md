@@ -90,11 +90,11 @@ It complements the User Guide by turning concepts into guided exercises that you
 
 If you want direct entry points, start with:
 
-- [Installation](training/00-installation.md)
-- [Configuring Startup](training/01-configuring-startup.md)
-- [The First Trade](training/03-the-first-trade.md)
-- [Auctions](training/07-auctions.md)
-- [Risk Controls](training/11-risk-controls.md)
+- [Installation](training/000-installation.md)
+- [Configuring Startup](training/010-configuring-startup.md)
+- [The First Trade](training/030-the-first-trade.md)
+- [Auctions](training/070-auctions.md)
+- [Risk Controls](training/110-risk-controls.md)
 
 > Next step: Use [Training Index](training/index.md) as your checklist and cross-reference each chapter with the matching [User Guide](user-guide/000-getting-started.md) section.
 

@@ -139,7 +139,7 @@ class _BalfClient:
                 return body
         raise TimeoutError(f"never received msg_type 0x{expected_type:02X}")
 
-    def is_closed(self, timeout: float = 1.5) -> bool:
+    def is_closed(self, timeout: float = 10.0) -> bool:
         try:
             self._sock.settimeout(timeout)
             return self._sock.recv(1) == b""

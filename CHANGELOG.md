@@ -1,3 +1,22 @@
+## [v0.33.1] - 2026-09-09
+
+Release Type: patch
+
+### 📋 Summary
+This patch release improves local gateway quote-leg reporting and tightens
+test and documentation reliability.
+
+### 🐛 Bug Fixes
+- Fixed `QLEGS` output missing the symbol, quantity, and price for cached quote legs
+- Fixed test failures caused by ambiguous dictionary keys and timing races on slower CI environments
+
+### 📚 Documentation
+- Fixed broken links across the user guide and training documentation
+
+### 🛠 Internal
+- Added `QLEGS` support to the example ALF clients
+
+
 ## [v0.33.0] - 2026-09-09
 
 Release Type: minor
