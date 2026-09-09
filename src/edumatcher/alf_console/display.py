@@ -159,6 +159,7 @@ def print_quote_legs(
     t.add_column("Quote", style="cyan")
     t.add_column("Leg", style="magenta")
     t.add_column("Order", style="dim", width=10)
+    t.add_column("Price", justify="right")
     t.add_column("Qty", justify="right")
     t.add_column("Rem", justify="right")
     t.add_column("Filled", justify="right")
@@ -181,11 +182,14 @@ def print_quote_legs(
         colour = status_colour.get(leg_status, "white")
         filled_qty = int(row.get("filled", 0))
         fill_flag = "YES" if filled_qty > 0 else "NO"
+        price = row.get("price")
+        price_text = f"{price:.2f}" if isinstance(price, (int, float)) else "—"
         t.add_row(
             str(row.get("symbol", "?")),
             str(row.get("quote_id", "?")),
             str(row.get("leg_side", "?")),
             str(row.get("order_id", "?"))[:8],
+            price_text,
             str(row.get("qty", "?")),
             str(row.get("remaining", "?")),
             str(filled_qty),
