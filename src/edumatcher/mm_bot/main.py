@@ -74,6 +74,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Total spread in price units (default: 0.10)",
     )
     parser.add_argument(
+        "--max-position",
+        type=int,
+        default=None,
+        help=(
+            "Net position (either direction) at which inventory skewing "
+            "saturates. Required when --strategy inventory_skew; unused "
+            "by every other strategy"
+        ),
+    )
+    parser.add_argument(
         "--qty", type=int, default=500, help="Quote size on each leg (default: 500)"
     )
     parser.add_argument(
@@ -308,6 +318,27 @@ def main(argv: list[str] | None = None) -> None:
         )
         raise SystemExit(1)
 
+    if args.strategy == "inventory_skew":
+        if args.max_position is None:
+            log.error(
+                "invalid startup value: --max-position is required when "
+                "--strategy inventory_skew is selected"
+            )
+            raise SystemExit(1)
+        if args.max_position <= 0:
+            log.error(
+                "invalid startup value: --max-position must be positive " "(got %s)",
+                args.max_position,
+            )
+            raise SystemExit(1)
+    elif args.max_position is not None:
+        log.error(
+            "invalid startup value: --max-position is only meaningful with "
+            "--strategy inventory_skew (got --strategy %s)",
+            args.strategy,
+        )
+        raise SystemExit(1)
+
     symbol_list = (
         [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
         if args.symbols
@@ -351,6 +382,7 @@ def main(argv: list[str] | None = None) -> None:
             strategy=args.strategy,
             gap=args.gap,
             gap_was_explicit=gap_was_explicit,
+            max_position=args.max_position,
             qty=args.qty,
             drift_ticks=args.drift_ticks,
             reissue_delay_ms=args.reissue_delay_ms,

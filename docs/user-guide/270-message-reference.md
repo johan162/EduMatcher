@@ -536,6 +536,8 @@ Every topic in the system, and which process puts it on the wire.
 | `risk.circuit_breaker_halt_all_ack.{gateway_id}` | `risk` | `engine` |
 | `risk.circuit_breaker_resume_all` | `risk` | `admin` |
 | `risk.circuit_breaker_resume_all_ack.{gateway_id}` | `risk` | `engine` |
+| `risk.force_uncross` | `risk` | `admin` |
+| `risk.force_uncross_ack.{gateway_id}` | `risk` | `engine` |
 | `risk.kill_switch` | `risk` | `admin`, `api_gateway`, `gateway` |
 | `risk.kill_switch_ack.{gateway_id}` | `risk` | `engine` |
 | `risk.kill_switch_gateway` | `risk` | `api_gateway` |
@@ -613,7 +615,7 @@ Engine to the admin monitor: one admin-gated command ran, who ran it, what it ac
 | `gateway_id` | `string` | required | max_len 32 | The ADMIN caller. Topic-only; the body says the same thing as `initiator_gateway_id`. |
 | `command_id` | `string` | required | max_len 64 |  |
 | `initiator_gateway_id` | `string` | required | max_len 32 |  |
-| `action` | enum: `kill_switch.self`, `kill_switch.gateway`, `kill_switch.global`, `kill_switch.symbol`, `circuit_breaker.trigger`, `circuit_breaker.resume` | required | — | Which command ran. The six the engine publishes, enumerated rather than left a free string: a seventh admin command that forgets to declare itself here fails loudly at its first invocation, which is better than appearing in the monitor as a value no client renders. The values look like topics and are not: `circuit_breaker.trigger` is the action behind `risk.symbol_halt`, and there is no `circuit_breaker.trigger` topic anywhere. |
+| `action` | enum: `kill_switch.self`, `kill_switch.gateway`, `kill_switch.global`, `kill_switch.symbol`, `circuit_breaker.trigger`, `circuit_breaker.resume`, `auction.reopen` | required | — | Which command ran. The seven the engine publishes, enumerated rather than left a free string: an eighth admin command that forgets to declare itself here fails loudly at its first invocation, which is better than appearing in the monitor as a value no client renders. The values look like topics and are not: `circuit_breaker.trigger` is the action behind `risk.symbol_halt`, and there is no `circuit_breaker.trigger` topic anywhere. `auction.reopen` is the action behind `risk.force_uncross`. |
 | `scope` | [`AdminActionScope`](#adminactionscope) | required | — |  |
 | `accepted` | `bool` | required | — |  |
 | `reason` | `string` | defaults to `''` | max_len 512 | Why it was rejected; "" on an accepted action. |
@@ -687,11 +689,11 @@ Engine to all: one symbol's uncross has completed. Published for every uncross, 
 | `trades_count` | `int` | required | ge 0, unit `dimensionless` | How many trades the uncross printed. |
 | `imbalance_side` | enum: `BUY`, `SELL` | omitted when unset | — | Which side was left unfilled. Absent when the book was balanced at the uncross price. |
 | `imbalance_qty` | `int` | required | ge 0, unit `shares` | Surplus on `imbalance_side`; zero when balanced. |
-| `reason` | enum: `SCHEDULED`, `REOPEN`, `RECOVERY`, `BACKSTOP` | required | — | Which of the four uncross paths produced this event. |
+| `reason` | enum: `SCHEDULED`, `REOPEN`, `RECOVERY`, `BACKSTOP`, `ADMIN_MANUAL` | required | — | Which of the five uncross paths produced this event. |
 
 !!! note
 
-    `reason` says which uncross this was, because the four are otherwise indistinguishable to a consumer and a client cannot tell a circuit breaker reopening from the closing one: SCHEDULED - leaving an auction or other non-matching session phase REOPEN - a halted symbol reopening at the end of its halt RECOVERY - restored GTC orders uncrossed at engine startup BACKSTOP - the closing backstop forcing a still-halted symbol to reopen, printing at the corridor boundary rather than at the outlying equilibrium There is no persistent state to snapshot here, unlike TOP or DEPTH: every event is forwarded as its own independent CALF event.
+    `reason` says which uncross this was, because the five are otherwise indistinguishable to a consumer and a client cannot tell a circuit breaker reopening from the closing one: SCHEDULED - leaving an auction or other non-matching session phase REOPEN - a halted symbol reopening at the end of its halt RECOVERY - restored GTC orders uncrossed at engine startup BACKSTOP - the closing backstop forcing a still-halted symbol to reopen, printing at the corridor boundary rather than at the outlying equilibrium ADMIN_MANUAL - an operator force-uncrossed one symbol via `pm-admin-cli reopen`, optionally asserting the print price when no natural equilibrium exists There is no persistent state to snapshot here, unlike TOP or DEPTH: every event is forwarded as its own independent CALF event.
 
 **See also:** `auction.indicative.{SYMBOL}`, `trade.executed`
 
@@ -2613,6 +2615,68 @@ Engine to ADMIN: what the symbol-wide mass cancel removed.
 | `cancelled_orders` | `int` | defaults to `0` | ge 0, unit `dimensionless` |  |
 | `cancelled_quotes` | `int` | defaults to `0` | ge 0, unit `dimensionless` |  |
 | `command_id` | `string` | omitted when empty | max_len 64 |  |
+
+### `risk.force_uncross`
+
+**Published by:** `admin`
+
+**Transport:** `engine_pub`
+
+**Since:** 1.0
+
+ADMIN to engine: force one symbol to uncross now, optionally asserting the print price, and clear any halt in the same step. The operational recovery for an auction that failed to discover a price - see risk.cancel_symbol for the "abandon and re-collect" alternative.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `gateway_id` | `string` | required | max_len 32 |  |
+| `symbol` | `string` | required | max_len 16 |  |
+| `price` | `float` | omitted when unset | gt 0, unit `display_price` | Operator print price; null opens at the computed equilibrium. |
+| `dry_run` | `bool` | defaults to `False` | — | Peek the indicative print without changing any state. |
+| `note` | `string` | omitted when empty | max_len 256 | Free-text reason, recorded on the admin monitor. |
+| `command_id` | `string` | omitted when empty | max_len 64 |  |
+
+!!! note
+
+    `price` is null to open at the naturally computed equilibrium, or a value to assert an operator opening price when no natural equilibrium exists (a failed-auction recovery).
+
+    It is nullable rather than a sentinel because "no price given" and "a price of zero" are different requests, exactly as auction.result's `eq_price` is null-not-zero.
+
+    `dry_run` peeks the indicative print without mutating any state: no halt is cleared, no uncross runs.
+
+    It is the on-demand replacement for the auction.indicative feed, which is push-only and skips halted symbols, so an operator would otherwise set `price` blind.
+
+**See also:** `risk.symbol_resume`, `risk.cancel_symbol`, `auction.result.{SYMBOL}`
+
+### `risk.force_uncross_ack.{gateway_id}`
+
+**Published by:** `engine`
+
+**Transport:** `engine_pub`
+
+**Since:** 1.0
+
+Engine to ADMIN: the outcome of a force-uncross. On a dry run it carries the indicative figures only; on a live run it also reports what actually printed.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `gateway_id` | `string` | required | max_len 32 |  |
+| `accepted` | `bool` | required | — |  |
+| `symbol` | `string` | defaults to `''` | max_len 16 |  |
+| `reason` | `string` | defaults to `''` | max_len 512 |  |
+| `dry_run` | `bool` | defaults to `False` | — | True when this ack answers a peek rather than a live uncross. |
+| `indicative_price` | `float` | `null` when unset | gt 0, unit `display_price` | Indicative equilibrium, or null if the book would not cross. |
+| `indicative_qty` | `int` | defaults to `0` | ge 0, unit `shares` | Quantity that would execute at the indicative price. |
+| `surplus` | `int` | defaults to `0` | ge 0, unit `shares` | Surplus on `imbalance_side`; zero when balanced. |
+| `imbalance_side` | enum: `BUY`, `SELL` | omitted when unset | — | Which side would be left unfilled; absent when balanced. |
+| `printed_price` | `float` | `null` when unset | gt 0, unit `display_price` | Live-run print price, or null on a dry run or rejection. |
+| `traded_qty` | `int` | defaults to `0` | ge 0, unit `shares` | Quantity that actually executed on a live run. |
+| `command_id` | `string` | omitted when empty | max_len 64 |  |
+
+!!! note
+
+    `indicative_*` mirror auction.indicative: `indicative_price` is null when the book would not cross.
+
+    `printed_price` and `traded_qty` are the live-run outcome and stay at null/zero on a dry run or a rejection.
 
 ### `risk.circuit_breaker_halt_all`
 

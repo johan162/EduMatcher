@@ -286,9 +286,9 @@ on every `self.xxx` reference inside the matching loop.
 
 ### The Data Structures
 
-The `OrderBook` maintains ten distinct data structures. Each answers a different
-question. They are all updated in sync — if you update one, you must update the
-others. This is the key discipline of the order book implementation.
+The `OrderBook` maintains eleven distinct data structures. Each answers a
+different question. They are all updated in sync — if you update one, you must
+update the others. This is the key discipline of the order book implementation.
 
 
 
@@ -401,6 +401,54 @@ filter then checks whether each level is within the order's limit price.
 
 **Depth snapshots** — computing the available depth at a range of prices iterates
 this index rather than the heap, avoiding the O(n) cost of scanning all heap entries.
+
+
+
+####  `_orders_by_gateway` — Which Resting Orders Belong to This Gateway?
+
+```python
+self._orders_by_gateway: dict[str, set[str]] = {}   # gateway_id → order_ids
+```
+
+Every other structure on this page answers a question shaped like "what does the
+book look like right now" — best price, total quantity, an order by its own ID.
+This one answers a different shape of question: **"which of gateway G's orders,
+of any type, are currently resting in this specific book?"**
+
+That question comes up in two places. A market maker's `QUOTE` message replaces a
+bid/ask pair as one atomic operation, and after a partial fill the engine has to
+find the leftover resting leg to retire it on the next reissue — see
+`docs/architecture/02-architecture-guide.md` §10 for that story in full. And when
+a gateway disconnects, or an admin fires a kill switch, the engine has to cancel
+that one gateway's resting orders — and only that gateway's — without touching
+anyone else's.
+
+The naive way to answer either question is to scan every resting order in the
+book and filter by `gateway_id` in Python — an O(n) walk of the whole book for a
+question about one gateway's small slice of it. `_orders_by_gateway` turns that
+into an O(k) lookup, where k is that one gateway's resting order count:
+
+```python
+def orders_for_gateway(self, gateway_id: str) -> list[Order]:
+    order_ids = self._orders_by_gateway.get(gateway_id, ())
+    return [self._order_index[oid] for oid in order_ids]
+```
+
+It is maintained by the same discipline as every index on this page: every
+funnel that can start an order resting adds to it (`_rest()` for plain and
+quote-leg `LIMIT` orders, `_add_stop()` for `STOP`/`STOP_LIMIT`,
+`_add_trailing_stop()` for `TRAILING_STOP`), and every funnel that can stop an
+order resting removes from it — including the two places a *triggered* stop is
+popped directly out of `_order_index` in `_check_stops()` /
+`_check_trailing_stops()` (see "Stop Orders — Two Heaps" and "Trailing Stops —
+The Ratchet" below), which would otherwise leak an entry every time a triggered
+`STOP` matched immediately and never rested again.
+
+**Why per-book rather than one engine-wide index?** Because the question is
+always "in this book" — a gateway-disconnect sweep still has to visit every
+symbol's `OrderBook` regardless (a gateway can rest orders on many symbols at
+once), so the index lives at the same granularity as `_order_index` and
+`_entry_index` right next to it, not duplicated globally.
 
 ### Iceberg Orders and the FOK Undercount
 
@@ -757,6 +805,19 @@ Why this must be in/next to the hot path:
 - This is emergency brake functionality; latency to cancel matters.
 - It bounds risk from broken algos, network partitions, or runaway quoting.
 - A slow/offline reconciliation loop is not an acceptable substitute.
+
+"Latency to cancel matters" cuts both ways: cancelling one gateway's orders fast
+is the point, but doing it by scanning every resting order in every book — most
+of which belong to other gateways entirely — would itself introduce the latency
+this control exists to avoid. `_orders_by_gateway` (see "The Data Structures"
+above) is what keeps that sweep at O(k) per book (k = the disconnecting or
+kill-switched gateway's own resting order count) instead of O(n) (every resting
+order, every gateway, every symbol). On a real exchange, walking the full book
+on every disconnect would mean a broken gateway's mass-cancel blocks the single
+matching thread for however long that scan takes — turning an emergency brake
+into a stall that also freezes every *other* gateway's trading for its duration.
+That is not a performance nitpick on a real venue; it is the kind of engine-wide
+outage a mass-cancel path exists to prevent, not cause.
 
 ###  Circuit-breaker monitor (post-trade in the hot path)
 
@@ -1226,6 +1287,14 @@ This makes stop checking O(1) in the common case (no stops triggered) and O(k lo
 when k stops fire. A naive linear scan over all pending stops would be O(s) on every
 trade, where s is the total number of pending stops.
 
+The elided `...` above a real bookkeeping step: a triggered stop is popped out of
+`_order_index` (and, since a triggered stop that matches immediately never rests
+again, out of `_orders_by_gateway` too — see that structure's entry above) right
+there in `_check_stops`, before the converted order is handed back to `process()`.
+A `STOP_LIMIT` that converts to `LIMIT` and goes on to rest re-adds itself through
+the normal `_rest()` call a moment later; a `STOP` that converts to `MARKET` and
+fills immediately does not, so this is the only place that removal happens for it.
+
 
 
 ## Trailing Stops — The Ratchet
@@ -1268,6 +1337,11 @@ trade, but trailing stop lists are typically short.
 In EduMatcher, both `trade_price` and `order.trail_offset` are integer tick counts,
 so the subtraction `candidate = trade_price - order.trail_offset` is exact integer
 arithmetic with no floating-point drift.
+
+Like a triggered `STOP`/`STOP_LIMIT`, a triggered trailing stop is popped out of
+`_order_index` (and `_orders_by_gateway`) directly inside `_check_trailing_stops`
+at the moment it converts to `MARKET` — the elided `...` above. It never returns
+to this list once triggered.
 
 
 
@@ -1339,6 +1413,7 @@ state.
 | `_entry_index` | Dict | `order_id` | `_HeapEntry` | O(1) lazy deletion |
 | `_bid_qty` | Dict | `price_ticks` | `int` | O(P) depth / FOK check |
 | `_ask_qty` | Dict | `price_ticks` | `int` | O(P) depth / FOK check |
+| `_orders_by_gateway` | Dict | `gateway_id` | `set[order_id]` | O(k) resting orders for one gateway (quote reissue, disconnect/kill-switch cancel) |
 | `recent_trades` | Deque | — | `Trade` | Rolling last-20-trades window (snapshot currently publishes last 5) |
 
 
@@ -1357,7 +1432,9 @@ state.
 | Depth metrics | O(P) | iterate qty index only |
 | Stop trigger check | O(1) amortised | heap peek + early break when top hasn't triggered |
 | Stop trigger (k fired) | O(k log k) | k heappops + recursive `process()` call |
+| Resting orders for one gateway | O(k) | `_orders_by_gateway` lookup, k = that gateway's resting count in this book |
 
-Where n = total resting orders, P = distinct price levels (typically P << n).
+Where n = total resting orders, P = distinct price levels (typically P << n), k =
+one gateway's resting order count (typically k << n).
 
 [Glossary →](../glossary.md)

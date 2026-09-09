@@ -16,11 +16,14 @@ Commands
   KILL|GW=<gw>[|SYM=<sym>]     — cancel all orders/quotes for a gateway
   KICK|GW=<gw>[|REASON=<text>] — forcefully disconnect a gateway
   QCANCEL|GW=<gw>|SYM=<sym>    — cancel the active quote for a gateway on one symbol
+  REOPEN|SYM=<sym>[|PRICE=<px>][|DRY_RUN=1][|NOTE=<text>]
+                                — force one symbol to uncross now, clearing any halt
   BOOK|SYM=<sym>                — print L1/L2 order-book snapshot
   ORDERS|GW=<gw>                — list resting orders for a gateway
   LEVEL|SYM=<sym>[|PRICE=<px>]  — show every resting order making up a symbol
                                    (or one price level), across all gateways
   SYMBOLS                       — list all instruments configured in the engine
+  POSITION|GW=<gw>[|SYM=<sym>,..] — net position, avg cost, live bid/ask/spread/mid
   SESSION|STATE=<state>         — advance session phase
   HELP                          — show this reference
   EXIT / QUIT                   — disconnect
@@ -29,6 +32,7 @@ Commands
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import sys
 from typing import Any, Callable
@@ -111,6 +115,7 @@ _TOP_CMDS = [
     "HALT_SYM",
     "RESUME_SYM",
     "CANCEL_SYM",
+    "REOPEN",
     "KILL",
     "KICK",
     "QCANCEL",
@@ -123,6 +128,7 @@ _TOP_CMDS = [
     "SCHEDULE",
     "GATEWAYS",
     "VOLUME",
+    "POSITION",
     "HELP",
     "EXIT",
     "QUIT",
@@ -133,6 +139,7 @@ _CMD_FIELDS: dict[str, list[str]] = {
     "HALT_SYM": ["SYM="],
     "RESUME_SYM": ["SYM="],
     "CANCEL_SYM": ["SYM="],
+    "REOPEN": ["SYM=", "PRICE=", "DRY_RUN=", "NOTE="],
     "KILL": ["GW=", "SYM="],
     "KICK": ["GW=", "REASON="],
     "QCANCEL": ["GW=", "SYM="],
@@ -140,6 +147,7 @@ _CMD_FIELDS: dict[str, list[str]] = {
     "ORDERS": ["GW="],
     "LEVEL": ["SYM=", "PRICE="],
     "SESSION": ["STATE="],
+    "POSITION": ["GW=", "SYM="],
 }
 
 _HELP_TEXT = """
@@ -151,6 +159,14 @@ _HELP_TEXT = """
   HALT_SYM|SYM=<sym>            — halt trading on a single symbol only
   RESUME_SYM|SYM=<sym>          — resume a single symbol halted by HALT_SYM or a circuit breaker
   CANCEL_SYM|SYM=<sym>          — cancel ALL resting orders on <sym> across every gateway
+  REOPEN|SYM=<sym>[|PRICE=<px>][|DRY_RUN=1][|NOTE=<text>]
+                                — force <sym> to uncross now and clear any halt in one
+                                   step. Omit PRICE to open at the computed equilibrium,
+                                   or set it to assert an operator opening price for a
+                                   failed auction. DRY_RUN=1 peeks the indicative print
+                                   without changing any state. ADMIN only.
+                                   e.g.  REOPEN|SYM=AAPL|DRY_RUN=1
+                                         REOPEN|SYM=AAPL|PRICE=100.00|NOTE=manual open
 
   KILL|GW=<gw>[|SYM=<sym>]     — cancel all resting orders and the active quote for <gw>
                                    (add SYM= to scope to a single instrument)
@@ -170,6 +186,13 @@ _HELP_TEXT = """
                                    e.g.  LEVEL|SYM=AAPL
                                          LEVEL|SYM=AAPL|PRICE=189.50
   SYMBOLS                       — list all instruments configured in the engine
+
+  POSITION|GW=<gw>[|SYM=<sym>,..] — show net position, avg cost, and live
+                                   bid/ask/spread/mid per symbol for gateway <gw>
+                                   (SYM= narrows to one or more comma-separated
+                                   symbols). Works for any gateway, MM bots included.
+                                   e.g.  POSITION|GW=MM_AAPL_01
+                                         POSITION|GW=MM_AAPL_01|SYM=AAPL,MSFT
 
   SESSION|STATE=<state>         — request a session-phase transition
     Valid states: PRE_OPEN  OPENING_AUCTION  CONTINUOUS  CLOSING_AUCTION  CLOSED
@@ -378,6 +401,42 @@ def _print_symbols(symbols: list[str]) -> None:
     console.print(t)
 
 
+def _print_position(gw: str, rows: list[dict[str, Any]]) -> None:
+    """Render combined position + live-quote data for one gateway.
+
+    Each *rows* entry has ``symbol``, ``net_qty``, ``avg_cost`` (from
+    ``position_snapshot``) merged with ``bid_price``/``ask_price`` (from
+    ``quote_bootstrap``, when the gateway has an active quote on that
+    symbol) plus derived ``spread``/``mid``. A plain text layout is used
+    here rather than a rich table -- table formatting is deferred.
+    """
+    if not rows:
+        console.print(f"[dim]No position or active quotes for {gw}[/dim]")
+        return
+
+    for row in rows:
+        sym = row.get("symbol", "?")
+        net_qty = row.get("net_qty", 0)
+        avg_cost = row.get("avg_cost", 0.0)
+        bid = row.get("bid_price")
+        ask = row.get("ask_price")
+        qty_col = "green" if net_qty > 0 else ("red" if net_qty < 0 else "dim")
+        console.print(f"[bold]{sym}[/bold]")
+        console.print(
+            f"  Position : [{qty_col}]{net_qty:+,}[/{qty_col}]"
+            f"   Avg cost: {avg_cost:.4f}"
+        )
+        if bid is not None and ask is not None:
+            spread = row.get("spread")
+            mid = row.get("mid")
+            console.print(
+                f"  Quote    : bid {bid:.4f}  ask {ask:.4f}"
+                f"   spread {spread:.4f}   mid {mid:.4f}"
+            )
+        else:
+            console.print("  Quote    : [dim](no active quote)[/dim]")
+
+
 def _print_session_status(result: dict[str, Any]) -> None:
     state = result.get("state", "?")
     enabled = result.get("sessions_enabled", False)
@@ -491,27 +550,42 @@ def _print_volume(result: dict[str, Any]) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _report(result: dict[str, Any], accepted_message: str) -> bool:
-    """Print *accepted_message* on success, else a REJECTED line with reason."""
+def _report(
+    result: dict[str, Any], accepted_message: str, *, json_output: bool
+) -> tuple[bool, dict[str, Any]]:
+    """Print *accepted_message* on success, else a REJECTED line with reason
+    -- unless *json_output*, in which case *result* is printed as JSON
+    instead and no rich-text line is produced."""
     accepted = bool(result.get("accepted"))
-    if accepted:
+    if json_output:
+        _print_json(result)
+    elif accepted:
         console.print(accepted_message)
     else:
         console.print(f"[red]REJECTED[/red]  {result.get('reason', '')}")
-    return accepted
+    return accepted, result
+
+
+def _print_json(result: Any) -> None:
+    """Print *result* as JSON to stdout, bypassing the rich console so a
+    machine reader gets plain, undecorated output regardless of terminal
+    detection."""
+    print(json.dumps(result, indent=2, default=str))
 
 
 def _cmd_halt(
     client: ExchangeCommandClient,
     fields: dict[str, str],
     symbols_cache: list[str] | None,
-) -> bool:
+    json_output: bool,
+) -> tuple[bool, dict[str, Any]]:
     result = client.halt_all()
     return _report(
         result,
         f"[bold red]HALTED[/bold red]  "
         f"{result.get('halted_symbols', 0)} symbol(s), "
         f"{result.get('cancelled_quotes', 0)} quote leg(s) cancelled",
+        json_output=json_output,
     )
 
 
@@ -519,12 +593,14 @@ def _cmd_resume(
     client: ExchangeCommandClient,
     fields: dict[str, str],
     symbols_cache: list[str] | None,
-) -> bool:
+    json_output: bool,
+) -> tuple[bool, dict[str, Any]]:
     result = client.resume_all()
     return _report(
         result,
         f"[bold green]RESUMED[/bold green]  "
         f"{result.get('resumed_symbols', 0)} symbol(s)",
+        json_output=json_output,
     )
 
 
@@ -532,16 +608,18 @@ def _cmd_halt_sym(
     client: ExchangeCommandClient,
     fields: dict[str, str],
     symbols_cache: list[str] | None,
-) -> bool:
+    json_output: bool,
+) -> tuple[bool, dict[str, Any]]:
     sym = fields.get("SYM", "")
     if not sym:
         console.print("[yellow]Usage:[/yellow]  HALT_SYM|SYM=<sym>")
-        return False
+        return False, {}
     result = client.symbol_halt(sym)
     return _report(
         result,
         f"[bold red]HALTED[/bold red]  {result.get('symbol', sym)}  "
         f"{result.get('cancelled_quotes', 0)} quote leg(s) cancelled",
+        json_output=json_output,
     )
 
 
@@ -549,14 +627,17 @@ def _cmd_resume_sym(
     client: ExchangeCommandClient,
     fields: dict[str, str],
     symbols_cache: list[str] | None,
-) -> bool:
+    json_output: bool,
+) -> tuple[bool, dict[str, Any]]:
     sym = fields.get("SYM", "")
     if not sym:
         console.print("[yellow]Usage:[/yellow]  RESUME_SYM|SYM=<sym>")
-        return False
+        return False, {}
     result = client.symbol_resume(sym)
     return _report(
-        result, f"[bold green]RESUMED[/bold green]  {result.get('symbol', sym)}"
+        result,
+        f"[bold green]RESUMED[/bold green]  {result.get('symbol', sym)}",
+        json_output=json_output,
     )
 
 
@@ -564,101 +645,35 @@ def _cmd_cancel_sym(
     client: ExchangeCommandClient,
     fields: dict[str, str],
     symbols_cache: list[str] | None,
-) -> bool:
+    json_output: bool,
+) -> tuple[bool, dict[str, Any]]:
     sym = fields.get("SYM", "")
     if not sym:
         console.print("[yellow]Usage:[/yellow]  CANCEL_SYM|SYM=<sym>")
-        return False
+        return False, {}
     result = client.cancel_symbol(sym)
     return _report(
         result,
         f"[yellow]CANCEL_SYM OK[/yellow]  {result.get('symbol', sym)}  "
         f"orders={result.get('cancelled_orders', 0)}  "
         f"quotes={result.get('cancelled_quotes', 0)}",
+        json_output=json_output,
     )
 
 
-def _cmd_kill(
+def _cmd_reopen(
     client: ExchangeCommandClient,
     fields: dict[str, str],
     symbols_cache: list[str] | None,
-) -> bool:
-    gw = fields.get("GW", "")
-    if not gw:
-        console.print("[yellow]Usage:[/yellow]  KILL|GW=<gw>[|SYM=<sym>]")
-        return False
-    result = client.kill_switch(gw, symbol=fields.get("SYM", ""))
-    return _report(
-        result,
-        f"[yellow]KILL OK[/yellow]  {gw.upper()}  "
-        f"orders={result.get('cancelled_orders', 0)}  "
-        f"quotes={result.get('cancelled_quotes', 0)}",
-    )
-
-
-def _cmd_kick(
-    client: ExchangeCommandClient,
-    fields: dict[str, str],
-    symbols_cache: list[str] | None,
-) -> bool:
-    gw = fields.get("GW", "")
-    if not gw:
-        console.print("[yellow]Usage:[/yellow]  KICK|GW=<gw>[|REASON=<text>]")
-        return False
-    client.gateway_kick(gw, reason=fields.get("REASON", ""))
-    console.print(f"[yellow]KICK[/yellow]  sent disconnect for {gw.upper()}")
-    return True
-
-
-def _cmd_qcancel(
-    client: ExchangeCommandClient,
-    fields: dict[str, str],
-    symbols_cache: list[str] | None,
-) -> bool:
-    gw = fields.get("GW", "")
-    sym = fields.get("SYM", "")
-    if not gw or not sym:
-        console.print("[yellow]Usage:[/yellow]  QCANCEL|GW=<gw>|SYM=<sym>")
-        return False
-    result = client.quote_cancel(gw, sym)
-    return _report(result, f"[yellow]QCANCEL OK[/yellow]  {gw.upper()}  {sym.upper()}")
-
-
-def _cmd_book(
-    client: ExchangeCommandClient,
-    fields: dict[str, str],
-    symbols_cache: list[str] | None,
-) -> bool:
+    json_output: bool,
+) -> tuple[bool, dict[str, Any]]:
     sym = fields.get("SYM", "")
     if not sym:
-        console.print("[yellow]Usage:[/yellow]  BOOK|SYM=<sym>")
-        return False
-    _print_book(client.book_depth(sym))
-    return True
-
-
-def _cmd_orders(
-    client: ExchangeCommandClient,
-    fields: dict[str, str],
-    symbols_cache: list[str] | None,
-) -> bool:
-    gw = fields.get("GW", "")
-    if not gw:
-        console.print("[yellow]Usage:[/yellow]  ORDERS|GW=<gw>")
-        return False
-    _print_orders(client.order_list(gw), gw.upper())
-    return True
-
-
-def _cmd_level(
-    client: ExchangeCommandClient,
-    fields: dict[str, str],
-    symbols_cache: list[str] | None,
-) -> bool:
-    sym = fields.get("SYM", "")
-    if not sym:
-        console.print("[yellow]Usage:[/yellow]  LEVEL|SYM=<sym>[|PRICE=<px>]")
-        return False
+        console.print(
+            "[yellow]Usage:[/yellow]  "
+            "REOPEN|SYM=<sym>[|PRICE=<px>][|DRY_RUN=1][|NOTE=<text>]"
+        )
+        return False, {}
     price_str = fields.get("PRICE", "")
     price: float | None = None
     if price_str:
@@ -666,89 +681,344 @@ def _cmd_level(
             price = float(price_str)
         except ValueError:
             console.print(f"[red]Invalid PRICE:[/red] {price_str!r} is not a number")
-            return False
+            return False, {}
+    dry_run = fields.get("DRY_RUN", "").lower() in ("1", "true", "yes")
+    note = fields.get("NOTE", "")
+
+    result = client.force_uncross(sym, price, dry_run=dry_run, note=note)
+
+    if json_output:
+        _print_json(result)
+        return bool(result.get("accepted")), result
+
+    accepted = bool(result.get("accepted"))
+    if not accepted:
+        console.print(f"[red]REJECTED[/red]  {result.get('reason', '')}")
+        return False, result
+
+    symbol = result.get("symbol", sym)
+    ind_px = result.get("indicative_price")
+    ind_qty = result.get("indicative_qty", 0)
+    side = result.get("imbalance_side") or "balanced"
+    surplus = result.get("surplus", 0)
+    ind_txt = "no cross" if ind_px is None else f"{ind_px} x {ind_qty}"
+    if result.get("dry_run"):
+        console.print(
+            f"[cyan]REOPEN DRY-RUN[/cyan]  {symbol}  "
+            f"indicative={ind_txt}  imbalance={side} ({surplus})"
+        )
+    else:
+        printed = result.get("printed_price")
+        traded = result.get("traded_qty", 0)
+        printed_txt = "nothing printed" if printed is None else f"{printed} x {traded}"
+        console.print(
+            f"[bold green]REOPEN OK[/bold green]  {symbol}  "
+            f"printed={printed_txt}  (indicative was {ind_txt})"
+        )
+    return True, result
+
+
+def _cmd_kill(
+    client: ExchangeCommandClient,
+    fields: dict[str, str],
+    symbols_cache: list[str] | None,
+    json_output: bool,
+) -> tuple[bool, dict[str, Any]]:
+    gw = fields.get("GW", "")
+    if not gw:
+        console.print("[yellow]Usage:[/yellow]  KILL|GW=<gw>[|SYM=<sym>]")
+        return False, {}
+    result = client.kill_switch(gw, symbol=fields.get("SYM", ""))
+    return _report(
+        result,
+        f"[yellow]KILL OK[/yellow]  {gw.upper()}  "
+        f"orders={result.get('cancelled_orders', 0)}  "
+        f"quotes={result.get('cancelled_quotes', 0)}",
+        json_output=json_output,
+    )
+
+
+def _cmd_kick(
+    client: ExchangeCommandClient,
+    fields: dict[str, str],
+    symbols_cache: list[str] | None,
+    json_output: bool,
+) -> tuple[bool, dict[str, Any]]:
+    gw = fields.get("GW", "")
+    if not gw:
+        console.print("[yellow]Usage:[/yellow]  KICK|GW=<gw>[|REASON=<text>]")
+        return False, {}
+    client.gateway_kick(gw, reason=fields.get("REASON", ""))
+    result = {"gateway_id": gw.upper()}
+    if json_output:
+        _print_json(result)
+    else:
+        console.print(f"[yellow]KICK[/yellow]  sent disconnect for {gw.upper()}")
+    return True, result
+
+
+def _cmd_qcancel(
+    client: ExchangeCommandClient,
+    fields: dict[str, str],
+    symbols_cache: list[str] | None,
+    json_output: bool,
+) -> tuple[bool, dict[str, Any]]:
+    gw = fields.get("GW", "")
+    sym = fields.get("SYM", "")
+    if not gw or not sym:
+        console.print("[yellow]Usage:[/yellow]  QCANCEL|GW=<gw>|SYM=<sym>")
+        return False, {}
+    result = client.quote_cancel(gw, sym)
+    return _report(
+        result,
+        f"[yellow]QCANCEL OK[/yellow]  {gw.upper()}  {sym.upper()}",
+        json_output=json_output,
+    )
+
+
+def _cmd_book(
+    client: ExchangeCommandClient,
+    fields: dict[str, str],
+    symbols_cache: list[str] | None,
+    json_output: bool,
+) -> tuple[bool, dict[str, Any]]:
+    sym = fields.get("SYM", "")
+    if not sym:
+        console.print("[yellow]Usage:[/yellow]  BOOK|SYM=<sym>")
+        return False, {}
+    result = client.book_depth(sym)
+    if json_output:
+        _print_json(result)
+    else:
+        _print_book(result)
+    return True, result
+
+
+def _cmd_orders(
+    client: ExchangeCommandClient,
+    fields: dict[str, str],
+    symbols_cache: list[str] | None,
+    json_output: bool,
+) -> tuple[bool, list[dict[str, Any]]]:
+    gw = fields.get("GW", "")
+    if not gw:
+        console.print("[yellow]Usage:[/yellow]  ORDERS|GW=<gw>")
+        return False, []
+    orders = client.order_list(gw)
+    if json_output:
+        _print_json(orders)
+    else:
+        _print_orders(orders, gw.upper())
+    return True, orders
+
+
+def _cmd_level(
+    client: ExchangeCommandClient,
+    fields: dict[str, str],
+    symbols_cache: list[str] | None,
+    json_output: bool,
+) -> tuple[bool, dict[str, Any]]:
+    sym = fields.get("SYM", "")
+    if not sym:
+        console.print("[yellow]Usage:[/yellow]  LEVEL|SYM=<sym>[|PRICE=<px>]")
+        return False, {}
+    price_str = fields.get("PRICE", "")
+    price: float | None = None
+    if price_str:
+        try:
+            price = float(price_str)
+        except ValueError:
+            console.print(f"[red]Invalid PRICE:[/red] {price_str!r} is not a number")
+            return False, {}
     result = client.price_level_orders(sym, price)
-    _print_level(result, sym.upper(), price_str)
-    return not result.get("rejected", False)
+    if json_output:
+        _print_json(result)
+    else:
+        _print_level(result, sym.upper(), price_str)
+    return not result.get("rejected", False), result
 
 
 def _cmd_symbols(
     client: ExchangeCommandClient,
     fields: dict[str, str],
     symbols_cache: list[str] | None,
-) -> bool:
+    json_output: bool,
+) -> tuple[bool, list[str]]:
     symbols = client.symbol_list()
     if symbols_cache is not None:
         symbols_cache.clear()
         symbols_cache.extend(symbols)
-    _print_symbols(symbols)
-    return True
+    if json_output:
+        _print_json(symbols)
+    else:
+        _print_symbols(symbols)
+    return True, symbols
 
 
 def _cmd_session(
     client: ExchangeCommandClient,
     fields: dict[str, str],
     symbols_cache: list[str] | None,
-) -> bool:
+    json_output: bool,
+) -> tuple[bool, dict[str, Any]]:
     state = fields.get("STATE", "")
     if not state:
         console.print("[yellow]Usage:[/yellow]  SESSION|STATE=<state>")
-        return False
+        return False, {}
     result = client.session_advance(state)
-    console.print(
-        f"[bold]SESSION[/bold]  "
-        f"{result.get('prev_state', '?')} → {result.get('state', '?')}"
-    )
-    return True
+    if json_output:
+        _print_json(result)
+    else:
+        console.print(
+            f"[bold]SESSION[/bold]  "
+            f"{result.get('prev_state', '?')} → {result.get('state', '?')}"
+        )
+    return True, result
 
 
 def _cmd_session_status(
     client: ExchangeCommandClient,
     fields: dict[str, str],
     symbols_cache: list[str] | None,
-) -> bool:
-    _print_session_status(client.session_status())
-    return True
+    json_output: bool,
+) -> tuple[bool, dict[str, Any]]:
+    result = client.session_status()
+    if json_output:
+        _print_json(result)
+    else:
+        _print_session_status(result)
+    return True, result
 
 
 def _cmd_schedule(
     client: ExchangeCommandClient,
     fields: dict[str, str],
     symbols_cache: list[str] | None,
-) -> bool:
-    _print_schedule(client.session_schedule())
-    return True
+    json_output: bool,
+) -> tuple[bool, dict[str, Any]]:
+    result = client.session_schedule()
+    if json_output:
+        _print_json(result)
+    else:
+        _print_schedule(result)
+    return True, result
 
 
 def _cmd_gateways(
     client: ExchangeCommandClient,
     fields: dict[str, str],
     symbols_cache: list[str] | None,
-) -> bool:
-    _print_gateways(client.gateway_list())
-    return True
+    json_output: bool,
+) -> tuple[bool, list[dict[str, Any]]]:
+    gateways = client.gateway_list()
+    if json_output:
+        _print_json(gateways)
+    else:
+        _print_gateways(gateways)
+    return True, gateways
 
 
 def _cmd_volume(
     client: ExchangeCommandClient,
     fields: dict[str, str],
     symbols_cache: list[str] | None,
-) -> bool:
-    _print_volume(client.volume())
-    return True
+    json_output: bool,
+) -> tuple[bool, dict[str, Any]]:
+    result = client.volume()
+    if json_output:
+        _print_json(result)
+    else:
+        _print_volume(result)
+    return True, result
+
+
+def _cmd_position(
+    client: ExchangeCommandClient,
+    fields: dict[str, str],
+    symbols_cache: list[str] | None,
+    json_output: bool,
+) -> tuple[bool, list[dict[str, Any]]]:
+    """Query a gateway's per-symbol net position plus its live quote.
+
+    Combines two independent engine round-trips -- ``position_snapshot``
+    (signed net qty + VWAP avg cost, from the engine's fill ledger; any
+    gateway, not just a market maker) and ``quote_bootstrap`` (live resting
+    quote prices, if any) -- into one row per symbol, keyed by symbol. This
+    mirrors ``POS|GW=`` on ``pm-alf-console``/``pm-alf-gwy`` and the REST
+    ``GET /api/v1/admin/positions`` endpoint, all three built on the same
+    ``system.position_request``/``system.position_snapshot.<gw>`` pair, so
+    all surfaces agree on the position figures; the bid/ask/spread/mid
+    addition here is specific to this command.
+
+    Optional ``SYM=`` narrows to one or more comma-separated symbols; a
+    symbol with neither a position nor an active quote is omitted.
+    """
+    gw = fields.get("GW", "")
+    if not gw:
+        console.print(
+            "[yellow]Usage:[/yellow]  POSITION|GW=<gw>[|SYM=<sym>[,<sym>...]]"
+        )
+        return False, []
+
+    wanted = {s.strip().upper() for s in fields.get("SYM", "").split(",") if s.strip()}
+
+    positions = client.position_snapshot(gw)
+    quotes = client.quote_bootstrap(gw)
+
+    by_symbol: dict[str, dict[str, Any]] = {}
+    for pos in positions:
+        sym = str(pos.get("symbol", "")).upper()
+        if not sym:
+            continue
+        by_symbol[sym] = {
+            "symbol": sym,
+            "net_qty": pos.get("net_qty", 0),
+            "avg_cost": pos.get("avg_cost", 0.0),
+        }
+
+    for q in quotes:
+        sym = str(q.get("symbol", "")).upper()
+        if not sym:
+            continue
+        row = by_symbol.setdefault(sym, {"symbol": sym, "net_qty": 0, "avg_cost": 0.0})
+        bid = q.get("bid_price")
+        ask = q.get("ask_price")
+        row["bid_price"] = bid
+        row["ask_price"] = ask
+        if bid is not None and ask is not None:
+            row["spread"] = ask - bid
+            row["mid"] = (bid + ask) / 2
+
+    if wanted:
+        by_symbol = {sym: row for sym, row in by_symbol.items() if sym in wanted}
+
+    rows = [by_symbol[sym] for sym in sorted(by_symbol)]
+
+    if json_output:
+        _print_json(rows)
+    else:
+        _print_position(gw.upper(), rows)
+    return True, rows
 
 
 # Maps each upper-cased command name to its handler.  Adding a new command
 # only requires a new _cmd_* function plus an entry here (and argparse wiring
-# in cli.py).
+# in cli.py). Every handler returns (accepted, result) so a caller can get
+# the structured data back (used for --format json) without re-parsing
+# printed output.
 _COMMAND_HANDLERS: dict[
-    str, Callable[[ExchangeCommandClient, dict[str, str], list[str] | None], bool]
+    str,
+    Callable[
+        [ExchangeCommandClient, dict[str, str], list[str] | None, bool],
+        tuple[bool, Any],
+    ],
 ] = {
     "HALT": _cmd_halt,
     "RESUME": _cmd_resume,
     "HALT_SYM": _cmd_halt_sym,
     "RESUME_SYM": _cmd_resume_sym,
     "CANCEL_SYM": _cmd_cancel_sym,
+    "REOPEN": _cmd_reopen,
     "KILL": _cmd_kill,
     "KICK": _cmd_kick,
     "QCANCEL": _cmd_qcancel,
@@ -761,6 +1031,7 @@ _COMMAND_HANDLERS: dict[
     "SCHEDULE": _cmd_schedule,
     "GATEWAYS": _cmd_gateways,
     "VOLUME": _cmd_volume,
+    "POSITION": _cmd_position,
 }
 
 
@@ -770,7 +1041,8 @@ def execute_command(
     fields: dict[str, str],
     *,
     symbols_cache: list[str] | None = None,
-) -> bool:
+    json_output: bool = False,
+) -> tuple[bool, Any]:
     """
     Execute one admin command against *client* and print the result.
 
@@ -791,12 +1063,21 @@ def execute_command(
     symbols_cache:
         If supplied, the SYMBOLS command will keep this list up to date so
         that the REPL's tab-completer reflects fresh symbol data.
+    json_output:
+        If ``True``, every command prints its result as JSON to stdout
+        (plain ``print``, not the rich console) instead of the normal
+        rich-formatted table or status line. The returned data is the same
+        either way -- this only changes what gets printed.
 
     Returns
     -------
-    bool
-        ``True`` if the command was accepted / completed successfully,
-        ``False`` if the engine rejected it or the command was unrecognised.
+    tuple[bool, Any]
+        ``(accepted, result)``. ``accepted`` is ``True`` if the command was
+        accepted / completed successfully, ``False`` if the engine rejected
+        it, a required field was missing, or the command was unrecognised.
+        ``result`` is the structured data the command produced (a dict,
+        list, or ``{}``/``[]`` for a usage error) -- the same object that
+        was (or would have been) rendered.
 
     Raises
     ------
@@ -805,11 +1086,13 @@ def execute_command(
     """
     handler = _COMMAND_HANDLERS.get(cmd)
     if handler is None:
-        console.print(
-            f"[dim]Unknown command '{cmd}'.  Type HELP for the command reference.[/dim]"
-        )
-        return False
-    return handler(client, fields, symbols_cache)
+        message = f"Unknown command '{cmd}'."
+        if json_output:
+            _print_json({"error": message})
+        else:
+            console.print(f"[dim]{message}  Type HELP for the command reference.[/dim]")
+        return False, {"error": message}
+    return handler(client, fields, symbols_cache, json_output)
 
 
 # ---------------------------------------------------------------------------

@@ -27,6 +27,7 @@ from edumatcher.models.price import from_ticks, get_tick_decimals
 
 from edumatcher.models.order import (
     Order,
+    OrderOrigin,
     OrderStatus,
     OrderType,
     Side,
@@ -80,6 +81,7 @@ class OrderBook:
         "_ask_qty",
         "_order_index",
         "_entry_index",
+        "_orders_by_gateway",
         "last_trade_price",
         "last_trade_qty",
         "last_buy_price",
@@ -114,6 +116,31 @@ class OrderBook:
         # order_id → _HeapEntry (for bid/ask) or Order (for stops)
         self._order_index: dict[str, Order] = {}
         self._entry_index: dict[str, _HeapEntry] = {}
+
+        # Secondary index over _order_index: gateway_id → set of order_ids
+        # that are currently resting in this book, of ANY origin/type
+        # (plain orders, quote legs, stop/stop-limit, trailing stop).
+        # Answers "which resting orders does this gateway have in this
+        # book?" in O(k) (k = that gateway's resting orders here) instead
+        # of a full scan of resting_orders() — see
+        # Engine._handle_gateway_disconnect, _handle_kill_switch* and
+        # _handle_cancel_symbol, and docs/architecture/02-architecture-guide.md
+        # §10 for the rationale.
+        # Maintained by every funnel that can make an order resting or stop
+        # it resting, since — unlike _order_index/_entry_index, which only
+        # plain/quote orders populate via _rest() — stop and trailing-stop
+        # orders live here too:
+        #   added:   _rest() (plain + quote LIMIT orders), _add_stop()
+        #            (STOP/STOP_LIMIT), _add_trailing_stop() (TRAILING_STOP)
+        #   removed: _purge_from_indexes() (cancel, full fill, SMP-cancel —
+        #            covers plain/quote orders and any resting order routed
+        #            through cancel_order()), _check_stops() and
+        #            _check_trailing_stops() (a triggered stop is popped
+        #            here directly, before it re-enters via _rest() if the
+        #            triggered order goes on to rest again — so a single
+        #            stop order is discarded and (re-)added at most once
+        #            per trigger, never double-counted).
+        self._orders_by_gateway: dict[str, set[str]] = {}
 
         self.last_trade_price: Optional[int] = None
         self.last_trade_qty: Optional[int] = None
@@ -440,6 +467,33 @@ class OrderBook:
             o
             for o in self._order_index.values()
             if o.status in (OrderStatus.NEW, OrderStatus.PARTIAL)
+        ]
+
+    def orders_for_gateway(self, gateway_id: str) -> list[Order]:
+        """Return all of this gateway's resting orders in this book, any
+        origin or type (plain, quote leg, stop, stop-limit, trailing stop).
+
+        O(k) in the number of matching orders (k), via
+        ``_orders_by_gateway`` — never a scan of ``resting_orders()``. Every
+        id in the index names a resting order in ``_order_index`` (the two
+        are kept in lock-step by every funnel listed on
+        ``_orders_by_gateway``'s definition), so no result needs a liveness
+        re-check; ``.get(..., ())`` handles a gateway with nothing resting
+        here without a KeyError.
+        """
+        order_ids = self._orders_by_gateway.get(gateway_id, ())
+        return [self._order_index[oid] for oid in order_ids]
+
+    def quote_orders_for_gateway(self, gateway_id: str) -> list[Order]:
+        """Return this gateway's resting QUOTE-origin orders in this book.
+
+        A filtered view over ``orders_for_gateway`` — see that method for
+        the index this relies on.
+        """
+        return [
+            o
+            for o in self.orders_for_gateway(gateway_id)
+            if o.origin == OrderOrigin.QUOTE
         ]
 
     def best_bid_ticks(self) -> int | None:
@@ -888,6 +942,7 @@ class OrderBook:
         ), "Trailing stop must have a positive trail_offset"
         self._trailing_stops.append(order)
         self._order_index[order.id] = order
+        self._orders_by_gateway.setdefault(order.gateway_id, set()).add(order.id)
         self._has_stops = True
         events.append(order)  # ack (status = NEW)
 
@@ -934,6 +989,7 @@ class OrderBook:
             heapq.heappush(self._sell_stops, entry)
         self._order_index[order.id] = order
         self._entry_index[order.id] = entry
+        self._orders_by_gateway.setdefault(order.gateway_id, set()).add(order.id)
         self._has_stops = True
         events.append(order)  # ack (status = NEW)
 
@@ -946,16 +1002,24 @@ class OrderBook:
         order.status = OrderStatus.CANCELLED
         order.cancel_reason = "SELF_MATCH_PREVENTED"
         entry = self._entry_index.get(order.id)
-        if entry:
-            entry.valid = False
-            if order.price is not None:
-                qty = (
-                    order.displayed_qty or 0
-                    if order.order_type == OrderType.ICEBERG
-                    else order.remaining_qty
-                )
-                self._deduct_qty_index(order, qty)
-        self._order_index.pop(order.id, None)
+        if entry and order.price is not None:
+            qty = (
+                order.displayed_qty or 0
+                if order.order_type == OrderType.ICEBERG
+                else order.remaining_qty
+            )
+            self._deduct_qty_index(order, qty)
+        # H7 / quote-index parity: funnel through the same purge every other
+        # removal path uses (cancel_order, _apply_fill) instead of popping
+        # _order_index directly. Before this, _smp_cancel_resting left
+        # _entry_index's heap entry invalidated-but-not-popped (a harmless
+        # leak — lazy deletion still skips it) and, more importantly, never
+        # cleared _orders_by_gateway (then quote-only; see its definition):
+        # a same-gateway SMP cancel of a resting QUOTE-origin leg left a
+        # stale order_id there, which then raised KeyError out of
+        # quote_orders_for_gateway on that gateway's next quote reissue.
+        # Routing through _purge_from_indexes fixes both.
+        self._purge_from_indexes(order)
         events.append(order)
 
     def _sweep(
@@ -1236,6 +1300,25 @@ class OrderBook:
         if entry is not None:
             entry.valid = False
         self._order_index.pop(order.id, None)
+        self._discard_from_gateway_index(order)
+
+    def _discard_from_gateway_index(self, order: Order) -> None:
+        """Remove ``order`` from ``_orders_by_gateway``, pruning the
+        gateway's entry once it holds no more resting order ids.
+
+        Shared by every removal path: ``_purge_from_indexes`` (cancel, full
+        fill, SMP-cancel) and the direct ``_order_index`` pops in
+        ``_check_stops``/``_check_trailing_stops`` when a stop triggers —
+        those bypass ``_purge_from_indexes`` itself (see their call sites)
+        but still need this half of the cleanup. No-op if ``order`` was
+        never resting, or was already removed — idempotent like the
+        ``_order_index``/``_entry_index`` pops it mirrors.
+        """
+        gateway_orders = self._orders_by_gateway.get(order.gateway_id)
+        if gateway_orders is not None:
+            gateway_orders.discard(order.id)
+            if not gateway_orders:
+                del self._orders_by_gateway[order.gateway_id]
 
     # ------------------------------------------------------------------
     # Heap management
@@ -1282,6 +1365,7 @@ class OrderBook:
         heapq.heappush(heap, entry)
         self._order_index[order.id] = order
         self._entry_index[order.id] = entry
+        self._orders_by_gateway.setdefault(order.gateway_id, set()).add(order.id)
 
     def _reinsert_iceberg(self, order: Order) -> None:
         """Invalidate old heap entry and push fresh one after peak replenishment."""
@@ -1367,6 +1451,11 @@ class OrderBook:
             # STOP_LIMIT→LIMIT orders overwrite this entry in _rest(), so popping
             # first is safe for both cases.
             self._entry_index.pop(stop_order.id, None)
+            # Same reasoning for _orders_by_gateway: a STOP_LIMIT→LIMIT that
+            # goes on to rest re-adds itself via _rest(); a STOP→MARKET that
+            # matches immediately or dies for lack of liquidity never rests
+            # again, so it must be discarded here or it would leak.
+            self._discard_from_gateway_index(stop_order)
             triggered.append(stop_order)
 
         # SELL stops: fire when price falls to/below stop_price
@@ -1393,6 +1482,7 @@ class OrderBook:
             stop_order.timestamp = now
             self._order_index.pop(stop_order.id, None)
             self._entry_index.pop(stop_order.id, None)
+            self._discard_from_gateway_index(stop_order)
             triggered.append(stop_order)
 
         if not self._buy_stops and not self._sell_stops and not self._trailing_stops:
@@ -1449,6 +1539,7 @@ class OrderBook:
                     # Reuse the cached batch timestamp.
                     order.timestamp = now
                     self._order_index.pop(order.id, None)
+                    self._discard_from_gateway_index(order)
                     triggered.append(order)
                     continue
             else:  # BUY trailing stop
@@ -1464,6 +1555,7 @@ class OrderBook:
                     # Reuse the cached batch timestamp.
                     order.timestamp = now
                     self._order_index.pop(order.id, None)
+                    self._discard_from_gateway_index(order)
                     triggered.append(order)
                     continue
 

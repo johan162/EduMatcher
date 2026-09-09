@@ -35,6 +35,7 @@ Commands
   STATUS                   — print gateway/session summary
   ORDERS                   — print table of this session's orders
   POS                      — print current positions with P&L
+  POS|GW=<gateway_id>      — query another gateway's (e.g. an MM bot's) position
   SYMBOLS                  — list all active instruments in the engine
   SESSION                  — query the engine's current trading session state
     INDEX                    — show current index level
@@ -89,6 +90,7 @@ from edumatcher.models.message import (
     make_order_cancel_msg,
     make_order_new_msg,
     make_orders_request_msg,
+    make_position_request_msg,
     make_quote_bootstrap_request_msg,
     make_quote_cancel_msg,
     make_quote_new_msg,
@@ -122,6 +124,7 @@ from .display import (
     print_positions,
     print_quote_bootstrap,
     print_quote_legs,
+    print_remote_position,
     print_session_status,
     print_status,
     print_symbols_table,
@@ -155,6 +158,7 @@ from edumatcher.models.generated.quote import (
 )
 from edumatcher.models.generated.system import (
     topic_gateway_auth,
+    topic_position_snapshot,
     topic_quote_bootstrap,
     topic_session_status,
     topic_symbols,
@@ -306,6 +310,13 @@ class Gateway:
         self.gateway_id = gateway_id.upper()
         self._dc_enabled = False
         self._dc_requested_on_startup = drop_copy
+        # POS|GW=<gateway_id>: which other gateway's position was last
+        # queried, and the topic currently subscribed for its reply — set
+        # only between issuing the request and receiving (or timing out)
+        # the matching system.position_snapshot.<gateway_id>. None when no
+        # query is outstanding.
+        self._pos_query_gateway_id: str | None = None
+        self._pos_query_topic: bytes | None = None
         self.order_cache: dict[str, dict[str, Any]] = {}  # order_id → state dict
         self.quote_leg_cache: dict[str, dict[str, Any]] = (
             {}
@@ -398,7 +409,49 @@ class Gateway:
         else:
             self._dc_sub_sock.setsockopt(zmq.UNSUBSCRIBE, self._dc_topic)
         self._dc_enabled = enabled
-        console.print(f"[dim]DC {'ON' if enabled else 'OFF'}[/dim]")
+
+    def _query_position(self, target_gateway_id: str) -> None:
+        """Send POS|GW=<target_gateway_id>: ask the engine what that
+        gateway (e.g. a running pm-mm-bot) is holding.
+
+        ``system.position_request`` is a shared, non-gateway-scoped topic
+        -- any gateway may ask about any ``gateway_id`` (see
+        ``engine/main.py::_handle_position_request``, which looks the id up
+        directly with no sender-identity check). The reply comes back on
+        ``system.position_snapshot.<target_gateway_id>``, which this
+        console only subscribes to for the duration of one outstanding
+        query -- mirroring ``_set_drop_copy``'s dynamic
+        SUBSCRIBE/UNSUBSCRIBE pattern -- so a stale or mistyped gateway id
+        does not leave a permanent extra subscription behind.
+
+        Replacing an already-outstanding query (a second POS|GW= before the
+        first replied) unsubscribes the old topic first.
+        """
+        if self._pos_query_topic is not None:
+            self.sub_sock.setsockopt(zmq.UNSUBSCRIBE, self._pos_query_topic)
+        self._pos_query_gateway_id = target_gateway_id
+        self._pos_query_topic = topic_position_snapshot(target_gateway_id).encode()
+        self.sub_sock.setsockopt(zmq.SUBSCRIBE, self._pos_query_topic)
+        self._send(self.push_sock, make_position_request_msg(target_gateway_id))
+
+    def _handle_position_snapshot_reply(
+        self, topic: str, payload: dict[str, Any]
+    ) -> None:
+        """Handle a system.position_snapshot.<gw> reply to POS|GW=.
+
+        Ignores a reply that does not match the currently outstanding query
+        (e.g. arriving after a timeout already cleared it, or for a
+        gateway_id that isn't the one last asked about) rather than
+        clobbering unrelated state.
+        """
+        if self._pos_query_topic is None or topic.encode() != self._pos_query_topic:
+            return
+        gateway_id = self._pos_query_gateway_id
+        self.sub_sock.setsockopt(zmq.UNSUBSCRIBE, self._pos_query_topic)
+        self._pos_query_gateway_id = None
+        self._pos_query_topic = None
+        assert gateway_id is not None
+        print_remote_position(gateway_id, payload.get("positions", []))
 
     @staticmethod
     def _topic_family(topic: str) -> str:
@@ -999,6 +1052,12 @@ class Gateway:
             reason = payload.get("reason", "")
             console.print(f"[{ts}] [red]INDEX ERROR[/red] {reason}")
 
+        elif (
+            self._pos_query_topic is not None
+            and topic.encode() == self._pos_query_topic
+        ):
+            self._handle_position_snapshot_reply(topic, payload)
+
     # ------------------------------------------------------------------
     # Position tracking
     # ------------------------------------------------------------------
@@ -1099,7 +1158,12 @@ class Gateway:
             return
 
         if cmd == "POS":
-            print_positions(self._positions, self._last_prices)
+            kv = self._kv(parts[1:])
+            target_gw = kv.get("GW")
+            if target_gw:
+                self._query_position(target_gw)
+            else:
+                print_positions(self._positions, self._last_prices)
             return
 
         if cmd == "SYMBOLS":

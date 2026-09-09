@@ -155,25 +155,142 @@ class QuotePricer:
                 )
 
 
-# Registered strategy names -> constructor function. "symmetric"
-# (QuotePricer) is the only one today; a future strategy (e.g.
-# inventory-skewed) registers here under its own name and MMBot picks it up
-# via --strategy / the config file's `strategy:` key with no other code
-# changes. A Callable, not `type[PricingStrategy]`, because Protocol does
-# not model constructor signatures — this keeps each strategy free to take
-# whatever __init__ arguments it needs behind a common factory signature.
-_StrategyFactory = Callable[[float, float, int], PricingStrategy]
+class InventorySkewPricer:
+    """Skew the quote toward flattening inventory instead of quoting
+    symmetrically around mid.
+
+    This is the ``"inventory_skew"`` strategy referenced by ``--strategy``
+    (design doc §14.1). It wraps a plain ``QuotePricer`` for mid-tracking,
+    drift detection, and the tick-rounding / minimum-2-tick-spread rules —
+    those do not change — and only overrides how the bid/ask are placed
+    relative to mid.
+
+    A long position (``net_position > 0``) shifts the effective mid *down*:
+    the ask comes down too, making it more attractive to lift (sell to),
+    and the bid comes down, making it less attractive to hit (buy from) —
+    both push the bot toward flattening the long. A short position shifts
+    the effective mid *up*, symmetrically. The shift scales linearly with
+    ``net_position / max_position`` and is clamped at 1.0 in magnitude, so
+    beyond ``max_position`` the skew simply stays pinned at its maximum —
+    the bot keeps quoting, at the most defensive spread this strategy ever
+    offers, rather than stopping.
+
+    Parameters
+    ----------
+    tick_size, gap, drift_ticks : see ``QuotePricer``.
+    max_position : int
+        Net position (either direction) at which the skew saturates. Must
+        be positive — required because the skew fraction is normalized by
+        it; there is no meaningful "unbounded" skew.
+    """
+
+    def __init__(
+        self,
+        tick_size: float,
+        gap: float,
+        drift_ticks: int,
+        *,
+        max_position: int | None,
+    ) -> None:
+        if max_position is None:
+            raise ValueError("inventory_skew strategy requires max_position (> 0)")
+        if max_position <= 0:
+            raise ValueError(f"max_position ({max_position}) must be positive")
+        self._inner = QuotePricer(tick_size=tick_size, gap=gap, drift_ticks=drift_ticks)
+        self._gap = gap
+        self._max_position = max_position
+        self._net_position = 0
+
+    @property
+    def mid_price(self) -> float | None:
+        return self._inner.mid_price
+
+    @property
+    def price_decimals(self) -> int:
+        return self._inner.price_decimals
+
+    def update_mid(self, best_bid: float | None, best_ask: float | None) -> None:
+        self._inner.update_mid(best_bid, best_ask)
+
+    def set_mid(self, price: float) -> None:
+        self._inner.set_mid(price)
+
+    def has_drifted(self, quoted_at_mid: float) -> bool:
+        return self._inner.has_drifted(quoted_at_mid)
+
+    def update_position(self, net_position: int) -> None:
+        """Record the bot's current net position for this symbol.
+
+        Not part of the ``PricingStrategy`` Protocol — ``MMBot`` calls this
+        only on strategies that expose it (see the ``hasattr`` guard in
+        ``bot.py::_handle_order_fill``), keeping the state machine and ZMQ
+        handling agnostic to which strategy is active.
+        """
+        self._net_position = net_position
+
+    def compute_prices(self) -> tuple[float, float]:
+        """Return (bid_price, ask_price) skewed by the tracked position.
+
+        Raises RuntimeError if no mid-price is available (propagated from
+        the inner ``QuotePricer``, whose rounding and minimum-2-tick-spread
+        guard this delegates to after shifting the mid).
+        """
+        if self._inner.mid_price is None:
+            raise RuntimeError("No mid-price available for quote computation")
+
+        # Fraction in [-1, 1]: how far toward (or past) max_position the
+        # bot's inventory sits. Clamped so the skew saturates instead of
+        # growing without bound past the cap.
+        fraction = self._net_position / self._max_position
+        fraction = max(-1.0, min(1.0, fraction))
+
+        half_gap = self._gap / 2.0
+        skew = -fraction * half_gap
+        skewed_mid = self._inner.mid_price + skew
+
+        # Delegate to QuotePricer's tick-rounding / minimum-spread logic at
+        # the skewed mid, then restore the true mid so drift detection
+        # keeps comparing against the real market, not the skewed price.
+        true_mid = self._inner.mid_price
+        self._inner.set_mid(skewed_mid)
+        try:
+            return self._inner.compute_prices()
+        finally:
+            self._inner.set_mid(true_mid)
+
+
+# Registered strategy names -> constructor function. Each strategy takes
+# tick_size/gap/drift_ticks plus whatever else it needs as keyword-only
+# extras; a strategy that ignores an extra simply doesn't declare it. A
+# Callable, not `type[PricingStrategy]`, because Protocol does not model
+# constructor signatures — this keeps each strategy free to take whatever
+# __init__ arguments it needs behind a common factory signature.
+_StrategyFactory = Callable[..., PricingStrategy]
 _STRATEGIES: dict[str, _StrategyFactory] = {
-    "symmetric": lambda tick_size, gap, drift_ticks: QuotePricer(
+    "symmetric": lambda tick_size, gap, drift_ticks, **_ignored: QuotePricer(
         tick_size=tick_size, gap=gap, drift_ticks=drift_ticks
+    ),
+    "inventory_skew": lambda tick_size, gap, drift_ticks, **kwargs: InventorySkewPricer(
+        tick_size=tick_size,
+        gap=gap,
+        drift_ticks=drift_ticks,
+        max_position=kwargs.get("max_position"),
     ),
 }
 
 
 def create_strategy(
-    name: str, *, tick_size: float, gap: float, drift_ticks: int
+    name: str,
+    *,
+    tick_size: float,
+    gap: float,
+    drift_ticks: int,
+    max_position: int | None = None,
 ) -> PricingStrategy:
     """Construct the named pricing strategy.
+
+    ``max_position`` is only meaningful for strategies that use it (today:
+    ``inventory_skew``); strategies that don't accept it simply ignore it.
 
     Raises ValueError for an unknown strategy name or invalid parameters
     (the latter propagated from the strategy's own constructor).
@@ -183,7 +300,7 @@ def create_strategy(
     except KeyError:
         allowed = ", ".join(sorted(_STRATEGIES))
         raise ValueError(f"Unknown strategy '{name}'. Allowed: {allowed}") from None
-    return factory(tick_size, gap, drift_ticks)
+    return factory(tick_size, gap, drift_ticks, max_position=max_position)
 
 
 def available_strategies() -> list[str]:

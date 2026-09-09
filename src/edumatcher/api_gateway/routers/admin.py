@@ -39,6 +39,7 @@ from edumatcher.models.generated.risk import (
 from edumatcher.models.generated.system import (
     topic_gateways,
     topic_halt_status,
+    topic_position_snapshot,
     topic_risk_state,
     topic_session_schedule,
 )
@@ -544,3 +545,31 @@ async def admin_order_lifecycle(  # pyright: ignore[reportUnusedFunction]
             },
         )
     return {"order_id": order_id, "count": len(events), "events": events}
+
+
+@router.get("/positions")
+async def admin_positions(  # pyright: ignore[reportUnusedFunction]
+    gateway_id: str,
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
+) -> dict[str, Any]:
+    """Ask the engine what *gateway_id* -- any gateway, not just the
+    caller's own -- is holding: signed net qty and VWAP average cost per
+    symbol, straight from the engine's authoritative
+    ``_gateway_positions``/``_gateway_avg_cost`` ledger.
+
+    Distinct from ``GET /positions`` (own-gateway only, served from this
+    process's local order/fill cache, no ``avg_cost``). This is a live
+    engine round trip on ``system.position_request`` /
+    ``system.position_snapshot.<gateway_id>`` -- the same pair
+    ``pm-alf-console``'s and ``pm-alf-gwy``'s ``POS|GW=<gateway_id>``
+    already use, so all three surfaces agree.
+    """
+    await require_admin(request, session)
+    target = gateway_id.upper()
+    request.app.state.engine.request_position(target)
+    reply = await _await_reply(request, topic_position_snapshot(target))
+    positions = reply.get("positions", [])
+    if not isinstance(positions, list):
+        positions = []
+    return {"gateway_id": target, "count": len(positions), "positions": positions}

@@ -1,11 +1,13 @@
-Version: 1.3.0
+Version: 1.4.0
 
-Date: 2026-09-05
+Date: 2026-09-06
 
 Status: Implemented (v1.0-v1.2 scope); §14.3 (multi-symbol mode) updated
 from implementation plan to shipped — one process can now quote several
 symbols behind one gateway ID via `--symbols`/`--label`, per the review
-doc's §5a
+doc's §5a; §14.1 (inventory skewing) updated from a future-work sketch to
+shipped — `--strategy inventory_skew` plus `--max-position`, and a new
+`pm-alf-console` `POS|GW=` position-query command
 
 # EduMatcher — Market-Maker Bot (pm-mm-bot)
 
@@ -1080,16 +1082,33 @@ poetry run pytest tests/test_mm_bot.py -v -k "not integration"
 
 ## 14. Open Questions and Future Work
 
-### 14.1 Inventory Skewing
+### 14.1 Inventory Skewing — Implemented (v0.33.0)
 
-In a production MM system, when the bot has accumulated a long position it
-widens the ask and narrows the bid (making it easier to sell and harder to buy
-more). This **skewed quoting** reduces adverse selection and controls inventory.
-`pm-mm-bot` v1 always quotes symmetrically around the mid. A future version
-could add:
+When the bot has accumulated a position, quoting symmetrically around mid
+has no opinion about flattening it. `--strategy inventory_skew` (a new
+`PricingStrategy` implementation, `InventorySkewPricer` in
+`mm_bot/pricer.py`, selected the same way as `symmetric` via `--strategy`)
+addresses this: the bot tracks its own net position and average cost per
+symbol locally from `order.fill` events (the same cross-zero VWAP algorithm
+`engine/main.py::_update_position` already uses server-side, ported into
+`mm_bot/bot.py::_update_position` as a pure, independently-tested function)
+and shifts the effective mid by
+`-clamp(net_position / max_position, -1, +1) × (gap / 2)` before computing
+bid/ask — long shifts the quote down (encouraging a sale, discouraging a
+further buy), short shifts it up. `--max-position` (required for this
+strategy) is where the shift saturates: beyond it the skew stays pinned at
+its maximum rather than growing further, and — deliberately — the bot never
+stops quoting at the cap, it just stays maximally skewed until fills bring
+the position back down. See `docs/user-guide/100-mm-bot.md#inventory-skewing`
+for the full formula, a worked example, and CLI/config-file usage.
 
-- `--max-position N` to cap net inventory in either direction.
-- An `--inventory-skew` flag that shifts the mid by `inventory × skew_factor`.
+A related but separate piece: an operator can query any gateway's position
+(an MM bot's included) from `pm-alf-console` via `POS|GW=<gateway_id>`. This
+uses the engine's existing `system.position_request` /
+`system.position_snapshot.{GW_ID}` message pair (already fully implemented
+and tested server-side, previously unused by any caller in `src/`) — no
+protocol change was needed, only the console-side query command. See
+`docs/user-guide/100-mm-bot.md#querying-a-bots-position`.
 
 ### 14.2 Volatility-Adaptive Spread
 

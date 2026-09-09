@@ -80,6 +80,7 @@ _HELP_TEXT = f"""
 {_BOLD}Session{_RESET}
   PING                           Liveness probe
   POS                            Show tracked positions and unrealized P&L
+  POS|GW=<gateway_id>            Query another gateway's position from the engine
   STATUS                         Show session and connection info
   HELP                           This help text
   EXIT / QUIT                    Disconnect and exit
@@ -128,6 +129,7 @@ _CMD_FIELDS: dict[str, list[str]] = {
     "QUOTE_CANCEL": ["SYM="],
     "QBOOT": ["SYM="],
     "KILL": ["SYM="],
+    "POS": ["GW="],
 }
 
 _VALUE_OPTS: dict[str, list[str]] = {
@@ -286,7 +288,7 @@ class AlfClient:
         self._session_state: str = "UNKNOWN"
 
         # Multi-line response accumulation
-        self._collecting: str | None = None  # 'SYMBOLS' | 'ORDERS' | 'QBOOT'
+        self._collecting: str | None = None  # 'SYMBOLS' | 'ORDERS' | 'QBOOT' | 'POSITION'
         self._collect_header: AlfMessage | None = None
         self._collect_rows: list[AlfMessage] = []
 
@@ -635,6 +637,22 @@ class AlfClient:
             lines.append(f"\n  {count} quote(s) total\n")
             self._pr("\n".join(lines))
 
+        elif kind == "POSITION":
+            gw = hdr.fields.get("GW", "?") if hdr else "?"
+            header = f"  {'SYM':<10} {'NET_QTY':>10} {'AVG_COST':>10}"
+            divider = "  " + "-" * 32
+            lines = [f"\n{_BOLD}Position — {gw}{_RESET}", header, divider]
+            for r in rows:
+                f_ = r.fields
+                lines.append(
+                    f"  {f_.get('SYM', '?'):<10} {f_.get('NET_QTY', '-'):>10} "
+                    f"{f_.get('AVG_COST', '-'):>10}"
+                )
+            if not rows:
+                lines.append("  (flat — no open positions)")
+            lines.append("")
+            self._pr("\n".join(lines))
+
     # ------------------------------------------------------------------
     # Receive thread
     # ------------------------------------------------------------------
@@ -665,6 +683,9 @@ class AlfClient:
                 if t == "QUOTE" and self._collecting == "QBOOT":
                     self._collect_rows.append(msg)
                     continue
+                if t == "POS_ENTRY" and self._collecting == "POSITION":
+                    self._collect_rows.append(msg)
+                    continue
                 if t == "END" and msg.fields.get("TYPE") == self._collecting:
                     self._flush_collected()
                     self._collecting = None
@@ -685,6 +706,11 @@ class AlfClient:
                 continue
             if t == "QBOOT":
                 self._collecting = "QBOOT"
+                self._collect_header = msg
+                self._collect_rows = []
+                continue
+            if t == "POSITION":
+                self._collecting = "POSITION"
                 self._collect_header = msg
                 self._collect_rows = []
                 continue
@@ -750,7 +776,22 @@ class AlfClient:
             return True
 
         if cmd == "POS":
-            self._show_pos()
+            gw_field = next(
+                (seg for seg in parts[1:] if seg.upper().startswith("GW=")), None
+            )
+            if gw_field is not None:
+                # POS|GW=<gateway_id> is a genuine engine round trip (unlike
+                # bare POS below) -- send it through like any other command
+                # and let _recv_loop's POSITION/POS_ENTRY/END collection
+                # handle the reply.
+                target = gw_field.split("=", 1)[1].upper()
+                try:
+                    self._session.send_raw(f"POS|GW={target}")
+                except OSError as exc:
+                    with self._print_lock:
+                        print(f"{_RED}Send error: {exc}{_RESET}")
+            else:
+                self._show_pos()
             return True
 
         if cmd == "STATUS":

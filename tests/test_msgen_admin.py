@@ -100,7 +100,7 @@ class TestTheScopeRecordIsClosed:
 
     def test_the_scan_actually_found_the_call_sites(self) -> None:
         """A check that matched nothing would pass for the wrong reason."""
-        assert len(_scope_literals()) == 12
+        assert len(_scope_literals()) == 15
 
     def test_index_id_is_not_one_of_them(self) -> None:
         """The builder's docstring offered it as an example for a long time

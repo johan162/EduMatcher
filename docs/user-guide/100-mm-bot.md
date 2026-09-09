@@ -363,8 +363,9 @@ pm-mm-bot --symbol AAPL --initial_min 95.00 --initial_max 105.00
 | `--symbol SYM`                     | *required¹*             | Instrument to make a market in — mutually exclusive with `--symbols` |
 | `--symbols SYM1,SYM2,...`          | *required¹*             | Comma-separated symbols to quote from one process — mutually exclusive with `--symbol` |
 | `--label NAME`                     | *derived*               | Override the gateway-ID symbol segment (default: `--symbol`, or every `--symbols` entry joined with `_`) |
-| `--strategy NAME`                  | `symmetric`            | Pricing strategy (only `symmetric` exists today)                   |
+| `--strategy NAME`                  | `symmetric`            | Pricing strategy: `symmetric` or `inventory_skew` (see [Pricing strategies](#pricing-strategies)) |
 | `--gap PRICE`                      | `0.10`                 | Total spread (bid at mid−gap/2, ask at mid+gap/2)                  |
+| `--max-position N`                 | *unset*                | Net position at which inventory skewing saturates — required with `--strategy inventory_skew`, rejected otherwise |
 | `--qty N`                          | `500`                  | Quote size on each leg                                             |
 | `--id-suffix NN`                   | `01`                   | Running number for gateway ID (`MM_AAPL_01`)                       |
 | `--drift-ticks N`                  | `3`                    | Reprice when mid moves by this many ticks                          |
@@ -430,6 +431,21 @@ qty: 300
 pm-mm-bot --config mm_tech.yaml
 ```
 
+A bot using inventory skewing needs `max_position:` alongside `strategy:`:
+
+```yaml
+# mm_aapl_skew.yaml
+symbol: AAPL
+strategy: inventory_skew
+max_position: 1000
+gap: 0.10
+qty: 300
+```
+
+```bash
+pm-mm-bot --config mm_aapl_skew.yaml
+```
+
 An explicit CLI flag always overrides the same key from the file — so
 `pm-mm-bot --config mm_aapl.yaml --gap 0.12` quotes with `gap=0.12` even
 though the file says `0.08`. This makes it easy to keep one committed file
@@ -449,14 +465,126 @@ fast, explicit startup failure rather than being silently ignored.
 ### Pricing strategies
 
 `--strategy` (or the file's `strategy:` key) selects which pricing logic the
-bot uses to compute bid/ask from the tracked mid-price. `symmetric` — quote
-symmetrically around mid at a fixed `--gap`, described in
-[Pricing logic](#pricing-logic) above — is the only strategy shipped today.
+bot uses to compute bid/ask from the tracked mid-price. Two strategies ship
+today:
+
+- **`symmetric`** (the default) — quote symmetrically around mid at a fixed
+  `--gap`, described in [Pricing logic](#pricing-logic) above.
+- **`inventory_skew`** — quote asymmetrically to lean the book toward
+  flattening whatever position the bot has accumulated, described in
+  [Inventory skewing](#inventory-skewing) below.
+
 The bot fails fast at startup if `--strategy` names anything else. The
-selection point exists so a future strategy (e.g. one that skews the quote
-by inventory, or widens the gap with volatility) can be added as a new
-pricing module without changing the bot's state machine, ZMQ handling, or
-CLI plumbing.
+selection point exists so a future strategy (e.g. one that widens the gap
+with volatility) can be added as a new pricing module without changing the
+bot's state machine, ZMQ handling, or CLI plumbing.
+
+### Inventory skewing
+
+A market maker that always quotes symmetrically around mid has no opinion
+about the position it is carrying. If the bot has been repeatedly lifted on
+its ask (selling to takers), it accumulates a growing short position while
+continuing to offer the exact same bid and ask it always did — nothing
+about its quoting nudges the market back toward flattening that position.
+In a real market this matters because holding inventory is risk: the
+longer the bot stays short (or long), the more exposed it is to an adverse
+price move, and the point of market-making in the first place is to earn
+the spread, not to take a directional bet.
+
+`--strategy inventory_skew` addresses this by tracking the bot's own net
+position per symbol (derived locally from its own fills — it does not ask
+the engine) and shifting where it places its bid and ask relative to mid:
+
+- **Long** (net_position > 0, the bot has bought more than it's sold): the
+  effective mid shifts *down*. Both the bid and the ask come down —
+  the ask becomes more attractive to lift (encouraging someone to buy from
+  the bot, reducing the long) and the bid becomes less attractive to hit
+  (discouraging the bot from buying still more).
+- **Short** (net_position < 0): the shift is the mirror image — both
+  quotes move *up*, encouraging the bot to buy back what it's short and
+  discouraging it from selling further.
+- **Flat** (net_position == 0): identical to `symmetric` — no shift at all.
+
+The shift scales linearly with how large the position is relative to
+`--max-position` (required for this strategy — there is no meaningful
+"unbounded" skew to normalize against):
+
+```
+fraction = clamp(net_position / max_position, -1.0, +1.0)
+skew     = -fraction × (gap / 2)
+effective_mid = tracked_mid + skew
+```
+
+The bid and ask are then computed from `effective_mid` exactly as
+`symmetric` computes them from the tracked mid (same tick-rounding, same
+2-tick minimum spread) — inventory skewing only changes *where* the quote
+is centred, never the rules for how it's rounded or how wide it can get.
+
+**Worked example.** AAPL, `--gap 0.10`, `--max-position 1000`, tracked mid
+= `150.00`. At `net_position = +500` (half of max_position, long):
+`fraction = 0.5`, `skew = -0.5 × 0.05 = -0.025`, `effective_mid = 149.975`.
+The bid and ask (still `±0.05` from that effective mid, then tick-rounded)
+come out at roughly `149.93` / `150.03` — both about two and a half cents
+lower than the flat-position quote of `149.95` / `150.05`, making the ask
+cheaper to lift and the bid less attractive to hit.
+
+**What happens when `--max-position` is reached?** The bot does **not**
+stop quoting. `fraction` is clamped to `±1.0`, so once `|net_position| >=
+max_position` the skew simply stays pinned at its maximum (the full
+`±gap/2` shift) — the spread stays maximally lopsided in the direction that
+favors flattening, and further fills past the cap do not skew it any
+further, but the bot keeps posting a live two-sided quote throughout. This
+is a deliberate choice: pulling quotes entirely at the position cap would
+leave the symbol with no MM liquidity at exactly the moment the bot most
+needs fills to flatten, which defeats the purpose. If you want the bot to
+stop trading altogether at some limit, that is a different, not-yet-built
+feature (a hard risk cutoff) — `--max-position` here only ever affects how
+the quote is skewed, never whether one is sent.
+
+`inventory_skew` accepts `--gap`, `--drift-ticks`, and all the other
+`symmetric` flags unchanged — only the price-computation step differs.
+
+### Querying a bot's position
+
+Whether or not `inventory_skew` is in use, an operator can ask any running
+gateway — including an MM bot — what it is currently holding, from
+`pm-alf-console`:
+
+```
+POS|GW=MM_AAPL_01
+```
+
+This sends `system.position_request` for that `gateway_id` and prints
+whatever the engine's own per-gateway position ledger reports back on
+`system.position_snapshot.MM_AAPL_01`: net quantity and average cost, per
+symbol, for every symbol the bot has a non-zero position in. `POS` with no
+`GW=` is unchanged — it still shows the console's own local fills and P&L.
+
+This does not require any special support from the MM bot itself: the
+engine tracks a signed net position and volume-weighted average cost for
+every gateway from its own fill records, and answers `system.
+position_request` for any `gateway_id`, not just the requester's own — a
+console (or another script) can query about a bot the same way it would
+query its own position. The `--strategy inventory_skew` bot's local
+position tracking (used for skewing, described above) is a separate,
+parallel bookkeeping of the same fills — the two should always agree, since
+both are derived from the same fill stream, but only the engine's ledger
+is reachable remotely via `POS|GW=`.
+
+The same query is available over REST for an admin-role caller, via
+[`GET /api/v1/admin/positions?gateway_id=MM_AAPL_01`](950-app-REST-API-reference.md#get-apiv1adminpositions)
+— useful for a dashboard or a script that wants to watch a bot's position
+without an interactive console session. It reads the same
+`system.position_request`/`system.position_snapshot` pair `POS|GW=` uses,
+so both surfaces always agree.
+
+A fourth surface,
+[`pm-admin-cli position --gw MM_AAPL_01`](160-exchange-commands.md#position-show-a-gateways-net-position-and-live-quote),
+adds the bot's **live quote** to the same net-position figures — bid, ask,
+spread, and mid derived from its currently resting quote order, alongside
+`net_qty`/`avg_cost` — in one command, with a `--format json` option for
+scripting. Handy for confirming that inventory skewing is actually doing
+something: watch `spread`/`mid` shift as `net_qty` moves away from zero.
 
 ---
 
@@ -607,6 +735,18 @@ pm-mm-bot --symbol AAPL --gap 0.10 --qty 500 -v
 
 ```bash
 pm-mm-bot --config mm_aapl.yaml --gap 0.12
+```
+
+### Inventory skewing with a position cap
+
+```bash
+pm-mm-bot --symbol AAPL --strategy inventory_skew --max-position 1000 --gap 0.10
+```
+
+### Querying that bot's position from another console
+
+```
+POS|GW=MM_AAPL_01
 ```
 
 ---

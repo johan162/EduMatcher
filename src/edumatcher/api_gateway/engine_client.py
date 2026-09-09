@@ -40,6 +40,7 @@ from edumatcher.models.message import (
     make_order_cancel_msg,
     make_order_new_msg,
     make_orders_request_msg,
+    make_position_request_msg,
     make_quote_bootstrap_request_msg,
     make_quote_cancel_msg,
     make_quote_legs_request_msg,
@@ -732,6 +733,13 @@ class EngineClient:
         self, gateway_id: str, symbol: str = "", show: str = "ALL"
     ) -> None:
         self._send(make_quote_legs_request_msg(gateway_id, symbol, show))
+
+    def request_position(self, gateway_id: str) -> None:
+        """Ask the engine what *gateway_id* (any gateway, not just the
+        caller's own) is holding -- the same system.position_request /
+        system.position_snapshot.<gateway_id> pair pm-alf-console's
+        POS|GW= and pm-alf-gwy's POS|GW= already use."""
+        self._send(make_position_request_msg(gateway_id))
 
     # ------------------------------------------------------------------
     # ADMIN-persona commands (all map to existing engine topics)

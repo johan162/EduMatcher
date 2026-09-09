@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import nullcontext
 from dataclasses import dataclass, field
+import json
 import sys
 from typing import Any, cast
 
@@ -125,6 +126,59 @@ class _FakeClient:
             "total_qty": 10,
             "total_value": 1500.0,
             "total_trades": 2,
+        }
+
+    def position_snapshot(self, target_gw: str) -> list[dict[str, Any]]:
+        self.calls.append(("position_snapshot", (target_gw,), {}))
+        return [
+            {"symbol": "AAPL", "net_qty": 500, "avg_cost": 149.75},
+            {"symbol": "MSFT", "net_qty": -200, "avg_cost": 310.10},
+        ]
+
+    def quote_bootstrap(self, target_gw: str, symbol: str = "") -> list[dict[str, Any]]:
+        self.calls.append(("quote_bootstrap", (target_gw,), {"symbol": symbol}))
+        quotes = [
+            {"symbol": "AAPL", "bid_price": 149.70, "ask_price": 149.90},
+        ]
+        if symbol:
+            quotes = [q for q in quotes if q["symbol"] == symbol.upper()]
+        return quotes
+
+    def force_uncross(
+        self,
+        symbol: str,
+        price: float | None = None,
+        *,
+        dry_run: bool = False,
+        note: str = "",
+    ) -> dict[str, Any]:
+        self.calls.append(
+            (
+                "force_uncross",
+                (symbol,),
+                {"price": price, "dry_run": dry_run, "note": note},
+            )
+        )
+        if dry_run:
+            return {
+                "accepted": True,
+                "symbol": symbol.upper(),
+                "dry_run": True,
+                "indicative_price": 100.0,
+                "indicative_qty": 50,
+                "surplus": 10,
+                "imbalance_side": "BUY",
+            }
+        return {
+            "accepted": True,
+            "symbol": symbol.upper(),
+            "dry_run": False,
+            "indicative_price": 100.0,
+            "indicative_qty": 50,
+            "surplus": 10,
+            "imbalance_side": "BUY",
+            "printed_price": price if price is not None else 100.0,
+            "traded_qty": 50,
         }
 
 
@@ -254,6 +308,7 @@ def test_display_helpers_smoke(monkeypatch: pytest.MonkeyPatch) -> None:
         "SCHEDULE",
         "GATEWAYS",
         "VOLUME",
+        "POSITION",
     ],
 )
 def test_execute_command_success_paths(
@@ -266,16 +321,53 @@ def test_execute_command_success_paths(
         "BOOK": {"SYM": "AAPL"},
         "ORDERS": {"GW": "TRADER01"},
         "LEVEL": {"SYM": "AAPL"},
+        "POSITION": {"GW": "MM_AAPL_01"},
     }.get(cmd, {})
 
-    assert console_mod.execute_command(client, cmd, fields) is True
+    accepted, _result = console_mod.execute_command(client, cmd, fields)
+    assert accepted is True
+
+
+@pytest.mark.parametrize(
+    "cmd,fields",
+    [
+        ("HALT", {}),
+        ("BOOK", {"SYM": "AAPL"}),
+        ("ORDERS", {"GW": "TRADER01"}),
+        ("SYMBOLS", {}),
+        ("VOLUME", {}),
+        ("POSITION", {"GW": "MM_AAPL_01"}),
+    ],
+)
+def test_execute_command_json_output_prints_json_not_rich_text(
+    monkeypatch: pytest.MonkeyPatch, cmd: str, fields: dict[str, str]
+) -> None:
+    """json_output=True must print via plain print(), never console.print()."""
+    rich_calls = _capture_print(monkeypatch)
+    plain_calls: list[Any] = []
+    monkeypatch.setattr("builtins.print", lambda *a, **kw: plain_calls.append((a, kw)))
+    client = cast(ExchangeCommandClient, _FakeClient())
+
+    accepted, result = console_mod.execute_command(
+        client, cmd, fields, json_output=True
+    )
+
+    assert accepted is True
+    assert rich_calls == []
+    assert len(plain_calls) == 1
+    (printed_text,), _kw = plain_calls[0]
+    assert isinstance(printed_text, str)
+    parsed = json.loads(printed_text)
+    assert parsed == result
 
 
 def test_execute_command_symbols_updates_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     _capture_print(monkeypatch)
     client = cast(ExchangeCommandClient, _FakeClient())
     cache = ["OLD"]
-    ok = console_mod.execute_command(client, "SYMBOLS", {}, symbols_cache=cache)
+    ok, _result = console_mod.execute_command(
+        client, "SYMBOLS", {}, symbols_cache=cache
+    )
     assert ok is True
     assert cache == ["AAPL", "MSFT"]
 
@@ -284,18 +376,19 @@ def test_execute_command_usage_and_unknown(monkeypatch: pytest.MonkeyPatch) -> N
     _capture_print(monkeypatch)
     client = cast(ExchangeCommandClient, _FakeClient())
 
-    assert console_mod.execute_command(client, "KILL", {}) is False
-    assert console_mod.execute_command(client, "KICK", {}) is False
-    assert console_mod.execute_command(client, "QCANCEL", {"GW": "G"}) is False
-    assert console_mod.execute_command(client, "BOOK", {}) is False
-    assert console_mod.execute_command(client, "ORDERS", {}) is False
-    assert console_mod.execute_command(client, "LEVEL", {}) is False
+    assert console_mod.execute_command(client, "KILL", {})[0] is False
+    assert console_mod.execute_command(client, "KICK", {})[0] is False
+    assert console_mod.execute_command(client, "QCANCEL", {"GW": "G"})[0] is False
+    assert console_mod.execute_command(client, "BOOK", {})[0] is False
+    assert console_mod.execute_command(client, "ORDERS", {})[0] is False
+    assert console_mod.execute_command(client, "LEVEL", {})[0] is False
     assert (
-        console_mod.execute_command(client, "LEVEL", {"SYM": "AAPL", "PRICE": "abc"})
+        console_mod.execute_command(client, "LEVEL", {"SYM": "AAPL", "PRICE": "abc"})[0]
         is False
     )
-    assert console_mod.execute_command(client, "SESSION", {}) is False
-    assert console_mod.execute_command(client, "NOPE", {}) is False
+    assert console_mod.execute_command(client, "SESSION", {})[0] is False
+    assert console_mod.execute_command(client, "NOPE", {})[0] is False
+    assert console_mod.execute_command(client, "POSITION", {})[0] is False
 
 
 def test_execute_command_level_reports_rejection(
@@ -310,7 +403,7 @@ def test_execute_command_level_reports_rejection(
             return {"rejected": True, "reason": "ADMIN only", "orders": []}
 
     client = cast(ExchangeCommandClient, _RejectingLevel())
-    assert console_mod.execute_command(client, "LEVEL", {"SYM": "AAPL"}) is False
+    assert console_mod.execute_command(client, "LEVEL", {"SYM": "AAPL"})[0] is False
 
 
 def test_execute_command_level_passes_price_filter(
@@ -344,13 +437,201 @@ def test_execute_command_rejections(monkeypatch: pytest.MonkeyPatch) -> None:
             return {"accepted": False, "reason": "x"}
 
     client = cast(ExchangeCommandClient, _Rejecting())
-    assert console_mod.execute_command(client, "HALT", {}) is False
-    assert console_mod.execute_command(client, "RESUME", {}) is False
-    assert console_mod.execute_command(client, "KILL", {"GW": "TRADER01"}) is False
+    assert console_mod.execute_command(client, "HALT", {})[0] is False
+    assert console_mod.execute_command(client, "RESUME", {})[0] is False
+    assert console_mod.execute_command(client, "KILL", {"GW": "TRADER01"})[0] is False
     assert (
-        console_mod.execute_command(client, "QCANCEL", {"GW": "MM01", "SYM": "AAPL"})
+        console_mod.execute_command(client, "QCANCEL", {"GW": "MM01", "SYM": "AAPL"})[0]
         is False
     )
+
+
+def test_cmd_reopen_requires_sym(monkeypatch: pytest.MonkeyPatch) -> None:
+    _capture_print(monkeypatch)
+    client = cast(ExchangeCommandClient, _FakeClient())
+    accepted, result = console_mod.execute_command(client, "REOPEN", {})
+    assert accepted is False
+    assert result == {}
+
+
+def test_cmd_reopen_dry_run_passes_flag_and_prints_indicative(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _capture_print(monkeypatch)
+    client = _FakeClient()
+    accepted, result = console_mod.execute_command(
+        cast(ExchangeCommandClient, client), "REOPEN", {"SYM": "aapl", "DRY_RUN": "1"}
+    )
+    assert accepted is True
+    name, args, kwargs = client.calls[-1]
+    assert name == "force_uncross"
+    assert args == ("aapl",)
+    assert kwargs == {"price": None, "dry_run": True, "note": ""}
+    assert result["dry_run"] is True
+    printed = " ".join(str(a) for a, _ in calls)
+    assert "DRY-RUN" in printed
+
+
+def test_cmd_reopen_live_passes_price_and_note(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_print(monkeypatch)
+    client = _FakeClient()
+    accepted, result = console_mod.execute_command(
+        cast(ExchangeCommandClient, client),
+        "REOPEN",
+        {"SYM": "AAPL", "PRICE": "100.5", "NOTE": "manual open"},
+    )
+    assert accepted is True
+    name, args, kwargs = client.calls[-1]
+    assert name == "force_uncross"
+    assert kwargs == {"price": 100.5, "dry_run": False, "note": "manual open"}
+    assert result["printed_price"] == 100.5
+    assert result["traded_qty"] == 50
+
+
+def test_cmd_reopen_invalid_price(monkeypatch: pytest.MonkeyPatch) -> None:
+    _capture_print(monkeypatch)
+    client = cast(ExchangeCommandClient, _FakeClient())
+    accepted, result = console_mod.execute_command(
+        client, "REOPEN", {"SYM": "AAPL", "PRICE": "abc"}
+    )
+    assert accepted is False
+    assert result == {}
+
+
+def test_cmd_reopen_rejection(monkeypatch: pytest.MonkeyPatch) -> None:
+    _capture_print(monkeypatch)
+
+    class _Rejecting(_FakeClient):
+        def force_uncross(
+            self,
+            symbol: str,
+            price: float | None = None,
+            *,
+            dry_run: bool = False,
+            note: str = "",
+        ) -> dict[str, Any]:
+            return {"accepted": False, "reason": "Unknown symbol: ZZZ"}
+
+    client = cast(ExchangeCommandClient, _Rejecting())
+    accepted, _result = console_mod.execute_command(client, "REOPEN", {"SYM": "ZZZ"})
+    assert accepted is False
+
+
+def test_cmd_position_requires_gw(monkeypatch: pytest.MonkeyPatch) -> None:
+    _capture_print(monkeypatch)
+    client = cast(ExchangeCommandClient, _FakeClient())
+    accepted, result = console_mod.execute_command(client, "POSITION", {})
+    assert accepted is False
+    assert result == []
+
+
+def test_cmd_position_merges_position_and_quote_by_symbol(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_print(monkeypatch)
+    client = _FakeClient()
+    accepted, rows = console_mod.execute_command(
+        cast(ExchangeCommandClient, client), "POSITION", {"GW": "mm_aapl_01"}
+    )
+    assert accepted is True
+
+    # position_snapshot() and quote_bootstrap() were both called with the
+    # gateway id as given (case handled inside the client methods).
+    names = [name for name, _, _ in client.calls]
+    assert "position_snapshot" in names
+    assert "quote_bootstrap" in names
+
+    by_symbol = {row["symbol"]: row for row in rows}
+    assert set(by_symbol) == {"AAPL", "MSFT"}
+
+    # AAPL has both a position and an active quote -- bid/ask/spread/mid present.
+    aapl = by_symbol["AAPL"]
+    assert aapl["net_qty"] == 500
+    assert aapl["avg_cost"] == 149.75
+    assert aapl["bid_price"] == 149.70
+    assert aapl["ask_price"] == 149.90
+    assert aapl["spread"] == pytest.approx(0.20)
+    assert aapl["mid"] == pytest.approx(149.80)
+
+    # MSFT has a position but no active quote in the fake -- no bid/ask/spread/mid.
+    msft = by_symbol["MSFT"]
+    assert msft["net_qty"] == -200
+    assert msft["avg_cost"] == 310.10
+    assert "bid_price" not in msft
+    assert "spread" not in msft
+
+
+def test_cmd_position_symbol_filter_narrows_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_print(monkeypatch)
+    client = cast(ExchangeCommandClient, _FakeClient())
+    accepted, rows = console_mod.execute_command(
+        client, "POSITION", {"GW": "MM_AAPL_01", "SYM": "aapl"}
+    )
+    assert accepted is True
+    assert [row["symbol"] for row in rows] == ["AAPL"]
+
+
+def test_cmd_position_quote_only_symbol_with_no_position(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A symbol with an active quote but no recorded position still appears,
+    with net_qty/avg_cost defaulted to flat."""
+    _capture_print(monkeypatch)
+
+    class _QuoteOnly(_FakeClient):
+        def position_snapshot(self, target_gw: str) -> list[dict[str, Any]]:
+            return []
+
+        def quote_bootstrap(
+            self, target_gw: str, symbol: str = ""
+        ) -> list[dict[str, Any]]:
+            return [{"symbol": "AAPL", "bid_price": 100.0, "ask_price": 100.20}]
+
+    client = cast(ExchangeCommandClient, _QuoteOnly())
+    accepted, rows = console_mod.execute_command(client, "POSITION", {"GW": "MM01"})
+    assert accepted is True
+    assert len(rows) == 1
+    assert rows[0]["symbol"] == "AAPL"
+    assert rows[0]["net_qty"] == 0
+    assert rows[0]["avg_cost"] == 0.0
+    assert rows[0]["bid_price"] == 100.0
+
+
+def test_cmd_position_no_position_and_no_quote(monkeypatch: pytest.MonkeyPatch) -> None:
+    _capture_print(monkeypatch)
+
+    class _Empty(_FakeClient):
+        def position_snapshot(self, target_gw: str) -> list[dict[str, Any]]:
+            return []
+
+        def quote_bootstrap(
+            self, target_gw: str, symbol: str = ""
+        ) -> list[dict[str, Any]]:
+            return []
+
+    client = cast(ExchangeCommandClient, _Empty())
+    accepted, rows = console_mod.execute_command(client, "POSITION", {"GW": "MM01"})
+    assert accepted is True
+    assert rows == []
+
+
+def test_cmd_position_json_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    rich_calls = _capture_print(monkeypatch)
+    plain_calls: list[Any] = []
+    monkeypatch.setattr("builtins.print", lambda *a, **kw: plain_calls.append((a, kw)))
+    client = cast(ExchangeCommandClient, _FakeClient())
+    accepted, rows = console_mod.execute_command(
+        client, "POSITION", {"GW": "MM_AAPL_01"}, json_output=True
+    )
+    assert accepted is True
+    assert rich_calls == []
+    assert len(plain_calls) == 1
+    (printed_text,), _kw = plain_calls[0]
+    assert json.loads(printed_text) == rows
 
 
 def test_admin_dispatch_help_exit_and_timeout(monkeypatch: pytest.MonkeyPatch) -> None:

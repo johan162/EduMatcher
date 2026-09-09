@@ -32,10 +32,12 @@ from edumatcher.models.message import (
     make_cancel_symbol_ack_msg,
     make_circuit_breaker_halt_all_ack_msg,
     make_circuit_breaker_resume_all_ack_msg,
+    make_force_uncross_ack_msg,
     make_gateway_auth_msg,
     make_gateways_msg,
     make_kill_switch_ack_msg,
     make_orders_msg,
+    make_position_snapshot_msg,
     make_price_level_orders_msg,
     make_quote_ack_msg,
     make_quote_bootstrap_msg,
@@ -489,6 +491,48 @@ class TestDataQueries:
         assert len(result) == 1
         assert result[0]["symbol"] == "AAPL"
         assert result[0]["quote_id"] == "SEED-MM_AAPL_01-AAPL-1"
+
+
+class TestPositionSnapshot:
+    def test_position_snapshot_returns_positions(self) -> None:
+        positions = [
+            {"symbol": "AAPL", "net_qty": 500, "avg_cost": 149.75},
+            {"symbol": "MSFT", "net_qty": -200, "avg_cost": 310.10},
+        ]
+        client, push = _client(
+            recv_queue=_q(make_position_snapshot_msg("MM_AAPL_01", positions))
+        )
+        result = client.position_snapshot("mm_aapl_01")
+
+        topic, payload = _last_sent(push)
+        assert topic == "system.position_request"
+        assert payload["gateway_id"] == "MM_AAPL_01"
+
+        assert len(result) == 2
+        assert result[0]["symbol"] == "AAPL"
+        assert result[0]["net_qty"] == 500
+        assert result[1]["symbol"] == "MSFT"
+        assert result[1]["net_qty"] == -200
+
+    def test_position_snapshot_empty_when_flat(self) -> None:
+        client, push = _client(
+            recv_queue=_q(make_position_snapshot_msg("MM_AAPL_01", []))
+        )
+        result = client.position_snapshot("mm_aapl_01")
+
+        topic, payload = _last_sent(push)
+        assert topic == "system.position_request"
+        assert payload["gateway_id"] == "MM_AAPL_01"
+        assert result == []
+
+    def test_position_snapshot_uppercases_gateway_id(self) -> None:
+        client, push = _client(
+            recv_queue=_q(make_position_snapshot_msg("MM_AAPL_01", []))
+        )
+        client.position_snapshot("mm_aapl_01")
+
+        _topic, payload = _last_sent(push)
+        assert payload["gateway_id"] == "MM_AAPL_01"
 
 
 class TestIndexCommands:
@@ -991,3 +1035,67 @@ class TestCancelSymbol:
         result = client.cancel_symbol("TSLA")
         assert result["cancelled_orders"] == 0
         assert result["cancelled_quotes"] == 0
+
+
+class TestForceUncross:
+    def test_natural_reopen_sends_no_price(self) -> None:
+        ack = make_force_uncross_ack_msg(
+            "GW_ADMIN",
+            True,
+            symbol="AAPL",
+            printed_price=100.0,
+            traded_qty=50,
+        )
+        client, push = _client(recv_queue=_q(ack))
+        result = client.force_uncross("aapl")  # lowercase input
+
+        topic, payload = _last_sent(push)
+        assert topic == "risk.force_uncross"
+        assert payload["gateway_id"] == "GW_ADMIN"
+        assert payload["symbol"] == "AAPL"
+        assert payload["dry_run"] is False
+        assert "price" not in payload  # null price is omitted on the wire
+
+        assert result["accepted"] is True
+        assert result["printed_price"] == 100.0
+        assert result["traded_qty"] == 50
+
+    def test_manual_price_and_note_on_the_wire(self) -> None:
+        ack = make_force_uncross_ack_msg(
+            "GW_ADMIN", True, symbol="AAPL", printed_price=100.0, traded_qty=20
+        )
+        client, push = _client(recv_queue=_q(ack))
+        client.force_uncross("AAPL", 100.0, note="manual open")
+
+        _topic, payload = _last_sent(push)
+        assert payload["price"] == 100.0
+        assert payload["note"] == "manual open"
+        assert payload["dry_run"] is False
+
+    def test_dry_run_carries_flag_and_nullable_indicative(self) -> None:
+        ack = make_force_uncross_ack_msg(
+            "GW_ADMIN",
+            True,
+            symbol="AAPL",
+            dry_run=True,
+            indicative_price=None,
+            indicative_qty=0,
+        )
+        client, push = _client(recv_queue=_q(ack))
+        result = client.force_uncross("AAPL", dry_run=True)
+
+        _topic, payload = _last_sent(push)
+        assert payload["dry_run"] is True
+
+        assert result["accepted"] is True
+        assert result["dry_run"] is True
+        assert result["indicative_price"] is None  # null, not zero
+
+    def test_rejected_when_not_admin(self) -> None:
+        ack = make_force_uncross_ack_msg(
+            "GW_ADMIN", False, symbol="AAPL", reason="ADMIN only"
+        )
+        client, push = _client(recv_queue=_q(ack))
+        result = client.force_uncross("AAPL")
+        assert result["accepted"] is False
+        assert "ADMIN" in result["reason"]

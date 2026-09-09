@@ -92,6 +92,7 @@ All paths are rooted at `/api/v1`.
 | [GET /api/v1/admin/risk/state](#get-apiv1adminriskstate) | Admin role | Return live per-symbol risk state |
 | [GET /api/v1/admin/orders](#get-apiv1adminorders) | Admin role | Return the cross-gateway active-order table |
 | [GET /api/v1/admin/orders/{order_id}](#get-apiv1adminordersorder_id) | Admin role | Return the full cross-gateway lifecycle of one order |
+| [GET /api/v1/admin/positions](#get-apiv1adminpositions) | Admin role | Return net position and average cost for any one gateway |
 | [POST /api/v1/admin/kill-switch/symbol](#post-apiv1adminkill-switchsymbol) | Admin role | Cancel all resting exposure on one symbol |
 | [POST /api/v1/admin/kill-switch/gateway](#post-apiv1adminkill-switchgateway) | Admin role | Cancel all resting exposure for one gateway |
 | [POST /api/v1/admin/kill-switch/global](#post-apiv1adminkill-switchglobal) | Admin role | Cancel all resting exposure across every gateway and symbol |
@@ -1167,6 +1168,10 @@ Purpose: return the current quote-leg state for the caller.
 
 Purpose: return current net positions by symbol.
 
+To query a *different* gateway's position (e.g. checking on a running
+`pm-mm-bot`), see [GET /api/v1/admin/positions](#get-apiv1adminpositions),
+which requires the ADMIN role and returns `avg_cost` as well.
+
 **Arguments**
 
 | Name | Type | Req | Description |
@@ -1902,6 +1907,38 @@ Purpose: return the full cross-gateway lifecycle of one order.
 | `ROLE_DENIED` | Caller is not ADMIN |
 | `AUDIT_INDEX_UNAVAILABLE` | No audit index available |
 | `UNKNOWN_ORDER` | No audited events for the order |
+
+### `GET /api/v1/admin/positions`
+
+Purpose: return net position and average cost for *any one* gateway (not
+just the caller's own) -- the admin counterpart to
+[GET /api/v1/positions](#get-apiv1positions). Distinct in two ways: it can
+target any `gateway_id`, and it is a live engine round trip against the
+engine's authoritative VWAP ledger, so unlike `/positions` (own gateway,
+local cache) the reply carries `avg_cost` as well as `net_qty`. It is the
+REST equivalent of `pm-alf-console`'s and `pm-alf-gwy`'s `POS|GW=<gateway_id>`
+command -- all three read the same `system.position_request` /
+`system.position_snapshot.<gateway_id>` pair, so they always agree.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `gateway_id` | `GatewayId` | yes | Gateway to query (any gateway, not just the caller's) |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `{ "gateway_id", "count", "positions": [{ "symbol", "net_qty", "avg_cost" }, ...] }` | Net position and average cost per symbol for the target gateway |
+
+**Errors**
+
+| Code | When |
+|---|---|
+| `AUTH` | Missing or malformed key |
+| `ROLE_DENIED` | Caller is not ADMIN |
+| `ENGINE_TIMEOUT` | Engine did not reply in time |
 
 ### `POST /api/v1/admin/kill-switch/symbol`
 

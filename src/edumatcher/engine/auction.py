@@ -145,6 +145,33 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
     )
 
 
+def executable_at(book: "OrderBook", eq_price: int) -> AuctionResult:  # noqa: F821
+    """
+    Read-only: what would cross at a fixed *eq_price*, without mutating the book.
+
+    Mirrors ``compute_equilibrium``'s curves at one operator-chosen price
+    instead of scanning for the maximiser. Used by the ``reopen --dry-run``
+    peek to show what an asserted price would print. ``eq_price`` is echoed
+    only when something would cross; ``None`` means the price prints nothing.
+    """
+    buy_qty = sum(q for p, q in book._bid_qty.items() if p >= eq_price)
+    sell_qty = sum(q for p, q in book._ask_qty.items() if p <= eq_price)
+    exec_qty = min(buy_qty, sell_qty)
+    surplus = abs(buy_qty - sell_qty)
+    if buy_qty > sell_qty:
+        imbalance_side = "BUY"
+    elif sell_qty > buy_qty:
+        imbalance_side = "SELL"
+    else:
+        imbalance_side = ""
+    return AuctionResult(
+        eq_price=eq_price if exec_qty > 0 else None,
+        eq_qty=exec_qty,
+        surplus=surplus,
+        imbalance_side=imbalance_side,
+    )
+
+
 def execute_uncross(
     book: "OrderBook", eq_price: int
 ) -> tuple[list[Trade], list[Order]]:

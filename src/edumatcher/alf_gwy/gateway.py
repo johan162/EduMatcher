@@ -45,6 +45,7 @@ from edumatcher.models.message import (
     make_order_cancel_msg,
     make_order_new_unchecked_msg,
     make_orders_request_msg,
+    make_position_request_msg,
     make_quote_bootstrap_request_msg,
     make_quote_cancel_msg,
     make_quote_legs_request_msg,
@@ -102,11 +103,13 @@ from edumatcher.models.generated.quote import (
 )
 from edumatcher.models.generated.system import (
     PREFIX_GATEWAY_AUTH,
+    PREFIX_POSITION_SNAPSHOT,
     PREFIX_QUOTE_BOOTSTRAP,
     PREFIX_QUOTE_LEGS,
     PREFIX_SESSION_STATUS,
     PREFIX_SYMBOLS,
     topic_gateway_auth,
+    topic_position_snapshot,
     topic_quote_bootstrap,
     topic_session_status,
     topic_symbols,
@@ -139,6 +142,11 @@ class ClientSession:
     authenticated: bool = False
     auth_pending: bool = False
     dc_enabled: bool = False
+    # Target gateway_id of an outstanding POS|GW=<gateway_id> query, or
+    # None. Set when the request is sent, cleared when the matching
+    # system.position_snapshot.<target> reply arrives (see
+    # _handle_position_snapshot_response) or the session disconnects.
+    pending_position_query: str | None = None
     subscriptions: set[str] = field(default_factory=set)
     out_queue: deque[bytes] = field(default_factory=deque)
     out_offset: int = 0
@@ -568,7 +576,11 @@ class AlfGateway:
             )
             return
 
-        if cmd in {"STATUS", "POS", "HELP"}:
+        if cmd == "POS":
+            self._handle_pos(session, fields)
+            return
+
+        if cmd in {"STATUS", "HELP"}:
             raise ValidationError(
                 "UNKNOWN_COMMAND",
                 f"{cmd} is interactive-only and not supported by pm-alf-gwy",
@@ -1003,6 +1015,85 @@ class AlfGateway:
             return
         raise ValidationError("INVALID_VALUE", "DC STATE must be ON or OFF")
 
+    def _handle_pos(self, session: ClientSession, fields: dict[str, str]) -> None:
+        """``POS|GW=<gateway_id>``: ask the engine what that gateway (e.g.
+        a running pm-mm-bot) is holding.
+
+        Unlike ``pm-alf-console``'s bare ``POS`` (a local fill/P&L ledger
+        this process has no equivalent of -- ``pm-alf-gwy`` is a stateless
+        protocol relay), a bare ``POS`` here has nothing to answer with and
+        stays rejected as interactive-only. ``GW=`` is required.
+
+        ``system.position_request`` is a shared, non-gateway-scoped topic:
+        any gateway may ask about any ``gateway_id`` (see
+        ``engine/main.py::_handle_position_request``, which looks the id up
+        directly with no sender-identity check). The reply arrives on
+        ``system.position_snapshot.<target>``, a topic this session's own
+        static ``_gateway_topics`` set does not include, so it is
+        subscribed on demand here (ref-counted via ``_subscribe_topic`` --
+        the same primitive ``QBOOT``/``QLEGS`` never needed, since their
+        replies always land on the caller's own already-subscribed topic)
+        and dropped again once the reply is routed back -- see
+        ``_handle_position_snapshot_response``.
+        """
+        target = fields.get("GW", "").upper()
+        if not target:
+            raise ValidationError("MISSING_FIELD", "POS requires GW=<gateway_id>")
+        if session.pending_position_query is not None:
+            old_topic = topic_position_snapshot(session.pending_position_query)
+            self._unsubscribe_topic(old_topic)
+            session.subscriptions.discard(old_topic)
+        session.pending_position_query = target
+        new_topic = topic_position_snapshot(target)
+        self._subscribe_topic(new_topic)
+        session.subscriptions.add(new_topic)
+        self._send_to_engine(make_position_request_msg(target))
+
+    def _handle_position_snapshot_response(
+        self, gateway_id: str, payload: dict[str, Any]
+    ) -> None:
+        """Route a system.position_snapshot.<gateway_id> reply back to
+        whichever session(s) currently have a POS|GW=<gateway_id> query
+        outstanding, then drop the subscription.
+
+        Cannot reuse ``_session_for_gateway`` here (that looks up the
+        session whose *own* gateway_id matches -- always true for
+        QBOOT/QLEGS/SESSION, never true for a cross-gateway POS query)
+        so this scans connected sessions for a matching
+        ``pending_position_query`` instead. More than one session may be
+        querying the same target concurrently; every match is answered.
+        """
+        positions = payload.get("positions", [])
+        if not isinstance(positions, list):
+            positions = []
+        topic = topic_position_snapshot(gateway_id)
+        for session in self._clients.values():
+            if session.pending_position_query != gateway_id:
+                continue
+            session.pending_position_query = None
+            self._queue_line(
+                session, "POSITION", {"GW": gateway_id, "COUNT": str(len(positions))}
+            )
+            for pos in positions:
+                if not isinstance(pos, dict):
+                    continue
+                self._queue_line(
+                    session,
+                    "POS_ENTRY",
+                    {
+                        "SYM": str(pos.get("symbol", "")),
+                        "NET_QTY": str(pos.get("net_qty", "")),
+                        "AVG_COST": str(pos.get("avg_cost", "")),
+                    },
+                )
+            session.subscriptions.discard(topic)
+            self._queue_line(session, "END", {"TYPE": "POSITION"})
+            # One _unsubscribe_topic call per matched session -- the
+            # refcount was incremented once per session's _handle_pos call,
+            # so it must be decremented the same number of times (matters
+            # when >1 session concurrently queries the same gateway_id).
+            self._unsubscribe_topic(topic)
+
     # ------------------------------------------------------------------
     # Engine event polling
     # ------------------------------------------------------------------
@@ -1048,6 +1139,11 @@ class AlfGateway:
             if topic.startswith(PREFIX_QUOTE_LEGS):
                 gateway_id = topic.rsplit(".", 1)[-1].upper()
                 self._handle_qlegs_response(gateway_id, payload)
+                continue
+
+            if topic.startswith(PREFIX_POSITION_SNAPSHOT):
+                gateway_id = topic.rsplit(".", 1)[-1].upper()
+                self._handle_position_snapshot_response(gateway_id, payload)
                 continue
 
             if topic.startswith(PREFIX_SESSION_STATUS):

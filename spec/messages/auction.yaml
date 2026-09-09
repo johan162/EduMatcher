@@ -104,16 +104,19 @@ messages:
       since: "1.0"
       see_also: ["auction.indicative.{SYMBOL}", "trade.executed"]
       example_note: >
-        `reason` says which uncross this was, because the four are otherwise
+        `reason` says which uncross this was, because the five are otherwise
         indistinguishable to a consumer and a client cannot tell a circuit
         breaker reopening from the closing one:
 
-          SCHEDULED - leaving an auction or other non-matching session phase
-          REOPEN    - a halted symbol reopening at the end of its halt
-          RECOVERY  - restored GTC orders uncrossed at engine startup
-          BACKSTOP  - the closing backstop forcing a still-halted symbol to
-                      reopen, printing at the corridor boundary rather than at
-                      the outlying equilibrium
+          SCHEDULED    - leaving an auction or other non-matching session phase
+          REOPEN       - a halted symbol reopening at the end of its halt
+          RECOVERY     - restored GTC orders uncrossed at engine startup
+          BACKSTOP     - the closing backstop forcing a still-halted symbol to
+                         reopen, printing at the corridor boundary rather than
+                         at the outlying equilibrium
+          ADMIN_MANUAL - an operator force-uncrossed one symbol via
+                         `pm-admin-cli reopen`, optionally asserting the print
+                         price when no natural equilibrium exists
 
         There is no persistent state to snapshot here, unlike TOP or DEPTH:
         every event is forwarded as its own independent CALF event.
@@ -152,8 +155,8 @@ messages:
         doc: "Surplus on `imbalance_side`; zero when balanced."
       - name: reason
         type: enum
-        values: [SCHEDULED, REOPEN, RECOVERY, BACKSTOP]
-        doc: "Which of the four uncross paths produced this event."
+        values: [SCHEDULED, REOPEN, RECOVERY, BACKSTOP, ADMIN_MANUAL]
+        doc: "Which of the five uncross paths produced this event."
     encoding:
       # `symbol` in the body as well as the topic — see `auction_indicative`.
       engine_pub:

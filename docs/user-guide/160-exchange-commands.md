@@ -185,6 +185,7 @@ same `execute_command()` function.  Every command maps 1-to-1:
 | `HALT_SYM\|SYM=X`      | `halt-sym --sym X`       | `client.symbol_halt("X")`              |
 | `RESUME_SYM\|SYM=X`    | `resume-sym --sym X`     | `client.symbol_resume("X")`            |
 | `CANCEL_SYM\|SYM=X`    | `cancel-sym --sym X`     | `client.cancel_symbol("X")`            |
+| `REOPEN\|SYM=X[\|PRICE=Y][\|DRY_RUN=1][\|NOTE=Z]` | `reopen --sym X [--price Y] [--dry-run] [--note Z]` | `client.force_uncross("X", price=Y, dry_run=..., note=Z)` |
 | `KILL\|GW=X\|SYM=Y`    | `kill --gw X --sym Y`    | `client.kill_switch("X", symbol="Y")`  |
 | `KICK\|GW=X\|REASON=Z` | `kick --gw X --reason Z` | `client.gateway_kick("X", reason="Z")` |
 | `QCANCEL\|GW=X\|SYM=Y` | `qcancel --gw X --sym Y` | `client.quote_cancel("X", "Y")`        |
@@ -224,6 +225,16 @@ rejection, or timeout).  This makes it safe to use in `set -e` shell scripts.
 | `--push ADDR` | `tcp://127.0.0.1:5555` | Engine PULL socket address |
 | `--sub ADDR` | `tcp://127.0.0.1:5556` | Engine PUB socket address |
 | `--timeout MS` | `3000` | Ack wait timeout in milliseconds |
+| `--format {text,json}` | `text` | Output format — `text` is the human-readable form shown throughout this page; `json` prints the same result as machine-readable JSON to stdout instead |
+
+`--format json` works identically for **every** subcommand below — it is a
+global flag handled once in the shared `execute_command` dispatcher, not a
+per-command option. This is useful for scripting: pipe the output through
+`jq` rather than parsing the text tables.
+
+```bash
+pm-admin-cli --id GW_ADMIN --format json volume | jq '.total_qty'
+```
 
 ### Subcommands
 
@@ -304,6 +315,57 @@ Requires `role: ADMIN`.
 | Flag           | Required | Description                   |
 |----------------|----------|-------------------------------|
 | `--sym SYMBOL` | yes      | Symbol whose orders to cancel |
+
+
+
+#### `reopen` — Force a single symbol to uncross now
+
+```bash
+# Peek the indicative print WITHOUT changing any state:
+pm-admin-cli --id GW_ADMIN reopen --sym AAPL --dry-run
+```
+```
+REOPEN DRY-RUN  AAPL  indicative=100.00 x 500  imbalance=BUY (200)
+```
+```bash
+# Open at the naturally computed equilibrium (if any):
+pm-admin-cli --id GW_ADMIN reopen --sym AAPL
+```
+```
+REOPEN OK  AAPL  printed=100.00 x 500  (indicative was 100.00 x 500)
+```
+```bash
+# Assert an operator opening price (failed-auction recovery):
+pm-admin-cli --id GW_ADMIN reopen --sym AAPL --price 100.00 --note "manual open"
+```
+```
+REOPEN OK  AAPL  printed=100.00 x 500  (indicative was no cross)
+```
+Force-uncrosses one symbol and **clears any halt in the same step**. This is
+the hands-on recovery for a failed auction — one that discovered no price and
+left the symbol closed with its orders untouched (see the recovery recipe
+below). Whatever crosses at the chosen price executes with normal price-time
+priority; residual interest stays resting.
+
+- Omit `--price` to open at the naturally computed equilibrium. If the book
+  has no crossing interest, nothing prints (the reply shows `nothing printed`)
+  and you can retry with an asserted `--price`.
+- Pass `--price` to assert an operator opening price when a failed auction
+  discovered none. Whatever crosses at that price trades; the rest stays put.
+- `--dry-run` peeks the indicative print via a read-only calculation and
+  **mutates nothing** — no halt is cleared and no uncross runs. It is the
+  on-demand way to see what would print for a halted or closed symbol, whose
+  `auction.indicative` feed is otherwise silent. With `--price`, the peek
+  reports the quantity that would cross at that asserted price.
+
+Requires `role: ADMIN`.
+
+| Flag           | Required | Description                                                   |
+|----------------|----------|---------------------------------------------------------------|
+| `--sym SYMBOL` | yes      | Symbol to reopen                                              |
+| `--price PX`   | no       | Operator opening price; omit to use the computed equilibrium  |
+| `--dry-run`    | no       | Peek the indicative print without changing any state          |
+| `--note TEXT`  | no       | Reason string recorded on the admin monitor                   |
 
 
 
@@ -538,6 +600,65 @@ entire engine session.
 
 
 
+#### `position` — Show a gateway's net position and live quote
+
+```bash
+pm-admin-cli --id GW_ADMIN position --gw MM_AAPL_01
+```
+```
+MM_AAPL_01
+  AAPL
+    Position : +500   Avg cost: 149.7500
+    Quote    : bid 149.7000  ask 149.9000   spread 0.2000   mid 149.8000
+```
+
+Combines two independent engine queries into one row per symbol:
+
+- **Position** — signed net quantity and volume-weighted average cost,
+  from the engine's own fill ledger (`_gateway_positions`/`_gateway_avg_cost`
+  in `engine/main.py`). Works for **any** gateway, not just a market maker —
+  a `TRADER` or `MM` gateway ID is equally valid.
+- **Quote** — the gateway's live resting bid/ask, if it currently has an
+  active two-sided quote on that symbol, plus the derived spread and mid.
+  A gateway with a position but no active quote (e.g. a `TRADER` that
+  bought via limit orders) shows `(no active quote)` for that line.
+
+Add `--sym` to narrow to one or more comma-separated symbols; a symbol with
+neither a position nor an active quote is omitted from the result:
+
+```bash
+pm-admin-cli --id GW_ADMIN position --gw MM_AAPL_01 --sym AAPL,MSFT
+```
+
+Machine-readable form (`--format json`):
+
+```bash
+pm-admin-cli --id GW_ADMIN --format json position --gw MM_AAPL_01
+```
+```json
+[
+  {
+    "symbol": "AAPL",
+    "net_qty": 500,
+    "avg_cost": 149.75,
+    "bid_price": 149.70,
+    "ask_price": 149.90,
+    "spread": 0.20,
+    "mid": 149.80
+  }
+]
+```
+
+This is the same `system.position_request`/`system.position_snapshot.{GW}`
+message pair used by `POS|GW=<gateway_id>` on
+[`pm-alf-console` and `pm-alf-gwy`](055-alf-console.md#posgwgateway_id-query-another-gateways-position)
+and by `GET /api/v1/admin/positions` on the [REST API](950-app-REST-API-reference.md) —
+all four surfaces agree on the position figures, since they all read the
+same engine ledger. The bid/ask/spread/mid addition here is specific to
+`pm-admin-cli`'s `position` command.
+
+
+
 ### Shell scripting example
 
 ```bash
@@ -575,6 +696,27 @@ pm-admin-cli $ID cancel-sym --sym AAPL
 
 # Reopen AAPL when satisfied
 pm-admin-cli $ID resume-sym --sym AAPL
+```
+
+```bash
+#!/bin/bash
+# Recover a failed auction: an opening/closing uncross that found no price
+# leaves the symbol closed with its orders untouched. Reopen it by hand.
+set -e
+ID="--id GW_ADMIN"
+
+# 1. Peek what would print — the auction.indicative feed is silent for a
+#    halted/closed symbol, so this on-demand read is the only view.
+pm-admin-cli $ID reopen --sym AAPL --dry-run
+
+# 2a. If an equilibrium exists, open at it:
+pm-admin-cli $ID reopen --sym AAPL
+
+# 2b. If it would not cross, assert an operator opening price instead:
+pm-admin-cli $ID reopen --sym AAPL --price 100.00 --note "manual open"
+
+# (Or abandon the book entirely and let it re-collect next phase:)
+# pm-admin-cli $ID cancel-sym --sym AAPL
 ```
 
 
@@ -888,6 +1030,7 @@ with ExchangeCommandClient("GW_ADMIN") as client:
 | `session_schedule()`            | —                             | Any connected GW | `system.session_schedule_request` | `system.session_schedule.{GW}`             |
 | `gateway_list()`                | —                             | Any connected GW | `system.gateways_request`         | `system.gateways.{GW}`                     |
 | `volume()`                      | —                             | Any connected GW | `system.volume_request`           | `system.volume.{GW}`                       |
+| `position_snapshot(target)`     | target GW ID                  | Any connected GW | `system.position_request`         | `system.position_snapshot.{target}`        |
 | `symbol_halt(symbol)`           | symbol                        | **ADMIN**        | `risk.symbol_halt`                | `risk.symbol_halt_ack.{GW}`                |
 | `symbol_resume(symbol)`         | symbol                        | **ADMIN**        | `risk.symbol_resume`              | `risk.symbol_resume_ack.{GW}`              |
 | `cancel_symbol(symbol)`         | symbol                        | **ADMIN**        | `risk.cancel_symbol`              | `risk.cancel_symbol_ack.{GW}`              |

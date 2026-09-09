@@ -102,6 +102,7 @@ HELP_TEXT = """
     STATUS      — show gateway/session summary (identity, symbols, order counts)
     ORDERS      — inspect this gateway's order table with IDs, quantities, and status
   POS         — show current positions with P&L
+  POS|GW=<gateway_id>  — query another gateway's (e.g. an MM bot's) position
   SYMBOLS     — list all active instruments in the engine
   SESSION     — query the engine's current trading session state
     INDEX       — show current cached index level
@@ -334,6 +335,36 @@ def print_positions(
             "—",
             f"[{rpnl_colour}]{rpnl:+.2f}[/{rpnl_colour}]",
         )
+
+    console.print(t)
+
+
+def print_remote_position(gateway_id: str, positions: list[dict[str, Any]]) -> None:
+    """Render a POS|GW=<gateway_id> reply -- system.position_snapshot's
+    per-symbol net_qty/avg_cost for some *other* gateway (typically a
+    running pm-mm-bot). Unlike ``print_positions`` this has no local
+    fill history to compute unrealized/realized P&L from, so it only shows
+    what the engine's ledger reports: symbol, net position, and average
+    cost.
+    """
+    if not positions:
+        console.print(f"[dim]{gateway_id}: flat (no open positions).[/dim]")
+        return
+
+    t = Table(
+        title=f"Position — {gateway_id}",
+        show_header=True,
+        header_style="bold magenta",
+    )
+    t.add_column("Symbol", style="bold", min_width=8)
+    t.add_column("Net Qty", justify="right", min_width=8)
+    t.add_column("Avg Cost", justify="right", min_width=10)
+
+    for pos in sorted(positions, key=lambda p: str(p.get("symbol", ""))):
+        symbol = str(pos.get("symbol", "?"))
+        net = int(pos.get("net_qty", 0))
+        avg = float(pos.get("avg_cost", 0.0))
+        t.add_row(symbol, f"{net:+d}", f"{avg:.2f}")
 
     console.print(t)
 

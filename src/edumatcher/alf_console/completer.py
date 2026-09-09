@@ -158,6 +158,8 @@ class GatewayCompleter(Completer):
             ]
         elif cmd == "QBOOT":
             candidates = [f for f in ["SYM="] if f.rstrip("=") not in already_keys]
+        elif cmd == "POS":
+            candidates = [f for f in ["GW="] if f.rstrip("=") not in already_keys]
         elif cmd == "AMEND":
             candidates = [
                 f

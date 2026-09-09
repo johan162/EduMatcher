@@ -8,7 +8,7 @@
     - how to start it and verify connectivity from a terminal
     - the session lifecycle: HELLO → WELCOME → commands → EXIT
     - what commands are accepted and what responses to expect
-    - how multi-line responses (SYMBOLS, ORDERS, QBOOT, QLEGS) are framed
+    - how multi-line responses (SYMBOLS, ORDERS, QBOOT, QLEGS, POS|GW=) are framed
     - which broadcast events arrive unsolicited on every authenticated session
     - how heartbeats, idle timeouts, and rate limiting work
     - the error codes your client must handle
@@ -60,9 +60,16 @@ flowchart LR
 
 | Unsupported command | Reason |
 |---------------------|--------|
-| `STATUS` | Console P&L and position display — use `ORDERS` + `SYMBOLS` instead |
-| `POS` | Positions are computed locally in `pm-alf-console` |
+| `STATUS` | Console session summary display — use `ORDERS` + `SYMBOLS` instead |
 | `HELP` | Interactive terminal reference text |
+
+A bare `POS` (no `GW=`) is also rejected — `pm-alf-console`'s bare `POS`
+renders from its own local, session-scoped fill ledger, which `pm-alf-gwy`
+has no equivalent of. `POS|GW=<gateway_id>` **is** supported (see the
+[command reference](#posgwgateway_id-query-another-gateways-position)
+below) since that form is always a genuine engine round trip, never a local
+ledger — asking about your own connected gateway_id or any other gateway's
+(such as a running `pm-mm-bot`'s) works identically.
 
 `QLEGS` **is** supported — see the [command reference](#qlegs-quote-leg-snapshot-active-recent)
 below. Unlike `pm-alf-console`'s `QLEGS` (which renders from its own local,
@@ -536,6 +543,43 @@ An unconnected/unknown gateway still gets a well-formed, empty reply
 (`QLEGS|COUNT=0|RECENT_COUNT=0|SHOW=...` followed immediately by
 `END|TYPE=QLEGS`) rather than an error — `QLEGS` never fails on a bad
 gateway ID, it simply has nothing to report.
+
+### `POS|GW=<gateway_id>` — query another gateway's position
+
+```text
+POS|GW=MM_AAPL_01
+```
+
+| Field | Required | Default | Description                                                  |
+|-------|----------|---------|----------------------------------------------------------------|
+| `GW`  | Yes      | —       | The `gateway_id` to ask about — any connected gateway, not just your own |
+
+A bare `POS` (no `GW=`) is rejected with `ERR|CODE=UNKNOWN_COMMAND` — see
+[What this is not](#what-this-is-not) above.
+
+`POS|GW=` forwards `system.position_request` for the given `gateway_id` to
+the engine and renders the engine's `system.position_snapshot.{gateway_id}`
+reply: net quantity and average cost, per symbol, for every symbol that
+gateway has a non-zero position in. Unlike every other command on this
+page, the reply's topic is scoped to the *queried* `gateway_id`, not to
+your own session's gateway_id, so `pm-alf-gwy` subscribes to it on demand
+for the duration of one outstanding query and drops the subscription again
+once the reply arrives (or the session disconnects) — this is invisible on
+the wire, but it is why `POS|GW=` is the one command whose reply topic
+differs from every other request/reply pair in this protocol.
+
+**Multi-line response:**
+
+```text
+POSITION|GW=MM_AAPL_01|COUNT=1
+POS_ENTRY|SYM=AAPL|NET_QTY=-300|AVG_COST=150.05
+END|TYPE=POSITION
+```
+
+A flat gateway (or one with no position in any symbol) still gets a
+well-formed, empty reply (`POSITION|GW=<gateway_id>|COUNT=0` followed
+immediately by `END|TYPE=POSITION`) rather than an error — same convention
+as `QLEGS` and `QBOOT` for an unconnected/unknown/flat gateway.
 
 ### `SESSION` — query current trading session state
 

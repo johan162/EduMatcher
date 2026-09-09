@@ -148,6 +148,7 @@ _ADMIN_ACTION_ACTION_VALUES = (
     "kill_switch.symbol",
     "circuit_breaker.trigger",
     "circuit_breaker.resume",
+    "auction.reopen",
 )
 AdminActionAction = Literal[
     "kill_switch.self",
@@ -156,6 +157,7 @@ AdminActionAction = Literal[
     "kill_switch.symbol",
     "circuit_breaker.trigger",
     "circuit_breaker.resume",
+    "auction.reopen",
 ]
 
 
@@ -189,7 +191,7 @@ _ADMIN_ACTION_FIELDS: tuple[dict[str, Any], ...] = (
         "type": "enum",
         "unit": None,
         "required": True,
-        "doc": "Which command ran. The six the engine publishes, enumerated rather than left a free string: a seventh admin command that forgets to declare itself here fails loudly at its first invocation, which is better than appearing in the monitor as a value no client renders. The values look like topics and are not: `circuit_breaker.trigger` is the action behind `risk.symbol_halt`, and there is no `circuit_breaker.trigger` topic anywhere.",
+        "doc": "Which command ran. The seven the engine publishes, enumerated rather than left a free string: an eighth admin command that forgets to declare itself here fails loudly at its first invocation, which is better than appearing in the monitor as a value no client renders. The values look like topics and are not: `circuit_breaker.trigger` is the action behind `risk.symbol_halt`, and there is no `circuit_breaker.trigger` topic anywhere. `auction.reopen` is the action behind `risk.force_uncross`.",
         "values": _ADMIN_ACTION_ACTION_VALUES,
     },
     {

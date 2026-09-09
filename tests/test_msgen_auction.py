@@ -125,7 +125,8 @@ class TestPresence:
 class TestTheFourthReason:
     def test_backstop_is_a_declared_value(self) -> None:
         """26.6: ``_run_uncross`` is called with BACKSTOP from the closing
-        backstop, and three documents listed only the other three."""
+        backstop, and three documents listed only the other three. ADMIN_MANUAL
+        joins them for the operator ``reopen`` force-uncross."""
         from typing import get_args
 
         assert set(get_args(G.AuctionResultReason)) == {
@@ -133,6 +134,7 @@ class TestTheFourthReason:
             "REOPEN",
             "RECOVERY",
             "BACKSTOP",
+            "ADMIN_MANUAL",
         }
 
     def test_every_reason_the_engine_passes_is_declared(self) -> None:

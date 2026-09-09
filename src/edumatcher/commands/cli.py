@@ -16,6 +16,7 @@ Exit codes
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from typing import Any
 
@@ -36,6 +37,9 @@ def _build_parser() -> argparse.ArgumentParser:
             "  pm-admin-cli --id GW_ADMIN halt-sym --sym AAPL\n"
             "  pm-admin-cli --id GW_ADMIN resume-sym --sym AAPL\n"
             "  pm-admin-cli --id GW_ADMIN cancel-sym --sym AAPL\n"
+            "  pm-admin-cli --id GW_ADMIN reopen --sym AAPL --dry-run\n"
+            "  pm-admin-cli --id GW_ADMIN reopen --sym AAPL\n"
+            "  pm-admin-cli --id GW_ADMIN reopen --sym AAPL --price 100.00 --note 'manual open'\n"
             "  pm-admin-cli --id GW_ADMIN kill --gw TRADER01\n"
             "  pm-admin-cli --id GW_ADMIN kill --gw TRADER01 --sym AAPL\n"
             "  pm-admin-cli --id GW_ADMIN kick --gw TRADER01 --reason 'Compliance hold'\n"
@@ -82,6 +86,15 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="MS",
         help="Ack timeout in milliseconds (default: 3000)",
     )
+    parser.add_argument(
+        "--format",
+        choices=("text", "json"),
+        default="text",
+        help=(
+            "Output format for the command's result: 'text' (default, "
+            "human-readable) or 'json' (machine-readable, printed to stdout)"
+        ),
+    )
 
     sub = parser.add_subparsers(dest="command", required=True, metavar="COMMAND")
 
@@ -112,6 +125,36 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Cancel all resting orders on a symbol across every gateway (ADMIN role required)",
     )
     p.add_argument("--sym", required=True, metavar="SYMBOL", help="Symbol to clear")
+
+    p = sub.add_parser(
+        "reopen",
+        help=(
+            "Force one symbol to uncross now and clear any halt in one step "
+            "(ADMIN role required)"
+        ),
+    )
+    p.add_argument("--sym", required=True, metavar="SYMBOL", help="Symbol to reopen")
+    p.add_argument(
+        "--price",
+        type=float,
+        default=None,
+        metavar="PRICE",
+        help=(
+            "Operator opening price; omit to open at the naturally computed "
+            "equilibrium"
+        ),
+    )
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Peek the indicative print without changing any state",
+    )
+    p.add_argument(
+        "--note",
+        default="",
+        metavar="TEXT",
+        help="Reason string recorded in the engine log",
+    )
 
     # ---- Any connected gateway ----
     p = sub.add_parser(
@@ -212,6 +255,21 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Show daily traded volume per symbol and exchange total",
     )
 
+    p = sub.add_parser(
+        "position",
+        help=(
+            "Show net position, avg cost, and live bid/ask/spread/mid per "
+            "symbol for a gateway (any gateway, not just a market maker)"
+        ),
+    )
+    p.add_argument("--gw", required=True, metavar="GW_ID", help="Target gateway ID")
+    p.add_argument(
+        "--sym",
+        default="",
+        metavar="SYMBOL[,SYMBOL...]",
+        help="Narrow to one or more comma-separated symbols (omit for all)",
+    )
+
     return parser
 
 
@@ -224,10 +282,15 @@ def _args_to_fields(args: Any) -> dict[str, str]:
         fields["SYM"] = args.sym
     if getattr(args, "reason", None):
         fields["REASON"] = args.reason
+    if getattr(args, "note", None):
+        fields["NOTE"] = args.note
+    if getattr(args, "dry_run", False):
+        fields["DRY_RUN"] = "1"
     if getattr(args, "state", None):
         fields["STATE"] = args.state
-    if getattr(args, "price", None):
-        fields["PRICE"] = args.price
+    price = getattr(args, "price", None)
+    if price is not None and price != "":
+        fields["PRICE"] = str(price)
     return fields
 
 
@@ -268,9 +331,14 @@ def main() -> None:
     fields = _args_to_fields(args)
     ok = True
     try:
-        ok = execute_command(client, cmd, fields)
+        ok, _result = execute_command(
+            client, cmd, fields, json_output=args.format == "json"
+        )
     except CommandTimeoutError as exc:
-        print(f"Timeout: {exc}", file=sys.stderr)
+        if args.format == "json":
+            print(json.dumps({"error": "timeout", "detail": str(exc)}))
+        else:
+            print(f"Timeout: {exc}", file=sys.stderr)
         ok = False
     finally:
         client.disconnect()
