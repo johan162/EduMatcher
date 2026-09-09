@@ -1784,6 +1784,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pm-ai-swarm-multi-agent-trading-swarm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pm-ai-swarm — Multi-Agent Trading Swarm
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#pm-mm-bot-autonomous-market-maker-bot" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2087,6 +2098,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pm-opctl-cli-operational-process-control" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pm-opctl-cli — Operational Process Control
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pm-help-pm-man-command-index-and-man-page-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pm-help / pm-man — Command Index and Man-Page Reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#order-lifecycle-message-flow" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2146,6 +2179,17 @@
     <span class="md-ellipsis">
       
         pm-log-cli — Log Server Query/Troubleshooting CLI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pm-msgen-message-binding-generator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pm-msgen — Message Binding Generator
       
     </span>
   </a>
@@ -5062,6 +5106,18 @@ announces itself immediately.</p>
 <td>No</td>
 </tr>
 <tr>
+<td><strong>pm-opctl-cli</strong></td>
+<td><code>pm-opctl-cli &lt;command&gt;</code></td>
+<td>Start/stop/monitor named process profiles (recommended way to run the stack)</td>
+<td>Recommended</td>
+</tr>
+<tr>
+<td><strong>pm-help</strong> / <strong>pm-man</strong></td>
+<td><code>pm-help [pm-command]</code></td>
+<td>Command index and man-page reference for every pm-* command</td>
+<td>No</td>
+</tr>
+<tr>
 <td><strong>pm-cverifier</strong></td>
 <td><code>pm-cverifier [options] &lt;config&gt;</code></td>
 <td>Validate <code>engine_config.yaml</code> (YAML, schema, semantic, completeness checks)</td>
@@ -7944,6 +8000,7 @@ sequence before it begins submitting orders:</p>
 <p>Steps 3–5 are idempotent: if the engine returns an empty list or a
 <code>CONTINUOUS</code> state the bot simply starts from a flat / unhalt / continuous
 state, which is correct for a fresh session.</p>
+<h2 id="pm-ai-swarm-multi-agent-trading-swarm">pm-ai-swarm — Multi-Agent Trading Swarm<a class="headerlink" href="#pm-ai-swarm-multi-agent-trading-swarm" title="Permanent link">&para;</a></h2>
 <p>Launches and supervises multiple <code>pm-ai-trader</code> bots as a coordinated swarm.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>pm-ai-swarm<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
 </code></pre></div>
@@ -10502,6 +10559,194 @@ before sending an absolute <code>SHARES_ISSUANCE</code> value.</p>
 an ack-routing key.</p>
 <p>See <a href="../152-index-admin-cli/">Index Admin CLI</a> for the full subcommand
 reference, confirmation-prompt behaviour, and worked examples.</p>
+<h2 id="pm-opctl-cli-operational-process-control">pm-opctl-cli — Operational Process Control<a class="headerlink" href="#pm-opctl-cli-operational-process-control" title="Permanent link">&para;</a></h2>
+<p>Start, stop, and monitor a named group of <code>pm-*</code> processes together. This is
+the recommended way to bring up (or tear down) a full EduMatcher stack,
+instead of launching each process by hand in its own terminal — see
+<a href="../040-running-the-exchange/#starting-the-stack-with-pm-opctl-cli">Running the Exchange → Starting the stack with pm-opctl-cli</a>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a>pm-opctl-cli<span class="w"> </span>start<span class="w"> </span><span class="o">[</span>PROFILE<span class="o">]</span>
+<a id="__codelineno-47-2" name="__codelineno-47-2" href="#__codelineno-47-2"></a>pm-opctl-cli<span class="w"> </span>list<span class="w"> </span><span class="o">[</span>-y<span class="w"> </span><span class="p">|</span><span class="w"> </span>--no-restart<span class="o">]</span>
+<a id="__codelineno-47-3" name="__codelineno-47-3" href="#__codelineno-47-3"></a>pm-opctl-cli<span class="w"> </span>health<span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
+<a id="__codelineno-47-4" name="__codelineno-47-4" href="#__codelineno-47-4"></a>pm-opctl-cli<span class="w"> </span>stop
+<a id="__codelineno-47-5" name="__codelineno-47-5" href="#__codelineno-47-5"></a>pm-opctl-cli<span class="w"> </span><span class="nb">kill</span>
+<a id="__codelineno-47-6" name="__codelineno-47-6" href="#__codelineno-47-6"></a>pm-opctl-cli<span class="w"> </span>init
+<a id="__codelineno-47-7" name="__codelineno-47-7" href="#__codelineno-47-7"></a>pm-opctl-cli<span class="w"> </span>show<span class="w"> </span><span class="o">[</span>--json<span class="o">]</span>
+<a id="__codelineno-47-8" name="__codelineno-47-8" href="#__codelineno-47-8"></a>pm-opctl-cli<span class="w"> </span>clear<span class="w"> </span><span class="o">(</span>--state<span class="w"> </span><span class="p">|</span><span class="w"> </span>--all<span class="o">)</span><span class="w"> </span><span class="o">[</span>--yes<span class="o">]</span>
+</code></pre></div>
+<p><strong>Profiles:</strong></p>
+<p>A <em>profile</em> is a named list of processes to run together, defined in
+<code>&lt;DATA_DIR&gt;/emo-config.yaml</code>. Three profiles are built in and used as-is until
+that file exists:</p>
+<table>
+<thead>
+<tr>
+<th>Profile</th>
+<th>Contents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>micro</code></td>
+<td>Centralized logging plus the matching engine only</td>
+</tr>
+<tr>
+<td><code>mini</code></td>
+<td>A trading-capable subset: logging, stats, engine, scheduler, market data, the desk API gateway, and the ALF/post-trade/drop-copy gateways</td>
+</tr>
+<tr>
+<td><code>default</code></td>
+<td>The full nominal exchange stack, including audit, clearing, both API gateway instances, and the BALF gateway</td>
+</tr>
+</tbody>
+</table>
+<p>Run <code>pm-opctl-cli init</code> to write the built-ins to <code>emo-config.yaml</code> for editing;
+once that file exists its profiles replace the built-ins entirely (a missing
+<code>default</code> profile is backfilled from the built-in nominal stack).</p>
+<p><strong>Subcommands:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Subcommand</th>
+<th>Aliases</th>
+<th>Options</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>start [PROFILE]</code></td>
+<td><code>up</code></td>
+<td>—</td>
+<td>Start a profile (<code>default</code> when omitted), skipping entries already running</td>
+</tr>
+<tr>
+<td><code>list</code></td>
+<td>—</td>
+<td><code>-y</code>/<code>--restart</code> (restart dead entries without asking), <code>--no-restart</code> (never offer)</td>
+<td>Status table for the active profile: uptime (<code>HH:MM</code>) and resident memory (MiB) per process</td>
+</tr>
+<tr>
+<td><code>health</code></td>
+<td>—</td>
+<td><code>-q</code>/<code>--quiet</code> (print nothing)</td>
+<td>Same checks as <code>list</code>; exits <code>0</code> only when every process is running — for monitoring scripts</td>
+</tr>
+<tr>
+<td><code>stop</code></td>
+<td><code>down</code></td>
+<td>—</td>
+<td>Send <code>SIGTERM</code> to processes this tool started (recorded in the PID directory)</td>
+</tr>
+<tr>
+<td><code>kill</code></td>
+<td>—</td>
+<td>—</td>
+<td>Emergency stop: <code>pkill -15 -f -i -l pm-</code> — signals every process whose command line contains <code>pm-</code>, including ones this tool did not start</td>
+</tr>
+<tr>
+<td><code>init</code></td>
+<td>—</td>
+<td>—</td>
+<td>Write the built-in profiles to <code>&lt;DATA_DIR&gt;/emo-config.yaml</code>; refuses to overwrite an existing file</td>
+</tr>
+<tr>
+<td><code>show</code></td>
+<td>—</td>
+<td><code>--json</code></td>
+<td>Print version, resolved data directory, and deployed config paths — same info as <code>pm-config-deploy --show</code></td>
+</tr>
+<tr>
+<td><code>clear</code></td>
+<td>—</td>
+<td><code>--state</code> (engine/session state only) or <code>--all</code> (also logs and audit trail), <code>--yes</code> (skip prompt)</td>
+<td>Delete persisted data under the data directory; <code>ref_data/</code> (configuration) is never touched</td>
+</tr>
+</tbody>
+</table>
+<p>Exactly one of <code>--state</code>/<code>--all</code> must be given to <code>clear</code>.</p>
+<p><strong>Expected runtime input arguments:</strong></p>
+<p>None. Each subcommand runs once and exits (<code>list</code>/<code>health</code> print a snapshot,
+they do not stay running).</p>
+<p><strong>Health checking:</strong></p>
+<p>There is no general way to prove an arbitrary process is not internally hung,
+so health is reported at three levels of confidence: <code>dead</code> (no live PID
+found), <code>not responding</code> (the PID is alive but its <code>healthcheck</code> failed or its
+<code>tcp</code> probe refused/timed out), or <code>running</code> (the PID is alive and any
+configured check passed). A <code>healthcheck</code> command takes precedence over a
+<code>tcp</code> probe because it exercises the application itself, not just its socket.</p>
+<p><strong>Process tracking:</strong></p>
+<p>Started processes are detached into their own session and recorded as
+<code>&lt;DATA_DIR&gt;/emo/&lt;name&gt;.pid</code>, with combined stdout/stderr appended to
+<code>&lt;DATA_DIR&gt;/emo/&lt;name&gt;.log</code>. The active profile name is remembered in
+<code>&lt;DATA_DIR&gt;/emo/active-profile</code>. A process restarted outside this tool is
+re-adopted on the next <code>list</code>/<code>health</code>/<code>stop</code> by matching its command line via
+<code>pgrep</code>, so a stale PID file is never treated as final.</p>
+<p>This tool is local orchestration logic — it starts other <code>pm-*</code> processes as
+subprocesses and reads their PID/log files, but binds no ZeroMQ or TCP port
+of its own and does not participate in the runtime message bus.</p>
+<p>See <a href="../040-running-the-exchange/">Running the Exchange</a> and
+<a href="../000-getting-started/">Getting Started</a> for the recommended startup sequence.</p>
+<h2 id="pm-help-pm-man-command-index-and-man-page-reference">pm-help / pm-man — Command Index and Man-Page Reference<a class="headerlink" href="#pm-help-pm-man-command-index-and-man-page-reference" title="Permanent link">&para;</a></h2>
+<p>Lists every <code>pm-*</code> command with a one-sentence explanation, or prints a full
+man page for one of them. <code>pm-man</code> is a plain alias for the exact same tool --
+use whichever name is more familiar.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a>pm-help<span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>text<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="o">]</span>
+<a id="__codelineno-48-2" name="__codelineno-48-2" href="#__codelineno-48-2"></a>pm-help<span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>text<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="o">]</span><span class="w"> </span>&lt;pm-command&gt;
+<a id="__codelineno-48-3" name="__codelineno-48-3" href="#__codelineno-48-3"></a>pm-man<span class="w"> </span>&lt;pm-command&gt;
+</code></pre></div>
+<p><strong>With no argument</strong>, prints the version and data-file locations (the same
+information as <code>pm-opctl-cli show</code>), then a table of every <code>pm-*</code> command
+grouped by category: Core Runtime, External Gateways, Protocol Spies, AI &amp;
+Bots, Index, Query &amp; Reporting CLIs, Admin &amp; Operations, Setup &amp;
+Configuration, Logging, Developer Tools, and Help.</p>
+<p><strong>With a command name</strong>, prints a full man page: NAME, SYNOPSIS, DESCRIPTION,
+OPTIONS, SUBCOMMANDS (where applicable), PORTS, MESSAGE BUS involvement,
+RELATED COMMANDS, EXAMPLES, NOTES, and SEE ALSO. The name is looked up with or
+without its <code>pm-</code> prefix, so <code>pm-help viewer</code> finds <code>pm-viewer</code>.</p>
+<p><strong>Startup options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--format table\|json</code></td>
+<td><code>table</code></td>
+<td><code>table</code> uses UTF-8 box-drawing characters; <code>text</code> is plain aligned columns with no box-drawing -- friendly to <code>grep</code>, redirects, and non-UTF-8 terminals</td>
+</tr>
+<tr>
+<td><code>-v</code>, <code>--verbose</code></td>
+<td>off</td>
+<td>In the command-index view, show extra detail (and a worked example, where one exists) under each command</td>
+</tr>
+<tr>
+<td><code>--no-color</code></td>
+<td>off</td>
+<td>Disable ANSI colour</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Expected runtime input arguments:</strong></p>
+<p>None. Each invocation prints its output once and exits.</p>
+<p>This tool is local reference data -- hand-curated, not scraped from each
+command's own <code>--help</code> output -- so it can show information no <code>argparse</code>
+parser exposes on its own, such as ports and ZeroMQ message-bus involvement.
+It does not participate in the runtime message bus.</p>
+<p><strong>Examples:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-49-1" name="__codelineno-49-1" href="#__codelineno-49-1"></a>pm-help<span class="w">                    </span><span class="c1"># version, data dirs, and the full command table</span>
+<a id="__codelineno-49-2" name="__codelineno-49-2" href="#__codelineno-49-2"></a>pm-help<span class="w"> </span>--format<span class="w"> </span>text<span class="w"> </span>-v<span class="w">   </span><span class="c1"># plain-text table with per-command examples</span>
+<a id="__codelineno-49-3" name="__codelineno-49-3" href="#__codelineno-49-3"></a>pm-help<span class="w"> </span>pm-viewer<span class="w">          </span><span class="c1"># full man page for pm-viewer</span>
+<a id="__codelineno-49-4" name="__codelineno-49-4" href="#__codelineno-49-4"></a>pm-man<span class="w"> </span>pm-alf-console<span class="w">      </span><span class="c1"># pm-man is an alias for pm-help</span>
+</code></pre></div>
 <h2 id="order-lifecycle-message-flow">Order Lifecycle Message Flow<a class="headerlink" href="#order-lifecycle-message-flow" title="Permanent link">&para;</a></h2>
 <p>The following diagram traces a single limit order from submission to full fill,
 showing which process sends each message and on which socket:</p>
@@ -10533,8 +10778,8 @@ It accepts BALF binary frames from low-latency programmatic clients and
 translates them into the same engine order flow as the ALF gateways.</p>
 <p>See <a href="../230-balf-gateway/">BALF TCP Gateway</a> for operational usage and
 <a href="../910-app-balf-protocol/">BALF Protocol Reference</a> for the wire-level contract.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a>pm-balf-gwy<span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5560</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-host<span class="w"> </span>HOST<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-47-2" name="__codelineno-47-2" href="#__codelineno-47-2"></a><span class="w">  </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a>pm-balf-gwy<span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5560</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-host<span class="w"> </span>HOST<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-50-2" name="__codelineno-50-2" href="#__codelineno-50-2"></a><span class="w">  </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -10606,8 +10851,8 @@ CALF/TCP. It consumes engine PUB topics and exposes sequence-aware streams for:<
 <li><code>TRADE</code> (executed trades)</li>
 <li><code>STATE</code> (session and halt/resume state)</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a>pm-md-gwy<span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5570</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-pub<span class="w"> </span>tcp://127.0.0.1:5556<span class="o">]</span><span class="w"> </span><span class="o">[</span>--index-pub<span class="w"> </span>tcp://127.0.0.1:5558<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-48-2" name="__codelineno-48-2" href="#__codelineno-48-2"></a><span class="w">  </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-51-1" name="__codelineno-51-1" href="#__codelineno-51-1"></a>pm-md-gwy<span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5570</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-pub<span class="w"> </span>tcp://127.0.0.1:5556<span class="o">]</span><span class="w"> </span><span class="o">[</span>--index-pub<span class="w"> </span>tcp://127.0.0.1:5558<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-51-2" name="__codelineno-51-2" href="#__codelineno-51-2"></a><span class="w">  </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -10812,10 +11057,10 @@ auto-detects a running <code>pm-log-srv</code> at startup is a follow-up phase a
 has not yet been rolled out — until then, <code>--log-level</code>/<code>-v</code>/<code>-q</code> still
 control each process's own stdout logging as before.</p>
 </div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-49-1" name="__codelineno-49-1" href="#__codelineno-49-1"></a>pm-log-srv [--host ADDR] [--port PORT] [--db PATH]
-<a id="__codelineno-49-2" name="__codelineno-49-2" href="#__codelineno-49-2"></a>           [--retention-days N] [--max-message-bytes N]
-<a id="__codelineno-49-3" name="__codelineno-49-3" href="#__codelineno-49-3"></a>           [--pub-port PORT] [--pull-port PORT] [--no-pubsub] [--lease-sec N]
-<a id="__codelineno-49-4" name="__codelineno-49-4" href="#__codelineno-49-4"></a>           [--log-level LEVEL] [-v|-vv] [-q] [--log-target stdout|file] [--log-file PATH]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-52-1" name="__codelineno-52-1" href="#__codelineno-52-1"></a>pm-log-srv [--host ADDR] [--port PORT] [--db PATH]
+<a id="__codelineno-52-2" name="__codelineno-52-2" href="#__codelineno-52-2"></a>           [--retention-days N] [--max-message-bytes N]
+<a id="__codelineno-52-3" name="__codelineno-52-3" href="#__codelineno-52-3"></a>           [--pub-port PORT] [--pull-port PORT] [--no-pubsub] [--lease-sec N]
+<a id="__codelineno-52-4" name="__codelineno-52-4" href="#__codelineno-52-4"></a>           [--log-level LEVEL] [-v|-vv] [-q] [--log-target stdout|file] [--log-file PATH]
 </code></pre></div>
 <table>
 <thead>
@@ -10907,7 +11152,7 @@ control each process's own stdout logging as before.</p>
 <p><code>pm-log-cli</code> is a read-only offline tool: it queries <code>log.db</code> directly, never
 over the network, so a busy or even-stopped <code>pm-log-srv</code> never blocks
 troubleshooting with data already collected.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a>pm-log-cli [--db PATH] [--format human|json] COMMAND [options]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-53-1" name="__codelineno-53-1" href="#__codelineno-53-1"></a>pm-log-cli [--db PATH] [--format human|json] COMMAND [options]
 </code></pre></div>
 <p>Subcommands: <code>tail</code>, <code>query</code>, <code>processes</code>, <code>stats</code>, <code>diagnose</code> (rule-based
 troubleshooting heuristics with concrete recommendations), and <code>prune</code>
@@ -10916,6 +11161,105 @@ troubleshooting heuristics with concrete recommendations), and <code>prune</code
 — starting the server, every <code>pm-log-cli</code> subcommand, and a workflow
 cookbook — and <a href="../940-app-lalf-protocol/">LALF Protocol Reference</a> for the
 normative wire specification.</p>
+<h2 id="pm-msgen-message-binding-generator">pm-msgen — Message Binding Generator<a class="headerlink" href="#pm-msgen-message-binding-generator" title="Permanent link">&para;</a></h2>
+<p>Developer/build tool that generates the Python message-binding modules
+(<code>src/edumatcher/models/generated/</code>), C header artifacts, and the
+<a href="../270-message-reference/">Message Reference</a> documentation table from the
+canonical specification in <code>spec/</code> (<code>spec/transports.yaml</code> and
+<code>spec/messages/</code>). It is not part of the running exchange — no <code>pm-*</code> runtime
+process imports or invokes it — it exists so that the spec is the single
+source of truth for every topic name and payload shape, and so a spec change
+without regeneration (or a hand-edit to a generated file) cannot silently
+drift from what the engine and gateways actually send.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-54-1" name="__codelineno-54-1" href="#__codelineno-54-1"></a>pm-msgen<span class="w"> </span>generate<span class="w"> </span><span class="o">[</span>--spec<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--out-python<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--out-c<span class="w"> </span>DIR<span class="o">]</span>
+<a id="__codelineno-54-2" name="__codelineno-54-2" href="#__codelineno-54-2"></a>pm-msgen<span class="w"> </span>check<span class="w">    </span><span class="o">[</span>--spec<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--out-python<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--out-c<span class="w"> </span>DIR<span class="o">]</span>
+<a id="__codelineno-54-3" name="__codelineno-54-3" href="#__codelineno-54-3"></a>pm-msgen<span class="w"> </span>lint<span class="w">     </span><span class="o">[</span>--spec<span class="w"> </span>DIR<span class="o">]</span>
+<a id="__codelineno-54-4" name="__codelineno-54-4" href="#__codelineno-54-4"></a>pm-msgen<span class="w"> </span>grep-literals<span class="w"> </span><span class="o">[</span>--spec<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--src<span class="w"> </span>DIR<span class="o">]</span>
+</code></pre></div>
+<p><strong>Subcommands:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Subcommand</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>generate</code></td>
+<td>Render Python bindings, C artifacts, and docs from the spec and write them to disk</td>
+</tr>
+<tr>
+<td><code>check</code></td>
+<td>Re-render from the spec and fail (exit <code>1</code>) if the committed output differs — the CI gate; run via <code>make msgen-check</code></td>
+</tr>
+<tr>
+<td><code>lint</code></td>
+<td>Validate the spec only (YAML structure, message/family consistency); prints a family/message count</td>
+</tr>
+<tr>
+<td><code>grep-literals</code></td>
+<td>Scan a source tree for topic string literals that a generated constant should replace instead</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Startup options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Applies to</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--spec DIR</code></td>
+<td><code>spec</code></td>
+<td>all</td>
+<td>Spec root holding <code>transports.yaml</code> and <code>messages/</code></td>
+</tr>
+<tr>
+<td><code>--out-python DIR</code></td>
+<td><code>src/edumatcher/models/generated</code></td>
+<td><code>generate</code>, <code>check</code></td>
+<td>Python output directory</td>
+</tr>
+<tr>
+<td><code>--out-c DIR</code></td>
+<td><code>docs/examples/generated</code></td>
+<td><code>generate</code>, <code>check</code></td>
+<td>C output directory</td>
+</tr>
+<tr>
+<td><code>--src DIR</code></td>
+<td><code>src</code></td>
+<td><code>grep-literals</code></td>
+<td>Source tree to scan</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>all</td>
+<td>Print version and exit</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Expected runtime input arguments:</strong></p>
+<p>None. Each subcommand runs once and exits.</p>
+<p><strong>Exit codes:</strong></p>
+<ul>
+<li><code>0</code> — success (<code>generate</code> wrote or confirmed up-to-date output; <code>check</code>/<code>lint</code> found no problems)</li>
+<li><code>1</code> — <code>check</code> found drift between the spec and the committed generated output</li>
+<li><code>2</code> — spec error (invalid YAML/schema) or the <code>--spec</code> directory was not found (most often caused by running from the wrong working directory — run from the repository root, or pass <code>--spec</code> explicitly)</li>
+</ul>
+<p>Regenerate after editing a spec file with <code>make msgen</code>; <code>make msgen-check</code>
+(part of <code>make check</code>/<code>make pre-commit</code>) fails the build if generated output
+was not committed alongside a spec change.</p>
+<p>This tool is local build tooling — it edits source files under version
+control and does not participate in the ZeroMQ runtime message bus.</p>
+<p>See <a href="../270-message-reference/">Messages</a> for the generated message catalog itself.</p>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../040-running-the-exchange/">Running the Engine</a> — startup order, launch scripts, and verification</li>

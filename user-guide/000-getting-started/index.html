@@ -4470,7 +4470,7 @@ the system uses.</p>
 <a href="http://localhost:8090">http://localhost:8090</a> for the trading terminal and <a href="http://localhost:8091">http://localhost:8091</a>
 for the log console. The <code>pm-*</code> commands used throughout this guide live
 <em>inside</em> the container:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w">        </span><span class="c1"># then pm-admin, pm-alf-console, pm-stats-cli, ...</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w">        </span><span class="c1"># thenpm-help, pm-admin, pm-alf-console, pm-stats-cli, ...</span>
 </code></pre></div>
 <p><strong>Python package — the processes on your own machine:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pipx<span class="w"> </span>install<span class="w"> </span>edumatcher
@@ -4526,6 +4526,10 @@ manually reaad through a lot of different log files.</p>
 <a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a>✅ ralf-gwy              106222    00:51     37.7  running         tcp connect to 127.0.0.1:5580 ok
 <a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a>✅ index-srv             106276    00:51     38.3  running         no healthcheck or tcp check configured
 </code></pre></div>
+<div class="admonition tip">
+<p class="admonition-title">Forgot what a command does?</p>
+<p>With this many <code>pm-*</code> commands, run <code>pm-help</code> any time for a one-screen table of every one of them with a one-sentence explanation, grouped by category. Run <code>pm-help pm-opctl-cli</code> (or any other command name) for a full man page: its options, ports, related commands, and a worked example. <code>pm-man</code> is the same tool under a second, more familiar name.</p>
+</div>
 <table>
 <thead>
 <tr>
