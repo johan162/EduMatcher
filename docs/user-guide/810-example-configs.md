@@ -61,4 +61,4 @@ For example, a training session can start from one of the generated `engine_conf
 
 - Reference data templates live under `docs/examples/ref_data`
 - Protocol support examples: [Protocol Support Library Examples](800-examples.md)
-- Installation and setup training: [00 — Installation & Setup](../training/00-installation.md)
+- Installation and setup training: [00 — Installation & Setup](../training/000-installation.md)

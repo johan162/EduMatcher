@@ -140,38 +140,39 @@ nav:
   - Training:
     - Overview: training/index.md
     - Part 1 — Foundations:
-      - "00 — Installation & Setup": training/00-installation.md
-      - "01 — Configuring & Starting Up": training/01-configuring-startup.md
-      - "02 — Setting Up Market-Maker Liquidity": training/02-setting-up-MM-bots.md
-      - "03 — The First Trade": training/03-the-first-trade.md
-      - "18 — Exchange Observer Processes": training/18-exchange-observer-processes.md
+      - "00 — Installation & Setup": training/000-installation.md
+      - "01 — Configuring & Starting Up": training/010-configuring-startup.md
+      - "02 — Setting Up Market-Maker Liquidity": training/020-setting-up-MM-bots.md
+      - "03 — The First Trade": training/030-the-first-trade.md
+      - "04 — Exchange Observer Processes": training/180-exchange-observer-processes.md
     - Part 2 — Trading mechanics:
-      - "04 — Amending Orders": training/04-amending-orders.md
-      - "08 — Cancelling & Managing Orders": training/08-cancelling-orders.md
-      - "05 — Order Types Deep Dive": training/05-order-types.md
-      - "06 — Time-in-Force & Sessions": training/06-time-in-force-sessions.md
-      - "07 — Auctions": training/07-auctions.md
-      - "10 — Combo Orders": training/10-combo-orders.md
+      - "05 — Amending Orders": training/040-amending-orders.md
+      - "06 — Cancelling & Managing Orders": training/080-cancelling-orders.md
+      - "07 — Order Types Deep Dive": training/050-order-types.md
+      - "08 — Time-in-Force & Sessions": training/060-time-in-force-sessions.md
+      - "09 — Auctions": training/070-auctions.md
+      - "10 — Combo Orders": training/100-combo-orders.md
+      - "11 — Market Index": training/250-index.md
     - Part 3 — Liquidity and automation:
-      - "09 — Market Making": training/09-market-making.md
-      - "14 — AI Traders & Swarm": training/14-ai-traders.md
-      - "21 — Automation & MM Bot Tuning": training/21-automation-commandclient-mm-bot.md
+      - "12 — Market Making": training/090-market-making.md
+      - "13 — AI Traders & Swarm": training/140-ai-traders.md
+      - "14 — Automation & MM Bot Tuning": training/210-automation-commandclient-mm-bot.md
     - Part 4 — Operating the exchange:
-      - "11 — Risk Controls": training/11-risk-controls.md
-      - "19 — Advanced Admin Operations": training/19-advanced-admin-operations.md
-      - "12 — P&L & Clearing": training/12-pnl-clearing.md
-      - "15 — Statistics & Reporting": training/15-statistics-reporting.md
-      - "25 — Market Index (pm-index)": training/25-index.md
-      - "16 — Persistence & Recovery": training/16-persistence-recovery.md
-      - "17 — Capstone Scenario": training/17-capstone-scenario.md
+      - "15 — Risk Controls": training/110-risk-controls.md
+      - "16 — Advanced Admin Operations": training/190-advanced-admin-operations.md
+      - "17 — P&L & Clearing": training/120-pnl-clearing.md
+      - "18 — Statistics & Reporting": training/150-statistics-reporting.md
+      - "19 — Market Index (pm-index)": training/250-index.md
+      - "20 — Persistence & Recovery": training/160-persistence-recovery.md
+      - "21 — Capstone Scenario": training/170-capstone-scenario.md
     - Part 5 — External connectivity:
-      - "13 — Market Data & Drop Copy": training/13-market-data-drop-copy.md
-      - "20 — Drop-Copy Replay & Recovery": training/20-drop-copy-replay-recovery.md
-      - "26 — ALF TCP Gateway (pm-alf-gwy)": training/26-alf-gwy.md
-      - "27 — BALF TCP Gateway (pm-balf-gwy)": training/27-balf-gwy.md
-      - "23 — CALF Market-Data Gateway": training/23-calf.md
-      - "22 — RALF Post-Trade Gateway": training/22-ralf.md
-      - "24 — API Gateway (REST/WebSocket)": training/24-api-gwy.md
+      - "22 — Market Data & Drop Copy": training/130-market-data-drop-copy.md
+      - "23 — Drop-Copy Replay & Recovery": training/200-drop-copy-replay-recovery.md
+      - "24 — ALF TCP Gateway (pm-alf-gwy)": training/260-alf-gwy.md
+      - "25 — BALF TCP Gateway (pm-balf-gwy)": training/270-balf-gwy.md
+      - "26 — CALF Market-Data Gateway": training/230-calf.md
+      - "27 — RALF Post-Trade Gateway": training/220-ralf.md
+      - "28 — API Gateway (REST/WebSocket)": training/240-api-gwy.md
   - Architecture: 
     - Overview: architecture/01-architecture.md
     - Detailed Walkthrough: architecture/02-architecture-guide.md

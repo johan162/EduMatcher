@@ -223,5 +223,5 @@ same gateway — `pm-md-gwy` fans out independently per session.
 - [Market Data Feed (CALF)](240-calf-gateway.md) — operational guide, wire examples, and the Python/C example subscribers
 - [Appendix — CALF Protocol](920-app-calf-protocol.md) — normative wire format, full field tables, sequencing rules
 - [Processes](170-processes.md#pm-calf-spy-calf-protocol-spy) — where `pm-calf-spy` sits in the process model
-- [Training — CALF Market-Data Gateway Protocol](../training/23-calf.md) — hands-on exercises using `nc` and the example subscribers
+- [Training — CALF Market-Data Gateway Protocol](../training/230-calf.md) — hands-on exercises using `nc` and the example subscribers
 - [Drop-Copy Spy (pm-dc-spy)](202-dc-spy-cli.md) — the analogous inspection tool for the per-participant fill feed

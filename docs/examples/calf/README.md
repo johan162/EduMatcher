@@ -12,7 +12,7 @@ This directory contains:
 - `Makefile`: build helper for the C client and its test
 
 > **Writing a Python client?** Prefer
-> [`edumatcher.calf_client`](../../../src/edumatcher/calf_client/), which is
+> `src/edumatcher/calf_client/client.py`, which is
 > shipped with the package and handles reconnect, gap repair, replay
 > de-duplication, `REF` precision and optional cached state for you:
 >
