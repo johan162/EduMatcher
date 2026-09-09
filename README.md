@@ -27,17 +27,17 @@ four web applications:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash
+cd ~/.edumatcher && ./edumatcher.sh start
 ```
 
-The command above will create `~/.edumatcher/` where all data for the exchange is stored and start the containers.
-To start experiment with the container you need to open a shell into the container with:
+The exchange is now running on a bundled configuration.  
+The `pm-*` commands used throughout this guide live *inside* the container:
 
-```
-cd ~/.edumatcher && ./edumatcher.sh shell
+```bash
+./edumatcher.sh shell        # then pm-help, pm-admin, pm-alf-console, pm-stats-cli, ...
 ```
 
-You then have all `Process Matcher` commands available (prefixed with `pm-`). So, for example to view all
-available comands with a short explanation try:
+Once inside the container, start with
 
 ```bash
 pm-help
@@ -45,7 +45,7 @@ pm-help
 
 Then open the user-friendly Web applications :
 
-- <http://localhost:8090> for the market display,
+- <http://localhost:8090> for the market information display,
 - <http://localhost:8091> for the log console, and 
 - <http://localhost:8093> for the trading terminal.
 

@@ -174,7 +174,7 @@ for the log console. The `pm-*` commands used throughout this guide live
 *inside* the container:
 
 ```bash
-./edumatcher.sh shell        # then pm-admin, pm-alf-console, pm-stats-cli, ...
+./edumatcher.sh shell        # thenpm-help, pm-admin, pm-alf-console, pm-stats-cli, ...
 ```
 
 **Python package — the processes on your own machine:**
