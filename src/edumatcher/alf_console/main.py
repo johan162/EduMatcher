@@ -995,8 +995,8 @@ class Gateway:
                 req_symbol = str(pending_req.get("symbol", "?"))
                 bid_qty = int(pending_req.get("bid_qty", 0))
                 ask_qty = int(pending_req.get("ask_qty", 0))
-                req_bid_price = pending_req.get("bid_price")
-                req_ask_price = pending_req.get("ask_price")
+                req_bid_price = pending_req.get("bid_px")
+                req_ask_price = pending_req.get("ask_px")
 
                 full_bid = payload.get("bid_order_id", "")
                 full_ask = payload.get("ask_order_id", "")
@@ -1490,8 +1490,8 @@ class Gateway:
         self._pending_quote_requests.append(
             {
                 "symbol": symbol,
-                "bid_price": bid_price,
-                "ask_price": ask_price,
+                "bid_px": bid_price,
+                "ask_px": ask_price,
                 "bid_qty": bid_qty,
                 "ask_qty": ask_qty,
             }
