@@ -174,7 +174,7 @@ for the log console. The `pm-*` commands used throughout this guide live
 *inside* the container:
 
 ```bash
-./edumatcher.sh shell        # then pm-admin, pm-alf-console, pm-stats-cli, ...
+./edumatcher.sh shell        # thenpm-help, pm-admin, pm-alf-console, pm-stats-cli, ...
 ```
 
 **Python package — the processes on your own machine:**
@@ -241,6 +241,10 @@ data directory: /home/ubuntu/.local/share/edumatcher
 ✅ ralf-gwy              106222    00:51     37.7  running         tcp connect to 127.0.0.1:5580 ok
 ✅ index-srv             106276    00:51     38.3  running         no healthcheck or tcp check configured
 ```
+
+
+!!! tip "Forgot what a command does?"
+    With this many `pm-*` commands, run `pm-help` any time for a one-screen table of every one of them with a one-sentence explanation, grouped by category. Run `pm-help pm-opctl-cli` (or any other command name) for a full man page: its options, ports, related commands, and a worked example. `pm-man` is the same tool under a second, more familiar name.
 
 
 | | Containers | `pipx` / Poetry |

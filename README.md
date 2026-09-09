@@ -30,9 +30,25 @@ curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment
 cd ~/.edumatcher && ./edumatcher.sh start
 ```
 
-Then open <http://localhost:8090> for the market display,
-<http://localhost:8091> for the log console, and <http://localhost:8093> for the
-trading terminal.
+The exchange is now running on a bundled configuration.  
+The `pm-*` commands used throughout this guide live *inside* the container:
+
+```bash
+./edumatcher.sh shell        # then pm-help, pm-admin, pm-alf-console, pm-stats-cli, ...
+```
+
+Once inside the container, start with
+
+```bash
+pm-help
+```
+
+Then open the user-friendly Web applications :
+
+- <http://localhost:8090> for the market information display,
+- <http://localhost:8091> for the log console, and 
+- <http://localhost:8093> for the trading terminal.
+
 
 Prefer the Python package? `pipx install edumatcher`, then `pm-setup`. Both
 routes, and three more, are covered in
@@ -137,7 +153,7 @@ If you use this tool in teaching or courses, please cite:
   author = {Johan Persson},
   year = {2026},
   url = {https://github.com/johan162/EduMatcher},
-  version = {0.33.1}
+  version = {0.34.0}
 }
 ```
 

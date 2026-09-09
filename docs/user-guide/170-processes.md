@@ -224,6 +224,8 @@ See [`pm-config-deploy`](#pm-config-deploy-compile-and-install-a-configuration) 
 |------------------|-----------------------------------|-----------------------------------------------------------------------------|-----------|
 | **pm-admin**     | `pm-admin`                        | Interactive admin console                                                   | No        |
 | **pm-admin-cli** | `pm-admin-cli <command>`          | One-shot CLI admin commands                                                 | No        |
+| **pm-opctl-cli** | `pm-opctl-cli <command>`          | Start/stop/monitor named process profiles (recommended way to run the stack) | Recommended |
+| **pm-help** / **pm-man** | `pm-help [pm-command]`            | Command index and man-page reference for every pm-* command | No        |
 | **pm-cverifier** | `pm-cverifier [options] <config>` | Validate `engine_config.yaml` (YAML, schema, semantic, completeness checks) | No        |
 | **pm-clearing-cli** | `pm-clearing-cli <command> [options]` | Read/query interface for `clearing.db` (includes prune) | Optional           |
 | **pm-stats-cli**  | `pm-stats-cli <command> [options]` | Read-only query interface for `stats.db`                | Optional              |
@@ -1503,7 +1505,7 @@ state, which is correct for a fresh session.
 
 
 
-
+## pm-ai-swarm — Multi-Agent Trading Swarm
 
 Launches and supervises multiple `pm-ai-trader` bots as a coordinated swarm.
 
@@ -2591,6 +2593,137 @@ an ack-routing key.
 See [Index Admin CLI](152-index-admin-cli.md) for the full subcommand
 reference, confirmation-prompt behaviour, and worked examples.
 
+## pm-opctl-cli — Operational Process Control
+
+Start, stop, and monitor a named group of `pm-*` processes together. This is
+the recommended way to bring up (or tear down) a full EduMatcher stack,
+instead of launching each process by hand in its own terminal — see
+[Running the Exchange → Starting the stack with pm-opctl-cli](040-running-the-exchange.md#starting-the-stack-with-pm-opctl-cli).
+
+```bash
+pm-opctl-cli start [PROFILE]
+pm-opctl-cli list [-y | --no-restart]
+pm-opctl-cli health [-q]
+pm-opctl-cli stop
+pm-opctl-cli kill
+pm-opctl-cli init
+pm-opctl-cli show [--json]
+pm-opctl-cli clear (--state | --all) [--yes]
+```
+
+**Profiles:**
+
+A *profile* is a named list of processes to run together, defined in
+`<DATA_DIR>/emo-config.yaml`. Three profiles are built in and used as-is until
+that file exists:
+
+| Profile   | Contents                                                                                       |
+|-----------|--------------------------------------------------------------------------------------------------|
+| `micro`   | Centralized logging plus the matching engine only                                                |
+| `mini`    | A trading-capable subset: logging, stats, engine, scheduler, market data, the desk API gateway, and the ALF/post-trade/drop-copy gateways |
+| `default` | The full nominal exchange stack, including audit, clearing, both API gateway instances, and the BALF gateway |
+
+Run `pm-opctl-cli init` to write the built-ins to `emo-config.yaml` for editing;
+once that file exists its profiles replace the built-ins entirely (a missing
+`default` profile is backfilled from the built-in nominal stack).
+
+**Subcommands:**
+
+| Subcommand | Aliases | Options | Purpose |
+|---|---|---|---|
+| `start [PROFILE]` | `up` | — | Start a profile (`default` when omitted), skipping entries already running |
+| `list` | — | `-y`/`--restart` (restart dead entries without asking), `--no-restart` (never offer) | Status table for the active profile: uptime (`HH:MM`) and resident memory (MiB) per process |
+| `health` | — | `-q`/`--quiet` (print nothing) | Same checks as `list`; exits `0` only when every process is running — for monitoring scripts |
+| `stop` | `down` | — | Send `SIGTERM` to processes this tool started (recorded in the PID directory) |
+| `kill` | — | — | Emergency stop: `pkill -15 -f -i -l pm-` — signals every process whose command line contains `pm-`, including ones this tool did not start |
+| `init` | — | — | Write the built-in profiles to `<DATA_DIR>/emo-config.yaml`; refuses to overwrite an existing file |
+| `show` | — | `--json` | Print version, resolved data directory, and deployed config paths — same info as `pm-config-deploy --show` |
+| `clear` | — | `--state` (engine/session state only) or `--all` (also logs and audit trail), `--yes` (skip prompt) | Delete persisted data under the data directory; `ref_data/` (configuration) is never touched |
+
+Exactly one of `--state`/`--all` must be given to `clear`.
+
+**Expected runtime input arguments:**
+
+None. Each subcommand runs once and exits (`list`/`health` print a snapshot,
+they do not stay running).
+
+**Health checking:**
+
+There is no general way to prove an arbitrary process is not internally hung,
+so health is reported at three levels of confidence: `dead` (no live PID
+found), `not responding` (the PID is alive but its `healthcheck` failed or its
+`tcp` probe refused/timed out), or `running` (the PID is alive and any
+configured check passed). A `healthcheck` command takes precedence over a
+`tcp` probe because it exercises the application itself, not just its socket.
+
+**Process tracking:**
+
+Started processes are detached into their own session and recorded as
+`<DATA_DIR>/emo/<name>.pid`, with combined stdout/stderr appended to
+`<DATA_DIR>/emo/<name>.log`. The active profile name is remembered in
+`<DATA_DIR>/emo/active-profile`. A process restarted outside this tool is
+re-adopted on the next `list`/`health`/`stop` by matching its command line via
+`pgrep`, so a stale PID file is never treated as final.
+
+This tool is local orchestration logic — it starts other `pm-*` processes as
+subprocesses and reads their PID/log files, but binds no ZeroMQ or TCP port
+of its own and does not participate in the runtime message bus.
+
+See [Running the Exchange](040-running-the-exchange.md) and
+[Getting Started](000-getting-started.md) for the recommended startup sequence.
+
+
+## pm-help / pm-man — Command Index and Man-Page Reference
+
+Lists every `pm-*` command with a one-sentence explanation, or prints a full
+man page for one of them. `pm-man` is a plain alias for the exact same tool --
+use whichever name is more familiar.
+
+```bash
+pm-help [--format table|text] [-v]
+pm-help [--format table|text] [-v] <pm-command>
+pm-man <pm-command>
+```
+
+**With no argument**, prints the version and data-file locations (the same
+information as `pm-opctl-cli show`), then a table of every `pm-*` command
+grouped by category: Core Runtime, External Gateways, Protocol Spies, AI &
+Bots, Index, Query & Reporting CLIs, Admin & Operations, Setup &
+Configuration, Logging, Developer Tools, and Help.
+
+**With a command name**, prints a full man page: NAME, SYNOPSIS, DESCRIPTION,
+OPTIONS, SUBCOMMANDS (where applicable), PORTS, MESSAGE BUS involvement,
+RELATED COMMANDS, EXAMPLES, NOTES, and SEE ALSO. The name is looked up with or
+without its `pm-` prefix, so `pm-help viewer` finds `pm-viewer`.
+
+**Startup options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--format table\|json` | `table` | `table` uses UTF-8 box-drawing characters; `text` is plain aligned columns with no box-drawing -- friendly to `grep`, redirects, and non-UTF-8 terminals |
+| `-v`, `--verbose` | off | In the command-index view, show extra detail (and a worked example, where one exists) under each command |
+| `--no-color` | off | Disable ANSI colour |
+| `--version` | — | Print version and exit |
+
+**Expected runtime input arguments:**
+
+None. Each invocation prints its output once and exits.
+
+This tool is local reference data -- hand-curated, not scraped from each
+command's own `--help` output -- so it can show information no `argparse`
+parser exposes on its own, such as ports and ZeroMQ message-bus involvement.
+It does not participate in the runtime message bus.
+
+**Examples:**
+
+```bash
+pm-help                    # version, data dirs, and the full command table
+pm-help --format text -v   # plain-text table with per-command examples
+pm-help pm-viewer          # full man page for pm-viewer
+pm-man pm-alf-console      # pm-man is an alias for pm-help
+```
+
+
 ## Order Lifecycle Message Flow
 
 The following diagram traces a single limit order from submission to full fill,
@@ -2784,6 +2917,64 @@ See [Centralized Log Server](280-log-srv.md) for the full operational guide
 — starting the server, every `pm-log-cli` subcommand, and a workflow
 cookbook — and [LALF Protocol Reference](940-app-lalf-protocol.md) for the
 normative wire specification.
+
+## pm-msgen — Message Binding Generator
+
+Developer/build tool that generates the Python message-binding modules
+(`src/edumatcher/models/generated/`), C header artifacts, and the
+[Message Reference](270-message-reference.md) documentation table from the
+canonical specification in `spec/` (`spec/transports.yaml` and
+`spec/messages/`). It is not part of the running exchange — no `pm-*` runtime
+process imports or invokes it — it exists so that the spec is the single
+source of truth for every topic name and payload shape, and so a spec change
+without regeneration (or a hand-edit to a generated file) cannot silently
+drift from what the engine and gateways actually send.
+
+```bash
+pm-msgen generate [--spec DIR] [--out-python DIR] [--out-c DIR]
+pm-msgen check    [--spec DIR] [--out-python DIR] [--out-c DIR]
+pm-msgen lint     [--spec DIR]
+pm-msgen grep-literals [--spec DIR] [--src DIR]
+```
+
+**Subcommands:**
+
+| Subcommand | Purpose |
+|---|---|
+| `generate` | Render Python bindings, C artifacts, and docs from the spec and write them to disk |
+| `check` | Re-render from the spec and fail (exit `1`) if the committed output differs — the CI gate; run via `make msgen-check` |
+| `lint` | Validate the spec only (YAML structure, message/family consistency); prints a family/message count |
+| `grep-literals` | Scan a source tree for topic string literals that a generated constant should replace instead |
+
+**Startup options:**
+
+| Flag | Default | Applies to | Description |
+|---|---|---|---|
+| `--spec DIR` | `spec` | all | Spec root holding `transports.yaml` and `messages/` |
+| `--out-python DIR` | `src/edumatcher/models/generated` | `generate`, `check` | Python output directory |
+| `--out-c DIR` | `docs/examples/generated` | `generate`, `check` | C output directory |
+| `--src DIR` | `src` | `grep-literals` | Source tree to scan |
+| `--version` | — | all | Print version and exit |
+
+**Expected runtime input arguments:**
+
+None. Each subcommand runs once and exits.
+
+**Exit codes:**
+
+- `0` — success (`generate` wrote or confirmed up-to-date output; `check`/`lint` found no problems)
+- `1` — `check` found drift between the spec and the committed generated output
+- `2` — spec error (invalid YAML/schema) or the `--spec` directory was not found (most often caused by running from the wrong working directory — run from the repository root, or pass `--spec` explicitly)
+
+Regenerate after editing a spec file with `make msgen`; `make msgen-check`
+(part of `make check`/`make pre-commit`) fails the build if generated output
+was not committed alongside a spec change.
+
+This tool is local build tooling — it edits source files under version
+control and does not participate in the ZeroMQ runtime message bus.
+
+See [Messages](270-message-reference.md) for the generated message catalog itself.
+
 
 ## See also
 

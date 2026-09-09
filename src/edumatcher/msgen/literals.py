@@ -20,8 +20,12 @@ from pathlib import Path
 from edumatcher.msgen.spec import Family
 
 #: Directories whose topic literals are legitimate: the generated bindings
-#: define the constants, and the generator's own tests build fixture specs.
-_EXEMPT_PARTS = ("generated", "msgen")
+#: define the constants, the generator's own tests build fixture specs, and
+#: pm_help's command registry only *describes* topics in prose for a human
+#: reading a man page -- it never sends or subscribes to anything, so a
+#: publisher-side rename cannot go silently unnoticed there the way it would
+#: in a real subscriber.
+_EXEMPT_PARTS = ("generated", "msgen", "pm_help")
 
 
 @dataclass(frozen=True)

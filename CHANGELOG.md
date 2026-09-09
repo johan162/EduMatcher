@@ -1,3 +1,18 @@
+## [v0.34.0] - 2026-09-09
+
+Release Type: minor
+
+### 📋 Summary
+This release adds a command-line help system for discovering and reading
+EduMatcher command documentation from the terminal.
+
+### ✨ Additions
+- Added `pm-help` with the `pm-man` alias for browsing command help
+
+### 📚 Documentation
+- Updated README wording for the new help command
+
+
 ## [v0.33.1] - 2026-09-09
 
 Release Type: patch
