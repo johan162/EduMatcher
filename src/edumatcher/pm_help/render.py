@@ -27,7 +27,9 @@ from edumatcher.pm_help.registry import (
 TableFormat = str  # "table" | "text"
 
 
-def make_console(*, output_format: TableFormat, no_color: bool, width: int | None = None) -> Console:
+def make_console(
+    *, output_format: TableFormat, no_color: bool, width: int | None = None
+) -> Console:
     """Build a :class:`~rich.console.Console` matching ``pm-config-show``'s
     conventions: colour belongs on a terminal, not in a redirect."""
     return Console(
@@ -78,7 +80,9 @@ def render_command_index(
             expand=False,
             pad_edge=False,
         )
-        table.add_column("Command", style="bold green" if use_color else None, no_wrap=True)
+        table.add_column(
+            "Command", style="bold green" if use_color else None, no_wrap=True
+        )
         table.add_column("Summary", overflow="fold")
         for cmd in cmds:
             name_cell = cmd.name
@@ -117,7 +121,12 @@ def _heading(console: Console, text: str, *, use_color: bool) -> None:
 def _options_table(options: tuple[Option, ...], *, output_format: TableFormat) -> Table:
     style_box = _box_for(output_format)
     use_color = output_format == "table"
-    table = Table(box=style_box, show_header=True, header_style="bold" if use_color else None, pad_edge=False)
+    table = Table(
+        box=style_box,
+        show_header=True,
+        header_style="bold" if use_color else None,
+        pad_edge=False,
+    )
     table.add_column("Flag", style="green" if use_color else None, no_wrap=True)
     table.add_column("Default", no_wrap=True)
     table.add_column("Description", overflow="fold")
@@ -170,12 +179,21 @@ def render_man_page(
         for key in order:
             if key:
                 console.print(Text(key, style="bold" if use_color else ""))
-            console.print(_options_table(tuple(groups[key]), output_format=output_format))
+            console.print(
+                _options_table(tuple(groups[key]), output_format=output_format)
+            )
 
     if cmd.subcommands:
         _heading(console, "SUBCOMMANDS", use_color=use_color)
-        table = Table(box=style_box, show_header=True, header_style="bold" if use_color else None, pad_edge=False)
-        table.add_column("Subcommand", style="green" if use_color else None, no_wrap=True)
+        table = Table(
+            box=style_box,
+            show_header=True,
+            header_style="bold" if use_color else None,
+            pad_edge=False,
+        )
+        table.add_column(
+            "Subcommand", style="green" if use_color else None, no_wrap=True
+        )
         table.add_column("Aliases", no_wrap=True)
         table.add_column("Args", no_wrap=True)
         table.add_column("Purpose", overflow="fold")

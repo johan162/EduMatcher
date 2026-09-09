@@ -54,7 +54,9 @@ class CommandInfo:
     messages: tuple[str, ...] = ()
     related: tuple[str, ...] = ()
     doc_anchor: str = ""  # heading anchor within docs/user-guide/170-processes.md
-    doc_page: str = ""  # optional dedicated topic page (shown in addition to the anchor)
+    doc_page: str = (
+        ""  # optional dedicated topic page (shown in addition to the anchor)
+    )
     examples: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
     aliases: tuple[str, ...] = ()
@@ -146,7 +148,13 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
             "book.{SYMBOL}, session.state, auction.result.{SYMBOL}, system.eod",
             "Publishes (PUB :5557): drop_copy.event.{GW_ID}",
         ),
-        related=("pm-opctl-cli", "pm-alf-console", "pm-scheduler", "pm-audit", "pm-stats"),
+        related=(
+            "pm-opctl-cli",
+            "pm-alf-console",
+            "pm-scheduler",
+            "pm-audit",
+            "pm-stats",
+        ),
         doc_anchor="pm-engine-matching-engine",
         examples=("pm-engine -v   # start with INFO-level startup/lifecycle logging",),
         notes=(
@@ -159,14 +167,18 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
         category="Core Runtime",
         title="User Gateway (ALF order entry)",
         summary="Interactive ALF order-entry terminal for a human trader; one instance per user.",
-        synopsis=("pm-alf-console --id <GW_ID> [--drop-copy] [-v|-vv] [--log-level LEVEL]",),
+        synopsis=(
+            "pm-alf-console --id <GW_ID> [--drop-copy] [-v|-vv] [--log-level LEVEL]",
+        ),
         description=(
             "Accepts ALF pipe-delimited commands (NEW, AMEND, CANCEL, QUOTE, ...) on "
             "stdin and forwards them to the engine. The gateway ID must be listed in "
             "engine_config.yaml under gateways.alf or the connection is refused.",
         ),
         options=(
-            Option("--id GW_ID", "required", "Unique gateway identifier (e.g. GW01, ALICE)"),
+            Option(
+                "--id GW_ID", "required", "Unique gateway identifier (e.g. GW01, ALICE)"
+            ),
             Option(
                 "--drop-copy",
                 "off",
@@ -207,10 +219,24 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
         options=(
             Option("--symbol, -s SYMBOL", "required", "Symbol to watch"),
             Option("--depth, -d N", "fit to terminal", "Max price levels per side"),
-            Option("--db PATH", "data/stats.db", "Stats SQLite DB -- seeds session OHLC and previous-close"),
-            Option("--text-color COLOR", "white", "Body text color (#rrggbb hex or Rich color name)"),
-            Option("--zebra-lines", "off", "Shade every second row of Bids/Asks/Trades"),
-            Option("--zebra-lines-color COLOR", "grey19", "Background tint used by --zebra-lines"),
+            Option(
+                "--db PATH",
+                "data/stats.db",
+                "Stats SQLite DB -- seeds session OHLC and previous-close",
+            ),
+            Option(
+                "--text-color COLOR",
+                "white",
+                "Body text color (#rrggbb hex or Rich color name)",
+            ),
+            Option(
+                "--zebra-lines", "off", "Shade every second row of Bids/Asks/Trades"
+            ),
+            Option(
+                "--zebra-lines-color COLOR",
+                "grey19",
+                "Background tint used by --zebra-lines",
+            ),
         ),
         has_common_log_options=True,
         related=("pm-board", "pm-ticker", "pm-orders", "pm-stats"),
@@ -254,19 +280,27 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
         ),
         options=(
             Option("--rows, -r N", "8", "Max symbols (rows) displayed per page"),
-            Option("--interval, -i SEC", "10", "Seconds before auto-rotating to the next page"),
+            Option(
+                "--interval, -i SEC",
+                "10",
+                "Seconds before auto-rotating to the next page",
+            ),
         ),
         has_common_log_options=True,
         related=("pm-viewer", "pm-ticker"),
         doc_anchor="pm-board-market-board",
-        examples=("pm-board --rows 15 --interval 8   # large-screen classroom/conference demo",),
+        examples=(
+            "pm-board --rows 15 --interval 8   # large-screen classroom/conference demo",
+        ),
     ),
     CommandInfo(
         name="pm-ticker",
         category="Core Runtime",
         title="Scrolling Market Ticker",
         summary="Scrolling ticker-tape bar of live prices and OHLCV across all symbols.",
-        synopsis=("pm-ticker [--db data/stats.db] [--db-interval 900] [--timezone TZ]",),
+        synopsis=(
+            "pm-ticker [--db data/stats.db] [--db-interval 900] [--timezone TZ]",
+        ),
         description=(
             "A bordered header (brand, today's total volume, clock) plus a single "
             "scrolling line combining live ZMQ data (last price, bid/ask) with "
@@ -274,9 +308,17 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
             "Without pm-stats running it still works but omits OHLCV/volume/trade count.",
         ),
         options=(
-            Option("--db PATH", "data/stats.db", "Path to the statistics SQLite database"),
-            Option("--db-interval SEC", "900", "Seconds between daily_stats DB re-queries"),
-            Option("--timezone TZ", "DB-recorded timezone", "Exchange session timezone (IANA name)"),
+            Option(
+                "--db PATH", "data/stats.db", "Path to the statistics SQLite database"
+            ),
+            Option(
+                "--db-interval SEC", "900", "Seconds between daily_stats DB re-queries"
+            ),
+            Option(
+                "--timezone TZ",
+                "DB-recorded timezone",
+                "Exchange session timezone (IANA name)",
+            ),
         ),
         has_common_log_options=True,
         related=("pm-stats", "pm-board", "pm-viewer"),
@@ -310,7 +352,11 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
                 "UTC",
                 "Session timezone (IANA name) defining the trading date; must match pm-clearing's --timezone",
             ),
-            Option("--sql-trace", "off", "Log executed SQLite statements from the stats writer connection"),
+            Option(
+                "--sql-trace",
+                "off",
+                "Log executed SQLite statements from the stats writer connection",
+            ),
         ),
         has_common_log_options=True,
         related=("pm-stats-cli", "pm-clearing", "pm-index", "pm-ticker", "pm-board"),
@@ -335,18 +381,46 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
             "summaries, and raw trade events to clearing.db in batched transactions.",
         ),
         options=(
-            Option("--datapath PATH", "$EDUMATCHER_DATA_DIR", "Data directory or explicit .db path"),
-            Option("--db-name NAME", "clearing.db", "SQLite filename when --datapath is a directory"),
-            Option("--flush-size N", "100", "Flush immediately when buffered trades reach N"),
-            Option("--flush-interval SEC", "5.0", "Flush interval when the buffer is non-empty"),
-            Option("--print-every N", "100", "Print in-memory P&L snapshot every N trades (0 disables)"),
-            Option("--retention-days N", "90", "Prune trade_events rows older than N days on startup (0 disables)"),
+            Option(
+                "--datapath PATH",
+                "$EDUMATCHER_DATA_DIR",
+                "Data directory or explicit .db path",
+            ),
+            Option(
+                "--db-name NAME",
+                "clearing.db",
+                "SQLite filename when --datapath is a directory",
+            ),
+            Option(
+                "--flush-size N",
+                "100",
+                "Flush immediately when buffered trades reach N",
+            ),
+            Option(
+                "--flush-interval SEC",
+                "5.0",
+                "Flush interval when the buffer is non-empty",
+            ),
+            Option(
+                "--print-every N",
+                "100",
+                "Print in-memory P&L snapshot every N trades (0 disables)",
+            ),
+            Option(
+                "--retention-days N",
+                "90",
+                "Prune trade_events rows older than N days on startup (0 disables)",
+            ),
             Option(
                 "--timezone TZ",
                 "UTC",
                 "Session timezone (IANA name); must match pm-stats's --timezone or daily rollups won't reconcile",
             ),
-            Option("--sql-trace", "off", "Log executed SQLite statements from the clearing writer connection"),
+            Option(
+                "--sql-trace",
+                "off",
+                "Log executed SQLite statements from the clearing writer connection",
+            ),
         ),
         has_common_log_options=True,
         related=("pm-clearing-cli", "pm-stats"),
@@ -369,10 +443,22 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
             "flushed before exit.",
         ),
         options=(
-            Option("--audit-log-file PATH", "data/audit.log", "Audit-trail output log file path"),
+            Option(
+                "--audit-log-file PATH",
+                "data/audit.log",
+                "Audit-trail output log file path",
+            ),
             Option("--terminal, -t", "off", "Also print each entry to stdout"),
-            Option("--buffer-size N", "100", "Messages buffered in memory before writing to disk"),
-            Option("--flush-interval SEC", "10.0", "Max seconds before flushing the buffer to disk"),
+            Option(
+                "--buffer-size N",
+                "100",
+                "Messages buffered in memory before writing to disk",
+            ),
+            Option(
+                "--flush-interval SEC",
+                "10.0",
+                "Max seconds before flushing the buffer to disk",
+            ),
         ),
         has_common_log_options=True,
         related=("pm-audit-cli", "pm-stats", "pm-clearing"),
@@ -396,10 +482,26 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
             "not subscribe to anything.",
         ),
         options=(
-            Option("--now", "off", "Skip wall-clock waiting; send all transitions immediately with --delay between each"),
-            Option("--delay SEC", "3.0 (with --now)", "Seconds between transitions in --now mode"),
-            Option("--daily", "off", "Run continuously, repeating the schedule every calendar day"),
-            Option("--no-confirm", "off", "Do not query/confirm session state via the engine before transitioning"),
+            Option(
+                "--now",
+                "off",
+                "Skip wall-clock waiting; send all transitions immediately with --delay between each",
+            ),
+            Option(
+                "--delay SEC",
+                "3.0 (with --now)",
+                "Seconds between transitions in --now mode",
+            ),
+            Option(
+                "--daily",
+                "off",
+                "Run continuously, repeating the schedule every calendar day",
+            ),
+            Option(
+                "--no-confirm",
+                "off",
+                "Do not query/confirm session state via the engine before transitioning",
+            ),
         ),
         has_common_log_options=True,
         related=("pm-engine", "pm-admin"),
@@ -429,7 +531,11 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
         options=(
             Option("--bind ADDR", "0.0.0.0", "TCP bind address for external clients"),
             Option("--port PORT", "5565", "TCP listen port for ALF clients"),
-            Option("--engine-host HOST", "from config", "Override engine host for ZMQ ports 5555/5556"),
+            Option(
+                "--engine-host HOST",
+                "from config",
+                "Override engine host for ZMQ ports 5555/5556",
+            ),
         ),
         has_common_log_options=True,
         ports="Listens on TCP 5565 (ALF); connects out to 5555, 5556, 5557",
@@ -450,7 +556,11 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
         options=(
             Option("--bind ADDR", "0.0.0.0", "TCP bind address for BALF clients"),
             Option("--port PORT", "5560", "TCP listen port for BALF clients"),
-            Option("--engine-host HOST", "from config", "Override engine host for ZMQ ports 5555/5556"),
+            Option(
+                "--engine-host HOST",
+                "from config",
+                "Override engine host for ZMQ ports 5555/5556",
+            ),
         ),
         has_common_log_options=True,
         ports="Listens on TCP 5560 (BALF binary); connects out to 5555, 5556",
@@ -474,8 +584,16 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
         options=(
             Option("--bind ADDR", "0.0.0.0", "TCP bind address for external clients"),
             Option("--port PORT", "5570", "TCP listen port for CALF clients"),
-            Option("--engine-pub ADDR", "tcp://127.0.0.1:5556", "Engine PUB address consumed by the gateway"),
-            Option("--index-pub ADDR", "tcp://127.0.0.1:5558", "Index PUB socket address (overrides config)"),
+            Option(
+                "--engine-pub ADDR",
+                "tcp://127.0.0.1:5556",
+                "Engine PUB address consumed by the gateway",
+            ),
+            Option(
+                "--index-pub ADDR",
+                "tcp://127.0.0.1:5558",
+                "Index PUB socket address (overrides config)",
+            ),
         ),
         has_common_log_options=True,
         ports="Listens on TCP 5570 (CALF); connects out to 5556, 5558",
@@ -498,7 +616,11 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
         options=(
             Option("--bind ADDR", "0.0.0.0", "TCP bind address for external clients"),
             Option("--port PORT", "5580", "TCP listen port for RALF clients"),
-            Option("--engine-pub ADDR", "tcp://127.0.0.1:5556", "Engine PUB address consumed by the gateway"),
+            Option(
+                "--engine-pub ADDR",
+                "tcp://127.0.0.1:5556",
+                "Engine PUB address consumed by the gateway",
+            ),
         ),
         has_common_log_options=True,
         ports="Listens on TCP 5580 (RALF); connects out to 5556",
@@ -523,7 +645,11 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
         options=(
             Option("--bind ADDR", "0.0.0.0", "TCP bind address for external clients"),
             Option("--port PORT", "5590", "TCP listen port for DC1 clients"),
-            Option("--engine-dc-pub ADDR", "tcp://127.0.0.1:5557", "Engine drop-copy PUB address consumed by the gateway"),
+            Option(
+                "--engine-dc-pub ADDR",
+                "tcp://127.0.0.1:5557",
+                "Engine drop-copy PUB address consumed by the gateway",
+            ),
         ),
         has_common_log_options=True,
         ports="Listens on TCP 5590 (DC1); connects out to 5557",
@@ -545,21 +671,35 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
             "the same ZMQ order flow used by pm-alf-console. Reads its named entry "
             "from the api_gateways: section of engine_config.yaml. Authenticates via "
             "Authorization: Bearer <api_key> (REST) or a first JSON message "
-            "{\"api_key\": \"<key>\"} (WebSocket).",
+            '{"api_key": "<key>"} (WebSocket).',
         ),
         options=(
-            Option("--instance NAME", "auto-selected if only one entry", "Named api_gateways entry to run"),
+            Option(
+                "--instance NAME",
+                "auto-selected if only one entry",
+                "Named api_gateways entry to run",
+            ),
             Option("--host ADDR", "config value", "Override HTTP bind address"),
             Option("--port PORT", "config value", "Override HTTP listen port"),
-            Option("--engine-host HOST", "config value", "Override engine host for ZMQ connections"),
-            Option("--stats-db PATH", "config value", "Path to data/stats.db for /history/* endpoints"),
+            Option(
+                "--engine-host HOST",
+                "config value",
+                "Override engine host for ZMQ connections",
+            ),
+            Option(
+                "--stats-db PATH",
+                "config value",
+                "Path to data/stats.db for /history/* endpoints",
+            ),
         ),
         has_common_log_options=True,
         ports="Listens on HTTP/WS at its configured port (e.g. 8080 desk, 8081 dashboards); connects out to 5555, 5556",
         related=("pm-alf-console", "pm-stats"),
         doc_anchor="pm-api-gwy-restwebsocket-api-gateway",
         doc_page="260-api-gateway.md",
-        notes=("Browse http://127.0.0.1:<PORT>/docs for interactive Swagger docs when swagger_enabled: true.",),
+        notes=(
+            "Browse http://127.0.0.1:<PORT>/docs for interactive Swagger docs when swagger_enabled: true.",
+        ),
     ),
 )
 
@@ -588,14 +728,40 @@ _PROTOCOL_SPIES: tuple[CommandInfo, ...] = (
         options=(
             Option("--host ADDR", "127.0.0.1", "pm-md-gwy TCP host"),
             Option("--port PORT", "5570", "pm-md-gwy TCP port"),
-            Option("--client-name NAME", "calf-spy-<pid>", "HELLO|CLIENT= identifier reported in gateway logs"),
-            Option("--channels CH", "*", "Comma-separated channels; * = every channel offered"),
-            Option("--symbols SYM", "*", "Comma-separated symbols; * = wildcard where allowed"),
-            Option("--resume CH:SYM:LASTSEQ", "none", "One-shot single-stream replay request on connect"),
-            Option("--ping-interval SEC", "60", "Seconds between PING keepalives; 0 disables"),
+            Option(
+                "--client-name NAME",
+                "calf-spy-<pid>",
+                "HELLO|CLIENT= identifier reported in gateway logs",
+            ),
+            Option(
+                "--channels CH",
+                "*",
+                "Comma-separated channels; * = every channel offered",
+            ),
+            Option(
+                "--symbols SYM",
+                "*",
+                "Comma-separated symbols; * = wildcard where allowed",
+            ),
+            Option(
+                "--resume CH:SYM:LASTSEQ",
+                "none",
+                "One-shot single-stream replay request on connect",
+            ),
+            Option(
+                "--ping-interval SEC",
+                "60",
+                "Seconds between PING keepalives; 0 disables",
+            ),
             Option("--format human|json", "human", "Output format"),
-            Option("--count N", "0", "Exit after N data-carrying lines (0 = run until Ctrl-C)"),
-            Option("--raw", "off", "Print raw protocol bytes instead of decoded fields"),
+            Option(
+                "--count N",
+                "0",
+                "Exit after N data-carrying lines (0 = run until Ctrl-C)",
+            ),
+            Option(
+                "--raw", "off", "Print raw protocol bytes instead of decoded fields"
+            ),
             Option("--no-color", "off", "Disable ANSI colour in output"),
             Option("--show-heartbeats", "off", "Include HB heartbeat lines in output"),
         ),
@@ -621,15 +787,41 @@ _PROTOCOL_SPIES: tuple[CommandInfo, ...] = (
         options=(
             Option("--host ADDR", "127.0.0.1", "pm-ralf-gwy TCP host"),
             Option("--port PORT", "5580", "pm-ralf-gwy TCP port"),
-            Option("--client-name NAME", "ralf-spy-<pid>", "HELLO|CLIENT= identifier reported in gateway logs"),
-            Option("--role ROLE", "AUDIT", "HELLO|ROLE= to authenticate as: CLEARING, DROP_COPY, or AUDIT"),
-            Option("--channels CH", "*", "Comma-separated channels; * = every channel --role is entitled to"),
+            Option(
+                "--client-name NAME",
+                "ralf-spy-<pid>",
+                "HELLO|CLIENT= identifier reported in gateway logs",
+            ),
+            Option(
+                "--role ROLE",
+                "AUDIT",
+                "HELLO|ROLE= to authenticate as: CLEARING, DROP_COPY, or AUDIT",
+            ),
+            Option(
+                "--channels CH",
+                "*",
+                "Comma-separated channels; * = every channel --role is entitled to",
+            ),
             Option("--symbols SYM", "*", "Comma-separated symbols; * = every symbol"),
-            Option("--lastseq N", "0", "Requests replay on connect via HELLO|LASTSEQ=N (0 = no replay)"),
-            Option("--ping-interval SEC", "60", "Seconds between PING keepalives; 0 disables"),
+            Option(
+                "--lastseq N",
+                "0",
+                "Requests replay on connect via HELLO|LASTSEQ=N (0 = no replay)",
+            ),
+            Option(
+                "--ping-interval SEC",
+                "60",
+                "Seconds between PING keepalives; 0 disables",
+            ),
             Option("--format human|json", "human", "Output format"),
-            Option("--count N", "0", "Exit after N data-carrying lines (0 = run until Ctrl-C)"),
-            Option("--raw", "off", "Print raw protocol bytes instead of decoded fields"),
+            Option(
+                "--count N",
+                "0",
+                "Exit after N data-carrying lines (0 = run until Ctrl-C)",
+            ),
+            Option(
+                "--raw", "off", "Print raw protocol bytes instead of decoded fields"
+            ),
             Option("--no-color", "off", "Disable ANSI colour in output"),
             Option("--show-heartbeats", "off", "Include HB heartbeat lines in output"),
         ),
@@ -643,7 +835,9 @@ _PROTOCOL_SPIES: tuple[CommandInfo, ...] = (
         category="Protocol Spies",
         title="Drop-Copy Spy",
         summary="Read-only drop-copy client: prints every fill event from the engine's :5557 feed.",
-        synopsis=("pm-dc-spy [--gateway GW_ID] [--replay-of ID] [--format human|json]",),
+        synopsis=(
+            "pm-dc-spy [--gateway GW_ID] [--replay-of ID] [--format human|json]",
+        ),
         description=(
             "Opens a plain zmq.SUB connection directly to the engine's drop-copy PUB "
             "socket -- no handshake or heartbeat, unlike CALF/RALF. Subscribes to "
@@ -653,7 +847,11 @@ _PROTOCOL_SPIES: tuple[CommandInfo, ...] = (
             Option("--host ADDR", "127.0.0.1", "Drop-copy PUB socket host"),
             Option("--port PORT", "5557", "Drop-copy PUB socket port"),
             Option("--gateway GW_ID", "none (all)", "Only show fills for this gateway"),
-            Option("--replay-of ID", "none", "Also subscribe to drop_copy.replay.<RECIPIENT_ID>"),
+            Option(
+                "--replay-of ID",
+                "none",
+                "Also subscribe to drop_copy.replay.<RECIPIENT_ID>",
+            ),
             Option("--format human|json", "human", "Output format"),
             Option("--count N", "0", "Exit after N messages (0 = run until Ctrl-C)"),
             Option("--raw", "off", "Print raw bytes instead of decoded fields"),
@@ -677,7 +875,9 @@ _AI_AND_BOTS: tuple[CommandInfo, ...] = (
         category="AI & Bots",
         title="Autonomous Trader Bot",
         summary="One autonomous trading gateway with a selectable behaviour profile.",
-        synopsis=("pm-ai-trader --id AI01 [--profile cautious] [--symbols AAPL,MSFT] [options]",),
+        synopsis=(
+            "pm-ai-trader --id AI01 [--profile cautious] [--symbols AAPL,MSFT] [options]",
+        ),
         description=(
             "On every startup/reconnect: authenticates, requests the symbol universe "
             "(tick size, prev close), queries current session state and per-symbol "
@@ -690,12 +890,26 @@ _AI_AND_BOTS: tuple[CommandInfo, ...] = (
             Option("--symbols LIST", "empty (all)", "Comma-separated symbol allowlist"),
             Option("--seed N", "1", "RNG seed for deterministic behaviour"),
             Option("--duration SEC", "0 (until stopped)", "Runtime in seconds"),
-            Option("--run-id LABEL", "autogenerated", "Optional run label for audit/traceability"),
+            Option(
+                "--run-id LABEL",
+                "autogenerated",
+                "Optional run label for audit/traceability",
+            ),
             Option("--max-position N", "1000", "Absolute per-symbol position limit"),
-            Option("--max-rejects N", "25", "Reject threshold before the cooldown breaker trips"),
+            Option(
+                "--max-rejects N",
+                "25",
+                "Reject threshold before the cooldown breaker trips",
+            ),
             Option("--reject-window SEC", "10.0", "Rolling reject window in seconds"),
-            Option("--reject-cooldown SEC", "5.0", "Pause interval after the reject breaker trips"),
-            Option("--stale-data SEC", "4.0", "Max market-data age before pausing orders"),
+            Option(
+                "--reject-cooldown SEC",
+                "5.0",
+                "Pause interval after the reject breaker trips",
+            ),
+            Option(
+                "--stale-data SEC", "4.0", "Max market-data age before pausing orders"
+            ),
         ),
         has_common_log_options=True,
         related=("pm-ai-swarm", "pm-mm-bot", "pm-engine"),
@@ -707,16 +921,24 @@ _AI_AND_BOTS: tuple[CommandInfo, ...] = (
         category="AI & Bots",
         title="Multi-Agent Trading Swarm",
         summary="Launches and supervises multiple pm-ai-trader bots as a coordinated swarm.",
-        synopsis=("pm-ai-swarm [--count 10] [--prefix AI] [--profiles all] [--duration 60] [options]",),
+        synopsis=(
+            "pm-ai-swarm [--count 10] [--prefix AI] [--profiles all] [--duration 60] [options]",
+        ),
         options=(
             Option("--count N", "10", "Number of bot processes to launch"),
             Option("--prefix STR", "AI", "Gateway-ID prefix"),
             Option("--start-index N", "1", "First numeric suffix for generated IDs"),
             Option("--profiles LIST", "all profiles", "Comma-separated profile cycle"),
-            Option("--symbols LIST", "from config", "Comma-separated symbol list override"),
+            Option(
+                "--symbols LIST", "from config", "Comma-separated symbol list override"
+            ),
             Option("--seed-base N", "1000", "Base seed; bot i gets seed-base + i"),
             Option("--duration SEC", "60.0", "Per-bot runtime in seconds"),
-            Option("--python PATH", "current interpreter", "Python executable used for child processes"),
+            Option(
+                "--python PATH",
+                "current interpreter",
+                "Python executable used for child processes",
+            ),
             Option("--max-position N", "1000", "Passed through to child bots"),
             Option("--max-rejects N", "25", "Passed through to child bots"),
             Option("--reject-window SEC", "10.0", "Passed through to child bots"),
@@ -733,7 +955,9 @@ _AI_AND_BOTS: tuple[CommandInfo, ...] = (
         category="AI & Bots",
         title="Autonomous Market-Maker Bot",
         summary="Autonomous two-sided quoting bot for one symbol; connects as MARKET_MAKER.",
-        synopsis=("pm-mm-bot --symbol AAPL [--gap 0.10] [--qty 500] [--id-suffix 01] [options]",),
+        synopsis=(
+            "pm-mm-bot --symbol AAPL [--gap 0.10] [--qty 500] [--id-suffix 01] [options]",
+        ),
         description=(
             "Posts a two-sided quote and automatically reprices on fills, mid-price "
             "drift, and session transitions. The gateway ID is constructed as "
@@ -743,15 +967,35 @@ _AI_AND_BOTS: tuple[CommandInfo, ...] = (
         ),
         options=(
             Option("--symbol SYMBOL", "required", "Instrument to make a market in"),
-            Option("--gap PRICE", "0.10", "Total spread (bid at mid-gap/2, ask at mid+gap/2)"),
+            Option(
+                "--gap PRICE",
+                "0.10",
+                "Total spread (bid at mid-gap/2, ask at mid+gap/2)",
+            ),
             Option("--qty N", "500", "Quote size on each leg"),
-            Option("--id-suffix STR", "01", "Running number for gateway ID (MM_AAPL_01)"),
+            Option(
+                "--id-suffix STR", "01", "Running number for gateway ID (MM_AAPL_01)"
+            ),
             Option("--drift-ticks N", "3", "Reprice when mid moves by this many ticks"),
-            Option("--reissue-delay-ms MS", "200", "Milliseconds to wait after fill before re-issuing"),
+            Option(
+                "--reissue-delay-ms MS",
+                "200",
+                "Milliseconds to wait after fill before re-issuing",
+            ),
             Option("--tif DAY|GTC", "DAY", "Time-in-force for quote legs"),
-            Option("--heartbeat-interval-sec SEC", "5.0", "Periodic live-quote check interval"),
-            Option("--initial_min / --initial_max", "unset", "Bounds for random bootstrap price"),
-            Option("--engine-pull ADDR", "tcp://127.0.0.1:5555", "Engine PUSH/PULL address"),
+            Option(
+                "--heartbeat-interval-sec SEC",
+                "5.0",
+                "Periodic live-quote check interval",
+            ),
+            Option(
+                "--initial_min / --initial_max",
+                "unset",
+                "Bounds for random bootstrap price",
+            ),
+            Option(
+                "--engine-pull ADDR", "tcp://127.0.0.1:5555", "Engine PUSH/PULL address"
+            ),
             Option("--engine-pub ADDR", "tcp://127.0.0.1:5556", "Engine PUB address"),
         ),
         has_common_log_options=True,
@@ -786,7 +1030,13 @@ _INDEX: tuple[CommandInfo, ...] = (
             "CORP_ACTION, ADD_CONSTITUENT, DELIST) as JSONL; level/EOD ticks are "
             "recorded by pm-stats instead.",
         ),
-        options=(Option("--reset", "off", "Delete persisted state files and reinitialise all indices from config"),),
+        options=(
+            Option(
+                "--reset",
+                "off",
+                "Delete persisted state files and reinitialise all indices from config",
+            ),
+        ),
         has_common_log_options=True,
         ports="Binds 5558 (PUB, index.update), 5559 (PULL, operator commands); connects out to 5556",
         related=("pm-index-cli", "pm-index-admin-cli", "pm-stats-cli", "pm-md-gwy"),
@@ -798,21 +1048,36 @@ _INDEX: tuple[CommandInfo, ...] = (
         category="Index",
         title="Index Structural/Audit History Query Tool",
         summary="Read-only offline query of pm-index's structural/corporate-action JSONL history.",
-        synopsis=("pm-index-cli [--config engine_config.yaml] [--format table|json|csv] COMMAND [options]",),
+        synopsis=(
+            "pm-index-cli [--config engine_config.yaml] [--format table|json|csv] COMMAND [options]",
+        ),
         description=(
             "Reads history files directly from disk -- no running process required. "
             "Does not expose level/EOD history; use `pm-stats-cli index-daily` / "
             "`index-snapshots` for that instead.",
         ),
         options=(
-            Option("--config, -c PATH", "unset", "Path to engine_config.yaml; auto-discovers history files and index IDs"),
-            Option("--data-dir DIR", "data/indexes", "Directory containing history files, when --config is absent"),
+            Option(
+                "--config, -c PATH",
+                "unset",
+                "Path to engine_config.yaml; auto-discovers history files and index IDs",
+            ),
+            Option(
+                "--data-dir DIR",
+                "data/indexes",
+                "Directory containing history files, when --config is absent",
+            ),
             Option("--format table|json|csv", "table", "Output format"),
             Option("--no-header", "off", "Suppress header row (CSV only)"),
         ),
         subcommands=(
-            Subcommand("events", purpose="Structural events: INIT, CORP_ACTION, ADD_CONSTITUENT, DELIST"),
-            Subcommand("indices", purpose="List configured indices from engine_config.yaml"),
+            Subcommand(
+                "events",
+                purpose="Structural events: INIT, CORP_ACTION, ADD_CONSTITUENT, DELIST",
+            ),
+            Subcommand(
+                "indices", purpose="List configured indices from engine_config.yaml"
+            ),
         ),
         related=("pm-index", "pm-index-admin-cli", "pm-stats-cli"),
         doc_anchor="pm-index-cli-index-structuralaudit-history-query-tool",
@@ -835,27 +1100,41 @@ _INDEX: tuple[CommandInfo, ...] = (
             "accepts any non-empty gateway_id, used only as an ack-routing key.",
         ),
         options=(
-            Option("--id GW_ID", "required", "Ack-routing label -- not authenticated by pm-index"),
-            Option("--push ADDR", "tcp://127.0.0.1:5559", "pm-index PULL socket address"),
+            Option(
+                "--id GW_ID",
+                "required",
+                "Ack-routing label -- not authenticated by pm-index",
+            ),
+            Option(
+                "--push ADDR", "tcp://127.0.0.1:5559", "pm-index PULL socket address"
+            ),
             Option("--sub ADDR", "tcp://127.0.0.1:5558", "pm-index PUB socket address"),
             Option("--timeout MS", "3000", "Ack timeout in milliseconds"),
-            Option("--dry-run", "off", "Print the outbound payload instead of sending it"),
+            Option(
+                "--dry-run", "off", "Print the outbound payload instead of sending it"
+            ),
             Option("-y, --yes", "off", "Skip the confirmation prompt"),
             Option("--format table|json", "table", "Output format"),
         ),
         subcommands=(
             Subcommand("split", purpose="Apply a stock split or reverse split"),
             Subcommand("dividend", purpose="Apply a cash dividend adjustment"),
-            Subcommand("shares", purpose="Set shares outstanding -- covers issuances and buy-backs"),
+            Subcommand(
+                "shares",
+                purpose="Set shares outstanding -- covers issuances and buy-backs",
+            ),
             Subcommand("add", purpose="Add a new constituent"),
             Subcommand("delist", purpose="Remove a constituent"),
-            Subcommand("history", purpose="Show recent structural/corp-action history for an index"),
+            Subcommand(
+                "history",
+                purpose="Show recent structural/corp-action history for an index",
+            ),
         ),
         related=("pm-index", "pm-index-cli"),
         doc_anchor="pm-index-admin-cli-index-corporate-action-constituent-change-cli",
         doc_page="152-index-admin-cli.md",
         notes=(
-            "Every mutating subcommand prompts \"Continue? [y/N]\" unless -y/--yes is given.",
+            'Every mutating subcommand prompts "Continue? [y/N]" unless -y/--yes is given.',
         ),
     ),
 )
@@ -878,24 +1157,56 @@ _QUERY_CLIS: tuple[CommandInfo, ...] = (
         ),
         options=(
             Option("--log-file PATH", "data/audit.log", "Primary audit log file"),
-            Option("--log-dir PATH", "directory of --log-file", "Directory containing rotated log backups"),
+            Option(
+                "--log-dir PATH",
+                "directory of --log-file",
+                "Directory containing rotated log backups",
+            ),
             Option("--format table|json|csv", "table", "Output format"),
             Option("--no-header", "off", "Suppress header row in CSV output"),
-            Option("--use-index PATH", "auto-detected", "Path to the optional SQLite index file"),
+            Option(
+                "--use-index PATH",
+                "auto-detected",
+                "Path to the optional SQLite index file",
+            ),
         ),
         subcommands=(
-            Subcommand("events", args="[options]", purpose="Search log entries by topic, gateway, symbol, and time range (default limit 100)"),
-            Subcommand("orders", args="[options]", purpose="Order lifecycle events for specific order IDs or filters (default limit 100)"),
-            Subcommand("trades", args="[options]", purpose="Trade executions (default limit 100)"),
-            Subcommand("topics", purpose="List topics present in logs with event counts"),
+            Subcommand(
+                "events",
+                args="[options]",
+                purpose="Search log entries by topic, gateway, symbol, and time range (default limit 100)",
+            ),
+            Subcommand(
+                "orders",
+                args="[options]",
+                purpose="Order lifecycle events for specific order IDs or filters (default limit 100)",
+            ),
+            Subcommand(
+                "trades",
+                args="[options]",
+                purpose="Trade executions (default limit 100)",
+            ),
+            Subcommand(
+                "topics", purpose="List topics present in logs with event counts"
+            ),
             Subcommand("gateways", purpose="Gateway activity summary"),
-            Subcommand("timeline", args="[options]", purpose="Raw chronological event stream for session replay (default limit 500)"),
+            Subcommand(
+                "timeline",
+                args="[options]",
+                purpose="Raw chronological event stream for session replay (default limit 500)",
+            ),
             Subcommand("stats", purpose="Summary statistics about audit log files"),
-            Subcommand("index", args="[--output PATH]", purpose="Build or update the optional SQLite index for faster queries"),
+            Subcommand(
+                "index",
+                args="[--output PATH]",
+                purpose="Build or update the optional SQLite index for faster queries",
+            ),
         ),
         related=("pm-audit", "pm-stats-cli", "pm-clearing-cli"),
         doc_anchor="pm-audit-cli-audit-log-query-cli",
-        examples=("pm-audit-cli trades --symbol AAPL --from 2026-06-01 --to 2026-06-05",),
+        examples=(
+            "pm-audit-cli trades --symbol AAPL --from 2026-06-01 --to 2026-06-05",
+        ),
     ),
     CommandInfo(
         name="pm-clearing-cli",
@@ -906,28 +1217,72 @@ _QUERY_CLIS: tuple[CommandInfo, ...] = (
             "pm-clearing-cli [--datapath PATH] [--db-name clearing.db]",
             "                [--format table|json|csv] [--raw-output] COMMAND [options]",
         ),
-        description=("Unlike pm-clearing, this is a one-shot tool: runs one query, prints output, exits.",),
+        description=(
+            "Unlike pm-clearing, this is a one-shot tool: runs one query, prints output, exits.",
+        ),
         options=(
-            Option("--datapath PATH", "resolved from $EDUMATCHER_DATA_DIR", "Data directory or explicit .db file path"),
-            Option("--db-name NAME", "clearing.db", "SQLite filename when --datapath is a directory"),
+            Option(
+                "--datapath PATH",
+                "resolved from $EDUMATCHER_DATA_DIR",
+                "Data directory or explicit .db file path",
+            ),
+            Option(
+                "--db-name NAME",
+                "clearing.db",
+                "SQLite filename when --datapath is a directory",
+            ),
             Option("--format table|json|csv", "table", "Output format"),
             Option("--no-header", "off", "Suppress header row in CSV output"),
-            Option("--raw-output", "off", "Disable tick-decimal normalization; emit raw tick-unit values"),
+            Option(
+                "--raw-output",
+                "off",
+                "Disable tick-decimal normalization; emit raw tick-unit values",
+            ),
         ),
         subcommands=(
-            Subcommand("gateways", purpose="Gateway-level realized/unrealized/total P&L totals (limit 1000)"),
-            Subcommand("positions", purpose="Current open position state by gateway and symbol (limit 10000)"),
-            Subcommand("pnl", purpose="Realized/unrealized/total P&L rows per gateway and symbol (limit 10000)"),
+            Subcommand(
+                "gateways",
+                purpose="Gateway-level realized/unrealized/total P&L totals (limit 1000)",
+            ),
+            Subcommand(
+                "positions",
+                purpose="Current open position state by gateway and symbol (limit 10000)",
+            ),
+            Subcommand(
+                "pnl",
+                purpose="Realized/unrealized/total P&L rows per gateway and symbol (limit 10000)",
+            ),
             Subcommand("daily", purpose="Daily rollup summary rows (limit 1000)"),
             Subcommand("trades", purpose="Raw trade-event rows (limit 200)"),
-            Subcommand("exposure", purpose="Net/gross notional exposure and P&L (limit 1000)"),
-            Subcommand("symbols", purpose="Symbol-level totals and open exposure snapshot (limit 1000)"),
-            Subcommand("dates", purpose="Available trade dates, optionally with totals (limit 1000)"),
+            Subcommand(
+                "exposure", purpose="Net/gross notional exposure and P&L (limit 1000)"
+            ),
+            Subcommand(
+                "symbols",
+                purpose="Symbol-level totals and open exposure snapshot (limit 1000)",
+            ),
+            Subcommand(
+                "dates",
+                purpose="Available trade dates, optionally with totals (limit 1000)",
+            ),
             Subcommand("health", purpose="DB row counts, flush metadata, and WAL mode"),
-            Subcommand("reconcile", purpose="Compares raw trade_events vs daily summary for discrepancies"),
-            Subcommand("sessions", purpose="Gateway connection/disconnection history (limit 500)"),
-            Subcommand("eod", purpose="End-of-day sentinel events written by pm-clearing (limit 100)"),
-            Subcommand("prune", args="[--days N] [--dry-run]", purpose="Delete old trade_events rows by retention window"),
+            Subcommand(
+                "reconcile",
+                purpose="Compares raw trade_events vs daily summary for discrepancies",
+            ),
+            Subcommand(
+                "sessions",
+                purpose="Gateway connection/disconnection history (limit 500)",
+            ),
+            Subcommand(
+                "eod",
+                purpose="End-of-day sentinel events written by pm-clearing (limit 100)",
+            ),
+            Subcommand(
+                "prune",
+                args="[--days N] [--dry-run]",
+                purpose="Delete old trade_events rows by retention window",
+            ),
         ),
         related=("pm-clearing", "pm-stats-cli", "pm-audit-cli"),
         doc_anchor="pm-clearing-cli-clearing-query-cli",
@@ -944,28 +1299,61 @@ _QUERY_CLIS: tuple[CommandInfo, ...] = (
         category="Query & Reporting CLIs",
         title="Statistics Query CLI",
         summary="Read-only query interface for stats.db (OHLCV, trades, snapshots, index history).",
-        synopsis=("pm-stats-cli [--db data/stats.db] [--format table|json|csv] [--timezone TZ] COMMAND [options]",),
-        description=("Runs one query, prints output, and exits -- not a subscriber process.",),
+        synopsis=(
+            "pm-stats-cli [--db data/stats.db] [--format table|json|csv] [--timezone TZ] COMMAND [options]",
+        ),
+        description=(
+            "Runs one query, prints output, and exits -- not a subscriber process.",
+        ),
         options=(
             Option("--db PATH", "data/stats.db", "SQLite database file path"),
             Option("--format table|json|csv", "table", "Output format"),
             Option("--no-header", "off", "Suppress header row in csv output"),
-            Option("--timezone TZ", "DB-recorded timezone", "Override the session timezone --date resolves in"),
+            Option(
+                "--timezone TZ",
+                "DB-recorded timezone",
+                "Override the session timezone --date resolves in",
+            ),
         ),
         subcommands=(
             Subcommand("daily", purpose="Daily OHLCV summary from daily_stats"),
-            Subcommand("snapshots", purpose="Intraday snapshots from price_snapshots (--symbol required)"),
+            Subcommand(
+                "snapshots",
+                purpose="Intraday snapshots from price_snapshots (--symbol required)",
+            ),
             Subcommand("trades", purpose="Trade history from trade_log"),
-            Subcommand("order-events", purpose="Private order lifecycle events (--gateway required)"),
-            Subcommand("order-lifecycle", purpose="All events for a single order ID (--gateway, --order-id required)"),
+            Subcommand(
+                "order-events",
+                purpose="Private order lifecycle events (--gateway required)",
+            ),
+            Subcommand(
+                "order-lifecycle",
+                purpose="All events for a single order ID (--gateway, --order-id required)",
+            ),
             Subcommand("symbols", purpose="Discover symbols available in stats data"),
-            Subcommand("dates", purpose="Discover trading dates available in daily_stats"),
-            Subcommand("index-daily", purpose="Daily index OHLC rollup from index_daily_stats"),
-            Subcommand("index-snapshots", purpose="Every recorded index level tick (--index-id required)"),
+            Subcommand(
+                "dates", purpose="Discover trading dates available in daily_stats"
+            ),
+            Subcommand(
+                "index-daily", purpose="Daily index OHLC rollup from index_daily_stats"
+            ),
+            Subcommand(
+                "index-snapshots",
+                purpose="Every recorded index level tick (--index-id required)",
+            ),
             Subcommand("index-ids", purpose="Discover index IDs with recorded data"),
-            Subcommand("instruments", purpose="Instrument reference data (tick scale per symbol)"),
-            Subcommand("gaps", purpose="Detected feed gaps -- trades the recorder never received"),
-            Subcommand("health", purpose="Check the pm-stats process and stats DB read/write health"),
+            Subcommand(
+                "instruments",
+                purpose="Instrument reference data (tick scale per symbol)",
+            ),
+            Subcommand(
+                "gaps",
+                purpose="Detected feed gaps -- trades the recorder never received",
+            ),
+            Subcommand(
+                "health",
+                purpose="Check the pm-stats process and stats DB read/write health",
+            ),
         ),
         related=("pm-stats", "pm-clearing-cli", "pm-index-cli"),
         doc_anchor="pm-stats-cli-statistics-query-cli",
@@ -975,7 +1363,9 @@ _QUERY_CLIS: tuple[CommandInfo, ...] = (
             "pm-stats-cli snapshots --symbol MSFT --from 2026-06-14T09:00:00+00:00 --to 2026-06-14T16:30:00+00:00",
             "pm-stats-cli --format csv trades --symbol AAPL --date 2026-06-14",
         ),
-        notes=("--after CURSOR pages through results using the cursor from a previous call's last row.",),
+        notes=(
+            "--after CURSOR pages through results using the cursor from a previous call's last row.",
+        ),
     ),
 )
 
@@ -996,28 +1386,77 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
             "completion and arrow-key history work the same way. The --id must be "
             "an entry in engine_config.yaml with role: ADMIN.",
         ),
-        options=(Option("--id ADMIN_GW_ID", "required", "ADMIN gateway ID configured in engine_config.yaml"),),
+        options=(
+            Option(
+                "--id ADMIN_GW_ID",
+                "required",
+                "ADMIN gateway ID configured in engine_config.yaml",
+            ),
+        ),
         has_common_log_options=True,
         subcommands=(
-            Subcommand("HALT / RESUME", purpose="Exchange-wide circuit-breaker halt / lift it"),
-            Subcommand("HALT_SYM / RESUME_SYM", args="SYM=<sym>", purpose="Halt / resume a single symbol"),
-            Subcommand("CANCEL_SYM", args="SYM=<sym>", purpose="Cancel all resting orders for a symbol"),
-            Subcommand("KILL", args="GW=<gw>[|SYM=<sym>]", purpose="Cancel all (or symbol-scoped) orders/quotes for a gateway"),
-            Subcommand("KICK", args="GW=<gw>[|REASON=<text>]", purpose="Forcefully disconnect a gateway"),
-            Subcommand("QCANCEL", args="GW=<gw>|SYM=<sym>", purpose="Cancel an MM's active quote on one symbol"),
-            Subcommand("BOOK", args="SYM=<sym>", purpose="Print L1/L2 order-book snapshot"),
-            Subcommand("ORDERS", args="GW=<gw>", purpose="List resting orders for a gateway"),
-            Subcommand("LEVEL", args="SYM=<sym>[|PRICE=<p>]", purpose="Show orders making up a symbol or one price level"),
-            Subcommand("SYMBOLS / GATEWAYS / VOLUME", purpose="List instruments / gateways / daily traded volume"),
-            Subcommand("SESSION", args="STATE=<phase>", purpose="Advance session phase"),
-            Subcommand("SESSION_STATUS / SCHEDULE", purpose="Show current session state / configured schedule"),
-            Subcommand("HELP / EXIT / QUIT", purpose="Show command reference / disconnect and exit"),
+            Subcommand(
+                "HALT / RESUME", purpose="Exchange-wide circuit-breaker halt / lift it"
+            ),
+            Subcommand(
+                "HALT_SYM / RESUME_SYM",
+                args="SYM=<sym>",
+                purpose="Halt / resume a single symbol",
+            ),
+            Subcommand(
+                "CANCEL_SYM",
+                args="SYM=<sym>",
+                purpose="Cancel all resting orders for a symbol",
+            ),
+            Subcommand(
+                "KILL",
+                args="GW=<gw>[|SYM=<sym>]",
+                purpose="Cancel all (or symbol-scoped) orders/quotes for a gateway",
+            ),
+            Subcommand(
+                "KICK",
+                args="GW=<gw>[|REASON=<text>]",
+                purpose="Forcefully disconnect a gateway",
+            ),
+            Subcommand(
+                "QCANCEL",
+                args="GW=<gw>|SYM=<sym>",
+                purpose="Cancel an MM's active quote on one symbol",
+            ),
+            Subcommand(
+                "BOOK", args="SYM=<sym>", purpose="Print L1/L2 order-book snapshot"
+            ),
+            Subcommand(
+                "ORDERS", args="GW=<gw>", purpose="List resting orders for a gateway"
+            ),
+            Subcommand(
+                "LEVEL",
+                args="SYM=<sym>[|PRICE=<p>]",
+                purpose="Show orders making up a symbol or one price level",
+            ),
+            Subcommand(
+                "SYMBOLS / GATEWAYS / VOLUME",
+                purpose="List instruments / gateways / daily traded volume",
+            ),
+            Subcommand(
+                "SESSION", args="STATE=<phase>", purpose="Advance session phase"
+            ),
+            Subcommand(
+                "SESSION_STATUS / SCHEDULE",
+                purpose="Show current session state / configured schedule",
+            ),
+            Subcommand(
+                "HELP / EXIT / QUIT",
+                purpose="Show command reference / disconnect and exit",
+            ),
         ),
         related=("pm-admin-cli", "pm-opctl-cli", "pm-engine"),
         doc_anchor="pm-admin-interactive-admin-console",
         doc_page="160-exchange-commands.md",
         examples=("pm-admin --id GW_ADMIN",),
-        notes=("Most commands require the ADMIN gateway role; see the full risk-control flow in Risk Controls.",),
+        notes=(
+            "Most commands require the ADMIN gateway role; see the full risk-control flow in Risk Controls.",
+        ),
     ),
     CommandInfo(
         name="pm-admin-cli",
@@ -1025,7 +1464,9 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
         title="CLI Admin Commands",
         summary="Non-interactive, one-shot alternative to pm-admin for scripting and CI.",
         synopsis=("pm-admin-cli --id <GW_ID> <command> [options]",),
-        description=("Sends one command to the engine, waits for an acknowledgement, prints the result, and exits.",),
+        description=(
+            "Sends one command to the engine, waits for an acknowledgement, prints the result, and exits.",
+        ),
         options=(
             Option("--id GW_ID", "required", "ADMIN gateway ID"),
             Option("--push ADDR", "from config", "Engine PULL address"),
@@ -1034,16 +1475,46 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
         ),
         subcommands=(
             Subcommand("halt / resume", purpose="Exchange-wide halt / resume"),
-            Subcommand("halt-sym / resume-sym", args="--sym SYMBOL", purpose="Halt / resume one symbol"),
-            Subcommand("cancel-sym", args="--sym SYMBOL", purpose="Cancel all resting orders on one symbol"),
-            Subcommand("kill", args="--gw GW_ID [--sym SYMBOL]", purpose="Cancel all (or symbol-scoped) orders/quotes for gateway"),
-            Subcommand("kick", args="--gw GW_ID [--reason TEXT]", purpose="Disconnect a gateway"),
-            Subcommand("qcancel", args="--gw GW_ID --sym SYMBOL", purpose="Cancel active quote for gateway on symbol"),
+            Subcommand(
+                "halt-sym / resume-sym",
+                args="--sym SYMBOL",
+                purpose="Halt / resume one symbol",
+            ),
+            Subcommand(
+                "cancel-sym",
+                args="--sym SYMBOL",
+                purpose="Cancel all resting orders on one symbol",
+            ),
+            Subcommand(
+                "kill",
+                args="--gw GW_ID [--sym SYMBOL]",
+                purpose="Cancel all (or symbol-scoped) orders/quotes for gateway",
+            ),
+            Subcommand(
+                "kick",
+                args="--gw GW_ID [--reason TEXT]",
+                purpose="Disconnect a gateway",
+            ),
+            Subcommand(
+                "qcancel",
+                args="--gw GW_ID --sym SYMBOL",
+                purpose="Cancel active quote for gateway on symbol",
+            ),
             Subcommand("book", args="--sym SYMBOL", purpose="Fetch book snapshot"),
-            Subcommand("orders", args="--gw GW_ID", purpose="List resting orders for gateway"),
-            Subcommand("symbols / gateways / volume", purpose="List instruments / gateway states / daily volume"),
-            Subcommand("session", args="--state STATE", purpose="Request session transition"),
-            Subcommand("session-status / schedule", purpose="Read current session state / configured schedule"),
+            Subcommand(
+                "orders", args="--gw GW_ID", purpose="List resting orders for gateway"
+            ),
+            Subcommand(
+                "symbols / gateways / volume",
+                purpose="List instruments / gateway states / daily volume",
+            ),
+            Subcommand(
+                "session", args="--state STATE", purpose="Request session transition"
+            ),
+            Subcommand(
+                "session-status / schedule",
+                purpose="Read current session state / configured schedule",
+            ),
         ),
         related=("pm-admin", "pm-opctl-cli"),
         doc_anchor="pm-admin-cli-cli-admin-commands",
@@ -1067,14 +1538,44 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
             "(micro, mini, default) are built in until that file exists.",
         ),
         subcommands=(
-            Subcommand("start", args="[PROFILE]", aliases=("up",), purpose="Start a profile (default when omitted), skipping entries already running"),
-            Subcommand("list", purpose="Status table for the active profile: uptime and memory per process; offers to restart dead entries"),
-            Subcommand("health", args="[-q]", purpose="Same checks as list; exits 0 only when every process is running -- for monitoring scripts"),
-            Subcommand("stop", aliases=("down",), purpose="Send SIGTERM to processes this tool started"),
-            Subcommand("kill", purpose="Emergency stop: signals every process whose command line contains pm-, including ones this tool did not start"),
-            Subcommand("init", purpose="Write the built-in profiles to emo-config.yaml for editing (refuses to overwrite)"),
-            Subcommand("show", args="[--json]", purpose="Print version, data directory, and deployed config paths"),
-            Subcommand("clear", args="(--state|--all) [--yes]", purpose="Delete persisted data; ref_data/ configuration is never touched"),
+            Subcommand(
+                "start",
+                args="[PROFILE]",
+                aliases=("up",),
+                purpose="Start a profile (default when omitted), skipping entries already running",
+            ),
+            Subcommand(
+                "list",
+                purpose="Status table for the active profile: uptime and memory per process; offers to restart dead entries",
+            ),
+            Subcommand(
+                "health",
+                args="[-q]",
+                purpose="Same checks as list; exits 0 only when every process is running -- for monitoring scripts",
+            ),
+            Subcommand(
+                "stop",
+                aliases=("down",),
+                purpose="Send SIGTERM to processes this tool started",
+            ),
+            Subcommand(
+                "kill",
+                purpose="Emergency stop: signals every process whose command line contains pm-, including ones this tool did not start",
+            ),
+            Subcommand(
+                "init",
+                purpose="Write the built-in profiles to emo-config.yaml for editing (refuses to overwrite)",
+            ),
+            Subcommand(
+                "show",
+                args="[--json]",
+                purpose="Print version, data directory, and deployed config paths",
+            ),
+            Subcommand(
+                "clear",
+                args="(--state|--all) [--yes]",
+                purpose="Delete persisted data; ref_data/ configuration is never touched",
+            ),
         ),
         related=("pm-engine", "pm-config-deploy", "pm-setup", "pm-admin"),
         doc_anchor="pm-opctl-cli-operational-process-control",
@@ -1112,14 +1613,20 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
             "before starting runtime processes.",
         ),
         options=(
-            Option("--data-dir PATH", "$EDUMATCHER_DATA_DIR or ~/.local/share/edumatcher", "Data directory for persistent files"),
+            Option(
+                "--data-dir PATH",
+                "$EDUMATCHER_DATA_DIR or ~/.local/share/edumatcher",
+                "Data directory for persistent files",
+            ),
             Option("--force", "off", "Replace an already-deployed config"),
             Option("--no-config", "off", "Create the data dir only; deploy nothing"),
         ),
         related=("pm-config-gen", "pm-config-deploy", "pm-opctl-cli"),
         doc_anchor="pm-setup-session-bootstrap-tool",
         doc_page="000-getting-started.md",
-        notes=("Local bootstrap logic; does not participate in the ZeroMQ runtime message bus.",),
+        notes=(
+            "Local bootstrap logic; does not participate in the ZeroMQ runtime message bus.",
+        ),
     ),
     CommandInfo(
         name="pm-config-gen",
@@ -1131,22 +1638,97 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
             "              --output engine_config.yaml",
         ),
         options=(
-            Option("--symbols SYM [SYM ...]", "required", "One or more symbols", group="Required"),
-            Option("--gateways GW_SPEC [...]", "required", "One or more ID[:ROLE[:DISCONNECT]] gateway specs", group="Required"),
-            Option("--sessions-enabled", "disabled", "Enable scheduler-driven sessions", group="Session & engine"),
-            Option("--static-band / --dynamic-band PCT", "unset", "Default collar bands", group="Collars & circuit breakers"),
-            Option("--risk-level NAME:STATIC[:DYNAMIC]", "-", "Risk level definition; repeatable", group="Collars & circuit breakers"),
-            Option("--cb-levels NAME:SHIFT[:HALT_MINS[:MODE]]", "-", "Circuit-breaker level definition; repeatable", group="Collars & circuit breakers"),
-            Option("--mm-spread-ticks / --mm-min-qty", "20 / 100", "Global market-maker obligation defaults", group="Market-maker obligations"),
-            Option("--post-trade-gateway", "-", "Emit post_trade_gateway: section for pm-ralf-gwy", group="Gateway sections"),
-            Option("--market-data-gateway", "-", "Emit market_data_gateway: section for pm-md-gwy", group="Gateway sections"),
-            Option("--balf-gateway", "-", "Emit balf_gateway: section for pm-balf-gwy", group="Gateway sections"),
-            Option("--api-gateway", "-", "Emit api_gateways: section for pm-api-gwy", group="Gateway sections"),
-            Option("--index INDEX_ID", "-", "Add an index to the config; repeatable", group="Index sections"),
-            Option("--schedule / --no-schedule", "auto", "Force include/suppress the schedule section", group="Schedule"),
-            Option("--combo SPEC", "-", "Add a pre-configured combo definition; repeatable", group="Combos"),
+            Option(
+                "--symbols SYM [SYM ...]",
+                "required",
+                "One or more symbols",
+                group="Required",
+            ),
+            Option(
+                "--gateways GW_SPEC [...]",
+                "required",
+                "One or more ID[:ROLE[:DISCONNECT]] gateway specs",
+                group="Required",
+            ),
+            Option(
+                "--sessions-enabled",
+                "disabled",
+                "Enable scheduler-driven sessions",
+                group="Session & engine",
+            ),
+            Option(
+                "--static-band / --dynamic-band PCT",
+                "unset",
+                "Default collar bands",
+                group="Collars & circuit breakers",
+            ),
+            Option(
+                "--risk-level NAME:STATIC[:DYNAMIC]",
+                "-",
+                "Risk level definition; repeatable",
+                group="Collars & circuit breakers",
+            ),
+            Option(
+                "--cb-levels NAME:SHIFT[:HALT_MINS[:MODE]]",
+                "-",
+                "Circuit-breaker level definition; repeatable",
+                group="Collars & circuit breakers",
+            ),
+            Option(
+                "--mm-spread-ticks / --mm-min-qty",
+                "20 / 100",
+                "Global market-maker obligation defaults",
+                group="Market-maker obligations",
+            ),
+            Option(
+                "--post-trade-gateway",
+                "-",
+                "Emit post_trade_gateway: section for pm-ralf-gwy",
+                group="Gateway sections",
+            ),
+            Option(
+                "--market-data-gateway",
+                "-",
+                "Emit market_data_gateway: section for pm-md-gwy",
+                group="Gateway sections",
+            ),
+            Option(
+                "--balf-gateway",
+                "-",
+                "Emit balf_gateway: section for pm-balf-gwy",
+                group="Gateway sections",
+            ),
+            Option(
+                "--api-gateway",
+                "-",
+                "Emit api_gateways: section for pm-api-gwy",
+                group="Gateway sections",
+            ),
+            Option(
+                "--index INDEX_ID",
+                "-",
+                "Add an index to the config; repeatable",
+                group="Index sections",
+            ),
+            Option(
+                "--schedule / --no-schedule",
+                "auto",
+                "Force include/suppress the schedule section",
+                group="Schedule",
+            ),
+            Option(
+                "--combo SPEC",
+                "-",
+                "Add a pre-configured combo definition; repeatable",
+                group="Combos",
+            ),
             Option("--output FILE", "stdout", "Output YAML file path", group="Output"),
-            Option("--dry-run", "off", "Print generated YAML; write nothing", group="Output"),
+            Option(
+                "--dry-run",
+                "off",
+                "Print generated YAML; write nothing",
+                group="Output",
+            ),
         ),
         related=("pm-cverifier", "pm-config-deploy", "pm-config-show"),
         doc_anchor="pm-config-gen-engine-config-generator",
@@ -1166,17 +1748,23 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
         category="Setup & Configuration",
         title="Config Verifier",
         summary="Validates engine_config.yaml across YAML, schema, semantic, and completeness checks.",
-        synopsis=("pm-cverifier [--format text|json] [--level info|warn|error] [--strict] CONFIG_FILE",),
+        synopsis=(
+            "pm-cverifier [--format text|json] [--level info|warn|error] [--strict] CONFIG_FILE",
+        ),
         options=(
             Option("CONFIG_FILE", "required", "Path to engine_config.yaml"),
             Option("--format text|json", "text", "Output format"),
             Option("--level info|warn|error", "info", "Minimum severity to show"),
             Option("--no-color", "off", "Disable ANSI colour in text output"),
-            Option("--strict", "off", "Treat warnings as errors for CI exit-code purposes"),
+            Option(
+                "--strict", "off", "Treat warnings as errors for CI exit-code purposes"
+            ),
         ),
         related=("pm-config-gen", "pm-config-deploy", "pm-config-show"),
         doc_anchor="pm-cverifier-config-verifier",
-        notes=("Exit 0: no findings at/above threshold. Exit 1: one or more findings at/above threshold.",),
+        notes=(
+            "Exit 0: no findings at/above threshold. Exit 1: one or more findings at/above threshold.",
+        ),
     ),
     CommandInfo(
         name="pm-config-deploy",
@@ -1195,14 +1783,22 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
             "default exactly once.",
         ),
         options=(
-            Option("SOURCE", "-", "Authored engine_config.yaml to validate, compile and install"),
-            Option("--check", "off", "Validate and compile, but install nothing -- for CI"),
+            Option(
+                "SOURCE",
+                "-",
+                "Authored engine_config.yaml to validate, compile and install",
+            ),
+            Option(
+                "--check", "off", "Validate and compile, but install nothing -- for CI"
+            ),
             Option("--show", "off", "Print the deployed paths and exit"),
         ),
         related=("pm-cverifier", "pm-config-gen", "pm-config-show", "pm-opctl-cli"),
         doc_anchor="pm-config-deploy-compile-and-install-a-configuration",
         doc_page="010-configuration.md",
-        notes=("Local bootstrap logic; does not participate in the ZeroMQ runtime message bus.",),
+        notes=(
+            "Local bootstrap logic; does not participate in the ZeroMQ runtime message bus.",
+        ),
     ),
     CommandInfo(
         name="pm-config-show",
@@ -1214,19 +1810,41 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
             "pm-config-show --format pdf -o exchange.pdf",
         ),
         description=(
-            "Where pm-cverifier answers \"is this file correct\", pm-config-show "
-            "answers \"what does this file say\" -- including the resolved port map, "
+            'Where pm-cverifier answers "is this file correct", pm-config-show '
+            'answers "what does this file say" -- including the resolved port map, '
             "which cannot be read off the YAML alone. Strictly read-only.",
         ),
         options=(
-            Option("-f, --file YAML", "<DATA_DIR>/ref_data/engine_config.yaml", "Config file to read"),
-            Option("-m, --density [1|2]", "0", "1 adds risk/gateway detail, 2 adds every knob"),
-            Option("-a, --all", "off", "Show everything: implies -m 2, unmasks API keys"),
+            Option(
+                "-f, --file YAML",
+                "<DATA_DIR>/ref_data/engine_config.yaml",
+                "Config file to read",
+            ),
+            Option(
+                "-m, --density [1|2]",
+                "0",
+                "1 adds risk/gateway detail, 2 adds every knob",
+            ),
+            Option(
+                "-a, --all", "off", "Show everything: implies -m 2, unmasks API keys"
+            ),
             Option("--format terminal|pdf", "terminal", "Output format"),
-            Option("-o, --output FILE", "engine-config-<stem>.pdf", "Destination file for --format pdf"),
+            Option(
+                "-o, --output FILE",
+                "engine-config-<stem>.pdf",
+                "Destination file for --format pdf",
+            ),
             Option("--no-color", "off", "Disable ANSI colour"),
-            Option("--ascii", "off", "ASCII box drawing; auto-enabled on non-UTF-8 terminals"),
-            Option("--width N", "terminal width", "Force render width -- for scripted capture"),
+            Option(
+                "--ascii",
+                "off",
+                "ASCII box drawing; auto-enabled on non-UTF-8 terminals",
+            ),
+            Option(
+                "--width N",
+                "terminal width",
+                "Force render width -- for scripted capture",
+            ),
         ),
         related=("pm-cverifier", "pm-config-deploy", "pm-config-gen"),
         doc_anchor="pm-config-show-config-viewer",
@@ -1263,22 +1881,48 @@ _LOGGING: tuple[CommandInfo, ...] = (
             Option("--host ADDR", "0.0.0.0 (from config)", "TCP bind address"),
             Option("--port PORT", "5600", "TCP listen port for LALF clients"),
             Option("--db PATH", "data/log.db", "SQLite database path"),
-            Option("--retention-days N", "30", "Prune log_events rows older than N days (0 = unbounded)"),
-            Option("--max-message-bytes N", "65536", "Truncation ceiling per LOG payload"),
-            Option("--pub-port PORT", "5601", "LALF-PS PUB bind port for log distribution"),
-            Option("--pull-port PORT", "5602", "LALF-PS PULL bind port for subscriber control"),
+            Option(
+                "--retention-days N",
+                "30",
+                "Prune log_events rows older than N days (0 = unbounded)",
+            ),
+            Option(
+                "--max-message-bytes N", "65536", "Truncation ceiling per LOG payload"
+            ),
+            Option(
+                "--pub-port PORT", "5601", "LALF-PS PUB bind port for log distribution"
+            ),
+            Option(
+                "--pull-port PORT",
+                "5602",
+                "LALF-PS PULL bind port for subscriber control",
+            ),
             Option("--no-pubsub", "off", "Disable the LALF-PS interface entirely"),
-            Option("--lease-sec N", "30", "Subscription lease TTL before an unrenewed subscriber is reaped"),
-            Option("--log-level LEVEL", "WARNING", "Explicit level: CRITICAL, ERROR, WARNING, INFO, DEBUG"),
+            Option(
+                "--lease-sec N",
+                "30",
+                "Subscription lease TTL before an unrenewed subscriber is reaped",
+            ),
+            Option(
+                "--log-level LEVEL",
+                "WARNING",
+                "Explicit level: CRITICAL, ERROR, WARNING, INFO, DEBUG",
+            ),
             Option("-v, --verbose", "off", "Increase verbosity"),
             Option("-q, --quiet", "off", "Reduce output to warnings/errors"),
-            Option("--log-target stdout|file", "stdout", "Never server -- pm-log-srv must not depend on itself"),
+            Option(
+                "--log-target stdout|file",
+                "stdout",
+                "Never server -- pm-log-srv must not depend on itself",
+            ),
         ),
         ports="Listens on TCP 5600 (LALF collection), binds ZMQ 5601 (PUB) and 5602 (PULL) unless --no-pubsub",
         related=("pm-log-cli",),
         doc_anchor="pm-log-srv-centralized-log-server",
         doc_page="280-log-srv.md",
-        notes=("Fully implemented; auto-detection by every other pm-* process is a follow-up phase not yet rolled out.",),
+        notes=(
+            "Fully implemented; auto-detection by every other pm-* process is a follow-up phase not yet rolled out.",
+        ),
     ),
     CommandInfo(
         name="pm-log-cli",
@@ -1299,7 +1943,10 @@ _LOGGING: tuple[CommandInfo, ...] = (
             Subcommand("query", purpose="Search log records by filter"),
             Subcommand("processes", purpose="Summarize which processes have logged"),
             Subcommand("stats", purpose="Summary statistics about the log database"),
-            Subcommand("diagnose", purpose="Rule-based troubleshooting heuristics with concrete recommendations"),
+            Subcommand(
+                "diagnose",
+                purpose="Rule-based troubleshooting heuristics with concrete recommendations",
+            ),
             Subcommand("prune", purpose="Manual retention maintenance"),
         ),
         related=("pm-log-srv",),
@@ -1333,20 +1980,44 @@ _DEVELOPER_TOOLS: tuple[CommandInfo, ...] = (
             "`make msgen-check`.",
         ),
         subcommands=(
-            Subcommand("generate", purpose="Render Python bindings, C artifacts, and docs; write to disk"),
-            Subcommand("check", purpose="Fail (exit 1) if committed output differs from the spec"),
-            Subcommand("lint", purpose="Validate the spec only; prints a family/message count"),
-            Subcommand("grep-literals", purpose="Scan a source tree for topic literals a generated constant should replace"),
+            Subcommand(
+                "generate",
+                purpose="Render Python bindings, C artifacts, and docs; write to disk",
+            ),
+            Subcommand(
+                "check",
+                purpose="Fail (exit 1) if committed output differs from the spec",
+            ),
+            Subcommand(
+                "lint", purpose="Validate the spec only; prints a family/message count"
+            ),
+            Subcommand(
+                "grep-literals",
+                purpose="Scan a source tree for topic literals a generated constant should replace",
+            ),
         ),
         options=(
-            Option("--spec DIR", "spec", "Spec root holding transports.yaml and messages/"),
-            Option("--out-python DIR", "src/edumatcher/models/generated", "Python output directory (generate/check)"),
-            Option("--out-c DIR", "docs/examples/generated", "C output directory (generate/check)"),
+            Option(
+                "--spec DIR", "spec", "Spec root holding transports.yaml and messages/"
+            ),
+            Option(
+                "--out-python DIR",
+                "src/edumatcher/models/generated",
+                "Python output directory (generate/check)",
+            ),
+            Option(
+                "--out-c DIR",
+                "docs/examples/generated",
+                "C output directory (generate/check)",
+            ),
             Option("--src DIR", "src", "Source tree to scan (grep-literals)"),
         ),
         related=(),
         doc_anchor="pm-msgen-message-binding-generator",
-        examples=("make msgen        # regenerate after editing a spec file", "make msgen-check  # CI drift gate"),
+        examples=(
+            "make msgen        # regenerate after editing a spec file",
+            "make msgen-check  # CI drift gate",
+        ),
         notes=(
             "Exit 2 on spec error or a missing --spec directory (usually the wrong "
             "working directory -- run from the repo root, or pass --spec).",
@@ -1378,8 +2049,16 @@ _HELP: tuple[CommandInfo, ...] = (
             "bus involvement, related commands, and examples.",
         ),
         options=(
-            Option("--format table|text", "table", "table uses UTF-8 box-drawing characters; text is plain-aligned columns"),
-            Option("-v, --verbose", "off", "Show extra detail (and an example, where one exists) for each command"),
+            Option(
+                "--format table|text",
+                "table",
+                "table uses UTF-8 box-drawing characters; text is plain-aligned columns",
+            ),
+            Option(
+                "-v, --verbose",
+                "off",
+                "Show extra detail (and an example, where one exists) for each command",
+            ),
         ),
         aliases=("pm-man",),
         related=(),
@@ -1412,11 +2091,17 @@ ALL_COMMANDS: tuple[CommandInfo, ...] = (
     + _HELP
 )
 
-_BY_NAME: dict[str, CommandInfo] = {cmd.name: cmd for cmd in ALL_COMMANDS}
-for _cmd in ALL_COMMANDS:
-    for _alias in _cmd.aliases:
-        _BY_NAME.setdefault(_alias, _cmd)
-del _cmd, _alias
+
+def _build_index(commands: tuple[CommandInfo, ...]) -> dict[str, CommandInfo]:
+    """Map every command's name and aliases to its :class:`CommandInfo`."""
+    by_name: dict[str, CommandInfo] = {cmd.name: cmd for cmd in commands}
+    for cmd in commands:
+        for alias in cmd.aliases:
+            by_name.setdefault(alias, cmd)
+    return by_name
+
+
+_BY_NAME: dict[str, CommandInfo] = _build_index(ALL_COMMANDS)
 
 
 def all_commands() -> tuple[CommandInfo, ...]:

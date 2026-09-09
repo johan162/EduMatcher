@@ -27,7 +27,11 @@ from pathlib import Path
 from edumatcher.cli_version import add_version_argument, package_version
 from edumatcher.config import COMPILED_CONFIG_FILE, DATA_DIR, ENGINE_CONFIG_FILE
 from edumatcher.pm_help.registry import close_matches, get_command
-from edumatcher.pm_help.render import make_console, render_command_index, render_man_page
+from edumatcher.pm_help.render import (
+    make_console,
+    render_command_index,
+    render_man_page,
+)
 
 _EXIT_OK = 0
 _EXIT_UNKNOWN_COMMAND = 2
@@ -93,11 +97,15 @@ def main(argv: list[str] | None = None) -> int:
     piped = not sys.stdout.isatty()
     no_color = args.no_color or bool(os.environ.get("NO_COLOR")) or piped
     width = _PIPE_WIDTH if piped else None
-    console = make_console(output_format=args.output_format, no_color=no_color, width=width)
+    console = make_console(
+        output_format=args.output_format, no_color=no_color, width=width
+    )
 
     if args.command is None:
         _print_version_and_paths(prog)
-        render_command_index(console, output_format=args.output_format, verbose=args.verbose)
+        render_command_index(
+            console, output_format=args.output_format, verbose=args.verbose
+        )
         return _EXIT_OK
 
     cmd = get_command(args.command)
@@ -106,7 +114,10 @@ def main(argv: list[str] | None = None) -> int:
         suggestions = close_matches(args.command)
         if suggestions:
             print(f"Did you mean: {', '.join(suggestions)}?", file=sys.stderr)
-        print(f"Run `{prog}` with no arguments to list every pm-* command.", file=sys.stderr)
+        print(
+            f"Run `{prog}` with no arguments to list every pm-* command.",
+            file=sys.stderr,
+        )
         return _EXIT_UNKNOWN_COMMAND
 
     render_man_page(console, cmd, output_format=args.output_format)
