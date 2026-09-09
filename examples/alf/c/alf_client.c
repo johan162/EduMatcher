@@ -15,7 +15,7 @@
  *   - select()-based I/O multiplexing: events arrive while you type
  *   - Coloured event display (ANSI codes)
  *   - Position/P&L tracking updated on every FILL
- *   - Multi-line responses: SYMBOLS, ORDERS, QBOOT
+ *   - Multi-line responses: SYMBOLS, ORDERS, QBOOT, QLEGS
  */
 
 #define _POSIX_C_SOURCE 200809L
@@ -96,7 +96,7 @@ static Position g_positions[MAX_POSITIONS];
 static int      g_npositions = 0;
 
 /* Multi-line response state */
-typedef enum { COL_NONE, COL_SYMBOLS, COL_ORDERS, COL_QBOOT, COL_POSITION } CollectMode;
+typedef enum { COL_NONE, COL_SYMBOLS, COL_ORDERS, COL_QBOOT, COL_QLEGS, COL_POSITION } CollectMode;
 static CollectMode g_collecting = COL_NONE;
 #define MAX_COLLECT_ROWS 512
 static alf_message_t g_collect_rows[MAX_COLLECT_ROWS];
@@ -336,6 +336,68 @@ static void flush_collected(void)
         if (g_collect_count == 0)
             event_print("  (no active quotes)");
         break;
+
+    case COL_QLEGS: {
+        int shown_header = 0;
+        for (i = 0; i < g_collect_count && i < MAX_COLLECT_ROWS; i++) {
+            const alf_message_t *r = &g_collect_rows[i];
+            if (strcmp(r->msg_type, "LEG") != 0) continue;
+            if (!shown_header) {
+                event_print("%sQuote legs%s", COL_BOLD, COL_RESET);
+                event_print("  %-6s %-20s %-5s %-8s %6s %6s %6s  %-10s %s",
+                            "SYM", "QUOTE_ID", "SIDE", "ORDER_ID", "QTY",
+                            "REM", "FILLED", "STATUS", "QUOTE_STATUS");
+                shown_header = 1;
+            }
+            char short_id[9] = "?";
+            const char *oid = alf_get_field(r, "ORDER_ID");
+            if (oid) snprintf(short_id, sizeof(short_id), "%s", oid);
+            event_print("  %-6s %-20s %-5s %-8s %6s %6s %6s  %-10s %s",
+                        alf_get_field(r, "SYM")          ? alf_get_field(r, "SYM")          : "?",
+                        alf_get_field(r, "QUOTE_ID")     ? alf_get_field(r, "QUOTE_ID")     : "?",
+                        alf_get_field(r, "SIDE")         ? alf_get_field(r, "SIDE")         : "?",
+                        short_id,
+                        alf_get_field(r, "QTY")          ? alf_get_field(r, "QTY")          : "?",
+                        alf_get_field(r, "REMAINING")    ? alf_get_field(r, "REMAINING")    : "?",
+                        alf_get_field(r, "FILLED")       ? alf_get_field(r, "FILLED")       : "?",
+                        alf_get_field(r, "STATUS")       ? alf_get_field(r, "STATUS")       : "?",
+                        alf_get_field(r, "QUOTE_STATUS") ? alf_get_field(r, "QUOTE_STATUS") : "-");
+        }
+        if (!shown_header)
+            event_print("%sQuote legs%s  (no active legs)", COL_BOLD, COL_RESET);
+
+        int shown_recent = 0;
+        for (i = 0; i < g_collect_count && i < MAX_COLLECT_ROWS; i++) {
+            const alf_message_t *r = &g_collect_rows[i];
+            int is_recent = strcmp(r->msg_type, "RECENT_LEG") == 0;
+            int is_bid    = strcmp(r->msg_type, "RECENT_BID_LEG") == 0;
+            int is_ask    = strcmp(r->msg_type, "RECENT_ASK_LEG") == 0;
+            if (!is_recent && !is_bid && !is_ask) continue;
+            if (!shown_recent) {
+                event_print("%sRecent (inactivated) quotes%s", COL_BOLD, COL_RESET);
+                shown_recent = 1;
+            }
+            if (is_recent) {
+                event_print("  %-20s %-6s %-20s reason=%s",
+                            alf_get_field(r, "QUOTE_ID") ? alf_get_field(r, "QUOTE_ID") : "?",
+                            alf_get_field(r, "SYM")      ? alf_get_field(r, "SYM")      : "?",
+                            alf_get_field(r, "QUOTE_STATUS") ? alf_get_field(r, "QUOTE_STATUS") : "?",
+                            alf_get_field(r, "REASON")   ? alf_get_field(r, "REASON")   : "");
+            } else {
+                char short_id[9] = "?";
+                const char *oid = alf_get_field(r, "ORDER_ID");
+                if (oid) snprintf(short_id, sizeof(short_id), "%s", oid);
+                event_print("      %s_leg  order=%s  qty=%s rem=%s filled=%s status=%s",
+                            is_bid ? "bid" : "ask",
+                            short_id,
+                            alf_get_field(r, "QTY")       ? alf_get_field(r, "QTY")       : "?",
+                            alf_get_field(r, "REMAINING") ? alf_get_field(r, "REMAINING") : "?",
+                            alf_get_field(r, "FILLED")    ? alf_get_field(r, "FILLED")    : "?",
+                            alf_get_field(r, "STATUS")    ? alf_get_field(r, "STATUS")    : "?");
+            }
+        }
+        break;
+    }
 
     case COL_POSITION:
         event_print("%sPosition — %s%s", COL_BOLD, g_collect_gw, COL_RESET);
@@ -677,6 +739,16 @@ static void process_socket_data(void)
                 start = nl + 1;
                 continue;
             }
+            if (g_collecting == COL_QLEGS &&
+                (strcmp(msg.msg_type, "LEG") == 0 ||
+                 strcmp(msg.msg_type, "RECENT_LEG") == 0 ||
+                 strcmp(msg.msg_type, "RECENT_BID_LEG") == 0 ||
+                 strcmp(msg.msg_type, "RECENT_ASK_LEG") == 0)) {
+                if (g_collect_count < MAX_COLLECT_ROWS)
+                    g_collect_rows[g_collect_count++] = msg;
+                start = nl + 1;
+                continue;
+            }
             if (strcmp(msg.msg_type, "POS_ENTRY") == 0 && g_collecting == COL_POSITION) {
                 if (g_collect_count < MAX_COLLECT_ROWS)
                     g_collect_rows[g_collect_count++] = msg;
@@ -711,6 +783,12 @@ static void process_socket_data(void)
             start = nl + 1;
             continue;
         }
+        if (strcmp(msg.msg_type, "QLEGS") == 0) {
+            g_collecting   = COL_QLEGS;
+            g_collect_count = 0;
+            start = nl + 1;
+            continue;
+        }
         if (strcmp(msg.msg_type, "POSITION") == 0) {
             g_collecting   = COL_POSITION;
             g_collect_count = 0;
@@ -737,7 +815,7 @@ static void process_socket_data(void)
  * -------------------------------------------------------------------------- */
 
 static const char *g_top_cmds[] = {
-    "NEW", "AMEND", "CANCEL", "QUOTE", "QUOTE_CANCEL", "QBOOT",
+    "NEW", "AMEND", "CANCEL", "QUOTE", "QUOTE_CANCEL", "QBOOT", "QLEGS",
     "KILL", "SYMBOLS", "ORDERS", "PING", "POS", "STATUS", "HELP", "EXIT", "QUIT",
     NULL
 };
@@ -810,12 +888,14 @@ static char *alf_completion_generator(const char *text, int state)
         static const char *tif_vals[]   = {"DAY", "GTC", "ATO", "ATC", NULL};
         static const char *smp_vals[]   = {"NONE", "CANCEL_AGGRESSOR",
                                            "CANCEL_RESTING", "CANCEL_BOTH", NULL};
+        static const char *show_vals[]  = {"ACTIVE", "RECENT", "ALL", NULL};
 
         const char **vals = NULL;
         if (strcmp(key, "SIDE") == 0)         vals = side_vals;
         else if (strcmp(key, "TYPE") == 0)    vals = type_vals;
         else if (strcmp(key, "TIF") == 0)     vals = tif_vals;
         else if (strcmp(key, "SMP") == 0)     vals = smp_vals;
+        else if (strcmp(key, "SHOW") == 0)    vals = show_vals;
         else if (strcmp(key, "COMBO_TYPE") == 0) {
             static const char *ct[] = {"AON", NULL};
             vals = ct;
@@ -842,12 +922,14 @@ static char *alf_completion_generator(const char *text, int state)
     static const char *quote_fields[]  = {"SYM=", "BID=", "ASK=", "BID_QTY=",
                                           "ASK_QTY=", "TIF=", "QUOTE_ID=", NULL};
     static const char *sym_fields[]    = {"SYM=", NULL};
+    static const char *qlegs_fields[]  = {"SYM=", "SHOW=", NULL};
 
     const char **fields = NULL;
     if (strcmp(cmd, "NEW") == 0)          fields = new_fields;
     else if (strcmp(cmd, "AMEND") == 0)   fields = amend_fields;
     else if (strcmp(cmd, "CANCEL") == 0)  fields = cancel_fields;
     else if (strcmp(cmd, "QUOTE") == 0)   fields = quote_fields;
+    else if (strcmp(cmd, "QLEGS") == 0)   fields = qlegs_fields;
     else if (strcmp(cmd, "QUOTE_CANCEL") == 0 ||
              strcmp(cmd, "QBOOT") == 0 ||
              strcmp(cmd, "KILL") == 0)    fields = sym_fields;
@@ -933,6 +1015,7 @@ static void cmd_help(void)
     puts("  QUOTE|SYM=<s>|BID=<p>|ASK=<p>|BID_QTY=<n>|ASK_QTY=<n>[|TIF=...|QUOTE_ID=...]");
     puts("  QUOTE_CANCEL|SYM=<s>");
     puts("  KILL[|SYM=<s>]    SYMBOLS    ORDERS    QBOOT[|SYM=<s>]");
+    puts("  QLEGS[|SYM=<s>][|SHOW=ACTIVE|RECENT|ALL]   Quote leg detail (engine round trip)");
     puts("  PING    POS    POS|GW=<gateway_id>    STATUS    HELP    EXIT / QUIT\n");
 }
 

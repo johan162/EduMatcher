@@ -76,6 +76,7 @@ _HELP_TEXT = f"""
   SYMBOLS                        List configured instruments
   ORDERS                         Show resting orders for this gateway
   QBOOT[|SYM=<s>]               Quote bootstrap state from engine
+  QLEGS[|SYM=<s>][|SHOW=ACTIVE|RECENT|ALL]  Quote leg detail (engine round trip)
 
 {_BOLD}Session{_RESET}
   PING                           Liveness probe
@@ -98,6 +99,7 @@ _TOP_CMDS = [
     "QUOTE",
     "QUOTE_CANCEL",
     "QBOOT",
+    "QLEGS",
     "KILL",
     "SYMBOLS",
     "ORDERS",
@@ -128,6 +130,7 @@ _CMD_FIELDS: dict[str, list[str]] = {
     "QUOTE": ["SYM=", "BID=", "ASK=", "BID_QTY=", "ASK_QTY=", "TIF=", "QUOTE_ID="],
     "QUOTE_CANCEL": ["SYM="],
     "QBOOT": ["SYM="],
+    "QLEGS": ["SYM=", "SHOW="],
     "KILL": ["SYM="],
     "POS": ["GW="],
 }
@@ -149,6 +152,7 @@ _VALUE_OPTS: dict[str, list[str]] = {
     "TIF": ["DAY", "GTC", "ATO", "ATC"],
     "SMP": ["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"],
     "COMBO_TYPE": ["AON"],
+    "SHOW": ["ACTIVE", "RECENT", "ALL"],
     # OCO / COMBO leg fields
     "LEG1_SIDE": ["BUY", "SELL"],
     "LEG2_SIDE": ["BUY", "SELL"],
@@ -288,7 +292,8 @@ class AlfClient:
         self._session_state: str = "UNKNOWN"
 
         # Multi-line response accumulation
-        self._collecting: str | None = None  # 'SYMBOLS' | 'ORDERS' | 'QBOOT' | 'POSITION'
+        # 'SYMBOLS' | 'ORDERS' | 'QBOOT' | 'QLEGS' | 'POSITION'
+        self._collecting: str | None = None
         self._collect_header: AlfMessage | None = None
         self._collect_rows: list[AlfMessage] = []
 
@@ -637,6 +642,57 @@ class AlfClient:
             lines.append(f"\n  {count} quote(s) total\n")
             self._pr("\n".join(lines))
 
+        elif kind == "QLEGS":
+            show = hdr.fields.get("SHOW", "ACTIVE") if hdr else "ACTIVE"
+            leg_rows = [r for r in rows if r.msg_type == "LEG"]
+            header = (
+                f"  {'SYM':<6} {'QUOTE_ID':<20} {'SIDE':<5} {'ORDER_ID':<8} "
+                f"{'QTY':>6} {'REM':>6} {'FILLED':>6}  {'STATUS':<10} QUOTE_STATUS"
+            )
+            divider = "  " + "-" * 90
+            lines = [f"\n{_BOLD}Quote legs (show={show}){_RESET}", header, divider]
+            for r in leg_rows:
+                f_ = r.fields
+                lines.append(
+                    f"  {f_.get('SYM', '?'):<6} {f_.get('QUOTE_ID', '?'):<20} "
+                    f"{f_.get('SIDE', '?'):<5} {f_.get('ORDER_ID', '?')[:8]:<8} "
+                    f"{f_.get('QTY', '?'):>6} {f_.get('REMAINING', '?'):>6} "
+                    f"{f_.get('FILLED', '?'):>6}  {f_.get('STATUS', '?'):<10} "
+                    f"{f_.get('QUOTE_STATUS', '-')}"
+                )
+            if not leg_rows:
+                lines.append("  (no active legs)")
+
+            # RECENT_LEG rows carry the quote summary; any RECENT_BID_LEG/
+            # RECENT_ASK_LEG rows for that quote immediately follow it.
+            recent_rows = [
+                r
+                for r in rows
+                if r.msg_type
+                in ("RECENT_LEG", "RECENT_BID_LEG", "RECENT_ASK_LEG")
+            ]
+            if recent_rows:
+                lines.append(f"\n{_BOLD}Recent (inactivated) quotes{_RESET}")
+                for r in recent_rows:
+                    f_ = r.fields
+                    if r.msg_type == "RECENT_LEG":
+                        lines.append(
+                            f"  {f_.get('QUOTE_ID', '?'):<20} "
+                            f"{f_.get('SYM', '?'):<6} {f_.get('QUOTE_STATUS', '?'):<20} "
+                            f"reason={f_.get('REASON', '')}"
+                        )
+                    else:
+                        side = "bid" if r.msg_type == "RECENT_BID_LEG" else "ask"
+                        lines.append(
+                            f"      {side}_leg  order={f_.get('ORDER_ID', '?')[:8]}  "
+                            f"qty={f_.get('QTY', '?')} rem={f_.get('REMAINING', '?')} "
+                            f"filled={f_.get('FILLED', '?')} status={f_.get('STATUS', '?')}"
+                        )
+            count = hdr.fields.get("COUNT", "?") if hdr else "?"
+            recent_count = hdr.fields.get("RECENT_COUNT", "?") if hdr else "?"
+            lines.append(f"\n  {count} active leg(s), {recent_count} recent quote(s)\n")
+            self._pr("\n".join(lines))
+
         elif kind == "POSITION":
             gw = hdr.fields.get("GW", "?") if hdr else "?"
             header = f"  {'SYM':<10} {'NET_QTY':>10} {'AVG_COST':>10}"
@@ -683,6 +739,14 @@ class AlfClient:
                 if t == "QUOTE" and self._collecting == "QBOOT":
                     self._collect_rows.append(msg)
                     continue
+                if t in (
+                    "LEG",
+                    "RECENT_LEG",
+                    "RECENT_BID_LEG",
+                    "RECENT_ASK_LEG",
+                ) and self._collecting == "QLEGS":
+                    self._collect_rows.append(msg)
+                    continue
                 if t == "POS_ENTRY" and self._collecting == "POSITION":
                     self._collect_rows.append(msg)
                     continue
@@ -706,6 +770,11 @@ class AlfClient:
                 continue
             if t == "QBOOT":
                 self._collecting = "QBOOT"
+                self._collect_header = msg
+                self._collect_rows = []
+                continue
+            if t == "QLEGS":
+                self._collecting = "QLEGS"
                 self._collect_header = msg
                 self._collect_rows = []
                 continue
