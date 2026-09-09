@@ -1,3 +1,30 @@
+## [v0.33.0] - 2026-09-09
+
+Release Type: minor
+
+### 📋 Summary
+This release adds operational position queries and a command to reopen a closed
+order book. It also improves cancellation and market-maker quote replacement
+performance while expanding order, auction, and risk-control support.
+
+### ✨ Additions
+- Added `position` queries to the command-line, ALF, and REST interfaces
+- Added an admin `reopen` command to force-uncross a single symbol
+- Added risk-control message definitions and support for market-order handling during pre-opening
+
+### 🚀 Improvements
+- Improved gateway-disconnect order cancellation by indexing orders instead of using a linear sweep
+- Improved market-maker quote-leg replacement by indexing resting quote legs
+- Improved ALF console command handling, completion, and position display
+
+### 📚 Documentation
+- Added documentation for reopening closed books, position queries, market orders during pre-opening, and expanded risk controls
+- Updated market-maker, gateway, protocol, architecture, installation, and exchange-command documentation
+
+### 🛠 Internal
+- Added regression coverage for position queries, book reopening, gateway behavior, market-maker quote replacement, and order-book coverage
+- Updated generated message models, release metadata, and documentation build tooling
+
 ## [v0.32.0] - 2026-09-05
 
 Release Type: major
