@@ -139,7 +139,7 @@ fi
 
 # --- Start -----------------------------------------------------------------
 echo
-info "Pulling images (this is the slow part; nothing is built locally)..."
+info "Pulling images and starting the exchange (this is the slow part; nothing is built locally)..."
 ./edumatcher.sh start
 
 cat <<EOF

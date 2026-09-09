@@ -243,6 +243,10 @@ data directory: /home/ubuntu/.local/share/edumatcher
 ```
 
 
+!!! tip "Forgot what a command does?"
+    With this many `pm-*` commands, run `pm-help` any time for a one-screen table of every one of them with a one-sentence explanation, grouped by category. Run `pm-help pm-opctl-cli` (or any other command name) for a full man page: its options, ports, related commands, and a worked example. `pm-man` is the same tool under a second, more familiar name.
+
+
 | | Containers | `pipx` / Poetry |
 |---|---|---|
 | Time to a running exchange | one command | a few, plus `pm-setup, pm-opctl-cli` |

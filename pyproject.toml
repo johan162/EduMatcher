@@ -98,6 +98,8 @@ pm-msgen      = "edumatcher.msgen.cli:main"
 pm-log-srv  = "edumatcher.log_srv.main:main"
 pm-log-cli  = "edumatcher.log_cli.main:main"
 pm-opctl-cli    = "edumatcher.emo.cli:main"
+pm-help     = "edumatcher.pm_help.cli:main"
+pm-man      = "edumatcher.pm_help.cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

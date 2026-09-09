@@ -27,12 +27,28 @@ four web applications:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash
-cd ~/.edumatcher && ./edumatcher.sh start
 ```
 
-Then open <http://localhost:8090> for the market display,
-<http://localhost:8091> for the log console, and <http://localhost:8093> for the
-trading terminal.
+The command above will create `~/.edumatcher/` where all data for the exchange is stored and start the containers.
+To start experiment with the container you need to open a shell into the container with:
+
+```
+cd ~/.edumatcher && ./edumatcher.sh shell
+```
+
+You then have all `Process Matcher` commands available (prefixed with `pm-`). So, for example to view all
+available comands with a short explanation try:
+
+```bash
+pm-help
+```
+
+Then open the user-friendly Web applications :
+
+- <http://localhost:8090> for the market display,
+- <http://localhost:8091> for the log console, and 
+- <http://localhost:8093> for the trading terminal.
+
 
 Prefer the Python package? `pipx install edumatcher`, then `pm-setup`. Both
 routes, and three more, are covered in
