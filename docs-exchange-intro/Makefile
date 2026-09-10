@@ -358,7 +358,11 @@ $$($1_PDF): $$(EXCHANGE_INTRO_MD_SOURCES) $$(EXCHANGE_INTRO_PDF_DEPS) $$($1_TEMP
 	MERMAID_FILTER_FORMAT="$(MERMAID_FILTER_FORMAT)" \
 	MERMAID_FILTER_WIDTH="$(MERMAID_FILTER_WIDTH)" \
 	MERMAID_FILTER_LOC="$$($1_EXPANDED_DIR)/.mermaid-img" \
-	pandoc --from=markdown --to=latex --top-level-division=chapter --syntax-highlighting=none --filter "$(MERMAID_FILTER)"  $$(EXCHANGE_INTRO_LUA_FILTER_FLAGS) --metadata paper_format=$(2) $$($1_CONCAT_MD) -o $$($1_BODY_TEX)
+	pandoc \
+		--math-method=mathml --from=markdown --to=latex \
+		--top-level-division=chapter --syntax-highlighting=none \
+		--filter "$(MERMAID_FILTER)"  $$(EXCHANGE_INTRO_LUA_FILTER_FLAGS) \
+		$$($1_CONCAT_MD) -o $$($1_BODY_TEX)
 	@sed -i.bak 's/\\def\\LTcaptype{none}/\\def\\LTcaptype{table}/g' $$($1_BODY_TEX)
 	@rm -f $$($1_BODY_TEX).bak
 	@echo -e "$$(DARKYELLOW)  - Injecting body into handcrafted LaTeX template $$(BRIGHTCYAN)\"$$(notdir $$($1_TEMPLATE))\"$(DARKYELLOW) ...$$(NC)"
@@ -451,7 +455,7 @@ $(EXCHANGE_INTRO_EPUB): $(EXCHANGE_INTRO_MD_SOURCES) $(EPUB_DEPS) $(EPUB_CSS) | 
 	MERMAID_FILTER_WIDTH="$(MERMAID_FILTER_WIDTH)" \
 	MERMAID_FILTER_LOC="$(EPUB_EXPANDED_DIR)/.mermaid-img" \
 	pandoc --from=markdown-raw_html --to=epub3 \
-		--mathml --no-highlight \
+		--math-method=mathml --syntax-highlighting=none \
 		--toc --toc-depth=2 \
 		--css $(EPUB_CSS) \
 		--epub-cover-image=$(EPUB_COVER) \
