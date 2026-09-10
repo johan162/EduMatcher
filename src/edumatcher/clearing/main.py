@@ -110,8 +110,8 @@ def _to_trade_event_row(
     """Convert a Trade model to the DB row type, deriving trade_date from ts_ns."""
     return TradeEventRow(
         id=trade.id,
-        ts_ns=trade.timestamp,
-        trade_date=trade_date(trade.timestamp, tz),
+        ts_ns=trade.ts_ns,
+        trade_date=trade_date(trade.ts_ns, tz),
         symbol=trade.symbol,
         quantity=trade.quantity,
         price=trade.price,
@@ -147,9 +147,6 @@ def _trade_from_payload(payload: dict[str, Any]) -> Trade:
     price_raw = typed.price
     normalized["price"] = int(round(float(price_raw) * scale))
 
-    # The wire field is `ts_ns`; the internal Trade model calls the same
-    # nanosecond instant `timestamp`. No scaling, just the rename.
-    normalized["timestamp"] = normalized.pop("ts_ns")
     normalized["tick_decimals"] = tick_decimals
     return Trade.from_dict(normalized)
 
@@ -471,7 +468,7 @@ class ClearingProcess:
         with ``self._lock`` held).  First sightings are recorded in a bounded
         LRU; the oldest key is evicted once the cap is reached.
         """
-        key = (trade.id, trade.timestamp)
+        key = (trade.id, trade.ts_ns)
         if key in self._seen_keys:
             self._seen_keys.move_to_end(key)
             return True
@@ -511,8 +508,8 @@ class ClearingProcess:
                 record_session_event(
                     self._conn,
                     event_type="GAP",
-                    ts_ns=trade.timestamp,
-                    trade_date=trade_date(trade.timestamp, self._tz),
+                    ts_ns=trade.ts_ns,
+                    trade_date=trade_date(trade.ts_ns, self._tz),
                     payload_json=json.dumps(
                         {
                             "run_seq": run_seq,
@@ -552,7 +549,7 @@ class ClearingProcess:
                 price=trade.price,
                 tick_decimals=trade.tick_decimals,
                 quantity=trade.quantity,
-                ts_ns=trade.timestamp,
+                ts_ns=trade.ts_ns,
                 ingest_ts_ns=updated_ts,
             )
 

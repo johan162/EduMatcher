@@ -2875,7 +2875,7 @@ class Engine:
         if self._enforce_circuit_breakers:
             _cb = self._circuit_breakers.get(trade.symbol)
             if _cb is not None:
-                self._check_circuit_breaker(trade.symbol, trade.price, trade.timestamp)
+                self._check_circuit_breaker(trade.symbol, trade.price, trade.ts_ns)
 
     @staticmethod
     def _order_fill_prices(trades: list[Any]) -> dict[str, float]:

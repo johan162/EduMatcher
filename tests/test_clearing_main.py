@@ -823,12 +823,12 @@ class TestPayloadParsing:
         t = _trade_from_payload(
             _trade_payload(price=150.75, ts_ns=1_700_000_000_123_456_789)
         )
-        assert t.timestamp == 1_700_000_000_123_456_789
+        assert t.ts_ns == 1_700_000_000_123_456_789
 
     def test_price_float_display_to_ticks(self) -> None:
         t = _trade_from_payload(_trade_payload(price=150.75, ts_ns=1_000_000_000))
         assert t.price == 15075
-        assert t.timestamp == 1_000_000_000
+        assert t.ts_ns == 1_000_000_000
 
     def test_price_integer_display_to_ticks(self) -> None:
         # CL-M6: an integer display price is a display value, not raw ticks.
@@ -857,4 +857,4 @@ class TestPayloadParsing:
 
         assert topic == "trade.executed"
         assert trade.price == 15075
-        assert trade.timestamp == 1_700_000_000_000_000_000
+        assert trade.ts_ns == 1_700_000_000_000_000_000

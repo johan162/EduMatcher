@@ -70,7 +70,7 @@ def test_from_dict_reads_old_payload_without_run_seq() -> None:
             "price": 15000,
             "quantity": 100,
             "aggressor_side": "BUY",
-            "timestamp": 1,
+            "ts_ns": 1,
         }
     )
     assert restored.run_seq is None

@@ -255,13 +255,14 @@ Sent by a gateway to submit a new order for matching.
 | `quantity` | integer | Total order quantity |
 | `remaining_qty` | integer | Unfilled quantity (equals `quantity` on submission) |
 | `gateway_id` | string | Originating gateway identifier, e.g. `TRADER01` |
-| `timestamp` | float | Unix epoch (seconds) |
+| `timestamp` | integer | Client-supplied submission time, Unix epoch **nanoseconds**. **Not** what the book uses for time priority — see `arrival_seq` — so a back-dated value cannot jump the queue |
+| `arrival_seq` | integer \| absent | Engine-assigned monotonic arrival sequence, and the actual time-priority key. `0` on submission, meaning unassigned |
 | `status` | string | Initial status, always `"NEW"` |
-| `price` | float \| null | Limit price (LIMIT, STOP_LIMIT, FOK, ICEBERG) |
-| `stop_price` | float \| null | Trigger price (STOP, STOP_LIMIT) |
+| `price` | integer (ticks) \| null | Limit price **in ticks** (LIMIT, STOP_LIMIT, FOK, ICEBERG); `null` for MARKET, which has none |
+| `stop_price` | integer (ticks) \| null | Trigger price **in ticks** (STOP, STOP_LIMIT, TRAILING_STOP) |
 | `visible_qty` | integer \| null | Peak size for ICEBERG orders |
 | `displayed_qty` | integer \| null | Current visible slice (ICEBERG) |
-| `trail_offset` | float \| null | Offset from best price for `TRAILING_STOP` orders |
+| `trail_offset` | integer (ticks) \| null | Distance **in ticks** to trail the market price (`TRAILING_STOP`) |
 | `smp_action` | string \| null | Self-match prevention: `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`. `null` when the client omitted `SMP=`, in which case the engine resolves it to the gateway's configured `gateways.alf[].smp_action` default (else `"NONE"`) before the order reaches the book — see [Configuration — Gateway Fields](010-configuration.md#gateway-fields) |
 | `client_tag` | string \| absent | Optional client-supplied tag echoed back on every lifecycle event for this order (ack, fill, cancelled, expired). When present, subscribers can map events back to their submission without a FIFO scheme. |
 | `request_tag` | string \| absent | Optional amend/cancel request tag echoed on the resulting `order.amended`, `order.cancelled`, or rejected `order.ack`. Unlike `client_tag`, it identifies one request against an order, not the order itself. |
@@ -271,6 +272,14 @@ Sent by a gateway to submit a new order for matching.
 | `leg_index` | integer \| null | 0-based position within the parent combo's leg list; `null` for a standalone order |
 | `origin` | `"ORDER"` \| `"QUOTE"` \| `"IMPLIED"` | How this order entered the book: a direct order submission, a market-maker quote leg, or an engine-implied order |
 | `quote_id` | string \| null | Set when `origin` is `"QUOTE"`, echoing the originating `quote.new`'s identifier; `null` otherwise |
+
+> [!NOTE]
+> Prices on `order.new` and `quote.new` are **integer ticks**, not display
+> money: 1 tick is `10^-tick_decimals` for the instrument. The replies are the
+> other way round — `order.ack.price`, `order.fill.fill_price` and
+> `order.amended.price` are display floats — which is why every message field
+> carries a `unit:` declaration in `spec/messages/`, and why the generated
+> tables below are authoritative when this narrative and the spec disagree.
 
 **Valid field combinations by order type:**
 
@@ -340,9 +349,9 @@ Role requirements and MM obligation controls are documented in
 | `gateway_id` | string | Originating gateway identifier |
 | `symbol` | string | Instrument ticker |
 | `quote_id` | string \| absent | Optional client-provided quote label |
-| `bid_price` | float | Bid price |
+| `bid_price` | integer (ticks) | Bid price **in ticks** |
 | `bid_qty` | integer | Bid quantity |
-| `ask_price` | float | Ask price |
+| `ask_price` | integer (ticks) | Ask price **in ticks** |
 | `ask_qty` | integer | Ask quantity |
 | `tif` | string | Quote leg time-in-force (`DAY` or `GTC`) |
 

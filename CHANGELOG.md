@@ -13,6 +13,10 @@ is a breaking wire change with no compatibility shim.
   clock reading unscaled instead of dividing by 1e9.
 - The book snapshot's `recent_trades[].timestamp` is replaced by `ts_ns` the
   same way, since those rows mirror the same print.
+- `models.trade.Trade.timestamp` is renamed to `ts_ns`, so the internal model
+  no longer holds nanoseconds under a bare name either. This changes the keys
+  of `Trade.to_dict()` / `Trade.from_dict()`, which are the internal
+  persistence and round-trip shape.
 
 ### 🐛 Bug Fixes
 - Removed clearing's `_to_timestamp_ns` magnitude guard (finding CL-M6). It
@@ -23,7 +27,18 @@ is a breaking wire change with no compatibility shim.
   ~238 ns at current magnitudes (~477 ns after 2038), so the engine's
   nanosecond clock was being rounded on every print.
 
+### ✨ Additions
+- Added `Trade.to_wire()`, the single conversion from the internal model to a
+  `trade.executed` payload — ticks to display money via the tick registry, and
+  `ts_ns` — so no caller hand-rolls it. `Trade.to_dict()` is now explicitly the
+  internal shape, for persistence and round-trips only.
+
 ### 📚 Documentation
+- Corrected the hand-written `order.new` and `quote.new` field tables in
+  `270-preamble.md`: `price`, `stop_price`, `trail_offset`, `bid_price` and
+  `ask_price` are integer **ticks**, not display floats, and `order.new.timestamp`
+  is integer epoch **nanoseconds**, not float seconds. Added `arrival_seq` (the
+  real time-priority key) and a note on the ticks-in / display-out convention.
 - Regenerated the message reference from the spec.
 
 
