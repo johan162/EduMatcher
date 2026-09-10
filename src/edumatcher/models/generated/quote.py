@@ -658,6 +658,14 @@ _QUOTE_STATUS_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "",
         "constraints": {"max_len": 512},
     },
+    {
+        "name": "command_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "The admin/kill-switch command_id (see system.admin_action) that caused this quote to leave the book, when one exists — same correlation purpose as order.cancelled.command_id. Null when the quote left for a reason with no originating command (participant cancel, replacement by a new quote, a leg fill).",
+        "constraints": {"max_len": 64},
+    },
 )
 
 
@@ -676,6 +684,7 @@ class QuoteStatus:
     status: QuoteStatusStatus
     quote_id: str = ""
     reason: str = ""
+    command_id: str | None = None
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -700,6 +709,11 @@ class QuoteStatus:
             raise MessageValidationError(
                 f"reason: length {len(self.reason)} exceeds max_len 512"
             )
+        if self.command_id is not None:
+            if len(self.command_id) > 64:
+                raise MessageValidationError(
+                    f"command_id: length {len(self.command_id)} exceeds max_len 64"
+                )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "QuoteStatus":
@@ -714,15 +728,19 @@ class QuoteStatus:
             quote_id=str(p.get("quote_id", "")),
             status=cast(QuoteStatusStatus, str(p["status"])),
             reason=str(p.get("reason", "")),
+            command_id=None if p.get("command_id") is None else str(p["command_id"]),
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Return the bus payload, in the spec's declared field order."""
-        return {
+        payload: dict[str, Any] = {
             "quote_id": self.quote_id,
             "status": self.status,
             "reason": self.reason,
         }
+        if self.command_id is not None:
+            payload["command_id"] = self.command_id
+        return payload
 
 
 def topic_quote_status(gateway_id: str) -> str:
@@ -757,6 +775,7 @@ def make_quote_status_unchecked(
     status: QuoteStatusStatus,
     quote_id: str = "",
     reason: str = "",
+    command_id: str | None = None,
 ) -> list[bytes]:
     """Identical frames to ``make_quote_status``, without ``validate()``.
 
@@ -768,15 +787,16 @@ def make_quote_status_unchecked(
     Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
     frames.
     """
+    payload: dict[str, Any] = {
+        "quote_id": str(quote_id),
+        "status": str(status),
+        "reason": str(reason),
+    }
+    if command_id is not None:
+        payload["command_id"] = str(command_id)
     return [
         topic_quote_status(gateway_id).encode(),
-        _msg.dumps(
-            {
-                "quote_id": str(quote_id),
-                "status": str(status),
-                "reason": str(reason),
-            }
-        ),
+        _msg.dumps(payload),
     ]
 
 

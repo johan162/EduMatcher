@@ -346,6 +346,18 @@ messages:
           nullable: true, omit_when_none: true }
       - { name: divisor, type: float, unit: dimensionless, required: false,
           nullable: true, omit_when_none: true }
+      - name: old_divisor
+        type: float
+        unit: dimensionless
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: >
+          The divisor immediately before this action was applied. Same
+          field name and purpose as HistoryRecord.old_divisor, so a
+          post-mortem does not need pm-index's local JSONL archive to see
+          what changed — the wire event is self-contained. Present only
+          alongside divisor, i.e. on acceptance.
     encoding:
       engine_pub: { frames: [topic, json_payload] }
 
@@ -373,6 +385,18 @@ messages:
           nullable: true, omit_when_none: true }
       - { name: divisor, type: float, unit: dimensionless, required: false,
           nullable: true, omit_when_none: true }
+      - name: old_divisor
+        type: float
+        unit: dimensionless
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: >
+          The divisor immediately before this action was applied. Same
+          field name and purpose as HistoryRecord.old_divisor, so a
+          post-mortem does not need pm-index's local JSONL archive to see
+          what changed — the wire event is self-contained. Present only
+          alongside divisor, i.e. on acceptance.
     encoding:
       engine_pub: { frames: [topic, json_payload] }
 
@@ -401,6 +425,18 @@ messages:
           nullable: true, omit_when_none: true }
       - { name: divisor, type: float, unit: dimensionless, required: false,
           nullable: true, omit_when_none: true }
+      - name: old_divisor
+        type: float
+        unit: dimensionless
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: >
+          The divisor immediately before this action was applied. Same
+          field name and purpose as HistoryRecord.old_divisor, so a
+          post-mortem does not need pm-index's local JSONL archive to see
+          what changed — the wire event is self-contained. Present only
+          alongside divisor, i.e. on acceptance.
       - { name: command_id, type: string, required: false,
           omit_when_empty: true, validate: { max_len: 64 } }
     encoding:

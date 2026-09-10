@@ -143,6 +143,18 @@ types:
       - { name: origin, type: enum, values: [ORDER, QUOTE, IMPLIED],
           required: false, default: "ORDER",
           doc: "Defaulted rather than nullable: to_dict always supplies ORDER." }
+      - name: is_seed
+        type: bool
+        required: false
+        default: false
+        doc: >
+          True when this order was created by config-driven startup seeding
+          (market_maker_quotes / market_maker_combos in the engine config)
+          rather than a live gateway submission. Purely observational —
+          nothing in the engine branches on it; origin still governs
+          routing. Lets a post-mortem tell a config bootstrap apart from
+          real participant activity without depending on id-naming
+          conventions. Absent on records written before this field existed.
       - { name: quote_id, type: string, required: false, nullable: true,
           validate: { max_len: 64 } }
       - { name: client_tag, type: string, required: false, nullable: true,
@@ -220,6 +232,18 @@ types:
       - { name: origin, type: enum, values: [ORDER, QUOTE, IMPLIED],
           required: false, default: "ORDER",
           doc: "Defaulted rather than nullable: to_dict always supplies ORDER." }
+      - name: is_seed
+        type: bool
+        required: false
+        default: false
+        doc: >
+          True when this order was created by config-driven startup seeding
+          (market_maker_quotes / market_maker_combos in the engine config)
+          rather than a live gateway submission. Purely observational —
+          nothing in the engine branches on it; origin still governs
+          routing. Lets a post-mortem tell a config bootstrap apart from
+          real participant activity without depending on id-naming
+          conventions. Absent on records written before this field existed.
       - { name: quote_id, type: string, required: false, nullable: true,
           validate: { max_len: 64 } }
       - { name: client_tag, type: string, required: false, nullable: true,
@@ -451,6 +475,17 @@ messages:
           omit_when_none: true, validate: { max_len: 64 } }
       - { name: leg_index, type: int, required: false, nullable: true,
           omit_when_none: true, unit: dimensionless }
+      - name: is_seed
+        type: bool
+        required: false
+        default: false
+        doc: >
+          True when this order was created by config-driven startup seeding
+          rather than a live gateway submission. See OrderDisplay.is_seed
+          (above) for the full rationale; this is the ack-time echo of the
+          same fact, since order.ack — not order.new, which never reaches
+          the engine's PUB feed — is the first audit-visible event for any
+          order, seeded or live.
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 
@@ -493,6 +528,16 @@ messages:
           omit_when_none: true, validate: { max_len: 64 } }
       - { name: leg_index, type: int, required: false, nullable: true,
           omit_when_none: true, unit: dimensionless }
+      - name: is_seed
+        type: bool
+        required: false
+        default: false
+        doc: >
+          True when this order was created by config-driven startup seeding
+          rather than a live gateway submission. See OrderDisplay.is_seed
+          for the full rationale; carried here too so a fill reached after
+          the originating order.ack has rotated out of the audit log still
+          says whether the filled order was a config seed.
       - name: trade_ids
         type: list
         item: string
@@ -563,6 +608,12 @@ messages:
         values:
           - SELF_MATCH_PREVENTED
           - INSUFFICIENT_LIQUIDITY
+          - KILL_SWITCH
+          - CIRCUIT_BREAKER_HALT
+          - GATEWAY_DISCONNECT
+          - ADMIN_CANCEL_SYMBOL
+          - QUOTE_REPLACED
+          - QUOTE_LEG_FILLED
       - { name: oco_group_id, type: string, required: false, nullable: true,
           omit_when_none: true, validate: { max_len: 64 } }
       - { name: combo_parent_id, type: string, required: false, nullable: true,
@@ -571,6 +622,19 @@ messages:
           omit_when_none: true, validate: { max_len: 64 } }
       - { name: leg_index, type: int, required: false, nullable: true,
           omit_when_none: true, unit: dimensionless }
+      - name: command_id
+        type: string
+        required: false
+        nullable: true
+        omit_when_none: true
+        validate: { max_len: 64 }
+        doc: >
+          The admin/kill-switch command_id (see system.admin_action) that
+          caused this cancel, when one exists — lets a post-mortem join this
+          event back to the exact command that triggered it. Null for a
+          client-requested cancel and for engine-initiated cancels with no
+          originating command (e.g. self-match prevention, insufficient
+          liquidity, a quote leg cancelled because its sibling filled).
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 
@@ -622,6 +686,27 @@ messages:
       - { name: remaining_qty, type: int, unit: shares }
       - { name: priority_reset, type: bool,
           doc: "True when the amendment lost the order its time priority." }
+      - name: old_price
+        type: float
+        required: false
+        nullable: true
+        omit_when_none: true
+        unit: display_price
+        doc: >
+          The order's limit price immediately before this amendment, or
+          null for an order that had none. Lets a post-mortem replay the
+          amend without re-deriving the prior state from an earlier
+          message. Absent on records written before this field existed.
+      - name: old_qty
+        type: int
+        required: false
+        nullable: true
+        omit_when_none: true
+        unit: shares
+        doc: >
+          The order's qty immediately before this amendment. Same
+          replay rationale as old_price; absent on records written before
+          this field existed.
       - { name: client_tag, type: string, required: false, nullable: true,
           omit_when_none: true, validate: { max_len: 64 },
           doc: "Client correlation tag for the amended order." }
@@ -745,6 +830,14 @@ messages:
       - { name: origin, type: enum, values: [ORDER, QUOTE, IMPLIED],
           required: false, default: "ORDER",
           doc: "Defaulted rather than nullable: from_dict supplies ORDER." }
+      - name: is_seed
+        type: bool
+        required: false
+        default: false
+        doc: >
+          True when this order was created by config-driven startup seeding
+          rather than a live gateway submission. See OrderDisplay.is_seed
+          for the full rationale.
       - { name: quote_id, type: string, required: false, nullable: true,
           validate: { max_len: 64 } }
       - { name: client_tag, type: string, required: false, nullable: true,

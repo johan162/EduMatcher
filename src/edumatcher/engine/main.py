@@ -143,6 +143,8 @@ from edumatcher.models.message import (
     make_reference_reload_ack_msg,
     make_admin_action_msg,
     make_risk_state_msg,
+    make_startup_recovery_msg,
+    make_diagnostic_msg,
 )
 from edumatcher.models.participant import (
     DisconnectBehaviour,
@@ -892,7 +894,9 @@ class Engine:
                 )
                 if previous:
                     self._cancel_quote_entry(
-                        previous, reason="Replaced by startup quote"
+                        previous,
+                        reason="Replaced by startup quote",
+                        cancel_reason="QUOTE_REPLACED",
                     )
 
                 bid = Order.create(
@@ -903,6 +907,7 @@ class Engine:
                     gateway_id=gateway_id,
                     tif=quote_seed.tif,
                     price=to_ticks(quote_seed.bid_price, sym),
+                    is_seed=True,
                 )
                 ask = Order.create(
                     symbol=sym,
@@ -912,6 +917,7 @@ class Engine:
                     gateway_id=gateway_id,
                     tif=quote_seed.tif,
                     price=to_ticks(quote_seed.ask_price, sym),
+                    is_seed=True,
                 )
                 bid.origin = OrderOrigin.QUOTE
                 ask.origin = OrderOrigin.QUOTE
@@ -1051,7 +1057,7 @@ class Engine:
                 tif=combo_cfg.tif,
                 legs=combo_cfg.legs,
             )
-            if self._accept_combo(combo, publish_ack=False):
+            if self._accept_combo(combo, publish_ack=False, is_seed=True):
                 n_mm_combos += 1
 
         if n_mm_quotes or n_mm_combos:
@@ -1127,6 +1133,13 @@ class Engine:
         # the deliberate simplification for this check).
         today = datetime.now().date()
         restored_count = 0
+        # Real, always-on counters for system.startup_recovery below --
+        # unlike _dbg_count(), which only increments under DEBUG logging and
+        # so cannot be trusted as the wire-visible summary of what happened.
+        discarded_stale_day_count = 0
+        failed_restore_count = 0
+        quote_remnant_count = 0
+        rebuilt_quote_count = 0
         # Restored quote-origin orders (origin=QUOTE), collected as we go so
         # they can be regrouped into QuoteEntry objects after the loop — see
         # the QuoteIndex rebuild below. See
@@ -1154,6 +1167,7 @@ class Engine:
                         f"this order was resting"
                     )
                     self._dbg_count("stale_day_orders_discarded")
+                    discarded_stale_day_count += 1
                     continue
             order.status = OrderStatus.NEW
             book = self._book(order.symbol)
@@ -1171,6 +1185,7 @@ class Engine:
                     f"Skipping GTC order {order.id[:8]} ({order.symbol}) "
                     f"— restore failed: {exc}"
                 )
+                failed_restore_count += 1
                 continue
             self._order_symbol[order.id] = order.symbol
             restored_count += 1
@@ -1237,11 +1252,13 @@ class Engine:
                             f"(sibling leg did not restore)"
                         )
                         self._dbg_count("quote_remnants_restored")
+                        quote_remnant_count += 1
             if rebuilt_quotes:
                 log.info(
                     f"Rebuilt {rebuilt_quotes} active quote(s) in QuoteIndex "
                     f"from restored quote-origin orders."
                 )
+            rebuilt_quote_count = rebuilt_quotes
 
         # Restore GTC combos and rebuild parent-child links
         combos = load_gtc_combos(GTC_COMBOS_FILE)
@@ -1251,6 +1268,21 @@ class Engine:
                 self._order_to_combo[child_id] = combo.id
         if combos:
             log.info(f"Restored {len(combos)} GTC combo(s) from previous session.")
+
+        # Broadcast once, unconditionally (even an all-zero restart is worth
+        # a record) -- see spec/messages/system.yaml::startup_recovery. Every
+        # count above previously reached only log.info/log.error, invisible
+        # to pm-audit's bare PUB subscription on the engine's :5556 socket.
+        self.pub_sock.send_multipart(
+            make_startup_recovery_msg(
+                restored_orders=restored_count,
+                discarded_stale_day_orders=discarded_stale_day_count,
+                failed_orders=failed_restore_count,
+                quote_remnants_restored=quote_remnant_count,
+                rebuilt_quotes=rebuilt_quote_count,
+                restored_combos=len(combos),
+            )
+        )
 
     # ------------------------------------------------------------------
     # Message handlers
@@ -2641,7 +2673,13 @@ class Engine:
             for h in history
         ]
 
-    def _cancel_order_by_id(self, order_id: str) -> Optional[Order]:
+    def _cancel_order_by_id(
+        self,
+        order_id: str,
+        *,
+        cancel_reason: CancelReason | None = None,
+        command_id: str = "",
+    ) -> Optional[Order]:
         """Cancel a resting order by id.
 
         Returns the cancelled `Order` (reflecting its final qty/remaining/
@@ -2651,6 +2689,16 @@ class Engine:
         if the order could not be found or was already terminal; callers
         that only care about success/failure can keep using this as a
         truthy check, same as the previous `bool` return.
+
+        `cancel_reason`/`command_id` say *why* the exchange decided to cancel
+        this order and, when the decision traces back to an admin/kill-switch
+        command, which one — every caller here is an engine-initiated cancel
+        (self-match-prevention and insufficient-liquidity cancels take a
+        different, inline publish path — see `_cancel_reason_of`), and before
+        this the two were silently dropped, leaving order.cancelled unable to
+        answer "why was this cancelled" for a kill switch, an admin
+        cancel-symbol, a gateway disconnect, a circuit-breaker halt, a quote
+        replacement, or a quote leg cancelled because its sibling filled.
         """
         symbol = self._order_symbol.get(order_id)
         book = self.books.get(symbol) if symbol else None
@@ -2667,6 +2715,8 @@ class Engine:
                 order_id,
                 client_tag=cancelled.client_tag,
                 order=cancelled.to_dict(),
+                cancel_reason=cancel_reason,
+                command_id=command_id or None,
             )
         )
         return cancelled
@@ -2687,12 +2737,23 @@ class Engine:
             status=order.status.value,
         )
 
-    def _cancel_quote_entry(self, entry: QuoteEntry, reason: str = "") -> int:
+    def _cancel_quote_entry(
+        self,
+        entry: QuoteEntry,
+        reason: str = "",
+        *,
+        cancel_reason: CancelReason | None = None,
+        command_id: str = "",
+    ) -> int:
         cancelled = 0
-        bid_order = self._cancel_order_by_id(entry.bid_order_id)
+        bid_order = self._cancel_order_by_id(
+            entry.bid_order_id, cancel_reason=cancel_reason, command_id=command_id
+        )
         if bid_order is not None:
             cancelled += 1
-        ask_order = self._cancel_order_by_id(entry.ask_order_id)
+        ask_order = self._cancel_order_by_id(
+            entry.ask_order_id, cancel_reason=cancel_reason, command_id=command_id
+        )
         if ask_order is not None:
             cancelled += 1
         # entry has already been popped from the active QuoteIndex and its
@@ -2708,7 +2769,13 @@ class Engine:
             self._snapshot_quote_leg(ask_order),
         )
         self.pub_sock.send_multipart(
-            make_quote_status_msg(entry.gateway_id, entry.quote_id, "CANCELLED", reason)
+            make_quote_status_msg(
+                entry.gateway_id,
+                entry.quote_id,
+                "CANCELLED",
+                reason,
+                command_id=command_id or None,
+            )
         )
         return cancelled
 
@@ -2742,7 +2809,10 @@ class Engine:
             return 0
         cancelled = 0
         for order in list(book.quote_orders_for_gateway(gateway_id)):
-            if self._cancel_order_by_id(order.id) is not None:
+            if (
+                self._cancel_order_by_id(order.id, cancel_reason="QUOTE_REPLACED")
+                is not None
+            ):
                 cancelled += 1
         return cancelled
 
@@ -2898,7 +2968,11 @@ class Engine:
             for entry in self._quote_index.cancel_all_for_symbol(
                 symbol, reason="Circuit breaker halt"
             ):
-                self._cancel_quote_entry(entry, reason="Circuit breaker halt")
+                self._cancel_quote_entry(
+                    entry,
+                    reason="Circuit breaker halt",
+                    cancel_reason="CIRCUIT_BREAKER_HALT",
+                )
 
         self.pub_sock.send_multipart(
             make_circuit_breaker_halt(
@@ -3121,7 +3195,9 @@ class Engine:
         )
         self._quote_index.remove(order.gateway_id, order.symbol, reason=status)
         sibling_id = entry.counterpart_order_id(order.side.value)
-        sibling_order = self._cancel_order_by_id(sibling_id)
+        sibling_order = self._cancel_order_by_id(
+            sibling_id, cancel_reason="QUOTE_LEG_FILLED"
+        )
 
         # `order` is the filled leg — already terminal, its final state is
         # available directly. `sibling_order` is whatever _cancel_order_by_id
@@ -3316,7 +3392,11 @@ class Engine:
             gateway_id, symbol, reason="Replaced by new quote"
         )
         if previous:
-            self._cancel_quote_entry(previous, reason="Replaced by new quote")
+            self._cancel_quote_entry(
+                previous,
+                reason="Replaced by new quote",
+                cancel_reason="QUOTE_REPLACED",
+            )
         else:
             # No active QuoteIndex entry — most commonly because a prior fill
             # already inactivated this gateway/symbol's quote (see
@@ -3491,7 +3571,11 @@ class Engine:
             gateway_id, reason="Gateway disconnected"
         )
         for entry in removed_quotes:
-            self._cancel_quote_entry(entry, reason="Gateway disconnected")
+            self._cancel_quote_entry(
+                entry,
+                reason="Gateway disconnected",
+                cancel_reason="GATEWAY_DISCONNECT",
+            )
 
         if session.disconnect_behaviour == DisconnectBehaviour.CANCEL_ALL:
             # O(k) per book via OrderBook._orders_by_gateway (k = this
@@ -3502,7 +3586,9 @@ class Engine:
             for book in self.books.values():
                 for order in list(book.orders_for_gateway(gateway_id)):
                     if order.origin != OrderOrigin.QUOTE:
-                        self._cancel_order_by_id(order.id)
+                        self._cancel_order_by_id(
+                            order.id, cancel_reason="GATEWAY_DISCONNECT"
+                        )
 
     def _handle_kill_switch(self, payload: dict[str, Any]) -> None:
         gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
@@ -3539,7 +3625,10 @@ class Engine:
                     gateway_id, symbol_filter, reason="Kill switch"
                 )
                 cancelled_quotes += self._cancel_quote_entry(
-                    entry, reason="Kill switch"
+                    entry,
+                    reason="Kill switch",
+                    cancel_reason="KILL_SWITCH",
+                    command_id=command_id,
                 )
         else:
             entries = self._quote_index.cancel_all_for_gateway(
@@ -3547,7 +3636,10 @@ class Engine:
             )
             for entry in entries:
                 cancelled_quotes += self._cancel_quote_entry(
-                    entry, reason="Kill switch"
+                    entry,
+                    reason="Kill switch",
+                    cancel_reason="KILL_SWITCH",
+                    command_id=command_id,
                 )
 
         # O(k) per book via OrderBook._orders_by_gateway (k = this gateway's
@@ -3558,7 +3650,11 @@ class Engine:
                 continue
             for order in list(book.orders_for_gateway(gateway_id)):
                 if order.origin != OrderOrigin.QUOTE:
-                    if self._cancel_order_by_id(order.id):
+                    if self._cancel_order_by_id(
+                        order.id,
+                        cancel_reason="KILL_SWITCH",
+                        command_id=command_id,
+                    ):
                         cancelled_orders += 1
 
         self.pub_sock.send_multipart(
@@ -3634,7 +3730,10 @@ class Engine:
             target_gateway_id, reason="ADMIN kill switch"
         ):
             cancelled_quotes += self._cancel_quote_entry(
-                entry, reason="ADMIN kill switch"
+                entry,
+                reason="ADMIN kill switch",
+                cancel_reason="KILL_SWITCH",
+                command_id=command_id,
             )
 
         # O(k) per book via OrderBook._orders_by_gateway (k = this gateway's
@@ -3643,7 +3742,11 @@ class Engine:
         for book in self.books.values():
             for order in list(book.orders_for_gateway(target_gateway_id)):
                 if order.origin != OrderOrigin.QUOTE:
-                    if self._cancel_order_by_id(order.id):
+                    if self._cancel_order_by_id(
+                        order.id,
+                        cancel_reason="KILL_SWITCH",
+                        command_id=command_id,
+                    ):
                         cancelled_orders += 1
 
         self.pub_sock.send_multipart(
@@ -3721,14 +3824,21 @@ class Engine:
                 affected_gateways.add(target_gateway_id)
             for entry in entries:
                 cancelled_quotes += self._cancel_quote_entry(
-                    entry, reason="ADMIN global kill switch"
+                    entry,
+                    reason="ADMIN global kill switch",
+                    cancel_reason="KILL_SWITCH",
+                    command_id=command_id,
                 )
 
         for book in self.books.values():
             for order in list(book.resting_orders()):
                 if order.origin != OrderOrigin.QUOTE:
                     owner = order.gateway_id
-                    if self._cancel_order_by_id(order.id):
+                    if self._cancel_order_by_id(
+                        order.id,
+                        cancel_reason="KILL_SWITCH",
+                        command_id=command_id,
+                    ):
                         cancelled_orders += 1
                         affected_gateways.add(owner)
 
@@ -3808,7 +3918,9 @@ class Engine:
                 symbol, reason="Global circuit breaker halt"
             ):
                 cancelled_quotes += self._cancel_quote_entry(
-                    entry, reason="Global circuit breaker halt"
+                    entry,
+                    reason="Global circuit breaker halt",
+                    cancel_reason="CIRCUIT_BREAKER_HALT",
                 )
 
             self.pub_sock.send_multipart(
@@ -3989,7 +4101,10 @@ class Engine:
             symbol, reason="Per-symbol halt"
         ):
             cancelled_quotes += self._cancel_quote_entry(
-                entry, reason="Per-symbol halt"
+                entry,
+                reason="Per-symbol halt",
+                cancel_reason="CIRCUIT_BREAKER_HALT",
+                command_id=command_id,
             )
 
         self.pub_sock.send_multipart(
@@ -4129,7 +4244,11 @@ class Engine:
         if book is not None:
             for order in list(book.resting_orders()):
                 if order.origin != OrderOrigin.QUOTE:
-                    if self._cancel_order_by_id(order.id):
+                    if self._cancel_order_by_id(
+                        order.id,
+                        cancel_reason="ADMIN_CANCEL_SYMBOL",
+                        command_id=command_id,
+                    ):
                         cancelled_orders += 1
 
         cancelled_quotes = 0
@@ -4137,7 +4256,10 @@ class Engine:
             symbol, reason="Symbol mass cancel"
         ):
             cancelled_quotes += self._cancel_quote_entry(
-                entry, reason="Symbol mass cancel"
+                entry,
+                reason="Symbol mass cancel",
+                cancel_reason="ADMIN_CANCEL_SYMBOL",
+                command_id=command_id,
             )
 
         self.pub_sock.send_multipart(
@@ -4362,7 +4484,9 @@ class Engine:
 
         return ""
 
-    def _accept_combo(self, combo: ComboOrder, *, publish_ack: bool = True) -> bool:
+    def _accept_combo(
+        self, combo: ComboOrder, *, publish_ack: bool = True, is_seed: bool = False
+    ) -> bool:
         """Post combo child orders to books and start tracking the parent combo."""
         reason = self._validate_combo(combo)
         if reason:
@@ -4407,6 +4531,7 @@ class Engine:
                 visible_qty=None,
                 smp_action=leg_smp_action,
                 client_tag=combo.client_tag,
+                is_seed=is_seed,
             )
             child.combo_parent_id = combo.id
             child.leg_index = i
@@ -4416,6 +4541,25 @@ class Engine:
             combo.leg_fill_qty[i] = 0
             self._order_to_combo[child.id] = combo.id
             self._order_symbol[child.id] = leg.symbol
+
+            # No combo child leg previously published an order.ack at all --
+            # combo.ack only confirms the parent, and _handle_new_order /
+            # _handle_quote_new / OCO / the seeded-quote-leg loop above all
+            # ack their orders individually. Without this, a subscriber that
+            # starts after acceptance (or that only ever sees a long-resting,
+            # never-filled leg) has no way to learn a child leg's symbol,
+            # side, price or qty until it is cancelled -- and order.cancelled
+            # deliberately does not carry them either. Publish the same ACK
+            # shape every other order-creation path uses, before matching,
+            # for every leg -- live or config-seeded.
+            self.pub_sock.send_multipart(
+                make_ack_msg(
+                    combo.gateway_id,
+                    child.id,
+                    accepted=True,
+                    order=order_to_display_dict(child),
+                )
+            )
 
             book = self._book(leg.symbol)
             # H9: combo children respect the session's matching state and the
@@ -5613,6 +5757,12 @@ class Engine:
                 )
                 return
 
+        # Captured before book.amend_order() mutates the resting Order object
+        # in place -- resting and amended are the same object once that call
+        # returns, so this is the last point old_price/old_qty are readable.
+        old_price_ticks = resting.price if resting is not None else None
+        old_qty = resting.quantity if resting is not None else None
+
         now = now_ns()
         amended, priority_reset, err = book.amend_order(
             order_id,
@@ -5648,6 +5798,12 @@ class Engine:
                 priority_reset=priority_reset,
                 client_tag=amended.client_tag,
                 request_tag=request_tag,
+                old_price=(
+                    from_ticks(old_price_ticks, amended.symbol)
+                    if old_price_ticks is not None
+                    else None
+                ),
+                old_qty=old_qty,
             )
         )
         self._dbg_count("amend_accepted")
@@ -5969,6 +6125,13 @@ class Engine:
                     topic,
                     self._unknown_topic_count,
                 )
+                self.pub_sock.send_multipart(
+                    make_diagnostic_msg(
+                        component="UNROUTED_TOPIC",
+                        detail=topic,
+                        count=self._unknown_topic_count,
+                    )
+                )
         except Exception as exc:
             self._dbg_count("handler_errors")
             self._error_count += 1
@@ -5978,6 +6141,23 @@ class Engine:
                 self._error_count,
                 exc,
             )
+            # Wire-visible marker with the real exception text -- the
+            # client-facing reject below deliberately stays generic (see
+            # _reject_after_error's docstring), so this is the only place a
+            # post-mortem can see what actually broke without grepping the
+            # process log. Best-effort: a publish failure here must not
+            # shadow the original exception or skip the reject below.
+            try:
+                self.pub_sock.send_multipart(
+                    make_diagnostic_msg(
+                        component="DISPATCH_ERROR",
+                        detail=topic,
+                        error=str(exc),
+                        count=self._error_count,
+                    )
+                )
+            except Exception:
+                log.error("Diagnostic publish for %s failed", topic)
             self._reject_after_error(topic, payload, fills_before)
 
     def _reject_after_error(
@@ -6067,14 +6247,30 @@ class Engine:
                 flush()
             except Exception as exc:
                 self._flush_error_count += 1
+                flush_name = getattr(flush, "__name__", "?")
                 log.error(
                     "Maintenance flush %s failed (#%d): %s",
                     # getattr, not .__name__: a handler that raises while
                     # reporting a failure defeats the guard entirely.
-                    getattr(flush, "__name__", "?"),
+                    flush_name,
                     self._flush_error_count,
                     exc,
                 )
+                # Best-effort, and itself guarded: this publish must never
+                # become the reason a maintenance-flush failure skips the
+                # circuit-breaker timers behind it (see this method's
+                # docstring) or takes down run()'s poll loop.
+                try:
+                    self.pub_sock.send_multipart(
+                        make_diagnostic_msg(
+                            component="MAINTENANCE_FLUSH",
+                            detail=flush_name,
+                            error=str(exc),
+                            count=self._flush_error_count,
+                        )
+                    )
+                except Exception:
+                    log.error("Diagnostic publish for flush %s failed", flush_name)
 
     def run(self) -> None:
         set_run_seq(load_and_bump_run_seq(RUN_SEQ_FILE))
@@ -6136,6 +6332,19 @@ class Engine:
                         self._undecodable_count,
                         exc,
                     )
+                    # No topic to report (that is exactly what failed to
+                    # decode) -- detail is left empty, per
+                    # spec/messages/system.yaml::diagnostic.
+                    try:
+                        self.pub_sock.send_multipart(
+                            make_diagnostic_msg(
+                                component="UNDECODABLE_MESSAGE",
+                                error=str(exc),
+                                count=self._undecodable_count,
+                            )
+                        )
+                    except Exception:
+                        log.error("Diagnostic publish for undecodable message failed")
                 else:
                     self._dbg_count("pull_messages")
                     self._dbg_count(f"topic_{topic}")

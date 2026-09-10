@@ -534,6 +534,7 @@ class IndexProcess:
                 index_id=index_id,
                 level=level,
                 divisor=idx.calc.divisor,
+                old_divisor=old_divisor,
             )
         )
 
@@ -617,6 +618,7 @@ class IndexProcess:
                 index_id=index_id,
                 level=level,
                 divisor=idx.calc.divisor,
+                old_divisor=old_divisor,
             )
         )
 
@@ -741,6 +743,7 @@ class IndexProcess:
                 divisor=idx.calc.divisor,
                 updated_symbols=len(applied),
                 command_id=command_id,
+                old_divisor=old_divisor,
             )
         )
 

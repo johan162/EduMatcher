@@ -431,11 +431,30 @@ class TestMarketMakerComboSeeds:
 class TestComboValidation:
 
     def test_combo_accepted_with_valid_legs(self, combo_engine) -> None:
+        """Each child leg gets its own order.ack before the parent combo.ack.
+
+        No combo leg used to publish order.ack at all -- see
+        docs/user-guide/190-audit.md and Engine._accept_combo's leg-creation
+        loop. The two leg acks come first because they are published as each
+        leg is created, before the parent combo.ack that follows the loop.
+        """
         engine, pub_sock = combo_engine
         payload = _two_leg_combo()
         engine._handle_combo_order(payload)
 
-        topic, msg = decode(pub_sock.sent[0])
+        assert len(pub_sock.sent) == 3
+
+        leg0_topic, leg0_msg = decode(pub_sock.sent[0])
+        assert leg0_topic == "order.ack.TRADER01"
+        assert leg0_msg["accepted"] is True
+        assert leg0_msg["symbol"] == "AAPL"
+
+        leg1_topic, leg1_msg = decode(pub_sock.sent[1])
+        assert leg1_topic == "order.ack.TRADER01"
+        assert leg1_msg["accepted"] is True
+        assert leg1_msg["symbol"] == "MSFT"
+
+        topic, msg = decode(pub_sock.sent[2])
         assert topic == "combo.ack.TRADER01"
         assert msg["accepted"] is True
 

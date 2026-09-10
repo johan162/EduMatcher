@@ -488,6 +488,10 @@ class TestTheFourFieldsNamedSymbols:
 
 
 class TestTheFamilyIsComplete:
-    def test_all_twenty_nine_topics_are_declared(self) -> None:
+    def test_all_thirty_one_topics_are_declared(self) -> None:
+        """29 -> 31: startup_recovery and diagnostic (see
+        docs/user-guide/190-audit.md) — the GTC-restore summary and the
+        absorbed-internal-failure marker, both broadcasts with no request
+        just like eod."""
         topics = {getattr(G, n) for n in dir(G) if n.startswith("TOPIC_")}
-        assert len(topics) == 29, sorted(topics)
+        assert len(topics) == 31, sorted(topics)

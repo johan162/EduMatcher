@@ -1455,6 +1455,13 @@ _INDEX_CORP_ACTION_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "required": False,
         "doc": "",
     },
+    {
+        "name": "old_divisor",
+        "type": "float",
+        "unit": "dimensionless",
+        "required": False,
+        "doc": "The divisor immediately before this action was applied. Same field name and purpose as HistoryRecord.old_divisor, so a post-mortem does not need pm-index's local JSONL archive to see what changed — the wire event is self-contained. Present only alongside divisor, i.e. on acceptance.",
+    },
 )
 
 
@@ -1475,6 +1482,7 @@ class IndexCorpActionAck:
     index_id: str = ""
     level: float | None = None  # unit: dimensionless
     divisor: float | None = None  # unit: dimensionless
+    old_divisor: float | None = None  # unit: dimensionless
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -1512,6 +1520,9 @@ class IndexCorpActionAck:
             index_id=str(p.get("index_id", "")),
             level=None if p.get("level") is None else float(p["level"]),
             divisor=None if p.get("divisor") is None else float(p["divisor"]),
+            old_divisor=(
+                None if p.get("old_divisor") is None else float(p["old_divisor"])
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -1527,6 +1538,8 @@ class IndexCorpActionAck:
             payload["level"] = self.level
         if self.divisor is not None:
             payload["divisor"] = self.divisor
+        if self.old_divisor is not None:
+            payload["old_divisor"] = self.old_divisor
         return payload
 
 
@@ -1565,6 +1578,7 @@ def make_index_corp_action_ack_unchecked(
     index_id: str = "",
     level: float | None = None,
     divisor: float | None = None,
+    old_divisor: float | None = None,
 ) -> list[bytes]:
     """Identical frames to ``make_index_corp_action_ack``, without ``validate()``.
 
@@ -1587,6 +1601,8 @@ def make_index_corp_action_ack_unchecked(
         payload["level"] = float(level)
     if divisor is not None:
         payload["divisor"] = float(divisor)
+    if old_divisor is not None:
+        payload["old_divisor"] = float(old_divisor)
     return [
         topic_index_corp_action_ack(gateway_id).encode(),
         _msg.dumps(payload),
@@ -1676,6 +1692,13 @@ _INDEX_CONSTITUENT_CHANGE_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "required": False,
         "doc": "",
     },
+    {
+        "name": "old_divisor",
+        "type": "float",
+        "unit": "dimensionless",
+        "required": False,
+        "doc": "The divisor immediately before this action was applied. Same field name and purpose as HistoryRecord.old_divisor, so a post-mortem does not need pm-index's local JSONL archive to see what changed — the wire event is self-contained. Present only alongside divisor, i.e. on acceptance.",
+    },
 )
 
 
@@ -1695,6 +1718,7 @@ class IndexConstituentChangeAck:
     index_id: str = ""
     level: float | None = None  # unit: dimensionless
     divisor: float | None = None  # unit: dimensionless
+    old_divisor: float | None = None  # unit: dimensionless
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -1732,6 +1756,9 @@ class IndexConstituentChangeAck:
             index_id=str(p.get("index_id", "")),
             level=None if p.get("level") is None else float(p["level"]),
             divisor=None if p.get("divisor") is None else float(p["divisor"]),
+            old_divisor=(
+                None if p.get("old_divisor") is None else float(p["old_divisor"])
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -1747,6 +1774,8 @@ class IndexConstituentChangeAck:
             payload["level"] = self.level
         if self.divisor is not None:
             payload["divisor"] = self.divisor
+        if self.old_divisor is not None:
+            payload["old_divisor"] = self.old_divisor
         return payload
 
 
@@ -1787,6 +1816,7 @@ def make_index_constituent_change_ack_unchecked(
     index_id: str = "",
     level: float | None = None,
     divisor: float | None = None,
+    old_divisor: float | None = None,
 ) -> list[bytes]:
     """Identical frames to ``make_index_constituent_change_ack``, without
     ``validate()``.
@@ -1810,6 +1840,8 @@ def make_index_constituent_change_ack_unchecked(
         payload["level"] = float(level)
     if divisor is not None:
         payload["divisor"] = float(divisor)
+    if old_divisor is not None:
+        payload["old_divisor"] = float(old_divisor)
     return [
         topic_index_constituent_change_ack(gateway_id).encode(),
         _msg.dumps(payload),
@@ -1908,6 +1940,13 @@ _INDEX_REBALANCE_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "",
     },
     {
+        "name": "old_divisor",
+        "type": "float",
+        "unit": "dimensionless",
+        "required": False,
+        "doc": "The divisor immediately before this action was applied. Same field name and purpose as HistoryRecord.old_divisor, so a post-mortem does not need pm-index's local JSONL archive to see what changed — the wire event is self-contained. Present only alongside divisor, i.e. on acceptance.",
+    },
+    {
         "name": "command_id",
         "type": "string",
         "unit": None,
@@ -1934,6 +1973,7 @@ class IndexRebalanceAck:
     index_id: str = ""
     level: float | None = None  # unit: dimensionless
     divisor: float | None = None  # unit: dimensionless
+    old_divisor: float | None = None  # unit: dimensionless
     command_id: str = ""
 
     def validate(self) -> None:
@@ -1981,6 +2021,9 @@ class IndexRebalanceAck:
             index_id=str(p.get("index_id", "")),
             level=None if p.get("level") is None else float(p["level"]),
             divisor=None if p.get("divisor") is None else float(p["divisor"]),
+            old_divisor=(
+                None if p.get("old_divisor") is None else float(p["old_divisor"])
+            ),
             command_id=str(p.get("command_id", "")),
         )
 
@@ -1998,6 +2041,8 @@ class IndexRebalanceAck:
             payload["level"] = self.level
         if self.divisor is not None:
             payload["divisor"] = self.divisor
+        if self.old_divisor is not None:
+            payload["old_divisor"] = self.old_divisor
         if self.command_id:
             payload["command_id"] = self.command_id
         return payload
@@ -2039,6 +2084,7 @@ def make_index_rebalance_ack_unchecked(
     index_id: str = "",
     level: float | None = None,
     divisor: float | None = None,
+    old_divisor: float | None = None,
     command_id: str = "",
 ) -> list[bytes]:
     """Identical frames to ``make_index_rebalance_ack``, without ``validate()``.
@@ -2063,6 +2109,8 @@ def make_index_rebalance_ack_unchecked(
         payload["level"] = float(level)
     if divisor is not None:
         payload["divisor"] = float(divisor)
+    if old_divisor is not None:
+        payload["old_divisor"] = float(old_divisor)
     if command_id:
         payload["command_id"] = str(command_id)
     return [

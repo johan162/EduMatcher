@@ -551,6 +551,7 @@ Every topic in the system, and which process puts it on the wire.
 | `session.state` | `session` | `engine` |
 | `session.transition` | `session` | `scheduler` |
 | `session.transition_ack.{gateway_id}` | `session` | `engine` |
+| `system.diagnostic` | `system` | `engine` |
 | `system.eod` | `system` | `engine` |
 | `system.gateway_auth.{gateway_id}` | `system` | `engine` |
 | `system.gateway_bye.{gateway_id}` | `system` | `engine` |
@@ -576,6 +577,7 @@ Every topic in the system, and which process puts it on the wire.
 | `system.session_schedule_request` | `system` | `admin`, `api_gateway` |
 | `system.session_state_request` | `system` | `admin`, `api_gateway`, `gateway`, `scheduler` |
 | `system.session_status.{gateway_id}` | `system` | `engine` |
+| `system.startup_recovery` | `system` | `engine` |
 | `system.symbols.{gateway_id}` | `system` | `engine` |
 | `system.symbols_request` | `system` | `admin`, `api_gateway`, `gateway`, `stats` |
 | `system.volume.{gateway_id}` | `system` | `engine` |
@@ -1208,6 +1210,7 @@ pm-index to requestor: the corporate action's outcome.
 | `index_id` | `string` | omitted when empty | max_len 32 |  |
 | `level` | `float` | omitted when unset | unit `dimensionless` |  |
 | `divisor` | `float` | omitted when unset | unit `dimensionless` |  |
+| `old_divisor` | `float` | omitted when unset | unit `dimensionless` | The divisor immediately before this action was applied. Same field name and purpose as HistoryRecord.old_divisor, so a post-mortem does not need pm-index's local JSONL archive to see what changed — the wire event is self-contained. Present only alongside divisor, i.e. on acceptance. |
 
 !!! note
 
@@ -1234,6 +1237,7 @@ pm-index to requestor: the constituent change's outcome.
 | `index_id` | `string` | omitted when empty | max_len 32 |  |
 | `level` | `float` | omitted when unset | unit `dimensionless` |  |
 | `divisor` | `float` | omitted when unset | unit `dimensionless` |  |
+| `old_divisor` | `float` | omitted when unset | unit `dimensionless` | The divisor immediately before this action was applied. Same field name and purpose as HistoryRecord.old_divisor, so a post-mortem does not need pm-index's local JSONL archive to see what changed — the wire event is self-contained. Present only alongside divisor, i.e. on acceptance. |
 
 !!! note
 
@@ -1261,6 +1265,7 @@ pm-index to ADMIN: the batch's outcome.
 | `index_id` | `string` | omitted when empty | max_len 32 |  |
 | `level` | `float` | omitted when unset | unit `dimensionless` |  |
 | `divisor` | `float` | omitted when unset | unit `dimensionless` |  |
+| `old_divisor` | `float` | omitted when unset | unit `dimensionless` | The divisor immediately before this action was applied. Same field name and purpose as HistoryRecord.old_divisor, so a post-mortem does not need pm-index's local JSONL archive to see what changed — the wire event is self-contained. Present only alongside divisor, i.e. on acceptance. |
 | `command_id` | `string` | omitted when empty | max_len 64 |  |
 
 !!! note
@@ -1741,6 +1746,7 @@ One resting order as the engine reports it in an `order.orders` snapshot, in dis
 | `combo_parent_id` | `string` | `null` when unset | max_len 64 |  |
 | `leg_index` | `int` | `null` when unset | unit `dimensionless` | Position in the parent combo's legs, 0-based. |
 | `origin` | enum: `ORDER`, `QUOTE`, `IMPLIED` | defaults to `'ORDER'` | — | Defaulted rather than nullable: to_dict always supplies ORDER. |
+| `is_seed` | `bool` | defaults to `False` | — | True when this order was created by config-driven startup seeding (market_maker_quotes / market_maker_combos in the engine config) rather than a live gateway submission. Purely observational — nothing in the engine branches on it; origin still governs routing. Lets a post-mortem tell a config bootstrap apart from real participant activity without depending on id-naming conventions. Absent on records written before this field existed. |
 | `quote_id` | `string` | `null` when unset | max_len 64 |  |
 | `client_tag` | `string` | `null` when unset | max_len 64 | Client correlation tag, echoed on every lifecycle event. |
 | `arrival_seq` | `int` | defaults to `0` | unit `dimensionless` | Engine-assigned monotonic arrival sequence; 0 = unassigned. |
@@ -1771,6 +1777,7 @@ One resting order as reported by order.price_level_orders — the same projectio
 | `combo_parent_id` | `string` | `null` when unset | max_len 64 |  |
 | `leg_index` | `int` | `null` when unset | unit `dimensionless` | Position in the parent combo's legs, 0-based. |
 | `origin` | enum: `ORDER`, `QUOTE`, `IMPLIED` | defaults to `'ORDER'` | — | Defaulted rather than nullable: to_dict always supplies ORDER. |
+| `is_seed` | `bool` | defaults to `False` | — | True when this order was created by config-driven startup seeding (market_maker_quotes / market_maker_combos in the engine config) rather than a live gateway submission. Purely observational — nothing in the engine branches on it; origin still governs routing. Lets a post-mortem tell a config bootstrap apart from real participant activity without depending on id-naming conventions. Absent on records written before this field existed. |
 | `quote_id` | `string` | `null` when unset | max_len 64 |  |
 | `client_tag` | `string` | `null` when unset | max_len 64 | Client correlation tag, echoed on every lifecycle event. |
 | `arrival_seq` | `int` | defaults to `0` | unit `dimensionless` | Engine-assigned monotonic arrival sequence; 0 = unassigned. |
@@ -1834,6 +1841,7 @@ Acknowledge acceptance or rejection of a new order, addressed to the gateway tha
 | `combo_parent_id` | `string` | omitted when unset | max_len 64 |  |
 | `quote_id` | `string` | omitted when unset | max_len 64 |  |
 | `leg_index` | `int` | omitted when unset | unit `dimensionless` |  |
+| `is_seed` | `bool` | defaults to `False` | — | True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed (above) for the full rationale; this is the ack-time echo of the same fact, since order.ack — not order.new, which never reaches the engine's PUB feed — is the first audit-visible event for any order, seeded or live. |
 
 !!! note
 
@@ -1872,6 +1880,7 @@ Private fill notification for one order, addressed to the gateway that owns it. 
 | `combo_parent_id` | `string` | omitted when unset | max_len 64 |  |
 | `quote_id` | `string` | omitted when unset | max_len 64 |  |
 | `leg_index` | `int` | omitted when unset | unit `dimensionless` |  |
+| `is_seed` | `bool` | defaults to `False` | — | True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed for the full rationale; carried here too so a fill reached after the originating order.ack has rotated out of the audit log still says whether the filled order was a config seed. |
 | `trade_ids` | list of `string` | defaults to `[]` | — | The public trade.executed id(s) that composed this fill event. Usually one; more than one when an aggressor swept several resting orders and the engine coalesced them into a single VWAP fill (H5/H6). Every current call site only publishes order_fill from a real trade, so in practice this is never empty; it is typed as a list (not required) defensively, for a fill notification that might one day exist without one. Lets a reader link a private fill to the public trade tape without re-deriving the join. |
 | `liquidity_flag` | enum: `MAKER`, `TAKER` | omitted when unset | — | Derived from the trade's aggressor side: the aggressor is the TAKER and the resting side the MAKER (same derivation as drop_copy.yaml::liquidity_flag). Nullable/omit_when_none for the same reason trade_ids is typed as an empty-able list: every current call site only publishes order_fill from a real trade, so this is never actually absent today, but nothing enforces that a future fill notification always has a trade behind it. |
 
@@ -1893,11 +1902,12 @@ Confirm that a resting order has been cancelled.
 | `order_id` | `string` | required | max_len 64 |  |
 | `client_tag` | `string` | omitted when unset | max_len 64 |  |
 | `request_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for this cancel request. Engine-initiated cancels publish with request_tag=null. |
-| `cancel_reason` | enum: `SELF_MATCH_PREVENTED`, `INSUFFICIENT_LIQUIDITY` | omitted when unset | — | Why the exchange cancelled this order, when the exchange decided it rather than the client. Null for a client-requested cancel, and for engine-initiated cancels whose cause is not yet classified - so request_tag=null together with cancel_reason=null still means "the exchange did this, cause unstated". Deliberately not the same vocabulary as order_ack.reject_code: a cancel is not a rejection, and most reject codes can never apply to one. New members may be added; existing members are never removed or renamed. A client must ignore a value it does not recognise. |
+| `cancel_reason` | enum: `SELF_MATCH_PREVENTED`, `INSUFFICIENT_LIQUIDITY`, `KILL_SWITCH`, `CIRCUIT_BREAKER_HALT`, `GATEWAY_DISCONNECT`, `ADMIN_CANCEL_SYMBOL`, `QUOTE_REPLACED`, `QUOTE_LEG_FILLED` | omitted when unset | — | Why the exchange cancelled this order, when the exchange decided it rather than the client. Null for a client-requested cancel, and for engine-initiated cancels whose cause is not yet classified - so request_tag=null together with cancel_reason=null still means "the exchange did this, cause unstated". Deliberately not the same vocabulary as order_ack.reject_code: a cancel is not a rejection, and most reject codes can never apply to one. New members may be added; existing members are never removed or renamed. A client must ignore a value it does not recognise. |
 | `oco_group_id` | `string` | omitted when unset | max_len 64 |  |
 | `combo_parent_id` | `string` | omitted when unset | max_len 64 |  |
 | `quote_id` | `string` | omitted when unset | max_len 64 |  |
 | `leg_index` | `int` | omitted when unset | unit `dimensionless` |  |
+| `command_id` | `string` | omitted when unset | max_len 64 | The admin/kill-switch command_id (see system.admin_action) that caused this cancel, when one exists — lets a post-mortem join this event back to the exact command that triggered it. Null for a client-requested cancel and for engine-initiated cancels with no originating command (e.g. self-match prevention, insufficient liquidity, a quote leg cancelled because its sibling filled). |
 
 ### `order.expired.{gateway_id}`
 
@@ -1937,6 +1947,8 @@ Confirm an accepted amendment and report the resulting order.
 | `qty` | `int` | required | unit `shares` |  |
 | `remaining_qty` | `int` | required | unit `shares` |  |
 | `priority_reset` | `bool` | required | — | True when the amendment lost the order its time priority. |
+| `old_price` | `float` | omitted when unset | unit `display_price` | The order's limit price immediately before this amendment, or null for an order that had none. Lets a post-mortem replay the amend without re-deriving the prior state from an earlier message. Absent on records written before this field existed. |
+| `old_qty` | `int` | omitted when unset | unit `shares` | The order's qty immediately before this amendment. Same replay rationale as old_price; absent on records written before this field existed. |
 | `client_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for the amended order. |
 | `request_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for this amend request. Engine-initiated cancels publish with request_tag=null. |
 
@@ -1978,6 +1990,7 @@ Submit a new order to the matching engine. Sent over PUSH/PULL rather than the p
 | `combo_parent_id` | `string` | `null` when unset | max_len 64 |  |
 | `leg_index` | `int` | `null` when unset | unit `dimensionless` | Position in the parent combo's legs, 0-based. |
 | `origin` | enum: `ORDER`, `QUOTE`, `IMPLIED` | defaults to `'ORDER'` | — | Defaulted rather than nullable: from_dict supplies ORDER. |
+| `is_seed` | `bool` | defaults to `False` | — | True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed for the full rationale. |
 | `quote_id` | `string` | `null` when unset | max_len 64 |  |
 | `client_tag` | `string` | `null` when unset | max_len 64 | Client correlation tag, echoed on every lifecycle event. |
 | `arrival_seq` | `int` | defaults to `0` | unit `dimensionless` | Engine-assigned monotonic arrival sequence; time priority is keyed on this, not on timestamp, so a back-dated payload cannot jump the queue. Zero means unassigned, which is what a submission carries. |
@@ -2309,6 +2322,7 @@ Engine to market maker: the quote left the book, and why.
 | `quote_id` | `string` | defaults to `''` | max_len 64 |  |
 | `status` | enum: `ACTIVE`, `INACTIVE_BID_FILLED`, `INACTIVE_ASK_FILLED`, `CANCELLED` | required | — | Mirrors models/quote.py::QuoteState. |
 | `reason` | `string` | defaults to `''` | max_len 512 |  |
+| `command_id` | `string` | omitted when unset | max_len 64 | The admin/kill-switch command_id (see system.admin_action) that caused this quote to leave the book, when one exists — same correlation purpose as order.cancelled.command_id. Null when the quote left for a reason with no originating command (participant cancel, replacement by a new quote, a leg fill). |
 
 !!! note
 
@@ -3338,6 +3352,54 @@ Engine to all subscribers, once, before shutdown: the closing book of every inst
     That is why it has no `_request` sibling and why it is in this half rather than 6.1f's request/reply pairs.
 
 **See also:** `book.{SYMBOL}`, `session.state`
+
+### `system.startup_recovery`
+
+**Published by:** `engine`
+
+**Transport:** `engine_pub`
+
+**Since:** 1.1
+
+Engine to all subscribers, once, right after `_restore_gtc()` and before the config-seed step runs: how much of the previous session's resting state came back. Every one of these counts previously only reached `log.info`/`log.error` — invisible to `pm-audit`, which is a bare PUB subscriber and sees nothing that is not published (see docs/user-guide/190-audit.md). A post-mortem investigating "why does the book look different after a restart" needs this the same way it needs `order.cancelled` for a live cancel.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `restored_orders` | `int` | required | ge 0, unit `dimensionless` | GTC/same-day-DAY orders successfully restored to their book. |
+| `discarded_stale_day_orders` | `int` | required | ge 0, unit `dimensionless` | TIF=DAY orders discarded because the business day rolled over. |
+| `failed_orders` | `int` | required | ge 0, unit `dimensionless` | Persisted orders that raised during restore and were skipped. |
+| `quote_remnants_restored` | `int` | required | ge 0, unit `dimensionless` | Restored quote-origin legs whose sibling did not survive, so they rest as plain orders rather than being rejoined into QuoteIndex. |
+| `rebuilt_quotes` | `int` | required | ge 0, unit `dimensionless` | Active QuoteIndex entries rebuilt from both-legs-restored quotes. |
+| `restored_combos` | `int` | required | ge 0, unit `dimensionless` | GTC combos restored from the previous session. |
+
+!!! note
+
+    A broadcast with no request, like `system.eod` — nothing asks for a recovery summary, the engine announces it once at startup.
+
+**See also:** `book.{SYMBOL}`, `auction.result`
+
+### `system.diagnostic`
+
+**Published by:** `engine`
+
+**Transport:** `engine_pub`
+
+**Since:** 1.1
+
+Engine to all subscribers: an internal failure or anomaly that the engine absorbed and kept running past, so trading was not interrupted but the event still happened and a post-mortem needs to see it. Before this existed, a maintenance-flush exception, a handler crash, an undecodable inbound message, or a message on an unhandled topic reached only the process log — `pm-audit`'s bare PUB subscription on the engine's :5556 socket (see docs/user-guide/190-audit.md) never saw any of them, so a bug that only ever showed up as "the book snapshot stopped updating" or "an order silently never got a reply" had no trail to replay. This does not replace logging (the process log keeps the full traceback); it is the wire-visible marker that something in `component` happened, with enough detail to go find the log line.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `component` | enum: `MAINTENANCE_FLUSH`, `DISPATCH_ERROR`, `UNDECODABLE_MESSAGE`, `UNROUTED_TOPIC` | required | — | Which internal area this diagnostic came from. |
+| `detail` | `string` | required | max_len 256 | What within component — the flush function name, the message topic, or empty when there is no finer-grained name (an undecodable message has no topic to report). |
+| `error` | `string` | defaults to `''` | max_len 512 | The exception text, when this diagnostic came from one. |
+| `count` | `int` | required | ge 0, unit `dimensionless` | This component's running occurrence count for the process lifetime — the same counter the log line already reports, carried onto the wire so a subscriber can tell a first occurrence from a recurring one without correlating timestamps against the log. |
+
+!!! note
+
+    Deliberately generic — a `component`/`detail`/`error` triple rather than one message type per failure mode, because the failure modes (a maintenance flush, a dispatch-handler crash, an undecodable pull message, an unrouted topic) share nothing structural beyond "engine kept running, something still needs recording.".
+
+**See also:** `order.ack.{GW_ID}`
 
 ### `system.symbols_request`
 

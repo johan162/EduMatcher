@@ -198,8 +198,18 @@ def make_amended_msg(
     priority_reset: bool,
     client_tag: str | None = None,
     request_tag: str | None = None,
+    *,
+    old_price: float | None = None,
+    old_qty: int | None = None,
 ) -> list[bytes]:
-    """Generated from ``spec/messages/order.yaml``. Byte-identical to before."""
+    """Generated from ``spec/messages/order.yaml``.
+
+    ``old_price``/``old_qty`` are the order's price/qty immediately before
+    this amendment, so a post-mortem can replay the change without
+    re-deriving the prior state from an earlier message. Keyword-only, added
+    after the original positional signature, so every existing caller keeps
+    working unchanged and simply gets ``None`` ("not supplied") for both.
+    """
     return _gen_order.make_order_amended_unchecked(
         gateway_id=gateway_id,
         order_id=order_id,
@@ -209,6 +219,8 @@ def make_amended_msg(
         priority_reset=priority_reset,
         client_tag=client_tag,
         request_tag=request_tag,
+        old_price=old_price,
+        old_qty=old_qty,
     )
 
 
@@ -292,6 +304,7 @@ def make_ack_msg(
         price=detail.get("price"),
         client_tag=order_client_tag(client_tag, order),
         request_tag=request_tag,
+        is_seed=bool(detail.get("is_seed", False)),
         **group_ids(order),
     )
 
@@ -335,6 +348,7 @@ def make_fill_msg(
         client_tag=detail.get("client_tag"),
         trade_ids=list(trade_ids) if trade_ids else [],
         liquidity_flag=liquidity_flag,
+        is_seed=bool(detail.get("is_seed", False)),
         **group_ids(order),
     )
 
@@ -347,12 +361,15 @@ def make_cancelled_msg(
     order: dict[str, Any] | None = None,
     *,
     cancel_reason: _gen_order.OrderCancelledCancelReason | None = None,
+    command_id: str | None = None,
 ) -> list[bytes]:
     """Generated from ``spec/messages/order.yaml``.
 
     ``cancel_reason`` says why the *exchange* cancelled the order and is None
     for a client-requested cancel; it is keyword-only so it cannot be confused
-    with the two tag positionals above it.
+    with the two tag positionals above it. ``command_id`` is the admin/
+    kill-switch command that caused this cancel, when one exists — lets a
+    post-mortem join this event back to that command via system.admin_action.
     """
     return _gen_order.make_order_cancelled_unchecked(
         gateway_id=gateway_id,
@@ -360,6 +377,7 @@ def make_cancelled_msg(
         client_tag=order_client_tag(client_tag, order),
         request_tag=request_tag,
         cancel_reason=cancel_reason,
+        command_id=command_id or None,
         **group_ids(order),
     )
 
@@ -1025,13 +1043,21 @@ def make_quote_status_msg(
     quote_id: str,
     status: str,
     reason: str = "",
+    *,
+    command_id: str | None = None,
 ) -> list[bytes]:
-    """Engine → gateway: quote lifecycle transition."""
+    """Engine → gateway: quote lifecycle transition.
+
+    ``command_id`` is the admin/kill-switch command that caused this quote
+    to leave the book, when one exists — same correlation purpose as
+    ``make_cancelled_msg``'s ``command_id``.
+    """
     return _gen_quote.make_quote_status(
         gateway_id=gateway_id,
         quote_id=quote_id,
         status=status,
         reason=reason,
+        command_id=command_id or None,
     )
 
 
@@ -1439,6 +1465,52 @@ def make_admin_action_msg(
     )
 
 
+def make_startup_recovery_msg(
+    restored_orders: int = 0,
+    discarded_stale_day_orders: int = 0,
+    failed_orders: int = 0,
+    quote_remnants_restored: int = 0,
+    rebuilt_quotes: int = 0,
+    restored_combos: int = 0,
+) -> list[bytes]:
+    """Engine → all subscribers, once at startup: `_restore_gtc()`'s summary.
+
+    Every count here previously reached only `log.info`/`log.error` — see
+    spec/messages/system.yaml::startup_recovery for why that left pm-audit
+    blind to it.
+    """
+    return _gen_system.make_startup_recovery(
+        restored_orders=restored_orders,
+        discarded_stale_day_orders=discarded_stale_day_orders,
+        failed_orders=failed_orders,
+        quote_remnants_restored=quote_remnants_restored,
+        rebuilt_quotes=rebuilt_quotes,
+        restored_combos=restored_combos,
+    )
+
+
+def make_diagnostic_msg(
+    component: _gen_system.DiagnosticComponent,
+    count: int,
+    detail: str = "",
+    error: str = "",
+) -> list[bytes]:
+    """Engine → all subscribers: an absorbed internal failure or anomaly.
+
+    See spec/messages/system.yaml::diagnostic for the full rationale — this
+    is the wire-visible marker for a maintenance-flush exception, a
+    dispatch-handler crash, an undecodable inbound message, or a message on
+    an unrouted topic, none of which used to reach anything but the process
+    log.
+    """
+    return _gen_system.make_diagnostic(
+        component=component,
+        detail=detail,
+        error=error,
+        count=count,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Halt-status snapshot (request / reply)
 # ---------------------------------------------------------------------------
@@ -1621,6 +1693,7 @@ def make_index_corp_action_ack_msg(
     index_id: str = "",
     level: float | None = None,
     divisor: float | None = None,
+    old_divisor: float | None = None,
 ) -> list[bytes]:
     """pm-index → requestor: corporate action ack."""
     return _gen_index.make_index_corp_action_ack(
@@ -1631,6 +1704,7 @@ def make_index_corp_action_ack_msg(
         index_id=index_id,
         level=level,
         divisor=divisor,
+        old_divisor=old_divisor,
     )
 
 
@@ -1641,6 +1715,7 @@ def make_index_constituent_change_ack_msg(
     index_id: str = "",
     level: float | None = None,
     divisor: float | None = None,
+    old_divisor: float | None = None,
 ) -> list[bytes]:
     """pm-index → requestor: constituent change ack."""
     return _gen_index.make_index_constituent_change_ack(
@@ -1651,6 +1726,7 @@ def make_index_constituent_change_ack_msg(
         index_id=index_id,
         level=level,
         divisor=divisor,
+        old_divisor=old_divisor,
     )
 
 
@@ -1689,6 +1765,7 @@ def make_index_rebalance_ack_msg(
     divisor: float | None = None,
     updated_symbols: int = 0,
     command_id: str = "",
+    old_divisor: float | None = None,
 ) -> list[bytes]:
     """pm-index → ADMIN: rebalance result."""
     return _gen_index.make_index_rebalance_ack(
@@ -1701,6 +1778,7 @@ def make_index_rebalance_ack_msg(
         level=level,
         divisor=divisor,
         command_id=command_id,
+        old_divisor=old_divisor,
     )
 
 

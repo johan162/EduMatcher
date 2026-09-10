@@ -126,10 +126,14 @@ def test_an_ordinary_order_gains_no_empty_fields() -> None:
 def test_events_without_an_order_are_unchanged() -> None:
     """The order argument stays optional, so existing callers still work."""
     assert _payload(make_cancelled_msg("GW01", "ORD-1")) == {"order_id": "ORD-1"}
+    # is_seed is always present (default false, not omit_when_none) -- see
+    # docs/user-guide/190-audit.md's audit-completeness section -- so it
+    # rides along even when no order detail was supplied.
     assert _payload(make_ack_msg("GW01", "ORD-1", True)) == {
         "order_id": "ORD-1",
         "accepted": True,
         "reason": "",
+        "is_seed": False,
     }
 
 
