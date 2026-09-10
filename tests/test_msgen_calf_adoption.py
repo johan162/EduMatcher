@@ -34,7 +34,7 @@ _SAMPLE: dict[str, Any] = {
     "price": 101.5,
     "quantity": 300,
     "aggressor_side": "BUY",
-    "timestamp": 1_700_000_000.0,
+    "ts_ns": 1_700_000_000_000_000_000,
     "tick_decimals": 2,
 }
 
@@ -134,7 +134,7 @@ class TestTheProjectionNeedsOnlyWhatItProjects:
 
     @pytest.mark.parametrize(
         "absent",
-        ["buy_order_id", "sell_order_id", "buy_gateway_id", "timestamp"],
+        ["buy_order_id", "sell_order_id", "buy_gateway_id", "ts_ns"],
     )
     def test_fields_calf_drops_are_never_read(self, absent: str) -> None:
         payload = {k: v for k, v in _SAMPLE.items() if k != absent}

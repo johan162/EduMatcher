@@ -118,7 +118,7 @@ class TestRealSpec:
             price=1.0,
             quantity=1,
             aggressor_side="BUY",
-            timestamp=0.0,
+            ts_ns=0,
         ).to_dict()
         assert [f.name for f in msg.fields] == list(hand)
 

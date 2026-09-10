@@ -81,7 +81,7 @@ class RecentTrade:
     sell_gateway_id: str
     price: float  # unit: display_price
     quantity: int  # unit: shares
-    timestamp: float  # unit: epoch_seconds
+    ts_ns: int  # unit: epoch_nanos
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -114,6 +114,8 @@ class RecentTrade:
             raise MessageValidationError(
                 f"sell_gateway_id: length {len(self.sell_gateway_id)} exceeds max_len 32"
             )
+        if self.ts_ns < 0:
+            raise MessageValidationError(f"ts_ns: {self.ts_ns!r} must be >= 0")
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "RecentTrade":
@@ -132,7 +134,7 @@ class RecentTrade:
             sell_gateway_id=str(p["sell_gateway_id"]),
             price=float(p["price"]),
             quantity=int(p["quantity"]),
-            timestamp=float(p["timestamp"]),
+            ts_ns=int(p["ts_ns"]),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -146,7 +148,7 @@ class RecentTrade:
             "sell_gateway_id": self.sell_gateway_id,
             "price": self.price,
             "quantity": self.quantity,
-            "timestamp": self.timestamp,
+            "ts_ns": self.ts_ns,
         }
 
 

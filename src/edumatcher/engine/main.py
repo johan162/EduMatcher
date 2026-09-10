@@ -2828,20 +2828,11 @@ class Engine:
         # engine is the authority on its own trades. Every other producer uses
         # the validating make_trade_executed.
         self.pub_sock.send_multipart(
-            make_trade_executed_unchecked(
-                id=trade.id,
-                run_seq=trade.run_seq,
-                symbol=trade.symbol,
-                buy_order_id=trade.buy_order_id,
-                sell_order_id=trade.sell_order_id,
-                buy_gateway_id=trade.buy_gateway_id,
-                sell_gateway_id=trade.sell_gateway_id,
-                price=from_ticks(trade.price, trade.symbol),
-                quantity=trade.quantity,
-                aggressor_side=trade.aggressor_side,
-                timestamp=trade.timestamp / 1_000_000_000,
-                tick_decimals=get_tick_decimals(trade.symbol),
-            )
+            # Trade.to_wire() owns the two model->wire conversions (ticks to
+            # display money, timestamp to ts_ns) so no caller has to remember
+            # them. Same fields, same values, same bytes as the hand-written
+            # kwargs it replaces.
+            make_trade_executed_unchecked(**trade.to_wire())
         )
         # #10: update BOTH counterparties' position ledgers for every trade,
         # right here in the single trade-publication path — so fills produced

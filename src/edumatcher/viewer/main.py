@@ -524,10 +524,12 @@ def _trades_table(
             price if isinstance(price, (int, float)) else None,
             older if isinstance(older, (int, float)) else None,
         )
-        ts_raw = tr.get("timestamp")
-        if isinstance(ts_raw, (int, float)):
+        ts_raw = tr.get("ts_ns")
+        if isinstance(ts_raw, int):
             try:
-                ts = datetime.fromtimestamp(ts_raw).strftime("%H:%M:%S.%f")[:-3]
+                ts = datetime.fromtimestamp(ts_raw / 1_000_000_000).strftime(
+                    "%H:%M:%S.%f"
+                )[:-3]
             except (ValueError, OSError):
                 ts = "—"
         else:

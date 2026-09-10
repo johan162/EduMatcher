@@ -80,7 +80,13 @@ describe("AmendDialog (§13.2)", () => {
     expect(path).toBe("/api/v1/orders/o1");
     expect(init.method).toBe("PATCH");
     const body = JSON.parse(init.body!);
-    expect(body).toEqual({ quantity: 50 });
+    // useAmendOrderMutation stamps a generated `request_tag` on every amend --
+    // it is the key the engine echoes on `order.amended`, so the reply can be
+    // tied back to this request. It is not a field the dialog "changed", so
+    // lift it out before asserting on what the dialog actually sent.
+    const { request_tag, ...changed } = body;
+    expect(changed).toEqual({ quantity: 50 });
+    expect(request_tag).toMatch(/^amend-/);
   });
 
   it("rejects a quantity below the already-filled amount", () => {

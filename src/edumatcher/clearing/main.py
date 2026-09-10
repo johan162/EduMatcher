@@ -86,14 +86,11 @@ FLUSH_INTERVAL_SEC: float = 5.0
 _TIMER_POLL_SEC: float = 0.5
 _RETENTION_DAYS: int = 90
 _DEBUG_SUMMARY_INTERVAL_SEC: float = 5.0
-# The documented trade.executed contract (docs/user-guide/09-messages.md) is:
-#   timestamp = Unix epoch SECONDS (float);  price = display float.
-# Clearing parses to the declared units rather than guessing (finding CL-M6).
-# These magnitude bounds are only a defensive guard: an out-of-contract producer
-# sending milliseconds or nanoseconds is detected, warned about, and converted
-# best-effort — instead of silently projecting a ms value to the year ~55,000.
-_SECONDS_MAX: int = 100_000_000_000  # ~ year 5138 in epoch seconds
-_MILLIS_MAX: int = _SECONDS_MAX * 1000
+# trade.executed carries `ts_ns`: integer Unix epoch NANOSECONDS, the engine's
+# own clock reading, unscaled. The magnitude guard that used to live here
+# (finding CL-M6) is gone with the float `timestamp` it was guarding: an
+# integer field whose name states its unit cannot be mistaken for seconds or
+# millis, so there is nothing left to guess at.
 
 _CLIENT_NAME = "pm-clearing"
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
@@ -137,34 +134,6 @@ def _parse_tick_decimals(payload: dict[str, Any]) -> int:
     return parsed if 0 <= parsed <= 8 else 2
 
 
-def _to_timestamp_ns(raw: Any) -> int:
-    """
-    Convert a ``trade.executed`` timestamp to integer nanoseconds.
-
-    The declared contract is Unix epoch **seconds** (float), so that is the
-    primary interpretation.  A value whose magnitude is implausible for seconds
-    (already milliseconds or nanoseconds) is converted best-effort with a loud
-    warning rather than silently mis-scaled (finding CL-M6).
-    """
-    try:
-        val = float(raw)
-    except (TypeError, ValueError):
-        return 0
-    if val < _SECONDS_MAX:
-        return int(round(val * 1_000_000_000))
-    if val < _MILLIS_MAX:
-        log.warning(
-            "trade timestamp looks like milliseconds, not the documented"
-            " seconds — converting best-effort"
-        )
-        return int(round(val * 1_000_000))
-    log.warning(
-        "trade timestamp looks like nanoseconds, not the documented"
-        " seconds — converting best-effort"
-    )
-    return int(val)
-
-
 def _trade_from_payload(payload: dict[str, Any]) -> Trade:
     typed = TradeExecutedPayload.from_dict(payload)
 
@@ -178,7 +147,9 @@ def _trade_from_payload(payload: dict[str, Any]) -> Trade:
     price_raw = typed.price
     normalized["price"] = int(round(float(price_raw) * scale))
 
-    normalized["timestamp"] = _to_timestamp_ns(typed.timestamp)
+    # The wire field is `ts_ns`; the internal Trade model calls the same
+    # nanosecond instant `timestamp`. No scaling, just the rename.
+    normalized["timestamp"] = normalized.pop("ts_ns")
     normalized["tick_decimals"] = tick_decimals
     return Trade.from_dict(normalized)
 

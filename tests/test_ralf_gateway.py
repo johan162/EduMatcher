@@ -117,7 +117,7 @@ def _prime_subscriber(
             "price": 0.0,
             "quantity": 0,
             "aggressor_side": "BUY",
-            "timestamp": time.time(),
+            "ts_ns": time.time_ns(),
         }
     )
     initial_next_seq = gw._next_seq
@@ -225,7 +225,7 @@ def test_trade_event_emits_exec(
                         "price": 150.25,
                         "quantity": 100,
                         "aggressor_side": "BUY",
-                        "timestamp": time.time(),
+                        "ts_ns": time.time_ns(),
                     }
                 ),
             ]
@@ -271,7 +271,7 @@ def test_replay_from_lastseq(
                         "price": 150.25,
                         "quantity": 100,
                         "aggressor_side": "BUY",
-                        "timestamp": time.time(),
+                        "ts_ns": time.time_ns(),
                     }
                 ),
             ]
@@ -295,7 +295,7 @@ def test_replay_from_lastseq(
                     "price": 150.50,
                     "quantity": 50,
                     "aggressor_side": "SELL",
-                    "timestamp": time.time(),
+                    "ts_ns": time.time_ns(),
                 }
             ),
         ]

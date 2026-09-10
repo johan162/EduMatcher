@@ -576,7 +576,7 @@ message:
 | `price` | `price` | `PX` | `PX` |
 | `quantity` | `quantity` | `QTY` | `QTY` |
 | `aggressor_side` | `aggressor_side` | `SIDE` | `SIDE` |
-| `timestamp` | `timestamp` | `TS` (gateway) | `TS` (gateway) |
+| `ts_ns` | `ts_ns` | `TS` (gateway) | `TS` (gateway) |
 | `tick_decimals` | `tick_decimals` | — | — |
 
 A transport is declared with three keys:
@@ -820,7 +820,7 @@ frames = make_trade_executed(
     price=101.5,
     quantity=300,
     aggressor_side="BUY",
-    timestamp=1_700_000_000.0,
+    ts_ns=1_700_000_000_000_000_000,
     tick_decimals=2,
 )
 # [b'trade.executed',
@@ -927,7 +927,7 @@ for field in describe_trade_executed():
 # price           float   [display_price]
 # quantity        int     [shares]
 # aggressor_side  enum
-# timestamp       float   [epoch_seconds]
+# ts_ns           int     [epoch_nanos]
 # tick_decimals   int     [dimensionless]
 ```
 
@@ -952,7 +952,7 @@ self.pub_sock.send_multipart(
         price=from_ticks(trade.price, trade.symbol),
         quantity=trade.quantity,
         aggressor_side=trade.aggressor_side,
-        timestamp=trade.timestamp / 1_000_000_000,
+        ts_ns=trade.timestamp,
         tick_decimals=get_tick_decimals(trade.symbol),
     )
 )

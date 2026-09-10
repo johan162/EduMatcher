@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from edumatcher.models.clock import now_ns
+from edumatcher.models.price import from_ticks, get_tick_decimals
 
 # The engine sets this once at startup from a durable, fail-loud counter. The
 # per-run counter stays the hot-path id source; the prefix makes ids globally
@@ -99,7 +100,47 @@ class Trade:
             run_seq=_run_seq,
         )
 
+    def to_wire(self) -> dict[str, Any]:
+        """This trade as a ``trade.executed`` payload.
+
+        Use this for anything that goes on the bus. It is the *only* correct
+        way to publish a Trade, because the model and the message disagree on
+        two fields and always have:
+
+        * ``price`` is **ticks** here and **display money** on the wire.
+        * the match instant is ``timestamp`` here and ``ts_ns`` there.
+
+        Both scales come from the tick registry, keyed on the symbol -- not
+        from ``self.tick_decimals``, which the engine never sets (``create``
+        defaults it to 2) and which is therefore wrong for any instrument that
+        does not trade in hundredths. ``price.has_tick_decimals`` documents why
+        that distinction is not cosmetic: a 4-decimal price scaled by 100 is a
+        different price, not a rounded one.
+
+        ``to_dict`` is the *internal* shape -- persistence and round-trips --
+        and publishing it directly is the bug this method exists to prevent.
+        """
+        return {
+            "id": self.id,
+            "run_seq": self.run_seq,
+            "symbol": self.symbol,
+            "buy_order_id": self.buy_order_id,
+            "sell_order_id": self.sell_order_id,
+            "buy_gateway_id": self.buy_gateway_id,
+            "sell_gateway_id": self.sell_gateway_id,
+            "price": from_ticks(self.price, self.symbol),
+            "quantity": self.quantity,
+            "aggressor_side": self.aggressor_side,
+            "ts_ns": self.timestamp,
+            "tick_decimals": get_tick_decimals(self.symbol),
+        }
+
     def to_dict(self) -> dict[str, Any]:
+        """This trade in its **internal** shape: ticks, and ``timestamp``.
+
+        For persistence and in-process round-trips (``from_dict`` is its
+        inverse). Not a wire payload -- see ``to_wire``.
+        """
         return {
             "id": self.id,
             "symbol": self.symbol,

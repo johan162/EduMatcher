@@ -23,6 +23,7 @@ import {
   type Timeframe,
 } from "@/lib/candles.js";
 import type { HistoryTrade } from "@/types/index.js";
+import { nsToEpochSec } from "@/lib/time.js";
 
 /** How many prints to pull for the intraday timeframes (§16.2.1). */
 const CHART_TRADE_LIMIT = 1000;
@@ -182,7 +183,7 @@ export function SymbolChart({ symbol }: SymbolChartProps) {
     if (!series) return;
     const { bar } = foldTick(
       lastBarRef.current,
-      { timestamp: d.timestamp, price: d.price, quantity: d.quantity },
+      { timestamp: nsToEpochSec(d.ts_ns), price: d.price, quantity: d.quantity },
       timeframeRef.current as IntradayTimeframe,
     );
     lastBarRef.current = bar;

@@ -112,11 +112,12 @@ _TRADE_EXECUTED_FIELDS: tuple[dict[str, Any], ...] = (
         "values": _TRADE_EXECUTED_AGGRESSOR_SIDE_VALUES,
     },
     {
-        "name": "timestamp",
-        "type": "float",
-        "unit": "epoch_seconds",
+        "name": "ts_ns",
+        "type": "int",
+        "unit": "epoch_nanos",
         "required": True,
-        "doc": "Match time in Unix epoch seconds. The engine divides its nanosecond clock by 1e9 at publish time.",
+        "doc": "Match time in Unix epoch nanoseconds, exactly as the engine's clock read it -- no scaling at publish time. The whole match batch shares one clock read, so trades printed in the same batch carry an identical value; `id` (run_seq + dense counter) is what orders them. Named `ts_ns` rather than `timestamp` so the unit travels with the field, as it does for `resume_at_ns` and `halt_duration_ns`: a bare float `timestamp` was indistinguishable by type from millis or nanos, which is what forced clearing's magnitude-guessing guard (finding CL-M6) and cost ~238ns of the engine's own precision.",
+        "constraints": {"ge": 0},
     },
     {
         "name": "tick_decimals",
@@ -148,7 +149,7 @@ class TradeExecuted:
     price: float  # unit: display_price
     quantity: int  # unit: shares
     aggressor_side: str
-    timestamp: float  # unit: epoch_seconds
+    ts_ns: int  # unit: epoch_nanos
     tick_decimals: int = 2  # unit: dimensionless
 
     def validate(self) -> None:
@@ -200,6 +201,8 @@ class TradeExecuted:
             raise MessageValidationError(
                 f"aggressor_side: {self.aggressor_side!r} is not one of {_TRADE_EXECUTED_AGGRESSOR_SIDE_VALUES!r}"
             )
+        if self.ts_ns < 0:
+            raise MessageValidationError(f"ts_ns: {self.ts_ns!r} must be >= 0")
         if self.tick_decimals < 0:
             raise MessageValidationError(
                 f"tick_decimals: {self.tick_decimals!r} must be >= 0"
@@ -228,7 +231,7 @@ class TradeExecuted:
             price=float(p["price"]),
             quantity=int(p["quantity"]),
             aggressor_side=str(p.get("aggressor_side", "")),
-            timestamp=float(p["timestamp"]),
+            ts_ns=int(p["ts_ns"]),
             tick_decimals=int(p.get("tick_decimals", 2)),
         )
 
@@ -245,7 +248,7 @@ class TradeExecuted:
             "price": self.price,
             "quantity": self.quantity,
             "aggressor_side": self.aggressor_side,
-            "timestamp": self.timestamp,
+            "ts_ns": self.ts_ns,
             "tick_decimals": self.tick_decimals,
         }
 
@@ -282,7 +285,7 @@ def make_trade_executed_unchecked(
     price: float,
     quantity: int,
     aggressor_side: str,
-    timestamp: float,
+    ts_ns: int,
     tick_decimals: int = 2,
 ) -> list[bytes]:
     """Identical frames to ``make_trade_executed``, without ``validate()``.
@@ -309,7 +312,7 @@ def make_trade_executed_unchecked(
                 "price": float(price),
                 "quantity": int(quantity),
                 "aggressor_side": str(aggressor_side),
-                "timestamp": float(timestamp),
+                "ts_ns": int(ts_ns),
                 "tick_decimals": int(tick_decimals),
             }
         ),
@@ -379,7 +382,7 @@ def parse_trade_executed_calf(
         price=float(fields["PX"]),
         quantity=int(fields["QTY"]),
         aggressor_side=str(fields["SIDE"]),
-        timestamp=0.0,
+        ts_ns=0,
         tick_decimals=2,
     )
 

@@ -678,7 +678,7 @@ class OrderBook:
                     "sell_gateway_id": t.sell_gateway_id,
                     "price": from_ticks(t.price, self.symbol),
                     "quantity": t.quantity,
-                    "timestamp": t.timestamp / 1_000_000_000,
+                    "ts_ns": t.timestamp,
                 }
             )
 

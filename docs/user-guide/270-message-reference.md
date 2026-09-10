@@ -727,7 +727,7 @@ One entry of the book's trade tape. A trimmed view of the public trade.executed 
 | `sell_gateway_id` | `string` | required | max_len 32 |  |
 | `price` | `float` | required | unit `display_price` |  |
 | `quantity` | `int` | required | unit `shares` |  |
-| `timestamp` | `float` | required | unit `epoch_seconds` | Seconds, not nanoseconds: the snapshot divides by 1e9. |
+| `ts_ns` | `int` | required | ge 0, unit `epoch_nanos` | Epoch nanoseconds, carried through unscaled -- identical to the trade.executed print this row mirrors. |
 
 ### `book.{symbol}`
 
@@ -3932,7 +3932,7 @@ Public print of a completed match. The authoritative record of what traded, cons
 | `price` | `float` | required | gt 0, unit `display_price` | Execution price in display money, already converted from ticks by the publisher. Contrast trade_log.price, which is ticks - the mismatch this `unit` declaration exists to make reviewable. |
 | `quantity` | `int` | required | gt 0, unit `shares` | Matched quantity. |
 | `aggressor_side` | enum: `BUY`, `SELL`, `AUCTION` | required | — | Side that removed liquidity. AUCTION when both sides rested, which happens on an uncross print where there is no true aggressor. |
-| `timestamp` | `float` | required | unit `epoch_seconds` | Match time in Unix epoch seconds. The engine divides its nanosecond clock by 1e9 at publish time. |
+| `ts_ns` | `int` | required | ge 0, unit `epoch_nanos` | Match time in Unix epoch nanoseconds, exactly as the engine's clock read it -- no scaling at publish time. The whole match batch shares one clock read, so trades printed in the same batch carry an identical value; `id` (run_seq + dense counter) is what orders them. Named `ts_ns` rather than `timestamp` so the unit travels with the field, as it does for `resume_at_ns` and `halt_duration_ns`: a bare float `timestamp` was indistinguishable by type from millis or nanos, which is what forced clearing's magnitude-guessing guard (finding CL-M6) and cost ~238ns of the engine's own precision. |
 | `tick_decimals` | `int` | defaults to `2` | ge 0, le 8, unit `dimensionless` | Decimal scale for `price`; 1 tick = 10^-tick_decimals. |
 
 !!! note

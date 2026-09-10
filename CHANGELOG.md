@@ -1,3 +1,32 @@
+## [Unreleased]
+
+Release Type: major
+
+### 📋 Summary
+`trade.executed` now carries the engine's match time as integer nanoseconds in
+a field named `ts_ns`, replacing the float `timestamp` in epoch seconds. This
+is a breaking wire change with no compatibility shim.
+
+### 💥 Breaking Changes
+- `trade.executed.timestamp` (float, epoch seconds) is replaced by
+  `trade.executed.ts_ns` (int, epoch nanoseconds). The engine publishes its
+  clock reading unscaled instead of dividing by 1e9.
+- The book snapshot's `recent_trades[].timestamp` is replaced by `ts_ns` the
+  same way, since those rows mirror the same print.
+
+### 🐛 Bug Fixes
+- Removed clearing's `_to_timestamp_ns` magnitude guard (finding CL-M6). It
+  existed only because a float named `timestamp` could not be distinguished
+  from millis or nanos by type; an integer field whose name states its unit
+  cannot be misread, so there is nothing left to guess.
+- Publishing no longer discards precision: float64 epoch seconds resolves to
+  ~238 ns at current magnitudes (~477 ns after 2038), so the engine's
+  nanosecond clock was being rounded on every print.
+
+### 📚 Documentation
+- Regenerated the message reference from the spec.
+
+
 ## [v0.34.0] - 2026-09-09
 
 Release Type: minor

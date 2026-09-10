@@ -43,6 +43,11 @@ from edumatcher.stats.trading_day import (
 STOCKHOLM = ZoneInfo("Europe/Stockholm")
 
 
+def _ns(epoch_sec: float) -> int:
+    """Epoch seconds -> the integer nanoseconds trade.executed now carries."""
+    return int(epoch_sec * 1_000_000_000)
+
+
 @pytest.fixture
 def sp(tmp_path: Path):
     """StatsProcess with fake ZMQ sockets; fully closed after each test."""
@@ -223,7 +228,13 @@ def test_trade_is_booked_to_the_session_trading_date(sp: StatsProcess) -> None:
     """A 23:30 UTC trade is 01:30 the next day in Stockholm."""
     late = datetime(2026, 6, 14, 23, 30, tzinfo=timezone.utc).timestamp()
     sp._on_trade(
-        {"symbol": "AAPL", "price": 100.0, "quantity": 5, "id": "T1", "timestamp": late}
+        {
+            "symbol": "AAPL",
+            "price": 100.0,
+            "quantity": 5,
+            "id": "T1",
+            "ts_ns": _ns(late),
+        }
     )
     rows = sp._conn.execute("SELECT date FROM daily_stats").fetchall()
     assert rows == [("2026-06-15",)]
@@ -243,7 +254,7 @@ def test_late_processed_trade_keeps_its_own_trading_date(sp: StatsProcess) -> No
             "price": 100.0,
             "quantity": 5,
             "id": "T1",
-            "timestamp": before,
+            "ts_ns": _ns(before),
         }
     )
     sp._on_trade(
@@ -252,7 +263,7 @@ def test_late_processed_trade_keeps_its_own_trading_date(sp: StatsProcess) -> No
             "price": 200.0,
             "quantity": 7,
             "id": "T2",
-            "timestamp": after,
+            "ts_ns": _ns(after),
         }
     )
     rows = dict(
@@ -290,7 +301,7 @@ def test_restart_preserves_the_days_ohlcv(tmp_path: Path) -> None:
                 "price": price,
                 "quantity": qty,
                 "id": f"T{i}",
-                "timestamp": base + i,
+                "ts_ns": _ns(base + i),
             }
         )
     first.close()
@@ -304,7 +315,7 @@ def test_restart_preserves_the_days_ohlcv(tmp_path: Path) -> None:
             "price": 110.0,
             "quantity": 40,
             "id": "T3",
-            "timestamp": base + 10,
+            "ts_ns": _ns(base + 10),
         }
     )
     row = second._conn.execute(
@@ -468,7 +479,7 @@ def _trade(tid: str, epoch: float, qty: int = 1) -> dict:
         "price": 100.0,
         "quantity": qty,
         "id": tid,
-        "timestamp": epoch,
+        "ts_ns": _ns(epoch),
     }
 
 
@@ -932,7 +943,7 @@ def test_a_daily_row_is_self_consistent_in_both_unit_systems(
                 "price": price,
                 "quantity": qty,
                 "id": str(i + 1),
-                "timestamp": base + i,
+                "ts_ns": _ns(base + i),
                 "tick_decimals": 2,
             }
         )
@@ -1027,7 +1038,7 @@ def test_a_symbol_absent_from_config_is_recorded_from_observation(
             "price": 12.5,
             "quantity": 10,
             "id": "1",
-            "timestamp": base,
+            "ts_ns": _ns(base),
             "tick_decimals": 3,
         }
     )
@@ -1050,7 +1061,7 @@ def test_observation_never_overwrites_configured_tick_scale(
             "price": 1.2345,
             "quantity": 1,
             "id": "1",
-            "timestamp": base,
+            "ts_ns": _ns(base),
             "tick_decimals": 2,
         }
     )
@@ -1297,7 +1308,7 @@ def test_aggressor_side_is_persisted(sp: StatsProcess) -> None:
                 "price": 100.0,
                 "quantity": 5,
                 "id": f"T{i}",
-                "timestamp": base + i,
+                "ts_ns": _ns(base + i),
                 "aggressor_side": side,
             }
         )
@@ -1316,7 +1327,7 @@ def test_turnover_is_persisted_and_reproduces_vwap(sp: StatsProcess) -> None:
                 "price": price,
                 "quantity": qty,
                 "id": f"T{i}",
-                "timestamp": base + i,
+                "ts_ns": _ns(base + i),
             }
         )
     turnover, volume, vwap = sp._conn.execute(

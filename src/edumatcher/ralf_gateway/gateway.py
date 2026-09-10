@@ -457,7 +457,10 @@ class RalfGateway:
         symbol = str(payload.get("symbol", "")).upper()
         qty = str(payload.get("quantity", 0))
         px = str(payload.get("price", 0.0))
-        ts_value = float(payload.get("timestamp", time.time()))
+        raw_ts_ns = payload.get("ts_ns")
+        ts_value = (
+            int(raw_ts_ns) / 1_000_000_000 if raw_ts_ns is not None else time.time()
+        )
         self._trade_counts[symbol] = self._trade_counts.get(symbol, 0) + 1
 
         for channel in ("CLEARING", "DROP_COPY", "AUDIT"):

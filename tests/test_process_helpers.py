@@ -206,7 +206,7 @@ class TestBuildDisplay:
             "last_buy_price": 149.9,
             "last_sell_price": 150.1,
             "recent_trades": [
-                {"price": 150.0, "quantity": 50, "timestamp": 1746518400.0}
+                {"price": 150.0, "quantity": 50, "ts_ns": 1746518400_000_000_000}
             ],
         }
 

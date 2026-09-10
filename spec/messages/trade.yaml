@@ -112,13 +112,21 @@ messages:
           Side that removed liquidity. AUCTION when both sides rested, which
           happens on an uncross print where there is no true aggressor.
 
-      - name: timestamp
-        type: float
+      - name: ts_ns
+        type: int
         required: true
-        unit: epoch_seconds
+        unit: epoch_nanos
+        validate: { ge: 0 }
         doc: >
-          Match time in Unix epoch seconds. The engine divides its nanosecond
-          clock by 1e9 at publish time.
+          Match time in Unix epoch nanoseconds, exactly as the engine's clock
+          read it -- no scaling at publish time. The whole match batch shares
+          one clock read, so trades printed in the same batch carry an
+          identical value; `id` (run_seq + dense counter) is what orders them.
+          Named `ts_ns` rather than `timestamp` so the unit travels with the
+          field, as it does for `resume_at_ns` and `halt_duration_ns`: a bare
+          float `timestamp` was indistinguishable by type from millis or
+          nanos, which is what forced clearing's magnitude-guessing guard
+          (finding CL-M6) and cost ~238ns of the engine's own precision.
 
       - name: tick_decimals
         type: int

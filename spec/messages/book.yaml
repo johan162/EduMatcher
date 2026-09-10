@@ -49,8 +49,9 @@ types:
       - { name: sell_gateway_id, type: string, validate: { max_len: 32 } }
       - { name: price, type: float, unit: display_price }
       - { name: quantity, type: int, unit: shares }
-      - { name: timestamp, type: float, unit: epoch_seconds,
-          doc: "Seconds, not nanoseconds: the snapshot divides by 1e9." }
+      - { name: ts_ns, type: int, unit: epoch_nanos, validate: { ge: 0 },
+          doc: "Epoch nanoseconds, carried through unscaled -- identical to
+                the trade.executed print this row mirrors." }
 
 messages:
   - name: book_snapshot
