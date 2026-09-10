@@ -265,8 +265,10 @@ check-latex-engine:
 		exit 1; \
 	fi
 
+all: cover cover-parts pdf-docs pdf-parts-a4 bundle-quiz epub-docs
+
 pdfs: ## Build all PDF documentation variants in parallel
-	@$(MAKE) cover pdf-docs cover-parts pdf-parts-a4 bundle-quiz
+	@$(MAKE) cover pdf-docs cover-parts pdf-parts-a4 bundle-quiz 
 
 pdf-docs: check-latex-engine ## Build all PDF documentation variants in parallel
 	@rm -rf $(EXCHANGE_INTRO_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
