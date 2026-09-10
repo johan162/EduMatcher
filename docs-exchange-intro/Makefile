@@ -35,9 +35,9 @@ endif
 # and then this line will be silently ignored unless you have upgraded make via brew or similar.	
 .EXTRA_PREREQS := $(firstword $(MAKEFILE_LIST))
 
-# Make default behavior to build all PDFs when no target is specified
-.DEFAULT_GOAL := pdfs
-# .SILENT: # Comment out to show command lines during execution for debugging
+# Make default behavior to build everything when no target is specified
+.DEFAULT_GOAL := all
+.SILENT: # Comment out to show command lines during execution for debugging
 
 # Get full path to bash
 SHELL := $(shell which bash)
