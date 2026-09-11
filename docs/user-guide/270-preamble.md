@@ -317,8 +317,8 @@ At least one of `price` or `qty` must be present.
 
 **Priority rules:**
 
-- Quantity decrease only → priority **preserved** (timestamp unchanged)
-- Price change or quantity increase → priority **lost** (new timestamp assigned)
+- Quantity decrease only → priority **preserved** (`arrival_seq` unchanged)
+- Price change or quantity increase → priority **lost** (new `arrival_seq` assigned)
 
 Priority is keyed on `arrival_seq`, the engine-assigned monotonic counter —
 **not** on the order's client-supplied `timestamp` field (see the `timestamp`
