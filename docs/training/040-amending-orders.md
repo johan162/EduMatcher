@@ -77,6 +77,17 @@ Expected: amendment accepted; new price=419.70.
     Why: a new price is treated as a new offer, so queue fairness requires
     re-entering at the back.
 
+!!! info "What 'time priority' actually means: `arrival_seq`, not `timestamp`"
+    Queue order is decided by **`arrival_seq`**, a counter the *engine*
+    assigns the moment it admits an order or a re-priced/re-queued amendment.
+    It is **not** the `timestamp` field the client sends with the order —
+    that field just records when the client says it built the order, and the
+    book never uses it to decide who goes first. "Losing priority" on this
+    page always means "the engine assigned a new `arrival_seq`," never "the
+    timestamp changed." See
+    [Order Types — Priority Rules](../user-guide/060-order-types.md#priority-rules)
+    for the full explanation.
+
 :material-checkbox-blank-outline: **Checkpoint:** `ORDERS` shows price=419.70.
 
  
@@ -200,10 +211,14 @@ below rather than taking it on trust.
 
 | Change | Priority Impact | Why |
 |--------|----------------|-----|
-| Quantity down | Priority preserved | You are asking for less; nobody behind you is disadvantaged |
-| Quantity up | Priority lost | The extra quantity never queued — keeping your slot would jump it ahead of orders that arrived earlier |
-| Price change (any direction) | Priority lost | A different price is a different queue |
-| Both price and qty | Priority lost | As above |
+| Quantity down | Priority preserved (`arrival_seq` unchanged) | You are asking for less; nobody behind you is disadvantaged |
+| Quantity up | Priority lost (new `arrival_seq`) | The extra quantity never queued — keeping your slot would jump it ahead of orders that arrived earlier |
+| Price change (any direction) | Priority lost (new `arrival_seq`) | A different price is a different queue |
+| Both price and qty | Priority lost (new `arrival_seq`) | As above |
+
+!!! note "Reminder"
+    "Priority" throughout this table is governed by the engine-assigned
+    `arrival_seq`, never by the order's client-supplied `timestamp` field.
 
  
 

@@ -569,12 +569,30 @@ The engine follows exchange-style amendment priority rules:
 - **price change** -> priority is reset
 - **quantity increase** -> priority is reset
 
+!!! important "What actually determines priority: `arrival_seq`, not `timestamp`"
+    "Priority" here means queue position under price-time priority, and it is
+    decided by **`arrival_seq`** — a monotonic counter the *engine* assigns
+    each time it admits an order (or a re-priced/re-queued amendment) into
+    the book. It is **not** the order's `timestamp` field, which is supplied
+    by the *client* at submission time and is never used by the book to
+    order the queue (a back-dated `timestamp` cannot jump the line).
+
+    Do not confuse `arrival_seq` with the "no sequence numbers" bullet
+    earlier on this page — that refers to ALF having no FIX-style
+    `MsgSeqNum`/session-layer sequencing on the wire. `arrival_seq` is an
+    unrelated, internal engine field that is assigned after ALF parses the
+    command and is visible on outbound `order.orders.{GW_ID}` snapshots and
+    `order.amended.{GW}` events. See the
+    [Order Types — Priority Rules](060-order-types.md#priority-rules) and the
+    [message reference](270-message-reference.md#ordernew) for the field-level
+    detail.
+
 Example:
 
 1. `NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00`
-2. `AMEND|ID=...|QTY=80|RTAG=AMD-KEEP` keeps queue priority if the price stays `150.00`
-3. `AMEND|ID=...|PRICE=150.10|RTAG=AMD-PRICE` loses queue priority
-4. `AMEND|ID=...|QTY=120|RTAG=AMD-UP` also loses queue priority
+2. `AMEND|ID=...|QTY=80|RTAG=AMD-KEEP` keeps queue priority (`arrival_seq` unchanged) if the price stays `150.00`
+3. `AMEND|ID=...|PRICE=150.10|RTAG=AMD-PRICE` loses queue priority (new `arrival_seq` assigned)
+4. `AMEND|ID=...|QTY=120|RTAG=AMD-UP` also loses queue priority (new `arrival_seq` assigned)
 
 ### Important identifier rule
 

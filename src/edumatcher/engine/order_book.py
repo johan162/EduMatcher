@@ -5,15 +5,18 @@ Supports: MARKET, LIMIT, STOP, STOP_LIMIT, FOK, ICEBERG, IOC, TRAILING_STOP
 
 Data structures
 ---------------
-  _bids  max-heap: list of (-price, timestamp, order)
-  _asks  min-heap: list of ( price, timestamp, order)
-  _buy_stops  min-heap of (stop_price, timestamp, order)  — BUY STOP/STOP_LIMIT
-  _sell_stops max-heap of (-stop_price, timestamp, order) — SELL STOP/STOP_LIMIT
+  _bids  max-heap: list of (-price, arrival_seq, order)
+  _asks  min-heap: list of ( price, arrival_seq, order)
+  _buy_stops  min-heap of (stop_price, arrival_seq, order)  — BUY STOP/STOP_LIMIT
+  _sell_stops max-heap of (-stop_price, arrival_seq, order) — SELL STOP/STOP_LIMIT
   _order_index : dict[order_id, Order]  — fast lookup for cancels
   _bid_qty / _ask_qty : dict[price, int]  — price-level qty index for O(1) FOK checks
 
-Heap entries use (±price, timestamp) so that heapq always pops the
-best-priced, earliest-submitted order first (price-time priority).
+Heap entries use (±price, arrival_seq) so that heapq always pops the
+best-priced, earliest-admitted order first (price-time priority). arrival_seq
+is a monotonic counter this book assigns on admission (finding H1) — never the
+client-supplied `timestamp`, which a participant could back-date to jump the
+queue.
 """
 
 from __future__ import annotations
@@ -100,8 +103,8 @@ class OrderBook:
         self._asks: list[_HeapEntry] = []  # min-heap
 
         # Stop orders split into two heaps for O(log k) trigger checks:
-        #   _buy_stops:  min-heap keyed by (stop_price, timestamp)  — fires when price >= stop
-        #   _sell_stops: max-heap keyed by (-stop_price, timestamp) — fires when price <= stop
+        #   _buy_stops:  min-heap keyed by (stop_price, arrival_seq)  — fires when price >= stop
+        #   _sell_stops: max-heap keyed by (-stop_price, arrival_seq) — fires when price <= stop
         self._buy_stops: list[_HeapEntry] = []
         self._sell_stops: list[_HeapEntry] = []
 
@@ -353,7 +356,7 @@ class OrderBook:
 
         Priority rules (matching real exchange behaviour):
         - Quantity decrease only (same price): priority is PRESERVED
-        - Price change or quantity increase: priority is LOST (new timestamp)
+        - Price change or quantity increase: priority is LOST (new arrival_seq)
 
         Parameters
         ----------
