@@ -1410,7 +1410,8 @@ class TestMMBotMultiSymbol:
             st.pricer = QuotePricer(tick_size=0.01, gap=bot.gap, drift_ticks=3)
             st.pricer.set_mid(100.0)
 
-        # Send both quotes before either is acked — FIFO order is AAPL, MSFT.
+        # Acks that carry an id this bot never minted (an engine that minted
+        # its own, say) still demux by send order — the fallback path.
         bot._send_quote("AAPL")
         bot._send_quote("MSFT")
         assert list(bot._pending_ack_symbols) == ["AAPL", "MSFT"]
@@ -1436,7 +1437,101 @@ class TestMMBotMultiSymbol:
             }
         )
         assert bot._symbols_state["MSFT"].quote_id == "q-msft"
-        assert bot._quote_id_to_symbol == {"q-aapl": "AAPL", "q-msft": "MSFT"}
+        # Unrecognised ids are still learned, alongside the ids the bot minted
+        # itself when it sent the two quotes.
+        assert bot._quote_id_to_symbol["q-aapl"] == "AAPL"
+        assert bot._quote_id_to_symbol["q-msft"] == "MSFT"
+
+    def test_quote_ack_matches_by_id_when_an_ack_is_lost(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A dropped ack must not mis-attribute every ack after it.
+
+        The send-order FIFO assumes one ack per quote.new, in order. PUB/SUB
+        drops silently once a subscriber falls behind, so that assumption can
+        break — and when it does the queue is off by one *permanently*.
+        Matching on the quote_id the bot minted cannot desynchronise.
+        """
+        bot, push, sub = _make_multi_bot(
+            monkeypatch,
+            ["AAPL", "MSFT", "TSLA"],
+            initial_min=95.0,
+            initial_max=105.0,
+        )
+        self._full_startup(sub, ["AAPL", "MSFT", "TSLA"])
+        monkeypatch.setattr(
+            "edumatcher.mm_bot.bot.signal.signal", lambda *a, **kw: None
+        )
+        bot._setup_sockets = lambda: None
+        bot._push_sock = push
+        bot._sub_sock = sub
+        bot._close_sockets = lambda: None
+
+        assert bot._authenticate(timeout_sec=0.1)
+        bot._request_symbols(timeout_sec=0.1)
+        for sym in bot.symbols:
+            st = bot._symbols_state[sym]
+            st.pricer = QuotePricer(tick_size=0.01, gap=bot.gap, drift_ticks=3)
+            st.pricer.set_mid(100.0)
+
+        for sym in ("AAPL", "MSFT", "TSLA"):
+            bot._send_quote(sym)
+        minted = {sym: qid for qid, sym in bot._quote_id_to_symbol.items()}
+        assert set(minted) == {"AAPL", "MSFT", "TSLA"}
+
+        # MSFT's ack never arrives. TSLA's must still land on TSLA.
+        bot._handle_quote_ack(
+            {
+                "accepted": True,
+                "quote_id": minted["AAPL"],
+                "bid_order_id": "b1",
+                "ask_order_id": "a1",
+            }
+        )
+        bot._handle_quote_ack(
+            {
+                "accepted": True,
+                "quote_id": minted["TSLA"],
+                "bid_order_id": "b3",
+                "ask_order_id": "a3",
+            }
+        )
+
+        assert bot._symbols_state["TSLA"].bid_order_id == "b3"
+        assert bot._symbols_state["TSLA"].state == BotState.QUOTING
+        # MSFT never got its ack, so it is untouched — not silently given
+        # TSLA's order ids, which is what the FIFO alone would have done.
+        assert bot._symbols_state["MSFT"].bid_order_id in (None, "")
+        assert bot._symbols_state["MSFT"].state != BotState.QUOTING
+
+    def test_quote_id_index_is_bounded(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The index is populated per *send*, so it must not grow forever."""
+        bot, push, sub = _make_multi_bot(
+            monkeypatch, ["AAPL", "MSFT"], initial_min=95.0, initial_max=105.0
+        )
+        self._full_startup(sub, ["AAPL", "MSFT"])
+        monkeypatch.setattr(
+            "edumatcher.mm_bot.bot.signal.signal", lambda *a, **kw: None
+        )
+        bot._setup_sockets = lambda: None
+        bot._push_sock = push
+        bot._sub_sock = sub
+        bot._close_sockets = lambda: None
+        assert bot._authenticate(timeout_sec=0.1)
+        bot._request_symbols(timeout_sec=0.1)
+        for sym in bot.symbols:
+            st = bot._symbols_state[sym]
+            st.pricer = QuotePricer(tick_size=0.01, gap=bot.gap, drift_ticks=3)
+            st.pricer.set_mid(100.0)
+
+        for _ in range(500):
+            bot._send_quote("AAPL")
+            bot._send_quote("MSFT")
+
+        assert len(bot._quote_id_to_symbol) <= bot._quote_id_index_cap
+        # The most recent quote for each symbol still resolves.
+        recent = list(bot._quote_id_to_symbol.items())[-2:]
+        assert {sym for _, sym in recent} == {"AAPL", "MSFT"}
 
     def test_book_update_only_affects_its_own_symbol(
         self, monkeypatch: pytest.MonkeyPatch

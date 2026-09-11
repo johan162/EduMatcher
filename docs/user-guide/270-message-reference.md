@@ -2310,6 +2310,7 @@ Engine to market maker: the quote was accepted or rejected.
 | `gateway_id` | `string` | required | max_len 32 |  |
 | `quote_id` | `string` | defaults to `''` | max_len 64 |  |
 | `accepted` | `bool` | required | — |  |
+| `symbol` | `string` | defaults to `''` | max_len 16 | Instrument the quote was for. `order.ack` has always carried this; `quote.ack` did not, which left every market-making client to work out for itself which symbol an ack belonged to -- the topic is per-gateway, not per-symbol. Empty only on a rejection raised before the symbol was known (a malformed payload, or a missing SYM). |
 | `reason` | `string` | defaults to `''` | max_len 512 |  |
 | `bid_order_id` | `string` | defaults to `''` | max_len 64 |  |
 | `ask_order_id` | `string` | defaults to `''` | max_len 64 |  |
@@ -3193,6 +3194,7 @@ A leg as it stood when its quote left the book. No live qty/remaining here in th
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
 | `order_id` | `string` | required | max_len 64 |  |
+| `price` | `float` | omitted when unset | unit `display_price` | Leg limit price in display money, as it stood at removal. Mirrors `QuoteLeg.price` so an ACTIVE row and a RECENT row for the same leg read the same; null when the order's price was unavailable at snapshot time. |
 | `qty` | `int` | required | ge 0, unit `shares` |  |
 | `remaining` | `int` | required | ge 0, unit `shares` |  |
 | `filled` | `int` | required | ge 0, unit `shares` |  |

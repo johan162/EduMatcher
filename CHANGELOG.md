@@ -8,6 +8,31 @@ each event happened instead of leaving it to be inferred from timing and shared
 ids. Brought forward from a later phase of the audit-replay design so no
 migration is needed once that tool is built.
 
+### 💥 Breaking Changes
+- `system.quote_legs.{GW_ID}`'s `QuoteLegSnapshot` gains an optional `price`
+  (display money, omitted when unset), and the ALF `LEG`,
+  `RECENT_BID_LEG` and `RECENT_ASK_LEG` lines gain a `PRICE` field.
+  Positional readers of those lines shift; keyed readers are unaffected.
+  `RECENT_LEG` is deliberately unchanged — a quote has two prices, so there is
+  no single one to put on the quote-level summary.
+- `make_quote_ack_msg` gains a keyword-only `symbol` argument (defaulting to
+  `""`), and `quote_ack` gains an optional `symbol` field in
+  `spec/messages/quote.yaml`. Callers that build the message by hand must pass
+  it; consumers that parse `quote.ack` positionally or with a strict schema
+  need to accept the new key.
+- Audit log lines gain an optional `[key=value ...]` metadata section between
+  the topic and the payload. Lines without it still parse, so a mixed archive
+  needs no flag.
+- `audit.query._parse_line` returns a 4-tuple; `AuditEntry` gains `seq`,
+  `msg_id`, `causation_id` and `correlation_id`.
+- `messaging.bus.make_pusher` returns a `PushSocket` (a protocol, satisfied by
+  `CausalPusher`) rather than a `zmq.Socket[bytes]`, and PUSH messages carry a
+  third frame. Call sites that annotated the concrete socket type — in
+  `alf_console`, `alf_gwy`, `balf_gwy`, `mm_bot` and `scheduler` — now annotate
+  the protocol. `SequencedPublisher` now *inserts* its sequence at frame 2
+  rather than appending it, so `decode_sequence` keeps reading `frames[2]`
+  whatever rides behind it.
+
 ### ✨ Additions
 - **Causal envelope on every message.** `models/envelope.py` adds `msg_id`
   (ULID), `causation_id` and `correlation_id`, carried in a dedicated ZMQ frame
@@ -27,20 +52,46 @@ migration is needed once that tool is built.
   miss nothing.
 - `pm-audit-cli`'s SQLite index gains `seq`, `msg_id`, `causation_id` and
   `correlation_id` columns, each indexed, so causal joins are keyed lookups.
+- **Quote legs now report their price over ALF.** `QLEGS`'s `LEG` lines gain
+  `PRICE`, and `QuoteLegSnapshot` gains a `price` the engine records at
+  removal so `RECENT_BID_LEG`/`RECENT_ASK_LEG` carry one too. `QuoteLeg.price`
+  was already on the bus for live legs and `pm-alf-gwy` simply dropped it when
+  flattening to ALF; recent legs had no price anywhere. The visible effect was
+  that `pm-alf-console` showed a Price column and no external ALF client
+  could, because the console renders from its own cache of observed events —
+  a side channel nothing on the wire had. Both example clients display it now.
+  Empty means no price was recorded, not an unpriced leg.
 
-### 💥 Breaking Changes
-- Audit log lines gain an optional `[key=value ...]` metadata section between
-  the topic and the payload. Lines without it still parse, so a mixed archive
-  needs no flag.
-- `audit.query._parse_line` returns a 4-tuple; `AuditEntry` gains `seq`,
-  `msg_id`, `causation_id` and `correlation_id`.
-- `messaging.bus.make_pusher` returns a `PushSocket` (a protocol, satisfied by
-  `CausalPusher`) rather than a `zmq.Socket[bytes]`, and PUSH messages carry a
-  third frame. Call sites that annotated the concrete socket type — in
-  `alf_console`, `alf_gwy`, `balf_gwy`, `mm_bot` and `scheduler` — now annotate
-  the protocol. `SequencedPublisher` now *inserts* its sequence at frame 2
-  rather than appending it, so `decode_sequence` keeps reading `frames[2]`
-  whatever rides behind it.
+- **`quote.ack` now carries `symbol`**, surfaced on the ALF wire as
+  `QUOTE_ACK|...|SYM=AAPL`. `order.ack` has always named its instrument;
+  `quote.ack` did not, which is the reason both `pm-mm-bot` and
+  `pm-alf-console` grew a send-order queue to recover it — no client *could*
+  have solved that locally. It is empty only when the quote was rejected
+  before its symbol was known. `QUOTE_ID` remains the correlation key for a
+  specific quote; `SYM` answers the cheaper question of which instrument the
+  reply is about.
+
+### 🐛 Bug Fixes
+- `pm-mm-bot` now supplies its own `quote_id` on every `quote.new` and matches
+  `quote.ack` by that id. It previously omitted the field and demultiplexed
+  acks by **send order**, which assumed one ack per quote, in order — a single
+  ack lost to a PUB/SUB drop left the queue permanently off by one, silently
+  attributing every subsequent ack to the wrong symbol. This also brings the
+  bot in line with `docs-design/mm-quote-identification.md`, which already said
+  the MM should correlate by `quote_id`. The send-order queue remains only as a
+  fallback for an ack carrying no id, and the id→symbol index is bounded so
+  indexing at send time cannot grow without limit.
+
+- `pm-alf-console` had the same defect, in the code that says so: its
+  `_pending_quote_requests` comment read "mirroring
+  `mm_bot.bot._pending_ack_symbols`". It now always sends a `quote_id` —
+  minting one when the operator does not supply `QUOTE_ID=` — and matches
+  `quote.ack` by it. The console *prints* the cached symbol and prices and
+  seeds `quote_leg_cache` from them, so a desynchronised queue showed an
+  operator confident, wrong detail and cached the wrong symbol against real
+  order ids. Same fallback and same bound as the bot. An unmatched ack id is
+  counted via `_dbg_count`, which is a no-op unless DEBUG logging is on —
+  consistent with every other counter in that file.
 
 ### 📚 Documentation
 - `docs-design/EduMatcher-Audit-Replay.md` v1.3.0: the replay design is now
@@ -57,10 +108,43 @@ migration is needed once that tool is built.
   receive-loop plumbing that applies them.
 - `docs/user-guide/190-audit.md`: the log-line metadata section and how to
   follow a causal chain with it.
+- `docs/user-guide/220-alf-gateway.md`: `PRICE` added to the `QLEGS` response
+  example and prose, with a note on what an empty value means and why the
+  recent-leg price is a removal-time value. The claim that its `QLEGS` columns
+  were "shared with `pm-alf-console`'s" was false until this release and is
+  now true.
+- `docs/user-guide/055-alf-console.md`: the `QLEGS` output-column list was
+  missing the `Price` column the console has been printing, and now explains
+  that `Filled?` is derived from `Filled` rather than a separate fact.
+- `docs/user-guide/220-alf-gateway.md`: `SYM` added to the `QUOTE_ACK`
+  examples and the unsolicited-event field table, with a note on why it exists
+  and how it differs from `QUOTE_ID`. Both example TCP clients
+  (`docs/examples/alf/python/alf_client.py`, `docs/examples/alf/c/alf_client.c`)
+  display it.
 - `docs/developer/09-order-flow-engine.md`: the frame layout, where a chain
   starts (the gateway PUSH), the three lines in the receive loop that are the
   whole engine-side mechanism, why the `finally` is load-bearing, and a
   cheat-sheet section on following a chain with two greps.
+- **Developer guide reviewed end to end** (all nine chapters, script-checked
+  against the codebase):
+    - `01-dev-practice.md`: the `src/edumatcher/gateway/` package in the layout
+      table has not existed for some time — replaced with the real gateway
+      packages; Python floor corrected from `^3.11` to `^3.13`; added a section
+      on the read-only query CLIs (`pm-audit-cli`, `pm-stats-cli`,
+      `pm-clearing-cli`, `pm-log-cli`, `pm-index-admin-cli`) and on how
+      `pm-config-gen` / `-deploy` / `-show` divide up.
+    - `02-ai-bot.md`: corrected advice to align a profile `tick_size` that does
+      not exist (`PersonalityProfile` has `passive_offset_ticks`, in ticks);
+      added the log-server flags and a pointer to `pm-mm-bot`.
+    - `03-experiments.md`: statuses re-verified against the code. Experiments 4,
+      10, 11, 14 and 17 had shipped since they were written and were still
+      listed as open; 18, 19 and 20 had no status at all. Each now says where
+      the implementation lives and how it differs from the proposal.
+    - `06-msgen.md`: frame-count claims updated for the envelope, the
+      `_publish_trade` snippet replaced with the `Trade.to_wire()` form, and
+      `index.index_history` corrected to `index.history`.
+    - `09-order-flow-engine.md`: `system.orders_request` corrected to
+      `order.orders_request`.
 
 
 ## [v0.35.0] - 2026-09-10

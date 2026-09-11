@@ -344,8 +344,13 @@ QLEGS[|SYM=<symbol>][|SHOW=ACTIVE|RECENT|ALL]
 Output columns:
 
 - `Symbol`, `Quote`, `Leg` (`BUY`/`SELL`), `Order`
+- `Price` — the leg's limit price in display money, `-` when unknown
 - `Qty`, `Rem`, `Filled`, `Filled?`
 - `Leg status`, `Quote status`, `Time`
+
+`Filled?` is `YES`/`NO` derived from `Filled`, not a separate fact; it exists
+so an operator scanning the table does not have to compare two numbers to
+answer the only question that usually matters.
 
 #### Operator examples
 

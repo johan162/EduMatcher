@@ -136,6 +136,23 @@ Consequences:
 The engine therefore treats `quote_id` as the identifier for the specific quote
 generation, but not as the routing key for cancel/replace.
 
+> **Implementation note (2026-09-11).** `pm-mm-bot` now mints its own
+> `quote_id` on every `quote.new` (`mm_bot/bot.py::_send_quote`) rather than
+> letting the engine auto-generate one. Until then it omitted the field and
+> matched `quote.ack` to a symbol by *send order*, because the ack carries no
+> `symbol` and — with the id auto-generated — the bot had nothing to key on
+> until the ack itself arrived. That FIFO assumed one ack per `quote.new`, in
+> order; a single ack lost to a PUB/SUB drop left it permanently off by one,
+> silently attributing every later ack to the wrong symbol. Supplying the id
+> makes the correlation exact and matches the guidance above: *the MM should
+> correlate business events by `quote_id`.* The send-order queue survives only
+> as a fallback for an ack that carries no id.
+>
+> `pm-alf-console` was changed the same way at the same time — its queue was
+> explicitly "mirroring `mm_bot.bot._pending_ack_symbols`". It already accepted
+> an operator-supplied `QUOTE_ID=`; it now mints one when the operator omits
+> it, so every quote it sends can be correlated by id.
+
 ## Quote-to-leg mapping
 
 ### Engine-side mapping

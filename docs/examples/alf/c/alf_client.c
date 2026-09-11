@@ -266,6 +266,35 @@ static void cache_order(const char *id, const char *symbol, const char *side, co
  * Multi-line response rendering
  * -------------------------------------------------------------------------- */
 
+#define PRICE_BUF_LEN 24
+
+/* Render an optional ALF price field into a fixed column.
+ *
+ * The gateway sends an empty value rather than omitting the key when a price
+ * is unavailable, so a missing field and an empty one mean the same thing.
+ * The placeholder is a plain ASCII '-' and not an em dash on purpose: the
+ * "%10s" these buffers are printed through pads by *bytes*, so a multi-byte
+ * placeholder would silently shift the column.
+ *
+ * A value that does not parse as a number is passed through rather than
+ * blanked — a client that hides a field it failed to read is how a display
+ * bug goes unnoticed.
+ */
+static void fmt_price(const char *raw, char *out, size_t out_len)
+{
+    if (!raw || raw[0] == '\0') {
+        snprintf(out, out_len, "-");
+        return;
+    }
+    char *end = NULL;
+    double v = strtod(raw, &end);
+    if (end == raw || (end && *end != '\0')) {
+        snprintf(out, out_len, "%s", raw);
+        return;
+    }
+    snprintf(out, out_len, "%.2f", v);
+}
+
 static void flush_collected(void)
 {
     int i;
@@ -344,19 +373,22 @@ static void flush_collected(void)
             if (strcmp(r->msg_type, "LEG") != 0) continue;
             if (!shown_header) {
                 event_print("%sQuote legs%s", COL_BOLD, COL_RESET);
-                event_print("  %-6s %-20s %-5s %-8s %6s %6s %6s  %-10s %s",
-                            "SYM", "QUOTE_ID", "SIDE", "ORDER_ID", "QTY",
-                            "REM", "FILLED", "STATUS", "QUOTE_STATUS");
+                event_print("  %-6s %-20s %-5s %-8s %10s %6s %6s %6s  %-10s %s",
+                            "SYM", "QUOTE_ID", "SIDE", "ORDER_ID", "PRICE",
+                            "QTY", "REM", "FILLED", "STATUS", "QUOTE_STATUS");
                 shown_header = 1;
             }
             char short_id[9] = "?";
             const char *oid = alf_get_field(r, "ORDER_ID");
             if (oid) snprintf(short_id, sizeof(short_id), "%s", oid);
-            event_print("  %-6s %-20s %-5s %-8s %6s %6s %6s  %-10s %s",
+            char price_buf[PRICE_BUF_LEN];
+            fmt_price(alf_get_field(r, "PRICE"), price_buf, sizeof(price_buf));
+            event_print("  %-6s %-20s %-5s %-8s %10s %6s %6s %6s  %-10s %s",
                         alf_get_field(r, "SYM")          ? alf_get_field(r, "SYM")          : "?",
                         alf_get_field(r, "QUOTE_ID")     ? alf_get_field(r, "QUOTE_ID")     : "?",
                         alf_get_field(r, "SIDE")         ? alf_get_field(r, "SIDE")         : "?",
                         short_id,
+                        price_buf,
                         alf_get_field(r, "QTY")          ? alf_get_field(r, "QTY")          : "?",
                         alf_get_field(r, "REMAINING")    ? alf_get_field(r, "REMAINING")    : "?",
                         alf_get_field(r, "FILLED")       ? alf_get_field(r, "FILLED")       : "?",
@@ -387,9 +419,12 @@ static void flush_collected(void)
                 char short_id[9] = "?";
                 const char *oid = alf_get_field(r, "ORDER_ID");
                 if (oid) snprintf(short_id, sizeof(short_id), "%s", oid);
-                event_print("      %s_leg  order=%s  qty=%s rem=%s filled=%s status=%s",
+                char rprice_buf[PRICE_BUF_LEN];
+                fmt_price(alf_get_field(r, "PRICE"), rprice_buf, sizeof(rprice_buf));
+                event_print("      %s_leg  order=%s  px=%s qty=%s rem=%s filled=%s status=%s",
                             is_bid ? "bid" : "ask",
                             short_id,
+                            rprice_buf,
                             alf_get_field(r, "QTY")       ? alf_get_field(r, "QTY")       : "?",
                             alf_get_field(r, "REMAINING") ? alf_get_field(r, "REMAINING") : "?",
                             alf_get_field(r, "FILLED")    ? alf_get_field(r, "FILLED")    : "?",
@@ -584,15 +619,23 @@ static void handle_event(const alf_message_t *msg)  /* NOLINT(readability-functi
     if (strcmp(t, "QUOTE_ACK") == 0) {
         const char *qid = alf_get_field(msg, "QUOTE_ID");
         const char *acc = alf_get_field(msg, "ACCEPTED");
+        /* SYM is on the ack, so a client never has to remember which symbol it
+         * quoted last. The topic is per-gateway, not per-symbol, so without it
+         * a multi-symbol client would have to keep its own book of outstanding
+         * quotes and match by send order — which breaks the moment one ack is
+         * missed. */
+        const char *sym = alf_get_field(msg, "SYM");
         if (acc && strcmp(acc, "TRUE") == 0) {
-            event_print("[%s] %sQUOTE ACK%s  %s  bid=%s ask=%s",
+            event_print("[%s] %sQUOTE ACK%s  %s  %s  bid=%s ask=%s",
                         ts, COL_GREEN, COL_RESET,
+                        sym ? sym : "?",
                         qid ? qid : "?",
                         alf_get_field(msg, "BID_ID") ? alf_get_field(msg, "BID_ID") : "?",
                         alf_get_field(msg, "ASK_ID") ? alf_get_field(msg, "ASK_ID") : "?");
         } else {
-            event_print("[%s] %sQUOTE REJ%s  %s  %s",
+            event_print("[%s] %sQUOTE REJ%s  %s  %s  %s",
                         ts, COL_RED, COL_RESET,
+                        sym ? sym : "?",
                         qid ? qid : "?",
                         alf_get_field(msg, "REASON") ? alf_get_field(msg, "REASON") : "");
         }

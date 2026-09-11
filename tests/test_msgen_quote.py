@@ -173,6 +173,23 @@ class TestPresence:
         )
         assert payload["tif"] == "DAY"
 
+    def test_the_ack_carries_the_symbol(self) -> None:
+        """`quote.ack.{gateway_id}` is per-gateway, not per-symbol, so without
+        `symbol` on the payload a multi-symbol client cannot tell which
+        instrument an ack belongs to without tracking outstanding quotes
+        itself. `order.ack` has always carried it; this closes the asymmetry.
+        """
+        _topic, payload = M.decode(
+            M.make_quote_ack_msg("GW1", "Q1", True, symbol="AAPL")
+        )
+        assert payload["symbol"] == "AAPL"
+
+    def test_the_ack_symbol_is_empty_when_it_was_never_known(self) -> None:
+        """A quote rejected before its payload parsed has no symbol to report,
+        and says so rather than guessing."""
+        _topic, payload = M.decode(M.make_quote_ack_msg("GW1", "Q1", False, "bad"))
+        assert payload["symbol"] == ""
+
     def test_the_ack_order_ids_are_always_emitted(self) -> None:
         _topic, payload = M.decode(M.make_quote_ack_msg("GW1", "Q1", False, "closed"))
         assert payload["bid_order_id"] == ""

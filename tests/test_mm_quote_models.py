@@ -276,3 +276,30 @@ def test_mmp_state_records_and_activates() -> None:
     state.reset_mmp()
     assert state.mmp_active is False
     assert state.requote_deadline is None
+
+
+def test_quote_leg_snapshot_price_defaults_to_none() -> None:
+    """`price` is last and defaulted so the four fields that were already
+    positional keep their call shape — every existing construction site omits
+    it, and a required field here would have been a silent breaking change.
+    """
+    leg = QuoteLegSnapshot(
+        order_id="B1", qty=100, remaining=0, filled=100, status="FILLED"
+    )
+    assert leg.price is None
+
+
+def test_quote_leg_snapshot_carries_display_money_not_ticks() -> None:
+    """The snapshot is built from an already-converted value, so it stores
+    exactly what it is given. Pinned because a leg's price reaching this
+    dataclass in ticks would read as a plausible number rather than an error.
+    """
+    leg = QuoteLegSnapshot(
+        order_id="B1",
+        qty=100,
+        remaining=0,
+        filled=100,
+        status="FILLED",
+        price=150.25,
+    )
+    assert leg.price == 150.25

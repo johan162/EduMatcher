@@ -75,3 +75,61 @@ def test_validate_hello_fields_ok() -> None:
 def test_validate_hello_fields_missing_id() -> None:
     with pytest.raises(ValidationError):
         validate_hello_fields({"CLIENT": "BOT", "PROTO": "ALF1"})
+
+
+# ---------------------------------------------------------------------------
+# quote.ack -> ALF QUOTE_ACK carries SYM
+# ---------------------------------------------------------------------------
+
+
+class TestQuoteAckCarriesTheSymbol:
+    """`quote.ack.{gateway_id}` is a per-gateway topic, so an ALF client that
+    quotes several symbols cannot tell which instrument an ack is for unless
+    the gateway passes the symbol through. Before `symbol` existed on the bus
+    payload the gateway had nothing to pass, and every text client had to keep
+    its own book of outstanding quotes and match by send order.
+    """
+
+    @staticmethod
+    def _alf_fields(payload: dict[str, object]) -> dict[str, str]:
+        """Mirror of the PREFIX_QUOTE_ACK branch in
+        ``alf_gwy.gateway._route_gateway_scoped_event``."""
+        return {
+            "QUOTE_ID": str(payload.get("quote_id", "")),
+            "SYM": str(payload.get("symbol", "")),
+            "ACCEPTED": "TRUE" if bool(payload.get("accepted", False)) else "FALSE",
+            "REASON": str(payload.get("reason", "")),
+            "BID_ID": str(payload.get("bid_order_id", "")),
+            "ASK_ID": str(payload.get("ask_order_id", "")),
+        }
+
+    def test_accepted_ack_reports_the_symbol(self) -> None:
+        fields = self._alf_fields(
+            {
+                "quote_id": "Q1",
+                "symbol": "AAPL",
+                "accepted": True,
+                "bid_order_id": "b1",
+                "ask_order_id": "a1",
+            }
+        )
+        assert fields["SYM"] == "AAPL"
+        assert fields["ACCEPTED"] == "TRUE"
+
+    def test_rejected_ack_still_reports_the_symbol(self) -> None:
+        """A rejection is exactly when a client most needs to know which of its
+        quotes failed."""
+        fields = self._alf_fields(
+            {
+                "quote_id": "Q2",
+                "symbol": "MSFT",
+                "accepted": False,
+                "reason": "Market is closed",
+            }
+        )
+        assert fields["SYM"] == "MSFT"
+        assert fields["REASON"] == "Market is closed"
+
+    def test_symbol_is_empty_when_the_engine_never_knew_it(self) -> None:
+        fields = self._alf_fields({"quote_id": "", "accepted": False, "reason": "bad"})
+        assert fields["SYM"] == ""

@@ -392,7 +392,7 @@ QUOTE|SYM=AAPL|BID=150.00|ASK=150.10|BID_QTY=500|ASK_QTY=500|QUOTE_ID=my-q1
 
 Requires gateway role `MARKET_MAKER`.  `BID` must be strictly less than `ASK`.
 
-**Response:** `QUOTE_ACK|QUOTE_ID=...|ACCEPTED=TRUE|BID_ID=...|ASK_ID=...`
+**Response:** `QUOTE_ACK|QUOTE_ID=...|SYM=AAPL|ACCEPTED=TRUE|BID_ID=...|ASK_ID=...`
 
 ### `QUOTE_CANCEL` — cancel active quote (MARKET_MAKER role)
 
@@ -400,7 +400,7 @@ Requires gateway role `MARKET_MAKER`.  `BID` must be strictly less than `ASK`.
 QUOTE_CANCEL|SYM=AAPL
 ```
 
-**Response:** `QUOTE_ACK|QUOTE_ID=...|ACCEPTED=TRUE|...`
+**Response:** `QUOTE_ACK|QUOTE_ID=...|SYM=AAPL|ACCEPTED=TRUE|...`
 
 ### `KILL` — gateway kill-switch
 
@@ -513,29 +513,41 @@ QLEGS|SYM=AAPL|SHOW=ALL
 
 `pm-alf-gwy` forwards this straight to the engine's
 [`system.quote_legs_request`](270-message-reference.md#systemquote_legs_request)
-message and renders the reply. `ACTIVE` legs (`LEG` lines) carry live
-qty/remaining/status per leg, same as before. `RECENT` rows (`RECENT_LEG`
-lines) are quote-level summaries drawn from the engine's bounded, in-memory,
+message and renders the reply. `ACTIVE` legs (`LEG` lines) carry each leg's
+live price/qty/remaining/status. `RECENT` rows (`RECENT_LEG` lines) are
+quote-level summaries drawn from the engine's bounded, in-memory,
 per-gateway history of recently-inactivated quotes. Each `RECENT_LEG` line
 is optionally followed by `RECENT_BID_LEG` and/or `RECENT_ASK_LEG` lines
-carrying that leg's final qty/remaining/filled/status snapshot at the
+carrying that leg's final price/qty/remaining/filled/status snapshot at the
 moment it was cancelled — these are emitted only when the engine had that
 leg's final order state available at removal time, which is the common
 case for every normal inactivation path (see
 [`system.quote_legs_request`](270-message-reference.md#systemquote_legs_request)
 for when a leg's snapshot can be absent). See
 [ALF Console → QLEGS](055-alf-console.md#qlegs-inspect-mm-quote-legs-and-fill-flags)
-for the full column semantics (shared with `pm-alf-console`'s `QLEGS`).
+for the column semantics, which `pm-alf-console` and `pm-alf-gwy` now share.
+
+!!! note "`PRICE` on leg lines"
+    `PRICE` is display money — the leg's limit price, the same number the
+    `QUOTE` command was given. A quote leg is always a priced limit order,
+    so it is normally present; an empty value means the engine had no price
+    for that order, not that the leg was unpriced.
+
+    On `RECENT_BID_LEG`/`RECENT_ASK_LEG` it is the price **as it stood at
+    removal**. The engine records it at that moment because once an order
+    leaves the book nothing in the engine can recover its price, which is
+    the same reason `QTY`/`REMAINING`/`FILLED` on those lines are final
+    values rather than live ones.
 
 **Multi-line response:**
 
 ```text
 QLEGS|COUNT=2|RECENT_COUNT=1|SHOW=ALL
-LEG|QUOTE_ID=Q123|SYM=AAPL|SIDE=BUY|ORDER_ID=7c4a91e2|QTY=500|REMAINING=400|FILLED=100|STATUS=PARTIAL_FILL|QUOTE_STATUS=ACTIVE
-LEG|QUOTE_ID=Q123|SYM=AAPL|SIDE=SELL|ORDER_ID=be2170fd|QTY=500|REMAINING=500|FILLED=0|STATUS=RESTING|QUOTE_STATUS=ACTIVE
+LEG|QUOTE_ID=Q123|SYM=AAPL|SIDE=BUY|ORDER_ID=7c4a91e2|PRICE=150.00|QTY=500|REMAINING=400|FILLED=100|STATUS=PARTIAL_FILL|QUOTE_STATUS=ACTIVE
+LEG|QUOTE_ID=Q123|SYM=AAPL|SIDE=SELL|ORDER_ID=be2170fd|PRICE=150.10|QTY=500|REMAINING=500|FILLED=0|STATUS=RESTING|QUOTE_STATUS=ACTIVE
 RECENT_LEG|QUOTE_ID=Q100|SYM=AAPL|QUOTE_STATUS=CANCELLED|REASON=Cancelled by participant|REMOVED_AT_NS=1784468999030221878
-RECENT_BID_LEG|QUOTE_ID=Q100|SIDE=BUY|ORDER_ID=3f9a2b71|QTY=500|REMAINING=500|FILLED=0|STATUS=CANCELLED
-RECENT_ASK_LEG|QUOTE_ID=Q100|SIDE=SELL|ORDER_ID=8d1c4e05|QTY=500|REMAINING=200|FILLED=300|STATUS=CANCELLED
+RECENT_BID_LEG|QUOTE_ID=Q100|SIDE=BUY|ORDER_ID=3f9a2b71|PRICE=149.90|QTY=500|REMAINING=500|FILLED=0|STATUS=CANCELLED
+RECENT_ASK_LEG|QUOTE_ID=Q100|SIDE=SELL|ORDER_ID=8d1c4e05|PRICE=150.20|QTY=500|REMAINING=200|FILLED=300|STATUS=CANCELLED
 END|TYPE=QLEGS
 ```
 
@@ -643,7 +655,7 @@ These messages are addressed to your gateway ID and arrive on your session only.
 | `AMENDED` | `ORDER_ID`, `PRICE`, `QTY`, `REMAINING`, `PRIORITY_RESET`, `TAG`, `RTAG` |
 | `CANCELLED` | `ORDER_ID`, `TAG`, `RTAG`, `CANCEL_REASON` — see [Unsolicited cancels](#unsolicited-cancels) |
 | `EXPIRED` | `ORDER_ID`, `TAG` |
-| `QUOTE_ACK` | `QUOTE_ID`, `ACCEPTED`, `REASON`, `BID_ID`, `ASK_ID` |
+| `QUOTE_ACK` | `QUOTE_ID`, `SYM`, `ACCEPTED`, `REASON`, `BID_ID`, `ASK_ID` |
 | `QUOTE_STATUS` | `QUOTE_ID`, `STATUS`, `REASON` |
 | `COMBO_ACK` | `COMBO_ID`, `ACCEPTED`, `REASON` |
 | `COMBO_STATUS` | `COMBO_ID`, `STATUS`, `REASON` |
@@ -652,6 +664,20 @@ These messages are addressed to your gateway ID and arrive on your session only.
 | `KILL_ACK` | `ACCEPTED`, `REASON`, `ORDERS`, `QUOTES` |
 | `DC_ACK` | `STATE` (`ON`/`OFF`) — reply to `DC`, not unsolicited |
 | `DC_FILL` | `SEQ`, `ORDER_ID`, `SYMBOL`, `FILL_QTY`, `FILL_PRICE`, `LIQUIDITY` — only while `DC\|STATE=ON` is active, see [`DC`](#dc-toggle-drop-copy-relay) |
+
+!!! note "`SYM` on `QUOTE_ACK`"
+    Quote events are addressed to a *gateway*, not to a symbol, so a client
+    quoting several instruments would otherwise have to remember which quote
+    it sent last and match replies by send order. That breaks the moment one
+    reply is missed. `SYM` names the instrument on the ack itself, so no
+    client-side bookkeeping is needed. It is empty only when the quote was
+    rejected before its symbol was known — a malformed payload, or a missing
+    `SYM=` on the request.
+
+    `QUOTE_ID` remains the correlation key for the *specific quote*: supply
+    your own `QUOTE_ID=` on the `QUOTE` command and it is echoed here, on
+    `QUOTE_STATUS`, and stamped on both leg orders. If you omit it the engine
+    generates one.
 
 Every one of these carries `TAG` when the order was submitted with one, so a
 client correlates an event to its own order without matching on arrival order.

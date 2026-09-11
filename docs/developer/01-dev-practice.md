@@ -45,10 +45,11 @@ If you are new to the code base, start by reading these pages in order:
 
 ### Recommended Python version
 
-`pyproject.toml` currently allows Python `^3.11`, but the type-checking and
-formatting configuration targets **Python 3.13**. In practice, **Python 3.13 is
-the safest development target** because it matches the repo's strict-analysis
-configuration.
+`pyproject.toml` requires Python `^3.13`, and the type-checking and formatting
+configuration targets the same version — so **Python 3.13 is the development
+target**, not merely the safest one. An earlier `^3.11` floor was raised; code
+in the tree now uses 3.12+ syntax (PEP 701 nested f-strings, for one), so an
+older interpreter fails at import rather than at runtime.
 
 ### Canonical setup
 
@@ -97,7 +98,10 @@ When you are orienting yourself, this is the practical top-level map:
 | Path | What lives there | Typical reason to open it |
 |---|---|---|
 | `src/edumatcher/engine/` | Matching engine, config loading, persistence, risk logic | Core exchange behavior |
-| `src/edumatcher/gateway/` | Interactive gateway and command parsing | Trader entry workflow |
+| `src/edumatcher/alf_gwy/`, `balf_gwy/` | Protocol gateways: ALF (text) and BALF (binary) order entry | Trader entry workflow |
+| `src/edumatcher/alf_console/` | Interactive trader console and command parsing | Hands-on order entry, demos |
+| `src/edumatcher/api_gateway/` | REST/WebSocket edge for the web GUIs | Browser-facing flows |
+| `src/edumatcher/md_gateway/`, `dc_gateway/`, `ralf_gateway/` | Market-data (CALF), drop-copy and RALF relay gateways | Feed and post-trade consumers |
 | `src/edumatcher/commands/` | Admin/console command clients and tooling | Operator workflows and scripted control |
 | `src/edumatcher/messaging/` | Transport and message-bus helpers | Socket wiring and topic flow |
 | `src/edumatcher/models/` | Shared message, order, and domain models | Data structures and message payloads |
@@ -119,9 +123,15 @@ If you want to understand the runtime quickly, read:
 
 1. `src/edumatcher/engine/main.py`
 2. `src/edumatcher/engine/config_loader.py`
-3. `src/edumatcher/gateway/main.py`
+3. `src/edumatcher/alf_gwy/gateway.py` — the simplest gateway, and the one
+   [Order flow](09-order-flow-engine.md) traces end to end
 4. `src/edumatcher/models/message.py`
 5. `tests/test_*` files closest to the area you plan to change
+
+If you prefer a narrative to a file listing, read
+[Order flow: from keystroke to resting order](09-order-flow-engine.md) first —
+it walks one order through every file above in the order the code touches
+them.
 
 
 
@@ -243,6 +253,14 @@ This is *exactly* the situation a full local `pytest` run will hit right
 after pulling a change that touches the compiled config's shape — the
 failures are pointing at `src/data/`, not at the test files.
 
+The three config commands divide up as: **`pm-config-gen`** authors a fresh
+`engine_config.yaml` from high-level CLI inputs (symbol count, gateways,
+sessions) when you want a new scenario rather than an edit to an existing
+one; **`pm-config-deploy`** compiles an authored YAML into the deployed
+`ref_data/` artifacts; and **`pm-config-show`** prints what is actually
+deployed, which is the one to reach for when the engine's behaviour and your
+YAML appear to disagree.
+
 ### Minimal reference data
 
 EduMatcher uses `engine_config.yaml` for reference data. A one-symbol minimal
@@ -315,6 +333,31 @@ poetry run pm-stats
 poetry run pm-ticker --db-interval 15
 poetry run pm-board
 ```
+
+### Inspecting a run after the fact
+
+The processes above are the *live* view. Every store they write also has a
+read-only query CLI, and reaching for one is almost always faster than
+opening the SQLite file or grepping a log by hand:
+
+| Command | Reads | Reach for it when |
+|---|---|---|
+| `pm-audit-cli` | `data/audit.log` (+ rotated `.gz`) | "what happened on the bus?" — filter by topic, gateway, symbol, time |
+| `pm-stats-cli` | the stats database | OHLCV, trades, order events, order lifecycle, gaps |
+| `pm-clearing-cli` | the clearing database | positions, P&L, and `reconcile` against the raw trade archive |
+| `pm-log-cli` | `pm-log-srv` | operational logs from every process in one place |
+| `pm-index-admin-cli` | `pm-index` | corporate actions, constituent changes, rebalances |
+
+Three more that are easy to miss:
+
+- **`pm-mm-bot`** — the market-maker bot. Start one before a demo and the
+  book has resting liquidity to trade against; without it an AI-trader swarm
+  produces a thin, jumpy book. See [AI bot traders](02-ai-bot.md).
+- **`pm-dc-spy`**, **`pm-ralf-spy`**, **`pm-calf-spy`** — tail the drop-copy,
+  RALF and CALF feeds without writing a subscriber. The fastest way to see
+  whether a gateway is emitting what you think it is.
+- **`pm-help`** (alias **`pm-man`**) — browses the documentation for any
+  EduMatcher command from the terminal.
 
 ### macOS convenience launcher
 

@@ -215,9 +215,34 @@ poetry run pm-ai-swarm \
 3. Start small (2–5 bots), verify flow, then scale to 30.
 4. Use fixed seeds for scenario replay and performance comparisons.
 
-## Tick/Ns Migration Notes
+## Prices and ticks
 
-- Bots still choose human-readable decimal prices based on profile settings.
-- Engine boundary conversion maps those prices to symbol tick units.
-- To avoid off-grid prices, keep profile `tick_size` aligned with symbol
-  `tick_decimals` configuration.
+- Bots choose human-readable decimal prices from their profile settings; the
+  gateway converts to integer ticks at the boundary, so the engine never does
+  float arithmetic on a price.
+- A profile does **not** carry a tick size. `PersonalityProfile`
+  (`ai_trader/personality.py`) has `passive_offset_ticks` — how far off the
+  touch to post — expressed in *ticks*, so it follows the symbol's own
+  `tick_decimals` automatically and cannot drift off-grid.
+- The fields a profile actually has are `decision_interval_ms`,
+  `order_size_min`, `order_size_max`, `cross_probability`,
+  `passive_offset_ticks` and `size_distribution`.
+
+## Logging
+
+Every bot is a normal EduMatcher process, so it takes the shared
+log-server flags: `--log-level`, `--log-target`, `--log-file` and
+`--log-failover-timeout`. With `pm-log-srv` running, a swarm's output is
+collectable in one place instead of scattered across thirty terminals —
+which is the difference between a readable swarm run and an unreadable one.
+
+## The other bot: `pm-mm-bot`
+
+`pm-ai-trader` takes liquidity and behaves like a directional participant.
+The **market-maker bot** is a separate program with a different job: it
+posts two-sided `quote.new` quotes and manages its obligation, quoting one
+or several symbols from a single gateway id. Reach for it when you need a
+book that *has* resting liquidity to trade against — a swarm of AI traders
+alone tends to produce a thin, jumpy book. See
+`docs-design/EduMatcher-MM-bots.md` and
+`docs-design/EduMatcher-MM-Bot-review.md`.

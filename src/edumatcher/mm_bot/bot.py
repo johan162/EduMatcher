@@ -11,7 +11,7 @@ per-symbol attributes on ``self``.
 
 from __future__ import annotations
 
-from collections import defaultdict, deque
+from collections import OrderedDict, defaultdict, deque
 from dataclasses import dataclass, field
 import logging
 import random
@@ -23,6 +23,7 @@ from typing import Any
 import zmq
 
 from edumatcher.messaging.bus import PushSocket, make_pusher, make_subscriber
+from edumatcher.models.envelope import new_ulid
 from edumatcher.models.price import register_tick_decimals, to_ticks
 from edumatcher.models.message import (
     decode,
@@ -248,20 +249,24 @@ class MMBot:
             for sym in resolved_symbols
         }
 
-        # Reverse lookup populated once a quote is *acked* for a symbol and
-        # consulted on the matching quote.status — that topic is
-        # per-gateway, not per-symbol, and its payload carries quote_id but
-        # not symbol, so this is one piece of local bookkeeping a
-        # single-symbol bot never needed.
-        self._quote_id_to_symbol: dict[str, str] = {}
+        # quote.ack and quote.status are per-*gateway* topics whose payloads
+        # carry quote_id but not symbol, so a multi-symbol bot has to map one
+        # to the other itself. `_send_quote` mints the quote_id and the engine
+        # echoes it on every reply, so this is populated at **send** time —
+        # early enough that a status for a quote rejected or cancelled before
+        # its ack still resolves.
+        #
+        # Bounded: a bot that reissues every few seconds would otherwise
+        # accumulate an entry per quote for the life of the process. Only the
+        # most recent few per symbol can still attract a late quote.status, so
+        # older entries are evicted in insertion order.
+        self._quote_id_to_symbol: OrderedDict[str, str] = OrderedDict()
+        self._quote_id_index_cap = max(32, 8 * len(resolved_symbols))
 
-        # quote.ack is also per-gateway with no symbol in its payload — it
-        # is engine's direct reply to a quote.new we just sent, before any
-        # quote_id exists to key off of. The only correlation available is
-        # send order: the engine acks quote.new requests on one gateway
-        # connection in the order it received them, so a FIFO of "symbols
-        # with a quote.new outstanding" pairs each arriving ack with the
-        # right symbol. Appended in _send_quote, popped in
+        # Fallback only, for an ack that carries no quote_id. Send order is a
+        # weaker signal than an id: it assumes every quote.new produces exactly
+        # one ack, in order, so a single dropped ack leaves the queue
+        # permanently off by one. Appended in _send_quote, consumed in
         # _handle_quote_ack.
         self._pending_ack_symbols: deque[str] = deque()
 
@@ -779,6 +784,7 @@ class MMBot:
             return
 
         bid, ask = st.pricer.compute_prices()
+        quote_id = f"{self.gateway_id}-{symbol}-{new_ulid()}"
         quote_payload: dict[str, Any] = {
             "gateway_id": self.gateway_id,
             "symbol": symbol,
@@ -789,11 +795,24 @@ class MMBot:
             "bid_qty": self.qty,
             "ask_qty": self.qty,
             "tif": self.tif,
+            # Client-supplied correlation id. The engine echoes it on
+            # quote.ack, stamps it on both leg orders, and carries it on
+            # quote.status — it only mints one of its own when the client
+            # sends none (engine/main.py: `if not quote_id`). Supplying it
+            # here is what lets every reply be matched to this symbol by id
+            # instead of by arrival order.
+            "quote_id": quote_id,
         }
         self._send(make_quote_new_msg(quote_payload))
         st.quoted_at_mid = st.pricer.mid_price
         st.last_quote_sent_at = time.monotonic()
         self._set_state(symbol, BotState.REISSUING)
+        # Indexed at send time, not ack time: quote.status for a quote that is
+        # rejected or cancelled before its ack is processed would otherwise
+        # arrive with a quote_id this bot had never heard of.
+        self._quote_id_to_symbol[quote_id] = symbol
+        while len(self._quote_id_to_symbol) > self._quote_id_index_cap:
+            self._quote_id_to_symbol.popitem(last=False)
         self._pending_ack_symbols.append(symbol)
         self._debug(f"[{symbol}] QUOTE sent bid={bid} ask={ask}")
 
@@ -865,17 +884,34 @@ class MMBot:
     def _handle_quote_ack(self, payload: dict[str, Any]) -> None:
         """Handle quote.ack — record IDs or handle rejection.
 
-        quote.ack carries no `symbol` (only quote_id/accepted/reason/
-        bid_order_id/ask_order_id) and, being the *first* reply to a fresh
-        quote.new, arrives before any quote_id is known to key off of. It
-        is matched to a symbol via the send-order FIFO populated in
-        _send_quote — see _pending_ack_symbols.
+        quote.ack carries no `symbol` — only quote_id/accepted/reason/
+        bid_order_id/ask_order_id. Since `_send_quote` supplies its own
+        `quote_id` and the engine echoes it, the ack is matched **by id**.
+
+        The send-order FIFO (`_pending_ack_symbols`) remains as a fallback for
+        an ack carrying no id, but it is no longer the primary mechanism, and
+        that matters: the FIFO assumes every quote.new produces exactly one
+        ack, in order. Lose one ack to a PUB/SUB drop and the queue is
+        permanently off by one, silently attributing every later ack to the
+        wrong symbol. Matching by id cannot desynchronise.
         """
-        symbol = (
-            self._pending_ack_symbols.popleft()
-            if self._pending_ack_symbols
-            else self._primary_symbol
-        )
+        ack_quote_id = str(payload.get("quote_id", ""))
+        symbol = self._quote_id_to_symbol.get(ack_quote_id) if ack_quote_id else None
+        if symbol is not None:
+            # Keep the fallback queue aligned: drop this symbol's oldest entry
+            # rather than leaving a stale one to mis-pair a later ack.
+            try:
+                self._pending_ack_symbols.remove(symbol)
+            except ValueError:
+                pass
+        else:
+            if ack_quote_id:
+                self._dbg_count("quote_ack_unknown_id")
+            symbol = (
+                self._pending_ack_symbols.popleft()
+                if self._pending_ack_symbols
+                else self._primary_symbol
+            )
         st = self._symbols_state.get(symbol)
         if st is None:
             return
@@ -884,7 +920,10 @@ class MMBot:
             st.quote_id = str(payload.get("quote_id", ""))
             st.bid_order_id = str(payload.get("bid_order_id", ""))
             st.ask_order_id = str(payload.get("ask_order_id", ""))
-            if st.quote_id:
+            # Already indexed at send time; re-assert only if the engine
+            # minted an id of its own (it does that when a client sends none,
+            # which this bot no longer does — but a rolling upgrade might).
+            if st.quote_id and st.quote_id not in self._quote_id_to_symbol:
                 self._quote_id_to_symbol[st.quote_id] = symbol
             self._set_state(symbol, BotState.QUOTING)
             self._debug(f"[{symbol}] quote ACK id={st.quote_id}")

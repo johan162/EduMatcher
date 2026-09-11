@@ -785,7 +785,7 @@ look, roughly in the order you should look at them:
 | Was the order rejected, and why? | The `REJECT_CODE`/`reason` on the `ACK` — every reject in Section 5 goes through `Engine._reject`, which always sets both |
 | Did the engine even see it? | Engine log at `INFO`: `NEW {id} {symbol} {side} ...` is logged right before `book.process` in `_handle_new_order` |
 | Did it fill, partially or fully? | `order.fill.{gateway_id}` on the wire; `trade.executed` for the public tape; engine log `TRADE {id} {symbol} qty=... @...` |
-| Is it still resting? | `ORDERS` (ALF) / `system.orders_request` — walks `book.resting_orders()` directly, so it can never disagree with the book |
+| Is it still resting? | `ORDERS` (ALF) / `order.orders_request` — walks `book.resting_orders()` directly, so it can never disagree with the book |
 | Did it expire, and when? | `order.expired.{gateway_id}`; only ever sent from `_expire_tif`, only for a real session transition to `CLOSED` |
 | Did I lose it across a restart? | Check the engine's startup log for `Discarding stale TIF=DAY order ...` — if you see it, that order is gone and nothing else will tell you |
 | Is a handler silently swallowing exceptions? | It cannot — every branch of `_dispatch_pull_message` is wrapped, and any exception increments `self._error_count` and logs at `ERROR` with the topic name |

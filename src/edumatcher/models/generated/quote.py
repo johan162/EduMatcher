@@ -429,6 +429,14 @@ _QUOTE_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "",
     },
     {
+        "name": "symbol",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Instrument the quote was for. `order.ack` has always carried this; `quote.ack` did not, which left every market-making client to work out for itself which symbol an ack belonged to -- the topic is per-gateway, not per-symbol. Empty only on a rejection raised before the symbol was known (a malformed payload, or a missing SYM).",
+        "constraints": {"max_len": 16},
+    },
+    {
         "name": "reason",
         "type": "string",
         "unit": None,
@@ -468,6 +476,7 @@ class QuoteAck:
     gateway_id: str
     accepted: bool
     quote_id: str = ""
+    symbol: str = ""
     reason: str = ""
     bid_order_id: str = ""
     ask_order_id: str = ""
@@ -486,6 +495,10 @@ class QuoteAck:
         if len(self.quote_id) > 64:
             raise MessageValidationError(
                 f"quote_id: length {len(self.quote_id)} exceeds max_len 64"
+            )
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
             )
         if len(self.reason) > 512:
             raise MessageValidationError(
@@ -512,6 +525,7 @@ class QuoteAck:
             gateway_id=str(p.get("gateway_id", "")),
             quote_id=str(p.get("quote_id", "")),
             accepted=bool(p["accepted"]),
+            symbol=str(p.get("symbol", "")),
             reason=str(p.get("reason", "")),
             bid_order_id=str(p.get("bid_order_id", "")),
             ask_order_id=str(p.get("ask_order_id", "")),
@@ -522,6 +536,7 @@ class QuoteAck:
         return {
             "quote_id": self.quote_id,
             "accepted": self.accepted,
+            "symbol": self.symbol,
             "reason": self.reason,
             "bid_order_id": self.bid_order_id,
             "ask_order_id": self.ask_order_id,
@@ -559,6 +574,7 @@ def make_quote_ack_unchecked(
     gateway_id: str,
     accepted: bool,
     quote_id: str = "",
+    symbol: str = "",
     reason: str = "",
     bid_order_id: str = "",
     ask_order_id: str = "",
@@ -579,6 +595,7 @@ def make_quote_ack_unchecked(
             {
                 "quote_id": str(quote_id),
                 "accepted": bool(accepted),
+                "symbol": str(symbol),
                 "reason": str(reason),
                 "bid_order_id": str(bid_order_id),
                 "ask_order_id": str(ask_order_id),

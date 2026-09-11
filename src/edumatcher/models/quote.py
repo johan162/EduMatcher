@@ -64,6 +64,13 @@ class QuoteLegSnapshot:
     remaining: int
     filled: int
     status: str
+    # Limit price in *display money*, not ticks — a quote leg is always a
+    # priced limit order, and this mirrors `QuoteLeg.price` on the live half
+    # so an ACTIVE row and a RECENT row for the same leg read identically.
+    # `None` when the order's price was unavailable at snapshot time; it has
+    # a default so the four positional fields above keep their old call
+    # shape.
+    price: Optional[float] = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -431,3 +431,69 @@ def test_dispatch_pull_message_handler_exception_still_counted_as_error_not_unkn
 
     assert engine._error_count == 1
     assert engine._unknown_topic_count == 0
+
+
+# ---------------------------------------------------------------------------
+# Leg prices — on the ACTIVE half and, at removal, on the RECENT half
+# ---------------------------------------------------------------------------
+
+
+def test_active_legs_report_their_limit_price_in_display_money(monkeypatch, tmp_path):
+    """`QuoteLeg.price` is display money, so it reads back as the number the
+    quote was submitted with rather than the ticks it is stored as."""
+    engine, pub_sock = make_engine(monkeypatch, tmp_path, mm_gateways=("GW01",))
+    connect(engine, "GW01")
+    submit_quote(engine, "GW01", bid_price=100.0, ask_price=101.0, quote_id="Q1")
+    pub_sock.sent.clear()
+
+    engine._handle_quote_legs_request(
+        {"gateway_id": "GW01", "symbol": "", "show": "ACTIVE"}
+    )
+
+    legs = msgs(pub_sock, "system.quote_legs.GW01")[0]["legs"]
+    by_side = {leg["leg_side"]: leg for leg in legs}
+    assert by_side["BUY"]["price"] == 100.0
+    assert by_side["SELL"]["price"] == 101.0
+
+
+def test_recent_leg_snapshot_keeps_the_price_the_leg_had_at_removal(
+    monkeypatch, tmp_path
+):
+    """The price is captured at removal because the order is gone afterwards
+    and nothing in the engine can recover it. Pinned against the ACTIVE
+    reading taken moments earlier so the two halves cannot silently disagree
+    — a RECENT row quoting ticks where ACTIVE quoted display money would be
+    invisible until someone compared them.
+    """
+    engine, pub_sock = make_engine(monkeypatch, tmp_path, mm_gateways=("GW01",))
+    connect(engine, "GW01")
+    submit_quote(
+        engine,
+        "GW01",
+        bid_price=100.0,
+        ask_price=101.0,
+        bid_qty=500,
+        ask_qty=500,
+        quote_id="Q1",
+    )
+    pub_sock.sent.clear()
+
+    engine._handle_quote_legs_request(
+        {"gateway_id": "GW01", "symbol": "", "show": "ACTIVE"}
+    )
+    active = {
+        leg["leg_side"]: leg
+        for leg in msgs(pub_sock, "system.quote_legs.GW01")[0]["legs"]
+    }
+    pub_sock.sent.clear()
+
+    engine._handle_quote_cancel({"gateway_id": "GW01", "symbol": SYMBOL})
+    pub_sock.sent.clear()
+
+    engine._handle_quote_legs_request(
+        {"gateway_id": "GW01", "symbol": "", "show": "RECENT"}
+    )
+    recent = msgs(pub_sock, "system.quote_legs.GW01")[0]["recent"][0]
+
+    assert recent["bid_leg"]["price"] == active["BUY"]["price"] == 100.0
+    assert recent["ask_leg"]["price"] == active["SELL"]["price"] == 101.0

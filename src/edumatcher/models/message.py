@@ -1073,12 +1073,20 @@ def make_quote_ack_msg(
     reason: str = "",
     bid_order_id: str = "",
     ask_order_id: str = "",
+    *,
+    symbol: str = "",
 ) -> list[bytes]:
-    """Engine → gateway: quote accepted or rejected."""
+    """Engine → gateway: quote accepted or rejected.
+
+    ``symbol`` is keyword-only so it cannot be confused with the three string
+    positionals above it. Pass it wherever the symbol is known — which is every
+    site except a rejection raised before the payload was parsed.
+    """
     return _gen_quote.make_quote_ack(
         gateway_id=gateway_id,
         quote_id=quote_id,
         accepted=accepted,
+        symbol=symbol,
         reason=reason,
         bid_order_id=bid_order_id,
         ask_order_id=ask_order_id,

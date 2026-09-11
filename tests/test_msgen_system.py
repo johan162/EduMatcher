@@ -495,3 +495,53 @@ class TestTheFamilyIsComplete:
         just like eod."""
         topics = {getattr(G, n) for n in dir(G) if n.startswith("TOPIC_")}
         assert len(topics) == 31, sorted(topics)
+
+
+class TestQuoteLegSnapshotPrice:
+    """`QuoteLegSnapshot` gained a price so a RECENT quote leg can report the
+    same number its ACTIVE row did.
+
+    `QuoteLeg` (the live half) has always had one; the snapshot did not, which
+    left `pm-alf-gwy` with nothing to put on `RECENT_BID_LEG`/`RECENT_ASK_LEG`
+    and every ALF client unable to show a leg's price at all.
+    """
+
+    def test_price_is_optional_and_last(self) -> None:
+        """Last and defaulted: every existing construction site passes the
+        other five by keyword and omits this one."""
+        leg = G.QuoteLegSnapshot(
+            order_id="B1", qty=100, remaining=0, filled=100, status="FILLED"
+        )
+        assert leg.price is None
+
+    def test_an_absent_price_is_omitted_from_the_payload_not_sent_as_null(
+        self,
+    ) -> None:
+        """`omit_when_none`, so a consumer distinguishes "no price recorded"
+        from a price that happens to be zero."""
+        leg = G.QuoteLegSnapshot(
+            order_id="B1", qty=100, remaining=0, filled=100, status="FILLED"
+        )
+        assert "price" not in leg.to_dict()
+
+    def test_a_present_price_survives_a_round_trip(self) -> None:
+        leg = G.QuoteLegSnapshot(
+            order_id="B1",
+            qty=100,
+            remaining=0,
+            filled=100,
+            status="FILLED",
+            price=150.25,
+        )
+        assert leg.to_dict()["price"] == 150.25
+        assert G.QuoteLegSnapshot.from_dict(leg.to_dict()) == leg
+
+    def test_it_matches_the_live_half_it_mirrors(self) -> None:
+        """Both halves declare the same type under the same name. A snapshot
+        carrying ticks where `QuoteLeg` carries display money would read as a
+        plausible number, so the pairing is pinned rather than assumed.
+        """
+        assert (
+            G.QuoteLegSnapshot.__annotations__["price"]
+            == G.QuoteLeg.__annotations__["price"]
+        )

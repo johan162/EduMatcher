@@ -189,6 +189,23 @@ def _combo_leg_fields(n_legs: int) -> list[str]:
     return [f"LEG{i}{f}" for i in range(n_legs) for f in _COMBO_LEG_FIELDS]
 
 
+def _price(raw: str | None) -> str:
+    """Render an optional ALF price field for a table cell.
+
+    The gateway sends an empty value rather than omitting the key when a
+    price is unavailable, so both the missing-key and empty-string cases mean
+    the same thing and render as an em dash. Anything non-numeric is passed
+    through untouched instead of being swallowed — a client that silently
+    blanks a field it failed to parse is how a display bug survives.
+    """
+    if raw is None or raw == "":
+        return "-"
+    try:
+        return f"{float(raw):.2f}"
+    except ValueError:
+        return raw
+
+
 class _AlfCompleter:
     """Context-aware readline tab completer for the ALF command format."""
 
@@ -476,15 +493,23 @@ class AlfClient:
 
         if t == "QUOTE_ACK":
             qid = f.get("QUOTE_ID", "?")
+            # SYM is on the ack, so a client never has to remember which
+            # symbol it quoted last. The topic is per-gateway, not
+            # per-symbol, so without it a multi-symbol client would have to
+            # keep its own book of outstanding quotes and match by send
+            # order — which breaks the moment one ack is missed.
+            sym = f.get("SYM") or "?"
             if f.get("ACCEPTED", "FALSE") == "TRUE":
                 bid = f.get("BID_ID", "?")[:8]
                 ask = f.get("ASK_ID", "?")[:8]
                 self._pr(
-                    f"[{ts}] {_GREEN}QUOTE ACK{_RESET}  {qid}  bid={bid} ask={ask}"
+                    f"[{ts}] {_GREEN}QUOTE ACK{_RESET}  {sym}  {qid}  "
+                    f"bid={bid} ask={ask}"
                 )
             else:
                 self._pr(
-                    f"[{ts}] {_RED}QUOTE REJ{_RESET}  {qid}  {f.get('REASON', '')}"
+                    f"[{ts}] {_RED}QUOTE REJ{_RESET}  {sym}  {qid}  "
+                    f"{f.get('REASON', '')}"
                 )
             return
 
@@ -647,15 +672,17 @@ class AlfClient:
             leg_rows = [r for r in rows if r.msg_type == "LEG"]
             header = (
                 f"  {'SYM':<6} {'QUOTE_ID':<20} {'SIDE':<5} {'ORDER_ID':<8} "
-                f"{'QTY':>6} {'REM':>6} {'FILLED':>6}  {'STATUS':<10} QUOTE_STATUS"
+                f"{'PRICE':>10} {'QTY':>6} {'REM':>6} {'FILLED':>6}  "
+                f"{'STATUS':<10} QUOTE_STATUS"
             )
-            divider = "  " + "-" * 90
+            divider = "  " + "-" * 100
             lines = [f"\n{_BOLD}Quote legs (show={show}){_RESET}", header, divider]
             for r in leg_rows:
                 f_ = r.fields
                 lines.append(
                     f"  {f_.get('SYM', '?'):<6} {f_.get('QUOTE_ID', '?'):<20} "
                     f"{f_.get('SIDE', '?'):<5} {f_.get('ORDER_ID', '?')[:8]:<8} "
+                    f"{_price(f_.get('PRICE')):>10} "
                     f"{f_.get('QTY', '?'):>6} {f_.get('REMAINING', '?'):>6} "
                     f"{f_.get('FILLED', '?'):>6}  {f_.get('STATUS', '?'):<10} "
                     f"{f_.get('QUOTE_STATUS', '-')}"
@@ -685,6 +712,7 @@ class AlfClient:
                         side = "bid" if r.msg_type == "RECENT_BID_LEG" else "ask"
                         lines.append(
                             f"      {side}_leg  order={f_.get('ORDER_ID', '?')[:8]}  "
+                            f"px={_price(f_.get('PRICE'))} "
                             f"qty={f_.get('QTY', '?')} rem={f_.get('REMAINING', '?')} "
                             f"filled={f_.get('FILLED', '?')} status={f_.get('STATUS', '?')}"
                         )
