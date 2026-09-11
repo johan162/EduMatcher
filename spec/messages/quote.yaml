@@ -104,6 +104,17 @@ messages:
       - { name: quote_id, type: string, required: false, default: "",
           validate: { max_len: 64 } }
       - { name: accepted, type: bool }
+      - name: symbol
+        type: string
+        required: false
+        default: ""
+        validate: { max_len: 16 }
+        doc: >
+          Instrument the quote was for. `order.ack` has always carried this;
+          `quote.ack` did not, which left every market-making client to work
+          out for itself which symbol an ack belonged to -- the topic is
+          per-gateway, not per-symbol. Empty only on a rejection raised before
+          the symbol was known (a malformed payload, or a missing SYM).
       - { name: reason, type: string, required: false, default: "",
           validate: { max_len: 512 } }
       - { name: bid_order_id, type: string, required: false, default: "",

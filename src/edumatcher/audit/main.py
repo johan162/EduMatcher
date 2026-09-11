@@ -49,7 +49,7 @@ from edumatcher.log_srv.config import (
 )
 from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_subscriber
-from edumatcher.models.message import decode
+from edumatcher.models.message import decode, decode_envelope, decode_sequence
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
 
 _CLIENT_NAME = "pm-audit"
@@ -63,6 +63,33 @@ _DEFAULT_FLUSH_INTERVAL = 10.0
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 
 log = logging.getLogger(__name__)
+
+
+def _meta_section(frames: list[bytes]) -> str | None:
+    """The bracketed metadata section for one message, or None if it has none.
+
+    The audit trail used to record only the topic and the payload, discarding
+    the frames behind them — which meant the per-topic sequence that exists
+    precisely to reveal PUB/SUB drops was thrown away by the one process whose
+    job is to miss nothing. The causal envelope would have shared that fate.
+
+    Rendered as `key=value` pairs so the line stays greppable by eye and a new
+    key can be added without breaking readers of the old ones.
+    """
+    seq = decode_sequence(frames)
+    env = decode_envelope(frames)
+    if seq is None and env is None:
+        return None
+    parts: list[str] = []
+    if seq is not None:
+        parts.append(f"seq={seq}")
+    if env is not None:
+        parts.append(f"msg={env.msg_id}")
+        if env.causation_id:
+            parts.append(f"cause={env.causation_id}")
+        if env.correlation_id:
+            parts.append(f"chain={env.correlation_id}")
+    return " ".join(parts)
 
 
 def _setup_logger(log_path: Path, to_terminal: bool) -> logging.Logger:
@@ -328,7 +355,12 @@ class AuditProcess:
                     self._dbg_count("messages_received")
                     self._dbg_count(f"topic_family_{self._topic_family(topic)}")
                     ts = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
-                    line = f"[{ts}] [{topic}] {json.dumps(payload)}"
+                    meta = _meta_section(frames)
+                    if meta is None:
+                        self._dbg_count("messages_without_envelope")
+                        line = f"[{ts}] [{topic}] {json.dumps(payload)}"
+                    else:
+                        line = f"[{ts}] [{topic}] [{meta}] {json.dumps(payload)}"
                     self._add_to_buffer(line)
                 except Exception as exc:
                     # Never let a single bad message kill the receive loop

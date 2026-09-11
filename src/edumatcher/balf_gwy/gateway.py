@@ -84,7 +84,7 @@ from edumatcher.balf_gwy.translate import (
     engine_fill_to_execution_report_dict,
     new_engine_order_id,
 )
-from edumatcher.messaging.bus import make_pusher, make_subscriber
+from edumatcher.messaging.bus import PushSocket, make_pusher, make_subscriber
 from edumatcher.models.message import (
     decode,
     make_gateway_connect_msg,
@@ -241,7 +241,7 @@ class BalfGateway:
         self._known_symbols: set[str] = set()
 
         # ZMQ sockets
-        self._push: zmq.Socket[bytes] = make_pusher(config.engine_pull_addr)
+        self._push: PushSocket = make_pusher(config.engine_pull_addr)
         self._sub: zmq.Socket[bytes] = make_subscriber(
             config.engine_pub_addr,
             TOPIC_SESSION_STATE,

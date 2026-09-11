@@ -243,10 +243,32 @@ class TestParseLine:
     def test_valid_line(self) -> None:
         result = _parse_line(_LINES[0])
         assert result is not None
-        ts, topic, payload = result
+        ts, topic, payload, meta = result
         assert ts == _TS1
         assert topic == "order.new"
         assert payload["order_id"] == "ORD-001"
+        # This fixture carries no metadata section, which is legal.
+        assert meta == {}
+
+    def test_line_with_a_metadata_section(self) -> None:
+        """pm-audit records the per-topic sequence and the causal envelope
+        between the topic and the payload — see models/envelope.py."""
+        line = (
+            f"[{_TS1}] [order.ack.GW01] "
+            "[seq=7 msg=01ARZ3NDEKTSV4RRFFQ69G5FAV "
+            "cause=01ARZ3NDEKTSV4RRFFQ69G5FAB chain=01ARZ3NDEKTSV4RRFFQ69G5FAB] "
+            '{"order_id": "ORD-001"}'
+        )
+        result = _parse_line(line)
+        assert result is not None
+        _ts, topic, payload, meta = result
+
+        assert topic == "order.ack.GW01"
+        assert payload["order_id"] == "ORD-001"
+        assert meta["seq"] == "7"
+        assert meta["msg"] == "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+        assert meta["cause"] == "01ARZ3NDEKTSV4RRFFQ69G5FAB"
+        assert meta["chain"] == "01ARZ3NDEKTSV4RRFFQ69G5FAB"
 
     def test_empty_line_returns_none(self) -> None:
         assert _parse_line("") is None

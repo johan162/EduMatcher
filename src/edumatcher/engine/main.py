@@ -99,6 +99,7 @@ from edumatcher.models.generated.trade import make_trade_executed_unchecked
 from edumatcher.models.message import (
     dumps,
     decode,
+    decode_push_envelope,
     make_ack_msg,
     make_amended_msg,
     make_book_msg,
@@ -2618,6 +2619,7 @@ class Engine:
             return None
         return {
             "order_id": leg.order_id,
+            "price": leg.price,
             "qty": leg.qty,
             "remaining": leg.remaining,
             "filled": leg.filled,
@@ -2726,6 +2728,12 @@ class Engine:
         """Build a `QuoteLegSnapshot` from a (possibly already-terminal)
         `Order`, or `None` if there is nothing to snapshot (e.g. the order
         was already gone before cancellation was attempted).
+
+        `price` is converted to display money here, the same conversion
+        `_active_quote_legs` applies, so a RECENT row and an ACTIVE row for
+        the same leg report the same number. It is recorded at removal
+        because the order is gone afterwards and its price is then
+        unrecoverable from anywhere in the engine.
         """
         if order is None:
             return None
@@ -2735,6 +2743,11 @@ class Engine:
             remaining=order.remaining_qty,
             filled=order.quantity - order.remaining_qty,
             status=order.status.value,
+            price=(
+                from_ticks(order.price, order.symbol)
+                if order.price is not None
+                else None
+            ),
         )
 
     def _cancel_quote_entry(
@@ -3216,7 +3229,7 @@ class Engine:
         if not ok:
             self._dbg_count("quote_reject_gateway")
             self.pub_sock.send_multipart(
-                make_quote_ack_msg(gateway_id, quote_id, False, reason)
+                make_quote_ack_msg(gateway_id, quote_id, False, reason, symbol=symbol)
             )
             return
 
@@ -3229,6 +3242,7 @@ class Engine:
                     quote_id,
                     False,
                     "Quotes are only allowed for MARKET_MAKER participants",
+                    symbol=symbol,
                 )
             )
             return
@@ -3236,7 +3250,13 @@ class Engine:
         if not symbol:
             self._dbg_count("quote_reject_payload")
             self.pub_sock.send_multipart(
-                make_quote_ack_msg(gateway_id, quote_id, False, "Missing symbol")
+                make_quote_ack_msg(
+                    gateway_id,
+                    quote_id,
+                    False,
+                    "Missing symbol",
+                    symbol=symbol,
+                )
             )
             return
         if self._allowed_symbols and symbol not in self._allowed_symbols:
@@ -3247,6 +3267,7 @@ class Engine:
                     quote_id,
                     False,
                     f"Symbol not configured: {symbol}",
+                    symbol=symbol,
                 )
             )
             return
@@ -3260,6 +3281,7 @@ class Engine:
                     quote_id,
                     False,
                     f"{symbol} is halted — quotes rejected during circuit breaker halt",
+                    symbol=symbol,
                 )
             )
             return
@@ -3269,7 +3291,13 @@ class Engine:
         if self._sessions_enabled and not accepts_orders(self._session_state):
             self._dbg_count("quote_reject_session")
             self.pub_sock.send_multipart(
-                make_quote_ack_msg(gateway_id, quote_id, False, "Market is closed")
+                make_quote_ack_msg(
+                    gateway_id,
+                    quote_id,
+                    False,
+                    "Market is closed",
+                    symbol=symbol,
+                )
             )
             return
 
@@ -3297,7 +3325,13 @@ class Engine:
         except (KeyError, TypeError, ValueError):
             self._dbg_count("quote_reject_payload")
             self.pub_sock.send_multipart(
-                make_quote_ack_msg(gateway_id, quote_id, False, "Invalid quote payload")
+                make_quote_ack_msg(
+                    gateway_id,
+                    quote_id,
+                    False,
+                    "Invalid quote payload",
+                    symbol=symbol,
+                )
             )
             return
 
@@ -3305,7 +3339,11 @@ class Engine:
             self._dbg_count("quote_reject_payload")
             self.pub_sock.send_multipart(
                 make_quote_ack_msg(
-                    gateway_id, quote_id, False, "Quote quantities must be positive"
+                    gateway_id,
+                    quote_id,
+                    False,
+                    "Quote quantities must be positive",
+                    symbol=symbol,
                 )
             )
             return
@@ -3313,7 +3351,11 @@ class Engine:
             self._dbg_count("quote_reject_payload")
             self.pub_sock.send_multipart(
                 make_quote_ack_msg(
-                    gateway_id, quote_id, False, "Quote requires bid_price < ask_price"
+                    gateway_id,
+                    quote_id,
+                    False,
+                    "Quote requires bid_price < ask_price",
+                    symbol=symbol,
                 )
             )
             return
@@ -3364,6 +3406,7 @@ class Engine:
                             f"Spread {spread_ticks} ticks exceeds max "
                             f"{mm_max_spread_ticks}"
                         ),
+                        symbol=symbol,
                     )
                 )
                 return
@@ -3375,6 +3418,7 @@ class Engine:
                         quote_id,
                         False,
                         f"Quote size must be >= {mm_min_qty}",
+                        symbol=symbol,
                     )
                 )
                 return
@@ -3507,6 +3551,7 @@ class Engine:
                 True,
                 bid_order_id=bid.id,
                 ask_order_id=ask.id,
+                symbol=symbol,
             )
         )
         self._dbg_count("quote_accepted")
@@ -3521,7 +3566,7 @@ class Engine:
         ok, reason = self._gateway_status(gateway_id)
         if not ok:
             self.pub_sock.send_multipart(
-                make_quote_ack_msg(gateway_id, "", False, reason)
+                make_quote_ack_msg(gateway_id, "", False, reason, symbol=symbol)
             )
             return
 
@@ -3530,13 +3575,19 @@ class Engine:
         )
         if not entry:
             self.pub_sock.send_multipart(
-                make_quote_ack_msg(gateway_id, "", False, "No active quote for symbol")
+                make_quote_ack_msg(
+                    gateway_id,
+                    "",
+                    False,
+                    "No active quote for symbol",
+                    symbol=symbol,
+                )
             )
             return
 
         self._cancel_quote_entry(entry, reason="Cancelled by participant")
         self.pub_sock.send_multipart(
-            make_quote_ack_msg(gateway_id, entry.quote_id, True)
+            make_quote_ack_msg(gateway_id, entry.quote_id, True, symbol=symbol)
         )
 
     def _handle_gateway_disconnect(self, payload: dict[str, Any]) -> None:
@@ -6312,6 +6363,7 @@ class Engine:
                 try:
                     frames = self.pull_sock.recv_multipart()
                     topic, payload = decode(frames)
+                    cause = decode_push_envelope(frames)
                 except Exception as exc:
                     # No decodable topic means no gateway to reject to, so the
                     # message can only be discarded — but it is counted, so
@@ -6339,7 +6391,19 @@ class Engine:
                 else:
                     self._dbg_count("pull_messages")
                     self._dbg_count(f"topic_{topic}")
-                    self._dispatch_pull_message(topic, payload)
+                    # Everything published while handling this message is
+                    # attributed to it, and inherits its causal chain. Cleared
+                    # in `finally` so a handler that raises cannot leak the
+                    # attribution onto the next message, or onto maintenance
+                    # work below — which has no external cause and must not
+                    # claim one.
+                    if cause is None:
+                        self._dbg_count("pull_messages_without_envelope")
+                    self.pub_sock.set_cause(cause)
+                    try:
+                        self._dispatch_pull_message(topic, payload)
+                    finally:
+                        self.pub_sock.clear_cause()
             self._run_maintenance()
 
         self._flush_debug_summary(force=True)

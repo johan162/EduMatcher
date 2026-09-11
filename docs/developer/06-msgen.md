@@ -40,7 +40,7 @@
 
     Every producer reaches the wire through its generated builder except two
     frames that opt out on purpose — the BALF `execution_report` and
-    `index.index_history`'s legacy-archive replay — which
+    `index.history`'s legacy-archive replay — which
     `tests/test_msgen_adoption.py` pins.
 
 ## The problem
@@ -829,10 +829,19 @@ frames = make_trade_executed(
 publisher.send_multipart(frames)
 ```
 
-`make_*` returns **exactly two frames**. The per-topic sequence number is a
-third frame appended by `SequencedPublisher.send_multipart()` in
-`messaging/bus.py` at publish time — never by `make_*`. Adding it here would
-double-stamp every message.
+`make_*` returns **exactly two frames**: topic and payload. Everything behind
+them is added at publish time by the wrappers in `messaging/bus.py`, never by
+`make_*` — adding either here would double-stamp every message:
+
+| Frame | Added by | Contains |
+|---|---|---|
+| 0–1 | `make_*` | topic, JSON payload |
+| 2 | `SequencedPublisher` | per-topic sequence number |
+| 3 | `CausalPublisher` | causal envelope (`msg_id`, `causation_id`, `correlation_id`) |
+
+On the PUSH side there is no sequence, so `CausalPusher` puts the envelope at
+frame 2 instead. Readers find it by shape rather than by index — see
+`models/message.py::decode_envelope`.
 
 !!! tip "Missing and mistyped arguments"
     `make_*` takes keyword arguments and routes them through `from_dict`, so it
@@ -860,7 +869,8 @@ if is_trade_executed(topic):
 `parse_*` coerces *and* validates, so a malformed payload raises
 `MessageValidationError` at the boundary rather than producing a plausible-
 looking object that fails somewhere deeper. It reads only the first two frames,
-so a sequence-stamped message parses unchanged.
+so a message carrying a sequence and a causal envelope parses unchanged — which
+is why neither addition needed a single consumer to change.
 
 ### Example 3 — validating without parsing
 
@@ -941,22 +951,16 @@ does today:
 ```python
 from edumatcher.models.generated.trade import make_trade_executed_unchecked
 
-self.pub_sock.send_multipart(
-    make_trade_executed_unchecked(
-        id=trade.id,
-        symbol=trade.symbol,
-        buy_order_id=trade.buy_order_id,
-        sell_order_id=trade.sell_order_id,
-        buy_gateway_id=trade.buy_gateway_id,
-        sell_gateway_id=trade.sell_gateway_id,
-        price=from_ticks(trade.price, trade.symbol),
-        quantity=trade.quantity,
-        aggressor_side=trade.aggressor_side,
-        ts_ns=trade.timestamp,
-        tick_decimals=get_tick_decimals(trade.symbol),
-    )
-)
+self.pub_sock.send_multipart(make_trade_executed_unchecked(**trade.to_wire()))
 ```
+
+`Trade.to_wire()` is where the model-to-wire conversion lives — `price` is
+**ticks** on the model and **display money** on the wire, and the scale comes
+from the tick registry keyed on the symbol, never from `Trade.tick_decimals`
+(which `Trade.create` defaults to 2 and the engine never sets, so it is wrong
+for any instrument that does not trade in hundredths). Expanding those kwargs
+at the publish site, as this snippet used to, is exactly how that conversion
+gets forgotten.
 
 Note the signature difference: `make_*` takes `**kw` because its callers have a
 dict of uncertain provenance, while `make_*_unchecked` takes **explicit

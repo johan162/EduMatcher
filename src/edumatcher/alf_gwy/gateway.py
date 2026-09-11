@@ -30,7 +30,7 @@ from edumatcher.alf_gwy.protocol import (
     safe_int,
     validate_hello_fields,
 )
-from edumatcher.messaging.bus import make_pusher, make_subscriber
+from edumatcher.messaging.bus import PushSocket, make_pusher, make_subscriber
 from edumatcher.models.combo import ComboLeg, ComboOrder, ComboType
 from edumatcher.models.message import (
     decode,
@@ -193,7 +193,7 @@ class AlfGateway:
         self._known_symbols: set[str] = set()
         self._symbols_snapshot_loaded = False
 
-        self._push: zmq.Socket[bytes] = make_pusher(config.engine_pull_addr)
+        self._push: PushSocket = make_pusher(config.engine_pull_addr)
         self._sub: zmq.Socket[bytes] = make_subscriber(
             config.engine_pub_addr,
             TOPIC_SESSION_STATE,
@@ -1431,6 +1431,14 @@ class AlfGateway:
                     "SYM": str(leg.get("symbol", "")),
                     "SIDE": str(leg.get("leg_side", "")),
                     "ORDER_ID": str(leg.get("order_id", "")),
+                    # Display money, straight from the engine. Empty rather
+                    # than a placeholder when absent, matching every other
+                    # optional PRICE on this wire.
+                    "PRICE": (
+                        str(leg.get("price", ""))
+                        if leg.get("price") is not None
+                        else ""
+                    ),
                     "QTY": str(leg.get("qty", "")),
                     "REMAINING": str(leg.get("remaining", "")),
                     "FILLED": str(leg.get("filled", "")),
@@ -1453,8 +1461,8 @@ class AlfGateway:
                     "REMOVED_AT_NS": str(entry.get("removed_at_ns", "")),
                 },
             )
-            # Per-leg detail (qty/remaining/filled/status), when the engine
-            # had it available at removal time — see
+            # Per-leg detail (price/qty/remaining/filled/status), when the
+            # engine had it available at removal time — see
             # docs-design/EduMatcher-QLEGS-RECENT.md §9.3. Emitted as
             # separate, optional lines rather than folded into RECENT_LEG's
             # field set so existing parsers of RECENT_LEG are unaffected,
@@ -1474,6 +1482,11 @@ class AlfGateway:
                         "QUOTE_ID": quote_id,
                         "SIDE": leg_side,
                         "ORDER_ID": str(leg.get("order_id", "")),
+                        "PRICE": (
+                            str(leg.get("price", ""))
+                            if leg.get("price") is not None
+                            else ""
+                        ),
                         "QTY": str(leg.get("qty", "")),
                         "REMAINING": str(leg.get("remaining", "")),
                         "FILLED": str(leg.get("filled", "")),
@@ -1593,6 +1606,11 @@ class AlfGateway:
             msg_type = "QUOTE_ACK"
             fields = {
                 "QUOTE_ID": str(payload.get("quote_id", "")),
+                # SYM lets a text client tell which instrument an ack is for
+                # without keeping its own book of outstanding quotes — the
+                # topic is per-gateway, not per-symbol. Empty only when the
+                # quote was rejected before its symbol was known.
+                "SYM": str(payload.get("symbol", "")),
                 "ACCEPTED": "TRUE" if bool(payload.get("accepted", False)) else "FALSE",
                 "REASON": str(payload.get("reason", "")),
                 "BID_ID": str(payload.get("bid_order_id", "")),

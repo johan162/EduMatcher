@@ -49,7 +49,7 @@ Commands
 from __future__ import annotations
 
 import argparse
-from collections import defaultdict, deque
+from collections import OrderedDict, defaultdict, deque
 import logging
 import threading
 import time
@@ -77,7 +77,8 @@ from edumatcher.log_srv.config import (
     resolve_host_default,
 )
 from edumatcher.logclient.discovery import resolve_handler
-from edumatcher.messaging.bus import make_pusher, make_subscriber
+from edumatcher.messaging.bus import PushSocket, make_pusher, make_subscriber
+from edumatcher.models.envelope import new_ulid
 from edumatcher.models.combo import ComboLeg, ComboOrder, ComboType
 from edumatcher.models.message import (
     decode,
@@ -322,9 +323,21 @@ class Gateway:
             {}
         )  # order_id → quote leg state
         self._quote_id_by_order_id: dict[str, str] = {}  # order_id → quote_id
-        # quote.ack carries no symbol/qty (only quote_id/bid_order_id/
-        # ask_order_id) — resolved via the send-order FIFO populated in
-        # _send_quote, mirroring mm_bot.bot._pending_ack_symbols.
+        # quote.ack carries no symbol/qty — only quote_id/bid_order_id/
+        # ask_order_id — so the submitted symbol, prices and sizes have to be
+        # remembered locally and re-attached when the ack arrives. Keyed by the
+        # quote_id we send (minted in _send_quote when the operator does not
+        # supply QUOTE_ID=), because the engine echoes it on the ack.
+        #
+        # Bounded: one entry per quote sent, and only the recent ones can still
+        # attract an ack, so older entries are evicted in insertion order.
+        self._pending_quote_by_id: OrderedDict[str, dict[str, Any]] = OrderedDict()
+        self._pending_quote_cap = 64
+        # Fallback only, for an ack carrying no id. Send order is weaker: it
+        # assumes one ack per quote.new, in order, so a single dropped ack
+        # leaves it permanently off by one — and this console *prints* the
+        # cached symbol and prices, so a desync shows a human confident,
+        # wrong detail.
         self._pending_quote_requests: deque[dict[str, Any]] = deque()
         self._known_symbols: list[str] = []
         self._positions: dict[str, dict[str, Any]] = (
@@ -623,7 +636,7 @@ class Gateway:
         log.warning("gateway authentication timed out gateway_id=%s", self.gateway_id)
         return False
 
-    def _send(self, sock: zmq.Socket[bytes], frames: list[bytes]) -> bool:
+    def _send(self, sock: PushSocket, frames: list[bytes]) -> bool:
         """Send on a PUSH socket, reporting a clean error instead of
         crashing the console.
 
@@ -980,11 +993,21 @@ class Gateway:
 
         elif "quote.ack" in topic:
             quote_id = payload.get("quote_id", "?")
-            pending_req = (
-                self._pending_quote_requests.popleft()
-                if self._pending_quote_requests
-                else {}
-            )
+            pending_req = self._pending_quote_by_id.pop(str(quote_id), None)
+            if pending_req is not None:
+                # Keep the fallback queue aligned so a later ack with no id
+                # is not paired against an entry already consumed here.
+                try:
+                    self._pending_quote_requests.remove(pending_req)
+                except ValueError:
+                    pass
+            else:
+                self._dbg_count("quote_ack_unmatched_id")
+                pending_req = (
+                    self._pending_quote_requests.popleft()
+                    if self._pending_quote_requests
+                    else {}
+                )
             if payload.get("accepted"):
                 bid_id = payload.get("bid_order_id", "")[:8]
                 ask_id = payload.get("ask_order_id", "")[:8]
@@ -1483,19 +1506,23 @@ class Gateway:
         except TickViolation as exc:
             console.print(f"[red]{exc}[/red]")
             return
-        quote_id = kv.get("QUOTE_ID")
-        if quote_id:
-            payload["quote_id"] = quote_id
+        # The operator may name the quote (QUOTE_ID=...); otherwise mint one.
+        # Either way the request goes out *with* an id, so the ack can be
+        # matched to it exactly rather than by arrival order.
+        quote_id = kv.get("QUOTE_ID") or f"{self.gateway_id}-{symbol}-{new_ulid()}"
+        payload["quote_id"] = quote_id
 
-        self._pending_quote_requests.append(
-            {
-                "symbol": symbol,
-                "bid_px": bid_price,
-                "ask_px": ask_price,
-                "bid_qty": bid_qty,
-                "ask_qty": ask_qty,
-            }
-        )
+        pending = {
+            "symbol": symbol,
+            "bid_px": bid_price,
+            "ask_px": ask_price,
+            "bid_qty": bid_qty,
+            "ask_qty": ask_qty,
+        }
+        self._pending_quote_by_id[quote_id] = pending
+        while len(self._pending_quote_by_id) > self._pending_quote_cap:
+            self._pending_quote_by_id.popitem(last=False)
+        self._pending_quote_requests.append(pending)
         self._send(self.push_sock, make_quote_new_msg(payload))
         self._dbg_count("quotes_submitted")
 

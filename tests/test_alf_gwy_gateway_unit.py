@@ -1161,3 +1161,161 @@ def test_cancelled_event_echoes_cancel_reason(gateway: AlfGateway) -> None:
     assert smp.fields["CANCEL_REASON"] == "SELF_MATCH_PREVENTED"
     assert "CANCEL_REASON" not in client.fields
     peer.close()
+
+
+# ---------------------------------------------------------------------------
+# QLEGS leg lines carry PRICE
+# ---------------------------------------------------------------------------
+#
+# `QuoteLeg.price` has always been on the bus, but `_handle_qlegs_response`
+# dropped it when flattening to ALF, so no external client could show a quote
+# leg's price — while `pm-alf-console`, which renders from its own local cache
+# of observed events, could. These pin the field to the wire.
+
+
+def _qlegs_lines(
+    gateway: AlfGateway, session: ClientSession, payload: dict[str, object]
+) -> dict[str, list[dict[str, str]]]:
+    """Run a `system.quote_legs` payload through the real response handler and
+    return the emitted lines grouped by message type."""
+    gateway._handle_qlegs_response("TRADER01", payload)
+    grouped: dict[str, list[dict[str, str]]] = {}
+    for raw in session.out_queue:
+        frame = parse_alf_line(raw.decode("utf-8"))
+        grouped.setdefault(frame.command, []).append(frame.fields)
+    return grouped
+
+
+def _authenticated(gateway: AlfGateway) -> tuple[ClientSession, socket.socket]:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    gateway._clients[session.sock.fileno()] = session
+    gateway._active_gateway_sessions["TRADER01"] = session.sock.fileno()
+    return session, peer
+
+
+def test_active_leg_line_carries_the_leg_price(gateway: AlfGateway) -> None:
+    session, peer = _authenticated(gateway)
+
+    lines = _qlegs_lines(
+        gateway,
+        session,
+        {
+            "legs": [
+                {
+                    "quote_id": "Q1",
+                    "order_id": "bid1",
+                    "symbol": "AAPL",
+                    "leg_side": "BUY",
+                    "price": 150.0,
+                    "qty": 500,
+                    "remaining": 400,
+                    "filled": 100,
+                    "status": "PARTIAL_FILL",
+                    "quote_status": "ACTIVE",
+                },
+                {
+                    "quote_id": "Q1",
+                    "order_id": "ask1",
+                    "symbol": "AAPL",
+                    "leg_side": "SELL",
+                    "price": 150.1,
+                    "qty": 500,
+                    "remaining": 500,
+                    "filled": 0,
+                    "status": "RESTING",
+                    "quote_status": "ACTIVE",
+                },
+            ],
+            "recent": [],
+            "show_requested": "ACTIVE",
+        },
+    )
+
+    bid, ask = lines["LEG"]
+    assert bid["PRICE"] == "150.0"
+    assert ask["PRICE"] == "150.1"
+    peer.close()
+
+
+def test_a_leg_with_no_price_sends_an_empty_field_not_none(
+    gateway: AlfGateway,
+) -> None:
+    """`str(None)` would put the literal text `None` on the wire, which a
+    client would render as a price. Empty is the protocol's way of saying
+    "not available" — the same shape `ORDER`/`AMENDED` already use."""
+    session, peer = _authenticated(gateway)
+
+    lines = _qlegs_lines(
+        gateway,
+        session,
+        {
+            "legs": [
+                {
+                    "quote_id": "Q1",
+                    "order_id": "bid1",
+                    "symbol": "AAPL",
+                    "leg_side": "BUY",
+                    "price": None,
+                    "qty": 500,
+                    "remaining": 500,
+                    "filled": 0,
+                    "status": "RESTING",
+                    "quote_status": "ACTIVE",
+                }
+            ],
+            "recent": [],
+            "show_requested": "ACTIVE",
+        },
+    )
+
+    assert lines["LEG"][0]["PRICE"] == ""
+    peer.close()
+
+
+def test_recent_leg_snapshots_carry_their_removal_price(
+    gateway: AlfGateway,
+) -> None:
+    session, peer = _authenticated(gateway)
+
+    lines = _qlegs_lines(
+        gateway,
+        session,
+        {
+            "legs": [],
+            "recent": [
+                {
+                    "quote_id": "Q100",
+                    "symbol": "AAPL",
+                    "quote_status": "CANCELLED",
+                    "reason": "Cancelled by participant",
+                    "removed_at_ns": 1784468999030221878,
+                    "bid_leg": {
+                        "order_id": "bid1",
+                        "price": 149.9,
+                        "qty": 500,
+                        "remaining": 500,
+                        "filled": 0,
+                        "status": "CANCELLED",
+                    },
+                    "ask_leg": {
+                        "order_id": "ask1",
+                        "price": 150.2,
+                        "qty": 500,
+                        "remaining": 200,
+                        "filled": 300,
+                        "status": "CANCELLED",
+                    },
+                }
+            ],
+            "show_requested": "RECENT",
+        },
+    )
+
+    assert lines["RECENT_BID_LEG"][0]["PRICE"] == "149.9"
+    assert lines["RECENT_ASK_LEG"][0]["PRICE"] == "150.2"
+    # The quote-level summary line is deliberately unchanged: a quote has two
+    # prices, so there is no single price to put on it.
+    assert "PRICE" not in lines["RECENT_LEG"][0]
+    peer.close()

@@ -159,10 +159,81 @@ graph TD
 
 ## Message Topics
 
-All messages are two-frame ZMQ multipart:
+Messages are multipart ZMQ. The first two frames are the message; the frames
+behind them are the **envelope** — metadata about the message rather than
+content of it.
 
-- **frame[0]** — topic string (used for SUB filtering)
-- **frame[1]** — JSON payload
+| Frame | PUB (engine → subscribers) | PUSH (client → engine) |
+|---|---|---|
+| 0 | topic string (used for SUB filtering) | topic string |
+| 1 | JSON payload | JSON payload |
+| 2 | per-topic sequence number | causal envelope |
+| 3 | causal envelope | — |
+
+**Why the envelope is not in the payload.** Keeping it in frames means the hot
+publish path never decodes and re-encodes a message to stamp it, and the same
+three fields do not have to be declared on each of the 114 message types in
+`spec/messages/` — and re-declared on every type added later. `decode()` reads
+only frames 0 and 1, so a consumer that does not care is unaffected.
+
+**Frame 2 (PUB) — per-topic sequence.** ZeroMQ PUB/SUB drops silently once a
+subscriber falls behind its high-water mark, and nothing in the delivered
+message reveals it. A monotonic counter, counted *per topic* so that filtering
+by topic prefix does not produce phantom gaps, lets any subscriber notice a
+hole. Read it with `decode_sequence`.
+
+**The causal envelope** — `msg_id`, `causation_id`, `correlation_id`; see
+`models/envelope.py` and [Causal envelope](#causal-envelope) below. Read it
+with `decode_envelope` (PUB) or `decode_push_envelope` (PUSH).
+
+### Causal envelope
+
+Every message carries a ULID `msg_id`. Every message the engine publishes
+*while handling an inbound request* also carries that request's `msg_id` as its
+`causation_id`, and a `correlation_id` naming the message the chain began with.
+
+```
+gateway PUSH  order.new                 msg=A  cause=—  chain=A
+engine  PUB   order.ack.TRADER01        msg=B  cause=A  chain=A
+engine  PUB   trade.executed            msg=C  cause=A  chain=A
+engine  PUB   order.fill.TRADER01       msg=D  cause=A  chain=A
+engine  PUB   order.fill.TRADER02       msg=E  cause=A  chain=A
+```
+
+"Which submission produced this trade?" is `cause`. "Everything that flowed
+from that submission" is one lookup on `chain`. Neither has to be inferred from
+timing or from shared order ids.
+
+A message with **no** `causation_id` was not caused by anything on the bus — a
+scheduler tick, a circuit-breaker trip, an end-of-day sweep. That is a positive
+statement, not missing data.
+
+Two wrappers in `messaging/bus.py` apply this, rather than each publish site
+remembering to. Both are typed by the `PushSocket` protocol rather than by
+`zmq.Socket`: a caller holds something that *sends frames and can be closed*,
+not a raw socket, and saying so in the types is what keeps a wrapper
+substitutable — by the other wrapper, or by a test double.
+
+- `CausalPusher` — wraps every PUSH socket, stamping a **root** envelope on
+  each client request. A submission is the start of a chain.
+- `CausalPublisher` — wraps the engine's PUB socket. The receive loop calls
+  `set_cause(envelope)` with the inbound request before dispatching and clears
+  it in a `finally` afterwards, so attribution cannot leak onto the next
+  message or onto maintenance work.
+
+This is safe precisely because [the engine is single-threaded](#single-threaded-engine-as-a-correctness-guarantee):
+exactly one inbound message is ever in flight, so there is never more than one
+cause in scope. A multi-threaded publisher would need a context variable
+instead.
+
+`pm-audit` records the sequence and the envelope in each log line, between the
+topic and the payload:
+
+```
+[2026-09-11T09:31:02.121+00:00] [order.ack.TRADER01] [seq=7 msg=01J… cause=01J… chain=01J…] {"order_id": "..."}
+```
+
+The section is optional, so lines archived before it existed still parse.
 
 ### Commands — GW / operator → Engine (PUSH :5555)
 

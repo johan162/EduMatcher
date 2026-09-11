@@ -13,6 +13,15 @@ The list is ordered from basic to very complex.
 
 ## How to use this page
 
+!!! note "Statuses verified 2026-09-11"
+    EduMatcher has moved a long way since these experiments were written, and
+    several of them have since been built — sometimes under different names
+    than proposed here. Every `**Status:**` line below was re-checked against
+    the code on that date, and where something shipped, the status says where
+    it lives and how it differs from the proposal. An experiment marked
+    **Implemented** is still worth reading for the financial explanation; it
+    is just no longer something to build.
+
 1. Pick one experiment at a time.
 2. Define acceptance criteria before coding.
 3. Add tests first when possible.
@@ -185,7 +194,13 @@ Understand how session design controls market behavior and participant risk.
 
 ## Experiment 4: Per-Gateway Rate Limits and Burst Controls
 
-**Status: Still Valid**
+**Status: Implemented (gateway layer) — verified 2026-09-11**
+
+Rate limiting is enforced at the gateways rather than in the engine:
+`alf_gwy/gateway.py` and `balf_gwy/gateway.py` reject with `RATE_LIMITED`,
+and `api_gateway` maps its own `RATE_LIMIT` to the same code. What remains
+open from the proposal below is the *burst* shaping (token bucket with a
+configurable refill) and per-gateway limits in config rather than in code.
 
 Difficulty: Intermediate
 Estimated effort: 1 to 2 days
@@ -485,7 +500,18 @@ Understand how real exchange participants are modeled beyond a single connection
 
 ## Experiment 10: Kill Switch and Fat-Finger Controls
 
-**Status: Partially Implemented — Phase 2 Enhancement**
+**Status: Largely Implemented — verified 2026-09-11**
+
+The kill switch shipped with three scopes, not the two proposed here:
+`risk.kill_switch` (per symbol), `risk.kill_switch_gateway`, and
+`risk.kill_switch_global`, each with a `command_id` that the resulting
+`order.cancelled` events carry so a post-mortem can join cancels back to
+the command that caused them. Fat-finger limits exist as `MAX_ORDER_QTY`,
+`MAX_ORDER_VALUE` and `COLLAR_BREACH` reject codes — the names differ from
+the `FAT_FINGER_*` ones proposed below, and the collar check subsumes
+`max_price_distance_ticks`. Still open: per-*account* scope (EduMatcher has
+no account domain — see Experiment 9) and a separate privileged auth token
+for the kill message.
 
 *Current state*: Kill-switch gateway cancellation exists (`_handle_kill_switch()`). New work: hard-stop governance (privileged-only reset), notional value guards (`max_order_notional`), and price-distance guardrails (`max_price_distance_ticks`).
 
@@ -532,7 +558,15 @@ Learn real-time safety controls used in production trading systems.
 
 ## Experiment 11: Drop Copy and Post-Trade Reconciliation Stream
 
-**Status: Partially Implemented — Phase 2 Enhancement**
+**Status: Largely Implemented — verified 2026-09-11**
+
+Drop copy shipped as `drop_copy.event.{gateway_id}` with a session-global
+`seq`, plus `drop_copy.replay.{recipient_id}` for gap recovery — a live
+replay channel rather than the proposed end-of-session log file.
+Reconciliation is `pm-clearing-cli reconcile` rather than a standalone
+`dropcopy_reconcile.py`. Still open from the proposal: the durable
+`dropcopy_YYYYMMDD.log` JSON-lines artifact, if you want reconciliation
+against a file rather than against the clearing database.
 
 *Current state*: Drop copy publisher, sequencing, and in-memory replay buffer exist (`DropCopyPublisher`). New work: durable append-only log file, session-scoped rotation, reconciliation tooling for gap detection and quantity validation.
 
@@ -675,7 +709,15 @@ Understand portfolio-level risk governance in modern exchanges and clearing ecos
 
 ## Experiment 14: Auction Imbalance Feed and Indicative Price Model
 
-**Status: Still Valid**
+**Status: Implemented — verified 2026-09-11**
+
+`auction.indicative.{symbol}` is published during call phases and
+`auction.result.{symbol}` at the uncross. The field names differ from the
+proposal below: the spec uses `eq_price`/`eq_qty` for the indicative
+equilibrium, and a single `imbalance_side` + `imbalance_qty` pair rather
+than separate `buy_imbalance_qty`/`sell_imbalance_qty`. Read
+`spec/messages/auction.yaml` for the authoritative shape; the financial
+explanation below is still the best description of *why* the feed exists.
 
 Difficulty: Very Complex
 Estimated effort: 1 to 2 weeks
@@ -788,7 +830,7 @@ This progression mirrors how real venues evolve: deterministic matching first, t
 
 **Status: Already Implemented ✓**
 
-*Implementation location*: `src/edumatcher/models/order.py` (SmpAction enum), `src/edumatcher/engine/order_book.py` (`_sweep()` and `_smp_cancel_resting()`), `src/edumatcher/gateway/main.py` (SMP command syntax).
+*Implementation location*: `src/edumatcher/models/order.py` (SmpAction enum), `src/edumatcher/engine/order_book.py` (`_sweep()` and `_smp_cancel_resting()`), `src/edumatcher/alf_gwy/gateway.py` and `src/edumatcher/alf_console/main.py` (SMP command syntax).
 
 *Why included anyway*: Demonstrates that the roadmap's high-level abstractions map cleanly onto production code patterns. Can serve as a learning reference for understanding the matching engine's self-trade enforcement.
 
@@ -839,12 +881,25 @@ Understand wash-trade prevention, regulatory compliance mechanics, and account i
 
 ## Experiment 17: Statistics SQL Query CLI Layer
 
+**Status: Largely Implemented — verified 2026-09-11**
+
+`pm-stats-cli` shipped with thirteen subcommands, among them `daily`,
+`trades`, `order-events`, `lifecycle`, `symbols`, `dates` and `gaps`, and
+`pm-clearing-cli`, `pm-audit-cli` and `pm-log-cli` cover the clearing,
+audit and log databases the same way. The background paragraph below was
+written before any of that existed and is kept for the financial
+motivation, not as a description of the current state.
+
+Still open from the proposal: a single `daily-pnl` report that joins
+clearing P&L per gateway, and the `--format csv` option (the CLIs offer
+table and JSON).
+
 Difficulty: Intermediate
 Estimated effort: 2 to 3 days
 Gap vs real exchange: Operators and compliance teams need safe, ergonomic CLI tools to extract analytics without writing raw SQL.
 
 Background:
-The statistics database (SQLite) is currently only accessible via direct SQL queries, which is error-prone and requires database knowledge. Real operations teams use pre-built CLI commands to pull reports by date, gateway, symbol, and time window.
+*(As written, before the CLIs existed.)* The statistics database (SQLite) is only accessible via direct SQL queries, which is error-prone and requires database knowledge. Real operations teams use pre-built CLI commands to pull reports by date, gateway, symbol, and time window.
 
 Financial explanation and motivation:
 
@@ -885,6 +940,16 @@ Understand operational reporting patterns, data access abstraction, and human-ce
 
 
 ## Experiment 18: Drop Copy Durability and Restart Recovery
+
+**Status: Partially Implemented — verified 2026-09-11**
+
+The *live* half exists: `drop_copy.replay.{recipient_id}` lets a subscriber
+recover a gap without a file, and `pm-dc-spy` is the tail-and-inspect tool
+the proposal calls `dropcopy_tail`. What is genuinely still open is the
+**durability** half this experiment is named for — there is no
+`data/dropcopy_YYYYMMDD.log`, no immutable rename at session close, and no
+sequence recovery from a file at startup. That is the interesting part of
+the exercise, and it is untouched.
 
 Difficulty: Intermediate
 Estimated effort: 2 to 4 days
@@ -927,6 +992,15 @@ Understand durability patterns, log rotation, and participant recovery workflows
 
 
 ## Experiment 19: Cross-Host Operational Validation Matrix
+
+**Status: Still Valid — verified 2026-09-11**
+
+Cross-host deployment itself is designed and documented
+(`docs-design/EduMatcher-Cross-host-connection.md`, and the bind/connect
+split in `config.py`), but the *validation matrix* this experiment asks for
+— the same scenario replayed under single-host, LAN and latency-injected
+WAN topologies, with the final book state compared across all three — does
+not exist. That comparison is the whole point of the experiment.
 
 Difficulty: Intermediate
 Estimated effort: 2 to 3 days
@@ -972,6 +1046,15 @@ Understand distributed systems testing, latency-robust message ordering, and ope
 
 
 ## Experiment 20: Installed-Mode vs. Source-Mode Parity Validation
+
+**Status: Still Valid — verified 2026-09-11**
+
+`DATA_DIR` resolution distinguishes the two modes today
+(`config.py::_resolve_data_dir`, described in
+[Dev practice](01-dev-practice.md)), and `pm-setup` bootstraps the installed
+layout — but there is no `test_mode_parity.py` asserting that the two modes
+produce identical audit logs and book state. The mechanism exists; the proof
+does not.
 
 Difficulty: Basic
 Estimated effort: 1 to 2 days

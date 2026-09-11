@@ -1668,11 +1668,13 @@ This is the ZeroMQ PUB/SUB pattern:
 ```python
 # messaging/bus.py
 
-def make_publisher(addr: str) -> zmq.Socket[bytes]:
+def make_publisher(addr: str) -> CausalPublisher:
     """PUB socket — engine binds here, broadcasts everything."""
     sock = get_context().socket(zmq.PUB)
     sock.bind(addr)
-    return sock
+    # "A publisher" means one thing everywhere: sequenced, and causally
+    # stamped. Callers that only publish need to know none of it.
+    return CausalPublisher(SequencedPublisher(sock))
 
 def make_subscriber(addr: str, *topics: str) -> zmq.Socket[bytes]:
     """SUB socket — subscriber connects and filters by topic prefix."""
@@ -1784,8 +1786,47 @@ local processes and distributed systems.
 **Extremely low latency** — ZeroMQ message passing overhead is in the microseconds.
 For a trading system where each additional millisecond matters, this is essential.
 
-**Simple API** — 5 lines to create a publisher, 3 lines to create a subscriber.
-The bus abstraction `messaging/bus.py` is 68 lines total.
+**Simple API** — a few lines to create a publisher, three to create a
+subscriber.
+
+The module is small, but two of its wrappers are worth knowing about, because
+they are how the exchange answers "why did this happen?" without anyone having
+to remember to record it.
+
+**`SequencedPublisher`** appends a per-topic counter to every published
+message. PUB/SUB drops silently when a subscriber falls behind; the counter is
+what lets a subscriber notice. Counting per topic rather than per socket means
+a subscriber filtering on `trade.` does not see phantom gaps from every
+`depth.` message it filtered out.
+
+**`CausalPublisher` / `CausalPusher`** stamp the causal envelope —
+`msg_id`, `causation_id`, `correlation_id` (see `models/envelope.py`). A
+gateway's request starts a chain; everything the engine publishes while
+handling that request cites it and inherits the chain:
+
+```python
+# engine receive loop — the whole of the causality plumbing
+frames = self.pull_sock.recv_multipart()
+topic, payload = decode(frames)
+cause = decode_push_envelope(frames)
+
+self.pub_sock.set_cause(cause)
+try:
+    self._dispatch_pull_message(topic, payload)
+finally:
+    self.pub_sock.clear_cause()   # never leak attribution to the next message
+```
+
+Wrapping the socket rather than editing each publish site is the point: the
+engine publishes from roughly a hundred places, and an envelope attached only
+where someone remembered would be worse than none — a missing `causation_id`
+is supposed to mean "nothing caused this", so a forgotten one would be a lie
+rather than a gap.
+
+The `finally` matters more than it looks. Without it, a handler that raises
+would leave the cause set, and the next messages — including maintenance work
+with no external cause at all — would be attributed to a request that had
+already failed.
 
 **Zero configuration** — no broker process, no configuration files, no schema
 registry. Just connect and start sending.

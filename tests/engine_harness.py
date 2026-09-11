@@ -42,6 +42,20 @@ class FakeSock:
     def close(self) -> None:
         self.closed = True
 
+    # --- causal-publisher contract (messaging.bus.CausalPublisher) ----------
+    # This double replaces the whole publisher, not just the socket under it,
+    # so it has to answer the two calls the engine's receive loop makes around
+    # every dispatch. They are no-ops here: tests that care about causation
+    # assert on the envelope frame directly (tests/test_envelope_causation.py).
+    # Without these, any test that drives `Engine.run()` with this double dies
+    # on AttributeError rather than on whatever it was actually testing.
+
+    def set_cause(self, envelope: object | None) -> None:
+        pass
+
+    def clear_cause(self) -> None:
+        pass
+
 
 @dataclass
 class FakeDropCopy:

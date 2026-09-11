@@ -1159,6 +1159,7 @@ class QuoteLegSnapshot:
     remaining: int  # unit: shares
     filled: int  # unit: shares
     status: str
+    price: float | None = None  # unit: display_price
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -1192,6 +1193,7 @@ class QuoteLegSnapshot:
         """
         return cls(
             order_id=str(p["order_id"]),
+            price=None if p.get("price") is None else float(p["price"]),
             qty=int(p["qty"]),
             remaining=int(p["remaining"]),
             filled=int(p["filled"]),
@@ -1200,13 +1202,16 @@ class QuoteLegSnapshot:
 
     def to_dict(self) -> dict[str, Any]:
         """Return the bus payload, in the spec's declared field order."""
-        return {
+        payload: dict[str, Any] = {
             "order_id": self.order_id,
             "qty": self.qty,
             "remaining": self.remaining,
             "filled": self.filled,
             "status": self.status,
         }
+        if self.price is not None:
+            payload["price"] = self.price
+        return payload
 
 
 @dataclass(frozen=True, slots=True)
