@@ -75,7 +75,7 @@ from edumatcher.log_srv.config import (
     resolve_host_default,
 )
 from edumatcher.logclient.discovery import resolve_handler
-from edumatcher.messaging.bus import make_pusher, make_subscriber
+from edumatcher.messaging.bus import PushSocket, make_pusher, make_subscriber
 from edumatcher.models.message import (
     decode,
     make_session_state_request_msg,
@@ -358,7 +358,7 @@ def _wait_until(target: datetime) -> Callable[[], float]:
 
 
 def _send_transition(
-    push_sock: zmq.Socket[bytes],
+    push_sock: PushSocket,
     state: str,
     next_state: str = "",
     next_at: str = "",
@@ -417,7 +417,7 @@ def _confirm_transition(
 
 
 def _query_engine_state(
-    push_sock: zmq.Socket[bytes],
+    push_sock: PushSocket,
     sub_sock: zmq.Socket[bytes],
     gateway_id: str = SCHEDULER_GATEWAY_ID,
     timeout_ms: int = QUERY_TIMEOUT_MS,
@@ -493,7 +493,7 @@ class _Step:
 
 
 def _run_transitions(
-    push_sock: zmq.Socket[bytes],
+    push_sock: PushSocket,
     confirm_sock: zmq.Socket[bytes] | None,
     is_running: Callable[[], bool],
     steps: list[_Step],
@@ -539,7 +539,7 @@ def _run_transitions(
 
 
 def _dispatch_transition(
-    push_sock: zmq.Socket[bytes],
+    push_sock: PushSocket,
     confirm_sock: zmq.Socket[bytes] | None,
     state: str,
     next_state: str = "",
@@ -561,7 +561,7 @@ def _dispatch_transition(
 
 
 def _run_scheduled(
-    push_sock: zmq.Socket[bytes],
+    push_sock: PushSocket,
     schedule: list[tuple[str, str]],
     *,
     confirm_sock: zmq.Socket[bytes] | None = None,
@@ -642,7 +642,7 @@ def _run_scheduled(
 
 
 def _run_forever(
-    push_sock: zmq.Socket[bytes],
+    push_sock: PushSocket,
     schedule: list[tuple[str, str]],
     confirm_sock: zmq.Socket[bytes] | None,
     is_running: Callable[[], bool],
@@ -681,7 +681,7 @@ def _run_forever(
 
 
 def _run_now(
-    push_sock: zmq.Socket[bytes],
+    push_sock: PushSocket,
     delay: float = NOW_MODE_DELAY,
     *,
     is_running: Callable[[], bool] | None = None,

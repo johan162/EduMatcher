@@ -62,15 +62,30 @@ def make_puller(addr: str) -> zmq.Socket[bytes]:
     sock.bind(addr)
     return sock
 
-def make_publisher(addr: str) -> SequencedPublisher:
-    """PUB socket — engine broadcasts events, each stamped with a sequence."""
+def make_publisher(addr: str) -> "CausalPublisher":
+    """PUB socket — broadcasts events, sequenced and causally stamped."""
     sock = get_context().socket(zmq.PUB)
     sock.bind(addr)
-    return SequencedPublisher(sock)
+    return CausalPublisher(SequencedPublisher(sock))
 ```
 
-A message on either socket is two frames: a **topic** string and a **JSON
-payload**.
+A message is two frames of **content** — a topic string and a JSON payload —
+followed by **envelope** frames that describe the message rather than carry
+it:
+
+| Frame | PUB (engine → subscribers) | PUSH (gateway → engine) |
+|---|---|---|
+| 0 | topic | topic |
+| 1 | JSON payload | JSON payload |
+| 2 | per-topic sequence | causal envelope |
+| 3 | causal envelope | — |
+
+The envelope is metadata, not content, which is why it rides in frames
+instead of in the JSON: the hot publish path never decodes and re-encodes a
+message to stamp it, and the same three fields do not have to be declared on
+each of the 114 message types in `spec/messages/`. Sections 3, 4 and 8 show
+it being written and read; if you only care about the order flow, the one
+thing to know is that `decode()` ignores it entirely.
 
 ```python
 # models/message.py
@@ -84,7 +99,9 @@ def decode(frames: list[bytes]) -> tuple[str, dict[str, Any]]:
 ```
 
 Keep that shape in mind — `(topic, payload)` — it is the unit everything
-below is built from.
+below is built from. The envelope never changes it; `decode` reads frames 0
+and 1 and stops, so every consumer written before the envelope existed still
+works unmodified.
 
 ## 2. The scenario
 
@@ -141,6 +158,17 @@ def _send_to_engine(self, frames: list[bytes], ...) -> None:
     self._push.send_multipart(frames)
 ```
 
+**This send is where the causal chain begins.** `make_pusher` returns a
+`CausalPusher`, which appends an envelope frame carrying a fresh `msg_id`
+(a ULID), no `causation_id` — nothing on the bus caused this, the trader
+typed it — and a `correlation_id` equal to its own `msg_id`. Everything the
+engine publishes in response will cite that id and carry that chain, which
+is what makes "show me everything this submission caused" a lookup rather
+than a reconstruction. The gateway code above does not mention any of it:
+wrapping the socket is what stops thirteen client processes each having to
+remember. See `models/envelope.py` and
+[Architecture — Causal envelope](../architecture/01-architecture.md#causal-envelope).
+
 ```mermaid
 sequenceDiagram
     participant T as TRADER01 (client)
@@ -149,7 +177,7 @@ sequenceDiagram
 
     T->>GW: NEW|SYM=AAPL|SIDE=BUY|QTY=100|PRICE=150.00|TIF=DAY|TYPE=LIMIT
     GW->>GW: parse fields, Order.create(...)
-    GW->>E: PUSH  topic=order.new  payload={symbol, side, qty, price(ticks), gateway_id="TRADER01", ...}
+    GW->>E: PUSH  frames=[order.new, payload, envelope(msg=A, cause=-, chain=A)]
 ```
 
 ## 4. The engine's front door
@@ -164,9 +192,36 @@ while self._running:
     if self.pull_sock in socks:
         frames = self.pull_sock.recv_multipart()
         topic, payload = decode(frames)
-        self._dispatch_pull_message(topic, payload)
+        cause = decode_push_envelope(frames)        # the gateway's msg_id
+
+        self.pub_sock.set_cause(cause)
+        try:
+            self._dispatch_pull_message(topic, payload)
+        finally:
+            self.pub_sock.clear_cause()
     self._run_maintenance()
 ```
+
+Those three extra lines are the entire causality mechanism on the engine
+side. While a cause is set, **everything** published — the ACK, the fills,
+the trade print, a cascade of OCO cancels — is attributed to this message
+and inherits its chain, without a single publish site knowing. Three things
+about that are worth understanding rather than skimming:
+
+- **`decode()` still reads only frames 0 and 1.** The envelope rides behind
+  them, so nothing downstream of the payload changed.
+- **The `finally` is load-bearing.** If a handler raises, the cause must be
+  cleared anyway — otherwise `_run_maintenance()` below, which has no
+  external cause at all, would publish scheduler ticks and circuit-breaker
+  trips attributed to an order that had already failed.
+- **This is safe only because the loop is single-threaded.** Exactly one
+  inbound message is in flight, so there is never more than one cause in
+  scope. A multi-threaded publisher would need a context variable, and
+  `CausalPublisher`'s docstring says so.
+
+A message published with **no** cause in scope is not missing information:
+it declares `causation_id = null`, which is the engine positively stating
+that it decided this by itself.
 
 `_dispatch_pull_message` is a plain `if/elif` chain from topic string to
 handler method — no registry, no magic, just a long ladder:
@@ -338,6 +393,15 @@ anything up — `order.gateway_id` is already `"TRADER01"`, carried in the
 payload since Section 3 (`self._require_gw(session)`), and it becomes half
 of the outbound *topic string*: `order.ack.TRADER01`. There is no
 per-connection socket or address to remember on the engine side at all.
+
+**And which submission is it answering?** Note what the snippet above does
+*not* contain: anything about correlation. The `send_multipart` call goes
+through the `CausalPublisher` wrapper, which stamps `causation_id` = the
+submitting message's `msg_id` from the cause Section 4 set. So the ACK
+answers a specific *message*, not merely a gateway — which matters the
+moment a trader has two orders in flight and both acks route to the same
+topic. Before the envelope this had to be inferred by matching `order_id`
+between the submission and the ack; now the engine states it.
 
 Delivery is ZeroMQ's job, and it works by **prefix filtering on the
 subscriber side**, not by the publisher picking a destination:
@@ -551,6 +615,21 @@ the trade came from a plain NEW order, a quote leg, a combo child, an OCO
 leg, or an auction uncross — one path, four side effects, always in that
 order.
 
+Every one of those messages — the ACK from Section 6, each `order.fill`,
+the `trade.executed` print, the drop-copy relay — carries the same
+`correlation_id`, because all of them are published inside the dispatch
+window Section 4 opened. One aggressive order that sweeps four price levels
+produces a dozen messages across five topics and two gateways, and they are
+one `WHERE correlation_id = ?` away from each other. That is the payoff of
+attributing at the socket rather than at the publish site: the fan-out did
+not have to thread anything through to get it.
+
+Note also what this does *not* claim. The counterparty's `order.fill` is
+caused by **our** submission, and says so — the resting order's own
+submission, minutes earlier, is a different chain. Causality here means
+"this message exists because that one was processed", not "these belong to
+the same trader".
+
 If nothing filled (our resting-order scenario from 7a), `events` and
 `trades` are both empty — the loop above simply does nothing, and the
 resting order's only trace on the wire so far is the ACK from Section 6.
@@ -711,6 +790,27 @@ look, roughly in the order you should look at them:
 | Did I lose it across a restart? | Check the engine's startup log for `Discarding stale TIF=DAY order ...` — if you see it, that order is gone and nothing else will tell you |
 | Is a handler silently swallowing exceptions? | It cannot — every branch of `_dispatch_pull_message` is wrapped, and any exception increments `self._error_count` and logs at `ERROR` with the topic name |
 | Fine-grained counters for a whole class of rejects | `self._debug_counts` (`new_order_reject_gateway`, `_reject_symbol`, `_reject_validation`, `_reject_session`, `_reject_halt`, `_reject_collar`, `_reject_no_match_phase`, ...) — logged as one summary line every 5 seconds at `DEBUG` via `_flush_debug_summary` |
+| **What did this one submission cause?** | Grep the audit log for its `chain=` id — every descendant carries it. This replaces walking `order_id` → `trade_ids` → counterparty `order_id` by hand |
+| **Why was this message published at all?** | Its `cause=` id names the message that caused it. Grep for that `msg=` to find it. A *missing* `cause=` is an answer too: the engine decided it alone |
+| Did the bus drop anything? | `seq=` in the audit line is dense **per topic**, so a jump means messages were lost on that topic. PUB/SUB drops silently once a subscriber falls behind; this is the only thing that reveals it |
+
+### Following a chain
+
+The envelope turns the awkward part of a post-mortem into two greps:
+
+```bash
+# 1. find the submission
+grep 'order.new' data/audit.log | grep 'AAPL' | tail -1
+# ... [order.new] [seq=8812 msg=01ARZ3NDEKTSV4RRFFQ69G5FAV chain=01ARZ3ND...] {...}
+
+# 2. everything it caused, in order — acks, fills, trade prints, cascades,
+#    across every topic and both counterparties
+grep 'chain=01ARZ3NDEKTSV4RRFFQ69G5FAV' data/audit.log
+```
+
+The lines come back in audit-receipt order. For true publication order, sort
+by the `msg=` id: ULIDs are minted in publish order, so lexicographic order
+is the order the engine did things — across all topics, not just one.
 
 ## 11. The whole thing, end to end
 
@@ -723,22 +823,34 @@ sequenceDiagram
 
     T->>GW: NEW|SYM=AAPL|SIDE=BUY|QTY=100|PRICE=150.00|TIF=DAY
     GW->>GW: Order.create(gateway_id="TRADER01", price->ticks)
-    GW->>E: PUSH  order.new
-    E->>E: decode() -> _dispatch_pull_message -> _handle_new_order
+    GW->>E: PUSH  order.new  + envelope(msg=A, cause=-, chain=A)
+    E->>E: decode() + decode_push_envelope() -> set_cause(A)
+    E->>E: _dispatch_pull_message -> _handle_new_order
     E->>E: gate 1..8 (Section 5) — all pass
-    E->>GW: PUB  order.ack.TRADER01  {accepted: true}
+    E->>GW: PUB  order.ack.TRADER01  {accepted: true}  + (msg=B, cause=A, chain=A)
     GW->>T: ACK  order accepted
     E->>B: book.process(order, match=True)
     B->>B: _match_limit -> _sweep (no cross) -> _rest
     Note over B: order now on the bid heap, key=(-15000, arrival_seq)
     E->>E: mark AAPL dirty (next book snapshot will include it)
 
+    E->>E: clear_cause()  (finally — attribution ends with the dispatch)
+
     Note over E: ... later, session scheduler fires ...
     E->>E: _handle_session_transition(to=CLOSED)
     E->>E: _expire_tif(TIF.DAY) -> book.cancel_order(...)
-    E->>GW: PUB  order.expired.TRADER01
+    E->>GW: PUB  order.expired.TRADER01  + (msg=Z, cause=-, chain=Z)
     GW->>T: EXPIRED  {order_id}
 ```
 
-Every arrow in that diagram is a function call or a two-frame ZMQ message
-you can grep for by name. There is no step in between.
+Note the last message. The expiry carries **no** `cause`: hours after the
+submission, a session transition removed the order, and nothing the trader
+sent caused it. A new chain starts there, and that is the honest record —
+the alternative, attributing the expiry to the original submission, would
+make an automatic venue action look like a consequence of something the
+trader did.
+
+Every arrow in that diagram is a function call or a ZMQ message you can grep
+for by name. The messages are two frames of content — topic and payload —
+plus the envelope frames behind them (`[topic, payload, seq, envelope]` on
+PUB, `[topic, payload, envelope]` on PUSH). There is no step in between.

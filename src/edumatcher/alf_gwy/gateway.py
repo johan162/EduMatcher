@@ -30,7 +30,7 @@ from edumatcher.alf_gwy.protocol import (
     safe_int,
     validate_hello_fields,
 )
-from edumatcher.messaging.bus import make_pusher, make_subscriber
+from edumatcher.messaging.bus import PushSocket, make_pusher, make_subscriber
 from edumatcher.models.combo import ComboLeg, ComboOrder, ComboType
 from edumatcher.models.message import (
     decode,
@@ -193,7 +193,7 @@ class AlfGateway:
         self._known_symbols: set[str] = set()
         self._symbols_snapshot_loaded = False
 
-        self._push: zmq.Socket[bytes] = make_pusher(config.engine_pull_addr)
+        self._push: PushSocket = make_pusher(config.engine_pull_addr)
         self._sub: zmq.Socket[bytes] = make_subscriber(
             config.engine_pub_addr,
             TOPIC_SESSION_STATE,

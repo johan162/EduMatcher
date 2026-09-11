@@ -24,10 +24,32 @@ from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 # Line format
 # ---------------------------------------------------------------------------
 
-# [2026-07-08T09:30:00.123+00:00] [trade.executed] {...}
+# [2026-07-08T09:30:00.123+00:00] [trade.executed] [seq=12 msg=01J… cause=01J… chain=01J…] {...}
+#
+# The metadata section is optional: a line written before pm-audit recorded the
+# envelope, or one whose publisher stamps no envelope, simply has none. Keeping
+# it optional here means the parser reads a mixed archive without a flag.
 _LINE_RE = re.compile(
-    r"^\[(?P<ts>[^\]]+)\]\s+\[(?P<topic>[^\]]+)\]\s+(?P<payload>\{.*\})\s*$"
+    r"^\[(?P<ts>[^\]]+)\]\s+\[(?P<topic>[^\]]+)\]"
+    r"(?:\s+\[(?P<meta>[^\]]*)\])?"
+    r"\s+(?P<payload>\{.*\})\s*$"
 )
+
+
+def parse_meta(raw: str | None) -> dict[str, str]:
+    """Parse the `key=value` metadata section into a dict.
+
+    Unknown keys are kept rather than dropped: this format is meant to grow,
+    and a reader that discards what it does not recognise makes that painful.
+    """
+    if not raw:
+        return {}
+    out: dict[str, str] = {}
+    for token in raw.split():
+        key, _, value = token.partition("=")
+        if key and value:
+            out[key] = value
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -134,8 +156,11 @@ def _open_file(path: Path) -> Iterator[str]:
 
 def _parse_line(
     raw: str,
-) -> tuple[str, str, dict[str, Any]] | None:
-    """Return ``(timestamp_str, topic, payload_dict)`` or ``None`` for bad lines."""
+) -> tuple[str, str, dict[str, Any], dict[str, str]] | None:
+    """Return ``(timestamp_str, topic, payload_dict, meta)`` or ``None``.
+
+    ``meta`` is empty for a line with no metadata section.
+    """
     m = _LINE_RE.match(raw.rstrip("\n"))
     if m is None:
         return None
@@ -143,7 +168,7 @@ def _parse_line(
         payload: dict[str, Any] = json.loads(m.group("payload"))
     except json.JSONDecodeError:
         return None
-    return m.group("ts"), m.group("topic"), payload
+    return m.group("ts"), m.group("topic"), payload, parse_meta(m.group("meta"))
 
 
 # ---------------------------------------------------------------------------
@@ -162,6 +187,10 @@ class AuditEntry:
         "symbol",
         "order_id",
         "trade_id",
+        "seq",
+        "msg_id",
+        "causation_id",
+        "correlation_id",
     )
 
     def __init__(
@@ -169,10 +198,21 @@ class AuditEntry:
         timestamp: str,
         topic: str,
         payload: dict[str, Any],
+        meta: dict[str, str] | None = None,
     ) -> None:
         self.timestamp = timestamp
         self.topic = topic
         self.payload = payload
+        meta = meta or {}
+        raw_seq = meta.get("seq")
+        self.seq: int | None = int(raw_seq) if raw_seq and raw_seq.isdigit() else None
+        #: ULID of this message. None for a line recorded without an envelope.
+        self.msg_id: str | None = meta.get("msg")
+        #: ULID of the message that caused this one. None means it had no
+        #: external cause — not that the cause is unknown.
+        self.causation_id: str | None = meta.get("cause")
+        #: ULID shared by every message in one causal chain.
+        self.correlation_id: str | None = meta.get("chain")
         self.gateway_id: str | None = self._extract_gateway()
         self.symbol: str | None = payload.get("symbol") or payload.get("s")
         self.order_id: str | None = (
@@ -198,6 +238,10 @@ class AuditEntry:
             "symbol": self.symbol,
             "order_id": self.order_id,
             "trade_id": self.trade_id,
+            "seq": self.seq,
+            "msg_id": self.msg_id,
+            "causation_id": self.causation_id,
+            "correlation_id": self.correlation_id,
             "payload": self.payload,
         }
 
@@ -230,7 +274,7 @@ def iter_entries(
             parsed = _parse_line(raw)
             if parsed is None:
                 continue
-            ts_str, topic, payload = parsed
+            ts_str, topic, payload, meta = parsed
 
             # Topic prefix filter
             if topic_prefix and not topic.startswith(topic_prefix):
@@ -247,7 +291,7 @@ def iter_entries(
                 if to_dt is not None and entry_dt > to_dt:
                     continue
 
-            entry = AuditEntry(ts_str, topic, payload)
+            entry = AuditEntry(ts_str, topic, payload, meta)
 
             # Gateway filter
             if gateway is not None and entry.gateway_id != gateway:

@@ -46,6 +46,7 @@ from edumatcher.models.generated import session as _gen_session
 from edumatcher.models.generated import structure as _gen_structure
 from edumatcher.models.generated import system as _gen_system
 from edumatcher.models.generated import trade as _gen_trade
+from edumatcher.models.envelope import Envelope
 
 # PERF improvement #6: Use orjson instead of stdlib json.
 #
@@ -109,6 +110,52 @@ def decode_sequence(frames: list[bytes]) -> int | None:
         return int(frames[2])
     except (ValueError, TypeError):
         return None
+
+
+def decode_envelope(frames: list[bytes]) -> Envelope | None:
+    """Return the causal envelope, if the publisher stamped one.
+
+    Found by shape rather than by position. The envelope sits behind the
+    sequence frame on the engine's PUB socket (``[topic, payload, seq,
+    envelope]``) but directly behind the payload on PUSH, which has no
+    sequence (``[topic, payload, envelope]``) — and a test double standing in
+    for a publisher may have neither wrapper. Scanning the trailing frames
+    costs at most two ``split`` calls and removes a whole class of bug where
+    the envelope is present but read from the wrong index and silently
+    reported absent.
+
+    ``Envelope.from_frame`` is strict — three ``|``-separated fields with a
+    26-character ULID first — so a sequence frame (a bare integer) cannot be
+    mistaken for one.
+
+    ``None`` means the message came from a publisher that stamps no envelope,
+    so its cause is genuinely unknown rather than absent.
+    """
+    for frame in frames[2:]:
+        env = Envelope.from_frame(frame)
+        if env is not None:
+            return env
+    return None
+
+
+def encode_with_envelope(
+    topic: str, payload: dict[str, Any], envelope: Envelope
+) -> list[bytes]:
+    """Frames for a message whose envelope the caller supplies.
+
+    For publishers that are not behind a ``CausalPublisher`` — notably the
+    gateways, which stamp a root envelope on the requests they PUSH to the
+    engine so the engine has an id to cite as the cause of its replies. The
+    The PUSH path has no sequence frame, so the envelope sits directly behind
+    the payload; ``decode_envelope`` finds it either way.
+    """
+    return [topic.encode(), _dumps(payload), envelope.to_frame()]
+
+
+#: PUSH messages carry no sequence frame, but :func:`decode_envelope` finds the
+#: envelope by shape, so one reader serves both sockets. Kept as a name because
+#: it reads better at a PULL-loop call site than the generic one does.
+decode_push_envelope = decode_envelope
 
 
 def dumps(payload: dict[str, Any]) -> bytes:

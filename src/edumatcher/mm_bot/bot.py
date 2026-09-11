@@ -22,7 +22,7 @@ from typing import Any
 
 import zmq
 
-from edumatcher.messaging.bus import make_pusher, make_subscriber
+from edumatcher.messaging.bus import PushSocket, make_pusher, make_subscriber
 from edumatcher.models.price import register_tick_decimals, to_ticks
 from edumatcher.models.message import (
     decode,
@@ -270,7 +270,7 @@ class MMBot:
         self._debug_last_summary = time.monotonic()
 
         # Sockets (created in run())
-        self._push_sock: zmq.Socket[bytes] | None = None
+        self._push_sock: PushSocket | None = None
         self._sub_sock: zmq.Socket[bytes] | None = None
 
     # ------------------------------------------------------------------

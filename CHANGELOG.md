@@ -1,3 +1,68 @@
+## [v0.36.0] - 2026-09-10
+
+Release Type: major
+
+### 📋 Summary
+Every message now carries a causal envelope, so the audit trail records *why*
+each event happened instead of leaving it to be inferred from timing and shared
+ids. Brought forward from a later phase of the audit-replay design so no
+migration is needed once that tool is built.
+
+### ✨ Additions
+- **Causal envelope on every message.** `models/envelope.py` adds `msg_id`
+  (ULID), `causation_id` and `correlation_id`, carried in a dedicated ZMQ frame
+  beside the existing per-topic sequence. `CausalPusher` stamps a root envelope
+  on every client request; `CausalPublisher` attributes everything the engine
+  publishes while handling a request to that request, clearing the attribution
+  in a `finally` so it cannot leak onto the next message. "Which submission
+  caused this fill?" and "everything that flowed from that submission" become
+  recorded facts.
+- Wrapping the sockets rather than editing publish sites is deliberate: the
+  engine publishes from roughly a hundred places, and an envelope attached only
+  where someone remembered would be worse than none, since an absent
+  `causation_id` is defined to mean "nothing caused this".
+- `pm-audit` records the envelope **and** the per-topic sequence in each log
+  line. The sequence was previously discarded — the counter that exists to
+  reveal PUB/SUB drops was being thrown away by the one process whose job is to
+  miss nothing.
+- `pm-audit-cli`'s SQLite index gains `seq`, `msg_id`, `causation_id` and
+  `correlation_id` columns, each indexed, so causal joins are keyed lookups.
+
+### 💥 Breaking Changes
+- Audit log lines gain an optional `[key=value ...]` metadata section between
+  the topic and the payload. Lines without it still parse, so a mixed archive
+  needs no flag.
+- `audit.query._parse_line` returns a 4-tuple; `AuditEntry` gains `seq`,
+  `msg_id`, `causation_id` and `correlation_id`.
+- `messaging.bus.make_pusher` returns a `PushSocket` (a protocol, satisfied by
+  `CausalPusher`) rather than a `zmq.Socket[bytes]`, and PUSH messages carry a
+  third frame. Call sites that annotated the concrete socket type — in
+  `alf_console`, `alf_gwy`, `balf_gwy`, `mm_bot` and `scheduler` — now annotate
+  the protocol. `SequencedPublisher` now *inserts* its sequence at frame 2
+  rather than appending it, so `decode_sequence` keeps reading `frames[2]`
+  whatever rides behind it.
+
+### 📚 Documentation
+- `docs-design/EduMatcher-Audit-Replay.md` v1.3.0: the replay design is now
+  written against the envelope rather than around its absence. Causality is
+  read from `causation_id` with the inference ladder kept only as a fallback
+  for archived logs; ordering becomes `msg_id` (mint-ordered, so total across
+  topics); `story --chain` replaces depth-limited traversal; and the proposed
+  engine publish sequence is **dropped** — ordering is `msg_id` and
+  completeness is the existing per-topic `seq`, so it would have added a field
+  that earns nothing.
+- `docs/architecture/01-architecture.md`: frame layout table and a new
+  "Causal envelope" section.
+- `docs/architecture/02-architecture-guide.md`: the bus wrappers and the
+  receive-loop plumbing that applies them.
+- `docs/user-guide/190-audit.md`: the log-line metadata section and how to
+  follow a causal chain with it.
+- `docs/developer/09-order-flow-engine.md`: the frame layout, where a chain
+  starts (the gateway PUSH), the three lines in the receive loop that are the
+  whole engine-side mechanism, why the `finally` is load-bearing, and a
+  cheat-sheet section on following a chain with two greps.
+
+
 ## [v0.35.0] - 2026-09-10
 
 Release Type: major

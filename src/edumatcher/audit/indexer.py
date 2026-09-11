@@ -40,7 +40,11 @@ CREATE TABLE IF NOT EXISTS audit_events (
     symbol      TEXT,
     order_id    TEXT,
     trade_id    TEXT,
-    event_type  TEXT
+    event_type  TEXT,
+    seq            INTEGER,
+    msg_id         TEXT,
+    causation_id   TEXT,
+    correlation_id TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_timestamp  ON audit_events(timestamp);
@@ -53,6 +57,11 @@ CREATE INDEX IF NOT EXISTS idx_event_type ON audit_events(event_type);
 CREATE INDEX IF NOT EXISTS idx_topic_ts   ON audit_events(topic, timestamp);
 CREATE INDEX IF NOT EXISTS idx_gw_ts      ON audit_events(gateway_id, timestamp);
 CREATE INDEX IF NOT EXISTS idx_sym_ts     ON audit_events(symbol, timestamp);
+-- Causal joins: "what caused this" and "everything in this chain" are the two
+-- questions pm-audit-replay asks most, and both are keyed lookups with these.
+CREATE INDEX IF NOT EXISTS idx_msg_id    ON audit_events(msg_id);
+CREATE INDEX IF NOT EXISTS idx_causation ON audit_events(causation_id);
+CREATE INDEX IF NOT EXISTS idx_chain     ON audit_events(correlation_id);
 
 CREATE TABLE IF NOT EXISTS index_meta (
     key   TEXT PRIMARY KEY,
@@ -108,6 +117,10 @@ def _entry_to_row(entry: AuditEntry) -> tuple[Any, ...]:
         entry.order_id,
         entry.trade_id,
         event_type,
+        entry.seq,
+        entry.msg_id,
+        entry.causation_id,
+        entry.correlation_id,
     )
 
 
@@ -195,8 +208,9 @@ def build_index(
 
         _insert_sql = (
             "INSERT INTO audit_events "
-            "(timestamp, topic, payload, gateway_id, symbol, order_id, trade_id, event_type) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            "(timestamp, topic, payload, gateway_id, symbol, order_id, trade_id, "
+            "event_type, seq, msg_id, causation_id, correlation_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
 
         for entry in iter_entries(

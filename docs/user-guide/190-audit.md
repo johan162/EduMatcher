@@ -133,20 +133,47 @@ pm-audit --terminal
 
 ### Log format
 
-Every line is an independent JSON record in this exact format:
+Every line is an independent record in this format:
 
 ```
-[2026-07-08T09:30:00.123+00:00] [trade.executed] {"id": "TRD-001", "symbol": "AAPL", ...}
+[2026-07-08T09:30:00.123+00:00] [trade.executed] [seq=42 msg=01J… cause=01J… chain=01J…] {"id": "TRD-001", ...}
 ```
 
 | Part | Example | Description |
 |---|---|---|
-| `[timestamp]` | `2026-07-08T09:30:00.123+00:00` | UTC ISO-8601 with millisecond precision |
+| `[timestamp]` | `2026-07-08T09:30:00.123+00:00` | UTC ISO-8601 with millisecond precision. This is `pm-audit`'s **receipt** clock, not the publisher's |
 | `[topic]` | `trade.executed` | ZeroMQ topic exactly as broadcast by the engine |
-| `{...}` | `{"symbol": "AAPL", ...}` | Full JSON payload of the message |
+| `[metadata]` | `seq=42 msg=01J… cause=01J… chain=01J…` | Envelope frames, recorded as `key=value` pairs. Optional — see below |
+| `{...}` | `{"symbol": "AAPL", ...}` | Full JSON payload of the message, byte-identical to what was published |
+
+**The metadata section**
+
+| Key | Meaning |
+|---|---|
+| `seq` | The publisher's per-topic sequence number. Dense within a run, so a gap means messages were **dropped** — PUB/SUB discards silently once a subscriber falls behind, and this is how you find out |
+| `msg` | ULID of this message |
+| `cause` | ULID of the message that caused this one. **Absent means nothing caused it** — a scheduler tick, a circuit-breaker trip — not that the cause is unknown |
+| `chain` | ULID shared by every message descending from one original request |
+
+The section is omitted entirely for a message whose publisher stamps no
+envelope, and lines archived before the section existed are still read
+correctly, so a mixed archive needs no flag.
+
+This is what makes a post-mortem tractable. To follow one order submission
+through everything it caused:
+
+```bash
+# find the submission
+poetry run pm-audit-cli events --topic order.new --limit 1 --format json
+
+# then everything in its causal chain, in order
+grep 'chain=01ARZ3NDEKTSV4RRFFQ69G5FAV' data/audit.log
+```
 
 Lines are appended in arrival order. Within a single session they are
-chronologically monotonic.
+chronologically monotonic by receipt time — but note that receipt order across
+several publishers is not causal order. `cause` and `chain` are what establish
+causality; the timestamp only establishes when `pm-audit` saw it.
 
 ### Log rotation
 

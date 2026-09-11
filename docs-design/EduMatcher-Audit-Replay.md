@@ -1,4 +1,4 @@
-Version: 1.1.0
+Version: 1.3.0
 
 Date: 2026-09-11
 
@@ -9,10 +9,22 @@ Status: Design and Research Proposal
 > built — an engine publish `seq`, `symbol` on the order lifecycle events, the
 > `ts_ns` convention finished in the index family, a clock on book and depth
 > snapshots, id lists beside the counted effects, and `command_id` on
-> `session.state`. Section 5 is revised accordingly: `seq` replaces the
-> `phase_rank` ordering heuristic (§5.2.2), and §5.1.2 **corrects an error in
-> 1.0.0** — `order.cancelled.command_id` already exists and is populated, so
-> the kill-switch link is CERTAIN, not heuristic.
+> `session.state`. Section 5 is revised accordingly: the `phase_rank` ordering
+> heuristic is removed (§5.2.2 — superseded again in 1.3.0, where `msg_id`
+> becomes the ordering key), and §5.1.2 **corrects an error in 1.0.0** —
+> `order.cancelled.command_id` already exists and is populated, so the
+> kill-switch link is CERTAIN, not heuristic.
+>
+> **Update (2026-09-11, 1.3.0):** Section 13 (envelope causation IDs) is
+> **implemented**, brought forward ahead of the rest so the tool is built
+> against recorded causality and needs no later migration. The ids ride in a
+> ZMQ frame rather than in the payload — see §13.1 for why that differs from
+> what 1.0.0 proposed. The rest of this document is now written against that:
+> causality is **read** from `causation_id` and inferred only as a fallback
+> (§5.1, §7.2); ordering is `msg_id`, which is mint-ordered and therefore
+> total across topics (§5.2.2); and **AR-0.1, the proposed engine `seq`, is
+> dropped** — both of its purposes are already met, which takes Phase 0 from
+> 8 days to 6 and removes its riskiest item.
 
 # EduMatcher — Audit Replay and Narration Tool
 
@@ -30,7 +42,7 @@ Status: Design and Research Proposal
 10. [Worked Output Examples](#10-worked-output-examples)
 11. [Machine-Readable Output](#11-machine-readable-output)
 12. [Anomaly and Gap Detection](#12-anomaly-and-gap-detection)
-13. [Phase 2 — Envelope Causation IDs](#13-phase-2--envelope-causation-ids)
+13. [Envelope Causation IDs — implemented](#13-envelope-causation-ids--implemented)
 14. [Implementation Plan](#14-implementation-plan)
 15. [Testing Guide](#15-testing-guide)
 16. [Performance Notes](#16-performance-notes)
@@ -118,10 +130,16 @@ processes and roughly forty lines.
 
 ### 2.2 Why this is hard to read by hand
 
-1. **No correlation ID.** Nothing in the envelope says "this ack answers that
-   submission". The relationship has to be *inferred* from payload fields, and
-   the join key differs per topic pair (`order_id`, `request_tag`, `command_id`,
-   `quote_id`, `trade_ids`, `oco_group_id`, `combo_parent_id`).
+1. **Causality used to be invisible; now it is recorded.** Nothing in the
+   message said "this ack answers that submission", so the relationship had to
+   be *inferred* from payload fields, with a different join key per topic pair
+   (`order_id`, `request_tag`, `command_id`, `quote_id`, `trade_ids`,
+   `oco_group_id`, `combo_parent_id`). Since the causal envelope (§13) every
+   message carries `msg_id`, `causation_id` and `correlation_id`, and
+   `pm-audit` records them. This is the single biggest change to the tool's
+   design: causality is now **read**, not reconstructed. The inference ladder
+   in §5.1 survives as the fallback for archived logs and for the handful of
+   publishers that stamp nothing.
 2. **Three clocks, two price units.** The bracketed timestamp is `pm-audit`'s
    own receipt clock. `order.new.timestamp` is *client-supplied* epoch nanoseconds
    and is explicitly documented as **not** what the book uses for priority.
@@ -155,8 +173,9 @@ symptom is *"the sequence was wrong"* is close to invisible.
 
 - Turn the audit trail into **ordered, business-level prose** that a developer,
   an operator, or a student can read straight through.
-- **Reconstruct causality** from the fields that exist today, with no change to
-  the engine, the gateways, or the message specs.
+- **Read causality from the envelope** where it is present, and fall back to
+  reconstructing it from payload fields where it is not — an archived log, or a
+  publisher outside the engine that stamps none.
 - Be **explicit about confidence**: a link the tool inferred heuristically must
   never read like a link the tool proved.
 - **Never invent.** Every clause in every sentence must be traceable to a field
@@ -240,15 +259,25 @@ it may reformat and it may omit, but it may not consult the raw log again.
 
 This is the "sophistication" the tool needs. Everything else is plumbing.
 
-### 5.1 Correlation without correlation IDs
+### 5.1 Correlation: read it first, infer it second
 
-No EduMatcher message carries a `causation_id`. Links must be inferred from
-payload fields, and each inference has a different strength. The reconstruction
-engine therefore attaches an explicit **confidence** to every link it creates, and
-the renderer is required to reflect it in the wording.
+Since §13, messages carry `causation_id` and `correlation_id`, so most links are
+simply **read**. Two things keep the inference machinery below alive rather than
+deleting it:
+
+- **Archived logs.** Lines recorded before the envelope existed have none, and
+  the tool must read a mixed archive without a flag.
+- **Publishers outside the engine.** `pm-index`, `pm-stats` and the gateways'
+  own emissions are not behind a `CausalPublisher`, so their messages carry no
+  envelope and their causality is still inferred.
+
+So the resolver reads the envelope when it is there and falls back when it is
+not. Either way it attaches an explicit **confidence** to every link, and the
+renderer reflects it in the wording.
 
 | Confidence | Meaning | Rendered as |
 |---|---|---|
+| `RECORDED` | The publisher stated the link: the effect's `causation_id` is the cause's `msg_id`. Not an inference at all. | Plain assertion, and the only level `--strict-causality` accepts |
 | `CERTAIN` | A shared identifier that the schema guarantees is unique and is carried explicitly by both events. | Plain assertion: *"filled against 9ab1c4…"* |
 | `STRONG` | A unique key plus a constraint (time window, actor, symbol, state) that admits exactly one candidate. | Plain assertion, flagged in `--explain` |
 | `HEURISTIC` | Multiple candidates were possible; one was chosen by a tie-break rule. | Hedged: *"apparently in response to…"*, and always listed by `anomalies` |
@@ -256,7 +285,22 @@ the renderer is required to reflect it in the wording.
 
 #### 5.1.1 The link rules
 
-The full ruleset, ordered by the pass that applies it:
+**Tier 0 — the envelope.** Before any rule below is consulted:
+
+| From | To | Key | Confidence | Notes |
+|---|---|---|---|---|
+| any message | the message that caused it | `causation_id` = cause's `msg_id` | RECORDED | One lookup. Applies to *every* topic the engine publishes, including ones no rule below covers |
+| any message | its whole causal chain | `correlation_id` | RECORDED | Everything descending from one request shares it — a keyed lookup, not a traversal |
+
+A **null** `causation_id` on a message that *has* an envelope is information,
+not a gap: the engine is stating that nothing on the bus caused this — a
+scheduler tick, a circuit-breaker trip, an end-of-day sweep. The tool renders
+that as an origin, and never goes looking for a cause that was positively
+declared absent. The absence of an envelope entirely is the different case, and
+the fallback rules below are what handle it.
+
+**Tiers 1–3 — the fallback ladder,** for messages with no envelope, ordered by
+the pass that applies it:
 
 | From | To | Key | Confidence | Notes |
 |---|---|---|---|---|
@@ -322,7 +366,7 @@ The genuine count-only blind spot is elsewhere: **`system.startup_recovery`**
 reports `restored_orders`, `discarded_stale_day_orders`, `failed_orders`,
 `quote_remnants_restored`, `rebuilt_quotes` and `restored_combos` as bare
 integers, with no per-entity event anywhere. *"Which order failed to restore?"*
-is unanswerable from the audit trail today. Phase 0 (§14.1) closes that.
+is unanswerable from the audit trail today. Phase 0 (AR-0.5) closes that.
 
 #### 5.1.3 Identity is per engine run
 
@@ -347,8 +391,9 @@ worse, a plausible one. So ordering deserves an explicit, documented policy.
 
 | Source | Field | Unit | Clock | Trustworthy for ordering? |
 |---|---|---|---|---|
-| every engine-published message | `seq` | int, per run | engine publish site | **Yes — this is the ordering authority** (§14.1) |
-| audit line prefix | `[ts]` | ISO-8601 ms | `pm-audit` receipt | Only for messages the engine did not publish |
+| every engine-published message | `msg_id` | ULID | engine publish site | **Yes — this is the ordering authority** (§5.2.2) |
+| every engine-published message | `seq` | int, per topic | engine publish site | For *completeness*, not order: dense per topic, so a gap proves loss |
+| audit line prefix | `[ts]` | ISO-8601 ms | `pm-audit` receipt | Only for messages carrying no envelope |
 | `order.new` | `timestamp` | epoch **nanos** | **client** | **No.** Spec says explicitly: not what the book uses for priority |
 | `order.new` | `arrival_seq` | int | engine, per run | **Yes** — this is the engine's own priority order |
 | `trade.executed` | `ts_ns` | epoch **nanos** (int) | engine | Yes, engine-side |
@@ -359,59 +404,71 @@ worse, a plausible one. So ordering deserves an explicit, documented policy.
 
 #### 5.2.2 The canonical ordering key
 
-Phase 0 (§14.1) adds a monotonic **`seq`** to every message the engine
-publishes, assigned at the publish site under the same lock that serialises the
-socket. That makes ordering a lookup rather than an inference, and the sort key
-collapses to:
+The envelope's `msg_id` is a ULID, minted at the publish site. Two properties
+of that, together, make ordering a lookup rather than an inference:
+
+1. **ULIDs sort by generation time** — the first 48 bits are a millisecond
+   timestamp, and `new_ulid()` keeps a monotonic counter so ids minted inside
+   one millisecond still sort in mint order.
+2. **The engine publishes from a single thread**, so mint order *is* publish
+   order.
+
+Therefore, across every topic the engine publishes, **lexicographic `msg_id`
+order equals the order the exchange did things in.** Measured over 20 000
+publications interleaved across five topics, `sorted(ids) == ids` holds
+exactly. The sort key is:
 
 ```text
-sort_key = (run_seq, seq, receipt_ts, file_ordinal)
+sort_key = (msg_id, receipt_ts, file_ordinal)
 ```
 
-- `run_seq` — engine run, so restarts never interleave. A `seq` is only
-  meaningful within its run.
-- `seq` — the engine's own publication order. This *is* the order the exchange
-  did things in, for every topic, not just trades.
-- `receipt_ts` — the audit prefix. Only reached for messages the engine did not
-  publish (client submissions arriving via PUSH, and other processes' topics).
+- `msg_id` — the engine's own publication order, total across all topics.
+- `receipt_ts` — the audit prefix. Reached only for messages carrying no
+  envelope: archived lines, and publishers outside the engine.
 - `file_ordinal` — line number, so the sort is stable and total.
 
-Two properties fall out of `seq` that the previous design had to work for:
+Three things the previous design worked for now fall out for free:
 
-1. **Out-of-order delivery stops mattering.** An `order.ack` that lands after
-   the `trade.executed` it preceded still sorts correctly, because both carry
-   the engine's own sequence. The `phase_rank` table of protocol-implied
-   precedence — a submission before its ack, an ack before its fills, a trade
-   before the book snapshot reflecting it — is deleted. It was a pile of
-   special cases standing in for a number the engine already knew.
-2. **Message loss becomes provable for every topic.** `seq` is dense within a
-   run, so a gap is missing audit data, full stop. Previously only
-   `trade.executed` could prove this, via the dense counter in its id.
+- **Out-of-order delivery stops mattering.** An `order.ack` recorded after the
+  `trade.executed` it preceded sorts back into place, because both carry a
+  mint-ordered id. The `phase_rank` table of protocol-implied precedence — a
+  submission before its ack, an ack before its fills, a trade before the book
+  snapshot reflecting it — is **deleted**. It was a pile of special cases
+  standing in for a number the engine already knew.
+- **Engine restarts need no special handling.** A ULID's timestamp prefix keeps
+  ordering across a restart without partitioning by run.
+- **Cross-publisher order is honest.** `pm-index` and the gateways mint their
+  own ULIDs, so across processes the ordering is only as good as their clocks
+  agree — millisecond-accurate, not exact. The tool marks such a fact's
+  position as approximate at `-vv` rather than implying a precision it does
+  not have.
 
-#### 5.2.3 The reorder window
+#### 5.2.3 Completeness, and the reorder window
 
-Still needed, but now trivial and bounded by `seq` rather than by guesswork.
-Facts are buffered until the next expected `seq` arrives or the window expires
-(default 2 000 facts / 5 s of receipt time, `--reorder-window`), then emitted in
-`seq` order. Because `seq` is dense, the tool knows *exactly* what it is waiting
-for instead of guessing whether an earlier-keyed fact might still be coming.
+Ordering and completeness are different questions, answered by different
+fields. `msg_id` is *not* dense, so it cannot prove nothing was lost. The
+per-topic `seq` is dense, so a gap in it proves messages are missing from that
+topic — and `pm-audit` now records it.
 
-A fact that arrives after its window has closed is emitted **in place** and
-tagged `late`; a `seq` that never arrives is reported as a gap rather than
-silently closing over:
+Per-topic rather than global is the right shape here, and not by accident:
+`SequencedPublisher`'s docstring gives the reason. A subscriber filtering on
+`trade.` would see a socket-wide counter jump on every `depth.` message it
+filtered out, and report continuous phantom gaps. Counting per topic makes
+every subscriber's view contiguous regardless of what it subscribes to — and
+gives the replay tool per-stream loss detection, which localises a problem
+better than one global count would.
+
+The reorder window shrinks to a formality. Facts are buffered briefly (default
+2 000 facts / 5 s of receipt time, `--reorder-window`) and emitted in `msg_id`
+order. A fact arriving after its window closed is emitted **in place** and
+tagged `late`; a `seq` gap is reported where it was noticed:
 
 ```text
-09:31:04.881  ⟲ late: ack for 7d10bb… (engine seq 918 344, 2.777s behind)
-09:31:05.002  ⚠ SEQ_GAP: engine seq 918 350-918 352 never arrived (3 messages)
+09:31:04.881  ⟲ late: ack for 7d10bb… (minted 2.777s earlier)
+09:31:05.002  ⚠ SEQ_GAP: order.fill.TRADER01 seq 41→45 — 3 messages missing
 ```
 
 Neither marker should appear on a healthy system, so either is itself a finding.
-
-Messages the engine does not publish — client submissions on PUSH, and topics
-from `pm-index`, `pm-stats` and the gateways — carry no engine `seq` and fall
-back to `receipt_ts`. They are ordered *relative to* the engine stream by
-receipt time, which is honest: the audit process genuinely does not know more
-than that. The renderer marks such a fact's position as approximate at `-vv`.
 
 #### 5.2.4 Displayed time
 
@@ -554,6 +611,9 @@ CREATE TABLE episodes (
                                      -- command | market_phase | session |
                                      -- gateway | index | recovery
     anchor_key      TEXT NOT NULL,   -- order_id, trade id, command_id, …
+    correlation_id  TEXT,            -- causal chain this episode belongs to;
+                                     -- NULL only for envelope-less events
+    root_msg_id     TEXT,            -- the message the chain began with
     run_seq         INTEGER,
     symbol          TEXT,
     actor           TEXT,            -- originating gateway_id, when there is one
@@ -578,6 +638,10 @@ CREATE TABLE episode_events (
     line_no     INTEGER NOT NULL,
     role        TEXT    NOT NULL,   -- open | progress | close | context
     late        INTEGER NOT NULL DEFAULT 0,
+    msg_id         TEXT,            -- envelope: this message's ULID
+    causation_id   TEXT,            -- envelope: what caused it (NULL = nothing did)
+    correlation_id TEXT,            -- envelope: its chain
+    topic_seq      INTEGER,         -- per-topic sequence, for gap detection
     payload     TEXT    NOT NULL,
     PRIMARY KEY (episode_id, seq_in_ep)
 );
@@ -616,9 +680,22 @@ CREATE INDEX idx_ep_sort       ON episodes(opened_sort_key);
 CREATE INDEX idx_ep_symbol_ts  ON episodes(symbol, opened_ts);
 CREATE INDEX idx_ep_actor_ts   ON episodes(actor, opened_ts);
 CREATE INDEX idx_ee_sort       ON episode_events(sort_key);
+-- The envelope's two questions, both keyed lookups rather than traversals.
+CREATE INDEX idx_ee_msg        ON episode_events(msg_id);
+CREATE INDEX idx_ee_cause      ON episode_events(causation_id);
+CREATE INDEX idx_ee_chain      ON episode_events(correlation_id);
+CREATE INDEX idx_ep_chain      ON episodes(correlation_id);
 CREATE INDEX idx_links_to      ON links(to_episode);
 CREATE INDEX idx_anom_code     ON anomalies(code, sort_key);
 ```
+
+**`correlation_id` changes what the index is for.** Before the envelope, it
+existed largely to make graph traversal affordable — following an order to its
+trades to its counterparty orders, hop by hop. Now "everything that flowed from
+this submission" is `WHERE correlation_id = ?`, one indexed read. The index
+still earns its place for the other two reasons in §6.1 — random access into
+the middle of a large log, and repeat queries — but the traversal it was partly
+built to accelerate has largely gone away.
 
 `rules_version` in `replay_meta` is the safety catch: bump it whenever link rules,
 the lexicon, or the sort-key packing change, and the tool refuses a stale index
@@ -680,8 +757,15 @@ been seen for it.
 
 ### 7.2 The link resolver
 
-Runs in three tiers, cheapest and most certain first:
+Runs in four tiers, cheapest and most certain first. **Tier 0 answers most of
+it**; the rest exist for envelope-less messages.
 
+0. **Envelope tier.** If the fact carries a `causation_id`, look up that
+   `msg_id` and stop — confidence `RECORDED`. If it carries an envelope with a
+   *null* `causation_id`, mark it an origin and stop: the publisher has
+   positively stated nothing caused it, and searching anyway would invent a
+   link the engine denied. Only a fact with **no envelope at all** falls
+   through to the tiers below.
 1. **Direct-key tier.** Hash joins on explicit shared identifiers — the CERTAIN
    rows of the table in §5.1.1. No ambiguity, no windows.
 2. **Constrained tier.** For pairs with no shared id, a candidate search bounded
@@ -696,6 +780,14 @@ Runs in three tiers, cheapest and most certain first:
 Unresolved events are not dropped. They become single-event episodes of kind
 `orphan`, are always narrated, and are always counted in the anomaly report — the
 tool's failure to explain something is information the reader needs.
+
+**Keep the two kinds of "no cause" apart.** A message whose envelope says
+`causation_id` is null was *declared* uncaused, and is rendered as an origin. A
+message with no envelope has an *unknown* cause, and is either resolved by the
+fallback tiers or reported as an orphan. Collapsing the two would be the same
+error in both directions: inventing causes for scheduler ticks, and quietly
+presenting unknowns as origins. `--explain` always shows which of the two a
+line is.
 
 ### 7.3 Episode assembly
 
@@ -881,15 +973,35 @@ to this order?"*.
   --oco OCO_ID / --combo COMBO_ID
   --command COMMAND_ID   Follow a risk/admin command and its effects
   --client-tag TAG       Follow by the client's own tag
-  --depth N              Link-following depth (default 2)
+  --chain ULID           Follow a whole causal chain by correlation_id
+  --msg ULID             Follow one message and what it caused
+  --depth N              Link-following depth (default 2). Ignored with --chain,
+                         which is already the complete descent
   --context DURATION     Also show market context ±DURATION around the episode
+  --strict-causality     Follow only RECORDED links; report inferred ones as
+                         unfollowed rather than traversing them
 ```
 
 ```bash
 pm-audit-replay story --order 4f2c9a -v --explain
 pm-audit-replay story --command 8812 --depth 3      # a kill switch and its casualties
 pm-audit-replay story --client-tag blotter-88       # when the trader only knows their tag
+
+# Everything one submission caused, however deep — one indexed read, no depth
+# limit to tune, and nothing reached by inference.
+pm-audit-replay story --chain 01ARZ3NDEKTSV4RRFFQ69G5FAV
 ```
+
+`--depth` exists because traversal used to be expensive and unbounded. With
+`--chain` the whole descent is a single `WHERE correlation_id = ?`, so there is
+no depth to choose and no risk of stopping one hop short of the answer. For an
+order whose id you know but whose chain you do not, `story --order` resolves the
+order first and then follows its chain.
+
+`--strict-causality` is the honest-investigation switch: on a mixed archive it
+shows exactly what the exchange *recorded* versus what the tool *inferred*, so
+a conclusion drawn from a HEURISTIC link cannot be mistaken for one the engine
+stated.
 
 ### 9.4 `digest` — collapsed summary
 
@@ -958,7 +1070,9 @@ pm-audit-replay stream --from 09:31:00 --to 09:31:05 --symbol AAPL
 ```text
 09:31:02.118  TRADER01 submitted BUY LIMIT 200 AAPL @ 75.69 (DAY) — order 4f2c9a…
                  client tag blotter-88 · arrival_seq 918 344
+                 chain 01ARZ3ND… starts here
 09:31:02.121  Engine accepted 4f2c9a…  (3 ms after submission)
+                 caused by the submission [recorded]
 09:31:02.122  AAPL traded 150 @ 74.80 — TRADER01's 4f2c9a… took liquidity from
               TRADER02's resting SELL 9ab1c4… (trade 000042-000001873, run 42)
                  TRADER01 pays 11 220.00 · price improvement 0.89/share vs the
@@ -994,7 +1108,7 @@ pm-audit-replay story --command 8812 --depth 2
 09:44:10.002  RISKDESK fired the kill switch for gateway TRADER07 (command 8812)
                  note: "fat finger — 100x qty on NOKIA"
 09:44:10.019  Engine accepted: 14 orders and 2 quotes cancelled
-09:44:10.019  ⤷ 14 order cancellations observed, all with reason KILL_SWITCH ✓
+09:44:10.019  ⤷ 14 cancellations carry this command's causation_id ✓ (ack agrees)
                  NOKIA   6 orders   58 300 shares
                  ERICB   5 orders   12 000 shares
                  VOLVB   3 orders    4 500 shares
@@ -1047,6 +1161,8 @@ model, not the raw log. Consumers get the causal graph without re-implementing
 
 ```json
 {"type":"episode","id":4471,"kind":"order","anchor":"4f2c9a…","actor":"TRADER01",
+ "correlation_id":"01ARZ3NDEKTSV4RRFFQ69G5FAV",
+ "root_msg_id":"01ARZ3NDEKTSV4RRFFQ69G5FAV",
  "symbol":"AAPL","run_seq":42,"opened":"2026-09-08T09:31:02.118+00:00",
  "closed":"2026-09-08T09:31:04.006+00:00","outcome":"CANCELLED",
  "summary":"BUY LIMIT 200 AAPL @ 75.69, 150 filled, 50 cancelled",
@@ -1054,7 +1170,9 @@ model, not the raw log. Consumers get the causal graph without re-implementing
             "price_improvement_per_share":0.89,"ack_latency_ms":3,
             "time_to_first_fill_ms":4,"lifetime_ms":1888}}
 
-{"type":"beat","episode":4471,"seq":2,"sort_key":"000042|20|918344|…",
+{"type":"beat","episode":4471,"seq":2,"sort_key":"01ARZ3NDEKTSV4RRFFQ69G5FB2|…",
+ "msg_id":"01ARZ3NDEKTSV4RRFFQ69G5FB2","causation_id":"01ARZ3NDEKTSV4RRFFQ69G5FAV",
+ "correlation_id":"01ARZ3NDEKTSV4RRFFQ69G5FAV","topic_seq":4471,
  "receipt_ts":"2026-09-08T09:31:02.122+00:00","kind":"order.fill","role":"progress",
  "text":"AAPL traded 150 @ 74.80 — TRADER01's 4f2c9a… took liquidity from TRADER02's resting SELL 9ab1c4…",
  "source":{"file":"audit.log","line":118423},
@@ -1062,7 +1180,7 @@ model, not the raw log. Consumers get the causal graph without re-implementing
            "liquidity_flag":"TAKER","trade_ids":["000042-000001873"]}}
 
 {"type":"link","from":4471,"to":4472,"relation":"matched_with",
- "confidence":"CERTAIN","evidence":"trade.executed.id in order.fill.trade_ids"}
+ "confidence":"RECORDED","evidence":"causation_id=01ARZ3NDEKTSV4RRFFQ69G5FAV"}
 
 {"type":"anomaly","code":"ACK_MISSING","severity":"warn","episode":4488,
  "receipt_ts":"2026-09-08T09:33:10.771+00:00",
@@ -1071,6 +1189,11 @@ model, not the raw log. Consumers get the causal graph without re-implementing
 
 Every prose line has a `beat` with the same `text`, so the two formats never
 diverge — the text renderer *is* the `text` field.
+
+Because every beat carries its `correlation_id`, a consumer can reassemble the
+causal graph without re-deriving any of §5.1: group by chain, order by `msg_id`,
+and follow `causation_id` for the tree shape. That was the point of separating
+the model from the prose, and the envelope is what makes it cheap.
 
 `--format json` wraps the same content in a single document with a header
 (`window`, `source_files`, `rules_version`, counts) for tools that prefer one
@@ -1123,14 +1246,24 @@ matters.
 | `CLIENT_CLOCK_ABSURD` | info | `order.new.timestamp` more than an hour from receipt — a client-clock problem, harmless to the engine (priority uses `arrival_seq`) but worth knowing |
 | `ARRIVAL_SEQ_GAP` | info | A gap in `arrival_seq` within a run; expected across gateways, reported only with `--strict` |
 | `RUN_SEQ_CHANGE` | info | Engine restart observed mid-window |
-| `SEQ_GAP` | error | A gap in the engine's publish `seq` within a run: messages are missing from the audit trail, on any topic |
+| `SEQ_GAP` | error | A gap in a topic's `seq`: messages are missing from the audit trail for that topic |
+| `ENVELOPE_MISSING` | info | An engine-published message with no envelope. Expected on archived lines; on a current log it means a publisher is bypassing `CausalPublisher` |
+| `CAUSE_NOT_FOUND` | warn | A `causation_id` naming a `msg_id` that is nowhere in the window. Usually the window starts too late; occasionally a dropped message |
+| `CHAIN_BROKEN` | error | An effect whose `correlation_id` differs from its cause's — the chain was not propagated, which breaks `story --chain` |
+| `MSG_ID_DUPLICATE` | error | Two messages with the same `msg_id`. Should be impossible; would mean the ULID generator was shared unsafely across threads |
 | `TRADE_COUNTER_GAP` | error | A gap in the per-run trade counter: trades specifically are missing. Redundant with `SEQ_GAP`, but kept — it localises the loss to the trade stream |
 
-`SEQ_GAP` deserves emphasis. Because the engine's publish `seq` is dense within
-a run, the tool can **prove** that messages are missing from the audit trail
-rather than merely suspecting it — for every topic, not just trades. That is a
-completeness check on the audit system itself, and it is the single strongest
-argument for adding `seq` in Phase 0.
+`SEQ_GAP` deserves emphasis. Because each topic's `seq` is dense, the tool can
+**prove** that messages are missing from the audit trail rather than merely
+suspecting it — on every topic, not just trades. That is a completeness check
+on the audit system itself, and it now works on any log recorded since
+`pm-audit` began writing the metadata section.
+
+`CHAIN_BROKEN` is the one to watch during development. `correlation_id` is
+propagated by `Envelope.caused()`, so a break means something constructed an
+envelope by hand instead of deriving it from its cause — exactly the class of
+mistake that wrapping the publisher was meant to make impossible, and worth
+failing loudly if it reappears.
 
 ### 12.4 Command reconciliation
 
@@ -1176,58 +1309,84 @@ INFO   09:12:00.004  RUN_SEQ_CHANGE      run 42 → 43
 
 
 
-## 13. Phase 2 — Envelope Causation IDs
+## 13. Envelope Causation IDs — implemented
 
-Everything above works on the audit trail exactly as it is written today. But
-several links in §5.1.1 are STRONG or HEURISTIC only because the causal
-relationship, which the publisher knew for certain at publish time, was not
-written down. Recovering it afterwards is guesswork over a lossy channel.
+> **Status: implemented 2026-09-11.** This section described a phase-2
+> proposal in 1.0.0. It was brought forward and built first, so the tool is
+> designed against causality that is *recorded* rather than inferred.
 
-### 13.1 The proposal
+### 13.1 What was built
 
-Add two optional fields to the message envelope in `spec/messages/`:
+Three fields, carried in a dedicated ZMQ frame rather than in the JSON payload:
 
-| Field | Type | Meaning |
+| Field | Meaning |
+|---|---|
+| `msg_id` | ULID of this message. Unique, and sorts by generation time |
+| `causation_id` | The `msg_id` of the message that caused this one. `None` means nothing did |
+| `correlation_id` | Shared by every message in one causal chain; equals the root's `msg_id` |
+
+**Why a frame, not payload fields.** The proposal in 1.0.0 assumed spec fields.
+The codebase had already answered this question differently and for a good
+reason: `SequencedPublisher` puts its per-topic sequence in a frame so the hot
+publish path never decodes and re-encodes a message. The same argument applies
+here, with a second behind it — the envelope is uniform across all 114 message
+types, so declaring it per-message would be 114 copies of one idea for the
+generator to keep in step. Frame layout is now:
+
+```
+PUB   [topic, payload, seq, envelope]
+PUSH  [topic, payload, envelope]
+```
+
+`decode()` still reads only frames 0 and 1, so no consumer had to change.
+
+### 13.2 How it is applied
+
+Two wrappers in `messaging/bus.py`, so no publish site has to remember:
+
+- `CausalPusher` wraps every PUSH socket. A client request is a causal **root**.
+- `CausalPublisher` wraps the engine's PUB socket. The receive loop sets the
+  inbound message as the cause before dispatch and clears it in a `finally`.
+
+Wrapping rather than editing call sites is the substantive decision. The engine
+publishes from roughly a hundred places; an envelope attached only where someone
+remembered would be **worse than none**, because an absent `causation_id` is
+defined to mean "nothing caused this". A forgotten one would not be a gap, it
+would be a false statement.
+
+This is safe because the engine's PULL loop is single-threaded — exactly one
+inbound message in flight, so never more than one cause in scope. A
+multi-threaded publisher would need a context variable; `CausalPublisher`'s
+docstring says so.
+
+### 13.3 What it changes for this tool
+
+The §5.1.1 ladder still exists — it reads archived logs, and non-engine
+publishers still stamp nothing — but it becomes the fallback rather than the
+mechanism. The resolver gains a tier 0: **if `causation_id` is present, use it
+and stop.**
+
+| Link | Before | Now |
 |---|---|---|
-| `msg_id` | string (ULID) | Unique id of this message |
-| `causation_id` | string | The `msg_id` of the message that caused this one |
-
-Optionally a third, `correlation_id`, propagated unchanged along a whole causal
-chain, which makes "everything that flowed from this submission" a single indexed
-lookup rather than a graph traversal.
-
-### 13.2 What it buys
-
-| Link | Today | With causation IDs |
-|---|---|---|
-| Kill switch → the specific orders it cancelled | HEURISTIC, count-reconciled | CERTAIN, per order |
+| `order.new` → `order.ack` | CERTAIN (shared `order_id`) | CERTAIN, and no longer dependent on the id being echoed |
 | `order.cancel` → `order.cancelled` without `request_tag` | STRONG | CERTAIN |
 | `session.transition` → `session.state` | STRONG | CERTAIN |
-| Rejection → the market condition that caused it | STRONG, via state model | CERTAIN |
-| Cascades (halt → cancels → quote teardown → re-quote) | reconstructed per hop | one traversal |
+| Rejection → the market condition behind it | STRONG, via the state model | CERTAIN |
+| Cascades (halt → cancels → quote teardown → re-quote) | reconstructed per hop | one `correlation_id` lookup |
 
-### 13.3 Migration path
+`correlation_id` in particular turns §9.3's `story` subcommand from a graph
+traversal into an indexed lookup: everything descending from one submission
+shares one key. The episode index carries all three fields with an index on
+each (§6.2).
 
-The design is deliberately incremental and never blocks phase 1:
+### 13.4 Cost
 
-1. **Spec.** Add both fields as optional to the shared envelope; regenerate with
-   `pm-msgen generate`. Existing readers ignore unknown fields, so nothing breaks.
-2. **Engine first.** The engine is the highest-value publisher: stamping
-   `causation_id` on `order.ack`, `order.fill`, `order.cancelled` and
-   `trade.executed` alone converts most of the interesting links to CERTAIN.
-3. **Gateways next**, so client requests carry a `msg_id` the engine can cite.
-4. **Replay tool.** The link resolver gains a tier-0: *if `causation_id` is
-   present, use it and stop*. Everything below stays as the fallback, so mixed
-   logs — inevitable during rollout — narrate correctly, with per-link confidence
-   reflecting which tier fired.
-5. **Measurement.** `pm-audit-replay index --stats` reports the share of links at
-   each confidence level, so the rollout has a number to track: *"CERTAIN links
-   rose from 71% to 96% after the engine change"*.
-
-ULIDs cost 26 bytes per message. At current audit volumes that is a few percent
-of log size — cheap for what it removes from §5.1.
-
-
+26 bytes per id, so up to ~80 bytes per message of envelope — a few percent of
+audit log size, paid once, in exchange for removing an entire class of
+inference. `pm-audit` records the envelope **and** the per-topic sequence,
+which it previously discarded: before this change the counter that exists to
+reveal PUB/SUB drops was being thrown away by the one process whose job is to
+miss nothing.
 
 ## 14. Implementation Plan
 
@@ -1276,37 +1435,35 @@ consumers → fix tests → `pm-msgen check`.** The generator will not let the
 bindings drift; it will happily let a *consumer* drift, which is where the risk
 actually lives.
 
-#### AR-0.1 — Engine publish sequence (2 days) — the highest-value item here
+#### AR-0.1 — Engine publish sequence — **dropped, already solved**
 
-**Do.** Add to the shared envelope of every message the engine publishes on its
-PUB socket:
+This task proposed a global, dense `seq` on every engine message, for two
+purposes: a total order across topics, and proof that nothing was lost. Both
+are already met by work that has since landed, so building it would add a
+field that earns nothing.
 
-| Field | Type | Rules | Meaning |
-|---|---|---|---|
-| `seq` | `int` | `ge: 0`, unit `dimensionless` | Monotonic, dense, per engine run |
-| `run_seq` | `int` | `ge: 0`, unit `dimensionless` | The run the `seq` belongs to |
+**Ordering** is `msg_id`. ULIDs sort by generation time, `new_ulid()` is
+monotonic within a millisecond, and the engine publishes from one thread — so
+lexicographic `msg_id` order *is* publish order, across every topic. Measured
+over 20 000 publications interleaved across five topics: `sorted(ids) == ids`
+holds exactly. See §5.2.2.
 
-`run_seq` already exists on `trade.executed`; this generalises it, so every
-engine message can be partitioned by run without inference.
+**Completeness** is the per-topic `seq` that `SequencedPublisher` has always
+stamped and that `pm-audit` now records. It is dense per topic, so a gap proves
+loss. Per-topic is also the *better* shape, not a compromise: a global counter
+would make every subscriber that filters by topic prefix see phantom gaps for
+the messages it filtered out — the reasoning is in `SequencedPublisher`'s own
+docstring.
 
-Assign `seq` at the **single publish site**, incremented under the same lock
-that serialises `pub_sock.send_multipart`. Assigning it earlier — at decision
-time — would let two messages reach the socket out of `seq` order, which
-destroys the one property the whole design now rests on. Put that reasoning in
-a comment; it is the kind of thing an optimisation removes by accident.
+What remains is a one-line check rather than a two-day task, folded into
+AR-0.7's sweep: confirm on a captured session that every engine-published line
+carries an envelope and a `seq`, i.e. that no publisher is bypassing
+`CausalPublisher`. The `ENVELOPE_MISSING` anomaly (§12.3) is the standing
+version of that check.
 
-**Verify.**
-1. Unit test: 10 000 messages published from 4 threads yield `seq` values
-   `0..9999` with no gap and no duplicate.
-2. Unit test: `seq` restarts at 0 when `run_seq` advances.
-3. Integration: run `scripts/launch_all.sh`, capture audit output, assert the
-   `seq` values of engine-published lines form a dense run with no gaps.
-4. Benchmark: `pytest tests/test_msgen_trade_perf.py`. The publish path is
-   hot — a lock-held counter increment should be lost in the noise, but measure
-   rather than assume. Record the before/after number in the commit message.
-
-**Done when** every engine-published topic in a captured session carries a dense
-`seq`, and the perf number is recorded.
+> **Phase 0 is now ~6 days, not 8, and its riskiest item is gone.** AR-0.2
+> through AR-0.6 are independent of each other and can be done in any order or
+> in parallel.
 
 #### AR-0.2 — `symbol` on the order lifecycle events (0.5 day)
 
@@ -1416,7 +1573,8 @@ generated reference for the changed families and confirm every new field has a
 > Demonstrate all of the following on one captured session from
 > `scripts/launch_all.sh`:
 >
-> 1. Every engine-published line carries a dense `seq` and a `run_seq`.
+> 1. Every engine-published line carries an envelope and a per-topic `seq` —
+>    no publisher is bypassing `CausalPublisher`.
 > 2. `pm-audit-cli events --symbol AAPL` returns cancellations.
 > 3. `grep -rn epoch_seconds spec/messages/` matches only `log.yaml`.
 > 4. `book.*` and `depth.*` lines carry `ts_ns`.
@@ -1471,19 +1629,21 @@ worse than one that stops.
 **Done when** every price a Fact exposes carries a resolved scale or an explicit
 refusal.
 
-#### AR-1.4 — `ordering.py`: canonical sort key (1 day)
+#### AR-1.4 — `ordering.py`: canonical sort key (0.5 day)
 
-**Do.** Implement `(run_seq, seq, receipt_ts, file_ordinal)` per §5.2.2, plus
-the `seq`-bounded reorder window and `late` tagging.
+**Do.** Implement `(msg_id, receipt_ts, file_ordinal)` per §5.2.2, the reorder
+window, `late` tagging, and per-topic `seq` gap detection. Smaller than it was:
+`phase_rank` is gone, and there is no run partitioning to do.
 
 **Verify.** Write these tests first, and watch each fail:
 
 1. A deliberately inverted ack/fill pair — ack written to the log *after* the
-   fill — sorts back into `seq` order.
-2. Facts spanning a `run_seq` change never interleave.
-3. A missing `seq` is reported as a gap, not silently skipped.
-4. Non-engine facts (no `seq`) fall back to `receipt_ts` and sort stably
-   among themselves.
+   fill — sorts back into mint order.
+2. Facts spanning an engine restart order correctly with no run partitioning
+   (the ULID timestamp prefix carries it).
+3. A per-topic `seq` gap is reported, not silently skipped.
+4. Envelope-less facts fall back to `receipt_ts` and sort stably among
+   themselves, interleaved with enveloped ones by receipt time.
 5. Property test: shuffle a known-good fact stream, sort, assert the original
    order is recovered exactly.
 
@@ -1532,15 +1692,26 @@ corridor; per-gateway connection span and description.
 the tool state *why* the symbol was halted, with the corridor figures from the
 original `circuit_breaker.halt`.
 
-#### AR-2.3 — `links.py`: tier 1, the direct-key joins (1 day)
+#### AR-2.3 — `links.py`: tier 0 and tier 1 (1 day)
 
-**Do.** The CERTAIN rows of §5.1.1 — `order_id`, `trade_ids`, `command_id`,
-`quote_id`, `oco_id`, `combo_id`, `request_tag`.
+**Do.** Tier 0 first, because it is both the simplest and the one that carries
+most of the traffic: `causation_id` → `msg_id` lookup, `correlation_id`
+grouping, and the *declared-origin* case where an envelope carries a null
+`causation_id`. Then the CERTAIN rows of §5.1.1 — `order_id`, `trade_ids`,
+`command_id`, `quote_id`, `oco_id`, `combo_id`, `request_tag` — for
+envelope-less facts.
+
+A specific trap to test for: a declared origin (envelope present,
+`causation_id` null) must **not** fall through to the inference tiers. If it
+does, the tool will invent a cause for every scheduler tick and circuit-breaker
+trip, and those inventions will read exactly like facts.
 
 **Verify.** One test per table row, each asserting **both** the link and its
 confidence. The confidence assertions matter more than the links: a regression
-that silently promotes a weak link to CERTAIN makes the tool lie with a
-straight face, and nothing else in the suite would catch it.
+that silently promotes a weak link to RECORDED or CERTAIN makes the tool lie
+with a straight face, and nothing else in the suite would catch it. Add a
+fixture with an enveloped, declared-origin message and assert the resolver
+leaves it alone.
 
 #### AR-2.4 — `links.py`: tiers 2 and 3 (1.5 days)
 
@@ -1557,8 +1728,11 @@ raises `EFFECT_COUNT_MISMATCH`.
 **Do.** A `--stats` mode reporting the share of links at each confidence level.
 
 **Verify.** Run against a captured session. **Post the distribution in the PR.**
-After Phase 0 the overwhelming majority should be CERTAIN; if it is not, a
-link rule is not firing and it is much cheaper to find out now than in Phase 4.
+On a log recorded since the envelope landed, the overwhelming majority should be
+`RECORDED`; anything much below that means a publisher is bypassing
+`CausalPublisher`, and it is far cheaper to find that now than in Phase 4. On an
+older archive the same command measures how much of the history predates the
+envelope, which is useful to know before drawing conclusions from it.
 
 > ### ✅ CP-2 — causality is recovered and honest
 >
@@ -1699,12 +1873,16 @@ event narrated, nothing suppressed.
 
 ---
 
-### Phase 7 (optional, separate decision) — Envelope causation IDs
+### Phase 7 — Envelope causation IDs — **done, ahead of the rest**
 
-§13. Note that Phase 0's `seq` solves *ordering* and *completeness*;
-`causation_id` solves *causality*. They are complementary, and after Phase 0 the
-remaining gap is narrow enough that this should be re-justified on the measured
-confidence distribution from AR-2.5 rather than assumed to be worth doing.
+§13, implemented 2026-09-11 rather than deferred, so the tool is built against
+recorded causality from the start and no migration is needed later.
+
+Note the division of labour with Phase 0: `causation_id` solves *causality*;
+the engine `seq` of AR-0.1 solves *ordering* and *completeness*. They are
+complementary and neither replaces the other — a message can be correctly
+attributed and still arrive out of order, and a dense sequence proves nothing
+about why a message was sent. AR-0.1 is still worth doing.
 
 ---
 
@@ -1712,20 +1890,23 @@ confidence distribution from AR-2.5 rather than assumed to be worth doing.
 
 | Phase | Days | Gate |
 |---|---|---|
-| 0 — Bus changes | 8 | CP-0 |
-| 1 — Facts and ordering | 4 | CP-1 |
+| 0 — Bus changes | 6 | CP-0 |
+| 1 — Facts and ordering | 3.5 | CP-1 |
 | 2 — State and links | 5 | CP-2 |
 | 3 — Episodes and index | 4 | CP-3 |
 | 4 — Narration | 5 | CP-4 |
 | 5 — Anomalies and views | 4 | CP-5 |
 | 6 — Machine output and polish | 3 | CP-6 |
-| **Total** | **33** | |
+| **Total** | **30.5** | |
 
 Phases 1–6 are strictly sequential: each consumes the previous phase's output.
-Phase 0 is the exception — AR-0.2 through AR-0.6 are independent of each other
-and can be parallelised or reordered freely. **AR-0.1 (`seq`) is the critical
-path**: it is the one item the whole ordering design depends on, so start it
-first and do not let it slip behind the easier tasks.
+Phase 0 has no internal ordering at all now that AR-0.1 is dropped — AR-0.2
+through AR-0.6 are independent and can be parallelised or reordered freely,
+which also means Phase 0 has no critical path to protect.
+
+The envelope removed roughly two and a half days of work and, more usefully,
+the two hardest parts of the design: the ordering heuristic and the causal
+inference ladder both became fallbacks rather than mechanisms.
 
 ### Files changed outside the new package
 
@@ -1748,12 +1929,13 @@ first and do not let it slip behind the easier tasks.
   ladder, including the *refusal* case where no `tick_decimals` is available;
   epoch-nanos and epoch-seconds normalisation; topic wildcard split for every
   wildcard topic in `spec/messages/`.
-- **`ordering.py`** — sort-key ordering across run boundaries; `phase_rank`
-  resolving a deliberately inverted ack/fill pair; late arrival tagging;
-  stability under equal keys.
+- **`ordering.py`** — `msg_id` ordering across an engine restart with no run
+  partitioning; a deliberately inverted ack/fill pair sorting back into mint
+  order; envelope-less facts falling back to receipt time; per-topic `seq` gap
+  detection; late-arrival tagging; stability under equal keys.
 - **`links.py`** — one test per row of the §5.1.1 table, each asserting both the
   link *and* its confidence. Confidence assertions are the important half: a
-  regression that silently promotes HEURISTIC to CERTAIN is exactly the bug this
+  regression that silently promotes HEURISTIC to RECORDED is exactly the bug this
   tool must not have.
 - **`episodes.py`** — episode open/close for every kind; derived-fact arithmetic
   including VWAP and price improvement; window-edge `OPEN` outcomes.
@@ -1819,6 +2001,7 @@ Targets on a 200 MB audit log (~1.2 M events) on developer hardware:
 | Full index build | < 90 s, single pass, bounded memory |
 | Incremental index update (1 min of new log) | < 1 s |
 | `story --order …` against an index | < 100 ms |
+| `story --chain …` against an index | < 50 ms — one indexed read, no traversal |
 | `stream` over a 5-minute window | < 500 ms |
 | `--no-index stream` over the whole log | I/O bound, ~2 min |
 
@@ -1852,6 +2035,11 @@ Design choices that get there:
 - [ ] Ordering follows the canonical key; a deliberately inverted ack/fill pair
       narrates in causal order
 - [ ] Every link carries a confidence; HEURISTIC links are hedged in prose
+- [ ] `RECORDED` links dominate on a log captured since the envelope landed
+- [ ] A declared origin (envelope present, null `causation_id`) is rendered as
+      an origin and never sent through the inference tiers
+- [ ] `story --chain` returns the complete descent with no `--depth` tuning
+- [ ] `--strict-causality` distinguishes recorded links from inferred ones
 - [ ] No event is silently dropped — round-trip property test passes
 - [ ] `--format ndjson` output matches the prose beat for beat
 - [ ] All anomaly codes in §12 have a fixture that fires them

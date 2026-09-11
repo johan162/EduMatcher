@@ -77,7 +77,7 @@ from edumatcher.log_srv.config import (
     resolve_host_default,
 )
 from edumatcher.logclient.discovery import resolve_handler
-from edumatcher.messaging.bus import make_pusher, make_subscriber
+from edumatcher.messaging.bus import PushSocket, make_pusher, make_subscriber
 from edumatcher.models.combo import ComboLeg, ComboOrder, ComboType
 from edumatcher.models.message import (
     decode,
@@ -623,7 +623,7 @@ class Gateway:
         log.warning("gateway authentication timed out gateway_id=%s", self.gateway_id)
         return False
 
-    def _send(self, sock: zmq.Socket[bytes], frames: list[bytes]) -> bool:
+    def _send(self, sock: PushSocket, frames: list[bytes]) -> bool:
         """Send on a PUSH socket, reporting a clean error instead of
         crashing the console.
 

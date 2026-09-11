@@ -99,6 +99,7 @@ from edumatcher.models.generated.trade import make_trade_executed_unchecked
 from edumatcher.models.message import (
     dumps,
     decode,
+    decode_push_envelope,
     make_ack_msg,
     make_amended_msg,
     make_book_msg,
@@ -6312,6 +6313,7 @@ class Engine:
                 try:
                     frames = self.pull_sock.recv_multipart()
                     topic, payload = decode(frames)
+                    cause = decode_push_envelope(frames)
                 except Exception as exc:
                     # No decodable topic means no gateway to reject to, so the
                     # message can only be discarded — but it is counted, so
@@ -6339,7 +6341,19 @@ class Engine:
                 else:
                     self._dbg_count("pull_messages")
                     self._dbg_count(f"topic_{topic}")
-                    self._dispatch_pull_message(topic, payload)
+                    # Everything published while handling this message is
+                    # attributed to it, and inherits its causal chain. Cleared
+                    # in `finally` so a handler that raises cannot leak the
+                    # attribution onto the next message, or onto maintenance
+                    # work below — which has no external cause and must not
+                    # claim one.
+                    if cause is None:
+                        self._dbg_count("pull_messages_without_envelope")
+                    self.pub_sock.set_cause(cause)
+                    try:
+                        self._dispatch_pull_message(topic, payload)
+                    finally:
+                        self.pub_sock.clear_cause()
             self._run_maintenance()
 
         self._flush_debug_summary(force=True)
