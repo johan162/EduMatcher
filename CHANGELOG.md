@@ -1,8 +1,11 @@
-## [Unreleased]
+## [v0.35.0] - 2026-09-10
 
 Release Type: major
 
 ### 📋 Summary
+Added additional information to internal messages to make sure audit can re-create 
+all state changing events. In addition align all timestamp handling so unit of the 
+timestamp is encoded in he naming of variables to avoid any mistakes.
 `trade.executed` now carries the engine's match time as integer nanoseconds in
 a field named `ts_ns`, replacing the float `timestamp` in epoch seconds. This
 is a breaking wire change with no compatibility shim.
@@ -32,6 +35,11 @@ is a breaking wire change with no compatibility shim.
   `trade.executed` payload — ticks to display money via the tick registry, and
   `ts_ns` — so no caller hand-rolls it. `Trade.to_dict()` is now explicitly the
   internal shape, for persistence and round-trips only.
+- Make `pm-audit` have enough information to be able to re-create order flow.
+  pm-audit is a bare, empty-prefix subscriber on the engine's PUB socket, so audit 
+  completeness is exactly "what gets published on :5556." Several engine-initiated 
+  decisions produced an outcome with no reason, one produced no outcome at all, 
+  and a few reached only the process log.
 
 ### 📚 Documentation
 - Corrected the hand-written `order.new` and `quote.new` field tables in
@@ -40,7 +48,7 @@ is a breaking wire change with no compatibility shim.
   is integer epoch **nanoseconds**, not float seconds. Added `arrival_seq` (the
   real time-priority key) and a note on the ticks-in / display-out convention.
 - Regenerated the message reference from the spec.
-
+- Fixed pagenumber being reset at every part in the Exchange Introduction PDF
 
 ## [v0.34.0] - 2026-09-09
 

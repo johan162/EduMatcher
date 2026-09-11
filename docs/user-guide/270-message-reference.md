@@ -328,8 +328,13 @@ At least one of `price` or `qty` must be present.
 
 **Priority rules:**
 
-- Quantity decrease only → priority **preserved** (timestamp unchanged)
-- Price change or quantity increase → priority **lost** (new timestamp assigned)
+- Quantity decrease only → priority **preserved** (`arrival_seq` unchanged)
+- Price change or quantity increase → priority **lost** (new `arrival_seq` assigned)
+
+Priority is keyed on `arrival_seq`, the engine-assigned monotonic counter —
+**not** on the order's client-supplied `timestamp` field (see the `timestamp`
+and `arrival_seq` rows under [`order.new`](#ordernew) above). The `timestamp`
+field is never used by the book to determine queue position.
 
 **Reply:** `order.amended.{GW_ID}` on success, or `order.ack.{GW_ID}` with `accepted=false` on rejection.
 
