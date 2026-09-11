@@ -123,8 +123,11 @@ def test_session_transition_carries_command_id_only_with_a_gateway() -> None:
 
 
 def test_transition_ack_is_addressed_not_broadcast() -> None:
-    """A command_id belongs to whoever issued it — putting it on the public
-    session.state topic would hand every subscriber someone else's id."""
+    """accepted/reason/to_state are meaningful only to the one gateway that
+    asked -- unlike command_id itself, which AR-0.6 now also echoes on the
+    public session.state broadcast (see test_session_state_echoes_the_
+    command_id_from_a_manual_transition); this ack is still addressed
+    because the rest of what it carries is not broadcast material."""
     frames = make_session_transition_ack_msg("GW01", "cmd-1", True, to_state="OPEN")
     assert _topic(frames) == "session.transition_ack.GW01"
 
@@ -197,6 +200,37 @@ def test_the_scheduler_gets_no_ack() -> None:
     engine._sessions_enabled = False
     engine._handle_session_transition({"to_state": "OPEN"})
     assert _published(engine) == []
+
+
+def test_session_state_echoes_the_command_id_from_a_manual_transition() -> None:
+    """AR-0.6: a manual transition's own command_id now shows up on the
+    public broadcast too, not just on the addressed ack -- the STRONG
+    (adjacency) link from session.transition to session.state becomes a
+    CERTAIN one (shared id)."""
+    engine = _engine()
+    engine._sessions_enabled = True
+    engine._handle_session_transition(
+        {
+            "to_state": "CLOSING_AUCTION",
+            "reply_to": {"command_id": "cmd-11", "gateway_id": "GW01"},
+        }
+    )
+    states = [f for f in _published(engine) if _topic(f).startswith("session.state")]
+    assert len(states) == 1
+    assert _payload(states[0])["command_id"] == "cmd-11"
+
+
+def test_session_state_omits_command_id_for_the_scheduler() -> None:
+    """pm-scheduler drives the timetable and sends no reply_to at all, so
+    the broadcast it causes has nothing to echo -- the doc's other verify
+    step, distinguishing operator-driven from schedule-driven transitions
+    from the payload alone."""
+    engine = _engine()
+    engine._sessions_enabled = True
+    engine._handle_session_transition({"to_state": "CLOSING_AUCTION"})
+    states = [f for f in _published(engine) if _topic(f).startswith("session.state")]
+    assert len(states) == 1
+    assert "command_id" not in _payload(states[0])
 
 
 # ---------------------------------------------------------------------------

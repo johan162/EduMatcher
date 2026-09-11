@@ -429,12 +429,12 @@ def _resolve_delta(
     )
     records = hist.get("records", [])
     last_shares: int | None = None
-    last_ts: float = -1.0
+    last_ts: int = -1
     sym_upper = symbol.upper()
     for rec in records:
         if rec.get("symbol") != sym_upper:
             continue
-        ts = float(rec.get("timestamp", 0.0))
+        ts = int(rec.get("ts_ns", 0))
         detail = str(rec.get("detail", ""))
         shares: int | None = None
         if rec.get("type") == "ADD_CONSTITUENT":
@@ -617,7 +617,7 @@ def _cmd_history(client: ExchangeCommandClient, args: argparse.Namespace) -> boo
         return True
 
     for rec in records:
-        ts = rec.get("timestamp", "")
+        ts = rec.get("ts_ns", "")
         rtype = rec.get("type", "")
         symbol = rec.get("symbol", "-")
         if rtype == "CORP_ACTION":

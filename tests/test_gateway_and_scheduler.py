@@ -310,7 +310,7 @@ class TestGatewayHelpers:
                         "remaining_qty": 100,
                         "price": 150.0,
                         "status": "NEW",
-                        "timestamp": _time.time(),
+                        "ts_ns": int(_time.time() * 1_000_000_000),
                     }
                 ]
             },
@@ -430,7 +430,7 @@ class TestGatewayHelpers:
                         "remaining_qty": 500,
                         "price": 150.0,
                         "status": "NEW",
-                        "timestamp": _time.time(),
+                        "ts_ns": int(_time.time() * 1_000_000_000),
                         "origin": "QUOTE",
                         "quote_id": "Q123",
                     }
@@ -1436,7 +1436,7 @@ class TestOrderOrdersUpdatesExisting:
                         "remaining_qty": 40,
                         "price": 150.0,
                         "status": "PARTIAL",
-                        "timestamp": _time.time(),
+                        "ts_ns": int(_time.time() * 1_000_000_000),
                     }
                 ]
             },
@@ -1679,7 +1679,7 @@ class TestIndexDisplay:
             "index_id": "EDU100",
             "level": 1050.0,
             "session_state": "CONTINUOUS",
-            "timestamp": _time.time(),
+            "ts_ns": int(_time.time() * 1_000_000_000),
             "day_open": 1000.0,
             "day_high": 1060.0,
             "day_low": 995.0,
@@ -1694,7 +1694,7 @@ class TestIndexDisplay:
             "index_id": "EDU100",
             "level": 1050.0,
             "session_state": "CONTINUOUS",
-            "timestamp": _time.time(),
+            "ts_ns": int(_time.time() * 1_000_000_000),
         }
         gw._parse_and_send("INDEX")  # No day_open — no change % shown
 
@@ -1733,14 +1733,14 @@ class TestIndexDisplay:
                 "records": [
                     {
                         "type": "INIT",
-                        "timestamp": _time.time(),
+                        "ts_ns": int(_time.time() * 1_000_000_000),
                         "level": 1000.0,
                         "base_value": 1000.0,
                         "constituents": ["AAPL", "MSFT"],
                     },
                     {
                         "type": "CORP_ACTION",
-                        "timestamp": _time.time(),
+                        "ts_ns": int(_time.time() * 1_000_000_000),
                         "level": 1030.0,
                         "symbol": "AAPL",
                         "action": "SPLIT",
@@ -2095,7 +2095,7 @@ class TestIndexDisplayEdgeCases:
             "index_id": "EDU100",
             "level": 1000.0,
             "session_state": "CONTINUOUS",
-            # no 'timestamp'
+            # no 'ts_ns'
             "day_open": 980.0,
             "day_high": 1010.0,
             "day_low": 975.0,
@@ -2104,7 +2104,7 @@ class TestIndexDisplayEdgeCases:
 
     def test_index_history_record_no_timestamp(self) -> None:
         gw = _make_gateway()
-        # Record with no timestamp → ts_txt = "?"
+        # Record with no ts_ns → ts_txt = "?"
         gw._handle_event(
             "index.history.GW01",
             {"records": [{"type": "CORP_ACTION", "level": 1000.0, "symbol": "AAPL"}]},
@@ -2121,7 +2121,7 @@ class TestIndexDisplayEdgeCases:
                 "records": [
                     {
                         "type": "CORP_ACTION",
-                        "timestamp": _time.time(),
+                        "ts_ns": int(_time.time() * 1_000_000_000),
                         "symbol": "AAPL",
                         # no 'level'
                     }

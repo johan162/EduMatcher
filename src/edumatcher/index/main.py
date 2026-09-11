@@ -286,7 +286,7 @@ class IndexProcess:
                 history.append(
                     {
                         "type": "INIT",
-                        "timestamp": time.time(),
+                        "ts_ns": time.time_ns(),
                         "index_id": cfg.id,
                         "base_value": cfg.base_value,
                         "divisor": calc.divisor,
@@ -416,12 +416,12 @@ class IndexProcess:
             )
             return
 
-        default_from = time.time() - 30 * 86400
-        from_ts = float(payload.get("from_ts", default_from))
-        to_ts = float(payload.get("to_ts", time.time()))
-        if to_ts < from_ts:
+        default_from_ns = time.time_ns() - 30 * 86400 * 1_000_000_000
+        from_ts_ns = int(payload.get("from_ts_ns", default_from_ns))
+        to_ts_ns = int(payload.get("to_ts_ns", time.time_ns()))
+        if to_ts_ns < from_ts_ns:
             self._pub_sock.send_multipart(
-                make_index_error_msg(gateway_id, "to_ts must be >= from_ts")
+                make_index_error_msg(gateway_id, "to_ts_ns must be >= from_ts_ns")
             )
             return
 
@@ -434,7 +434,7 @@ class IndexProcess:
 
         try:
             records, warnings = idx.history.query(
-                from_ts, to_ts, record_types, max_records
+                from_ts_ns, to_ts_ns, record_types, max_records
             )
         except ValueError as exc:
             self._pub_sock.send_multipart(make_index_error_msg(gateway_id, str(exc)))
@@ -514,7 +514,7 @@ class IndexProcess:
         idx.history.append(
             {
                 "type": "CORP_ACTION",
-                "timestamp": time.time(),
+                "ts_ns": time.time_ns(),
                 "index_id": idx.cfg.id,
                 "symbol": symbol,
                 "action": action,
@@ -602,7 +602,7 @@ class IndexProcess:
         idx.history.append(
             {
                 "type": event_type,
-                "timestamp": time.time(),
+                "ts_ns": time.time_ns(),
                 "index_id": idx.cfg.id,
                 "level": level,
                 **event_payload,
@@ -724,7 +724,7 @@ class IndexProcess:
         idx.history.append(
             {
                 "type": "REBALANCE",
-                "timestamp": time.time(),
+                "ts_ns": time.time_ns(),
                 "index_id": idx.cfg.id,
                 "symbols": applied,
                 "old_divisor": old_divisor,

@@ -77,6 +77,16 @@ messages:
           that store prices exactly need it to convert back to integer ticks;
           without it they must guess, and guessing 2 for a 4-decimal symbol
           rounds the price away.
+      - name: ts_ns
+        type: int
+        unit: epoch_nanos
+        validate: { ge: 0 }
+        doc: >
+          When this snapshot was produced (AR-0.4). Previously book.{symbol}
+          carried no time field at all, so nothing could establish whether a
+          snapshot reflects a given trade; ordering against trade.executed.ts_ns
+          (and recent_trades[].ts_ns, which this mirrors) was impossible.
+          Monotonic per edumatcher.models.clock.now_ns().
       - { name: bids, type: list, ref: BookLevel,
           doc: "Descending by price." }
       - { name: asks, type: list, ref: BookLevel,
@@ -99,7 +109,7 @@ messages:
       # every subscriber reads it from the body, so it is listed explicitly.
       engine_pub:
         frames: [topic, json_payload]
-        include: [symbol, tick_decimals, bids, asks, last_price, last_qty,
+        include: [symbol, tick_decimals, ts_ns, bids, asks, last_price, last_qty,
                   last_buy_price, last_sell_price, recent_trades]
 
   - name: book_snapshot_request
@@ -131,6 +141,14 @@ messages:
         required rather than nullable.
     fields:
       - { name: symbol, type: string, validate: { max_len: 16 } }
+      - name: ts_ns
+        type: int
+        unit: epoch_nanos
+        validate: { ge: 0 }
+        doc: >
+          When this depth snapshot was produced (AR-0.4). Previously
+          depth.{symbol} carried no time field at all. Monotonic per
+          edumatcher.models.clock.now_ns().
       - { name: mid_price_ticks, type: ticks, unit: ticks,
           doc: "The last trade price, in ticks; the band is centred here." }
       - { name: mid_price, type: float, unit: display_price }
@@ -156,5 +174,5 @@ messages:
       # topic, so it must be included rather than treated as topic-only.
       engine_pub:
         frames: [topic, json_payload]
-        include: [symbol, mid_price_ticks, mid_price, tolerance_ticks,
+        include: [symbol, ts_ns, mid_price_ticks, mid_price, tolerance_ticks,
                   bid_depth, ask_depth, imbalance, microprice, cost_to_move]

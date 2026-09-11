@@ -139,6 +139,11 @@ from edumatcher.models.generated.index import (
 from edumatcher.models.generated.drop_copy import topic_drop_copy_event
 from edumatcher.models.generated.risk import topic_kill_switch_ack
 from edumatcher.models.generated.order import (
+    PREFIX_ORDER_ACK,
+    PREFIX_ORDER_AMENDED,
+    PREFIX_ORDER_CANCELLED,
+    PREFIX_ORDER_EXPIRED,
+    PREFIX_ORDER_FILL,
     PREFIX_ORDERS,
     topic_order_ack,
     topic_order_amended,
@@ -740,7 +745,7 @@ class Gateway:
         qty = payload.get("fill_qty", "?")
         price = payload.get("fill_price", "?")
         liquidity = payload.get("liquidity_flag", "?")
-        order_id = str(payload.get("order_id", "?"))[:8]
+        order_id = str(payload.get("order_id", "?"))
         console.print(
             f"[{ts}] [bold cyan]DC_FILL[/bold cyan]   {order_id}  {symbol}  "
             f"qty={qty} @{price}  [{liquidity}]  #{seq}  [dim]({topic})[/dim]"
@@ -748,11 +753,11 @@ class Gateway:
 
     def _handle_event(self, topic: str, payload: dict[str, Any]) -> None:
         ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
-        oid = payload.get("order_id", "?")[:8]
+        oid = payload.get("order_id", "?")
         self._dbg_count("events_total")
         self._dbg_count(f"topic_family_{self._topic_family(topic)}")
 
-        if "order.ack" in topic:
+        if PREFIX_ORDER_ACK in topic:
             if payload.get("accepted"):
                 console.print(f"[{ts}] [green]ACK[/green]       {oid}  order accepted")
                 # Register in cache
@@ -772,7 +777,7 @@ class Gateway:
                 if full_id in self.order_cache:
                     self.order_cache[full_id]["status"] = "REJECTED"
 
-        elif "order.fill" in topic:
+        elif PREFIX_ORDER_FILL in topic:
             qty = payload.get("fill_qty")
             price = payload.get("fill_price")
             rem = payload.get("remaining_qty")
@@ -815,7 +820,7 @@ class Gateway:
                     ),
                 )
 
-        elif "order.cancelled" in topic:
+        elif PREFIX_ORDER_CANCELLED in topic:
             rtag = payload.get("request_tag")
             rtag_text = f" rtag={rtag}" if rtag else ""
             console.print(f"[{ts}] [yellow]CANCELLED[/yellow] {oid}{rtag_text}")
@@ -827,7 +832,7 @@ class Gateway:
                 self.quote_leg_cache[full_id]["remaining"] = 0
                 self.quote_leg_cache[full_id]["last_event_time"] = ts
 
-        elif "order.amended" in topic:
+        elif PREFIX_ORDER_AMENDED in topic:
             new_price = payload.get("price")
             new_qty = payload.get("qty")
             rem = payload.get("remaining_qty")
@@ -848,7 +853,7 @@ class Gateway:
                 if rem is not None:
                     self.order_cache[full_id]["remaining"] = rem
 
-        elif "order.expired" in topic:
+        elif PREFIX_ORDER_EXPIRED in topic:
             console.print(
                 f"[{ts}] [dim]EXPIRED[/dim]   {oid}  (DAY order — trading day ended)"
             )
@@ -887,9 +892,13 @@ class Gateway:
                 oid = str(od.get("id") or "")
                 if not oid:
                     continue
-                raw_ts = od.get("timestamp") or 0
+                # AR-0.3b: order.orders' OrderDisplay carries ts_ns (epoch
+                # nanoseconds) now, not a "timestamp" float in seconds.
+                raw_ts_ns = od.get("ts_ns") or 0
                 try:
-                    ts_str = datetime.fromtimestamp(float(raw_ts)).strftime("%H:%M:%S")
+                    ts_str = datetime.fromtimestamp(
+                        float(raw_ts_ns) / 1_000_000_000
+                    ).strftime("%H:%M:%S")
                 except (ValueError, OSError):
                     ts_str = "?"
                 if oid in self.order_cache:
@@ -974,8 +983,8 @@ class Gateway:
         elif "oco.ack" in topic:
             oco_id = payload.get("oco_id", "?")
             if payload.get("accepted"):
-                id1 = payload.get("order_id_1", "")[:8]
-                id2 = payload.get("order_id_2", "")[:8]
+                id1 = payload.get("order_id_1", "")
+                id2 = payload.get("order_id_2", "")
                 console.print(
                     f"[{ts}] [green]OCO ACK[/green]    {oco_id}  legs={id1}/{id2}"
                 )
@@ -985,7 +994,7 @@ class Gateway:
 
         elif "oco.cancelled" in topic:
             oco_id = payload.get("oco_id", "?")
-            sibling = payload.get("cancelled_order_id", "?")[:8]
+            sibling = payload.get("cancelled_order_id", "?")
             reason = payload.get("reason", "")
             console.print(
                 f"[{ts}] [yellow]OCO CANCEL[/yellow] {oco_id}  sibling={sibling}  {reason}"
@@ -1009,8 +1018,8 @@ class Gateway:
                     else {}
                 )
             if payload.get("accepted"):
-                bid_id = payload.get("bid_order_id", "")[:8]
-                ask_id = payload.get("ask_order_id", "")[:8]
+                bid_id = payload.get("bid_order_id", "")
+                ask_id = payload.get("ask_order_id", "")
                 console.print(
                     f"[{ts}] [green]QUOTE ACK[/green]  {quote_id}  bid={bid_id} ask={ask_id}"
                 )
@@ -1245,13 +1254,15 @@ class Gateway:
                     from_ts = time.time() - 30 * 86400
                 if to_ts is None:
                     to_ts = time.time()
+                # AR-0.3: FROM/TO stay seconds at this CLI's own surface;
+                # converted to the wire message's from_ts_ns/to_ts_ns here.
                 self._send(
                     self._index_push_sock,
                     make_index_history_request_msg(
                         gateway_id=self.gateway_id,
                         index_id=index_id,
-                        from_ts=from_ts,
-                        to_ts=to_ts,
+                        from_ts_ns=int(from_ts * 1_000_000_000),
+                        to_ts_ns=int(to_ts * 1_000_000_000),
                     ),
                 )
                 return
@@ -1352,13 +1363,29 @@ class Gateway:
         log.warning("unknown command gateway_id=%s command=%s", self.gateway_id, cmd)
         console.print(f"[red]Unknown command: {cmd}[/red]  (type HELP)")
 
-    @staticmethod
-    def _kv(parts: list[str]) -> dict[str, str]:
+    # Keys whose values are opaque, case-sensitive identifiers or free-text
+    # labels rather than canonical-uppercase enum tokens (SIDE, TYPE, TIF,
+    # ...) or the symbol/gateway-id convention this console otherwise
+    # upper-cases. Order ids in particular are engine-minted lowercase hex
+    # (see models/ids.py's new_order_id) -- uppercasing one typed back from
+    # an order.ack or `pm-audit-cli` into a later CANCEL|ID= silently turns
+    # it into an id that will never match anything in the book, and the
+    # engine rejects it as ORDER_NOT_FOUND with no hint that case was the
+    # problem. client_tag/request_tag are likewise whatever the caller
+    # chose to record and must round-trip unchanged, and combo/OCO/quote
+    # ids are free-text labels the user picks, not enum tokens.
+    _CASE_SENSITIVE_KEYS = frozenset(
+        {"ID", "TAG", "RTAG", "COMBO_ID", "OCO_ID", "QUOTE_ID"}
+    )
+
+    @classmethod
+    def _kv(cls, parts: list[str]) -> dict[str, str]:
         kv: dict[str, str] = {}
         for p in parts:
             if "=" in p:
                 k, v = p.split("=", 1)
-                kv[k.upper()] = v.upper()
+                k = k.upper()
+                kv[k] = v if k in cls._CASE_SENSITIVE_KEYS else v.upper()
         return kv
 
     def _send_new(self, parts: list[str]) -> None:

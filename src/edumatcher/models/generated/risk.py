@@ -13,7 +13,7 @@ docs/developer/06-msgen.md.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal, Mapping, cast
 
 from edumatcher.models import message as _msg
@@ -239,12 +239,26 @@ _KILL_SWITCH_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"ge": 0},
     },
     {
+        "name": "cancelled_order_ids",
+        "type": "list",
+        "unit": None,
+        "required": False,
+        "doc": "AR-0.5: the order ids counted in cancelled_orders, so a caller can tell which orders were hit rather than only how many. A list whose length disagrees with cancelled_orders is itself a detectable defect.",
+    },
+    {
         "name": "cancelled_quotes",
         "type": "int",
         "unit": "dimensionless",
         "required": False,
         "doc": "",
         "constraints": {"ge": 0},
+    },
+    {
+        "name": "cancelled_quote_order_ids",
+        "type": "list",
+        "unit": None,
+        "required": False,
+        "doc": 'AR-0.5: the order ids counted in cancelled_quotes. Named "*_order_ids" rather than "*_quote_ids" on purpose: cancelled_quotes has always counted cancelled quote LEGS, each an independent Order with its own order_id, not quote objects — a quote\'s own quote_id is client-supplied and optional (see quote.yaml), so it cannot serve as this list\'s key even when present.',
     },
     {
         "name": "command_id",
@@ -270,7 +284,9 @@ class KillSwitchAck:
     accepted: bool
     reason: str = ""
     cancelled_orders: int = 0  # unit: dimensionless
+    cancelled_order_ids: list[str] = field(default_factory=list)
     cancelled_quotes: int = 0  # unit: dimensionless
+    cancelled_quote_order_ids: list[str] = field(default_factory=list)
     command_id: str = ""
 
     def validate(self) -> None:
@@ -314,7 +330,13 @@ class KillSwitchAck:
             accepted=bool(p["accepted"]),
             reason=str(p.get("reason", "")),
             cancelled_orders=int(p.get("cancelled_orders", 0)),
+            cancelled_order_ids=(
+                [str(item) for item in p.get("cancelled_order_ids", [])]
+            ),
             cancelled_quotes=int(p.get("cancelled_quotes", 0)),
+            cancelled_quote_order_ids=(
+                [str(item) for item in p.get("cancelled_quote_order_ids", [])]
+            ),
             command_id=str(p.get("command_id", "")),
         )
 
@@ -324,7 +346,9 @@ class KillSwitchAck:
             "accepted": self.accepted,
             "reason": self.reason,
             "cancelled_orders": self.cancelled_orders,
+            "cancelled_order_ids": self.cancelled_order_ids,
             "cancelled_quotes": self.cancelled_quotes,
+            "cancelled_quote_order_ids": self.cancelled_quote_order_ids,
         }
         if self.command_id:
             payload["command_id"] = self.command_id
@@ -363,7 +387,9 @@ def make_kill_switch_ack_unchecked(
     accepted: bool,
     reason: str = "",
     cancelled_orders: int = 0,
+    cancelled_order_ids: list[str] = [],
     cancelled_quotes: int = 0,
+    cancelled_quote_order_ids: list[str] = [],
     command_id: str = "",
 ) -> list[bytes]:
     """Identical frames to ``make_kill_switch_ack``, without ``validate()``.
@@ -380,7 +406,9 @@ def make_kill_switch_ack_unchecked(
         "accepted": bool(accepted),
         "reason": str(reason),
         "cancelled_orders": int(cancelled_orders),
+        "cancelled_order_ids": [str(item) for item in cancelled_order_ids],
         "cancelled_quotes": int(cancelled_quotes),
+        "cancelled_quote_order_ids": [str(item) for item in cancelled_quote_order_ids],
     }
     if command_id:
         payload["command_id"] = str(command_id)
@@ -639,12 +667,26 @@ _KILL_SWITCH_GATEWAY_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"ge": 0},
     },
     {
+        "name": "cancelled_order_ids",
+        "type": "list",
+        "unit": None,
+        "required": False,
+        "doc": "AR-0.5: the order ids counted in cancelled_orders, so a caller can tell which orders were hit rather than only how many. A list whose length disagrees with cancelled_orders is itself a detectable defect.",
+    },
+    {
         "name": "cancelled_quotes",
         "type": "int",
         "unit": "dimensionless",
         "required": False,
         "doc": "",
         "constraints": {"ge": 0},
+    },
+    {
+        "name": "cancelled_quote_order_ids",
+        "type": "list",
+        "unit": None,
+        "required": False,
+        "doc": 'AR-0.5: the order ids counted in cancelled_quotes. Named "*_order_ids" rather than "*_quote_ids" on purpose: cancelled_quotes has always counted cancelled quote LEGS, each an independent Order with its own order_id, not quote objects — a quote\'s own quote_id is client-supplied and optional (see quote.yaml), so it cannot serve as this list\'s key even when present.',
     },
     {
         "name": "command_id",
@@ -671,7 +713,9 @@ class KillSwitchGatewayAck:
     target_gateway_id: str = ""
     reason: str = ""
     cancelled_orders: int = 0  # unit: dimensionless
+    cancelled_order_ids: list[str] = field(default_factory=list)
     cancelled_quotes: int = 0  # unit: dimensionless
+    cancelled_quote_order_ids: list[str] = field(default_factory=list)
     command_id: str = ""
 
     def validate(self) -> None:
@@ -720,7 +764,13 @@ class KillSwitchGatewayAck:
             target_gateway_id=str(p.get("target_gateway_id", "")),
             reason=str(p.get("reason", "")),
             cancelled_orders=int(p.get("cancelled_orders", 0)),
+            cancelled_order_ids=(
+                [str(item) for item in p.get("cancelled_order_ids", [])]
+            ),
             cancelled_quotes=int(p.get("cancelled_quotes", 0)),
+            cancelled_quote_order_ids=(
+                [str(item) for item in p.get("cancelled_quote_order_ids", [])]
+            ),
             command_id=str(p.get("command_id", "")),
         )
 
@@ -731,7 +781,9 @@ class KillSwitchGatewayAck:
             "target_gateway_id": self.target_gateway_id,
             "reason": self.reason,
             "cancelled_orders": self.cancelled_orders,
+            "cancelled_order_ids": self.cancelled_order_ids,
             "cancelled_quotes": self.cancelled_quotes,
+            "cancelled_quote_order_ids": self.cancelled_quote_order_ids,
         }
         if self.command_id:
             payload["command_id"] = self.command_id
@@ -771,7 +823,9 @@ def make_kill_switch_gateway_ack_unchecked(
     target_gateway_id: str = "",
     reason: str = "",
     cancelled_orders: int = 0,
+    cancelled_order_ids: list[str] = [],
     cancelled_quotes: int = 0,
+    cancelled_quote_order_ids: list[str] = [],
     command_id: str = "",
 ) -> list[bytes]:
     """Identical frames to ``make_kill_switch_gateway_ack``, without ``validate()``.
@@ -789,7 +843,9 @@ def make_kill_switch_gateway_ack_unchecked(
         "target_gateway_id": str(target_gateway_id),
         "reason": str(reason),
         "cancelled_orders": int(cancelled_orders),
+        "cancelled_order_ids": [str(item) for item in cancelled_order_ids],
         "cancelled_quotes": int(cancelled_quotes),
+        "cancelled_quote_order_ids": [str(item) for item in cancelled_quote_order_ids],
     }
     if command_id:
         payload["command_id"] = str(command_id)
@@ -1020,6 +1076,13 @@ _KILL_SWITCH_GLOBAL_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"ge": 0},
     },
     {
+        "name": "cancelled_order_ids",
+        "type": "list",
+        "unit": None,
+        "required": False,
+        "doc": "AR-0.5: the order ids counted in cancelled_orders, so a caller can tell which orders were hit rather than only how many. A list whose length disagrees with cancelled_orders is itself a detectable defect.",
+    },
+    {
         "name": "cancelled_quotes",
         "type": "int",
         "unit": "dimensionless",
@@ -1028,12 +1091,26 @@ _KILL_SWITCH_GLOBAL_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"ge": 0},
     },
     {
+        "name": "cancelled_quote_order_ids",
+        "type": "list",
+        "unit": None,
+        "required": False,
+        "doc": 'AR-0.5: the order ids counted in cancelled_quotes. Named "*_order_ids" rather than "*_quote_ids" on purpose: cancelled_quotes has always counted cancelled quote LEGS, each an independent Order with its own order_id, not quote objects — a quote\'s own quote_id is client-supplied and optional (see quote.yaml), so it cannot serve as this list\'s key even when present.',
+    },
+    {
         "name": "affected_gateways",
         "type": "int",
         "unit": "dimensionless",
         "required": False,
         "doc": "",
         "constraints": {"ge": 0},
+    },
+    {
+        "name": "affected_gateway_ids",
+        "type": "list",
+        "unit": None,
+        "required": False,
+        "doc": "AR-0.5: the gateway ids counted in affected_gateways — every gateway that had at least one order or quote leg cancelled by this sweep.",
     },
     {
         "name": "command_id",
@@ -1058,8 +1135,11 @@ class KillSwitchGlobalAck:
     accepted: bool
     reason: str = ""
     cancelled_orders: int = 0  # unit: dimensionless
+    cancelled_order_ids: list[str] = field(default_factory=list)
     cancelled_quotes: int = 0  # unit: dimensionless
+    cancelled_quote_order_ids: list[str] = field(default_factory=list)
     affected_gateways: int = 0  # unit: dimensionless
+    affected_gateway_ids: list[str] = field(default_factory=list)
     command_id: str = ""
 
     def validate(self) -> None:
@@ -1107,8 +1187,17 @@ class KillSwitchGlobalAck:
             accepted=bool(p["accepted"]),
             reason=str(p.get("reason", "")),
             cancelled_orders=int(p.get("cancelled_orders", 0)),
+            cancelled_order_ids=(
+                [str(item) for item in p.get("cancelled_order_ids", [])]
+            ),
             cancelled_quotes=int(p.get("cancelled_quotes", 0)),
+            cancelled_quote_order_ids=(
+                [str(item) for item in p.get("cancelled_quote_order_ids", [])]
+            ),
             affected_gateways=int(p.get("affected_gateways", 0)),
+            affected_gateway_ids=(
+                [str(item) for item in p.get("affected_gateway_ids", [])]
+            ),
             command_id=str(p.get("command_id", "")),
         )
 
@@ -1118,8 +1207,11 @@ class KillSwitchGlobalAck:
             "accepted": self.accepted,
             "reason": self.reason,
             "cancelled_orders": self.cancelled_orders,
+            "cancelled_order_ids": self.cancelled_order_ids,
             "cancelled_quotes": self.cancelled_quotes,
+            "cancelled_quote_order_ids": self.cancelled_quote_order_ids,
             "affected_gateways": self.affected_gateways,
+            "affected_gateway_ids": self.affected_gateway_ids,
         }
         if self.command_id:
             payload["command_id"] = self.command_id
@@ -1158,8 +1250,11 @@ def make_kill_switch_global_ack_unchecked(
     accepted: bool,
     reason: str = "",
     cancelled_orders: int = 0,
+    cancelled_order_ids: list[str] = [],
     cancelled_quotes: int = 0,
+    cancelled_quote_order_ids: list[str] = [],
     affected_gateways: int = 0,
+    affected_gateway_ids: list[str] = [],
     command_id: str = "",
 ) -> list[bytes]:
     """Identical frames to ``make_kill_switch_global_ack``, without ``validate()``.
@@ -1176,8 +1271,11 @@ def make_kill_switch_global_ack_unchecked(
         "accepted": bool(accepted),
         "reason": str(reason),
         "cancelled_orders": int(cancelled_orders),
+        "cancelled_order_ids": [str(item) for item in cancelled_order_ids],
         "cancelled_quotes": int(cancelled_quotes),
+        "cancelled_quote_order_ids": [str(item) for item in cancelled_quote_order_ids],
         "affected_gateways": int(affected_gateways),
+        "affected_gateway_ids": [str(item) for item in affected_gateway_ids],
     }
     if command_id:
         payload["command_id"] = str(command_id)
@@ -1452,6 +1550,13 @@ _SYMBOL_HALT_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"ge": 0},
     },
     {
+        "name": "cancelled_quote_order_ids",
+        "type": "list",
+        "unit": None,
+        "required": False,
+        "doc": 'AR-0.5: the order ids counted in cancelled_quotes. Named "*_order_ids" rather than "*_quote_ids" on purpose: cancelled_quotes has always counted cancelled quote LEGS, each an independent Order with its own order_id, not quote objects — a quote\'s own quote_id is client-supplied and optional (see quote.yaml), so it cannot serve as this list\'s key even when present.',
+    },
+    {
         "name": "command_id",
         "type": "string",
         "unit": None,
@@ -1475,6 +1580,7 @@ class SymbolHaltAck:
     symbol: str = ""
     reason: str = ""
     cancelled_quotes: int = 0  # unit: dimensionless
+    cancelled_quote_order_ids: list[str] = field(default_factory=list)
     command_id: str = ""
 
     def validate(self) -> None:
@@ -1519,6 +1625,9 @@ class SymbolHaltAck:
             symbol=str(p.get("symbol", "")),
             reason=str(p.get("reason", "")),
             cancelled_quotes=int(p.get("cancelled_quotes", 0)),
+            cancelled_quote_order_ids=(
+                [str(item) for item in p.get("cancelled_quote_order_ids", [])]
+            ),
             command_id=str(p.get("command_id", "")),
         )
 
@@ -1529,6 +1638,7 @@ class SymbolHaltAck:
             "symbol": self.symbol,
             "reason": self.reason,
             "cancelled_quotes": self.cancelled_quotes,
+            "cancelled_quote_order_ids": self.cancelled_quote_order_ids,
         }
         if self.command_id:
             payload["command_id"] = self.command_id
@@ -1568,6 +1678,7 @@ def make_symbol_halt_ack_unchecked(
     symbol: str = "",
     reason: str = "",
     cancelled_quotes: int = 0,
+    cancelled_quote_order_ids: list[str] = [],
     command_id: str = "",
 ) -> list[bytes]:
     """Identical frames to ``make_symbol_halt_ack``, without ``validate()``.
@@ -1585,6 +1696,7 @@ def make_symbol_halt_ack_unchecked(
         "symbol": str(symbol),
         "reason": str(reason),
         "cancelled_quotes": int(cancelled_quotes),
+        "cancelled_quote_order_ids": [str(item) for item in cancelled_quote_order_ids],
     }
     if command_id:
         payload["command_id"] = str(command_id)
@@ -2201,12 +2313,26 @@ _CANCEL_SYMBOL_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"ge": 0},
     },
     {
+        "name": "cancelled_order_ids",
+        "type": "list",
+        "unit": None,
+        "required": False,
+        "doc": "AR-0.5: the order ids counted in cancelled_orders, so a caller can tell which orders were hit rather than only how many. A list whose length disagrees with cancelled_orders is itself a detectable defect.",
+    },
+    {
         "name": "cancelled_quotes",
         "type": "int",
         "unit": "dimensionless",
         "required": False,
         "doc": "",
         "constraints": {"ge": 0},
+    },
+    {
+        "name": "cancelled_quote_order_ids",
+        "type": "list",
+        "unit": None,
+        "required": False,
+        "doc": 'AR-0.5: the order ids counted in cancelled_quotes. Named "*_order_ids" rather than "*_quote_ids" on purpose: cancelled_quotes has always counted cancelled quote LEGS, each an independent Order with its own order_id, not quote objects — a quote\'s own quote_id is client-supplied and optional (see quote.yaml), so it cannot serve as this list\'s key even when present.',
     },
     {
         "name": "command_id",
@@ -2228,7 +2354,9 @@ class CancelSymbolAck:
     symbol: str = ""
     reason: str = ""
     cancelled_orders: int = 0  # unit: dimensionless
+    cancelled_order_ids: list[str] = field(default_factory=list)
     cancelled_quotes: int = 0  # unit: dimensionless
+    cancelled_quote_order_ids: list[str] = field(default_factory=list)
     command_id: str = ""
 
     def validate(self) -> None:
@@ -2277,7 +2405,13 @@ class CancelSymbolAck:
             symbol=str(p.get("symbol", "")),
             reason=str(p.get("reason", "")),
             cancelled_orders=int(p.get("cancelled_orders", 0)),
+            cancelled_order_ids=(
+                [str(item) for item in p.get("cancelled_order_ids", [])]
+            ),
             cancelled_quotes=int(p.get("cancelled_quotes", 0)),
+            cancelled_quote_order_ids=(
+                [str(item) for item in p.get("cancelled_quote_order_ids", [])]
+            ),
             command_id=str(p.get("command_id", "")),
         )
 
@@ -2288,7 +2422,9 @@ class CancelSymbolAck:
             "symbol": self.symbol,
             "reason": self.reason,
             "cancelled_orders": self.cancelled_orders,
+            "cancelled_order_ids": self.cancelled_order_ids,
             "cancelled_quotes": self.cancelled_quotes,
+            "cancelled_quote_order_ids": self.cancelled_quote_order_ids,
         }
         if self.command_id:
             payload["command_id"] = self.command_id
@@ -2328,7 +2464,9 @@ def make_cancel_symbol_ack_unchecked(
     symbol: str = "",
     reason: str = "",
     cancelled_orders: int = 0,
+    cancelled_order_ids: list[str] = [],
     cancelled_quotes: int = 0,
+    cancelled_quote_order_ids: list[str] = [],
     command_id: str = "",
 ) -> list[bytes]:
     """Identical frames to ``make_cancel_symbol_ack``, without ``validate()``.
@@ -2346,7 +2484,9 @@ def make_cancel_symbol_ack_unchecked(
         "symbol": str(symbol),
         "reason": str(reason),
         "cancelled_orders": int(cancelled_orders),
+        "cancelled_order_ids": [str(item) for item in cancelled_order_ids],
         "cancelled_quotes": int(cancelled_quotes),
+        "cancelled_quote_order_ids": [str(item) for item in cancelled_quote_order_ids],
     }
     if command_id:
         payload["command_id"] = str(command_id)
@@ -3078,12 +3218,26 @@ _CIRCUIT_BREAKER_HALT_ALL_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"ge": 0},
     },
     {
+        "name": "halted_symbol_ids",
+        "type": "list",
+        "unit": None,
+        "required": False,
+        "doc": "AR-0.5: the symbols counted in halted_symbols, by name.",
+    },
+    {
         "name": "cancelled_quotes",
         "type": "int",
         "unit": "dimensionless",
         "required": False,
         "doc": "",
         "constraints": {"ge": 0},
+    },
+    {
+        "name": "cancelled_quote_order_ids",
+        "type": "list",
+        "unit": None,
+        "required": False,
+        "doc": 'AR-0.5: the order ids counted in cancelled_quotes. Named "*_order_ids" rather than "*_quote_ids" on purpose: cancelled_quotes has always counted cancelled quote LEGS, each an independent Order with its own order_id, not quote objects — a quote\'s own quote_id is client-supplied and optional (see quote.yaml), so it cannot serve as this list\'s key even when present.',
     },
 )
 
@@ -3096,7 +3250,9 @@ class CircuitBreakerHaltAllAck:
     accepted: bool
     reason: str = ""
     halted_symbols: int = 0  # unit: dimensionless
+    halted_symbol_ids: list[str] = field(default_factory=list)
     cancelled_quotes: int = 0  # unit: dimensionless
+    cancelled_quote_order_ids: list[str] = field(default_factory=list)
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -3135,7 +3291,11 @@ class CircuitBreakerHaltAllAck:
             accepted=bool(p["accepted"]),
             reason=str(p.get("reason", "")),
             halted_symbols=int(p.get("halted_symbols", 0)),
+            halted_symbol_ids=[str(item) for item in p.get("halted_symbol_ids", [])],
             cancelled_quotes=int(p.get("cancelled_quotes", 0)),
+            cancelled_quote_order_ids=(
+                [str(item) for item in p.get("cancelled_quote_order_ids", [])]
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -3144,7 +3304,9 @@ class CircuitBreakerHaltAllAck:
             "accepted": self.accepted,
             "reason": self.reason,
             "halted_symbols": self.halted_symbols,
+            "halted_symbol_ids": self.halted_symbol_ids,
             "cancelled_quotes": self.cancelled_quotes,
+            "cancelled_quote_order_ids": self.cancelled_quote_order_ids,
         }
 
 
@@ -3182,7 +3344,9 @@ def make_circuit_breaker_halt_all_ack_unchecked(
     accepted: bool,
     reason: str = "",
     halted_symbols: int = 0,
+    halted_symbol_ids: list[str] = [],
     cancelled_quotes: int = 0,
+    cancelled_quote_order_ids: list[str] = [],
 ) -> list[bytes]:
     """Identical frames to ``make_circuit_breaker_halt_all_ack``, without
     ``validate()``.
@@ -3202,7 +3366,11 @@ def make_circuit_breaker_halt_all_ack_unchecked(
                 "accepted": bool(accepted),
                 "reason": str(reason),
                 "halted_symbols": int(halted_symbols),
+                "halted_symbol_ids": [str(item) for item in halted_symbol_ids],
                 "cancelled_quotes": int(cancelled_quotes),
+                "cancelled_quote_order_ids": [
+                    str(item) for item in cancelled_quote_order_ids
+                ],
             }
         ),
     ]
@@ -3389,6 +3557,13 @@ _CIRCUIT_BREAKER_RESUME_ALL_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "",
         "constraints": {"ge": 0},
     },
+    {
+        "name": "resumed_symbol_ids",
+        "type": "list",
+        "unit": None,
+        "required": False,
+        "doc": "AR-0.5: the symbols counted in resumed_symbols, by name.",
+    },
 )
 
 
@@ -3405,6 +3580,7 @@ class CircuitBreakerResumeAllAck:
     accepted: bool
     reason: str = ""
     resumed_symbols: int = 0  # unit: dimensionless
+    resumed_symbol_ids: list[str] = field(default_factory=list)
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -3439,6 +3615,7 @@ class CircuitBreakerResumeAllAck:
             accepted=bool(p["accepted"]),
             reason=str(p.get("reason", "")),
             resumed_symbols=int(p.get("resumed_symbols", 0)),
+            resumed_symbol_ids=[str(item) for item in p.get("resumed_symbol_ids", [])],
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -3447,6 +3624,7 @@ class CircuitBreakerResumeAllAck:
             "accepted": self.accepted,
             "reason": self.reason,
             "resumed_symbols": self.resumed_symbols,
+            "resumed_symbol_ids": self.resumed_symbol_ids,
         }
 
 
@@ -3484,6 +3662,7 @@ def make_circuit_breaker_resume_all_ack_unchecked(
     accepted: bool,
     reason: str = "",
     resumed_symbols: int = 0,
+    resumed_symbol_ids: list[str] = [],
 ) -> list[bytes]:
     """Identical frames to ``make_circuit_breaker_resume_all_ack``, without
     ``validate()``.
@@ -3503,6 +3682,7 @@ def make_circuit_breaker_resume_all_ack_unchecked(
                 "accepted": bool(accepted),
                 "reason": str(reason),
                 "resumed_symbols": int(resumed_symbols),
+                "resumed_symbol_ids": [str(item) for item in resumed_symbol_ids],
             }
         ),
     ]

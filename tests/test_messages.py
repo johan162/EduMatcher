@@ -105,8 +105,8 @@ class TestIndexMessages:
             make_index_history_request_msg(
                 gateway_id="GW01",
                 index_id="EDU100",
-                from_ts=1000.0,
-                to_ts=2000.0,
+                from_ts_ns=1000,
+                to_ts_ns=2000,
                 types=["INIT", "CORP_ACTION"],
             )
         )
@@ -134,8 +134,8 @@ class TestIndexMessages:
             make_index_history_request_msg(
                 gateway_id="GW01",
                 index_id="EDU100",
-                from_ts=1000.0,
-                to_ts=2000.0,
+                from_ts_ns=1000,
+                to_ts_ns=2000,
             )
         )
         assert "types" not in payload
@@ -151,7 +151,7 @@ class TestIndexMessages:
                 records=[
                     {
                         "type": "CORP_ACTION",
-                        "timestamp": 1.0,
+                        "ts_ns": 1,
                         "index_id": "EDU100",
                         "level": 100.0,
                     }
@@ -230,6 +230,7 @@ def _depth_payload() -> dict:
     """A full ``depth`` payload, as ``OrderBook.depth_snapshot`` produces it."""
     return {
         "symbol": "AAPL",
+        "ts_ns": 1_700_000_000_000_000_000,
         "mid_price_ticks": 9525,
         "mid_price": 95.25,
         "tolerance_ticks": 100,
@@ -443,12 +444,13 @@ class TestSystemMessages:
             "quantity": 100,
             "remaining_qty": 100,
             "gateway_id": "GW01",
-            "timestamp": 1.0,
+            "ts_ns": 1_000_000_000,  # AR-0.3b: OrderDisplay.ts_ns, not "timestamp"
             "status": "NEW",
         }
         topic, payload = _rt(make_orders_msg("GW01", [order]))
         assert topic == "order.orders.GW01"
         assert len(payload["orders"]) == 1
+        assert payload["orders"][0]["ts_ns"] == 1_000_000_000
 
     def test_make_eod_msg(self) -> None:
         topic, payload = _rt(
@@ -532,6 +534,7 @@ class TestMarketDataMessages:
         snapshot = {
             "symbol": "AAPL",
             "tick_decimals": 2,
+            "ts_ns": 1_700_000_000_000_000_000,
             "bids": [],
             "asks": [],
             "last_price": None,

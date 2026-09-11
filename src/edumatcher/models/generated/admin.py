@@ -13,7 +13,7 @@ docs/developer/06-msgen.md.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal, Mapping, cast
 
 from edumatcher.models import message as _msg
@@ -39,8 +39,11 @@ class AdminActionScope:
     level: str | None = None
     note: str = ""
     cancelled_orders: int | None = None  # unit: dimensionless
+    cancelled_order_ids: list[str] = field(default_factory=list)
     cancelled_quotes: int | None = None  # unit: dimensionless
+    cancelled_quote_order_ids: list[str] = field(default_factory=list)
     affected_gateways: int | None = None  # unit: dimensionless
+    affected_gateway_ids: list[str] = field(default_factory=list)
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -106,15 +109,24 @@ class AdminActionScope:
                 if p.get("cancelled_orders") is None
                 else int(p["cancelled_orders"])
             ),
+            cancelled_order_ids=(
+                [str(item) for item in p.get("cancelled_order_ids", [])]
+            ),
             cancelled_quotes=(
                 None
                 if p.get("cancelled_quotes") is None
                 else int(p["cancelled_quotes"])
             ),
+            cancelled_quote_order_ids=(
+                [str(item) for item in p.get("cancelled_quote_order_ids", [])]
+            ),
             affected_gateways=(
                 None
                 if p.get("affected_gateways") is None
                 else int(p["affected_gateways"])
+            ),
+            affected_gateway_ids=(
+                [str(item) for item in p.get("affected_gateway_ids", [])]
             ),
         )
 
@@ -131,10 +143,16 @@ class AdminActionScope:
             payload["note"] = self.note
         if self.cancelled_orders is not None:
             payload["cancelled_orders"] = self.cancelled_orders
+        if self.cancelled_order_ids:
+            payload["cancelled_order_ids"] = self.cancelled_order_ids
         if self.cancelled_quotes is not None:
             payload["cancelled_quotes"] = self.cancelled_quotes
+        if self.cancelled_quote_order_ids:
+            payload["cancelled_quote_order_ids"] = self.cancelled_quote_order_ids
         if self.affected_gateways is not None:
             payload["affected_gateways"] = self.affected_gateways
+        if self.affected_gateway_ids:
+            payload["affected_gateway_ids"] = self.affected_gateway_ids
         return payload
 
 

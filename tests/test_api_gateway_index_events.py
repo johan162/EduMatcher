@@ -100,7 +100,7 @@ async def test_index_client_resolves_on_history_reply(
                 [
                     {
                         "type": "INIT",
-                        "timestamp": 1.0,
+                        "ts_ns": 1,
                         "index_id": payload["index_id"],
                         "level": 1000.0,
                     }
@@ -125,7 +125,7 @@ async def test_index_client_resolves_on_history_reply(
     pool.shutdown(wait=False)
 
     assert reply["records"] == [
-        {"type": "INIT", "timestamp": 1.0, "index_id": "EDU100", "level": 1000.0}
+        {"type": "INIT", "ts_ns": 1, "index_id": "EDU100", "level": 1000.0}
     ]
 
 
@@ -272,7 +272,7 @@ async def test_history_index_events_reachable_with_readonly_key() -> None:
     fake = _FakeIndexClient()
     fake.reply = {
         "index_id": "EDU100",
-        "records": [{"type": "INIT", "timestamp": 1.0}],
+        "records": [{"type": "INIT", "ts_ns": 1}],
     }
     result = await history.history_index_events(
         _request_with(fake),
@@ -283,7 +283,7 @@ async def test_history_index_events_reachable_with_readonly_key() -> None:
         types=None,
         max_records=10_000,
     )
-    assert result == {"events": [{"type": "INIT", "timestamp": 1.0}], "count": 1}
+    assert result == {"events": [{"type": "INIT", "ts_ns": 1}], "count": 1}
     # index_id is upper-cased before being sent to pm-index, mirroring every
     # other /history/* endpoint's symbol/index_id normalization.
     assert fake.calls[0]["index_id"] == "EDU100"

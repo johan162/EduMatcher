@@ -121,6 +121,10 @@ class TestByteIdenticalToTheHandWrittenBuilders:
         )
 
     def test_cancelled_with_tag_and_group(self) -> None:
+        # AR-0.2: make_cancelled_msg resolves symbol from `order` (here,
+        # _LIMIT's "AAPL") the same way it already did for client_tag/
+        # oco_group_id/leg_index, so the direct G.* call needs it too or the
+        # two encoded frames diverge on that one field.
         assert M.make_cancelled_msg("GW1", "O1", "t1", order=_LIMIT) == (
             G.make_order_cancelled_unchecked(
                 gateway_id="GW1",
@@ -128,6 +132,7 @@ class TestByteIdenticalToTheHandWrittenBuilders:
                 client_tag="t1",
                 oco_group_id="G1",
                 leg_index=2,
+                symbol="AAPL",
             )
         )
 

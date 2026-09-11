@@ -14,13 +14,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from edumatcher.engine.order_book import OrderBook
 from edumatcher.engine.persistence import (
     _atomic_write_text,
     load_and_bump_run_seq,
     load_gtc_orders,
     save_gtc_orders,
 )
-from edumatcher.models.trade import reset_trade_ids_for_tests
+from edumatcher.models.trade import Trade, reset_trade_ids_for_tests
 from edumatcher.models.message import decode
 from edumatcher.models.order import (
     Order,
@@ -133,6 +134,80 @@ def test_checkpoint_persists_resting_gtc_and_day_without_mutating_state(
     assert day.status is not OrderStatus.EXPIRED
     assert gtc.status is not OrderStatus.EXPIRED
     engine.pub_sock.send_multipart.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# AR-0.5 — per-entity recovery events (system.recovery_item)
+#
+# docs-design/EduMatcher-Audit-Replay.md §14 AR-0.5's verify step: seed a
+# persistence file with one deliberately corrupt order, restart, assert
+# exactly one recovery_item with outcome FAILED naming that order id, and
+# that the failed_orders count is 1. "Corrupt" here is a structurally valid,
+# successfully-deserialized Order (load_gtc_orders() already discards a
+# malformed JSON record on its own, before _restore_gtc() ever sees it —
+# see persistence.py) that nonetheless raises when OrderBook.process()
+# tries to rest it, exactly the case _restore_gtc()'s own try/except guards
+# against (finding C6).
+# ---------------------------------------------------------------------------
+
+
+def test_a_corrupt_order_gets_exactly_one_failed_recovery_item(
+    tmp_path: Path,
+) -> None:
+    engine = _engine_without_sockets(tmp_path)
+    good = _order("GOOD-1", TIF.GTC)
+    bad = _order("BAD-1", TIF.GTC)
+
+    gtc_file = tmp_path / "gtc.json"
+    save_gtc_orders([good, bad], gtc_file)
+
+    # Force BAD-1 specifically to raise inside book.process(), the same
+    # shape of failure the guard in _restore_gtc() exists for — a bad
+    # persisted record that must not abort the rest of startup. OrderBook
+    # is a slotted instance, so the bound method can't be patched per
+    # instance; patch the class and delegate to the real unbound method.
+    real_process = OrderBook.process
+
+    def _process_unless_bad(
+        self: OrderBook,
+        order: Order,
+        *,
+        match: bool = True,
+        now: int | None = None,
+        _cascade_stops: bool = True,
+    ) -> tuple[list[Trade], list[Order]]:
+        if order.id == "BAD-1":
+            raise ValueError("simulated corrupt order")
+        return real_process(
+            self, order, match=match, now=now, _cascade_stops=_cascade_stops
+        )
+
+    with (
+        patch("edumatcher.engine.main.GTC_ORDERS_FILE", gtc_file),
+        patch("edumatcher.engine.main.GTC_COMBOS_FILE", tmp_path / "combos.json"),
+        patch.object(OrderBook, "process", _process_unless_bad),
+    ):
+        engine._restore_gtc()
+
+    sent = _sent_messages(engine)
+    items = [m for m in sent if m["topic"] == "system.recovery_item"]
+    failed = [m for m in items if m["outcome"] == "FAILED"]
+    restored = [m for m in items if m["outcome"] == "RESTORED"]
+
+    assert len(failed) == 1, f"expected exactly one FAILED recovery_item, got {failed}"
+    assert failed[0]["entity_id"] == "BAD-1"
+    assert failed[0]["kind"] == "ORDER"
+    assert failed[0]["symbol"] == "AAPL"
+    assert "simulated corrupt order" in failed[0]["detail"]
+
+    assert any(
+        r["entity_id"] == "GOOD-1" for r in restored
+    ), "the surviving order should still get its own RESTORED recovery_item"
+
+    summaries = [m for m in sent if m["topic"] == "system.startup_recovery"]
+    assert len(summaries) == 1
+    assert summaries[0]["failed_orders"] == 1
+    assert summaries[0]["restored_orders"] == 1
 
 
 def test_shutdown_persists_quote_legs_gtc_and_day_alike(tmp_path: Path) -> None:

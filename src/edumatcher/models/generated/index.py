@@ -100,7 +100,7 @@ class HistoryRecord:
     """
 
     type: HistoryRecordType
-    timestamp: float  # unit: epoch_seconds
+    ts_ns: int  # unit: epoch_nanos
     index_id: str
     level: float  # unit: dimensionless
     symbol: str = ""
@@ -153,7 +153,7 @@ class HistoryRecord:
         """
         return cls(
             type=cast(HistoryRecordType, str(p["type"])),
-            timestamp=float(p["timestamp"]),
+            ts_ns=int(p["ts_ns"]),
             index_id=str(p["index_id"]),
             level=float(p["level"]),
             symbol=str(p.get("symbol", "")),
@@ -185,7 +185,7 @@ class HistoryRecord:
         """Return the bus payload, in the spec's declared field order."""
         payload: dict[str, Any] = {
             "type": self.type,
-            "timestamp": self.timestamp,
+            "ts_ns": self.ts_ns,
             "index_id": self.index_id,
             "level": self.level,
         }
@@ -304,9 +304,9 @@ _INDEX_UPDATE_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"max_len": 32},
     },
     {
-        "name": "timestamp",
-        "type": "float",
-        "unit": "epoch_seconds",
+        "name": "ts_ns",
+        "type": "int",
+        "unit": "epoch_nanos",
         "required": True,
         "doc": "",
     },
@@ -337,7 +337,7 @@ class IndexUpdate:
     aggregate_cap: float  # unit: money
     divisor: float  # unit: dimensionless
     session_state: str
-    timestamp: float  # unit: epoch_seconds
+    ts_ns: int  # unit: epoch_nanos
     day: DaySummary | None = None
 
     def validate(self) -> None:
@@ -372,7 +372,7 @@ class IndexUpdate:
             aggregate_cap=float(p["aggregate_cap"]),
             divisor=float(p["divisor"]),
             session_state=str(p["session_state"]),
-            timestamp=float(p["timestamp"]),
+            ts_ns=int(p["ts_ns"]),
             day=None if p.get("day") is None else DaySummary.from_dict(p["day"]),
         )
 
@@ -384,7 +384,7 @@ class IndexUpdate:
             "aggregate_cap": self.aggregate_cap,
             "divisor": self.divisor,
             "session_state": self.session_state,
-            "timestamp": self.timestamp,
+            "ts_ns": self.ts_ns,
         }
         if self.day is not None:
             payload["day"] = self.day.to_dict()
@@ -450,16 +450,16 @@ _INDEX_HISTORY_REQUEST_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"max_len": 32},
     },
     {
-        "name": "from_ts",
-        "type": "float",
-        "unit": "epoch_seconds",
+        "name": "from_ts_ns",
+        "type": "int",
+        "unit": "epoch_nanos",
         "required": True,
         "doc": "",
     },
     {
-        "name": "to_ts",
-        "type": "float",
-        "unit": "epoch_seconds",
+        "name": "to_ts_ns",
+        "type": "int",
+        "unit": "epoch_nanos",
         "required": True,
         "doc": "",
     },
@@ -496,8 +496,8 @@ class IndexHistoryRequest:
 
     gateway_id: str
     index_id: str
-    from_ts: float  # unit: epoch_seconds
-    to_ts: float  # unit: epoch_seconds
+    from_ts_ns: int  # unit: epoch_nanos
+    to_ts_ns: int  # unit: epoch_nanos
     types: list[str] = field(default_factory=list)
     max_records: int = 10000  # unit: dimensionless
 
@@ -532,8 +532,8 @@ class IndexHistoryRequest:
         return cls(
             gateway_id=str(p["gateway_id"]),
             index_id=str(p["index_id"]),
-            from_ts=float(p["from_ts"]),
-            to_ts=float(p["to_ts"]),
+            from_ts_ns=int(p["from_ts_ns"]),
+            to_ts_ns=int(p["to_ts_ns"]),
             types=[str(item) for item in p.get("types", [])],
             max_records=int(p.get("max_records", 10000)),
         )
@@ -543,8 +543,8 @@ class IndexHistoryRequest:
         payload: dict[str, Any] = {
             "gateway_id": self.gateway_id,
             "index_id": self.index_id,
-            "from_ts": self.from_ts,
-            "to_ts": self.to_ts,
+            "from_ts_ns": self.from_ts_ns,
+            "to_ts_ns": self.to_ts_ns,
             "max_records": self.max_records,
         }
         if self.types:
@@ -576,8 +576,8 @@ def make_index_history_request_unchecked(
     *,
     gateway_id: str,
     index_id: str,
-    from_ts: float,
-    to_ts: float,
+    from_ts_ns: int,
+    to_ts_ns: int,
     types: list[str] = [],
     max_records: int = 10000,
 ) -> list[bytes]:
@@ -594,8 +594,8 @@ def make_index_history_request_unchecked(
     payload: dict[str, Any] = {
         "gateway_id": str(gateway_id),
         "index_id": str(index_id),
-        "from_ts": float(from_ts),
-        "to_ts": float(to_ts),
+        "from_ts_ns": int(from_ts_ns),
+        "to_ts_ns": int(to_ts_ns),
         "max_records": int(max_records),
     }
     if types:
@@ -1427,9 +1427,9 @@ _INDEX_CORP_ACTION_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"max_len": 512},
     },
     {
-        "name": "timestamp",
-        "type": "float",
-        "unit": "epoch_seconds",
+        "name": "ts_ns",
+        "type": "int",
+        "unit": "epoch_nanos",
         "required": True,
         "doc": "",
     },
@@ -1477,7 +1477,7 @@ class IndexCorpActionAck:
 
     gateway_id: str
     accepted: bool
-    timestamp: float  # unit: epoch_seconds
+    ts_ns: int  # unit: epoch_nanos
     reason: str = ""
     index_id: str = ""
     level: float | None = None  # unit: dimensionless
@@ -1516,7 +1516,7 @@ class IndexCorpActionAck:
             gateway_id=str(p.get("gateway_id", "")),
             accepted=bool(p["accepted"]),
             reason=str(p.get("reason", "")),
-            timestamp=float(p["timestamp"]),
+            ts_ns=int(p["ts_ns"]),
             index_id=str(p.get("index_id", "")),
             level=None if p.get("level") is None else float(p["level"]),
             divisor=None if p.get("divisor") is None else float(p["divisor"]),
@@ -1530,7 +1530,7 @@ class IndexCorpActionAck:
         payload: dict[str, Any] = {
             "accepted": self.accepted,
             "reason": self.reason,
-            "timestamp": self.timestamp,
+            "ts_ns": self.ts_ns,
         }
         if self.index_id:
             payload["index_id"] = self.index_id
@@ -1573,7 +1573,7 @@ def make_index_corp_action_ack_unchecked(
     *,
     gateway_id: str,
     accepted: bool,
-    timestamp: float,
+    ts_ns: int,
     reason: str = "",
     index_id: str = "",
     level: float | None = None,
@@ -1593,7 +1593,7 @@ def make_index_corp_action_ack_unchecked(
     payload: dict[str, Any] = {
         "accepted": bool(accepted),
         "reason": str(reason),
-        "timestamp": float(timestamp),
+        "ts_ns": int(ts_ns),
     }
     if index_id:
         payload["index_id"] = str(index_id)
@@ -1664,9 +1664,9 @@ _INDEX_CONSTITUENT_CHANGE_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"max_len": 512},
     },
     {
-        "name": "timestamp",
-        "type": "float",
-        "unit": "epoch_seconds",
+        "name": "ts_ns",
+        "type": "int",
+        "unit": "epoch_nanos",
         "required": True,
         "doc": "",
     },
@@ -1713,7 +1713,7 @@ class IndexConstituentChangeAck:
 
     gateway_id: str
     accepted: bool
-    timestamp: float  # unit: epoch_seconds
+    ts_ns: int  # unit: epoch_nanos
     reason: str = ""
     index_id: str = ""
     level: float | None = None  # unit: dimensionless
@@ -1752,7 +1752,7 @@ class IndexConstituentChangeAck:
             gateway_id=str(p.get("gateway_id", "")),
             accepted=bool(p["accepted"]),
             reason=str(p.get("reason", "")),
-            timestamp=float(p["timestamp"]),
+            ts_ns=int(p["ts_ns"]),
             index_id=str(p.get("index_id", "")),
             level=None if p.get("level") is None else float(p["level"]),
             divisor=None if p.get("divisor") is None else float(p["divisor"]),
@@ -1766,7 +1766,7 @@ class IndexConstituentChangeAck:
         payload: dict[str, Any] = {
             "accepted": self.accepted,
             "reason": self.reason,
-            "timestamp": self.timestamp,
+            "ts_ns": self.ts_ns,
         }
         if self.index_id:
             payload["index_id"] = self.index_id
@@ -1811,7 +1811,7 @@ def make_index_constituent_change_ack_unchecked(
     *,
     gateway_id: str,
     accepted: bool,
-    timestamp: float,
+    ts_ns: int,
     reason: str = "",
     index_id: str = "",
     level: float | None = None,
@@ -1832,7 +1832,7 @@ def make_index_constituent_change_ack_unchecked(
     payload: dict[str, Any] = {
         "accepted": bool(accepted),
         "reason": str(reason),
-        "timestamp": float(timestamp),
+        "ts_ns": int(ts_ns),
     }
     if index_id:
         payload["index_id"] = str(index_id)
@@ -1903,9 +1903,9 @@ _INDEX_REBALANCE_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"max_len": 512},
     },
     {
-        "name": "timestamp",
-        "type": "float",
-        "unit": "epoch_seconds",
+        "name": "ts_ns",
+        "type": "int",
+        "unit": "epoch_nanos",
         "required": True,
         "doc": "",
     },
@@ -1967,7 +1967,7 @@ class IndexRebalanceAck:
 
     gateway_id: str
     accepted: bool
-    timestamp: float  # unit: epoch_seconds
+    ts_ns: int  # unit: epoch_nanos
     reason: str = ""
     updated_symbols: int = 0  # unit: dimensionless
     index_id: str = ""
@@ -2016,7 +2016,7 @@ class IndexRebalanceAck:
             gateway_id=str(p.get("gateway_id", "")),
             accepted=bool(p["accepted"]),
             reason=str(p.get("reason", "")),
-            timestamp=float(p["timestamp"]),
+            ts_ns=int(p["ts_ns"]),
             updated_symbols=int(p.get("updated_symbols", 0)),
             index_id=str(p.get("index_id", "")),
             level=None if p.get("level") is None else float(p["level"]),
@@ -2032,7 +2032,7 @@ class IndexRebalanceAck:
         payload: dict[str, Any] = {
             "accepted": self.accepted,
             "reason": self.reason,
-            "timestamp": self.timestamp,
+            "ts_ns": self.ts_ns,
             "updated_symbols": self.updated_symbols,
         }
         if self.index_id:
@@ -2078,7 +2078,7 @@ def make_index_rebalance_ack_unchecked(
     *,
     gateway_id: str,
     accepted: bool,
-    timestamp: float,
+    ts_ns: int,
     reason: str = "",
     updated_symbols: int = 0,
     index_id: str = "",
@@ -2100,7 +2100,7 @@ def make_index_rebalance_ack_unchecked(
     payload: dict[str, Any] = {
         "accepted": bool(accepted),
         "reason": str(reason),
-        "timestamp": float(timestamp),
+        "ts_ns": int(ts_ns),
         "updated_symbols": int(updated_symbols),
     }
     if index_id:
@@ -2172,9 +2172,9 @@ _INDEX_ERROR_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"max_len": 512},
     },
     {
-        "name": "timestamp",
-        "type": "float",
-        "unit": "epoch_seconds",
+        "name": "ts_ns",
+        "type": "int",
+        "unit": "epoch_nanos",
         "required": True,
         "doc": "",
     },
@@ -2194,7 +2194,7 @@ class IndexError:
     gateway_id: str
     accepted: bool
     reason: str
-    timestamp: float  # unit: epoch_seconds
+    ts_ns: int  # unit: epoch_nanos
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -2224,7 +2224,7 @@ class IndexError:
             gateway_id=str(p.get("gateway_id", "")),
             accepted=bool(p["accepted"]),
             reason=str(p["reason"]),
-            timestamp=float(p["timestamp"]),
+            ts_ns=int(p["ts_ns"]),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -2232,7 +2232,7 @@ class IndexError:
         return {
             "accepted": self.accepted,
             "reason": self.reason,
-            "timestamp": self.timestamp,
+            "ts_ns": self.ts_ns,
         }
 
 
@@ -2267,7 +2267,7 @@ def make_index_error_unchecked(
     gateway_id: str,
     accepted: bool,
     reason: str,
-    timestamp: float,
+    ts_ns: int,
 ) -> list[bytes]:
     """Identical frames to ``make_index_error``, without ``validate()``.
 
@@ -2285,7 +2285,7 @@ def make_index_error_unchecked(
             {
                 "accepted": bool(accepted),
                 "reason": str(reason),
-                "timestamp": float(timestamp),
+                "ts_ns": int(ts_ns),
             }
         ),
     ]

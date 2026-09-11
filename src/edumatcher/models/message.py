@@ -248,6 +248,7 @@ def make_amended_msg(
     *,
     old_price: float | None = None,
     old_qty: int | None = None,
+    symbol: str | None = None,
 ) -> list[bytes]:
     """Generated from ``spec/messages/order.yaml``.
 
@@ -256,10 +257,15 @@ def make_amended_msg(
     re-deriving the prior state from an earlier message. Keyword-only, added
     after the original positional signature, so every existing caller keeps
     working unchanged and simply gets ``None`` ("not supplied") for both.
+    ``symbol`` (AR-0.2) is plain keyword-only rather than derived from an
+    ``order`` dict like ``make_cancelled_msg``/``make_expired_msg`` do,
+    because this builder never took one — its one call site already has
+    ``amended.symbol`` in scope directly.
     """
     return _gen_order.make_order_amended_unchecked(
         gateway_id=gateway_id,
         order_id=order_id,
+        symbol=symbol,
         price=price,
         qty=qty,
         remaining_qty=remaining_qty,
@@ -302,6 +308,23 @@ def order_client_tag(
         return None
     tag = order.get("client_tag")
     return None if tag is None else str(tag)
+
+
+def order_symbol(symbol: str | None, order: dict[str, Any] | None) -> str | None:
+    """Resolve the ``symbol`` for a lifecycle event about *order* (AR-0.2).
+
+    Same shape as ``order_client_tag`` and for the same reason: every call
+    site already has the full order dict (``Order.to_dict()``, which always
+    carries ``symbol``), so there is no reason to make a caller pass it
+    twice. An explicit argument still wins, for a caller that has the order
+    only as pieces rather than as a dict.
+    """
+    if symbol is not None:
+        return symbol
+    if not order:
+        return None
+    sym = order.get("symbol")
+    return None if sym is None else str(sym)
 
 
 def group_ids(order: dict[str, Any] | None) -> dict[str, Any]:
@@ -409,6 +432,7 @@ def make_cancelled_msg(
     *,
     cancel_reason: _gen_order.OrderCancelledCancelReason | None = None,
     command_id: str | None = None,
+    symbol: str | None = None,
 ) -> list[bytes]:
     """Generated from ``spec/messages/order.yaml``.
 
@@ -417,10 +441,14 @@ def make_cancelled_msg(
     with the two tag positionals above it. ``command_id`` is the admin/
     kill-switch command that caused this cancel, when one exists — lets a
     post-mortem join this event back to that command via system.admin_action.
+    ``symbol`` (AR-0.2) is resolved from *order* like ``client_tag`` is, via
+    ``order_symbol`` — the engine has always had it, it was simply never
+    carried on the wire.
     """
     return _gen_order.make_order_cancelled_unchecked(
         gateway_id=gateway_id,
         order_id=order_id,
+        symbol=order_symbol(symbol, order),
         client_tag=order_client_tag(client_tag, order),
         request_tag=request_tag,
         cancel_reason=cancel_reason,
@@ -434,11 +462,19 @@ def make_expired_msg(
     order_id: str,
     client_tag: str | None = None,
     order: dict[str, Any] | None = None,
+    *,
+    symbol: str | None = None,
 ) -> list[bytes]:
-    """Generated from ``spec/messages/order.yaml``. Byte-identical to before."""
+    """Generated from ``spec/messages/order.yaml``.
+
+    ``symbol`` (AR-0.2) is resolved from *order* the same way ``client_tag``
+    is. No longer byte-identical to the original hand-written builder for
+    that reason — order.expired now carries the instrument.
+    """
     return _gen_order.make_order_expired_unchecked(
         gateway_id=gateway_id,
         order_id=order_id,
+        symbol=order_symbol(symbol, order),
         client_tag=order_client_tag(client_tag, order),
         **group_ids(order),
     )
@@ -911,9 +947,20 @@ def make_session_transition_ack_msg(
 
 
 def make_session_state_msg(
-    state: str, prev_state: str = "", next_state: str = "", next_at: str = ""
+    state: str,
+    prev_state: str = "",
+    next_state: str = "",
+    next_at: str = "",
+    command_id: str = "",
 ) -> list[bytes]:
-    """Engine → all: broadcast current session state."""
+    """Engine → all: broadcast current session state.
+
+    ``command_id`` (AR-0.6) echoes session.transition.reply_to.command_id
+    when the transition was requested with one -- absent for a
+    schedule-driven transition, which supplies no reply_to at all. See
+    spec/messages/session.yaml's session_state field doc for why this is
+    the bare id and never the rest of reply_to.
+    """
     # The validating constructor, not an ``_unchecked`` one: a message with a
     # nested record has no dict-literal fast path (design section 15.5), and a
     # session transition happens a handful of times a day.
@@ -921,6 +968,7 @@ def make_session_state_msg(
         state=state,
         prev_state=prev_state,
         next=({"state": next_state, "at": next_at} if next_state and next_at else None),
+        command_id=command_id,
     )
 
 
@@ -1167,16 +1215,25 @@ def make_kill_switch_ack_msg(
     accepted: bool,
     reason: str = "",
     cancelled_orders: int = 0,
+    cancelled_order_ids: list[str] | None = None,
     cancelled_quotes: int = 0,
+    cancelled_quote_order_ids: list[str] | None = None,
     command_id: str = "",
 ) -> list[bytes]:
-    """Engine → gateway/admin: kill-switch result summary."""
+    """Engine → gateway/admin: kill-switch result summary.
+
+    AR-0.5: ``cancelled_order_ids``/``cancelled_quote_order_ids`` are the
+    order ids behind the two counts — see risk.yaml for why the quote-leg
+    list is named ``*_order_ids`` rather than ``*_quote_ids``.
+    """
     return _gen_risk.make_kill_switch_ack(
         gateway_id=gateway_id,
         accepted=accepted,
         reason=reason,
         cancelled_orders=cancelled_orders,
+        cancelled_order_ids=cancelled_order_ids or [],
         cancelled_quotes=cancelled_quotes,
+        cancelled_quote_order_ids=cancelled_quote_order_ids or [],
         command_id=command_id,
     )
 
@@ -1191,7 +1248,9 @@ def make_circuit_breaker_halt_all_ack_msg(
     accepted: bool,
     reason: str = "",
     halted_symbols: int = 0,
+    halted_symbol_ids: list[str] | None = None,
     cancelled_quotes: int = 0,
+    cancelled_quote_order_ids: list[str] | None = None,
 ) -> list[bytes]:
     """Engine → admin: global circuit-breaker halt result summary."""
     return _gen_risk.make_circuit_breaker_halt_all_ack(
@@ -1199,7 +1258,9 @@ def make_circuit_breaker_halt_all_ack_msg(
         accepted=accepted,
         reason=reason,
         halted_symbols=halted_symbols,
+        halted_symbol_ids=halted_symbol_ids or [],
         cancelled_quotes=cancelled_quotes,
+        cancelled_quote_order_ids=cancelled_quote_order_ids or [],
     )
 
 
@@ -1213,6 +1274,7 @@ def make_circuit_breaker_resume_all_ack_msg(
     accepted: bool,
     reason: str = "",
     resumed_symbols: int = 0,
+    resumed_symbol_ids: list[str] | None = None,
 ) -> list[bytes]:
     """Engine → admin: global circuit-breaker resume result summary."""
     return _gen_risk.make_circuit_breaker_resume_all_ack(
@@ -1220,6 +1282,7 @@ def make_circuit_breaker_resume_all_ack_msg(
         accepted=accepted,
         reason=reason,
         resumed_symbols=resumed_symbols,
+        resumed_symbol_ids=resumed_symbol_ids or [],
     )
 
 
@@ -1259,6 +1322,7 @@ def make_symbol_halt_ack_msg(
     accepted: bool,
     reason: str = "",
     cancelled_quotes: int = 0,
+    cancelled_quote_order_ids: list[str] | None = None,
     command_id: str = "",
 ) -> list[bytes]:
     """Engine → admin: per-symbol halt result."""
@@ -1268,6 +1332,7 @@ def make_symbol_halt_ack_msg(
         symbol=symbol,
         reason=reason,
         cancelled_quotes=cancelled_quotes,
+        cancelled_quote_order_ids=cancelled_quote_order_ids or [],
         command_id=command_id,
     )
 
@@ -1324,7 +1389,9 @@ def make_cancel_symbol_ack_msg(
     accepted: bool,
     reason: str = "",
     cancelled_orders: int = 0,
+    cancelled_order_ids: list[str] | None = None,
     cancelled_quotes: int = 0,
+    cancelled_quote_order_ids: list[str] | None = None,
     command_id: str = "",
 ) -> list[bytes]:
     """Engine → admin: symbol-level mass-cancel result."""
@@ -1334,7 +1401,9 @@ def make_cancel_symbol_ack_msg(
         symbol=symbol,
         reason=reason,
         cancelled_orders=cancelled_orders,
+        cancelled_order_ids=cancelled_order_ids or [],
         cancelled_quotes=cancelled_quotes,
+        cancelled_quote_order_ids=cancelled_quote_order_ids or [],
         command_id=command_id,
     )
 
@@ -1433,7 +1502,9 @@ def make_kill_switch_gateway_ack_msg(
     accepted: bool,
     reason: str = "",
     cancelled_orders: int = 0,
+    cancelled_order_ids: list[str] | None = None,
     cancelled_quotes: int = 0,
+    cancelled_quote_order_ids: list[str] | None = None,
     command_id: str = "",
 ) -> list[bytes]:
     """Engine → ADMIN: gateway-targeted kill-switch result."""
@@ -1443,7 +1514,9 @@ def make_kill_switch_gateway_ack_msg(
         target_gateway_id=target_gateway_id,
         reason=reason,
         cancelled_orders=cancelled_orders,
+        cancelled_order_ids=cancelled_order_ids or [],
         cancelled_quotes=cancelled_quotes,
+        cancelled_quote_order_ids=cancelled_quote_order_ids or [],
         command_id=command_id,
     )
 
@@ -1464,8 +1537,11 @@ def make_kill_switch_global_ack_msg(
     accepted: bool,
     reason: str = "",
     cancelled_orders: int = 0,
+    cancelled_order_ids: list[str] | None = None,
     cancelled_quotes: int = 0,
+    cancelled_quote_order_ids: list[str] | None = None,
     affected_gateways: int = 0,
+    affected_gateway_ids: list[str] | None = None,
     command_id: str = "",
 ) -> list[bytes]:
     """Engine → ADMIN: market-wide kill-switch result."""
@@ -1474,8 +1550,11 @@ def make_kill_switch_global_ack_msg(
         accepted=accepted,
         reason=reason,
         cancelled_orders=cancelled_orders,
+        cancelled_order_ids=cancelled_order_ids or [],
         cancelled_quotes=cancelled_quotes,
+        cancelled_quote_order_ids=cancelled_quote_order_ids or [],
         affected_gateways=affected_gateways,
+        affected_gateway_ids=affected_gateway_ids or [],
         command_id=command_id,
     )
 
@@ -1541,6 +1620,28 @@ def make_startup_recovery_msg(
         quote_remnants_restored=quote_remnants_restored,
         rebuilt_quotes=rebuilt_quotes,
         restored_combos=restored_combos,
+    )
+
+
+def make_recovery_item_msg(
+    entity_id: str,
+    kind: _gen_system.RecoveryItemKind,
+    outcome: _gen_system.RecoveryItemOutcome,
+    symbol: str | None = None,
+    detail: str = "",
+) -> list[bytes]:
+    """Engine → all subscribers: one restored/discarded/failed entity from
+    `_restore_gtc()` (AR-0.5). One call per entity, published before the
+    single `startup_recovery` summary — see spec/messages/system.yaml for
+    the RESTORED/QUOTE_REMNANT double-counting note and why `rebuilt_quotes`
+    deliberately has no per-entity counterpart here.
+    """
+    return _gen_system.make_recovery_item(
+        entity_id=entity_id,
+        kind=kind,
+        outcome=outcome,
+        symbol=symbol,
+        detail=detail,
     )
 
 
@@ -1642,7 +1743,7 @@ def make_index_update_msg(
         aggregate_cap=aggregate_cap,
         divisor=divisor,
         session_state=session_state,
-        timestamp=time.time(),
+        ts_ns=time.time_ns(),
         day=dict(day) if day is not None else None,
     )
 
@@ -1650,8 +1751,8 @@ def make_index_update_msg(
 def make_index_history_request_msg(
     gateway_id: str,
     index_id: str,
-    from_ts: float,
-    to_ts: float,
+    from_ts_ns: int,
+    to_ts_ns: int,
     types: list[str] | None = None,
     max_records: int = 10_000,
 ) -> list[bytes]:
@@ -1666,12 +1767,19 @@ def make_index_history_request_msg(
     client-side copy of the server's default. That copy had drifted: it listed
     four of the five structural types, so every caller taking the default
     silently never saw a REBALANCE record (design section 20.4).
+
+    ``from_ts_ns``/``to_ts_ns`` (AR-0.3) are epoch nanoseconds, matching the
+    ``ts_ns`` convention finished across the index family. This builder is
+    the wire boundary: every caller (index_client.py, alf_console, commands/
+    client.py) works in seconds internally/over its own external contract
+    (REST query params, CLI FROM/TO) and converts to nanoseconds only here,
+    right before the ZMQ message is built.
     """
     return _gen_index.make_index_history_request(
         gateway_id=gateway_id,
         index_id=index_id,
-        from_ts=from_ts,
-        to_ts=to_ts,
+        from_ts_ns=from_ts_ns,
+        to_ts_ns=to_ts_ns,
         types=list(types) if types else [],
         max_records=max_records,
     )
@@ -1755,7 +1863,7 @@ def make_index_corp_action_ack_msg(
         gateway_id=gateway_id,
         accepted=accepted,
         reason=reason,
-        timestamp=time.time(),
+        ts_ns=time.time_ns(),
         index_id=index_id,
         level=level,
         divisor=divisor,
@@ -1777,7 +1885,7 @@ def make_index_constituent_change_ack_msg(
         gateway_id=gateway_id,
         accepted=accepted,
         reason=reason,
-        timestamp=time.time(),
+        ts_ns=time.time_ns(),
         index_id=index_id,
         level=level,
         divisor=divisor,
@@ -1827,7 +1935,7 @@ def make_index_rebalance_ack_msg(
         gateway_id=gateway_id,
         accepted=accepted,
         reason=reason,
-        timestamp=time.time(),
+        ts_ns=time.time_ns(),
         updated_symbols=updated_symbols,
         index_id=index_id,
         level=level,
@@ -1843,7 +1951,7 @@ def make_index_error_msg(gateway_id: str, reason: str) -> list[bytes]:
         gateway_id=gateway_id,
         accepted=False,
         reason=reason,
-        timestamp=time.time(),
+        ts_ns=time.time_ns(),
     )
 
 

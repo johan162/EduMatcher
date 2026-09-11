@@ -91,8 +91,30 @@ messages:
           validate: { max_len: 512 } }
       - { name: cancelled_orders, type: int, unit: dimensionless,
           required: false, default: 0, validate: { ge: 0 } }
+      - name: cancelled_order_ids
+        type: list
+        item: string
+        required: false
+        default: []
+        doc: >
+          AR-0.5: the order ids counted in cancelled_orders, so a caller can
+          tell which orders were hit rather than only how many. A list whose
+          length disagrees with cancelled_orders is itself a detectable
+          defect.
       - { name: cancelled_quotes, type: int, unit: dimensionless,
           required: false, default: 0, validate: { ge: 0 } }
+      - name: cancelled_quote_order_ids
+        type: list
+        item: string
+        required: false
+        default: []
+        doc: >
+          AR-0.5: the order ids counted in cancelled_quotes. Named
+          "*_order_ids" rather than "*_quote_ids" on purpose: cancelled_quotes
+          has always counted cancelled quote LEGS, each an independent Order
+          with its own order_id, not quote objects — a quote's own quote_id
+          is client-supplied and optional (see quote.yaml), so it cannot
+          serve as this list's key even when present.
       - { name: command_id, type: string, required: false,
           omit_when_empty: true, validate: { max_len: 64 } }
     encoding:
@@ -149,8 +171,30 @@ messages:
           validate: { max_len: 512 } }
       - { name: cancelled_orders, type: int, unit: dimensionless,
           required: false, default: 0, validate: { ge: 0 } }
+      - name: cancelled_order_ids
+        type: list
+        item: string
+        required: false
+        default: []
+        doc: >
+          AR-0.5: the order ids counted in cancelled_orders, so a caller can
+          tell which orders were hit rather than only how many. A list whose
+          length disagrees with cancelled_orders is itself a detectable
+          defect.
       - { name: cancelled_quotes, type: int, unit: dimensionless,
           required: false, default: 0, validate: { ge: 0 } }
+      - name: cancelled_quote_order_ids
+        type: list
+        item: string
+        required: false
+        default: []
+        doc: >
+          AR-0.5: the order ids counted in cancelled_quotes. Named
+          "*_order_ids" rather than "*_quote_ids" on purpose: cancelled_quotes
+          has always counted cancelled quote LEGS, each an independent Order
+          with its own order_id, not quote objects — a quote's own quote_id
+          is client-supplied and optional (see quote.yaml), so it cannot
+          serve as this list's key even when present.
       - { name: command_id, type: string, required: false,
           omit_when_empty: true, validate: { max_len: 64 } }
     encoding:
@@ -198,10 +242,41 @@ messages:
           validate: { max_len: 512 } }
       - { name: cancelled_orders, type: int, unit: dimensionless,
           required: false, default: 0, validate: { ge: 0 } }
+      - name: cancelled_order_ids
+        type: list
+        item: string
+        required: false
+        default: []
+        doc: >
+          AR-0.5: the order ids counted in cancelled_orders, so a caller can
+          tell which orders were hit rather than only how many. A list whose
+          length disagrees with cancelled_orders is itself a detectable
+          defect.
       - { name: cancelled_quotes, type: int, unit: dimensionless,
           required: false, default: 0, validate: { ge: 0 } }
+      - name: cancelled_quote_order_ids
+        type: list
+        item: string
+        required: false
+        default: []
+        doc: >
+          AR-0.5: the order ids counted in cancelled_quotes. Named
+          "*_order_ids" rather than "*_quote_ids" on purpose: cancelled_quotes
+          has always counted cancelled quote LEGS, each an independent Order
+          with its own order_id, not quote objects — a quote's own quote_id
+          is client-supplied and optional (see quote.yaml), so it cannot
+          serve as this list's key even when present.
       - { name: affected_gateways, type: int, unit: dimensionless,
           required: false, default: 0, validate: { ge: 0 } }
+      - name: affected_gateway_ids
+        type: list
+        item: string
+        required: false
+        default: []
+        doc: >
+          AR-0.5: the gateway ids counted in affected_gateways — every
+          gateway that had at least one order or quote leg cancelled by this
+          sweep.
       - { name: command_id, type: string, required: false,
           omit_when_empty: true, validate: { max_len: 64 } }
     encoding:
@@ -271,6 +346,18 @@ messages:
       - { name: cancelled_quotes, type: int, unit: dimensionless,
           required: false, default: 0, validate: { ge: 0 },
           doc: "Quotes pulled because the instrument stopped trading." }
+      - name: cancelled_quote_order_ids
+        type: list
+        item: string
+        required: false
+        default: []
+        doc: >
+          AR-0.5: the order ids counted in cancelled_quotes. Named
+          "*_order_ids" rather than "*_quote_ids" on purpose: cancelled_quotes
+          has always counted cancelled quote LEGS, each an independent Order
+          with its own order_id, not quote objects — a quote's own quote_id
+          is client-supplied and optional (see quote.yaml), so it cannot
+          serve as this list's key even when present.
       - { name: command_id, type: string, required: false,
           omit_when_empty: true, validate: { max_len: 64 } }
     encoding:
@@ -357,8 +444,30 @@ messages:
           validate: { max_len: 512 } }
       - { name: cancelled_orders, type: int, unit: dimensionless,
           required: false, default: 0, validate: { ge: 0 } }
+      - name: cancelled_order_ids
+        type: list
+        item: string
+        required: false
+        default: []
+        doc: >
+          AR-0.5: the order ids counted in cancelled_orders, so a caller can
+          tell which orders were hit rather than only how many. A list whose
+          length disagrees with cancelled_orders is itself a detectable
+          defect.
       - { name: cancelled_quotes, type: int, unit: dimensionless,
           required: false, default: 0, validate: { ge: 0 } }
+      - name: cancelled_quote_order_ids
+        type: list
+        item: string
+        required: false
+        default: []
+        doc: >
+          AR-0.5: the order ids counted in cancelled_quotes. Named
+          "*_order_ids" rather than "*_quote_ids" on purpose: cancelled_quotes
+          has always counted cancelled quote LEGS, each an independent Order
+          with its own order_id, not quote objects — a quote's own quote_id
+          is client-supplied and optional (see quote.yaml), so it cannot
+          serve as this list's key even when present.
       - { name: command_id, type: string, required: false,
           omit_when_empty: true, validate: { max_len: 64 } }
     encoding:
@@ -501,8 +610,26 @@ messages:
           validate: { max_len: 512 } }
       - { name: halted_symbols, type: int, unit: dimensionless,
           required: false, default: 0, validate: { ge: 0 } }
+      - name: halted_symbol_ids
+        type: list
+        item: string
+        required: false
+        default: []
+        doc: "AR-0.5: the symbols counted in halted_symbols, by name."
       - { name: cancelled_quotes, type: int, unit: dimensionless,
           required: false, default: 0, validate: { ge: 0 } }
+      - name: cancelled_quote_order_ids
+        type: list
+        item: string
+        required: false
+        default: []
+        doc: >
+          AR-0.5: the order ids counted in cancelled_quotes. Named
+          "*_order_ids" rather than "*_quote_ids" on purpose: cancelled_quotes
+          has always counted cancelled quote LEGS, each an independent Order
+          with its own order_id, not quote objects — a quote's own quote_id
+          is client-supplied and optional (see quote.yaml), so it cannot
+          serve as this list's key even when present.
     encoding:
       engine_pub: { frames: [topic, json_payload] }
 
@@ -538,5 +665,11 @@ messages:
           validate: { max_len: 512 } }
       - { name: resumed_symbols, type: int, unit: dimensionless,
           required: false, default: 0, validate: { ge: 0 } }
+      - name: resumed_symbol_ids
+        type: list
+        item: string
+        required: false
+        default: []
+        doc: "AR-0.5: the symbols counted in resumed_symbols, by name."
     encoding:
       engine_pub: { frames: [topic, json_payload] }

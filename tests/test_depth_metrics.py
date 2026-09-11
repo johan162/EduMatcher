@@ -62,6 +62,7 @@ class TestDepthSnapshotWithTrades:
         result = book.depth_snapshot(tolerance_ticks=100)
         expected_keys = {
             "symbol",
+            "ts_ns",  # AR-0.4
             "mid_price_ticks",
             "mid_price",
             "microprice",

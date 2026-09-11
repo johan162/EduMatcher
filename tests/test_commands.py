@@ -305,6 +305,7 @@ class TestDataQueries:
         book_payload = {
             "symbol": "AAPL",
             "tick_decimals": 2,
+            "ts_ns": 1_700_000_000_000_000_000,
             "bids": [{"price": 150.0, "qty": 100, "count": 1}],
             "asks": [{"price": 150.5, "qty": 200, "count": 2}],
             "last_price": 150.25,
@@ -335,7 +336,7 @@ class TestDataQueries:
                 "quantity": 100,
                 "remaining_qty": 100,
                 "gateway_id": "TRADER01",
-                "timestamp": 1.0,
+                "ts_ns": 1_000_000_000,
                 "status": "NEW",
             }
         ]
@@ -386,7 +387,7 @@ class TestDataQueries:
                 "quantity": 200,
                 "remaining_qty": 200,
                 "price": 149.50,
-                "timestamp": 1.0,
+                "ts_ns": 1_000_000_000,
                 "status": "NEW",
                 "arrival_seq": 1,
             },
@@ -400,7 +401,7 @@ class TestDataQueries:
                 "quantity": 100,
                 "remaining_qty": 100,
                 "price": 149.50,
-                "timestamp": 2.0,
+                "ts_ns": 2_000_000_000,
                 "status": "NEW",
                 "arrival_seq": 2,
             },
@@ -545,7 +546,7 @@ class TestIndexCommands:
                     records=[
                         {
                             "type": "CORP_ACTION",
-                            "timestamp": 1.0,
+                            "ts_ns": 1_000_000_000,
                             "index_id": "EDU100",
                             "level": 100.0,
                         }

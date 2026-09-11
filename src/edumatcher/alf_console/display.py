@@ -158,7 +158,7 @@ def print_quote_legs(
     t.add_column("Symbol", style="bold")
     t.add_column("Quote", style="cyan")
     t.add_column("Leg", style="magenta")
-    t.add_column("Order", style="dim", width=10)
+    t.add_column("Order", style="dim")
     t.add_column("Price", justify="right")
     t.add_column("Qty", justify="right")
     t.add_column("Rem", justify="right")
@@ -188,7 +188,7 @@ def print_quote_legs(
             str(row.get("symbol", "?")),
             str(row.get("quote_id", "?")),
             str(row.get("leg_side", "?")),
-            str(row.get("order_id", "?"))[:8],
+            str(row.get("order_id", "?")),
             price_text,
             str(row.get("qty", "?")),
             str(row.get("remaining", "?")),
@@ -462,9 +462,14 @@ def print_current_index(last_index_update: dict[str, Any] | None) -> None:
         console.print("[dim]No index data received yet. Is pm-index running?[/dim]")
         return
 
-    ts_raw = payload.get("timestamp")
+    # AR-0.3 renamed index.update's wire field to ts_ns (epoch nanoseconds);
+    # AR-0.3b caught this call site still reading the old "timestamp" key,
+    # which the index family stopped sending.
+    ts_raw = payload.get("ts_ns")
     if isinstance(ts_raw, (int, float)):
-        ts = datetime.fromtimestamp(float(ts_raw)).strftime("%H:%M:%S.%f")[:-3]
+        ts = datetime.fromtimestamp(float(ts_raw) / 1_000_000_000).strftime(
+            "%H:%M:%S.%f"
+        )[:-3]
     else:
         ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
 
@@ -527,9 +532,13 @@ def print_index_history(records: list[dict[str, Any]]) -> None:
 
     for rec in records:
         rec_type = str(rec.get("type", "?"))
-        ts = rec.get("timestamp")
+        # AR-0.3 renamed HistoryRecord.timestamp to ts_ns (epoch nanoseconds);
+        # AR-0.3b caught this call site still reading the old key.
+        ts = rec.get("ts_ns")
         if isinstance(ts, (int, float)):
-            ts_txt = datetime.fromtimestamp(float(ts)).strftime("%Y-%m-%d %H:%M:%S")
+            ts_txt = datetime.fromtimestamp(float(ts) / 1_000_000_000).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
         else:
             ts_txt = "?"
         symbol = str(rec.get("symbol", "-")) or "-"
@@ -562,7 +571,7 @@ def print_orders(gateway_id: str, order_cache: dict[str, dict[str, Any]]) -> Non
         console.print("[dim]No outstanding orders for this gateway.[/dim]")
         return
     t = Table(title=f"Orders — {gateway_id}", show_lines=True)
-    t.add_column("ID", style="dim", width=10)
+    t.add_column("ID", style="dim")
     t.add_column("Symbol", style="bold")
     t.add_column("Side", style="cyan")
     t.add_column("Type", style="magenta")
@@ -587,7 +596,7 @@ def print_orders(gateway_id: str, order_cache: dict[str, dict[str, Any]]) -> Non
         st = o["status"]
         colour = status_colour.get(st, "white")
         t.add_row(
-            o["id"][:8],
+            o["id"],
             o["symbol"],
             o["side"],
             o["type"],

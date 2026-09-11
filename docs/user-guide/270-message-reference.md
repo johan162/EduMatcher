@@ -581,6 +581,7 @@ Every topic in the system, and which process puts it on the wire.
 | `system.quote_bootstrap_request` | `system` | `admin`, `api_gateway`, `gateway` |
 | `system.quote_legs.{gateway_id}` | `system` | `engine` |
 | `system.quote_legs_request` | `system` | `api_gateway`, `gateway` |
+| `system.recovery_item` | `system` | `engine` |
 | `system.reference.{gateway_id}` | `system` | `engine` |
 | `system.reference_reload` | `system` | `api_gateway` |
 | `system.reference_reload_ack.{gateway_id}` | `system` | `engine` |
@@ -613,8 +614,11 @@ What one admin command acted on, and what it did. Every field is optional becaus
 | `level` | `string` | omitted when unset | max_len 32 | The circuit-breaker rung, for `circuit_breaker.trigger`. Not an enum: the ladder is per-symbol configuration, so the value set differs per deployment. Bounded to match `circuit_breaker.halt.level`, which carries the same name onward. |
 | `note` | `string` | omitted when empty | max_len 256 | The operator's free-text reason, when one was supplied. Regime 4 to match `risk.kill_switch`'s own `note`, which is where this value arrives from -- a field that omits on one message and emits `""` on the next would be two answers to one question. |
 | `cancelled_orders` | `int` | omitted when unset | ge 0, unit `dimensionless` | Outcome, on accepted kill-switch actions only. |
+| `cancelled_order_ids` | list of `string` | omitted when empty | — | AR-0.5: the order ids counted in cancelled_orders, mirroring risk.kill_switch_ack (and friends) — see risk.yaml for why this is the right key even for the quote-cancellation counterpart below. |
 | `cancelled_quotes` | `int` | omitted when unset | ge 0, unit `dimensionless` | Outcome, on accepted kill-switch actions only. |
+| `cancelled_quote_order_ids` | list of `string` | omitted when empty | — | AR-0.5: the order ids counted in cancelled_quotes. |
 | `affected_gateways` | `int` | omitted when unset | ge 0, unit `dimensionless` | Outcome, on an accepted `kill_switch.global` only. |
+| `affected_gateway_ids` | list of `string` | omitted when empty | — | AR-0.5: the gateway ids counted in affected_gateways. |
 
 ### `admin.action.{gateway_id}`
 
@@ -757,6 +761,7 @@ Broadcast an aggregated view of one instrument's order book, on a timer. What ev
 |---|---|---|---|---|
 | `symbol` | `string` | required | max_len 16 |  |
 | `tick_decimals` | `int` | required | unit `dimensionless` | The tick scale the display prices here were produced at. Subscribers that store prices exactly need it to convert back to integer ticks; without it they must guess, and guessing 2 for a 4-decimal symbol rounds the price away. |
+| `ts_ns` | `int` | required | ge 0, unit `epoch_nanos` | When this snapshot was produced (AR-0.4). Previously book.{symbol} carried no time field at all, so nothing could establish whether a snapshot reflects a given trade; ordering against trade.executed.ts_ns (and recent_trades[].ts_ns, which this mirrors) was impossible. Monotonic per edumatcher.models.clock.now_ns(). |
 | `bids` | list of [`BookLevel`](#booklevel) | required | — | Descending by price. |
 | `asks` | list of [`BookLevel`](#booklevel) | required | — | Ascending by price. |
 | `last_price` | `float` | `null` when unset | unit `display_price` | Null until the instrument has traded. |
@@ -802,6 +807,7 @@ Book-depth metrics within a tolerance band of the last trade: how much size sits
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
 | `symbol` | `string` | required | max_len 16 |  |
+| `ts_ns` | `int` | required | ge 0, unit `epoch_nanos` | When this depth snapshot was produced (AR-0.4). Previously depth.{symbol} carried no time field at all. Monotonic per edumatcher.models.clock.now_ns(). |
 | `mid_price_ticks` | `ticks` | required | unit `ticks` | The last trade price, in ticks; the band is centred here. |
 | `mid_price` | `float` | required | unit `display_price` |  |
 | `tolerance_ticks` | `ticks` | required | unit `ticks` | Half-width of the band, in ticks. |
@@ -1018,7 +1024,7 @@ One structural audit entry, replayed verbatim from pm-index's append-only JSONL 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
 | `type` | enum: `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`, `REBALANCE` | required | — | The discriminator. IndexHistory.query drops any other value with a warning, so an unknown type never reaches the wire. |
-| `timestamp` | `float` | required | unit `epoch_seconds` |  |
+| `ts_ns` | `int` | required | unit `epoch_nanos` |  |
 | `index_id` | `string` | required | max_len 32 |  |
 | `level` | `float` | required | unit `dimensionless` | The index level immediately after the event was applied. |
 | `symbol` | `string` | omitted when empty | max_len 16 | CORP_ACTION, ADD_CONSTITUENT and DELIST. |
@@ -1059,7 +1065,7 @@ pm-index to subscribers: the current level of one index, published on every cons
 | `aggregate_cap` | `float` | required | unit `money` | Sum of constituent market capitalisations. |
 | `divisor` | `float` | required | unit `dimensionless` | Level = aggregate_cap / divisor. |
 | `session_state` | `string` | required | max_len 32 | Mirrors session.state; a plain string there and here. |
-| `timestamp` | `float` | required | unit `epoch_seconds` |  |
+| `ts_ns` | `int` | required | unit `epoch_nanos` |  |
 | `day` | [`DaySummary`](#daysummary) | omitted when unset | — |  |
 
 !!! note
@@ -1084,8 +1090,8 @@ Gateway or operator to pm-index: replay the structural audit log.
 |---|---|---|---|---|
 | `gateway_id` | `string` | required | max_len 32 |  |
 | `index_id` | `string` | required | max_len 32 |  |
-| `from_ts` | `float` | required | unit `epoch_seconds` |  |
-| `to_ts` | `float` | required | unit `epoch_seconds` |  |
+| `from_ts_ns` | `int` | required | unit `epoch_nanos` |  |
+| `to_ts_ns` | `int` | required | unit `epoch_nanos` |  |
 | `types` | list of `string` | omitted when empty | — | Record types to include; omitted means all structural types. |
 | `max_records` | `int` | defaults to `10000` | gt 0, unit `dimensionless` |  |
 
@@ -1220,7 +1226,7 @@ pm-index to requestor: the corporate action's outcome.
 | `gateway_id` | `string` | required | max_len 32 |  |
 | `accepted` | `bool` | required | — |  |
 | `reason` | `string` | defaults to `''` | max_len 512 |  |
-| `timestamp` | `float` | required | unit `epoch_seconds` |  |
+| `ts_ns` | `int` | required | unit `epoch_nanos` |  |
 | `index_id` | `string` | omitted when empty | max_len 32 |  |
 | `level` | `float` | omitted when unset | unit `dimensionless` |  |
 | `divisor` | `float` | omitted when unset | unit `dimensionless` |  |
@@ -1247,7 +1253,7 @@ pm-index to requestor: the constituent change's outcome.
 | `gateway_id` | `string` | required | max_len 32 |  |
 | `accepted` | `bool` | required | — |  |
 | `reason` | `string` | defaults to `''` | max_len 512 |  |
-| `timestamp` | `float` | required | unit `epoch_seconds` |  |
+| `ts_ns` | `int` | required | unit `epoch_nanos` |  |
 | `index_id` | `string` | omitted when empty | max_len 32 |  |
 | `level` | `float` | omitted when unset | unit `dimensionless` |  |
 | `divisor` | `float` | omitted when unset | unit `dimensionless` |  |
@@ -1274,7 +1280,7 @@ pm-index to ADMIN: the batch's outcome.
 | `gateway_id` | `string` | required | max_len 32 |  |
 | `accepted` | `bool` | required | — |  |
 | `reason` | `string` | defaults to `''` | max_len 512 |  |
-| `timestamp` | `float` | required | unit `epoch_seconds` |  |
+| `ts_ns` | `int` | required | unit `epoch_nanos` |  |
 | `updated_symbols` | `int` | defaults to `0` | ge 0, unit `dimensionless` |  |
 | `index_id` | `string` | omitted when empty | max_len 32 |  |
 | `level` | `float` | omitted when unset | unit `dimensionless` |  |
@@ -1301,7 +1307,7 @@ pm-index to requestor: the request could not be routed to an index at all.
 | `gateway_id` | `string` | required | max_len 32 |  |
 | `accepted` | `bool` | required | — | Always false; present so every reply has the same first key. |
 | `reason` | `string` | required | max_len 512 |  |
-| `timestamp` | `float` | required | unit `epoch_seconds` |  |
+| `ts_ns` | `int` | required | unit `epoch_nanos` |  |
 
 !!! note
 
@@ -1737,7 +1743,7 @@ One leg of a combo. Unlike an OcoLeg it owns a symbol and a quantity: the legs o
 
 #### `OrderDisplay`
 
-One resting order as the engine reports it in an `order.orders` snapshot, in display units. It is `Order.to_dict()` with price, stop_price and trail_offset converted from ticks to display money and timestamp expressed in seconds - the projection `order_to_display_dict` builds so an operator reads prices in the same money the book shows, not raw ticks. Gateway_id is not included here; it is topic-only (part of the message topic as order.orders.{gateway_id}, not part of the record). The record contains the order state (id, symbol, side, etc.) exactly as Order.to_dict() produces, minus gateway_id; the eleven nullable ones ride as null when unset.
+One resting order as the engine reports it in an `order.orders` snapshot, in display units. It is `Order.to_dict()` with price, stop_price and trail_offset converted from ticks to display money - the projection `order_to_display_dict` builds so an operator reads prices in the same money the book shows, not raw ticks. `timestamp` is carried through as `ts_ns` unconverted (AR-0.3b): unlike price, a raw nanosecond integer is exactly what a post-mortem needs to compare against `trade.executed.ts_ns` and the rest of the wire's ordering convention, and converting it to seconds here would only have to be undone by anything that wanted to compare it. `spec/messages/index.yaml`'s family made the same call for the same reason in AR-0.3; this type was out of scope for that pass (it is not part of the index family) and CP-0's own checklist item 3 is what caught it being left behind. Gateway_id is not included here; it is topic-only (part of the message topic as order.orders.{gateway_id}, not part of the record). The record contains the order state (id, symbol, side, etc.) exactly as Order.to_dict() produces, minus gateway_id; the eleven nullable ones ride as null when unset.
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
@@ -1750,7 +1756,7 @@ One resting order as the engine reports it in an `order.orders` snapshot, in dis
 | `remaining_qty` | `int` | required | ge 0, unit `shares` | Quantity yet to be filled. |
 | `trail_offset` | `float` | `null` when unset | unit `display_price` | TRAILING_STOP: trail distance, in display money. |
 | `oco_group_id` | `string` | `null` when unset | max_len 64 |  |
-| `timestamp` | `float` | required | ge 0, unit `epoch_seconds` | Client-supplied submission time, in seconds. NOT the book's time priority key - see arrival_seq. |
+| `ts_ns` | `int` | required | ge 0, unit `epoch_nanos` | Client-supplied submission time (Order.timestamp, unconverted). NOT the book's time priority key - see arrival_seq. AR-0.3b: previously named "timestamp" and expressed as a seconds-based float; see OrderDisplay's type doc for why that was out of step with the rest of the wire and got fixed here rather than left as the one field of that kind outside log.yaml. |
 | `status` | enum: `NEW`, `PARTIAL`, `FILLED`, `CANCELLED`, `REJECTED`, `EXPIRED` | required | — |  |
 | `price` | `float` | `null` when unset | unit `display_price` | Limit price in display money. Null for MARKET, which has none. |
 | `stop_price` | `float` | `null` when unset | unit `display_price` | STOP / STOP_LIMIT / TRAILING_STOP trigger. |
@@ -1767,7 +1773,7 @@ One resting order as the engine reports it in an `order.orders` snapshot, in dis
 
 #### `PriceLevelOrder`
 
-One resting order as reported by order.price_level_orders — the same projection as OrderDisplay (order_to_display_dict), with one field added: gateway_id. OrderDisplay can leave gateway_id topic-only because an order.orders reply is always about a single, already-known gateway; a price_level_orders reply spans every gateway resting at a symbol/price, so each record must say whose order it is. The generator has no type-extension mechanism, so this duplicates OrderDisplay's field list rather than referencing it — keep the two in sync by hand if OrderDisplay's fields change.
+One resting order as reported by order.price_level_orders — the same projection as OrderDisplay (order_to_display_dict, including its ts_ns field — see OrderDisplay's doc for why that one is not converted to display units the way price/stop_price/trail_offset are), with one field added: gateway_id. OrderDisplay can leave gateway_id topic-only because an order.orders reply is always about a single, already-known gateway; a price_level_orders reply spans every gateway resting at a symbol/price, so each record must say whose order it is. The generator has no type-extension mechanism, so this duplicates OrderDisplay's field list rather than referencing it — keep the two in sync by hand if OrderDisplay's fields change.
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
@@ -1781,7 +1787,7 @@ One resting order as reported by order.price_level_orders — the same projectio
 | `remaining_qty` | `int` | required | ge 0, unit `shares` | Quantity yet to be filled. |
 | `trail_offset` | `float` | `null` when unset | unit `display_price` | TRAILING_STOP: trail distance, in display money. |
 | `oco_group_id` | `string` | `null` when unset | max_len 64 |  |
-| `timestamp` | `float` | required | ge 0, unit `epoch_seconds` | Client-supplied submission time, in seconds. NOT the book's time priority key - see arrival_seq. |
+| `ts_ns` | `int` | required | ge 0, unit `epoch_nanos` | Client-supplied submission time (Order.timestamp, unconverted). NOT the book's time priority key - see arrival_seq. AR-0.3b: previously named "timestamp" and expressed as a seconds-based float; see OrderDisplay's type doc for why that was out of step with the rest of the wire and got fixed here rather than left as the one field of that kind outside log.yaml. |
 | `status` | enum: `NEW`, `PARTIAL`, `FILLED`, `CANCELLED`, `REJECTED`, `EXPIRED` | required | — |  |
 | `price` | `float` | `null` when unset | unit `display_price` | Limit price in display money. Null for MARKET, which has none. |
 | `stop_price` | `float` | `null` when unset | unit `display_price` | STOP / STOP_LIMIT / TRAILING_STOP trigger. |
@@ -1914,6 +1920,7 @@ Confirm that a resting order has been cancelled.
 |---|---|---|---|---|
 | `gateway_id` | `string` | required | max_len 32 |  |
 | `order_id` | `string` | required | max_len 64 |  |
+| `symbol` | `string` | omitted when unset | max_len 16 | Instrument this order belonged to. The engine has always had this at the publish site (the cancelled Order's own .symbol); it was simply never carried on the wire, which made order.cancelled invisible to a --symbol filter (AR-0.2). Nullable/omit_when_none, like old_price/old_qty on order.amended below, so archived records written before this field existed still parse. |
 | `client_tag` | `string` | omitted when unset | max_len 64 |  |
 | `request_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for this cancel request. Engine-initiated cancels publish with request_tag=null. |
 | `cancel_reason` | enum: `SELF_MATCH_PREVENTED`, `INSUFFICIENT_LIQUIDITY`, `KILL_SWITCH`, `CIRCUIT_BREAKER_HALT`, `GATEWAY_DISCONNECT`, `ADMIN_CANCEL_SYMBOL`, `QUOTE_REPLACED`, `QUOTE_LEG_FILLED` | omitted when unset | — | Why the exchange cancelled this order, when the exchange decided it rather than the client. Null for a client-requested cancel, and for engine-initiated cancels whose cause is not yet classified - so request_tag=null together with cancel_reason=null still means "the exchange did this, cause unstated". Deliberately not the same vocabulary as order_ack.reject_code: a cancel is not a rejection, and most reject codes can never apply to one. New members may be added; existing members are never removed or renamed. A client must ignore a value it does not recognise. |
@@ -1937,6 +1944,7 @@ A DAY order that never filled has expired at session end. Same shape as order.ca
 |---|---|---|---|---|
 | `gateway_id` | `string` | required | max_len 32 |  |
 | `order_id` | `string` | required | max_len 64 |  |
+| `symbol` | `string` | omitted when unset | max_len 16 | Instrument this order belonged to. Same AR-0.2 rationale as order.cancelled.symbol above - the engine already has it at the publish site, it was simply never carried. |
 | `client_tag` | `string` | omitted when unset | max_len 64 |  |
 | `oco_group_id` | `string` | omitted when unset | max_len 64 |  |
 | `combo_parent_id` | `string` | omitted when unset | max_len 64 |  |
@@ -1957,6 +1965,7 @@ Confirm an accepted amendment and report the resulting order.
 |---|---|---|---|---|
 | `gateway_id` | `string` | required | max_len 32 |  |
 | `order_id` | `string` | required | max_len 64 |  |
+| `symbol` | `string` | omitted when unset | max_len 16 | Instrument this order belonged to. Same AR-0.2 rationale as order.cancelled.symbol above - the engine already has it at the publish site, it was simply never carried. |
 | `price` | `float` | `null` when unset | unit `display_price` | New limit price, or null for an order that has none. |
 | `qty` | `int` | required | unit `shares` |  |
 | `remaining_qty` | `int` | required | unit `shares` |  |
@@ -2394,7 +2403,9 @@ Engine to caller: what the kill switch cancelled.
 | `accepted` | `bool` | required | — |  |
 | `reason` | `string` | defaults to `''` | max_len 512 |  |
 | `cancelled_orders` | `int` | defaults to `0` | ge 0, unit `dimensionless` |  |
+| `cancelled_order_ids` | list of `string` | defaults to `[]` | — | AR-0.5: the order ids counted in cancelled_orders, so a caller can tell which orders were hit rather than only how many. A list whose length disagrees with cancelled_orders is itself a detectable defect. |
 | `cancelled_quotes` | `int` | defaults to `0` | ge 0, unit `dimensionless` |  |
+| `cancelled_quote_order_ids` | list of `string` | defaults to `[]` | — | AR-0.5: the order ids counted in cancelled_quotes. Named "*_order_ids" rather than "*_quote_ids" on purpose: cancelled_quotes has always counted cancelled quote LEGS, each an independent Order with its own order_id, not quote objects — a quote's own quote_id is client-supplied and optional (see quote.yaml), so it cannot serve as this list's key even when present. |
 | `command_id` | `string` | omitted when empty | max_len 64 |  |
 
 !!! note
@@ -2447,7 +2458,9 @@ Engine to ADMIN: what the gateway-targeted kill switch cancelled.
 | `target_gateway_id` | `string` | defaults to `''` | max_len 32 |  |
 | `reason` | `string` | defaults to `''` | max_len 512 |  |
 | `cancelled_orders` | `int` | defaults to `0` | ge 0, unit `dimensionless` |  |
+| `cancelled_order_ids` | list of `string` | defaults to `[]` | — | AR-0.5: the order ids counted in cancelled_orders, so a caller can tell which orders were hit rather than only how many. A list whose length disagrees with cancelled_orders is itself a detectable defect. |
 | `cancelled_quotes` | `int` | defaults to `0` | ge 0, unit `dimensionless` |  |
+| `cancelled_quote_order_ids` | list of `string` | defaults to `[]` | — | AR-0.5: the order ids counted in cancelled_quotes. Named "*_order_ids" rather than "*_quote_ids" on purpose: cancelled_quotes has always counted cancelled quote LEGS, each an independent Order with its own order_id, not quote objects — a quote's own quote_id is client-supplied and optional (see quote.yaml), so it cannot serve as this list's key even when present. |
 | `command_id` | `string` | omitted when empty | max_len 64 |  |
 
 !!! note
@@ -2496,8 +2509,11 @@ Engine to ADMIN: what the market-wide kill switch cancelled.
 | `accepted` | `bool` | required | — |  |
 | `reason` | `string` | defaults to `''` | max_len 512 |  |
 | `cancelled_orders` | `int` | defaults to `0` | ge 0, unit `dimensionless` |  |
+| `cancelled_order_ids` | list of `string` | defaults to `[]` | — | AR-0.5: the order ids counted in cancelled_orders, so a caller can tell which orders were hit rather than only how many. A list whose length disagrees with cancelled_orders is itself a detectable defect. |
 | `cancelled_quotes` | `int` | defaults to `0` | ge 0, unit `dimensionless` |  |
+| `cancelled_quote_order_ids` | list of `string` | defaults to `[]` | — | AR-0.5: the order ids counted in cancelled_quotes. Named "*_order_ids" rather than "*_quote_ids" on purpose: cancelled_quotes has always counted cancelled quote LEGS, each an independent Order with its own order_id, not quote objects — a quote's own quote_id is client-supplied and optional (see quote.yaml), so it cannot serve as this list's key even when present. |
 | `affected_gateways` | `int` | defaults to `0` | ge 0, unit `dimensionless` |  |
+| `affected_gateway_ids` | list of `string` | defaults to `[]` | — | AR-0.5: the gateway ids counted in affected_gateways — every gateway that had at least one order or quote leg cancelled by this sweep. |
 | `command_id` | `string` | omitted when empty | max_len 64 |  |
 
 !!! note
@@ -2549,6 +2565,7 @@ Engine to ADMIN: the per-symbol halt's outcome.
 | `symbol` | `string` | defaults to `''` | max_len 16 |  |
 | `reason` | `string` | defaults to `''` | max_len 512 |  |
 | `cancelled_quotes` | `int` | defaults to `0` | ge 0, unit `dimensionless` | Quotes pulled because the instrument stopped trading. |
+| `cancelled_quote_order_ids` | list of `string` | defaults to `[]` | — | AR-0.5: the order ids counted in cancelled_quotes. Named "*_order_ids" rather than "*_quote_ids" on purpose: cancelled_quotes has always counted cancelled quote LEGS, each an independent Order with its own order_id, not quote objects — a quote's own quote_id is client-supplied and optional (see quote.yaml), so it cannot serve as this list's key even when present. |
 | `command_id` | `string` | omitted when empty | max_len 64 |  |
 
 !!! note
@@ -2642,7 +2659,9 @@ Engine to ADMIN: what the symbol-wide mass cancel removed.
 | `symbol` | `string` | defaults to `''` | max_len 16 |  |
 | `reason` | `string` | defaults to `''` | max_len 512 |  |
 | `cancelled_orders` | `int` | defaults to `0` | ge 0, unit `dimensionless` |  |
+| `cancelled_order_ids` | list of `string` | defaults to `[]` | — | AR-0.5: the order ids counted in cancelled_orders, so a caller can tell which orders were hit rather than only how many. A list whose length disagrees with cancelled_orders is itself a detectable defect. |
 | `cancelled_quotes` | `int` | defaults to `0` | ge 0, unit `dimensionless` |  |
+| `cancelled_quote_order_ids` | list of `string` | defaults to `[]` | — | AR-0.5: the order ids counted in cancelled_quotes. Named "*_order_ids" rather than "*_quote_ids" on purpose: cancelled_quotes has always counted cancelled quote LEGS, each an independent Order with its own order_id, not quote objects — a quote's own quote_id is client-supplied and optional (see quote.yaml), so it cannot serve as this list's key even when present. |
 | `command_id` | `string` | omitted when empty | max_len 64 |  |
 
 ### `risk.force_uncross`
@@ -2751,7 +2770,9 @@ Engine to ADMIN: how wide the market-wide halt reached.
 | `accepted` | `bool` | required | — |  |
 | `reason` | `string` | defaults to `''` | max_len 512 |  |
 | `halted_symbols` | `int` | defaults to `0` | ge 0, unit `dimensionless` |  |
+| `halted_symbol_ids` | list of `string` | defaults to `[]` | — | AR-0.5: the symbols counted in halted_symbols, by name. |
 | `cancelled_quotes` | `int` | defaults to `0` | ge 0, unit `dimensionless` |  |
+| `cancelled_quote_order_ids` | list of `string` | defaults to `[]` | — | AR-0.5: the order ids counted in cancelled_quotes. Named "*_order_ids" rather than "*_quote_ids" on purpose: cancelled_quotes has always counted cancelled quote LEGS, each an independent Order with its own order_id, not quote objects — a quote's own quote_id is client-supplied and optional (see quote.yaml), so it cannot serve as this list's key even when present. |
 
 ### `risk.circuit_breaker_resume_all`
 
@@ -2785,6 +2806,7 @@ Engine to ADMIN: how many symbols came back.
 | `accepted` | `bool` | required | — |  |
 | `reason` | `string` | defaults to `''` | max_len 512 |  |
 | `resumed_symbols` | `int` | defaults to `0` | ge 0, unit `dimensionless` |  |
+| `resumed_symbol_ids` | list of `string` | defaults to `[]` | — | AR-0.5: the symbols counted in resumed_symbols, by name. |
 
 !!! note
 
@@ -2829,6 +2851,7 @@ Broadcast the engine's current session state to every subscriber. The most widel
 | `state` | `string` | required | max_len 32 | The session state now in effect. |
 | `prev_state` | `string` | omitted when empty | max_len 32 | The state departed from; absent on the first broadcast. |
 | `next` | [`NextTransition`](#nexttransition) | omitted when unset | — |  |
+| `command_id` | `string` | omitted when empty | max_len 64 | AR-0.6: echoes the session.transition.reply_to.command_id that caused this broadcast, when the requester supplied one. Absent for a schedule-driven transition (pm-scheduler sends no reply_to at all) and for a rejected request (no broadcast happens at all in that case). Converts the engine's own STRONG session.transition -> session.state link (adjacency in the stream) into a CERTAIN one (a shared id), the same way the risk family's acks already do for kill-switch/circuit-breaker commands. Deliberately just the command_id, not the full reply_to: gateway_id is not repeated here -- session_transition_ack (addressed to that one gateway) is still the only place accepted, reason and to_state travel, since those are meaningless broadcast to every subscriber. A bare command_id is a much smaller disclosure than the full reply-to record, and it is what the audit tooling needs to link the two topics -- not who is allowed to see the outcome. |
 
 !!! note
 
@@ -2876,9 +2899,15 @@ Engine to the requesting gateway: the outcome of a transition request.
 
 !!! note
 
-    Addressed rather than broadcast, because a command_id belongs to whoever issued it - putting it on the public session.state topic would hand every subscriber another operator's correlation id.
+    Addressed rather than broadcast: accepted, reason and to_state are meaningful only to the one gateway that asked, and broadcasting a rejection's reason to every subscriber would be noise at best.
 
     It also closes a silent failure: a request the engine discarded previously produced no reply at all, so a caller could not tell a rejection from a timeout.
+
+    This used to be the whole story for command_id too, on the theory that broadcasting it would hand every subscriber another operator's correlation id.
+
+    AR-0.6 revisited that: session.state now echoes just the command_id (never gateway_id, accepted, or reason) when one caused the transition, because pm-audit-replay needs a CERTAIN link from session.transition to session.state and adjacency in the stream (a STRONG link) is not enough to build one.
+
+    A bare id is a small enough disclosure to be worth that; the rest of the reply still is not, so it stays here.
 
 ## Family `structure`
 
@@ -3393,6 +3422,34 @@ Engine to all subscribers, once, right after `_restore_gtc()` and before the con
     A broadcast with no request, like `system.eod` — nothing asks for a recovery summary, the engine announces it once at startup.
 
 **See also:** `book.{SYMBOL}`, `auction.result`
+
+### `system.recovery_item`
+
+**Published by:** `engine`
+
+**Transport:** `engine_pub`
+
+**Since:** 1.2
+
+Engine to all subscribers: one restored, discarded or failed entity from `_restore_gtc()` (AR-0.5). `startup_recovery`'s six counts say *how many*; this says *which ones* — "which order failed to restore?" was unanswerable from either the counts alone or the process log, since a post-mortem investigating a startup only sees what was published (see docs/user-guide/190-audit.md). Published once per entity, before the single summary `startup_recovery` broadcast, so the counts there are the cross-check: `restored_orders + discarded_stale_day_orders + failed_orders` must equal the number of ORDER-kind recovery_item lines whose outcome is RESTORED, DISCARDED_STALE_DAY or FAILED respectively, and `restored_combos` must equal the number of COMBO-kind lines.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `entity_id` | `string` | required | max_len 64 | The order id (ORDER) or combo id (COMBO) this line is about. |
+| `kind` | enum: `ORDER`, `COMBO` | required | — | What restore_gtc() was processing. |
+| `outcome` | enum: `RESTORED`, `DISCARDED_STALE_DAY`, `FAILED`, `QUOTE_REMNANT` | required | — | RESTORED/DISCARDED_STALE_DAY/FAILED come from the main GTC-order (or GTC-combo) restore pass and are mutually exclusive per entity. QUOTE_REMNANT is a second, additional line for a RESTORED quote-origin order whose sibling leg did not come back — see the example_note above. COMBO-kind lines are always RESTORED today: `load_gtc_combos()` has no per-combo guard, so there is no combo failure path to report yet. |
+| `symbol` | `string` | omitted when unset | max_len 16 | The instrument, for an ORDER-kind line. Null for COMBO, which may span more than one symbol across its legs and has none of its own. |
+| `detail` | `string` | omitted when empty | max_len 512 | Free text, when there is something worth saying beyond kind and outcome — the exception message for a FAILED order, in particular. |
+
+!!! note
+
+    `QUOTE_REMNANT` is deliberately not exclusive with `RESTORED`: a quote-origin order whose sibling leg did not survive is *both* one of `restored_orders` (it rests on the book, ordinarily) *and* one of `quote_remnants_restored` (it is not quote-managed going forward) — `_restore_gtc()` has always counted it in both totals, so it gets two recovery_item lines with the same entity_id, not one that overwrites the other.
+
+    `rebuilt_quotes` — an active QuoteIndex entry rebuilt once *both* legs of a quote survive — is deliberately not an entity here.
+
+    It is a pairing of two already-reported order ids, not a persisted thing with an id of its own to fail or be discarded; the summary count on `startup_recovery` is the whole story for it, same as it always was.
+
+**See also:** `system.startup_recovery`
 
 ### `system.diagnostic`
 

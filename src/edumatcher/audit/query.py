@@ -17,7 +17,15 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator, cast
-from edumatcher.models.generated.order import TOPIC_ORDER_CANCEL, TOPIC_ORDER_NEW
+from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT, PREFIX_DEPTH
+from edumatcher.models.generated.order import (
+    PREFIX_ORDER_ACK,
+    PREFIX_ORDER_AMENDED,
+    PREFIX_ORDER_EXPIRED,
+    PREFIX_ORDER_FILL,
+    TOPIC_ORDER_CANCEL,
+    TOPIC_ORDER_NEW,
+)
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 
 # ---------------------------------------------------------------------------
@@ -371,7 +379,7 @@ def _summarise(entry: AuditEntry) -> str:
     t = entry.topic
     if t == TOPIC_TRADE_EXECUTED:
         return f"{p.get('symbol', '')} {p.get('quantity', '')}@{p.get('price', '')}"
-    if t.startswith("order.fill"):
+    if t.startswith(PREFIX_ORDER_FILL):
         # Wire field is fill_qty (spec/messages/order.yaml::order_fill), not
         # filled_qty -- the previous key here never matched, so every row
         # silently fell back to quantity/remaining_qty instead of the actual
@@ -379,7 +387,7 @@ def _summarise(entry: AuditEntry) -> str:
         fq = p.get("fill_qty", p.get("quantity", ""))
         fp = p.get("fill_price", p.get("price", ""))
         return f"FILL {fq}@{fp}"
-    if t.startswith("order.ack"):
+    if t.startswith(PREFIX_ORDER_ACK):
         detail = f" reject={p['reject_code']}" if p.get("reject_code") else ""
         return (
             f"ACK {p.get('status', '')} {p.get('order_type', '')} "
@@ -390,8 +398,27 @@ def _summarise(entry: AuditEntry) -> str:
     if t.startswith(TOPIC_ORDER_CANCEL):
         detail = f" reason={p['cancel_reason']}" if p.get("cancel_reason") else ""
         return f"CANCEL {p.get('status', '')}{detail}"
+    if t.startswith(PREFIX_ORDER_AMENDED):
+        return f"AMEND price={p.get('price', '')} qty={p.get('qty', '')}"
+    if t.startswith(PREFIX_ORDER_EXPIRED):
+        return "EXPIRED"
     if t.startswith("session."):
         return str(p.get("state", p.get("phase", "")))
+    if t.startswith(PREFIX_BOOK_SNAPSHOT):
+        # A book.* row isn't about one order -- it's the whole resting book
+        # after some mutation (a new rest, a cancel, a fill...), which is
+        # exactly why order_id is blank on these rows too. Summarise the
+        # touch price levels so the row still says something on its own,
+        # without needing to cross-reference the order.* row next to it.
+        bids = p.get("bids") or []
+        asks = p.get("asks") or []
+        bid = f"{bids[0]['price']}x{bids[0]['qty']}" if bids else "—"
+        ask = f"{asks[0]['price']}x{asks[0]['qty']}" if asks else "—"
+        return f"book: bid {bid} / ask {ask}"
+    if t.startswith(PREFIX_DEPTH):
+        mid = p.get("mid_price", "")
+        imbalance = p.get("imbalance", "")
+        return f"depth: mid={mid} imbalance={imbalance}"
     return ""
 
 
@@ -615,7 +642,7 @@ def query_gateways(
 
             if entry.topic.startswith(TOPIC_ORDER_NEW):
                 orders[gw] = orders.get(gw, 0) + 1
-            elif entry.topic.startswith("order.fill"):
+            elif entry.topic.startswith(PREFIX_ORDER_FILL):
                 fills[gw] = fills.get(gw, 0) + 1
             elif entry.topic == TOPIC_TRADE_EXECUTED:
                 trades[gw] = trades.get(gw, 0) + 1

@@ -72,7 +72,7 @@ def test_initialise_bootstraps_state_and_history(
     managed = proc._indices["EDU100"]
     assert Path(managed.cfg.state_file).exists()
     managed.history.flush()
-    rows, warnings = managed.history.query(0.0, 9999999999.0, {"INIT"})
+    rows, warnings = managed.history.query(0, 9_999_999_999_000_000_000, {"INIT"})
     assert warnings == []
     assert rows
 
@@ -116,8 +116,8 @@ def test_history_request_valid_response(
         {
             "gateway_id": "GW1",
             "index_id": "EDU100",
-            "from_ts": 0.0,
-            "to_ts": 9999999999.0,
+            "from_ts_ns": 0,
+            "to_ts_ns": 9_999_999_999_000_000_000,
             "types": ["INIT", "CORP_ACTION"],
         }
     )
@@ -142,8 +142,8 @@ def test_history_request_default_types_are_structural_only(
         {
             "gateway_id": "GW1",
             "index_id": "EDU100",
-            "from_ts": 0.0,
-            "to_ts": 9999999999.0,
+            "from_ts_ns": 0,
+            "to_ts_ns": 9_999_999_999_000_000_000,
         }
     )
     topic, payload = decode(fake_pub.sent[-1])
@@ -165,7 +165,9 @@ def test_trade_updates_are_not_written_to_structural_history(
     idx = proc._indices["EDU100"]
     idx.history.flush()
     before_rows, _ = idx.history.query(
-        0.0, 9999999999.0, {"INIT", "CORP_ACTION", "ADD_CONSTITUENT", "DELIST"}
+        0,
+        9_999_999_999_000_000_000,
+        {"INIT", "CORP_ACTION", "ADD_CONSTITUENT", "DELIST"},
     )
 
     proc._handle_trade({"symbol": "AAPL", "price": 120.0})
@@ -173,7 +175,9 @@ def test_trade_updates_are_not_written_to_structural_history(
     idx.history.flush()
 
     after_rows, _ = idx.history.query(
-        0.0, 9999999999.0, {"INIT", "CORP_ACTION", "ADD_CONSTITUENT", "DELIST"}
+        0,
+        9_999_999_999_000_000_000,
+        {"INIT", "CORP_ACTION", "ADD_CONSTITUENT", "DELIST"},
     )
     assert len(after_rows) == len(before_rows)
     assert fake_pub.sent  # the live broadcast still happened
@@ -186,14 +190,18 @@ def test_finalize_eod_is_not_written_to_structural_history(
     idx = proc._indices["EDU100"]
     idx.history.flush()
     before_rows, _ = idx.history.query(
-        0.0, 9999999999.0, {"INIT", "CORP_ACTION", "ADD_CONSTITUENT", "DELIST"}
+        0,
+        9_999_999_999_000_000_000,
+        {"INIT", "CORP_ACTION", "ADD_CONSTITUENT", "DELIST"},
     )
 
     proc._finalize_eod()
     idx.history.flush()
 
     after_rows, _ = idx.history.query(
-        0.0, 9999999999.0, {"INIT", "CORP_ACTION", "ADD_CONSTITUENT", "DELIST"}
+        0,
+        9_999_999_999_000_000_000,
+        {"INIT", "CORP_ACTION", "ADD_CONSTITUENT", "DELIST"},
     )
     assert len(after_rows) == len(before_rows)
     # But the EOD close is still published live.
@@ -210,8 +218,8 @@ def test_history_request_invalid_window_emits_error(
         {
             "gateway_id": "GW1",
             "index_id": "EDU100",
-            "from_ts": 10.0,
-            "to_ts": 5.0,
+            "from_ts_ns": 10,
+            "to_ts_ns": 5,
         }
     )
     topic, _payload = decode(fake_pub.sent[-1])

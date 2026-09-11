@@ -1076,7 +1076,9 @@ payload: {
     "accepted":        true,
     "reason":          "",
     "halted_symbols":  4,
-    "cancelled_quotes": 12
+    "halted_symbol_ids": ["AAPL", "MSFT", "GOOG", "TSLA"],
+    "cancelled_quotes": 12,
+    "cancelled_quote_order_ids": ["ORD-1", "ORD-2", "..."]
 }
 ```
 
@@ -1134,7 +1136,8 @@ topic:   b"risk.circuit_breaker_resume_all_ack.GW_ADMIN"
 payload: {
     "accepted":         true,
     "reason":           "",
-    "resumed_symbols":  4
+    "resumed_symbols":  4,
+    "resumed_symbol_ids": ["AAPL", "MSFT", "GOOG", "TSLA"]
 }
 ```
 
@@ -1207,7 +1210,8 @@ What the engine does:
 4. Publishes `circuit_breaker.halt.<SYMBOL>` with `"level": "ADMIN_SYMBOL"`
    and `"halt_source": "ADMIN"`.
 5. Sends `risk.symbol_halt_ack.<GW_ADMIN>` with
-   `{"accepted": true, "symbol": "AAPL", "reason": "", "cancelled_quotes": <count>}`.
+   `{"accepted": true, "symbol": "AAPL", "reason": "", "cancelled_quotes": <count>,
+   "cancelled_quote_order_ids": [<the cancelled legs' order ids>]}`.
 
 `risk.symbol_resume` mirrors this: it requires `ADMIN` role (rejecting with
 `"Per-symbol resume is only allowed for ADMIN participants"`), rejects with
@@ -1246,7 +1250,9 @@ What the engine does:
 3. Cancels every quote leg resting for the symbol, across every gateway, with
    cancellation reason `"Symbol mass cancel"`.
 4. Sends `risk.cancel_symbol_ack.<GW_ADMIN>` with
-   `{"accepted": true, "symbol": "AAPL", "reason": "", "cancelled_orders": <count>, "cancelled_quotes": <count>}`.
+   `{"accepted": true, "symbol": "AAPL", "reason": "", "cancelled_orders": <count>,
+   "cancelled_order_ids": [<ids>], "cancelled_quotes": <count>,
+   "cancelled_quote_order_ids": [<ids>]}`.
 
 Unlike the kill switch (which is scoped to one gateway's own resting
 exposure) and the instrument halt (which stops the symbol from matching),
@@ -1290,7 +1296,7 @@ When `"symbol"` is empty or absent, all symbols are included.
 2. Cancels each order and quote leg, excluding child orders that were derived
    from a quote (those are cancelled as part of the quote leg cancellation).
 3. Sends a `risk.kill_switch_ack.{GW_ID}` reply with the count of cancelled
-   items.
+   items and the ids of the orders/quote legs cancelled.
 
 ### Reply
 
@@ -1300,7 +1306,9 @@ payload: {
     "accepted":          true,
     "reason":            "",
     "cancelled_orders":  <count>,
-    "cancelled_quotes":  <count>
+    "cancelled_order_ids": [<the cancelled orders' ids>],
+    "cancelled_quotes":  <count>,
+    "cancelled_quote_order_ids": [<the cancelled quote legs' order ids>]
 }
 ```
 

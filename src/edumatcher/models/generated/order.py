@@ -284,13 +284,20 @@ OrderDisplayOrigin = Literal["ORDER", "QUOTE", "IMPLIED"]
 class OrderDisplay:
     """One resting order as the engine reports it in an `order.orders` snapshot, in
     display units. It is `Order.to_dict()` with price, stop_price and trail_offset
-    converted from ticks to display money and timestamp expressed in seconds - the
-    projection `order_to_display_dict` builds so an operator reads prices in the
-    same money the book shows, not raw ticks. Gateway_id is not included here; it
-    is topic-only (part of the message topic as order.orders.{gateway_id}, not
-    part of the record). The record contains the order state (id, symbol, side,
-    etc.) exactly as Order.to_dict() produces, minus gateway_id; the eleven
-    nullable ones ride as null when unset.
+    converted from ticks to display money - the projection `order_to_display_dict`
+    builds so an operator reads prices in the same money the book shows, not raw
+    ticks. `timestamp` is carried through as `ts_ns` unconverted (AR-0.3b): unlike
+    price, a raw nanosecond integer is exactly what a post-mortem needs to compare
+    against `trade.executed.ts_ns` and the rest of the wire's ordering convention,
+    and converting it to seconds here would only have to be undone by anything
+    that wanted to compare it. `spec/messages/index.yaml`'s family made the same
+    call for the same reason in AR-0.3; this type was out of scope for that pass
+    (it is not part of the index family) and CP-0's own checklist item 3 is what
+    caught it being left behind. Gateway_id is not included here; it is topic-only
+    (part of the message topic as order.orders.{gateway_id}, not part of the
+    record). The record contains the order state (id, symbol, side, etc.) exactly
+    as Order.to_dict() produces, minus gateway_id; the eleven nullable ones ride
+    as null when unset.
     """
 
     id: str
@@ -300,7 +307,7 @@ class OrderDisplay:
     tif: OrderDisplayTif
     quantity: int  # unit: shares
     remaining_qty: int  # unit: shares
-    timestamp: float  # unit: epoch_seconds
+    ts_ns: int  # unit: epoch_nanos
     status: OrderDisplayStatus
     trail_offset: float | None = None  # unit: display_price
     oco_group_id: str | None = None
@@ -355,8 +362,8 @@ class OrderDisplay:
                 raise MessageValidationError(
                     f"oco_group_id: length {len(self.oco_group_id)} exceeds max_len 64"
                 )
-        if self.timestamp < 0:
-            raise MessageValidationError(f"timestamp: {self.timestamp!r} must be >= 0")
+        if self.ts_ns < 0:
+            raise MessageValidationError(f"ts_ns: {self.ts_ns!r} must be >= 0")
         if self.status not in _ORDER_DISPLAY_STATUS_VALUES:
             raise MessageValidationError(
                 f"status: {self.status!r} is not one of {_ORDER_DISPLAY_STATUS_VALUES!r}"
@@ -408,7 +415,7 @@ class OrderDisplay:
             oco_group_id=(
                 None if p.get("oco_group_id") is None else str(p["oco_group_id"])
             ),
-            timestamp=float(p["timestamp"]),
+            ts_ns=int(p["ts_ns"]),
             status=cast(OrderDisplayStatus, str(p["status"])),
             price=None if p.get("price") is None else float(p["price"]),
             stop_price=None if p.get("stop_price") is None else float(p["stop_price"]),
@@ -444,7 +451,7 @@ class OrderDisplay:
             "remaining_qty": self.remaining_qty,
             "trail_offset": self.trail_offset,
             "oco_group_id": self.oco_group_id,
-            "timestamp": self.timestamp,
+            "ts_ns": self.ts_ns,
             "status": self.status,
             "price": self.price,
             "stop_price": self.stop_price,
@@ -520,13 +527,15 @@ PriceLevelOrderOrigin = Literal["ORDER", "QUOTE", "IMPLIED"]
 @dataclass(frozen=True, slots=True)
 class PriceLevelOrder:
     """One resting order as reported by order.price_level_orders — the same
-    projection as OrderDisplay (order_to_display_dict), with one field added:
-    gateway_id. OrderDisplay can leave gateway_id topic-only because an
-    order.orders reply is always about a single, already-known gateway; a
-    price_level_orders reply spans every gateway resting at a symbol/price, so
-    each record must say whose order it is. The generator has no type-extension
-    mechanism, so this duplicates OrderDisplay's field list rather than
-    referencing it — keep the two in sync by hand if OrderDisplay's fields change.
+    projection as OrderDisplay (order_to_display_dict, including its ts_ns field —
+    see OrderDisplay's doc for why that one is not converted to display units the
+    way price/stop_price/trail_offset are), with one field added: gateway_id.
+    OrderDisplay can leave gateway_id topic-only because an order.orders reply is
+    always about a single, already-known gateway; a price_level_orders reply spans
+    every gateway resting at a symbol/price, so each record must say whose order
+    it is. The generator has no type-extension mechanism, so this duplicates
+    OrderDisplay's field list rather than referencing it — keep the two in sync by
+    hand if OrderDisplay's fields change.
     """
 
     gateway_id: str
@@ -537,7 +546,7 @@ class PriceLevelOrder:
     tif: PriceLevelOrderTif
     quantity: int  # unit: shares
     remaining_qty: int  # unit: shares
-    timestamp: float  # unit: epoch_seconds
+    ts_ns: int  # unit: epoch_nanos
     status: PriceLevelOrderStatus
     trail_offset: float | None = None  # unit: display_price
     oco_group_id: str | None = None
@@ -596,8 +605,8 @@ class PriceLevelOrder:
                 raise MessageValidationError(
                     f"oco_group_id: length {len(self.oco_group_id)} exceeds max_len 64"
                 )
-        if self.timestamp < 0:
-            raise MessageValidationError(f"timestamp: {self.timestamp!r} must be >= 0")
+        if self.ts_ns < 0:
+            raise MessageValidationError(f"ts_ns: {self.ts_ns!r} must be >= 0")
         if self.status not in _PRICE_LEVEL_ORDER_STATUS_VALUES:
             raise MessageValidationError(
                 f"status: {self.status!r} is not one of {_PRICE_LEVEL_ORDER_STATUS_VALUES!r}"
@@ -650,7 +659,7 @@ class PriceLevelOrder:
             oco_group_id=(
                 None if p.get("oco_group_id") is None else str(p["oco_group_id"])
             ),
-            timestamp=float(p["timestamp"]),
+            ts_ns=int(p["ts_ns"]),
             status=cast(PriceLevelOrderStatus, str(p["status"])),
             price=None if p.get("price") is None else float(p["price"]),
             stop_price=None if p.get("stop_price") is None else float(p["stop_price"]),
@@ -687,7 +696,7 @@ class PriceLevelOrder:
             "remaining_qty": self.remaining_qty,
             "trail_offset": self.trail_offset,
             "oco_group_id": self.oco_group_id,
-            "timestamp": self.timestamp,
+            "ts_ns": self.ts_ns,
             "status": self.status,
             "price": self.price,
             "stop_price": self.stop_price,
@@ -1966,6 +1975,14 @@ _ORDER_CANCELLED_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"max_len": 64},
     },
     {
+        "name": "symbol",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Instrument this order belonged to. The engine has always had this at the publish site (the cancelled Order's own .symbol); it was simply never carried on the wire, which made order.cancelled invisible to a --symbol filter (AR-0.2). Nullable/omit_when_none, like old_price/old_qty on order.amended below, so archived records written before this field existed still parse.",
+        "constraints": {"max_len": 16},
+    },
+    {
         "name": "client_tag",
         "type": "string",
         "unit": None,
@@ -2037,6 +2054,7 @@ class OrderCancelled:
 
     gateway_id: str
     order_id: str
+    symbol: str | None = None
     client_tag: str | None = None
     request_tag: str | None = None
     cancel_reason: OrderCancelledCancelReason | None = None
@@ -2061,6 +2079,11 @@ class OrderCancelled:
             raise MessageValidationError(
                 f"order_id: length {len(self.order_id)} exceeds max_len 64"
             )
+        if self.symbol is not None:
+            if len(self.symbol) > 16:
+                raise MessageValidationError(
+                    f"symbol: length {len(self.symbol)} exceeds max_len 16"
+                )
         if self.client_tag is not None:
             if len(self.client_tag) > 64:
                 raise MessageValidationError(
@@ -2108,6 +2131,7 @@ class OrderCancelled:
         return cls(
             gateway_id=str(p.get("gateway_id", "")),
             order_id=str(p["order_id"]),
+            symbol=None if p.get("symbol") is None else str(p["symbol"]),
             client_tag=None if p.get("client_tag") is None else str(p["client_tag"]),
             request_tag=None if p.get("request_tag") is None else str(p["request_tag"]),
             cancel_reason=(
@@ -2131,6 +2155,8 @@ class OrderCancelled:
         payload: dict[str, Any] = {
             "order_id": self.order_id,
         }
+        if self.symbol is not None:
+            payload["symbol"] = self.symbol
         if self.client_tag is not None:
             payload["client_tag"] = self.client_tag
         if self.request_tag is not None:
@@ -2180,6 +2206,7 @@ def make_order_cancelled_unchecked(
     *,
     gateway_id: str,
     order_id: str,
+    symbol: str | None = None,
     client_tag: str | None = None,
     request_tag: str | None = None,
     cancel_reason: OrderCancelledCancelReason | None = None,
@@ -2202,6 +2229,8 @@ def make_order_cancelled_unchecked(
     payload: dict[str, Any] = {
         "order_id": str(order_id),
     }
+    if symbol is not None:
+        payload["symbol"] = str(symbol)
     if client_tag is not None:
         payload["client_tag"] = str(client_tag)
     if request_tag is not None:
@@ -2270,6 +2299,14 @@ _ORDER_EXPIRED_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"max_len": 64},
     },
     {
+        "name": "symbol",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Instrument this order belonged to. Same AR-0.2 rationale as order.cancelled.symbol above - the engine already has it at the publish site, it was simply never carried.",
+        "constraints": {"max_len": 16},
+    },
+    {
         "name": "client_tag",
         "type": "string",
         "unit": None,
@@ -2320,6 +2357,7 @@ class OrderExpired:
 
     gateway_id: str
     order_id: str
+    symbol: str | None = None
     client_tag: str | None = None
     oco_group_id: str | None = None
     combo_parent_id: str | None = None
@@ -2341,6 +2379,11 @@ class OrderExpired:
             raise MessageValidationError(
                 f"order_id: length {len(self.order_id)} exceeds max_len 64"
             )
+        if self.symbol is not None:
+            if len(self.symbol) > 16:
+                raise MessageValidationError(
+                    f"symbol: length {len(self.symbol)} exceeds max_len 16"
+                )
         if self.client_tag is not None:
             if len(self.client_tag) > 64:
                 raise MessageValidationError(
@@ -2373,6 +2416,7 @@ class OrderExpired:
         return cls(
             gateway_id=str(p.get("gateway_id", "")),
             order_id=str(p["order_id"]),
+            symbol=None if p.get("symbol") is None else str(p["symbol"]),
             client_tag=None if p.get("client_tag") is None else str(p["client_tag"]),
             oco_group_id=(
                 None if p.get("oco_group_id") is None else str(p["oco_group_id"])
@@ -2389,6 +2433,8 @@ class OrderExpired:
         payload: dict[str, Any] = {
             "order_id": self.order_id,
         }
+        if self.symbol is not None:
+            payload["symbol"] = self.symbol
         if self.client_tag is not None:
             payload["client_tag"] = self.client_tag
         if self.oco_group_id is not None:
@@ -2432,6 +2478,7 @@ def make_order_expired_unchecked(
     *,
     gateway_id: str,
     order_id: str,
+    symbol: str | None = None,
     client_tag: str | None = None,
     oco_group_id: str | None = None,
     combo_parent_id: str | None = None,
@@ -2451,6 +2498,8 @@ def make_order_expired_unchecked(
     payload: dict[str, Any] = {
         "order_id": str(order_id),
     }
+    if symbol is not None:
+        payload["symbol"] = str(symbol)
     if client_tag is not None:
         payload["client_tag"] = str(client_tag)
     if oco_group_id is not None:
@@ -2509,6 +2558,14 @@ _ORDER_AMENDED_FIELDS: tuple[dict[str, Any], ...] = (
         "required": True,
         "doc": "",
         "constraints": {"max_len": 64},
+    },
+    {
+        "name": "symbol",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Instrument this order belonged to. Same AR-0.2 rationale as order.cancelled.symbol above - the engine already has it at the publish site, it was simply never carried.",
+        "constraints": {"max_len": 16},
     },
     {
         "name": "price",
@@ -2586,6 +2643,7 @@ class OrderAmended:
     qty: int  # unit: shares
     remaining_qty: int  # unit: shares
     priority_reset: bool
+    symbol: str | None = None
     price: float | None = None  # unit: display_price
     old_price: float | None = None  # unit: display_price
     old_qty: int | None = None  # unit: shares
@@ -2607,6 +2665,11 @@ class OrderAmended:
             raise MessageValidationError(
                 f"order_id: length {len(self.order_id)} exceeds max_len 64"
             )
+        if self.symbol is not None:
+            if len(self.symbol) > 16:
+                raise MessageValidationError(
+                    f"symbol: length {len(self.symbol)} exceeds max_len 16"
+                )
         if self.client_tag is not None:
             if len(self.client_tag) > 64:
                 raise MessageValidationError(
@@ -2629,6 +2692,7 @@ class OrderAmended:
         return cls(
             gateway_id=str(p.get("gateway_id", "")),
             order_id=str(p["order_id"]),
+            symbol=None if p.get("symbol") is None else str(p["symbol"]),
             price=None if p.get("price") is None else float(p["price"]),
             qty=int(p["qty"]),
             remaining_qty=int(p["remaining_qty"]),
@@ -2648,6 +2712,8 @@ class OrderAmended:
             "remaining_qty": self.remaining_qty,
             "priority_reset": self.priority_reset,
         }
+        if self.symbol is not None:
+            payload["symbol"] = self.symbol
         if self.old_price is not None:
             payload["old_price"] = self.old_price
         if self.old_qty is not None:
@@ -2692,6 +2758,7 @@ def make_order_amended_unchecked(
     qty: int,
     remaining_qty: int,
     priority_reset: bool,
+    symbol: str | None = None,
     price: float | None = None,
     old_price: float | None = None,
     old_qty: int | None = None,
@@ -2715,6 +2782,8 @@ def make_order_amended_unchecked(
         "remaining_qty": int(remaining_qty),
         "priority_reset": bool(priority_reset),
     }
+    if symbol is not None:
+        payload["symbol"] = str(symbol)
     if old_price is not None:
         payload["old_price"] = float(old_price)
     if old_qty is not None:

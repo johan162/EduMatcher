@@ -155,6 +155,14 @@ _SESSION_STATE_FIELDS: tuple[dict[str, Any], ...] = (
         "required": False,
         "doc": "",
     },
+    {
+        "name": "command_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "AR-0.6: echoes the session.transition.reply_to.command_id that caused this broadcast, when the requester supplied one. Absent for a schedule-driven transition (pm-scheduler sends no reply_to at all) and for a rejected request (no broadcast happens at all in that case). Converts the engine's own STRONG session.transition -> session.state link (adjacency in the stream) into a CERTAIN one (a shared id), the same way the risk family's acks already do for kill-switch/circuit-breaker commands. Deliberately just the command_id, not the full reply_to: gateway_id is not repeated here -- session_transition_ack (addressed to that one gateway) is still the only place accepted, reason and to_state travel, since those are meaningless broadcast to every subscriber. A bare command_id is a much smaller disclosure than the full reply-to record, and it is what the audit tooling needs to link the two topics -- not who is allowed to see the outcome.",
+        "constraints": {"max_len": 64},
+    },
 )
 
 
@@ -170,6 +178,7 @@ class SessionState:
     state: str
     prev_state: str = ""
     next: NextTransition | None = None
+    command_id: str = ""
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -188,6 +197,10 @@ class SessionState:
             )
         if self.next is not None:
             self.next.validate()
+        if len(self.command_id) > 64:
+            raise MessageValidationError(
+                f"command_id: length {len(self.command_id)} exceeds max_len 64"
+            )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "SessionState":
@@ -201,6 +214,7 @@ class SessionState:
             state=str(p["state"]),
             prev_state=str(p.get("prev_state", "")),
             next=None if p.get("next") is None else NextTransition.from_dict(p["next"]),
+            command_id=str(p.get("command_id", "")),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -212,6 +226,8 @@ class SessionState:
             payload["prev_state"] = self.prev_state
         if self.next is not None:
             payload["next"] = self.next.to_dict()
+        if self.command_id:
+            payload["command_id"] = self.command_id
         return payload
 
 
@@ -425,11 +441,18 @@ _SESSION_TRANSITION_ACK_FIELDS: tuple[dict[str, Any], ...] = (
 class SessionTransitionAck:
     """Engine to the requesting gateway: the outcome of a transition request.
 
-    Addressed rather than broadcast, because a command_id belongs to whoever issued it -
-    putting it on the public session.state topic would hand every subscriber another
-    operator's correlation id. It also closes a silent failure: a request the engine
-    discarded previously produced no reply at all, so a caller could not tell a
-    rejection from a timeout.
+    Addressed rather than broadcast: accepted, reason and to_state are meaningful only
+    to the one gateway that asked, and broadcasting a rejection's reason to every
+    subscriber would be noise at best. It also closes a silent failure: a request the
+    engine discarded previously produced no reply at all, so a caller could not tell a
+    rejection from a timeout. This used to be the whole story for command_id too, on the
+    theory that broadcasting it would hand every subscriber another operator's
+    correlation id. AR-0.6 revisited that: session.state now echoes just the command_id
+    (never gateway_id, accepted, or reason) when one caused the transition, because pm-
+    audit-replay needs a CERTAIN link from session.transition to session.state and
+    adjacency in the stream (a STRONG link) is not enough to build one. A bare id is a
+    small enough disclosure to be worth that; the rest of the reply still is not, so it
+    stays here.
     """
 
     gateway_id: str

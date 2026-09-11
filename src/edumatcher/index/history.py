@@ -84,15 +84,15 @@ class IndexHistory:
 
     def query(
         self,
-        from_ts: float,
-        to_ts: float,
+        from_ts_ns: int,
+        to_ts_ns: int,
         types: set[str],
         max_records: int = 10_000,
     ) -> tuple[list[dict[str, Any]], list[str]]:
         results: list[dict[str, Any]] = []
         warnings: list[str] = []
-        if to_ts < from_ts:
-            raise ValueError("to_ts must be >= from_ts")
+        if to_ts_ns < from_ts_ns:
+            raise ValueError("to_ts_ns must be >= from_ts_ns")
         if max_records <= 0:
             raise ValueError("max_records must be > 0")
 
@@ -109,7 +109,7 @@ class IndexHistory:
                         continue
 
                     rec_type = rec.get("type")
-                    ts = rec.get("timestamp")
+                    ts = rec.get("ts_ns")
                     if not isinstance(rec_type, str):
                         warnings.append("ignored record with invalid type")
                         continue
@@ -118,12 +118,12 @@ class IndexHistory:
                             warnings.append(f"ignored unknown record type: {rec_type}")
                         continue
                     try:
-                        ts_f = float(ts)
+                        ts_i = int(ts)
                     except (TypeError, ValueError):
                         warnings.append("ignored record with invalid timestamp")
                         continue
 
-                    if from_ts <= ts_f <= to_ts:
+                    if from_ts_ns <= ts_i <= to_ts_ns:
                         # The reply now builds through the checked builder, so a
                         # non-conforming row (a legacy shape in an existing
                         # archive) is dropped with a warning rather than failing
@@ -151,10 +151,10 @@ class IndexHistory:
             return [], warnings
 
         log.debug(
-            "history query path=%s from_ts=%.3f to_ts=%.3f types=%s max_records=%d returned=%d warnings=%d",
+            "history query path=%s from_ts_ns=%d to_ts_ns=%d types=%s max_records=%d returned=%d warnings=%d",
             self._path,
-            from_ts,
-            to_ts,
+            from_ts_ns,
+            to_ts_ns,
             sorted(types),
             max_records,
             len(results),

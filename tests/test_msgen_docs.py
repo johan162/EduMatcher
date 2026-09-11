@@ -60,22 +60,27 @@ class TestTheAppendixDocumentsEveryMessage:
         assert missing == []
 
     def test_it_covers_more_than_the_page_it_replaced(self, families: list) -> None:
-        """114, where the hand-written file managed 67.
+        """115, where the hand-written file managed 67.
 
         This count moves whenever a new message is added to spec/ — most
-        recently system.startup_recovery/system.diagnostic (112 -> 114), the
-        engine-startup summary and the absorbed-internal-failure marker added
-        so pm-audit's bare PUB subscription can see a maintenance-flush
-        exception, a dispatch-handler crash, an undecodable inbound message,
-        an unrouted topic, and a GTC-restore summary -- see
-        docs/user-guide/190-audit.md. Bump the literal here alongside any spec
-        addition; the real regression this test (and test_every_topic_has_a_
-        section above it) guards against is the generated reference page
-        silently omitting a message, not the total staying fixed at some past
-        value.
+        recently system.recovery_item (114 -> 115, AR-0.5), the per-entity
+        companion to system.startup_recovery's six-count summary: "which
+        order failed to restore?" was unanswerable from the summary counts
+        alone, so this adds one line per restored/discarded/failed GTC order
+        or combo -- see docs-design/EduMatcher-Audit-Replay.md §14 AR-0.5.
+        Before that, system.startup_recovery/system.diagnostic (112 -> 114),
+        the engine-startup summary and the absorbed-internal-failure marker
+        added so pm-audit's bare PUB subscription can see a
+        maintenance-flush exception, a dispatch-handler crash, an
+        undecodable inbound message, an unrouted topic, and a GTC-restore
+        summary -- see docs/user-guide/190-audit.md. Bump the literal here
+        alongside any spec addition; the real regression this test (and
+        test_every_topic_has_a_section above it) guards against is the
+        generated reference page silently omitting a message, not the total
+        staying fixed at some past value.
         """
         total = sum(len(f.messages) for f in families)
-        assert total == 114, total
+        assert total == 115, total
 
     def test_every_record_type_has_a_section(self, families: list, page: str) -> None:
         missing = [

@@ -2455,6 +2455,229 @@ def describe_startup_recovery() -> tuple[dict[str, Any], ...]:
     return _STARTUP_RECOVERY_FIELDS
 
 
+TOPIC_RECOVERY_ITEM = "system.recovery_item"
+_TOPIC_RECOVERY_ITEM_BYTES = "system.recovery_item".encode()
+_RECOVERY_ITEM_KIND_VALUES = ("ORDER", "COMBO")
+RecoveryItemKind = Literal["ORDER", "COMBO"]
+_RECOVERY_ITEM_OUTCOME_VALUES = (
+    "RESTORED",
+    "DISCARDED_STALE_DAY",
+    "FAILED",
+    "QUOTE_REMNANT",
+)
+RecoveryItemOutcome = Literal[
+    "RESTORED",
+    "DISCARDED_STALE_DAY",
+    "FAILED",
+    "QUOTE_REMNANT",
+]
+
+
+_RECOVERY_ITEM_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "entity_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "The order id (ORDER) or combo id (COMBO) this line is about.",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "kind",
+        "type": "enum",
+        "unit": None,
+        "required": True,
+        "doc": "What restore_gtc() was processing.",
+        "values": _RECOVERY_ITEM_KIND_VALUES,
+    },
+    {
+        "name": "outcome",
+        "type": "enum",
+        "unit": None,
+        "required": True,
+        "doc": "RESTORED/DISCARDED_STALE_DAY/FAILED come from the main GTC-order (or GTC-combo) restore pass and are mutually exclusive per entity. QUOTE_REMNANT is a second, additional line for a RESTORED quote-origin order whose sibling leg did not come back — see the example_note above. COMBO-kind lines are always RESTORED today: `load_gtc_combos()` has no per-combo guard, so there is no combo failure path to report yet.",
+        "values": _RECOVERY_ITEM_OUTCOME_VALUES,
+    },
+    {
+        "name": "symbol",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "The instrument, for an ORDER-kind line. Null for COMBO, which may span more than one symbol across its legs and has none of its own.",
+        "constraints": {"max_len": 16},
+    },
+    {
+        "name": "detail",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Free text, when there is something worth saying beyond kind and outcome — the exception message for a FAILED order, in particular.",
+        "constraints": {"max_len": 512},
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class RecoveryItem:
+    """Engine to all subscribers: one restored, discarded or failed entity from
+    `_restore_gtc()` (AR-0.5). `startup_recovery`'s six counts say *how many*;
+    this says *which ones* — "which order failed to restore?" was unanswerable
+    from either the counts alone or the process log, since a post-mortem
+    investigating a startup only sees what was published (see docs/user-
+    guide/190-audit.md). Published once per entity, before the single summary
+    `startup_recovery` broadcast, so the counts there are the cross-check:
+    `restored_orders + discarded_stale_day_orders + failed_orders` must equal the
+    number of ORDER-kind recovery_item lines whose outcome is RESTORED,
+    DISCARDED_STALE_DAY or FAILED respectively, and `restored_combos` must equal
+    the number of COMBO-kind lines.
+
+    `QUOTE_REMNANT` is deliberately not exclusive with `RESTORED`: a quote-origin order
+    whose sibling leg did not survive is *both* one of `restored_orders` (it rests on
+    the book, ordinarily) *and* one of `quote_remnants_restored` (it is not quote-
+    managed going forward) — `_restore_gtc()` has always counted it in both totals, so
+    it gets two recovery_item lines with the same entity_id, not one that overwrites the
+    other. `rebuilt_quotes` — an active QuoteIndex entry rebuilt once *both* legs of a
+    quote survive — is deliberately not an entity here. It is a pairing of two already-
+    reported order ids, not a persisted thing with an id of its own to fail or be
+    discarded; the summary count on `startup_recovery` is the whole story for it, same
+    as it always was.
+    """
+
+    entity_id: str
+    kind: RecoveryItemKind
+    outcome: RecoveryItemOutcome
+    symbol: str | None = None
+    detail: str = ""
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.entity_id) > 64:
+            raise MessageValidationError(
+                f"entity_id: length {len(self.entity_id)} exceeds max_len 64"
+            )
+        if self.kind not in _RECOVERY_ITEM_KIND_VALUES:
+            raise MessageValidationError(
+                f"kind: {self.kind!r} is not one of {_RECOVERY_ITEM_KIND_VALUES!r}"
+            )
+        if self.outcome not in _RECOVERY_ITEM_OUTCOME_VALUES:
+            raise MessageValidationError(
+                f"outcome: {self.outcome!r} is not one of {_RECOVERY_ITEM_OUTCOME_VALUES!r}"
+            )
+        if self.symbol is not None:
+            if len(self.symbol) > 16:
+                raise MessageValidationError(
+                    f"symbol: length {len(self.symbol)} exceeds max_len 16"
+                )
+        if len(self.detail) > 512:
+            raise MessageValidationError(
+                f"detail: length {len(self.detail)} exceeds max_len 512"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "RecoveryItem":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            entity_id=str(p["entity_id"]),
+            kind=cast(RecoveryItemKind, str(p["kind"])),
+            outcome=cast(RecoveryItemOutcome, str(p["outcome"])),
+            symbol=None if p.get("symbol") is None else str(p["symbol"]),
+            detail=str(p.get("detail", "")),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        payload: dict[str, Any] = {
+            "entity_id": self.entity_id,
+            "kind": self.kind,
+            "outcome": self.outcome,
+        }
+        if self.symbol is not None:
+            payload["symbol"] = self.symbol
+        if self.detail:
+            payload["detail"] = self.detail
+        return payload
+
+
+def is_recovery_item(topic: str) -> bool:
+    """True when ``topic`` is this message's topic."""
+    return topic == TOPIC_RECOVERY_ITEM
+
+
+def make_recovery_item(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = RecoveryItem.from_dict(kw)
+    obj.validate()
+    return _msg.encode(TOPIC_RECOVERY_ITEM, obj.to_dict())
+
+
+def make_recovery_item_unchecked(
+    *,
+    entity_id: str,
+    kind: RecoveryItemKind,
+    outcome: RecoveryItemOutcome,
+    symbol: str | None = None,
+    detail: str = "",
+) -> list[bytes]:
+    """Identical frames to ``make_recovery_item``, without ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    payload: dict[str, Any] = {
+        "entity_id": str(entity_id),
+        "kind": str(kind),
+        "outcome": str(outcome),
+    }
+    if symbol is not None:
+        payload["symbol"] = str(symbol)
+    if detail:
+        payload["detail"] = str(detail)
+    return [
+        _TOPIC_RECOVERY_ITEM_BYTES,
+        _msg.dumps(payload),
+    ]
+
+
+def parse_recovery_item(frames: list[bytes]) -> "RecoveryItem":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    _topic, payload = _msg.decode(frames)
+    obj = RecoveryItem.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_recovery_item() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _RECOVERY_ITEM_FIELDS
+
+
 TOPIC_DIAGNOSTIC = "system.diagnostic"
 _TOPIC_DIAGNOSTIC_BYTES = "system.diagnostic".encode()
 _DIAGNOSTIC_COMPONENT_VALUES = (
@@ -5829,6 +6052,7 @@ FAMILY_TOPICS: tuple[str, ...] = (
     TOPIC_GATEWAY_BYE,
     TOPIC_EOD,
     TOPIC_STARTUP_RECOVERY,
+    TOPIC_RECOVERY_ITEM,
     TOPIC_DIAGNOSTIC,
     TOPIC_SYMBOLS_REQUEST,
     TOPIC_SYMBOLS,
