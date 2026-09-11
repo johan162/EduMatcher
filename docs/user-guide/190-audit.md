@@ -344,6 +344,8 @@ pm-audit-cli events [options]
 | `--to ISO_TS` | (none) | End of time range (inclusive) |
 | `--limit N` | `100` | Maximum rows returned |
 | `--reverse` | off | Show newest events first |
+| `-f`, `--follow` | off | Keep watching the log and print new events as they arrive; see [Follow mode](#follow-mode) below |
+| `--interval SEC` | `1.0` | Polling interval for `--follow` (ignored otherwise) |
 
 **Output columns:**
 
@@ -364,6 +366,8 @@ pm-audit-cli events [options]
     `str()` representation truncated to 80 characters — a different, less
     readable format. Rebuild the index after querying if you need the
     latest events; the index is never queried automatically for freshness.
+    `--follow` always reads the JSONL files directly and never uses the
+    index, even when one is available — see below.
 
 **Examples:**
 
@@ -392,8 +396,63 @@ pm-audit-cli --format json events --topic trade.executed --limit 5000 > trades.j
 
 # Order submissions from a specific gateway in CSV format
 pm-audit-cli --format csv events --topic order.new --gateway GW01 > gw01_orders.csv
+
+# Watch fills arrive live during a training session
+pm-audit-cli events --topic order.fill --follow
+
+# Watch one symbol, polling every 2 seconds instead of the 1s default
+pm-audit-cli events --symbol AAPL --follow --interval 2
 ```
 
+#### Follow mode
+
+`events` and `timeline` both accept `-f`/`--follow` to keep the query
+running: after printing the normal (filtered, `--limit`-capped) result, the
+command keeps polling the log files every `--interval` seconds and prints
+each newly-appended, matching entry as it arrives, until interrupted with
+`Ctrl-C`. This is the audit-log equivalent of `pm-log-cli tail`.
+
+```bash
+# Watch the whole log live, table format
+pm-audit-cli events --follow
+
+# Watch order lifecycle events for one gateway, as JSON
+pm-audit-cli --format json events --topic order. --gateway GW01 --follow
+```
+
+A few things behave differently in follow mode:
+
+- **`--limit` only bounds the initial backfill.** The first batch printed
+  respects `--limit` (`100` by default for `events`, `500` for `timeline`)
+  exactly as it would without `--follow`. Once the poll loop starts, every
+  subsequent batch prints however many new matching entries actually
+  arrived since the last poll — there is no cap. This mirrors `pm-log-cli
+  tail --before N`.
+- **`events --reverse --follow` together is rejected** (exit code `2`):
+  `timeline` has no `--reverse` flag, and for `events`, newest-first
+  ordering is meaningless once the log is still growing.
+- **`events --follow` always reads the JSONL log files**, even when a
+  usable SQLite index exists at the resolved `--use-index` path. The index
+  is a point-in-time snapshot and is never refreshed by a running query, so
+  follow mode bypasses it rather than showing stale data.
+- **Log rotation is handled automatically.** Each poll re-discovers the log
+  file set (the same discovery `--log-dir` uses), so a rotation that
+  happens while `--follow` is running — a fresh `audit.log` starting up
+  after the previous one becomes `audit.log.1` — is picked up on the next
+  poll without needing to restart the command.
+- **No `seq` requirement.** Resuming after each poll is based on the
+  entries' timestamps, not the optional `seq=` field in the log line's
+  metadata section — so `--follow` works identically whether or not
+  `pm-audit` happens to be stamping envelope metadata.
+
+`--format csv`/`--format json` both work under `--follow`. Each poll batch
+is printed as its own block, one after another, rather than as a single
+combined document: for `csv`, only the very first batch gets a header row
+(later batches never repeat it, regardless of `--no-header`); for `json`,
+each batch is its own JSON array printed back to back with no separator
+between them. A consumer streaming the output should parse it incrementally
+(read one CSV block or JSON array at a time) rather than treating the whole
+stream as one JSON value or one CSV table.
 
 
 ### `orders` — Order lifecycle investigation
@@ -653,6 +712,8 @@ pm-audit-cli timeline [options]
 | `--gateway GW_ID` | (all) | Filter by gateway |
 | `--symbol SYMBOL` | (all) | Filter by symbol |
 | `--limit N` | `500` | Maximum events |
+| `-f`, `--follow` | off | Keep watching the log and print new events as they arrive; see [Follow mode](#follow-mode) above |
+| `--interval SEC` | `1.0` | Polling interval for `--follow` (ignored otherwise) |
 
 **Output columns:**
 
@@ -693,6 +754,9 @@ pm-audit-cli timeline --topic trade. \
 pm-audit-cli --format json timeline \
   --from 2026-07-08T09:30:00+00:00 --to 2026-07-08T16:00:00+00:00 \
   --limit 100000 > session_replay.json
+
+# Watch the full raw event stream live (see Follow mode above)
+pm-audit-cli timeline --follow
 ```
 
 
@@ -917,6 +981,21 @@ pm-audit-cli --format json events --topic order. --gateway GW01 \
 # Pass the directory; pm-audit-cli discovers audit.log, audit.log.1, etc.
 pm-audit-cli --log-dir data/ \
   trades --symbol AAPL --from 2026-07-01 --to 2026-07-08 --limit 10000
+```
+
+### Watch a live training session
+
+```bash
+# Everything, as it happens
+pm-audit-cli events --follow
+
+# Just order lifecycle events for one gateway, while proctoring a session
+pm-audit-cli events --gateway GW01 --topic order. --follow
+
+# Full raw payloads for the whole floor, piped to a file for later replay
+# (each poll batch is its own JSON array back to back -- see Follow mode
+# above -- not JSON Lines, so replay tooling should parse incrementally)
+pm-audit-cli --format json timeline --follow > live_session.json
 ```
 
 

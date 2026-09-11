@@ -26,12 +26,17 @@ Commands
   timeline    Show raw chronological event stream
   stats       Show summary statistics about log files
   index       Build or update the optional SQLite index
+
+``events`` and ``timeline`` accept ``-f``/``--follow`` to keep printing new
+entries as they are appended to the log, polling every ``--interval``
+seconds (default 1.0) until interrupted with Ctrl-C.
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -186,6 +191,19 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Maximum rows (default: 100)",
     )
     ev.add_argument("--reverse", action="store_true", help="Show newest first")
+    ev.add_argument(
+        "-f",
+        "--follow",
+        action="store_true",
+        help="Watch for new events instead of exiting (Ctrl-C to stop)",
+    )
+    ev.add_argument(
+        "--interval",
+        type=float,
+        default=1.0,
+        metavar="SEC",
+        help="Polling interval in seconds for --follow (default: 1.0)",
+    )
 
     # ------------------------------------------------------------------ orders
     od = sub.add_parser(
@@ -305,6 +323,19 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="Maximum events (default: 500)",
     )
+    tl.add_argument(
+        "-f",
+        "--follow",
+        action="store_true",
+        help="Watch for new events instead of exiting (Ctrl-C to stop)",
+    )
+    tl.add_argument(
+        "--interval",
+        type=float,
+        default=1.0,
+        metavar="SEC",
+        help="Polling interval in seconds for --follow (default: 1.0)",
+    )
 
     # ------------------------------------------------------------------- stats
     st = sub.add_parser(
@@ -361,6 +392,13 @@ def _validate_args(args: argparse.Namespace) -> None:
         if val is not None:
             validate_iso_ts(str(val))
 
+    if getattr(args, "follow", False):
+        interval = getattr(args, "interval", None)
+        if interval is not None and interval <= 0:
+            raise ValueError("--interval must be > 0")
+        if getattr(args, "reverse", False):
+            raise ValueError("--follow and --reverse are mutually exclusive")
+
     if args.command == "index":
         days = getattr(args, "days", None)
         if days is not None and days <= 0:
@@ -415,8 +453,10 @@ def _handle_events(
 ) -> tuple[list[str], list[dict[str, Any]]]:
     from_dt, to_dt = _resolve_time_range(args)
 
-    # Prefer the SQLite index when available
-    if index_is_available(index_path):
+    # Prefer the SQLite index when available. --follow always reads the live
+    # JSONL files instead: the index is a point-in-time snapshot and is not
+    # kept current between polls.
+    if not getattr(args, "follow", False) and index_is_available(index_path):
         try:
             conn = open_readonly_index(index_path)
             rows = query_index_events(
@@ -558,6 +598,80 @@ def _handle_timeline(
     return _TIMELINE_COLS, rows
 
 
+def _follow_fetch(
+    args: argparse.Namespace,
+    log_file: Path,
+    log_dir: Path | None,
+    after_ts: str | None,
+    after_skip: int,
+) -> list[dict[str, Any]]:
+    """Re-discover log files and fetch rows newer than (after_ts, after_skip).
+
+    Called on every --follow poll, so a rotation that happens between polls
+    (a fresh ``audit.log.1`` appearing, or the active file being replaced) is
+    picked up automatically — ``discover_log_files`` is just a directory
+    listing, which is cheap enough to repeat every tick.
+    """
+    log_files = discover_log_files(log_file, log_dir)
+    # A poll is expected to return a small batch (new events since the last
+    # tick); 10,000 is just a generous ceiling, matching the cap query_timeline
+    # already uses for the same "essentially unbounded" purpose below.
+    if args.command == "events":
+        return query_events(
+            log_files,
+            topic=args.topic,
+            gateway=args.gateway.upper() if args.gateway else None,
+            symbol=args.symbol.upper() if args.symbol else None,
+            limit=10_000,
+            after_ts=after_ts,
+            after_skip=after_skip,
+        )
+    return query_timeline(
+        log_files,
+        topic_prefix=args.topic,
+        gateway=args.gateway.upper() if args.gateway else None,
+        symbol=args.symbol.upper() if args.symbol else None,
+        limit=10_000,
+        after_ts=after_ts,
+        after_skip=after_skip,
+    )
+
+
+def _run_follow(
+    args: argparse.Namespace,
+    log_file: Path,
+    log_dir: Path | None,
+    columns: list[str],
+    initial_rows: list[dict[str, Any]],
+) -> None:
+    """Print *initial_rows*, then poll for and print new rows until Ctrl-C.
+
+    Position is tracked as (timestamp string, count of already-emitted rows
+    sharing that timestamp) rather than a byte offset, since a poll always
+    re-discovers the log file set from scratch to stay correct across
+    rotation.
+    """
+    render(initial_rows, columns, args.format, no_header=args.no_header)
+
+    if initial_rows:
+        after_ts = str(initial_rows[-1]["timestamp"])
+        after_skip = sum(1 for r in initial_rows if str(r["timestamp"]) == after_ts)
+    else:
+        after_ts = None
+        after_skip = 0
+
+    try:
+        while True:
+            time.sleep(args.interval)
+            new_rows = _follow_fetch(args, log_file, log_dir, after_ts, after_skip)
+            if new_rows:
+                render(new_rows, columns, args.format, no_header=True)
+                after_ts = str(new_rows[-1]["timestamp"])
+                after_skip = sum(1 for r in new_rows if str(r["timestamp"]) == after_ts)
+    except KeyboardInterrupt:
+        pass
+
+
 def _handle_stats(
     args: argparse.Namespace,
     log_files: list[Path],
@@ -658,6 +772,10 @@ def main() -> None:
     except Exception as exc:
         print(f"[ERROR] Query failed: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
+
+    if getattr(args, "follow", False):
+        _run_follow(args, log_file, log_dir, columns, rows)
+        return
 
     render(rows, columns, args.format, no_header=args.no_header)
 

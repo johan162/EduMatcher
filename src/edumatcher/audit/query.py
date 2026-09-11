@@ -268,13 +268,23 @@ def iter_entries(
     from_dt: datetime | None = None,
     to_dt: datetime | None = None,
     limit: int | None = None,
+    after_ts: str | None = None,
+    after_skip: int = 0,
 ) -> Iterator[AuditEntry]:
     """Stream :class:`AuditEntry` objects from *log_files* with optional filters.
 
     Filtering is applied during iteration so memory usage stays proportional
     to *limit*, not to file size.
+
+    ``after_ts``/``after_skip`` resume a previous scan: entries with a raw
+    timestamp string less than ``after_ts`` are skipped outright, and the
+    first ``after_skip`` entries whose timestamp string equals ``after_ts``
+    are also skipped. This is how ``--follow`` avoids re-emitting entries it
+    already printed without needing a ``seq`` (which is optional and often
+    absent — see the module docstring).
     """
     count = 0
+    ties_seen = 0
     for path in log_files:
         if not path.exists():
             continue
@@ -283,6 +293,16 @@ def iter_entries(
             if parsed is None:
                 continue
             ts_str, topic, payload, meta = parsed
+
+            if after_ts is not None:
+                if ts_str < after_ts:
+                    continue
+                if ts_str == after_ts:
+                    if ties_seen < after_skip:
+                        ties_seen += 1
+                        continue
+                else:
+                    ties_seen = 0
 
             # Topic prefix filter
             if topic_prefix and not topic.startswith(topic_prefix):
@@ -337,6 +357,8 @@ def query_events(
     date_str: str | None = None,
     limit: int = 100,
     reverse: bool = False,
+    after_ts: str | None = None,
+    after_skip: int = 0,
 ) -> list[dict[str, Any]]:
     """Return event rows for the ``events`` command."""
     if date_str:
@@ -351,6 +373,8 @@ def query_events(
             from_dt=from_dt,
             to_dt=to_dt,
             limit=None if reverse else limit,
+            after_ts=after_ts,
+            after_skip=after_skip,
         )
     )
 
@@ -676,6 +700,8 @@ def query_timeline(
     from_dt: datetime | None = None,
     to_dt: datetime | None = None,
     limit: int = 500,
+    after_ts: str | None = None,
+    after_skip: int = 0,
 ) -> list[dict[str, Any]]:
     """Return chronological raw event rows for the ``timeline`` command."""
     rows: list[dict[str, Any]] = []
@@ -687,6 +713,8 @@ def query_timeline(
         from_dt=from_dt,
         to_dt=to_dt,
         limit=limit,
+        after_ts=after_ts,
+        after_skip=after_skip,
     ):
         rows.append(
             {

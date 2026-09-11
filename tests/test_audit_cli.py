@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import time
 from pathlib import Path
 from typing import Any
 
@@ -123,6 +124,23 @@ def empty_log(tmp_path: Path) -> Path:
 def _run_cli(monkeypatch: pytest.MonkeyPatch, argv: list[str]) -> None:
     monkeypatch.setattr("sys.argv", ["pm-audit-cli", *argv])
     cli_main()
+
+
+def _parse_json_stream(text: str) -> list[Any]:
+    """Split back-to-back ``json.dumps(..., indent=2)`` arrays with no
+    separator between them (each --follow poll batch is printed via its own
+    ``print()`` call) into the list of decoded arrays, in order."""
+    decoder = json.JSONDecoder()
+    results: list[Any] = []
+    i = 0
+    text = text.strip()
+    while i < len(text):
+        obj, end = decoder.raw_decode(text, i)
+        results.append(obj)
+        i = end
+        while i < len(text) and text[i].isspace():
+            i += 1
+    return results
 
 
 # ===========================================================================
@@ -392,6 +410,40 @@ class TestIterEntries:
         """GW02 appears only as sell_gateway_id — should still be found."""
         entries = list(iter_entries([log_file], gateway="GW02"))
         assert len(entries) >= 1
+
+    def test_after_ts_skips_earlier_entries(self, log_file: Path) -> None:
+        """after_ts=_TS2 should skip _TS1 but keep _TS2 onward (no ties)."""
+        entries = list(iter_entries([log_file], after_ts=_TS2))
+        assert [e.timestamp for e in entries] == [_TS2, _TS3, _TS4]
+
+    def test_after_ts_and_skip_resumes_past_ties(self, tmp_path: Path) -> None:
+        """Two entries share one timestamp; after_skip=1 should keep only
+        the second one, matching how --follow resumes after printing the
+        first N rows at the last-seen timestamp."""
+        log = tmp_path / "audit.log"
+        lines = [
+            f"[{_TS1}] [order.new] " + json.dumps({"order_id": "A"}),
+            f"[{_TS1}] [order.new] " + json.dumps({"order_id": "B"}),
+            f"[{_TS2}] [order.new] " + json.dumps({"order_id": "C"}),
+        ]
+        _write_log(log, lines)
+
+        entries = list(iter_entries([log], after_ts=_TS1, after_skip=1))
+        ids = [e.payload["order_id"] for e in entries]
+        assert ids == ["B", "C"]
+
+    def test_after_ts_skip_beyond_ties_skips_all_of_them(self, tmp_path: Path) -> None:
+        log = tmp_path / "audit.log"
+        lines = [
+            f"[{_TS1}] [order.new] " + json.dumps({"order_id": "A"}),
+            f"[{_TS1}] [order.new] " + json.dumps({"order_id": "B"}),
+            f"[{_TS2}] [order.new] " + json.dumps({"order_id": "C"}),
+        ]
+        _write_log(log, lines)
+
+        entries = list(iter_entries([log], after_ts=_TS1, after_skip=2))
+        ids = [e.payload["order_id"] for e in entries]
+        assert ids == ["C"]
 
 
 # ===========================================================================
@@ -1291,6 +1343,33 @@ class TestValidateArgs:
             _run_cli(monkeypatch, ["--log-file", str(missing), "events"])
         assert exc.value.code == 1
 
+    def test_follow_zero_interval_raises(
+        self, monkeypatch: pytest.MonkeyPatch, log_file: Path
+    ) -> None:
+        with pytest.raises(SystemExit) as exc:
+            _run_cli(
+                monkeypatch,
+                [
+                    "--log-file",
+                    str(log_file),
+                    "events",
+                    "--follow",
+                    "--interval",
+                    "0",
+                ],
+            )
+        assert exc.value.code == 2
+
+    def test_follow_and_reverse_mutually_exclusive(
+        self, monkeypatch: pytest.MonkeyPatch, log_file: Path
+    ) -> None:
+        with pytest.raises(SystemExit) as exc:
+            _run_cli(
+                monkeypatch,
+                ["--log-file", str(log_file), "events", "--follow", "--reverse"],
+            )
+        assert exc.value.code == 2
+
 
 # ===========================================================================
 # cli.py — command dispatch (end-to-end via main())
@@ -1476,6 +1555,175 @@ class TestCliEvents:
         )
         data = json.loads(capsys.readouterr().out)
         assert len(data) == 4
+
+
+class TestCliFollow:
+    """--follow on events/timeline: initial batch + one poll, then Ctrl-C.
+
+    Mirrors how pm-log-cli's own `tail` loop is tested (see
+    test_log_cli_main.py): time.sleep is monkeypatched so the test controls
+    exactly one polling tick before raising KeyboardInterrupt, instead of
+    actually waiting on a wall-clock interval.
+    """
+
+    def test_events_prints_backfill_then_stops(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        log_file: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        def _stop(_seconds: float) -> None:
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(time, "sleep", _stop)
+        _run_cli(
+            monkeypatch,
+            ["--log-file", str(log_file), "events", "--follow"],
+        )
+        out = capsys.readouterr().out
+        assert "order.new" in out
+        assert "trade.executed" in out
+
+    def test_events_picks_up_new_line_on_poll(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        log_file: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        calls = {"n": 0}
+
+        def _append_then_stop(_seconds: float) -> None:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                new_line = (
+                    f"[{_TS4}] [order.new] "
+                    + json.dumps({"order_id": "ORD-NEW", "symbol": "MSFT"})
+                    + "\n"
+                )
+                with log_file.open("a", encoding="utf-8") as fh:
+                    fh.write(new_line)
+                return
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(time, "sleep", _append_then_stop)
+        _run_cli(
+            monkeypatch,
+            ["--log-file", str(log_file), "--format", "json", "events", "--follow"],
+        )
+        out = capsys.readouterr().out
+        # Two JSON arrays are printed: the initial backfill, then one poll
+        # batch containing just the newly-appended row.
+        arrays = _parse_json_stream(out)
+        assert len(arrays) == 2
+        assert len(arrays[0]) == 4
+        assert len(arrays[1]) == 1
+        assert arrays[1][0]["order_id"] == "ORD-NEW"
+
+    def test_events_does_not_reprint_backfill_on_empty_poll(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        log_file: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        calls = {"n": 0}
+
+        def _stop_on_second(_seconds: float) -> None:
+            calls["n"] += 1
+            if calls["n"] >= 2:
+                raise KeyboardInterrupt
+
+        monkeypatch.setattr(time, "sleep", _stop_on_second)
+        _run_cli(
+            monkeypatch,
+            ["--log-file", str(log_file), "--format", "json", "events", "--follow"],
+        )
+        out = capsys.readouterr().out
+        # Nothing new was appended between polls, so only the initial
+        # backfill array should have been printed.
+        arrays = _parse_json_stream(out)
+        assert len(arrays) == 1
+        assert len(arrays[0]) == 4
+
+    def test_timeline_picks_up_new_line_on_poll(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        log_file: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        calls = {"n": 0}
+
+        def _append_then_stop(_seconds: float) -> None:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                new_line = (
+                    f"[{_TS4}] [order.new] "
+                    + json.dumps({"order_id": "ORD-NEW", "symbol": "MSFT"})
+                    + "\n"
+                )
+                with log_file.open("a", encoding="utf-8") as fh:
+                    fh.write(new_line)
+                return
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(time, "sleep", _append_then_stop)
+        _run_cli(
+            monkeypatch,
+            [
+                "--log-file",
+                str(log_file),
+                "--format",
+                "json",
+                "timeline",
+                "--follow",
+            ],
+        )
+        out = capsys.readouterr().out
+        arrays = _parse_json_stream(out)
+        assert len(arrays) == 2
+        assert len(arrays[1]) == 1
+        assert arrays[1][0]["gateway"] is None or "ORD-NEW" in str(arrays[1])
+
+    def test_follow_respects_topic_filter_on_new_rows(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        log_file: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        calls = {"n": 0}
+
+        def _append_then_stop(_seconds: float) -> None:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                new_line = (
+                    f"[{_TS4}] [session.state] "
+                    + json.dumps({"state": "CLOSED"})
+                    + "\n"
+                )
+                with log_file.open("a", encoding="utf-8") as fh:
+                    fh.write(new_line)
+                return
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(time, "sleep", _append_then_stop)
+        _run_cli(
+            monkeypatch,
+            [
+                "--log-file",
+                str(log_file),
+                "--format",
+                "json",
+                "events",
+                "--topic",
+                "order.",
+                "--follow",
+            ],
+        )
+        out = capsys.readouterr().out
+        arrays = _parse_json_stream(out)
+        # The new session.state row does not match --topic order., so only
+        # the initial backfill array is printed; no second (empty) array.
+        assert len(arrays) == 1
+        assert all(r["topic"].startswith("order.") for r in arrays[0])
 
 
 class TestCliOrders:
