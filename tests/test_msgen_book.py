@@ -26,6 +26,7 @@ def _snapshot() -> dict[str, Any]:
     return {
         "symbol": "AAPL",
         "tick_decimals": 2,
+        "ts_ns": 1_700_000_000_000_000_000,  # AR-0.4
         "bids": [
             {"price": 95.0, "qty": 100, "count": 2},
             {"price": 94.5, "qty": 50, "count": 1},
@@ -54,6 +55,7 @@ def _snapshot() -> dict[str, Any]:
 def _depth() -> dict[str, Any]:
     return {
         "symbol": "AAPL",
+        "ts_ns": 1_700_000_000_000_000_000,  # AR-0.4
         "mid_price_ticks": 9525,
         "mid_price": 95.25,
         "tolerance_ticks": 100,

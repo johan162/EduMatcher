@@ -56,8 +56,8 @@ class TestOrderToDisplayDictPriceCoverage:
         assert result["stop_price"] is not None
         assert "trail_offset" in result
         assert result["trail_offset"] is not None
-        assert "timestamp" in result
-        assert result["timestamp"] == 1.0  # ns to seconds
+        assert "ts_ns" in result
+        assert result["ts_ns"] == 1_000_000_000  # AR-0.3b: passed through, not scaled
 
     def test_with_price_none(self, base_order):
         """Test when price is None (covers line 250-252)."""
@@ -151,8 +151,15 @@ class TestOrderToDisplayDictPriceCoverage:
         assert result["stop_price"] is None
         assert result["trail_offset"] is None
 
-    def test_timestamp_conversion(self, base_order):
-        """Test timestamp conversion from nanoseconds to seconds."""
+    def test_timestamp_rides_through_as_ts_ns(self, base_order):
+        """AR-0.3b: ts_ns is the raw nanosecond integer, not seconds.
+
+        Unlike price/stop_price/trail_offset (deliberately converted to
+        display units), the timestamp is left alone -- see
+        order_to_display_dict's own docstring and OrderDisplay's spec doc
+        for why a correlation-critical timestamp is the one field this
+        projection does not convert.
+        """
         order = Order(
             id=base_order.id,
             symbol=base_order.symbol,
@@ -162,12 +169,13 @@ class TestOrderToDisplayDictPriceCoverage:
             quantity=base_order.quantity,
             remaining_qty=base_order.remaining_qty,
             gateway_id=base_order.gateway_id,
-            timestamp=1_234_567_890,  # 1.23456789 seconds in ns
+            timestamp=1_234_567_890,
             status=OrderStatus.NEW,
         )
         result = order_to_display_dict(order)
 
-        assert result["timestamp"] == pytest.approx(1.23456789, rel=1e-6)
+        assert result["ts_ns"] == 1_234_567_890
+        assert "timestamp" not in result
 
     def test_maintains_other_order_fields(self, base_order):
         """Test that other order fields are preserved in dict."""

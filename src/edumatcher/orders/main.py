@@ -590,7 +590,7 @@ class OrderMonitor:
                 else:
                     entry["price"] = _ticks_to_price(raw_price, symbol)
 
-            if "order.ack" in topic:
+            if PREFIX_ORDER_ACK in topic:
                 # Extract gateway_id from topic: order.ack.GW01
                 parts = topic.split(".")
                 if len(parts) >= 3:
@@ -610,7 +610,7 @@ class OrderMonitor:
                 else:
                     entry["status"] = "REJECTED"
 
-            elif "order.fill" in topic:
+            elif PREFIX_ORDER_FILL in topic:
                 # gateway_id from topic for counterparty fills that skipped an ack
                 parts = topic.split(".")
                 if len(parts) >= 3 and "gateway_id" not in entry:
@@ -618,13 +618,13 @@ class OrderMonitor:
                 entry["remaining"] = payload.get("remaining_qty", 0)
                 entry["status"] = payload.get("status", "PARTIAL")
 
-            elif "order.cancelled" in topic:
+            elif PREFIX_ORDER_CANCELLED in topic:
                 entry["status"] = "CANCELLED"
 
-            elif "order.expired" in topic:
+            elif PREFIX_ORDER_EXPIRED in topic:
                 entry["status"] = "EXPIRED"
 
-            elif "order.amended" in topic:
+            elif PREFIX_ORDER_AMENDED in topic:
                 # order.amended carries no symbol/side/order_type/tif (same
                 # minimal shape as order.cancelled) — remaining/price/qty
                 # above are already refreshed by the field-population loop

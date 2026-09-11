@@ -124,71 +124,71 @@ class TestReadJsonl:
                 f.write(json.dumps(r) + "\n")
 
     def test_nonexistent_file_returns_empty(self, tmp_path: Path) -> None:
-        result = _read_jsonl(tmp_path / "nope.jsonl", 0.0, 1e18, {"INIT"}, 1000)
+        result = _read_jsonl(tmp_path / "nope.jsonl", 0, 10**27, {"INIT"}, 1000)
         assert result == []
 
     def test_filters_by_type(self, tmp_path: Path) -> None:
         p = tmp_path / "hist.jsonl"
-        ts = time.time()
+        ts_ns = time.time_ns()
         self._write_jsonl(
             p,
             [
-                {"type": "INIT", "timestamp": ts, "level": 100.0},
-                {"type": "CORP_ACTION", "timestamp": ts, "level": 99.0},
+                {"type": "INIT", "ts_ns": ts_ns, "level": 100.0},
+                {"type": "CORP_ACTION", "ts_ns": ts_ns, "level": 99.0},
             ],
         )
-        result = _read_jsonl(p, 0.0, 1e18, {"INIT"}, 1000)
+        result = _read_jsonl(p, 0, 10**27, {"INIT"}, 1000)
         assert len(result) == 1
         assert result[0]["type"] == "INIT"
 
     def test_filters_by_time_range(self, tmp_path: Path) -> None:
         p = tmp_path / "hist.jsonl"
-        now = time.time()
-        old = now - 86400 * 10  # 10 days ago
+        now_ns = time.time_ns()
+        old_ns = now_ns - 86400 * 10 * 1_000_000_000  # 10 days ago
         self._write_jsonl(
             p,
             [
-                {"type": "CORP_ACTION", "timestamp": old, "level": 90.0},
-                {"type": "CORP_ACTION", "timestamp": now, "level": 100.0},
+                {"type": "CORP_ACTION", "ts_ns": old_ns, "level": 90.0},
+                {"type": "CORP_ACTION", "ts_ns": now_ns, "level": 100.0},
             ],
         )
         # Only want records from last 5 days
-        result = _read_jsonl(p, now - 86400 * 5, now + 1, {"CORP_ACTION"}, 1000)
+        result = _read_jsonl(
+            p, now_ns - 86400 * 5 * 1_000_000_000, now_ns + 1, {"CORP_ACTION"}, 1000
+        )
         assert len(result) == 1
         assert result[0]["level"] == 100.0
 
     def test_skips_blank_lines(self, tmp_path: Path) -> None:
         p = tmp_path / "hist.jsonl"
-        ts = time.time()
+        ts_ns = time.time_ns()
         p.write_text(
-            "\n" + json.dumps({"type": "INIT", "timestamp": ts, "level": 1.0}) + "\n\n"
+            "\n" + json.dumps({"type": "INIT", "ts_ns": ts_ns, "level": 1.0}) + "\n\n"
         )
-        result = _read_jsonl(p, 0.0, 1e18, {"INIT"}, 1000)
+        result = _read_jsonl(p, 0, 10**27, {"INIT"}, 1000)
         assert len(result) == 1
 
     def test_skips_malformed_json(self, tmp_path: Path) -> None:
         p = tmp_path / "hist.jsonl"
-        ts = time.time()
-        p.write_text(
-            "NOT JSON\n" + json.dumps({"type": "INIT", "timestamp": ts}) + "\n"
-        )
-        result = _read_jsonl(p, 0.0, 1e18, {"INIT"}, 1000)
+        ts_ns = time.time_ns()
+        p.write_text("NOT JSON\n" + json.dumps({"type": "INIT", "ts_ns": ts_ns}) + "\n")
+        result = _read_jsonl(p, 0, 10**27, {"INIT"}, 1000)
         assert len(result) == 1
 
     def test_skips_missing_timestamp(self, tmp_path: Path) -> None:
         p = tmp_path / "hist.jsonl"
         p.write_text(json.dumps({"type": "INIT", "level": 100.0}) + "\n")
-        result = _read_jsonl(p, 0.0, 1e18, {"INIT"}, 1000)
+        result = _read_jsonl(p, 0, 10**27, {"INIT"}, 1000)
         assert result == []
 
     def test_limit_enforced(self, tmp_path: Path) -> None:
         p = tmp_path / "hist.jsonl"
-        ts = time.time()
+        ts_ns = time.time_ns()
         lines = "\n".join(
-            json.dumps({"type": "CORP_ACTION", "timestamp": ts + i}) for i in range(10)
+            json.dumps({"type": "CORP_ACTION", "ts_ns": ts_ns + i}) for i in range(10)
         )
         p.write_text(lines + "\n")
-        result = _read_jsonl(p, 0.0, 1e18, {"CORP_ACTION"}, 3)
+        result = _read_jsonl(p, 0, 10**27, {"CORP_ACTION"}, 3)
         assert len(result) == 3
 
     def test_level_type_never_matches_structural_filter(self, tmp_path: Path) -> None:
@@ -198,10 +198,10 @@ class TestReadJsonl:
         value any more.
         """
         p = tmp_path / "hist.jsonl"
-        ts = time.time()
-        self._write_jsonl(p, [{"type": "LEVEL", "timestamp": ts, "level": 100.0}])
+        ts_ns = time.time_ns()
+        self._write_jsonl(p, [{"type": "LEVEL", "ts_ns": ts_ns, "level": 100.0}])
         result = _read_jsonl(
-            p, 0.0, 1e18, {"INIT", "CORP_ACTION", "ADD_CONSTITUENT", "DELIST"}, 1000
+            p, 0, 10**27, {"INIT", "CORP_ACTION", "ADD_CONSTITUENT", "DELIST"}, 1000
         )
         assert result == []
 
@@ -214,7 +214,7 @@ class TestReadJsonl:
 class TestProjectEvent:
     def test_corp_action(self) -> None:
         rec = {
-            "timestamp": 0.0,
+            "ts_ns": 0,
             "type": "CORP_ACTION",
             "index_id": "IDX",
             "action": "SPLIT",
@@ -228,7 +228,7 @@ class TestProjectEvent:
 
     def test_add_constituent(self) -> None:
         rec = {
-            "timestamp": 0.0,
+            "ts_ns": 0,
             "type": "ADD_CONSTITUENT",
             "index_id": "IDX",
             "symbol": "AAPL",
@@ -239,7 +239,7 @@ class TestProjectEvent:
 
     def test_delist(self) -> None:
         rec = {
-            "timestamp": 0.0,
+            "ts_ns": 0,
             "type": "DELIST",
             "index_id": "IDX",
             "symbol": "OLD",
@@ -249,7 +249,7 @@ class TestProjectEvent:
 
     def test_init(self) -> None:
         rec = {
-            "timestamp": 0.0,
+            "ts_ns": 0,
             "type": "INIT",
             "index_id": "IDX",
             "base_value": 1000.0,
@@ -260,7 +260,7 @@ class TestProjectEvent:
         assert "AAPL" in row["detail"]
 
     def test_unknown_type(self) -> None:
-        rec = {"timestamp": 0.0, "type": "OTHER", "index_id": "IDX"}
+        rec = {"ts_ns": 0, "type": "OTHER", "index_id": "IDX"}
         row = _project_event(rec)
         assert row["detail"] == ""
 
@@ -548,13 +548,13 @@ class TestCmdEvents:
     def test_init_event_rendered(
         self, tmp_path: Path, capsys: pytest.CaptureFixture
     ) -> None:
-        ts = time.time()
+        ts_ns = time.time_ns()
         _write_history(
             tmp_path / "TEST_history.jsonl",
             [
                 {
                     "type": "INIT",
-                    "timestamp": ts,
+                    "ts_ns": ts_ns,
                     "index_id": "TEST",
                     "base_value": 1000.0,
                     "constituents": ["AAPL"],
@@ -569,12 +569,12 @@ class TestCmdEvents:
     def test_filter_by_event_type(
         self, tmp_path: Path, capsys: pytest.CaptureFixture
     ) -> None:
-        ts = time.time()
+        ts_ns = time.time_ns()
         _write_history(
             tmp_path / "TEST_history.jsonl",
             [
-                {"type": "INIT", "timestamp": ts, "index_id": "TEST"},
-                {"type": "CORP_ACTION", "timestamp": ts, "index_id": "TEST"},
+                {"type": "INIT", "ts_ns": ts_ns, "index_id": "TEST"},
+                {"type": "CORP_ACTION", "ts_ns": ts_ns, "index_id": "TEST"},
             ],
         )
         args = _make_args(tmp_path, "events", event_types=["INIT"])

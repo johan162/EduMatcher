@@ -85,9 +85,17 @@ types:
     doc: >
       One resting order as the engine reports it in an `order.orders` snapshot,
       in display units. It is `Order.to_dict()` with price, stop_price and
-      trail_offset converted from ticks to display money and timestamp
-      expressed in seconds - the projection `order_to_display_dict` builds so an
-      operator reads prices in the same money the book shows, not raw ticks.
+      trail_offset converted from ticks to display money - the projection
+      `order_to_display_dict` builds so an operator reads prices in the same
+      money the book shows, not raw ticks. `timestamp` is carried through as
+      `ts_ns` unconverted (AR-0.3b): unlike price, a raw nanosecond integer is
+      exactly what a post-mortem needs to compare against `trade.executed.ts_ns`
+      and the rest of the wire's ordering convention, and converting it to
+      seconds here would only have to be undone by anything that wanted to
+      compare it. `spec/messages/index.yaml`'s family made the same call for
+      the same reason in AR-0.3; this type was out of scope for that pass
+      (it is not part of the index family) and CP-0's own checklist item 3
+      is what caught it being left behind.
       Gateway_id is not included here; it is topic-only (part of the message
       topic as order.orders.{gateway_id}, not part of the record). The record
       contains the order state (id, symbol, side, etc.) exactly as Order.to_dict()
@@ -110,13 +118,17 @@ types:
           doc: "TRAILING_STOP: trail distance, in display money." }
       - { name: oco_group_id, type: string, required: false, nullable: true,
           validate: { max_len: 64 } }
-      - name: timestamp
-        type: float
-        unit: epoch_seconds
+      - name: ts_ns
+        type: int
+        unit: epoch_nanos
         validate: { ge: 0 }
         doc: >
-          Client-supplied submission time, in seconds. NOT the book's time
-          priority key - see arrival_seq.
+          Client-supplied submission time (Order.timestamp, unconverted).
+          NOT the book's time priority key - see arrival_seq. AR-0.3b:
+          previously named "timestamp" and expressed as a seconds-based
+          float; see OrderDisplay's type doc for why that was out of step
+          with the rest of the wire and got fixed here rather than left
+          as the one field of that kind outside log.yaml.
       - { name: status, type: enum,
           values: [NEW, PARTIAL, FILLED, CANCELLED, REJECTED, EXPIRED] }
       - { name: price, type: float, unit: display_price, required: false,
@@ -170,14 +182,16 @@ types:
   PriceLevelOrder:
     doc: >
       One resting order as reported by order.price_level_orders — the same
-      projection as OrderDisplay (order_to_display_dict), with one field
-      added: gateway_id. OrderDisplay can leave gateway_id topic-only
-      because an order.orders reply is always about a single, already-known
-      gateway; a price_level_orders reply spans every gateway resting at a
-      symbol/price, so each record must say whose order it is. The
-      generator has no type-extension mechanism, so this duplicates
-      OrderDisplay's field list rather than referencing it — keep the two
-      in sync by hand if OrderDisplay's fields change.
+      projection as OrderDisplay (order_to_display_dict, including its
+      ts_ns field — see OrderDisplay's doc for why that one is not
+      converted to display units the way price/stop_price/trail_offset
+      are), with one field added: gateway_id. OrderDisplay can leave
+      gateway_id topic-only because an order.orders reply is always about a
+      single, already-known gateway; a price_level_orders reply spans every
+      gateway resting at a symbol/price, so each record must say whose
+      order it is. The generator has no type-extension mechanism, so this
+      duplicates OrderDisplay's field list rather than referencing it — keep
+      the two in sync by hand if OrderDisplay's fields change.
     fields:
       - { name: gateway_id, type: string, validate: { max_len: 32 },
           doc: "Owning gateway — the one piece of information OrderDisplay
@@ -199,13 +213,17 @@ types:
           doc: "TRAILING_STOP: trail distance, in display money." }
       - { name: oco_group_id, type: string, required: false, nullable: true,
           validate: { max_len: 64 } }
-      - name: timestamp
-        type: float
-        unit: epoch_seconds
+      - name: ts_ns
+        type: int
+        unit: epoch_nanos
         validate: { ge: 0 }
         doc: >
-          Client-supplied submission time, in seconds. NOT the book's time
-          priority key - see arrival_seq.
+          Client-supplied submission time (Order.timestamp, unconverted).
+          NOT the book's time priority key - see arrival_seq. AR-0.3b:
+          previously named "timestamp" and expressed as a seconds-based
+          float; see OrderDisplay's type doc for why that was out of step
+          with the rest of the wire and got fixed here rather than left
+          as the one field of that kind outside log.yaml.
       - { name: status, type: enum,
           values: [NEW, PARTIAL, FILLED, CANCELLED, REJECTED, EXPIRED] }
       - { name: price, type: float, unit: display_price, required: false,
@@ -579,6 +597,19 @@ messages:
     fields:
       - { name: gateway_id, type: string, validate: { max_len: 32 } }
       - { name: order_id, type: string, validate: { max_len: 64 } }
+      - name: symbol
+        type: string
+        required: false
+        nullable: true
+        omit_when_none: true
+        validate: { max_len: 16 }
+        doc: >
+          Instrument this order belonged to. The engine has always had this
+          at the publish site (the cancelled Order's own .symbol); it was
+          simply never carried on the wire, which made order.cancelled
+          invisible to a --symbol filter (AR-0.2). Nullable/omit_when_none,
+          like old_price/old_qty on order.amended below, so archived
+          records written before this field existed still parse.
       - { name: client_tag, type: string, required: false, nullable: true,
           omit_when_none: true, validate: { max_len: 64 } }
       - name: request_tag
@@ -651,6 +682,16 @@ messages:
     fields:
       - { name: gateway_id, type: string, validate: { max_len: 32 } }
       - { name: order_id, type: string, validate: { max_len: 64 } }
+      - name: symbol
+        type: string
+        required: false
+        nullable: true
+        omit_when_none: true
+        validate: { max_len: 16 }
+        doc: >
+          Instrument this order belonged to. Same AR-0.2 rationale as
+          order.cancelled.symbol above - the engine already has it at the
+          publish site, it was simply never carried.
       - { name: client_tag, type: string, required: false, nullable: true,
           omit_when_none: true, validate: { max_len: 64 } }
       - { name: oco_group_id, type: string, required: false, nullable: true,
@@ -679,6 +720,16 @@ messages:
     fields:
       - { name: gateway_id, type: string, validate: { max_len: 32 } }
       - { name: order_id, type: string, validate: { max_len: 64 } }
+      - name: symbol
+        type: string
+        required: false
+        nullable: true
+        omit_when_none: true
+        validate: { max_len: 16 }
+        doc: >
+          Instrument this order belonged to. Same AR-0.2 rationale as
+          order.cancelled.symbol above - the engine already has it at the
+          publish site, it was simply never carried.
       - { name: price, type: float, required: false, nullable: true,
           unit: display_price,
           doc: "New limit price, or null for an order that has none." }

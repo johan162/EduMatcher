@@ -1,3 +1,25 @@
+## [v0.37.0] - 2026-09-11
+
+Release Type: major
+
+### 📋 Summary
+First part of using the audit log to be able to replay the order flow. 
+As a side effects this has fixed some bugs and made the order handling 
+more roobust and surfaced some corner cases that needed fixing. 
+
+### 💥 Breaking Changes
+- Changed `timestamp`to `ts_ns` in many places for consistency
+
+### 🐛 Bug Fixes
+- Order ID comparison was case sensitive which made a user entered order ID never match
+
+### ✨ Additions
+- Multiple changes to message structure and handling
+
+### 📚 Documentation
+- Multiple changes across both user and developer documentation to match code updates.
+
+
 ## [v0.36.0] - 2026-09-11
 
 Release Type: major

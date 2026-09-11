@@ -172,7 +172,8 @@ class CommandError(Exception):
     ----------
     payload:
         The full decoded payload from the error message (typically has
-        ``reason`` and ``timestamp`` keys).
+        ``reason`` and ``ts_ns`` keys -- AR-0.3 renamed the index family's
+        ``timestamp`` field, this docstring included).
     """
 
     def __init__(self, payload: dict[str, Any]) -> None:
@@ -522,12 +523,15 @@ class ExchangeCommandClient:
             If *index_id* is not configured in ``pm-index`` — it replies on
             ``index.error.<gateway_id>`` rather than the history topic.
         """
+        # AR-0.3: this method's own from_ts/to_ts stay seconds (its public
+        # SDK-level contract); converted to the wire message's
+        # from_ts_ns/to_ts_ns only at this boundary.
         self._index_push.send_multipart(
             make_index_history_request_msg(
                 gateway_id=self._gw_id,
                 index_id=index_id.upper(),
-                from_ts=from_ts,
-                to_ts=to_ts,
+                from_ts_ns=int(from_ts * 1_000_000_000),
+                to_ts_ns=int(to_ts * 1_000_000_000),
                 types=types,
             )
         )

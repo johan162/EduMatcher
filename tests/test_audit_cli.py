@@ -29,8 +29,9 @@ from edumatcher.audit.indexer import (
 )
 from edumatcher.audit.query import (
     AuditEntry,
-    date_to_range,
     _parse_line,
+    _summarise,
+    date_to_range,
     discover_log_files,
     iter_entries,
     parse_ts,
@@ -391,6 +392,228 @@ class TestIterEntries:
         """GW02 appears only as sell_gateway_id — should still be found."""
         entries = list(iter_entries([log_file], gateway="GW02"))
         assert len(entries) >= 1
+
+
+# ===========================================================================
+# AR-0.2 — order.cancelled/expired/amended carry `symbol`
+#
+# Regression test for the pre-existing user-visible bug named in
+# docs-design/EduMatcher-Audit-Replay.md §14 AR-0.2: order.cancelled never
+# carried `symbol` on the wire, so AuditEntry.symbol (query.py, reading
+# payload.get("symbol")) was always None for a cancellation regardless of
+# which instrument it was for — silently excluding every order.cancelled
+# row from any --symbol filter. This must fail before the spec/engine fix
+# and pass after.
+# ===========================================================================
+
+_AR02_CANCEL_LINES = [
+    f"[{_TS1}] [order.cancelled.GW01] "
+    + json.dumps(
+        {
+            "gateway_id": "GW01",
+            "order_id": "ORD-AAPL-1",
+            "symbol": "AAPL",
+            "client_tag": "tag-aapl",
+        }
+    ),
+    f"[{_TS2}] [order.cancelled.GW02] "
+    + json.dumps(
+        {
+            "gateway_id": "GW02",
+            "order_id": "ORD-MSFT-1",
+            "symbol": "MSFT",
+            "client_tag": "tag-msft",
+        }
+    ),
+]
+
+
+@pytest.fixture()
+def ar02_cancel_log(tmp_path: Path) -> Path:
+    p = tmp_path / "audit.log"
+    _write_log(p, _AR02_CANCEL_LINES)
+    return p
+
+
+class TestAr02OrderCancelledSymbol:
+    """order.cancelled for AAPL and MSFT, filtered by symbol: exactly one
+    row must come back, and it must be the right one — not zero (the bug)
+    and not both (a filter that silently matched everything)."""
+
+    def test_iter_entries_symbol_filter(self, ar02_cancel_log: Path) -> None:
+        entries = list(iter_entries([ar02_cancel_log], symbol="AAPL"))
+        assert len(entries) == 1
+        assert entries[0].payload["order_id"] == "ORD-AAPL-1"
+        assert entries[0].symbol == "AAPL"
+
+    def test_query_events_symbol_filter(self, ar02_cancel_log: Path) -> None:
+        rows = query_events([ar02_cancel_log], symbol="AAPL")
+        assert len(rows) == 1
+        assert rows[0]["symbol"] == "AAPL"
+
+    def test_unfiltered_both_present_but_distinguishable(
+        self, ar02_cancel_log: Path
+    ) -> None:
+        """Sanity check that the fixture itself is right: with no filter,
+        both cancellations are read back and their symbols differ — so a
+        test that passed by coincidence (e.g. an empty-string symbol
+        matching everything) would be caught here."""
+        entries = list(iter_entries([ar02_cancel_log]))
+        assert {e.symbol for e in entries} == {"AAPL", "MSFT"}
+
+
+# ===========================================================================
+# AR-0.4 — book.{symbol} / depth.{symbol} carry ts_ns
+#
+# Regression test for docs-design/EduMatcher-Audit-Replay.md §14 AR-0.4:
+# previously book.{symbol} and depth.{symbol} carried no time field at all,
+# so nothing could establish whether a snapshot reflects a given trade.
+# Confirms the ordering (snapshot.ts_ns >= trade.ts_ns, enforced at the
+# source by the shared monotonic clock — see test_tick_ns_integration.py's
+# TestAr04SnapshotClock for that half) survives a round trip through the
+# audit log's text format and back out via iter_entries/query_events,
+# exactly as pm-audit-replay will read it.
+# ===========================================================================
+
+_AR04_TRADE_TS_NS = 1_700_000_000_000_000_000
+_AR04_BOOK_TS_NS = 1_700_000_000_000_500_000
+_AR04_DEPTH_TS_NS = 1_700_000_000_000_600_000
+
+_AR04_SNAPSHOT_LINES = [
+    f"[{_TS1}] [trade.executed] "
+    + json.dumps(
+        {
+            "id": "T1",
+            "symbol": "AAPL",
+            "buy_order_id": "B1",
+            "sell_order_id": "S1",
+            "buy_gateway_id": "GW1",
+            "sell_gateway_id": "GW2",
+            "price": 150.0,
+            "quantity": 10,
+            "ts_ns": _AR04_TRADE_TS_NS,
+        }
+    ),
+    f"[{_TS2}] [book.AAPL] "
+    + json.dumps(
+        {
+            "symbol": "AAPL",
+            "tick_decimals": 2,
+            "ts_ns": _AR04_BOOK_TS_NS,
+            "bids": [],
+            "asks": [],
+            "last_price": 150.0,
+            "last_qty": 10,
+            "last_buy_price": 150.0,
+            "last_sell_price": 150.0,
+            "recent_trades": [],
+        }
+    ),
+    f"[{_TS3}] [depth.AAPL] "
+    + json.dumps(
+        {
+            "symbol": "AAPL",
+            "ts_ns": _AR04_DEPTH_TS_NS,
+            "mid_price_ticks": 15000,
+            "mid_price": 150.0,
+            "tolerance_ticks": 100,
+            "bid_depth": 0,
+            "ask_depth": 0,
+            "imbalance": 0.0,
+            "microprice": 150.0,
+            "cost_to_move": 0.0,
+        }
+    ),
+]
+
+
+@pytest.fixture()
+def ar04_snapshot_log(tmp_path: Path) -> Path:
+    p = tmp_path / "audit.log"
+    _write_log(p, _AR04_SNAPSHOT_LINES)
+    return p
+
+
+class TestAr04SnapshotTsNs:
+    def test_book_snapshot_ts_ns_survives_the_round_trip(
+        self, ar04_snapshot_log: Path
+    ) -> None:
+        entries = list(iter_entries([ar04_snapshot_log]))
+        trade = next(e for e in entries if e.topic == "trade.executed")
+        book = next(e for e in entries if e.topic == "book.AAPL")
+        assert trade.payload["ts_ns"] == _AR04_TRADE_TS_NS
+        assert book.payload["ts_ns"] == _AR04_BOOK_TS_NS
+        assert book.payload["ts_ns"] >= trade.payload["ts_ns"]
+
+    def test_depth_snapshot_ts_ns_survives_the_round_trip(
+        self, ar04_snapshot_log: Path
+    ) -> None:
+        entries = list(iter_entries([ar04_snapshot_log]))
+        trade = next(e for e in entries if e.topic == "trade.executed")
+        depth = next(e for e in entries if e.topic == "depth.AAPL")
+        assert depth.payload["ts_ns"] == _AR04_DEPTH_TS_NS
+        assert depth.payload["ts_ns"] >= trade.payload["ts_ns"]
+
+    def test_query_events_preserves_ts_ns_in_the_summary_payload(
+        self, ar04_snapshot_log: Path
+    ) -> None:
+        """query_events() is what pm-audit-cli actually prints; confirm the
+        ordering is readable from that surface too, not just iter_entries."""
+        rows = query_events([ar04_snapshot_log], topic="book.")
+        assert len(rows) == 1
+        assert rows[0]["topic"] == "book.AAPL"
+
+
+class TestSummariseBookAndDepthAndOrderLifecycle:
+    """Johan noticed book.AAPL rows in `pm-audit-cli events` printed a
+    blank summary column, same as order_id -- a book snapshot isn't about
+    one order, so both are legitimately blank, but the row said nothing
+    at all about what changed. _summarise() previously had no case for
+    book./depth. (falling through to ""), nor for order.amended/
+    order.expired (also "" -- every other order.* lifecycle event had a
+    summary, these two didn't)."""
+
+    def test_book_snapshot_summarises_the_top_of_book(self) -> None:
+        entry = AuditEntry.__new__(AuditEntry)
+        entry.topic = "book.AAPL"
+        entry.payload = {
+            "symbol": "AAPL",
+            "bids": [{"price": 46.76, "qty": 1000, "count": 1}],
+            "asks": [{"price": 46.78, "qty": 1000, "count": 1}],
+        }
+        assert _summarise(entry) == "book: bid 46.76x1000 / ask 46.78x1000"
+
+    def test_book_snapshot_with_no_resting_orders_does_not_crash(self) -> None:
+        entry = AuditEntry.__new__(AuditEntry)
+        entry.topic = "book.AAPL"
+        entry.payload = {"symbol": "AAPL", "bids": [], "asks": []}
+        assert _summarise(entry) == "book: bid — / ask —"
+
+    def test_depth_snapshot_summarises_mid_and_imbalance(self) -> None:
+        entry = AuditEntry.__new__(AuditEntry)
+        entry.topic = "depth.AAPL"
+        entry.payload = {"symbol": "AAPL", "mid_price": 95.25, "imbalance": 0.3}
+        assert _summarise(entry) == "depth: mid=95.25 imbalance=0.3"
+
+    def test_events_query_surfaces_the_book_summary(
+        self, ar04_snapshot_log: Path
+    ) -> None:
+        """End-to-end through query_events(), the surface pm-audit-cli
+        events actually prints -- not just the unit-level _summarise()."""
+        rows = query_events([ar04_snapshot_log], topic="book.")
+        assert rows[0]["summary"] == "book: bid — / ask —"
+
+    def test_amended_summarises_the_new_price_and_qty(self) -> None:
+        entry = AuditEntry.__new__(AuditEntry)
+        entry.topic = "order.amended.TRADER01"
+        entry.payload = {"order_id": "x", "price": 105.0, "qty": 100}
+        assert _summarise(entry) == "AMEND price=105.0 qty=100"
+
+    def test_expired_has_a_summary(self) -> None:
+        entry = AuditEntry.__new__(AuditEntry)
+        entry.topic = "order.expired.TRADER01"
+        entry.payload = {"order_id": "x", "symbol": "AAPL"}
+        assert _summarise(entry) == "EXPIRED"
 
 
 # ===========================================================================

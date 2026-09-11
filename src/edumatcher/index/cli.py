@@ -184,12 +184,18 @@ def _resolve_index_ids(
 
 def _read_jsonl(
     path: Path,
-    from_ts: float,
-    to_ts: float,
+    from_ts_ns: int,
+    to_ts_ns: int,
     types: set[str],
     limit: int,
 ) -> list[dict[str, Any]]:
-    """Return matching records from *path* in chronological order."""
+    """Return matching records from *path* in chronological order.
+
+    *from_ts_ns*/*to_ts_ns* are epoch nanoseconds (AR-0.3) — the same unit
+    the archive itself stores under "ts_ns". Callers that speak in seconds
+    (this CLI's own --from/--to/--days flags) convert once, at the call
+    site in _cmd_events, before reaching this internal boundary.
+    """
     records: list[dict[str, Any]] = []
     if not path.exists():
         return records
@@ -205,10 +211,10 @@ def _read_jsonl(
             if rec.get("type") not in types:
                 continue
             try:
-                ts_f = float(rec["timestamp"])
+                ts_ns = int(rec["ts_ns"])
             except (KeyError, TypeError, ValueError):
                 continue
-            if from_ts <= ts_f <= to_ts:
+            if from_ts_ns <= ts_ns <= to_ts_ns:
                 records.append(rec)
                 if len(records) >= limit:
                     break
@@ -234,7 +240,7 @@ def _project_event(rec: dict[str, Any]) -> dict[str, Any]:
     else:
         detail = ""
     return {
-        "ts": _ts_to_str(float(rec["timestamp"])),
+        "ts": _ts_to_str(int(rec["ts_ns"]) / 1_000_000_000),
         "index_id": rec.get("index_id", ""),
         "type": rec_type,
         "symbol": rec.get("symbol", ""),
@@ -502,9 +508,14 @@ def _cmd_events(args: argparse.Namespace) -> None:
     else:
         types = _STRUCTURAL_TYPES
 
+    from_ts_ns = int(from_ts * 1_000_000_000)
+    to_ts_ns = int(to_ts * 1_000_000_000)
+
     rows: list[dict[str, Any]] = []
     for idx_id in index_ids:
-        for rec in _read_jsonl(hist_paths[idx_id], from_ts, to_ts, types, args.limit):
+        for rec in _read_jsonl(
+            hist_paths[idx_id], from_ts_ns, to_ts_ns, types, args.limit
+        ):
             rows.append(_project_event(rec))
 
     _render(rows, _EVENTS_COLUMNS, args.format, args.no_header)

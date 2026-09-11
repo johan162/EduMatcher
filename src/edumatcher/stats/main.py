@@ -1512,16 +1512,23 @@ class StatsProcess:
         day_high = day.get("high")
         day_low = day.get("low")
 
-        epoch_sec = payload.get("timestamp")
-        if epoch_sec is None:
+        # AR-0.3 renamed index.update's wire field from "timestamp" (float
+        # epoch seconds) to "ts_ns" (int epoch nanoseconds); AR-0.3b caught
+        # this call site still reading the old key -- every index.update
+        # since AR-0.3 was silently falling into the "no timestamp" branch
+        # below and logging a spurious warning on every single message.
+        ts_ns = payload.get("ts_ns")
+        if ts_ns is None:
             # Receipt time is a different clock from the rest of the series;
             # silently mixing the two would make an index history that looks
             # continuous but is not.
             epoch_sec = time.time()
             log.warning(
-                "index.update for %s has no timestamp; using receipt time",
+                "index.update for %s has no ts_ns; using receipt time",
                 index_id,
             )
+        else:
+            epoch_sec = ts_ns / 1_000_000_000
         ts = datetime.fromtimestamp(epoch_sec, tz=timezone.utc).isoformat(
             timespec="milliseconds"
         )

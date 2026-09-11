@@ -368,6 +368,38 @@ class TestStartupRecovery:
         assert recoveries[0]["restored_orders"] == 0
 
 
+class TestAr05KillSwitchIdLists:
+    """AR-0.5: risk.kill_switch_ack's cancelled_order_ids lists exactly the
+    order ids cancelled_orders counts -- not just how many, but which."""
+
+    def test_cancelled_order_ids_match_the_orders_actually_cancelled(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+    ) -> None:
+        engine, pub = make_engine(monkeypatch, tmp_path, symbols=(SYMBOL, "MSFT"))
+        connect(engine, "GW01")
+
+        submitted_ids = []
+        for symbol, price in (
+            (SYMBOL, 100.00),
+            (SYMBOL, 101.00),
+            ("MSFT", 200.00),
+        ):
+            payload = order_payload(
+                Side.BUY, OrderType.LIMIT, 100, "GW01", price=price, symbol=symbol
+            )
+            engine._handle_new_order(payload)
+            submitted_ids.append(payload["id"])
+
+        engine._handle_kill_switch({"gateway_id": "GW01", "command_id": "CMD-AR05"})
+
+        acks = msgs(pub, "risk.kill_switch_ack.GW01")
+        assert len(acks) == 1
+        ack = acks[0]
+        assert ack["cancelled_orders"] == 3
+        assert set(ack["cancelled_order_ids"]) == set(submitted_ids)
+        assert len(ack["cancelled_order_ids"]) == ack["cancelled_orders"]
+
+
 class TestDiagnostic:
     """Internal failures the engine absorbs and keeps running past are now
     on the wire, not just in the process log."""

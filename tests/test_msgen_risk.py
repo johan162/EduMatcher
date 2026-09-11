@@ -394,8 +394,20 @@ class TestTheInstrumentScopedHalf:
         _t, resume = M.decode(
             M.make_circuit_breaker_resume_all_ack_msg("ADM", True, resumed_symbols=12)
         )
-        assert set(halt) == {"accepted", "reason", "halted_symbols", "cancelled_quotes"}
-        assert set(resume) == {"accepted", "reason", "resumed_symbols"}
+        assert set(halt) == {
+            "accepted",
+            "reason",
+            "halted_symbols",
+            "halted_symbol_ids",  # AR-0.5
+            "cancelled_quotes",
+            "cancelled_quote_order_ids",  # AR-0.5
+        }
+        assert set(resume) == {
+            "accepted",
+            "reason",
+            "resumed_symbols",
+            "resumed_symbol_ids",  # AR-0.5
+        }
 
 
 class TestTheCorrelationGapIsRealAndLeftAlone:

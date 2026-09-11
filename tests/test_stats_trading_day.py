@@ -376,7 +376,11 @@ def test_index_restart_preserves_the_days_ohlc(tmp_path: Path) -> None:
         first = StatsProcess(db, session_tz=timezone.utc)
     for i, level in enumerate([1000.0, 1050.0, 990.0]):
         first._on_index_update(
-            {"index_id": "EDU100", "level": level, "timestamp": base + i}
+            {
+                "index_id": "EDU100",
+                "level": level,
+                "ts_ns": int((base + i) * 1_000_000_000),
+            }
         )
     first.close()
 
@@ -386,7 +390,11 @@ def test_index_restart_preserves_the_days_ohlc(tmp_path: Path) -> None:
     ):
         second = StatsProcess(db, session_tz=timezone.utc)
     second._on_index_update(
-        {"index_id": "EDU100", "level": 1010.0, "timestamp": base + 10}
+        {
+            "index_id": "EDU100",
+            "level": 1010.0,
+            "ts_ns": int((base + 10) * 1_000_000_000),
+        }
     )
     row = second._conn.execute(
         "SELECT open_level, high_level, low_level, close_level, update_count "
@@ -658,7 +666,7 @@ def test_index_update_without_timestamp_warns(
 
     with caplog.at_level(logging.WARNING):
         sp._on_index_update({"index_id": "EDU100", "level": 1000.0})
-    assert "no timestamp" in caplog.text
+    assert "no ts_ns" in caplog.text
 
 
 def test_pct_change_is_reproducible_from_consecutive_rows(
@@ -910,6 +918,7 @@ def test_depth_topic_does_not_match_a_book_subscription() -> None:
 
     depth = {
         "symbol": "AAPL",
+        "ts_ns": 1_700_000_000_000_000_000,
         "mid_price_ticks": 9525,
         "mid_price": 95.25,
         "tolerance_ticks": 100,

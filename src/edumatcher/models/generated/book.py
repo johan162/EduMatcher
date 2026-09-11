@@ -174,6 +174,14 @@ _BOOK_SNAPSHOT_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "The tick scale the display prices here were produced at. Subscribers that store prices exactly need it to convert back to integer ticks; without it they must guess, and guessing 2 for a 4-decimal symbol rounds the price away.",
     },
     {
+        "name": "ts_ns",
+        "type": "int",
+        "unit": "epoch_nanos",
+        "required": True,
+        "doc": "When this snapshot was produced (AR-0.4). Previously book.{symbol} carried no time field at all, so nothing could establish whether a snapshot reflects a given trade; ordering against trade.executed.ts_ns (and recent_trades[].ts_ns, which this mirrors) was impossible. Monotonic per edumatcher.models.clock.now_ns().",
+        "constraints": {"ge": 0},
+    },
+    {
         "name": "bids",
         "type": "list",
         "unit": None,
@@ -236,6 +244,7 @@ class BookSnapshot:
 
     symbol: str
     tick_decimals: int  # unit: dimensionless
+    ts_ns: int  # unit: epoch_nanos
     bids: list[BookLevel]
     asks: list[BookLevel]
     recent_trades: list[RecentTrade]
@@ -255,6 +264,8 @@ class BookSnapshot:
             raise MessageValidationError(
                 f"symbol: length {len(self.symbol)} exceeds max_len 16"
             )
+        if self.ts_ns < 0:
+            raise MessageValidationError(f"ts_ns: {self.ts_ns!r} must be >= 0")
         for bids_item in self.bids:
             bids_item.validate()
         for asks_item in self.asks:
@@ -273,6 +284,7 @@ class BookSnapshot:
         return cls(
             symbol=str(p["symbol"]),
             tick_decimals=int(p["tick_decimals"]),
+            ts_ns=int(p["ts_ns"]),
             bids=[BookLevel.from_dict(item) for item in p["bids"]],
             asks=[BookLevel.from_dict(item) for item in p["asks"]],
             last_price=None if p.get("last_price") is None else float(p["last_price"]),
@@ -293,6 +305,7 @@ class BookSnapshot:
         return {
             "symbol": self.symbol,
             "tick_decimals": self.tick_decimals,
+            "ts_ns": self.ts_ns,
             "bids": [item.to_dict() for item in self.bids],
             "asks": [item.to_dict() for item in self.asks],
             "last_price": self.last_price,
@@ -479,6 +492,14 @@ _DEPTH_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"max_len": 16},
     },
     {
+        "name": "ts_ns",
+        "type": "int",
+        "unit": "epoch_nanos",
+        "required": True,
+        "doc": "When this depth snapshot was produced (AR-0.4). Previously depth.{symbol} carried no time field at all. Monotonic per edumatcher.models.clock.now_ns().",
+        "constraints": {"ge": 0},
+    },
+    {
         "name": "mid_price_ticks",
         "type": "ticks",
         "unit": "ticks",
@@ -548,6 +569,7 @@ class Depth:
     """
 
     symbol: str
+    ts_ns: int  # unit: epoch_nanos
     mid_price_ticks: int  # unit: ticks
     mid_price: float  # unit: display_price
     tolerance_ticks: int  # unit: ticks
@@ -568,6 +590,8 @@ class Depth:
             raise MessageValidationError(
                 f"symbol: length {len(self.symbol)} exceeds max_len 16"
             )
+        if self.ts_ns < 0:
+            raise MessageValidationError(f"ts_ns: {self.ts_ns!r} must be >= 0")
         if self.imbalance < -1:
             raise MessageValidationError(f"imbalance: {self.imbalance!r} must be >= -1")
         if self.imbalance > 1:
@@ -583,6 +607,7 @@ class Depth:
         """
         return cls(
             symbol=str(p["symbol"]),
+            ts_ns=int(p["ts_ns"]),
             mid_price_ticks=int(p["mid_price_ticks"]),
             mid_price=float(p["mid_price"]),
             tolerance_ticks=int(p["tolerance_ticks"]),
@@ -597,6 +622,7 @@ class Depth:
         """Return the bus payload, in the spec's declared field order."""
         return {
             "symbol": self.symbol,
+            "ts_ns": self.ts_ns,
             "mid_price_ticks": self.mid_price_ticks,
             "mid_price": self.mid_price,
             "tolerance_ticks": self.tolerance_ticks,
@@ -637,6 +663,7 @@ def make_depth(**kw: Any) -> list[bytes]:
 def make_depth_unchecked(
     *,
     symbol: str,
+    ts_ns: int,
     mid_price_ticks: int,
     mid_price: float,
     tolerance_ticks: int,
@@ -661,6 +688,7 @@ def make_depth_unchecked(
         _msg.dumps(
             {
                 "symbol": str(symbol),
+                "ts_ns": int(ts_ns),
                 "mid_price_ticks": int(mid_price_ticks),
                 "mid_price": float(mid_price),
                 "tolerance_ticks": int(tolerance_ticks),

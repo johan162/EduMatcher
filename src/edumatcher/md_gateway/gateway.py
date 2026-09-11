@@ -1047,10 +1047,15 @@ def _extract_ts(payload: dict[str, Any]) -> float:
     """Extract event time as epoch seconds, with a robust fallback.
 
     This runs over every topic on both SUB sockets, and the bus carries two
-    different time fields: `ts_ns` (integer epoch nanoseconds -- trade.executed
-    and the book's recent-trade rows) and `timestamp` (float epoch seconds --
-    index.update and friends). Prefer the nanosecond field where it exists and
-    scale it here, at the one place the CALF envelope needs seconds.
+    different time fields: `ts_ns` (integer epoch nanoseconds -- trade.executed,
+    the book's recent-trade rows, and, since AR-0.3, index.update and every
+    other index-family message too) and `timestamp` (float epoch seconds --
+    log.yaml's messages are the remaining holdout, per CP-0's own checklist).
+    Prefer the nanosecond field where it exists and scale it here, at the one
+    place the CALF envelope needs seconds; the `timestamp` fallback below
+    predates AR-0.3 and is believed dead for every topic this function
+    currently sees, kept only because removing an untested fallback branch on
+    a guess is worse than a comment correction.
     """
     raw_ns = payload.get("ts_ns")
     if raw_ns is not None:

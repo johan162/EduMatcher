@@ -110,12 +110,15 @@ class IndexClient:
         """
         history_future = self._register_future(topic_index_history(request_id))
         error_future = self._register_future(topic_index_error(request_id))
+        # AR-0.3: this call keeps its own from_ts/to_ts in seconds (the REST
+        # layer's external contract), converting to the wire message's
+        # from_ts_ns/to_ts_ns only at this boundary.
         self._push.send_multipart(
             make_index_history_request_msg(
                 request_id,
                 index_id,
-                from_ts,
-                to_ts,
+                int(from_ts * 1_000_000_000),
+                int(to_ts * 1_000_000_000),
                 types=types,
                 max_records=max_records,
             )

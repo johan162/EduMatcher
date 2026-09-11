@@ -488,13 +488,14 @@ class TestTheFourFieldsNamedSymbols:
 
 
 class TestTheFamilyIsComplete:
-    def test_all_thirty_one_topics_are_declared(self) -> None:
-        """29 -> 31: startup_recovery and diagnostic (see
+    def test_all_thirty_two_topics_are_declared(self) -> None:
+        """29 -> 31 -> 32: startup_recovery and diagnostic (see
         docs/user-guide/190-audit.md) — the GTC-restore summary and the
         absorbed-internal-failure marker, both broadcasts with no request
-        just like eod."""
+        just like eod. AR-0.5 then added recovery_item, one broadcast per
+        restored/failed GTC order alongside the startup_recovery summary."""
         topics = {getattr(G, n) for n in dir(G) if n.startswith("TOPIC_")}
-        assert len(topics) == 31, sorted(topics)
+        assert len(topics) == 32, sorted(topics)
 
 
 class TestQuoteLegSnapshotPrice:

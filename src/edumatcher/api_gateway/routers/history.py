@@ -503,6 +503,13 @@ async def history_index_events(
     ``types`` restricts to a subset of INIT/CORP_ACTION/ADD_CONSTITUENT/
     DELIST; omitting it returns all four (there are no level/EOD tick
     records here — see /index-daily and /index-snapshots for those).
+
+    AR-0.3: this endpoint's own request contract (``from``/``to`` in
+    seconds) is unchanged, but each record in the response's ``events``
+    list is pm-index's ``HistoryRecord`` forwarded as-is, and that record
+    now carries ``ts_ns`` (epoch nanoseconds) rather than ``timestamp``
+    (epoch seconds) — the wire-protocol change is visible in the response
+    body even though the request query params are not.
     """
     if types is not None:
         unknown = sorted(set(types) - STRUCTURAL_RECORD_TYPES)

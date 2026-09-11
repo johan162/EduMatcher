@@ -43,7 +43,7 @@ def _update(**over: Any) -> dict[str, Any]:
         "aggregate_cap": 9_000_000.0,
         "divisor": 7.25,
         "session_state": "OPEN",
-        "timestamp": 1700000000.0,
+        "ts_ns": 1700000000000000000,
     }
     base.update(over)
     return base
@@ -91,7 +91,7 @@ class TestTheArchiveRoundTripsUnchanged:
     _RECORDS: tuple[dict[str, Any], ...] = (
         {
             "type": "INIT",
-            "timestamp": 1.0,
+            "ts_ns": 1,
             "index_id": "OMX30",
             "base_value": 1000.0,
             "divisor": 2.0,
@@ -100,7 +100,7 @@ class TestTheArchiveRoundTripsUnchanged:
         },
         {
             "type": "CORP_ACTION",
-            "timestamp": 2.0,
+            "ts_ns": 2,
             "index_id": "OMX30",
             "symbol": "ACME",
             "action": "SPLIT",
@@ -111,7 +111,7 @@ class TestTheArchiveRoundTripsUnchanged:
         },
         {
             "type": "ADD_CONSTITUENT",
-            "timestamp": 3.0,
+            "ts_ns": 3,
             "index_id": "OMX30",
             "level": 1002.0,
             "symbol": "COG",
@@ -122,7 +122,7 @@ class TestTheArchiveRoundTripsUnchanged:
         },
         {
             "type": "DELIST",
-            "timestamp": 4.0,
+            "ts_ns": 4,
             "index_id": "OMX30",
             "level": 1003.0,
             "symbol": "BOLT",
@@ -131,7 +131,7 @@ class TestTheArchiveRoundTripsUnchanged:
         },
         {
             "type": "REBALANCE",
-            "timestamp": 5.0,
+            "ts_ns": 5,
             "index_id": "OMX30",
             "symbols": ["ACME", "COG"],
             "old_divisor": 2.0,
@@ -169,7 +169,7 @@ class TestTheArchiveRoundTripsUnchanged:
         """
         legacy = {
             "type": "ADD_CONSTITUENT",
-            "timestamp": 3.0,
+            "ts_ns": 3,
             "index_id": "OMX30",
             "level": 1002.0,
             "symbol": "COG",
@@ -333,8 +333,8 @@ class TestTheHotPathBuilderHandlesScalarLists:
         kw: dict[str, Any] = {
             "gateway_id": "GW1",
             "index_id": "OMX30",
-            "from_ts": 0.0,
-            "to_ts": 1700000000.0,
+            "from_ts_ns": 0,
+            "to_ts_ns": 1700000000000000000,
             "types": ["INIT", "REBALANCE"],
         }
         assert G.make_index_history_request_unchecked(
@@ -346,8 +346,8 @@ class TestTheHotPathBuilderHandlesScalarLists:
         kw: dict[str, Any] = {
             "gateway_id": "GW1",
             "index_id": "OMX30",
-            "from_ts": 0.0,
-            "to_ts": 1.0,
+            "from_ts_ns": 0,
+            "to_ts_ns": 1,
             "types": [1, 2],
         }
         assert G.make_index_history_request_unchecked(
@@ -380,8 +380,8 @@ class TestTheDefaultThatDroppedRebalance:
             {
                 "gateway_id": "GW1",
                 "index_id": "OMX30",
-                "from_ts": 0.0,
-                "to_ts": 1.0,
+                "from_ts_ns": 0,
+                "to_ts_ns": 1,
             }
         ).to_dict()
         assert "types" not in emitted
@@ -478,7 +478,7 @@ class TestAdoptionDidNotMakeAMalformedRequestFatal:
                 gateway_id="GW1",
                 accepted=False,
                 reason="X" * 600,
-                timestamp=1700000000.0,
+                ts_ns=1700000000000000000,
             )
 
     def test_the_handlers_clamp_what_they_echo_back(self) -> None:
@@ -535,7 +535,7 @@ class TestTheTopicsAreAllDeclared:
                 "gateway_id": "GW1",
                 "accepted": False,
                 "reason": "Unknown index_id 'X'",
-                "timestamp": 1700000000.0,
+                "ts_ns": 1700000000000000000,
             }
         ).to_dict()
         assert "gateway_id" not in emitted

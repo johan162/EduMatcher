@@ -89,6 +89,15 @@ types:
         unit: dimensionless
         validate: { ge: 0 }
         doc: "Outcome, on accepted kill-switch actions only."
+      - name: cancelled_order_ids
+        type: list
+        item: string
+        required: false
+        omit_when_empty: true
+        doc: >
+          AR-0.5: the order ids counted in cancelled_orders, mirroring
+          risk.kill_switch_ack (and friends) — see risk.yaml for why this is
+          the right key even for the quote-cancellation counterpart below.
       - name: cancelled_quotes
         type: int
         required: false
@@ -97,6 +106,12 @@ types:
         unit: dimensionless
         validate: { ge: 0 }
         doc: "Outcome, on accepted kill-switch actions only."
+      - name: cancelled_quote_order_ids
+        type: list
+        item: string
+        required: false
+        omit_when_empty: true
+        doc: "AR-0.5: the order ids counted in cancelled_quotes."
       - name: affected_gateways
         type: int
         required: false
@@ -105,6 +120,12 @@ types:
         unit: dimensionless
         validate: { ge: 0 }
         doc: "Outcome, on an accepted `kill_switch.global` only."
+      - name: affected_gateway_ids
+        type: list
+        item: string
+        required: false
+        omit_when_empty: true
+        doc: "AR-0.5: the gateway ids counted in affected_gateways."
 
 messages:
   - name: admin_action

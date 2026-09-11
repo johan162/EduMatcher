@@ -83,7 +83,7 @@ types:
         doc: >
           The discriminator. IndexHistory.query drops any other value with a
           warning, so an unknown type never reaches the wire.
-      - { name: timestamp, type: float, unit: epoch_seconds }
+      - { name: ts_ns, type: int, unit: epoch_nanos }
       - { name: index_id, type: string, validate: { max_len: 32 } }
       - { name: level, type: float, unit: dimensionless,
           doc: "The index level immediately after the event was applied." }
@@ -169,7 +169,7 @@ messages:
           doc: "Level = aggregate_cap / divisor." }
       - { name: session_state, type: string, validate: { max_len: 32 },
           doc: "Mirrors session.state; a plain string there and here." }
-      - { name: timestamp, type: float, unit: epoch_seconds }
+      - { name: ts_ns, type: int, unit: epoch_nanos }
       - { name: day, type: nested, ref: DaySummary, required: false,
           nullable: true, omit_when_none: true }
     encoding:
@@ -198,8 +198,8 @@ messages:
     fields:
       - { name: gateway_id, type: string, validate: { max_len: 32 } }
       - { name: index_id, type: string, validate: { max_len: 32 } }
-      - { name: from_ts, type: float, unit: epoch_seconds }
-      - { name: to_ts, type: float, unit: epoch_seconds }
+      - { name: from_ts_ns, type: int, unit: epoch_nanos }
+      - { name: to_ts_ns, type: int, unit: epoch_nanos }
       - { name: types, type: list, item: string, required: false,
           omit_when_empty: true,
           doc: "Record types to include; omitted means all structural types." }
@@ -339,7 +339,7 @@ messages:
       - { name: accepted, type: bool }
       - { name: reason, type: string, required: false, default: "",
           validate: { max_len: 512 } }
-      - { name: timestamp, type: float, unit: epoch_seconds }
+      - { name: ts_ns, type: int, unit: epoch_nanos }
       - { name: index_id, type: string, required: false, omit_when_empty: true,
           validate: { max_len: 32 } }
       - { name: level, type: float, unit: dimensionless, required: false,
@@ -378,7 +378,7 @@ messages:
       - { name: accepted, type: bool }
       - { name: reason, type: string, required: false, default: "",
           validate: { max_len: 512 } }
-      - { name: timestamp, type: float, unit: epoch_seconds }
+      - { name: ts_ns, type: int, unit: epoch_nanos }
       - { name: index_id, type: string, required: false, omit_when_empty: true,
           validate: { max_len: 32 } }
       - { name: level, type: float, unit: dimensionless, required: false,
@@ -416,7 +416,7 @@ messages:
       - { name: accepted, type: bool }
       - { name: reason, type: string, required: false, default: "",
           validate: { max_len: 512 } }
-      - { name: timestamp, type: float, unit: epoch_seconds }
+      - { name: ts_ns, type: int, unit: epoch_nanos }
       - { name: updated_symbols, type: int, unit: dimensionless,
           required: false, default: 0, validate: { ge: 0 } }
       - { name: index_id, type: string, required: false, omit_when_empty: true,
@@ -462,6 +462,6 @@ messages:
       - { name: accepted, type: bool,
           doc: "Always false; present so every reply has the same first key." }
       - { name: reason, type: string, validate: { max_len: 512 } }
-      - { name: timestamp, type: float, unit: epoch_seconds }
+      - { name: ts_ns, type: int, unit: epoch_nanos }
     encoding:
       engine_pub: { frames: [topic, json_payload] }

@@ -586,6 +586,10 @@ class OrderBook:
 
         return {
             "symbol": self.symbol,
+            # AR-0.4: when this depth snapshot was produced. Monotonic, so a
+            # snapshot taken after a given trade always carries ts_ns >= that
+            # trade's — see now_ns()'s docstring.
+            "ts_ns": now_ns(),
             "mid_price_ticks": mid,
             "mid_price": mid_price,
             "tolerance_ticks": tolerance_ticks,
@@ -692,6 +696,10 @@ class OrderBook:
             # convert back to integer ticks; without it they must guess, and
             # guessing 2 for a 4-decimal symbol rounds the price away.
             "tick_decimals": get_tick_decimals(self.symbol),
+            # AR-0.4: when this snapshot was produced. Monotonic, so a
+            # snapshot taken after a given trade always carries ts_ns >= that
+            # trade's — see now_ns()'s docstring.
+            "ts_ns": now_ns(),
             "bids": sorted(bid_rows, key=lambda x: -x["price"]),
             "asks": sorted(ask_rows, key=lambda x: x["price"]),
             "last_price": (

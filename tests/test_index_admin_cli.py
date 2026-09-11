@@ -485,7 +485,7 @@ class TestCmdShares:
                     records=[
                         {
                             "type": "CORP_ACTION",
-                            "timestamp": 100.0,
+                            "ts_ns": 100,
                             "index_id": "TECH10",
                             "level": 8401.09,
                             "symbol": "AAPL",
@@ -562,7 +562,7 @@ class TestCmdShares:
                     records=[
                         {
                             "type": "ADD_CONSTITUENT",
-                            "timestamp": 50.0,
+                            "ts_ns": 50,
                             "index_id": "TECH10",
                             "level": 100.0,
                             "symbol": "AAPL",
@@ -599,7 +599,7 @@ class TestCmdShares:
                     records=[
                         {
                             "type": "ADD_CONSTITUENT",
-                            "timestamp": 50.0,
+                            "ts_ns": 50,
                             "index_id": "TECH10",
                             "level": 100.0,
                             "symbol": "AAPL",
@@ -747,7 +747,7 @@ class TestCmdHistory:
                     records=[
                         {
                             "type": "CORP_ACTION",
-                            "timestamp": 1721380502.0,
+                            "ts_ns": 1721380502,
                             "index_id": "TECH10",
                             "symbol": "AAPL",
                             "action": "SPLIT",
@@ -787,7 +787,7 @@ class TestCmdHistory:
                     records=[
                         {
                             "type": "INIT",
-                            "timestamp": 1.0,
+                            "ts_ns": 1,
                             "index_id": "TECH10",
                             "level": 1000.0,
                         }
@@ -855,7 +855,7 @@ class TestCmdHistory:
         records = [
             {
                 "type": "INIT",
-                "timestamp": float(i),
+                "ts_ns": i,
                 "index_id": "TECH10",
                 "level": 1000.0,
             }

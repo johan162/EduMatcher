@@ -145,6 +145,7 @@ from edumatcher.models.message import (
     make_admin_action_msg,
     make_risk_state_msg,
     make_startup_recovery_msg,
+    make_recovery_item_msg,
     make_diagnostic_msg,
 )
 from edumatcher.models.participant import (
@@ -281,8 +282,14 @@ def order_to_display_dict(order: Order) -> dict[str, Any]:
     """Serialize an order for an outbound snapshot in *display* units (L3).
 
     Single source of truth built on ``Order.to_dict()`` (so fields never drift
-    from the model), with tick prices converted to display floats and the
-    timestamp expressed in seconds.
+    from the model), with tick prices converted to display floats. The
+    timestamp is the one field this projection does NOT convert (AR-0.3b):
+    it rides through as ``ts_ns``, the same raw nanosecond integer
+    ``Order.timestamp`` already is, matching the convention the rest of the
+    wire uses (trade.executed, book/depth snapshots, the index family) —
+    see spec/messages/order.yaml's OrderDisplay doc for why converting a
+    correlation-critical timestamp to display seconds, the way price is
+    converted to display money, would be the wrong call here.
     """
     d = order.to_dict()
     sym = order.symbol
@@ -293,7 +300,7 @@ def order_to_display_dict(order: Order) -> dict[str, Any]:
     d["trail_offset"] = (
         from_ticks(order.trail_offset, sym) if order.trail_offset is not None else None
     )
-    d["timestamp"] = order.timestamp / 1_000_000_000
+    d["ts_ns"] = d.pop("timestamp")
     return d
 
 
@@ -1169,6 +1176,14 @@ class Engine:
                     )
                     self._dbg_count("stale_day_orders_discarded")
                     discarded_stale_day_count += 1
+                    self.pub_sock.send_multipart(
+                        make_recovery_item_msg(
+                            order.id,
+                            "ORDER",
+                            "DISCARDED_STALE_DAY",
+                            symbol=order.symbol,
+                        )
+                    )
                     continue
             order.status = OrderStatus.NEW
             book = self._book(order.symbol)
@@ -1187,10 +1202,24 @@ class Engine:
                     f"— restore failed: {exc}"
                 )
                 failed_restore_count += 1
+                self.pub_sock.send_multipart(
+                    make_recovery_item_msg(
+                        order.id,
+                        "ORDER",
+                        "FAILED",
+                        symbol=order.symbol,
+                        detail=str(exc),
+                    )
+                )
                 continue
             self._order_symbol[order.id] = order.symbol
             restored_count += 1
             log.info(f"Restored GTC order {order.id} ({order.symbol})")
+            self.pub_sock.send_multipart(
+                make_recovery_item_msg(
+                    order.id, "ORDER", "RESTORED", symbol=order.symbol
+                )
+            )
             if order.origin == OrderOrigin.QUOTE and order.quote_id:
                 restored_quote_legs.append(order)
         if restored_count:
@@ -1254,6 +1283,14 @@ class Engine:
                         )
                         self._dbg_count("quote_remnants_restored")
                         quote_remnant_count += 1
+                        self.pub_sock.send_multipart(
+                            make_recovery_item_msg(
+                                surviving.id,
+                                "ORDER",
+                                "QUOTE_REMNANT",
+                                symbol=surviving.symbol,
+                            )
+                        )
             if rebuilt_quotes:
                 log.info(
                     f"Rebuilt {rebuilt_quotes} active quote(s) in QuoteIndex "
@@ -1267,6 +1304,12 @@ class Engine:
             self._combos[combo.id] = combo
             for child_id in combo.child_order_ids:
                 self._order_to_combo[child_id] = combo.id
+            # AR-0.5: load_gtc_combos() has no per-combo guard today, so every
+            # combo that reaches this point restored successfully — there is
+            # no failure path yet to report a different outcome for.
+            self.pub_sock.send_multipart(
+                make_recovery_item_msg(combo.id, "COMBO", "RESTORED")
+            )
         if combos:
             log.info(f"Restored {len(combos)} GTC combo(s) from previous session.")
 
@@ -1797,11 +1840,18 @@ class Engine:
                 _published_terminal_ids.add(evt.id)
                 # Terminal cancellation (SMP, IOC/MARKET remainder) — notify
                 # owner. This is the hot path, so the frame is built by hand
-                # rather than through make_cancelled_msg; cancel_reason follows
-                # the spec's omit_when_none, so it is added only when set.
+                # rather than through make_cancelled_msg; cancel_reason
+                # follows the spec's omit_when_none, so it's added only when
+                # set. symbol (AR-0.2) is set unconditionally: Order.symbol
+                # is a plain `str`, never None, on every Order this engine
+                # constructs -- the wire field is nullable/omit_when_none
+                # for *other* producers, not this one. (pyright previously
+                # flagged the old `if evt.symbol is not None:` guard here as
+                # dead code for exactly this reason.)
                 _cancelled: dict[str, Any] = {
                     "order_id": evt.id,
                     "client_tag": evt.client_tag,
+                    "symbol": evt.symbol,
                 }
                 if evt.cancel_reason is not None:
                     _cancelled["cancel_reason"] = evt.cancel_reason
@@ -2757,18 +2807,29 @@ class Engine:
         *,
         cancel_reason: CancelReason | None = None,
         command_id: str = "",
-    ) -> int:
-        cancelled = 0
+    ) -> list[str]:
+        """Cancel both legs of *entry*, returning the order ids actually
+        cancelled (0, 1 or 2 of them — a leg already gone, e.g. filled or
+        cancelled some other way, contributes nothing).
+
+        AR-0.5: this used to return a bare ``int`` count. Every caller that
+        built a risk-ack's ``cancelled_quotes`` from that count now also
+        needs the ids behind it, so the return value carries both — the
+        count is simply ``len()`` of what comes back, preserving the "a
+        count that disagrees with its own list is itself a detectable
+        defect" property the id lists exist for.
+        """
+        cancelled_ids: list[str] = []
         bid_order = self._cancel_order_by_id(
             entry.bid_order_id, cancel_reason=cancel_reason, command_id=command_id
         )
         if bid_order is not None:
-            cancelled += 1
+            cancelled_ids.append(bid_order.id)
         ask_order = self._cancel_order_by_id(
             entry.ask_order_id, cancel_reason=cancel_reason, command_id=command_id
         )
         if ask_order is not None:
-            cancelled += 1
+            cancelled_ids.append(ask_order.id)
         # entry has already been popped from the active QuoteIndex and its
         # quote-level history recorded by the caller (remove()/
         # cancel_all_for_*()) before _cancel_quote_entry runs — attach the
@@ -2790,7 +2851,7 @@ class Engine:
                 command_id=command_id or None,
             )
         )
-        return cancelled
+        return cancelled_ids
 
     def _cancel_orphaned_quote_legs(self, gateway_id: str, symbol: str) -> int:
         """Cancel any resting quote-origin order(s) for this gateway/symbol
@@ -3657,8 +3718,8 @@ class Engine:
             )
             return
 
-        cancelled_orders = 0
-        cancelled_quotes = 0
+        cancelled_order_ids: list[str] = []
+        cancelled_quote_order_ids: list[str] = []
 
         if symbol_filter:
             entry = self._quote_index.get(gateway_id, symbol_filter)
@@ -3666,7 +3727,7 @@ class Engine:
                 self._quote_index.remove(
                     gateway_id, symbol_filter, reason="Kill switch"
                 )
-                cancelled_quotes += self._cancel_quote_entry(
+                cancelled_quote_order_ids += self._cancel_quote_entry(
                     entry,
                     reason="Kill switch",
                     cancel_reason="KILL_SWITCH",
@@ -3677,7 +3738,7 @@ class Engine:
                 gateway_id, reason="Kill switch"
             )
             for entry in entries:
-                cancelled_quotes += self._cancel_quote_entry(
+                cancelled_quote_order_ids += self._cancel_quote_entry(
                     entry,
                     reason="Kill switch",
                     cancel_reason="KILL_SWITCH",
@@ -3692,19 +3753,25 @@ class Engine:
                 continue
             for order in list(book.orders_for_gateway(gateway_id)):
                 if order.origin != OrderOrigin.QUOTE:
-                    if self._cancel_order_by_id(
+                    cancelled = self._cancel_order_by_id(
                         order.id,
                         cancel_reason="KILL_SWITCH",
                         command_id=command_id,
-                    ):
-                        cancelled_orders += 1
+                    )
+                    if cancelled is not None:
+                        cancelled_order_ids.append(cancelled.id)
+
+        cancelled_orders = len(cancelled_order_ids)
+        cancelled_quotes = len(cancelled_quote_order_ids)
 
         self.pub_sock.send_multipart(
             make_kill_switch_ack_msg(
                 gateway_id,
                 True,
                 cancelled_orders=cancelled_orders,
+                cancelled_order_ids=cancelled_order_ids,
                 cancelled_quotes=cancelled_quotes,
+                cancelled_quote_order_ids=cancelled_quote_order_ids,
                 command_id=command_id,
             )
         )
@@ -3716,7 +3783,9 @@ class Engine:
                 "symbol": symbol_filter or None,
                 "note": note,
                 "cancelled_orders": cancelled_orders,
+                "cancelled_order_ids": cancelled_order_ids,
                 "cancelled_quotes": cancelled_quotes,
+                "cancelled_quote_order_ids": cancelled_quote_order_ids,
             },
             accepted=True,
         )
@@ -3765,13 +3834,13 @@ class Engine:
             _reject("target_gateway_id required")
             return
 
-        cancelled_orders = 0
-        cancelled_quotes = 0
+        cancelled_order_ids: list[str] = []
+        cancelled_quote_order_ids: list[str] = []
 
         for entry in self._quote_index.cancel_all_for_gateway(
             target_gateway_id, reason="ADMIN kill switch"
         ):
-            cancelled_quotes += self._cancel_quote_entry(
+            cancelled_quote_order_ids += self._cancel_quote_entry(
                 entry,
                 reason="ADMIN kill switch",
                 cancel_reason="KILL_SWITCH",
@@ -3784,12 +3853,16 @@ class Engine:
         for book in self.books.values():
             for order in list(book.orders_for_gateway(target_gateway_id)):
                 if order.origin != OrderOrigin.QUOTE:
-                    if self._cancel_order_by_id(
+                    cancelled = self._cancel_order_by_id(
                         order.id,
                         cancel_reason="KILL_SWITCH",
                         command_id=command_id,
-                    ):
-                        cancelled_orders += 1
+                    )
+                    if cancelled is not None:
+                        cancelled_order_ids.append(cancelled.id)
+
+        cancelled_orders = len(cancelled_order_ids)
+        cancelled_quotes = len(cancelled_quote_order_ids)
 
         self.pub_sock.send_multipart(
             make_kill_switch_gateway_ack_msg(
@@ -3797,7 +3870,9 @@ class Engine:
                 target_gateway_id,
                 True,
                 cancelled_orders=cancelled_orders,
+                cancelled_order_ids=cancelled_order_ids,
                 cancelled_quotes=cancelled_quotes,
+                cancelled_quote_order_ids=cancelled_quote_order_ids,
                 command_id=command_id,
             )
         )
@@ -3809,7 +3884,9 @@ class Engine:
                 "target_gateway_id": target_gateway_id,
                 "note": note,
                 "cancelled_orders": cancelled_orders,
+                "cancelled_order_ids": cancelled_order_ids,
                 "cancelled_quotes": cancelled_quotes,
+                "cancelled_quote_order_ids": cancelled_quote_order_ids,
             },
             accepted=True,
         )
@@ -3854,8 +3931,8 @@ class Engine:
             _reject("Global kill switch is only allowed for ADMIN participants")
             return
 
-        cancelled_orders = 0
-        cancelled_quotes = 0
+        cancelled_order_ids: list[str] = []
+        cancelled_quote_order_ids: list[str] = []
         affected_gateways: set[str] = set()
 
         for target_gateway_id in self._quote_index.gateway_ids():
@@ -3865,7 +3942,7 @@ class Engine:
             if entries:
                 affected_gateways.add(target_gateway_id)
             for entry in entries:
-                cancelled_quotes += self._cancel_quote_entry(
+                cancelled_quote_order_ids += self._cancel_quote_entry(
                     entry,
                     reason="ADMIN global kill switch",
                     cancel_reason="KILL_SWITCH",
@@ -3876,21 +3953,29 @@ class Engine:
             for order in list(book.resting_orders()):
                 if order.origin != OrderOrigin.QUOTE:
                     owner = order.gateway_id
-                    if self._cancel_order_by_id(
+                    cancelled = self._cancel_order_by_id(
                         order.id,
                         cancel_reason="KILL_SWITCH",
                         command_id=command_id,
-                    ):
-                        cancelled_orders += 1
+                    )
+                    if cancelled is not None:
+                        cancelled_order_ids.append(cancelled.id)
                         affected_gateways.add(owner)
+
+        cancelled_orders = len(cancelled_order_ids)
+        cancelled_quotes = len(cancelled_quote_order_ids)
+        affected_gateway_ids = sorted(affected_gateways)
 
         self.pub_sock.send_multipart(
             make_kill_switch_global_ack_msg(
                 gateway_id,
                 True,
                 cancelled_orders=cancelled_orders,
+                cancelled_order_ids=cancelled_order_ids,
                 cancelled_quotes=cancelled_quotes,
+                cancelled_quote_order_ids=cancelled_quote_order_ids,
                 affected_gateways=len(affected_gateways),
+                affected_gateway_ids=affected_gateway_ids,
                 command_id=command_id,
             )
         )
@@ -3901,8 +3986,11 @@ class Engine:
             {
                 "note": note,
                 "cancelled_orders": cancelled_orders,
+                "cancelled_order_ids": cancelled_order_ids,
                 "cancelled_quotes": cancelled_quotes,
+                "cancelled_quote_order_ids": cancelled_quote_order_ids,
                 "affected_gateways": len(affected_gateways),
+                "affected_gateway_ids": affected_gateway_ids,
             },
             accepted=True,
         )
@@ -3942,8 +4030,9 @@ class Engine:
             symbols.update(self._engine_config.symbols.keys())
 
         now = now_ns()
-        cancelled_quotes = 0
-        for symbol in sorted(symbols):
+        halted_symbol_ids = sorted(symbols)
+        cancelled_quote_order_ids: list[str] = []
+        for symbol in halted_symbol_ids:
             self._halted_symbols[symbol] = True
 
             cb = self._circuit_breakers.get(symbol)
@@ -3959,7 +4048,7 @@ class Engine:
             for entry in self._quote_index.cancel_all_for_symbol(
                 symbol, reason="Global circuit breaker halt"
             ):
-                cancelled_quotes += self._cancel_quote_entry(
+                cancelled_quote_order_ids += self._cancel_quote_entry(
                     entry,
                     reason="Global circuit breaker halt",
                     cancel_reason="CIRCUIT_BREAKER_HALT",
@@ -3981,8 +4070,10 @@ class Engine:
             make_circuit_breaker_halt_all_ack_msg(
                 gateway_id,
                 True,
-                halted_symbols=len(symbols),
-                cancelled_quotes=cancelled_quotes,
+                halted_symbols=len(halted_symbol_ids),
+                halted_symbol_ids=halted_symbol_ids,
+                cancelled_quotes=len(cancelled_quote_order_ids),
+                cancelled_quote_order_ids=cancelled_quote_order_ids,
             )
         )
 
@@ -4029,6 +4120,7 @@ class Engine:
                 gateway_id,
                 True,
                 resumed_symbols=len(halted_symbols),
+                resumed_symbol_ids=halted_symbols,
             )
         )
         if halted_symbols:
@@ -4138,11 +4230,11 @@ class Engine:
                 cb.triggered_level = "ADMIN_SYMBOL"
                 cb.halt_source = "ADMIN"
 
-        cancelled_quotes = 0
+        cancelled_quote_order_ids: list[str] = []
         for entry in self._quote_index.cancel_all_for_symbol(
             symbol, reason="Per-symbol halt"
         ):
-            cancelled_quotes += self._cancel_quote_entry(
+            cancelled_quote_order_ids += self._cancel_quote_entry(
                 entry,
                 reason="Per-symbol halt",
                 cancel_reason="CIRCUIT_BREAKER_HALT",
@@ -4166,7 +4258,8 @@ class Engine:
                 gateway_id,
                 symbol,
                 True,
-                cancelled_quotes=cancelled_quotes,
+                cancelled_quotes=len(cancelled_quote_order_ids),
+                cancelled_quote_order_ids=cancelled_quote_order_ids,
                 command_id=command_id,
             )
         )
@@ -4282,27 +4375,31 @@ class Engine:
             return
 
         book = self.books.get(symbol)
-        cancelled_orders = 0
+        cancelled_order_ids: list[str] = []
         if book is not None:
             for order in list(book.resting_orders()):
                 if order.origin != OrderOrigin.QUOTE:
-                    if self._cancel_order_by_id(
+                    cancelled = self._cancel_order_by_id(
                         order.id,
                         cancel_reason="ADMIN_CANCEL_SYMBOL",
                         command_id=command_id,
-                    ):
-                        cancelled_orders += 1
+                    )
+                    if cancelled is not None:
+                        cancelled_order_ids.append(cancelled.id)
 
-        cancelled_quotes = 0
+        cancelled_quote_order_ids: list[str] = []
         for entry in self._quote_index.cancel_all_for_symbol(
             symbol, reason="Symbol mass cancel"
         ):
-            cancelled_quotes += self._cancel_quote_entry(
+            cancelled_quote_order_ids += self._cancel_quote_entry(
                 entry,
                 reason="Symbol mass cancel",
                 cancel_reason="ADMIN_CANCEL_SYMBOL",
                 command_id=command_id,
             )
+
+        cancelled_orders = len(cancelled_order_ids)
+        cancelled_quotes = len(cancelled_quote_order_ids)
 
         self.pub_sock.send_multipart(
             make_cancel_symbol_ack_msg(
@@ -4310,7 +4407,9 @@ class Engine:
                 symbol,
                 True,
                 cancelled_orders=cancelled_orders,
+                cancelled_order_ids=cancelled_order_ids,
                 cancelled_quotes=cancelled_quotes,
+                cancelled_quote_order_ids=cancelled_quote_order_ids,
                 command_id=command_id,
             )
         )
@@ -4322,7 +4421,9 @@ class Engine:
                 "symbol": symbol,
                 "note": note,
                 "cancelled_orders": cancelled_orders,
+                "cancelled_order_ids": cancelled_order_ids,
                 "cancelled_quotes": cancelled_quotes,
+                "cancelled_quote_order_ids": cancelled_quote_order_ids,
             },
             accepted=True,
         )
@@ -4983,12 +5084,20 @@ class Engine:
                 book.daily_value_ticks = 0
                 book.daily_trades = 0
 
+        # AR-0.6: echo the requester's own command_id (never gateway_id --
+        # see spec/messages/session.yaml) on the public broadcast, so a
+        # schedule-driven transition (no reply_to at all) is distinguishable
+        # from an operator-driven one from the payload alone.
+        reply_to = payload.get("reply_to") or {}
+        transition_command_id = str(reply_to.get("command_id", ""))
+
         self.pub_sock.send_multipart(
             make_session_state_msg(
                 to_state.value,
                 prev_state=from_state.value,
                 next_state=self._next_session_state,
                 next_at=self._next_session_at,
+                command_id=transition_command_id,
             )
         )
         # After the broadcast, so a requester that sees its ack knows the
@@ -5846,6 +5955,7 @@ class Engine:
                     else None
                 ),
                 old_qty=old_qty,
+                symbol=amended.symbol,
             )
         )
         self._dbg_count("amend_accepted")

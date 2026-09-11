@@ -1075,18 +1075,22 @@ did, and every key is optional because each `action` uses a different subset.
 The set is closed — since phase 6.1d it is a declared record, and a key
 outside it cannot reach the wire:
 
-| Key                 | Type  | Present on                                    |
-|---------------------|-------|-----------------------------------------------|
-| `symbol`            | str   | the per-symbol actions                        |
-| `target_gateway_id` | str   | `kill_switch.gateway`                         |
-| `level`             | str   | `circuit_breaker.trigger`                     |
-| `note`              | str   | any action carrying the request's `reason`    |
-| `cancelled_orders`  | int   | accepted kill switches                        |
-| `cancelled_quotes`  | int   | accepted kill switches                        |
-| `affected_gateways` | int   | an accepted `kill_switch.global`              |
+| Key                        | Type       | Present on                                    |
+|----------------------------|------------|------------------------------------------------|
+| `symbol`                   | str        | the per-symbol actions                        |
+| `target_gateway_id`        | str        | `kill_switch.gateway`                         |
+| `level`                    | str        | `circuit_breaker.trigger`                     |
+| `note`                     | str        | any action carrying the request's `reason`    |
+| `cancelled_orders`         | int        | accepted kill switches                        |
+| `cancelled_order_ids`      | list[str]  | accepted kill switches — the ids `cancelled_orders` counts |
+| `cancelled_quotes`         | int        | accepted kill switches                        |
+| `cancelled_quote_order_ids`| list[str]  | accepted kill switches — the leg order ids `cancelled_quotes` counts |
+| `affected_gateways`        | int        | an accepted `kill_switch.global`              |
+| `affected_gateway_ids`     | list[str]  | an accepted `kill_switch.global` — the gateways `affected_gateways` counts |
 
-A key whose value is unset is **absent** rather than `null`, and `scope` is
-`{}` on a rejection that named nothing. This event is admin-monitor-only: it
+A key whose value is unset is **absent** rather than `null` (an id-list key
+follows the same rule: absent, not an empty list, when nothing was
+cancelled), and `scope` is `{}` on a rejection that named nothing. This event is admin-monitor-only: it
 never reaches a trading gateway's private stream or the public market-data
 stream, regardless of which gateway initiated it.
 
@@ -1421,6 +1425,12 @@ A request the engine cannot perform — sessions not enabled, unknown state —
 now returns **409** with `TRANSITION_REJECTED` and the engine's reason. Those
 cases previously produced no reply at all, so a caller saw a timeout
 indistinguishable from a slow engine.
+
+The public `session.state` broadcast also carries this `command_id` now
+(absent for a schedule-driven transition, which has none to carry) — a
+third-party subscriber reconstructing the day's session history from the bus
+alone, rather than from this API's own response, can tie a transition back
+to the command that caused it without this endpoint's help.
 
 !!! note "Why not a `command_id` on everything"
     A second identifier alongside a working one adds ambiguity rather than

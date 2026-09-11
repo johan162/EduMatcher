@@ -730,6 +730,79 @@ messages:
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 
+  # ==================================================== per-entity recovery
+  - name: recovery_item
+    topic: "system.recovery_item"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to all subscribers: one restored, discarded or failed entity
+        from `_restore_gtc()` (AR-0.5). `startup_recovery`'s six counts say
+        *how many*; this says *which ones* — "which order failed to
+        restore?" was unanswerable from either the counts alone or the
+        process log, since a post-mortem investigating a startup only sees
+        what was published (see docs/user-guide/190-audit.md). Published
+        once per entity, before the single summary `startup_recovery`
+        broadcast, so the counts there are the cross-check: `restored_orders
+        + discarded_stale_day_orders + failed_orders` must equal the number
+        of ORDER-kind recovery_item lines whose outcome is RESTORED,
+        DISCARDED_STALE_DAY or FAILED respectively, and `restored_combos`
+        must equal the number of COMBO-kind lines.
+      published_by: [engine]
+      since: "1.2"
+      see_also: ["system.startup_recovery"]
+      example_note: >
+        `QUOTE_REMNANT` is deliberately not exclusive with `RESTORED`: a
+        quote-origin order whose sibling leg did not survive is *both* one
+        of `restored_orders` (it rests on the book, ordinarily) *and* one of
+        `quote_remnants_restored` (it is not quote-managed going forward) —
+        `_restore_gtc()` has always counted it in both totals, so it gets two
+        recovery_item lines with the same entity_id, not one that
+        overwrites the other.
+
+        `rebuilt_quotes` — an active QuoteIndex entry rebuilt once *both*
+        legs of a quote survive — is deliberately not an entity here. It is
+        a pairing of two already-reported order ids, not a persisted thing
+        with an id of its own to fail or be discarded; the summary count on
+        `startup_recovery` is the whole story for it, same as it always was.
+    fields:
+      - { name: entity_id, type: string, validate: { max_len: 64 },
+          doc: "The order id (ORDER) or combo id (COMBO) this line is about." }
+      - name: kind
+        type: enum
+        values: [ORDER, COMBO]
+        doc: "What restore_gtc() was processing."
+      - name: outcome
+        type: enum
+        values: [RESTORED, DISCARDED_STALE_DAY, FAILED, QUOTE_REMNANT]
+        doc: >
+          RESTORED/DISCARDED_STALE_DAY/FAILED come from the main GTC-order
+          (or GTC-combo) restore pass and are mutually exclusive per entity.
+          QUOTE_REMNANT is a second, additional line for a RESTORED
+          quote-origin order whose sibling leg did not come back — see the
+          example_note above. COMBO-kind lines are always RESTORED today:
+          `load_gtc_combos()` has no per-combo guard, so there is no combo
+          failure path to report yet.
+      - name: symbol
+        type: string
+        required: false
+        nullable: true
+        omit_when_none: true
+        validate: { max_len: 16 }
+        doc: >
+          The instrument, for an ORDER-kind line. Null for COMBO, which may
+          span more than one symbol across its legs and has none of its own.
+      - name: detail
+        type: string
+        required: false
+        omit_when_empty: true
+        validate: { max_len: 512 }
+        doc: >
+          Free text, when there is something worth saying beyond kind and
+          outcome — the exception message for a FAILED order, in particular.
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
   # ================================================================ diagnostic
   - name: diagnostic
     topic: "system.diagnostic"

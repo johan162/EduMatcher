@@ -1063,7 +1063,9 @@ result = client.halt_all()
 #   "accepted": True,
 #   "reason": "",
 #   "halted_symbols": 4,
-#   "cancelled_quotes": 12
+#   "halted_symbol_ids": ["AAPL", "MSFT", "GOOG", "TSLA"],
+#   "cancelled_quotes": 12,
+#   "cancelled_quote_order_ids": ["ORD-1", "ORD-2", "..."]
 # }
 print(f"Halted {result['halted_symbols']} symbols, cancelled {result['cancelled_quotes']} quote legs")
 ```
@@ -1092,7 +1094,8 @@ result = client.resume_all()
 # result = {
 #   "accepted": True,
 #   "reason": "",
-#   "resumed_symbols": 4
+#   "resumed_symbols": 4,
+#   "resumed_symbol_ids": ["AAPL", "MSFT", "GOOG", "TSLA"]
 # }
 print(f"Resumed {result['resumed_symbols']} symbols")
 ```
@@ -1117,7 +1120,9 @@ result = client.kill_switch("TRADER01")
 #   "accepted": True,
 #   "reason": "",
 #   "cancelled_orders": 7,
-#   "cancelled_quotes": 0
+#   "cancelled_order_ids": ["ORD-1", "ORD-2", "..."],
+#   "cancelled_quotes": 0,
+#   "cancelled_quote_order_ids": []
 # }
 ```
 
@@ -1138,7 +1143,10 @@ Frame 1:  {"gateway_id": "TRADER01", "symbol": "AAPL"}
 
 ```python
 result = client.mass_cancel("TRADER01", "AAPL")
-# result = {"accepted": True, "cancelled_orders": 3, "cancelled_quotes": 2}
+# result = {"accepted": True, "cancelled_orders": 3,
+#           "cancelled_order_ids": ["ORD-1", "ORD-2", "ORD-3"],
+#           "cancelled_quotes": 2,
+#           "cancelled_quote_order_ids": ["ORD-4", "ORD-5"]}
 ```
 
 Identical to `kill_switch` with a symbol argument.  Only orders and quotes
