@@ -60,18 +60,22 @@ class TestTheAppendixDocumentsEveryMessage:
         assert missing == []
 
     def test_it_covers_more_than_the_page_it_replaced(self, families: list) -> None:
-        """112, where the hand-written file managed 67.
+        """114, where the hand-written file managed 67.
 
         This count moves whenever a new message is added to spec/ — most
-        recently risk.force_uncross/risk.force_uncross_ack (110 -> 112), the
-        ADMIN single-symbol reopen behind pm-admin's REOPEN command. Bump the
-        literal here alongside any spec addition; the real regression this test
-        (and test_every_topic_has_a_section above it) guards against is the
-        generated reference page silently omitting a message, not the
-        total staying fixed at some past value.
+        recently system.startup_recovery/system.diagnostic (112 -> 114), the
+        engine-startup summary and the absorbed-internal-failure marker added
+        so pm-audit's bare PUB subscription can see a maintenance-flush
+        exception, a dispatch-handler crash, an undecodable inbound message,
+        an unrouted topic, and a GTC-restore summary -- see
+        docs/user-guide/190-audit.md. Bump the literal here alongside any spec
+        addition; the real regression this test (and test_every_topic_has_a_
+        section above it) guards against is the generated reference page
+        silently omitting a message, not the total staying fixed at some past
+        value.
         """
         total = sum(len(f.messages) for f in families)
-        assert total == 112, total
+        assert total == 114, total
 
     def test_every_record_type_has_a_section(self, families: list, page: str) -> None:
         missing = [

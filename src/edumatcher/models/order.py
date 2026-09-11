@@ -155,6 +155,13 @@ class Order:
     origin: OrderOrigin = OrderOrigin.ORDER
     quote_id: Optional[str] = None
 
+    # True when this order was created by config-driven startup seeding
+    # (market_maker_quotes / market_maker_combos in the engine config) rather
+    # than a live gateway submission. Purely observational — nothing in the
+    # engine branches on it; `origin` still governs routing (see
+    # spec/messages/order.yaml::OrderDisplay.is_seed for the full rationale).
+    is_seed: bool = False
+
     # Client-supplied order tag — echoed back on every lifecycle event
     # (ack, fill, cancelled, expired) so subscribers can correlate without
     # a FIFO matching scheme.  Optional; ignored when absent.
@@ -194,6 +201,7 @@ class Order:
         trail_offset: Optional[int] = None,
         oco_group_id: Optional[str] = None,
         client_tag: Optional[str] = None,
+        is_seed: bool = False,
     ) -> "Order":
         displayed = visible_qty if order_type == OrderType.ICEBERG else None
         return cls(
@@ -215,6 +223,7 @@ class Order:
             trail_offset=trail_offset,
             oco_group_id=oco_group_id,
             client_tag=client_tag,
+            is_seed=is_seed,
         )
 
     # ------------------------------------------------------------------
@@ -244,6 +253,7 @@ class Order:
             "combo_parent_id": self.combo_parent_id,
             "leg_index": self.leg_index,
             "origin": self.origin.value,
+            "is_seed": self.is_seed,
             "quote_id": self.quote_id,
             "client_tag": self.client_tag,
             "arrival_seq": self.arrival_seq,
@@ -285,6 +295,7 @@ class Order:
         o.combo_parent_id = d.get("combo_parent_id")
         o.leg_index = d.get("leg_index")
         o.origin = _ORIGIN_MAP.get(d.get("origin", "ORDER"), OrderOrigin.ORDER)
+        o.is_seed = bool(d.get("is_seed", False))
         o.quote_id = d.get("quote_id")
         o.client_tag = d.get("client_tag")
         o.arrival_seq = d.get("arrival_seq", 0)

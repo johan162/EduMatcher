@@ -1347,13 +1347,15 @@ class StatsProcess:
         if not symbol or price is None or qty is None:
             return
 
-        epoch_sec = payload.get("timestamp")
-        if epoch_sec is None:
+        ts_ns = payload.get("ts_ns")
+        if ts_ns is None:
             epoch_sec = time.time()
             log.warning(
                 "trade %s has no engine timestamp; using receipt time",
                 payload.get("id", ""),
             )
+        else:
+            epoch_sec = int(ts_ns) / 1_000_000_000
         ts = datetime.fromtimestamp(epoch_sec, tz=timezone.utc).isoformat(
             timespec="milliseconds"
         )

@@ -35,9 +35,9 @@ endif
 # and then this line will be silently ignored unless you have upgraded make via brew or similar.	
 .EXTRA_PREREQS := $(firstword $(MAKEFILE_LIST))
 
-# Make default behavior to build all PDFs when no target is specified
-.DEFAULT_GOAL := pdfs
-# .SILENT: # Comment out to show command lines during execution for debugging
+# Make default behavior to build everything when no target is specified
+.DEFAULT_GOAL := all
+.SILENT: # Comment out to show command lines during execution for debugging
 
 # Get full path to bash
 SHELL := $(shell which bash)
@@ -265,8 +265,10 @@ check-latex-engine:
 		exit 1; \
 	fi
 
+all: cover cover-parts pdf-docs pdf-parts-a4 bundle-quiz epub-docs
+
 pdfs: ## Build all PDF documentation variants in parallel
-	@$(MAKE) cover pdf-docs cover-parts pdf-parts-a4 bundle-quiz
+	@$(MAKE) cover pdf-docs cover-parts pdf-parts-a4 bundle-quiz 
 
 pdf-docs: check-latex-engine ## Build all PDF documentation variants in parallel
 	@rm -rf $(EXCHANGE_INTRO_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
@@ -358,7 +360,11 @@ $$($1_PDF): $$(EXCHANGE_INTRO_MD_SOURCES) $$(EXCHANGE_INTRO_PDF_DEPS) $$($1_TEMP
 	MERMAID_FILTER_FORMAT="$(MERMAID_FILTER_FORMAT)" \
 	MERMAID_FILTER_WIDTH="$(MERMAID_FILTER_WIDTH)" \
 	MERMAID_FILTER_LOC="$$($1_EXPANDED_DIR)/.mermaid-img" \
-	pandoc --from=markdown --to=latex --top-level-division=chapter --syntax-highlighting=none --filter "$(MERMAID_FILTER)"  $$(EXCHANGE_INTRO_LUA_FILTER_FLAGS) --metadata paper_format=$(2) $$($1_CONCAT_MD) -o $$($1_BODY_TEX)
+	pandoc \
+		--math-method=mathml --from=markdown --to=latex \
+		--top-level-division=chapter --syntax-highlighting=none \
+		--filter "$(MERMAID_FILTER)"  $$(EXCHANGE_INTRO_LUA_FILTER_FLAGS) \
+		$$($1_CONCAT_MD) -o $$($1_BODY_TEX)
 	@sed -i.bak 's/\\def\\LTcaptype{none}/\\def\\LTcaptype{table}/g' $$($1_BODY_TEX)
 	@rm -f $$($1_BODY_TEX).bak
 	@echo -e "$$(DARKYELLOW)  - Injecting body into handcrafted LaTeX template $$(BRIGHTCYAN)\"$$(notdir $$($1_TEMPLATE))\"$(DARKYELLOW) ...$$(NC)"
@@ -451,7 +457,7 @@ $(EXCHANGE_INTRO_EPUB): $(EXCHANGE_INTRO_MD_SOURCES) $(EPUB_DEPS) $(EPUB_CSS) | 
 	MERMAID_FILTER_WIDTH="$(MERMAID_FILTER_WIDTH)" \
 	MERMAID_FILTER_LOC="$(EPUB_EXPANDED_DIR)/.mermaid-img" \
 	pandoc --from=markdown-raw_html --to=epub3 \
-		--mathml --no-highlight \
+		--math-method=mathml --syntax-highlighting=none \
 		--toc --toc-depth=2 \
 		--css $(EPUB_CSS) \
 		--epub-cover-image=$(EPUB_COVER) \

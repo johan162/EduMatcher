@@ -80,6 +80,7 @@ _ORDERS_COLS = [
     "qty",
     "price",
     "status",
+    "reason",
 ]
 _TRADES_COLS = [
     "timestamp",

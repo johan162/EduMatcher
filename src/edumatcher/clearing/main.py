@@ -86,14 +86,11 @@ FLUSH_INTERVAL_SEC: float = 5.0
 _TIMER_POLL_SEC: float = 0.5
 _RETENTION_DAYS: int = 90
 _DEBUG_SUMMARY_INTERVAL_SEC: float = 5.0
-# The documented trade.executed contract (docs/user-guide/09-messages.md) is:
-#   timestamp = Unix epoch SECONDS (float);  price = display float.
-# Clearing parses to the declared units rather than guessing (finding CL-M6).
-# These magnitude bounds are only a defensive guard: an out-of-contract producer
-# sending milliseconds or nanoseconds is detected, warned about, and converted
-# best-effort — instead of silently projecting a ms value to the year ~55,000.
-_SECONDS_MAX: int = 100_000_000_000  # ~ year 5138 in epoch seconds
-_MILLIS_MAX: int = _SECONDS_MAX * 1000
+# trade.executed carries `ts_ns`: integer Unix epoch NANOSECONDS, the engine's
+# own clock reading, unscaled. The magnitude guard that used to live here
+# (finding CL-M6) is gone with the float `timestamp` it was guarding: an
+# integer field whose name states its unit cannot be mistaken for seconds or
+# millis, so there is nothing left to guess at.
 
 _CLIENT_NAME = "pm-clearing"
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
@@ -113,8 +110,8 @@ def _to_trade_event_row(
     """Convert a Trade model to the DB row type, deriving trade_date from ts_ns."""
     return TradeEventRow(
         id=trade.id,
-        ts_ns=trade.timestamp,
-        trade_date=trade_date(trade.timestamp, tz),
+        ts_ns=trade.ts_ns,
+        trade_date=trade_date(trade.ts_ns, tz),
         symbol=trade.symbol,
         quantity=trade.quantity,
         price=trade.price,
@@ -137,34 +134,6 @@ def _parse_tick_decimals(payload: dict[str, Any]) -> int:
     return parsed if 0 <= parsed <= 8 else 2
 
 
-def _to_timestamp_ns(raw: Any) -> int:
-    """
-    Convert a ``trade.executed`` timestamp to integer nanoseconds.
-
-    The declared contract is Unix epoch **seconds** (float), so that is the
-    primary interpretation.  A value whose magnitude is implausible for seconds
-    (already milliseconds or nanoseconds) is converted best-effort with a loud
-    warning rather than silently mis-scaled (finding CL-M6).
-    """
-    try:
-        val = float(raw)
-    except (TypeError, ValueError):
-        return 0
-    if val < _SECONDS_MAX:
-        return int(round(val * 1_000_000_000))
-    if val < _MILLIS_MAX:
-        log.warning(
-            "trade timestamp looks like milliseconds, not the documented"
-            " seconds — converting best-effort"
-        )
-        return int(round(val * 1_000_000))
-    log.warning(
-        "trade timestamp looks like nanoseconds, not the documented"
-        " seconds — converting best-effort"
-    )
-    return int(val)
-
-
 def _trade_from_payload(payload: dict[str, Any]) -> Trade:
     typed = TradeExecutedPayload.from_dict(payload)
 
@@ -178,7 +147,6 @@ def _trade_from_payload(payload: dict[str, Any]) -> Trade:
     price_raw = typed.price
     normalized["price"] = int(round(float(price_raw) * scale))
 
-    normalized["timestamp"] = _to_timestamp_ns(typed.timestamp)
     normalized["tick_decimals"] = tick_decimals
     return Trade.from_dict(normalized)
 
@@ -500,7 +468,7 @@ class ClearingProcess:
         with ``self._lock`` held).  First sightings are recorded in a bounded
         LRU; the oldest key is evicted once the cap is reached.
         """
-        key = (trade.id, trade.timestamp)
+        key = (trade.id, trade.ts_ns)
         if key in self._seen_keys:
             self._seen_keys.move_to_end(key)
             return True
@@ -540,8 +508,8 @@ class ClearingProcess:
                 record_session_event(
                     self._conn,
                     event_type="GAP",
-                    ts_ns=trade.timestamp,
-                    trade_date=trade_date(trade.timestamp, self._tz),
+                    ts_ns=trade.ts_ns,
+                    trade_date=trade_date(trade.ts_ns, self._tz),
                     payload_json=json.dumps(
                         {
                             "run_seq": run_seq,
@@ -581,7 +549,7 @@ class ClearingProcess:
                 price=trade.price,
                 tick_decimals=trade.tick_decimals,
                 quantity=trade.quantity,
-                ts_ns=trade.timestamp,
+                ts_ns=trade.ts_ns,
                 ingest_ts_ns=updated_ts,
             )
 

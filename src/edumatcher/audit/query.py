@@ -328,17 +328,24 @@ def _summarise(entry: AuditEntry) -> str:
     if t == TOPIC_TRADE_EXECUTED:
         return f"{p.get('symbol', '')} {p.get('quantity', '')}@{p.get('price', '')}"
     if t.startswith("order.fill"):
-        fq = p.get("filled_qty", p.get("quantity", ""))
+        # Wire field is fill_qty (spec/messages/order.yaml::order_fill), not
+        # filled_qty -- the previous key here never matched, so every row
+        # silently fell back to quantity/remaining_qty instead of the actual
+        # fill size (see docs/user-guide/190-audit.md).
+        fq = p.get("fill_qty", p.get("quantity", ""))
         fp = p.get("fill_price", p.get("price", ""))
         return f"FILL {fq}@{fp}"
     if t.startswith("order.ack"):
+        detail = f" reject={p['reject_code']}" if p.get("reject_code") else ""
         return (
-            f"ACK {p.get('status', '')} {p.get('order_type', '')} {p.get('side', '')}"
+            f"ACK {p.get('status', '')} {p.get('order_type', '')} "
+            f"{p.get('side', '')}{detail}"
         )
     if t.startswith(TOPIC_ORDER_NEW):
         return f"{p.get('order_type', '')} {p.get('side', '')} {p.get('quantity', '')}@{p.get('price', '')}"
     if t.startswith(TOPIC_ORDER_CANCEL):
-        return f"CANCEL {p.get('status', '')}"
+        detail = f" reason={p['cancel_reason']}" if p.get("cancel_reason") else ""
+        return f"CANCEL {p.get('status', '')}{detail}"
     if t.startswith("session."):
         return str(p.get("state", p.get("phase", "")))
     return ""
@@ -383,11 +390,19 @@ def query_orders(
                 "gateway": entry.gateway_id,
                 "symbol": entry.symbol,
                 "side": p.get("side"),
-                "qty": p.get("quantity")
-                or p.get("filled_qty")
-                or p.get("remaining_qty"),
+                # fill_qty, not filled_qty -- see _summarise's note above;
+                # this fallback chain fell through to remaining_qty on every
+                # fill row before this fix.
+                "qty": p.get("quantity") or p.get("fill_qty") or p.get("remaining_qty"),
                 "price": p.get("price") or p.get("fill_price"),
                 "status": p.get("status"),
+                # order.ack's reject_code, order.cancelled's cancel_reason, or
+                # a generic reason string -- whichever this event carries.
+                # Previously dropped entirely from the `orders` view; only
+                # the raw `timeline` dump surfaced it.
+                "reason": p.get("reject_code")
+                or p.get("cancel_reason")
+                or p.get("reason"),
             }
         )
         if len(rows) >= limit:

@@ -35,7 +35,7 @@ _SAMPLE: dict[str, Any] = {
     "price": 101.5,
     "quantity": 300,
     "aggressor_side": "BUY",
-    "timestamp": 1_700_000_000.0,
+    "ts_ns": 1_700_000_000_000_000_000,
     "tick_decimals": 2,
 }
 
@@ -67,7 +67,7 @@ def _hand_written_baseline() -> list[bytes]:
                 "tick_decimals": _SAMPLE["tick_decimals"],
                 "quantity": _SAMPLE["quantity"],
                 "aggressor_side": _SAMPLE["aggressor_side"],
-                "timestamp": _SAMPLE["timestamp"],
+                "ts_ns": _SAMPLE["ts_ns"],
             }
         ),
     ]

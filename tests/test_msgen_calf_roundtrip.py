@@ -47,7 +47,7 @@ _SAMPLE: dict[str, Any] = {
     "price": 101.5,
     "quantity": 300,
     "aggressor_side": "BUY",
-    "timestamp": 1_700_000_000.0,
+    "ts_ns": 1_700_000_000_000_000_000,
     "tick_decimals": 2,
 }
 
@@ -240,7 +240,7 @@ class TestPythonAndCAgree:
         assert recovered.run_seq == _SAMPLE["run_seq"]
         assert recovered.symbol == ""
         assert recovered.buy_order_id == ""
-        assert recovered.timestamp == 0.0
+        assert recovered.ts_ns == 0
 
 
 class TestCErrorPaths:

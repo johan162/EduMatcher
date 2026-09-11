@@ -231,7 +231,7 @@ describe("live volume accumulation", () => {
     price: 150,
     quantity,
     aggressor_side: "BUY" as const,
-    timestamp: 0,
+    ts_ns: 0,
     tick_decimals: 2,
   });
 

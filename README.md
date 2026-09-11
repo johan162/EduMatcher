@@ -27,17 +27,18 @@ four web applications:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash
-cd ~/.edumatcher && ./edumatcher.sh start
+cd ~/.edumatcher 
 ```
 
 The exchange is now running on a bundled configuration.  
-The `pm-*` commands used throughout this guide live *inside* the container:
+The `pm-*` commands used throughout this guide live *inside* the container. To easily open a 
+shell in the container type
 
 ```bash
 ./edumatcher.sh shell        # then pm-help, pm-admin, pm-alf-console, pm-stats-cli, ...
 ```
 
-Once inside the container, start with
+Once inside the container, start with reviewing available commands
 
 ```bash
 pm-help
@@ -153,7 +154,7 @@ If you use this tool in teaching or courses, please cite:
   author = {Johan Persson},
   year = {2026},
   url = {https://github.com/johan162/EduMatcher},
-  version = {0.34.0}
+  version = {0.35.0}
 }
 ```
 

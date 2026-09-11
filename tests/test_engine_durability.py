@@ -288,12 +288,33 @@ def test_run_sets_run_seq_before_gtc_restore(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _sent_ack(engine) -> dict:
-    """The single ack the engine published, decoded."""
+def _sent_messages(engine) -> list[dict]:
+    """Every message the engine published, decoded, in publish order."""
     calls = engine.pub_sock.send_multipart.call_args_list
-    assert len(calls) == 1, f"expected exactly one message, got {len(calls)}"
-    topic, body = calls[0][0][0][:2]
-    return {"topic": topic.decode(), **json.loads(body)}
+    out = []
+    for call in calls:
+        topic, body = call[0][0][:2]
+        out.append({"topic": topic.decode(), **json.loads(body)})
+    return out
+
+
+def _sent_ack(engine) -> dict:
+    """The one order.ack the engine published, decoded.
+
+    A handler exception now also publishes a system.diagnostic (see
+    docs/user-guide/190-audit.md) alongside the reject, so this filters for
+    the ack specifically rather than assuming it is the only message.
+    """
+    acks = [m for m in _sent_messages(engine) if m["topic"].startswith("order.ack.")]
+    assert len(acks) == 1, f"expected exactly one order.ack, got {len(acks)}"
+    return acks[0]
+
+
+def _sent_diagnostic(engine) -> dict:
+    """The one system.diagnostic the engine published, decoded."""
+    diags = [m for m in _sent_messages(engine) if m["topic"] == "system.diagnostic"]
+    assert len(diags) == 1, f"expected exactly one diagnostic, got {len(diags)}"
+    return diags[0]
 
 
 def test_handler_exception_rejects_the_order(tmp_path: Path) -> None:
@@ -313,6 +334,15 @@ def test_handler_exception_rejects_the_order(tmp_path: Path) -> None:
     # Still logged and counted — the reject answers the client, it does not
     # make the defect invisible.
     assert engine._error_count == 1
+
+    # The client-facing reject stays generic (see _reject_after_error's
+    # docstring), but the real exception now reaches a post-mortem via
+    # system.diagnostic — this used to be a log line only.
+    diag = _sent_diagnostic(engine)
+    assert diag["component"] == "DISPATCH_ERROR"
+    assert diag["detail"] == "order.new"
+    assert diag["error"] == "boom"
+    assert diag["count"] == 1
 
 
 def test_reject_after_a_fill_says_so(tmp_path: Path) -> None:
@@ -336,7 +366,9 @@ def test_reject_after_a_fill_says_so(tmp_path: Path) -> None:
 
 def test_no_reject_for_topics_that_are_not_orders(tmp_path: Path) -> None:
     """A query has nothing resting on it, and an order-reject addressed to an
-    id that is not an order is worse than silence."""
+    id that is not an order is worse than silence -- but the failure itself
+    is still worth a system.diagnostic, since non-order handlers can crash
+    too and a post-mortem needs to see that regardless of topic family."""
     engine = _engine_without_sockets(tmp_path)
     with patch.object(
         engine, "_handle_symbols_request", side_effect=RuntimeError("boom")
@@ -344,7 +376,11 @@ def test_no_reject_for_topics_that_are_not_orders(tmp_path: Path) -> None:
         engine._dispatch_pull_message(
             "system.symbols_request", {"gateway_id": "GW01", "id": "REQ-1"}
         )
-    engine.pub_sock.send_multipart.assert_not_called()
+    messages = _sent_messages(engine)
+    assert not any(m["topic"].startswith("order.ack.") for m in messages)
+    diag = _sent_diagnostic(engine)
+    assert diag["component"] == "DISPATCH_ERROR"
+    assert diag["detail"] == "system.symbols_request"
     assert engine._error_count == 1
 
 
@@ -352,7 +388,7 @@ def test_unaddressable_payload_is_reported_not_guessed(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """The payload that broke the handler may be the one missing these very
-    fields, so there is no one to answer."""
+    fields, so there is no one to answer -- the diagnostic still fires."""
     import logging
 
     engine = _engine_without_sockets(tmp_path)
@@ -362,7 +398,9 @@ def test_unaddressable_payload_is_reported_not_guessed(
     ):
         engine._dispatch_pull_message("order.new", {"id": "ORD-3"})  # no gateway_id
 
-    engine.pub_sock.send_multipart.assert_not_called()
+    messages = _sent_messages(engine)
+    assert not any(m["topic"].startswith("order.ack.") for m in messages)
+    assert _sent_diagnostic(engine)["detail"] == "order.new"
     assert "No reject sent for order.new" in caplog.text
 
 
@@ -497,9 +535,12 @@ def _run_one_receive_iteration(engine) -> None:
     """Execute the loop's receive-decode-dispatch step exactly once.
 
     Mirrors run()'s body rather than calling run(), so the test does not need
-    a poller or a way to stop the loop.
+    a poller or a way to stop the loop. Kept in sync with that block
+    (including its guarded system.diagnostic publish, see
+    docs/user-guide/190-audit.md) rather than a pre-diagnostic snapshot of
+    it, so this helper cannot mask a regression there.
     """
-    from edumatcher.models.message import decode as _decode
+    from edumatcher.models.message import decode as _decode, make_diagnostic_msg
 
     try:
         frames = engine.pull_sock.recv_multipart()
@@ -514,5 +555,19 @@ def _run_one_receive_iteration(engine) -> None:
             engine._undecodable_count,
             exc,
         )
+        try:
+            engine.pub_sock.send_multipart(
+                make_diagnostic_msg(
+                    component="UNDECODABLE_MESSAGE",
+                    error=str(exc),
+                    count=engine._undecodable_count,
+                )
+            )
+        except Exception:
+            logging.getLogger("edumatcher.engine.main").error(
+                "Diagnostic publish for undecodable message failed"
+            )
     else:
+        engine._dbg_count("pull_messages")
+        engine._dbg_count(f"topic_{topic}")
         engine._dispatch_pull_message(topic, payload)

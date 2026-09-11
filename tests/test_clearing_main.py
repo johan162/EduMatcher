@@ -22,7 +22,6 @@ import zmq
 
 from edumatcher.clearing.main import (
     ClearingProcess,
-    _to_timestamp_ns,
     _to_trade_event_row,
     _trade_from_payload,
 )
@@ -70,7 +69,7 @@ def _make_trade(
 def _encode_trade(trade: Trade) -> list[bytes]:
     """Encode a trade as a two-frame ZMQ message."""
     topic = b"trade.executed"
-    payload = json.dumps(trade.to_dict()).encode()
+    payload = json.dumps(trade.to_wire()).encode()
     return [topic, payload]
 
 
@@ -800,9 +799,7 @@ class TestHandleGatewayDisconnect:
 # ---------------------------------------------------------------------------
 
 
-def _trade_payload(
-    price: Any, timestamp: Any, tick_decimals: int = 2
-) -> dict[str, Any]:
+def _trade_payload(price: Any, ts_ns: Any, tick_decimals: int = 2) -> dict[str, Any]:
     return {
         "id": "000001-000000001",
         "run_seq": 1,
@@ -814,36 +811,28 @@ def _trade_payload(
         "price": price,
         "quantity": 10,
         "aggressor_side": "BUY",
-        "timestamp": timestamp,
+        "ts_ns": ts_ns,
         "tick_decimals": tick_decimals,
     }
 
 
 class TestPayloadParsing:
-    def test_timestamp_seconds_to_ns(self) -> None:
-        assert _to_timestamp_ns(1.5) == 1_500_000_000
-        assert _to_timestamp_ns(2) == 2_000_000_000
-
-    def test_timestamp_bad_values_return_zero(self) -> None:
-        assert _to_timestamp_ns(0) == 0
-        assert _to_timestamp_ns(None) == 0
-        assert _to_timestamp_ns("nope") == 0
-
-    def test_timestamp_milliseconds_best_effort(self) -> None:
-        # 1_700_000_000_000 ms == 1.7e18 ns (converted, with a warning).
-        assert _to_timestamp_ns(1_700_000_000_000) == 1_700_000_000_000_000_000
-
-    def test_timestamp_nanoseconds_passthrough(self) -> None:
-        assert _to_timestamp_ns(1_700_000_000_000_000_000) == 1_700_000_000_000_000_000
+    def test_ts_ns_is_carried_through_unscaled(self) -> None:
+        # No conversion left to test: the wire field is already the engine's
+        # nanosecond reading, so it must arrive byte-identical.
+        t = _trade_from_payload(
+            _trade_payload(price=150.75, ts_ns=1_700_000_000_123_456_789)
+        )
+        assert t.ts_ns == 1_700_000_000_123_456_789
 
     def test_price_float_display_to_ticks(self) -> None:
-        t = _trade_from_payload(_trade_payload(price=150.75, timestamp=1.0))
+        t = _trade_from_payload(_trade_payload(price=150.75, ts_ns=1_000_000_000))
         assert t.price == 15075
-        assert t.timestamp == 1_000_000_000
+        assert t.ts_ns == 1_000_000_000
 
     def test_price_integer_display_to_ticks(self) -> None:
         # CL-M6: an integer display price is a display value, not raw ticks.
-        t = _trade_from_payload(_trade_payload(price=150, timestamp=1.0))
+        t = _trade_from_payload(_trade_payload(price=150, ts_ns=1_000_000_000))
         assert t.price == 15000
 
     def test_trade_builder_payload_parses_with_declared_units(self) -> None:
@@ -860,7 +849,7 @@ class TestPayloadParsing:
                 "tick_decimals": 2,
                 "quantity": 3,
                 "aggressor_side": "BUY",
-                "timestamp": 1_700_000_000.0,
+                "ts_ns": 1_700_000_000_000_000_000,
             }
         )
         topic, payload = decode(frames)
@@ -868,4 +857,4 @@ class TestPayloadParsing:
 
         assert topic == "trade.executed"
         assert trade.price == 15075
-        assert trade.timestamp == 1_700_000_000_000_000_000
+        assert trade.ts_ns == 1_700_000_000_000_000_000

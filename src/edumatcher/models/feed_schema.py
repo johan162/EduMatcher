@@ -7,7 +7,7 @@ document units per field:
 
 - trade.executed:
   - price: display price (float, not ticks)
-  - timestamp: Unix epoch seconds (float, not ns)
+  - ts_ns: Unix epoch nanoseconds (int), the engine clock unscaled
   - tick_decimals: decimal scale for display<->ticks conversion
 - session.state:
   - state / prev_state: phase labels
@@ -30,7 +30,7 @@ class TradeExecutedPayload:
 
     Units:
     - ``price`` is display float.
-    - ``timestamp`` is Unix epoch seconds (float).
+    - ``ts_ns`` is Unix epoch nanoseconds (int), carried through unscaled.
     """
 
     id: str
@@ -43,7 +43,7 @@ class TradeExecutedPayload:
     price: float
     quantity: int
     aggressor_side: str
-    timestamp: float
+    ts_ns: int
     tick_decimals: int = 2
 
     @classmethod
@@ -59,7 +59,7 @@ class TradeExecutedPayload:
             price=float(payload["price"]),
             quantity=int(payload["quantity"]),
             aggressor_side=str(payload.get("aggressor_side", "")),
-            timestamp=float(payload["timestamp"]),
+            ts_ns=int(payload["ts_ns"]),
             tick_decimals=int(payload.get("tick_decimals", 2)),
         )
 
@@ -75,6 +75,6 @@ class TradeExecutedPayload:
             "price": self.price,
             "quantity": self.quantity,
             "aggressor_side": self.aggressor_side,
-            "timestamp": self.timestamp,
+            "ts_ns": self.ts_ns,
             "tick_decimals": self.tick_decimals,
         }

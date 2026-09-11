@@ -1,6 +1,6 @@
 # Canonical specification for the `system` message family.
 #
-# Phases 6.1e and 6.1f. All twenty-nine topics: fifteen that say what the venue
+# Phases 6.1e and 6.1f, plus two later additions. Thirty-one topics: fifteen that say what the venue
 # *is* and how to join or leave it (6.1e), and fourteen -- seven request/reply
 # pairs -- that say what is true right now (6.1f). The cut between them was
 # section 22.1's rule: split by what the message acts on, never by direction,
@@ -679,6 +679,111 @@ messages:
           doc: "One per instrument the engine had a book for, unordered." }
     encoding:
       engine_pub: { frames: [topic, json_payload] }
+
+  # ======================================================= startup recovery
+  - name: startup_recovery
+    topic: "system.startup_recovery"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to all subscribers, once, right after `_restore_gtc()` and
+        before the config-seed step runs: how much of the previous session's
+        resting state came back. Every one of these counts previously only
+        reached `log.info`/`log.error` — invisible to `pm-audit`, which is a
+        bare PUB subscriber and sees nothing that is not published (see
+        docs/user-guide/190-audit.md). A post-mortem investigating "why does
+        the book look different after a restart" needs this the same way it
+        needs `order.cancelled` for a live cancel.
+      published_by: [engine]
+      since: "1.1"
+      see_also: ["book.{SYMBOL}", "auction.result"]
+      example_note: >
+        A broadcast with no request, like `system.eod` — nothing asks for a
+        recovery summary, the engine announces it once at startup.
+    fields:
+      - { name: restored_orders, type: int, unit: dimensionless, default: 0,
+          validate: { ge: 0 },
+          doc: "GTC/same-day-DAY orders successfully restored to their book." }
+      - { name: discarded_stale_day_orders, type: int, unit: dimensionless,
+          default: 0, validate: { ge: 0 },
+          doc: "TIF=DAY orders discarded because the business day rolled over." }
+      - { name: failed_orders, type: int, unit: dimensionless, default: 0,
+          validate: { ge: 0 },
+          doc: "Persisted orders that raised during restore and were skipped." }
+      - name: quote_remnants_restored
+        type: int
+        unit: dimensionless
+        default: 0
+        validate: { ge: 0 }
+        doc: >
+          Restored quote-origin legs whose sibling did not survive, so they
+          rest as plain orders rather than being rejoined into QuoteIndex.
+      - { name: rebuilt_quotes, type: int, unit: dimensionless, default: 0,
+          validate: { ge: 0 },
+          doc: "Active QuoteIndex entries rebuilt from both-legs-restored quotes." }
+      - { name: restored_combos, type: int, unit: dimensionless, default: 0,
+          validate: { ge: 0 },
+          doc: "GTC combos restored from the previous session." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  # ================================================================ diagnostic
+  - name: diagnostic
+    topic: "system.diagnostic"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to all subscribers: an internal failure or anomaly that the
+        engine absorbed and kept running past, so trading was not
+        interrupted but the event still happened and a post-mortem needs to
+        see it. Before this existed, a maintenance-flush exception, a
+        handler crash, an undecodable inbound message, or a message on an
+        unhandled topic reached only the process log — `pm-audit`'s bare PUB
+        subscription on the engine's :5556 socket (see
+        docs/user-guide/190-audit.md) never saw any of them, so a bug that
+        only ever showed up as "the book snapshot stopped updating" or "an
+        order silently never got a reply" had no trail to replay. This does
+        not replace logging (the process log keeps the full traceback); it
+        is the wire-visible marker that something in `component` happened,
+        with enough detail to go find the log line.
+      published_by: [engine]
+      since: "1.1"
+      see_also: ["order.ack.{GW_ID}"]
+      example_note: >
+        Deliberately generic — a `component`/`detail`/`error` triple rather
+        than one message type per failure mode, because the failure modes
+        (a maintenance flush, a dispatch-handler crash, an undecodable pull
+        message, an unrouted topic) share nothing structural beyond "engine
+        kept running, something still needs recording."
+    fields:
+      - name: component
+        type: enum
+        values: [MAINTENANCE_FLUSH, DISPATCH_ERROR, UNDECODABLE_MESSAGE,
+                 UNROUTED_TOPIC]
+        doc: "Which internal area this diagnostic came from."
+      - name: detail
+        type: string
+        default: ""
+        validate: { max_len: 256 }
+        doc: >
+          What within component — the flush function name, the message
+          topic, or empty when there is no finer-grained name (an
+          undecodable message has no topic to report).
+      - { name: error, type: string, required: false, default: "",
+          validate: { max_len: 512 },
+          doc: "The exception text, when this diagnostic came from one." }
+      - name: count
+        type: int
+        unit: dimensionless
+        validate: { ge: 0 }
+        doc: >
+          This component's running occurrence count for the process
+          lifetime — the same counter the log line already reports,
+          carried onto the wire so a subscriber can tell a first occurrence
+          from a recurring one without correlating timestamps against the
+          log.
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
 
   # ================================================================== symbols
   - name: symbols_request

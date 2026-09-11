@@ -246,7 +246,7 @@ def test_poll_engine_events_all_topics(
                     "price": 100.2,
                     "quantity": 3,
                     "aggressor_side": "BUY",
-                    "timestamp": 2.0,
+                    "ts_ns": 2_000_000_000,
                 },
             ),
             (
@@ -554,7 +554,7 @@ def test_poll_engine_events_nonfatal_handler_exception(
                     "price": 100.2,
                     "quantity": 3,
                     "aggressor_side": "BUY",
-                    "timestamp": 2.0,
+                    "ts_ns": 2_000_000_000,
                 },
             ),
         ]

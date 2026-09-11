@@ -1008,7 +1008,8 @@ export interface RecentTrade {
   sell_gateway_id: string;
   price: number;
   quantity: number;
-  timestamp: number; // epoch seconds
+  /** Epoch nanoseconds (int on the wire). Not exact after JSON.parse -- see lib/time.ts. */
+  ts_ns: number;
 }
 
 /** Full book snapshot — includes tick_decimals and recent_trades tail. */
@@ -1049,7 +1050,8 @@ export interface TradeData {
   price: number;
   quantity: number;
   aggressor_side: "BUY" | "SELL" | "AUCTION";
-  timestamp: number; // epoch seconds
+  /** Epoch nanoseconds (int on the wire). Not exact after JSON.parse -- see lib/time.ts. */
+  ts_ns: number;
   tick_decimals: number;
 }
 

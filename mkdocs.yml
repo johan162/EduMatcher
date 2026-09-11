@@ -185,5 +185,6 @@ nav:
     - Message Generator: developer/06-msgen.md
     - Container and Network Setup: developer/07-container-and-networks.md
     - The Development Loop: developer/08-dev-workflow.md
+    - "Order Flow Through the Engine": developer/09-order-flow-engine.md
   - Glossary: glossary.md
   - FAQ: faq.md

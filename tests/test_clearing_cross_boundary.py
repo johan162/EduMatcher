@@ -380,7 +380,7 @@ class TestXB6HostileFrames:
             raw.send_multipart([b"trade.executed", b"{not json"])  # broken JSON
             raw.send_multipart([b"trade.executed", b"[1, 2, 3]"])  # wrong shape
             raw.send_multipart(
-                [b"trade.executed", b'{"price": "NaN", "timestamp": null}']
+                [b"trade.executed", b'{"price": "NaN", "ts_ns": null}']
             )  # missing fields
             raw.send_multipart([b"system.eod", b"null"])  # null payload
 

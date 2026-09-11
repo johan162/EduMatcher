@@ -45,7 +45,7 @@ def _snapshot() -> dict[str, Any]:
                 "sell_gateway_id": "GW2",
                 "price": 95.25,
                 "quantity": 10,
-                "timestamp": 1700000000.5,
+                "ts_ns": 1_700_000_000_000_000_000,
             }
         ],
     }

@@ -136,40 +136,48 @@ The standard solution: **negate the price for bids.**
 
 ```python
 # Ask heap — natural min-heap, lowest ask first
-heapq.heappush(asks, (10002, timestamp, order))  # $100.02 = 10002 ticks
-heapq.heappush(asks, (10005, timestamp, order))  # $100.05 = 10005 ticks  ← will be second
-heapq.heappush(asks, (10008, timestamp, order))  # $100.08 = 10008 ticks
+heapq.heappush(asks, (10002, arrival_seq, order))  # $100.02 = 10002 ticks
+heapq.heappush(asks, (10005, arrival_seq, order))  # $100.05 = 10005 ticks  ← will be second
+heapq.heappush(asks, (10008, arrival_seq, order))  # $100.08 = 10008 ticks
 
 asks[0]  # → (10002, ...)  ✓ lowest ask is first
 
 # Bid heap — negate price so highest bid sorts first
-heapq.heappush(bids, (-9998, timestamp, order))   # $99.98 = 9998 ticks
-heapq.heappush(bids, (-10000, timestamp, order))  # $100.00 = 10000 ticks ← will be first
-heapq.heappush(bids, (-9995, timestamp, order))   # $99.95 = 9995 ticks
+heapq.heappush(bids, (-9998, arrival_seq, order))   # $99.98 = 9998 ticks
+heapq.heappush(bids, (-10000, arrival_seq, order))  # $100.00 = 10000 ticks ← will be first
+heapq.heappush(bids, (-9995, arrival_seq, order))   # $99.95 = 9995 ticks
 
 bids[0]  # → (-10000, ...)  ✓ negated, so highest bid is first
 ```
 
 Negating bids is a standard Python pattern. You will see it throughout this codebase.
 
+!!! note "Why `arrival_seq`, not `timestamp`"
+    The second tuple element is labelled `arrival_seq` here rather than
+    `timestamp` on purpose — see [Price-Time Priority as a Tuple
+    Key](#price-time-priority-as-a-tuple-key) just below for why the engine
+    keys priority on a monotonic counter instead of the order's clock
+    timestamp.
+
 ### Price-Time Priority as a Tuple Key
 
-A matching engine sorts orders by price first, then by arrival time as a tiebreaker.
+A matching engine sorts orders by price first, then by arrival order as a tiebreaker.
 This is called **price-time priority**. We encode both into a single tuple:
 
 ```python
-key = (price, timestamp)
+key = (price, arrival_seq)
 ```
 
 Python compares tuples element by element. If two orders have the same price, the
-one with the smaller timestamp (earlier arrival) wins. This naturally implements
+one with the smaller `arrival_seq` (earlier arrival) wins. This naturally implements
 price-time priority in a single heap with no special logic:
 
 ```python
 # Two asks at the same price — earlier one sorts first
-# Timestamps are int nanoseconds from now_ns()
-key_a = (10002, 1_748_000_000_000_000_000)   # arrived first
-key_b = (10002, 1_748_000_000_000_005_000)   # arrived 5 microseconds later
+# arrival_seq is a monotonic int counter assigned by the OrderBook itself
+# (self._arrival_seq, incremented by _next_seq()) — never the client's clock.
+key_a = (10002, 4517)   # arrived first
+key_b = (10002, 4518)   # arrived one order later
 
 key_a < key_b  # True — key_a is "better" and will be at top of heap
 ```
@@ -177,10 +185,10 @@ key_a < key_b  # True — key_a is "better" and will be at top of heap
 For bids we negate the price:
 
 ```python
-key = (-price_ticks, timestamp_ns)
+key = (-price_ticks, arrival_seq)
 ```
 
-This gives us highest price first, then earliest timestamp among equal prices. Both
+This gives us highest price first, then earliest arrival among equal prices. Both
 in one heap, no special cases. Because both elements are integers, comparisons are
 exact — no floating-point representation edge cases.
 
@@ -188,6 +196,29 @@ exact — no floating-point representation edge cases.
 among equal prices, whoever arrived first should win. It prevents a participant from
 "cutting the queue" by submitting an order at the same price as someone who was
 already waiting.
+
+!!! important "`arrival_seq` vs. the order's `timestamp` field — do not confuse them"
+    It is tempting to assume "arrival time" means the order's `timestamp`
+    field, since that is the name that sounds like a clock. It does not.
+
+    `Order.timestamp` is the **client-supplied** submission time sent with
+    the order (see the [ALF protocol](../user-guide/900-app-alf-protocol.md)
+    and [message reference](../user-guide/270-message-reference.md#ordernew)).
+    A participant's clock can be skewed, or a value can be crafted, so the
+    book **never** uses `timestamp` to decide queue position — a back-dated
+    `timestamp` cannot jump the queue.
+
+    Time priority is keyed on **`Order.arrival_seq`** instead: a monotonic
+    integer counter (`OrderBook._arrival_seq`, advanced by `_next_seq()`) that
+    the engine itself assigns at the instant it admits an order — or a
+    re-priced/re-queued amendment, or a replenished iceberg peak — onto a
+    heap. Because it is assigned by the engine and only ever increases,
+    `arrival_seq` gives a total, tamper-proof order of arrival that
+    `timestamp` cannot guarantee (two orders could in principle carry
+    identical or out-of-order client timestamps; two orders can never share
+    an `arrival_seq`). This is documented in the source as **finding H1**;
+    see [Order Types — Priority Rules](../user-guide/060-order-types.md#priority-rules)
+    for the user-facing explanation of the same rule.
 
 
 
@@ -216,10 +247,13 @@ dataclasses with many fields — there is no natural ordering between two orders
 `_HeapEntry` solves this by:
 
 1. Storing a precomputed tuple key in `self.key` where the exact shape depends on the heap:
-    - bids use `(-price, timestamp)`
-    - asks use `(price, timestamp)`
-    - buy stops use `(stop_price, timestamp)`
-    - sell stops use `(-stop_price, timestamp)`
+    - bids use `(-price, arrival_seq)`
+    - asks use `(price, arrival_seq)`
+    - buy stops use `(stop_price, arrival_seq)`
+    - sell stops use `(-stop_price, arrival_seq)`
+
+    All four use `arrival_seq`, not `timestamp` — see the note in
+    [Price-Time Priority as a Tuple Key](#price-time-priority-as-a-tuple-key).
 2. Implementing `__lt__` to compare only keys — `heapq` uses `__lt__` internally
 3. Carrying the `Order` as a passenger — never compared, just stored
 
@@ -1082,42 +1116,56 @@ operations and replaces them with O(log n) cleanup spread across many calls to
 ## `_rest()` — Placing a Resting Order
 
 ```python
-def _rest(self, order):
+def _rest(self, order: Order) -> None:
     assert order.price is not None
-    # INVARIANT: order.timestamp is strictly monotonically increasing thanks to
-    # now_ns() (models/clock.py). No two orders share a timestamp, so
-    # price-time priority within a price level is always deterministic.
+    price = order.price
     qty = (
-        order.displayed_qty
+        order.displayed_qty or 0
         if order.order_type == OrderType.ICEBERG
         else order.remaining_qty
     )
+    # Engine-assigned arrival sequence drives time priority (finding H1).
+    order.arrival_seq = self._next_seq()
     if order.side == Side.BUY:
-        key = (-order.price, order.timestamp)
+        key = (-price, order.arrival_seq)
         heap = self._bids
-        self._bid_qty[order.price] = self._bid_qty.get(order.price, 0) + qty
+        self._bid_qty[price] = self._bid_qty.get(price, 0) + qty
     else:
-        key = (order.price, order.timestamp)
+        key = (price, order.arrival_seq)
         heap = self._asks
-        self._ask_qty[order.price] = self._ask_qty.get(order.price, 0) + qty
+        self._ask_qty[price] = self._ask_qty.get(price, 0) + qty
 
     entry = _HeapEntry(key=key, order=order)
     heapq.heappush(heap, entry)
     self._order_index[order.id] = order
     self._entry_index[order.id] = entry
+    self._orders_by_gateway.setdefault(order.gateway_id, set()).add(order.id)
 ```
 
-When an order rests on the book, five things happen in the same function call:
+When an order rests on the book, six things happen in the same function call:
 
-1. A `_HeapEntry` is created with the correct sort key
-2. The entry is pushed onto the appropriate heap
-3. The order is registered in `_order_index` (for cancel/amend lookup)
-4. The entry is registered in `_entry_index` (for lazy deletion on cancel)
-5. The quantity is added to `_bid_qty` or `_ask_qty` (for FOK and depth checks)
+1. The order is assigned a fresh `arrival_seq` — the value that will decide its
+   time priority for as long as it rests unchanged
+2. A `_HeapEntry` is created with the correct sort key, built from that `arrival_seq`
+3. The entry is pushed onto the appropriate heap
+4. The order is registered in `_order_index` (for cancel/amend lookup)
+5. The entry is registered in `_entry_index` (for lazy deletion on cancel)
+6. The quantity is added to `_bid_qty` or `_ask_qty` (for FOK and depth checks)
 
-All five data structures are updated within the same function call to stay in sync.
-This is the discipline that keeps the book consistent — every operation that touches
-the book must update all relevant structures.
+All six data structures/fields are updated within the same function call to stay in
+sync. This is the discipline that keeps the book consistent — every operation that
+touches the book must update all relevant structures.
+
+!!! important "`order.arrival_seq`, not `order.timestamp`, drives the sort key"
+    `_rest()` calls `self._next_seq()` — which increments the `OrderBook`'s own
+    `_arrival_seq` counter — every time it places an order on a heap, and uses
+    the result as the second element of the tuple key. `order.timestamp` (the
+    client-supplied submission time) plays no role in the key at all; it is
+    carried on the `Order` purely for display and audit purposes. Two orders
+    can never tie on `arrival_seq`, so price-time priority within a price
+    level is always deterministic — the same guarantee the previous revision
+    of this document attributed to `order.timestamp`, which is not actually
+    guaranteed to be unique or monotonic across clients.
 
 Note the iceberg special case: an iceberg order rests its `displayed_qty` (the
 visible peak) rather than its full `remaining_qty`. The hidden reserve is invisible
@@ -1135,29 +1183,49 @@ real exchanges:
   stays at its position in the queue. Reducing size is not aggressive and should
   not be penalised. The participant is giving up some of their position — they
   should not lose their place in line as a result.
-- **Price change, or quantity increase** → priority is **lost**. The order gets a
-  new timestamp and goes to the back of the queue at the new price level. Changing
-  the price is a meaningful change to the order's competitiveness; increasing the
-  quantity means the participant wants to trade more at the same price, which is
-  treated as a new competitive act.
+- **Price change, or quantity increase** → priority is **lost**. The order is
+  assigned a fresh `arrival_seq` and goes to the back of the queue at the new
+  price level. Changing the price is a meaningful change to the order's
+  competitiveness; increasing the quantity means the participant wants to
+  trade more at the same price, which is treated as a new competitive act.
 
 ```python
-def amend_order(self, order_id, new_price=None, new_qty=None, now=None):
+def amend_order(
+    self,
+    order_id: str,
+    new_price: Optional[int] = None,
+    new_qty: Optional[int] = None,
+    now: Optional[int] = None,
+) -> tuple[Optional[Order], bool, str]:
     order = self._order_index.get(order_id)
     ...
     price_changed = price != old_price
     qty_increased = qty > old_qty
     priority_reset = price_changed or qty_increased
-
+    ...
     if priority_reset:
-        order.timestamp = now        # new timestamp → back of queue
-        entry.valid = False          # lazy-delete the old heap entry
-        # Re-insert with new key (new price and/or new timestamp)
-        new_entry = _HeapEntry(key=new_key, order=order)
+        order.timestamp = now
+        # Priority lost: assign a fresh arrival sequence so the order goes
+        # to the back of the queue at its (new) price level (finding H1).
+        order.arrival_seq = self._next_seq()
+        if entry:
+            entry.valid = False      # lazy-delete the old heap entry
+        # Re-insert with new key (new price and/or new arrival_seq)
+        if order.side == Side.BUY:
+            key = (-price, order.arrival_seq)
+        else:
+            key = (price, order.arrival_seq)
+        new_entry = _HeapEntry(key=key, order=order)
         heapq.heappush(heap, new_entry)
         self._entry_index[order.id] = new_entry
     # If not priority_reset, just update the qty index — no heap change needed
 ```
+
+`order.timestamp = now` still runs on the `priority_reset` branch, but it is a
+side effect for display/audit purposes only — it plays no part in `key`. The
+line immediately below it, `order.arrival_seq = self._next_seq()`, is what
+actually sends the order to the back of the queue: `key` is built from
+`order.arrival_seq`, never from `order.timestamp`.
 
 The `priority_reset` branch is why `_entry_index` exists. Without it, we would
 have no way to invalidate the old heap entry when the order is re-inserted at a
@@ -1180,20 +1248,50 @@ consumed, the iceberg must take its turn again.
 ```python
 # In _apply_fill, after filling a passive iceberg:
 if passive.remaining_qty > 0 and passive.displayed_qty == 0:
-    new_peak = min(passive.visible_qty, passive.remaining_qty)
+    new_peak = min(passive.visible_qty or 0, passive.remaining_qty)
     passive.displayed_qty = new_peak
-    passive.timestamp = now   # ← back of queue
+    # Reuse the cached batch timestamp for iceberg replenishment (display/audit only).
+    passive.timestamp = now
+    self._deduct_qty_index(passive, fill_qty)
     self._reinsert_iceberg(passive)
 ```
 
-The timestamp update is the key mechanism. By setting `passive.timestamp = now`,
-the replenished iceberg gets a new, later timestamp. When `_rest()` is called again,
-its heap key becomes `(price, now)` — sorting behind any other resting orders at
-the same price that arrived earlier. This correctly implements the exchange rule that
-iceberg replenishment loses queue priority.
+```python
+def _reinsert_iceberg(self, order: Order) -> None:
+    assert order.price is not None
+    price = order.price
+    old_entry = self._entry_index.get(order.id)
+    if old_entry:
+        old_entry.valid = False
+    # Fresh arrival sequence sends the replenished peak to the back of the
+    # queue at this price level (finding H1 — priority is seq-based).
+    order.arrival_seq = self._next_seq()
+    new_peak = order.displayed_qty or 0
+    if order.side == Side.BUY:
+        key = (-price, order.arrival_seq)
+        heap = self._bids
+        self._bid_qty[price] = self._bid_qty.get(price, 0) + new_peak
+    else:
+        key = (price, order.arrival_seq)
+        heap = self._asks
+        self._ask_qty[price] = self._ask_qty.get(price, 0) + new_peak
+    entry = _HeapEntry(key=key, order=order)
+    heapq.heappush(heap, entry)
+    self._entry_index[order.id] = entry
+```
+
+The `arrival_seq` update is the key mechanism, not the `timestamp` update shown
+above it. `passive.timestamp = now` is set for display/audit purposes, but it is
+`order.arrival_seq = self._next_seq()` inside `_reinsert_iceberg` that actually
+moves the order: the replenished iceberg gets a new, larger `arrival_seq`, so its
+heap key becomes `(price, <new arrival_seq>)` — sorting behind any other resting
+orders at the same price that arrived (and so were assigned their `arrival_seq`)
+earlier. This correctly implements the exchange rule that iceberg replenishment
+loses queue priority — using the same engine-assigned counter as `_rest()` and
+`amend_order()`, not the client-supplied clock value.
 
 `_reinsert_iceberg` invalidates the old heap entry (lazy deletion) and pushes a new
-one with the updated timestamp and quantity.
+one with the updated `arrival_seq` and quantity.
 
 
 
@@ -1404,10 +1502,10 @@ state.
 
 | Structure | Type | Key | Value | Purpose |
 |---|---|---|---|---|
-| `_bids` | Heap | `(-price_ticks, timestamp_ns)` | `_HeapEntry` | Best bid, price-time order |
-| `_asks` | Heap | `(price_ticks, timestamp_ns)` | `_HeapEntry` | Best ask, price-time order |
-| `_buy_stops` | Heap | `(stop_price_ticks, ts_ns)` | `_HeapEntry` | Buy stop triggers |
-| `_sell_stops` | Heap | `(-stop_price_ticks, ts_ns)` | `_HeapEntry` | Sell stop triggers |
+| `_bids` | Heap | `(-price_ticks, arrival_seq)` | `_HeapEntry` | Best bid, price-time order |
+| `_asks` | Heap | `(price_ticks, arrival_seq)` | `_HeapEntry` | Best ask, price-time order |
+| `_buy_stops` | Heap | `(stop_price_ticks, arrival_seq)` | `_HeapEntry` | Buy stop triggers |
+| `_sell_stops` | Heap | `(-stop_price_ticks, arrival_seq)` | `_HeapEntry` | Sell stop triggers |
 | `_trailing_stops` | List | — | `Order` | Trailing stop ratchet updates |
 | `_order_index` | Dict | `order_id` | `Order` | O(1) order lookup by ID |
 | `_entry_index` | Dict | `order_id` | `_HeapEntry` | O(1) lazy deletion |
@@ -1426,7 +1524,7 @@ state.
 | Peek best order | O(1) amortised | lazy deletion in `_peek`; stale entries cleaned on the way |
 | Cancel order | O(1) | two dict lookups + `valid=False` |
 | Amend order (price change or qty increase) | O(log n) | invalidate old entry + re-insert |
-| Amend order (qty decrease, same price) | O(1) | preserve priority, update qty index only |
+| Amend order (qty decrease, same price) | O(1) | preserve priority (`arrival_seq` unchanged), update qty index only |
 | FOK availability check | O(P) | iterate `_bid_qty` / `_ask_qty` |
 | Full book snapshot | O(n) | iterate all heap entries |
 | Depth metrics | O(P) | iterate qty index only |

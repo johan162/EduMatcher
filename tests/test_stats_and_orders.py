@@ -32,6 +32,12 @@ from edumatcher.stats.main import (
 )
 from edumatcher.ticker.main import _query_daily_stats
 
+
+def _ns(epoch_sec: float) -> int:
+    """Epoch seconds -> the integer nanoseconds trade.executed now carries."""
+    return int(epoch_sec * 1_000_000_000)
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -205,7 +211,7 @@ class TestOnTrade:
             "symbol": "AAPL",
             "price": 150.0,
             "quantity": 100,
-            "timestamp": time.time(),
+            "ts_ns": _ns(time.time()),
             "buy_gateway_id": "GW01",
             "sell_gateway_id": "GW02",
         }
@@ -220,7 +226,7 @@ class TestOnTrade:
             "symbol": "MSFT",
             "price": 200.0,
             "quantity": 50,
-            "timestamp": time.time(),
+            "ts_ns": _ns(time.time()),
         }
         sp._on_trade(payload)
         acc = sp._accum.get("MSFT")
@@ -244,7 +250,7 @@ class TestOnTrade:
             "symbol": "AAPL",
             "price": 100.0,
             "quantity": 10,
-            "timestamp": time.time(),
+            "ts_ns": _ns(time.time()),
         }
         sp._on_trade(payload)
         sp._on_trade(payload)  # duplicate
@@ -329,7 +335,7 @@ class TestOnEod:
                 "symbol": "AAPL",
                 "price": 150.0,
                 "quantity": 100,
-                "timestamp": time.time(),
+                "ts_ns": _ns(time.time()),
             }
         )
         sp._on_eod(

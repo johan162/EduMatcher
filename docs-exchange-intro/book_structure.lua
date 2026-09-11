@@ -90,8 +90,15 @@ function Header(el)
   end
 
   -- Start main matter at first part, then render parts explicitly.
+  -- \mainmatter must fire exactly once: besides switching to arabic page
+  -- numbers, LaTeX's book class also resets the page counter to 1 when it
+  -- runs. Emitting it before every \part (instead of only the first) reset
+  -- the page count back to 1 at the start of each part in the full book --
+  -- harmless in a standalone single-part booklet (only one \part exists
+  -- there), which is why the bug only showed up in the 4-part book.
   if el.level == 1 and is_part_heading(text) then
     in_part = true
+    local is_first_part = not mainmatter_started
     if not mainmatter_started then
       mainmatter_started = true
     end
@@ -99,7 +106,9 @@ function Header(el)
       return nil
     end
     local blocks = pandoc.List()
-    blocks:insert(emit_raw("\\mainmatter"))
+    if is_first_part then
+      blocks:insert(emit_raw("\\mainmatter"))
+    end
     blocks:insert(emit_raw("\\part{" .. tex_escape(text) .. "}"))
     return blocks
   end

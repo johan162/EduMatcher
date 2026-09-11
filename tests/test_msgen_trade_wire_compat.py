@@ -53,7 +53,7 @@ _SAMPLE: dict[str, Any] = {
     "price": 101.5,
     "quantity": 300,
     "aggressor_side": "BUY",
-    "timestamp": 1_700_000_000.0,
+    "ts_ns": 1_700_000_000_000_000_000,
     "tick_decimals": 2,
 }
 
@@ -77,7 +77,7 @@ def _engine_inline_payload(**over: Any) -> dict[str, Any]:
         "tick_decimals": 2,
         "quantity": 300,
         "aggressor_side": "BUY",
-        "timestamp": 1_700_000_000.0,
+        "ts_ns": 1_700_000_000_000_000_000,
     }
     payload.update(over)
     return payload
@@ -229,7 +229,7 @@ class TestUncheckedMatchesChecked:
             {"quantity": 7},
             {"tick_decimals": 0},
             {"aggressor_side": "AUCTION"},
-            {"timestamp": 1_700_000_000},
+            {"ts_ns": 1_700_000_000_000_000_000},
             {"id": "000001-000000001"},
         ],
     )
@@ -278,7 +278,7 @@ class TestCoercionMatchesTheHandWrittenPayload:
             {"price": 101},
             {"quantity": "300"},
             {"id": 42},
-            {"timestamp": 1_700_000_000},
+            {"ts_ns": 1_700_000_000_000_000_000},
             {"tick_decimals": "2"},
             {"symbol": "ACME"},
         ],

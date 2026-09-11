@@ -1,3 +1,55 @@
+## [v0.35.0] - 2026-09-10
+
+Release Type: major
+
+### 📋 Summary
+Added additional information to internal messages to make sure audit can re-create 
+all state changing events. In addition align all timestamp handling so unit of the 
+timestamp is encoded in he naming of variables to avoid any mistakes.
+`trade.executed` now carries the engine's match time as integer nanoseconds in
+a field named `ts_ns`, replacing the float `timestamp` in epoch seconds. This
+is a breaking wire change with no compatibility shim.
+
+### 💥 Breaking Changes
+- `trade.executed.timestamp` (float, epoch seconds) is replaced by
+  `trade.executed.ts_ns` (int, epoch nanoseconds). The engine publishes its
+  clock reading unscaled instead of dividing by 1e9.
+- The book snapshot's `recent_trades[].timestamp` is replaced by `ts_ns` the
+  same way, since those rows mirror the same print.
+- `models.trade.Trade.timestamp` is renamed to `ts_ns`, so the internal model
+  no longer holds nanoseconds under a bare name either. This changes the keys
+  of `Trade.to_dict()` / `Trade.from_dict()`, which are the internal
+  persistence and round-trip shape.
+
+### 🐛 Bug Fixes
+- Removed clearing's `_to_timestamp_ns` magnitude guard (finding CL-M6). It
+  existed only because a float named `timestamp` could not be distinguished
+  from millis or nanos by type; an integer field whose name states its unit
+  cannot be misread, so there is nothing left to guess.
+- Publishing no longer discards precision: float64 epoch seconds resolves to
+  ~238 ns at current magnitudes (~477 ns after 2038), so the engine's
+  nanosecond clock was being rounded on every print.
+
+### ✨ Additions
+- Added `Trade.to_wire()`, the single conversion from the internal model to a
+  `trade.executed` payload — ticks to display money via the tick registry, and
+  `ts_ns` — so no caller hand-rolls it. `Trade.to_dict()` is now explicitly the
+  internal shape, for persistence and round-trips only.
+- Make `pm-audit` have enough information to be able to re-create order flow.
+  pm-audit is a bare, empty-prefix subscriber on the engine's PUB socket, so audit 
+  completeness is exactly "what gets published on :5556." Several engine-initiated 
+  decisions produced an outcome with no reason, one produced no outcome at all, 
+  and a few reached only the process log.
+
+### 📚 Documentation
+- Corrected the hand-written `order.new` and `quote.new` field tables in
+  `270-preamble.md`: `price`, `stop_price`, `trail_offset`, `bid_price` and
+  `ask_price` are integer **ticks**, not display floats, and `order.new.timestamp`
+  is integer epoch **nanoseconds**, not float seconds. Added `arrival_seq` (the
+  real time-priority key) and a note on the ticks-in / display-out convention.
+- Regenerated the message reference from the spec.
+- Fixed pagenumber being reset at every part in the Exchange Introduction PDF
+
 ## [v0.34.0] - 2026-09-09
 
 Release Type: minor

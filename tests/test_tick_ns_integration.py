@@ -44,5 +44,5 @@ def test_order_book_snapshot_converts_ticks_to_display_prices() -> None:
 
     tr = snap["recent_trades"][-1]
     assert tr["price"] == 100.50
-    assert isinstance(tr["timestamp"], float)
-    assert tr["timestamp"] > 1_000_000_000.0
+    assert isinstance(tr["ts_ns"], int)
+    assert tr["ts_ns"] > 1_000_000_000_000_000_000

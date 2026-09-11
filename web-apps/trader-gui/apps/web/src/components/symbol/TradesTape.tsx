@@ -4,6 +4,7 @@ import { useBookStore } from "@/store/useBookStore.js";
 import { useHistoryTradesQuery } from "@/queries/index.js";
 import { formatPrice, formatQty, formatTime } from "@/lib/formatters.js";
 import type { HistoryTrade } from "@/types/index.js";
+import { nsToEpochSec } from "@/lib/time.js";
 
 const TAPE_LIMIT = 50;
 
@@ -49,7 +50,7 @@ export function TradesTape({ symbol, tickDecimals }: TradesTapeProps) {
     for (const t of live ?? []) {
       merged.set(t.id, {
         id: t.id,
-        epochSec: t.timestamp,
+        epochSec: nsToEpochSec(t.ts_ns),
         price: t.price,
         quantity: t.quantity,
         aggressor: t.aggressor_side,

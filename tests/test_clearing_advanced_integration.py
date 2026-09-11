@@ -75,7 +75,7 @@ def _make_trade(
 
 
 def _encode_trade(trade: Trade) -> list[bytes]:
-    return [TOPIC_TRADE_EXECUTED.encode(), json.dumps(trade.to_dict()).encode()]
+    return [TOPIC_TRADE_EXECUTED.encode(), json.dumps(trade.to_wire()).encode()]
 
 
 @pytest.fixture()
@@ -522,7 +522,7 @@ class TestPrintPnlTable:
         time.sleep(0.2)
 
         trade = _make_trade("T-PRINT", price=500, qty=5)
-        pub.send(TOPIC_TRADE_EXECUTED, trade.to_dict())
+        pub.send(TOPIC_TRADE_EXECUTED, trade.to_wire())
         time.sleep(0.3)
 
         p.stop()
@@ -596,7 +596,7 @@ class TestWarmStartHydration:
         time.sleep(0.2)
 
         trade = _make_trade("T-WS", price=2000, qty=50)
-        pub.send(TOPIC_TRADE_EXECUTED, trade.to_dict())
+        pub.send(TOPIC_TRADE_EXECUTED, trade.to_wire())
         time.sleep(0.3)
 
         p1.stop()

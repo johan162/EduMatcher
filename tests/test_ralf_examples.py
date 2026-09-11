@@ -129,7 +129,7 @@ def _send_trade_executed(pub: zmq.Socket[bytes], exec_id: str) -> None:
                     "price": 150.25,
                     "quantity": 100,
                     "aggressor_side": "BUY",
-                    "timestamp": time.time(),
+                    "ts_ns": time.time_ns(),
                 }
             ),
         ]

@@ -180,8 +180,28 @@ deliver every published message without exception:
 | `trade.executed` | Every matched trade pair |
 | `book.*` | Book snapshots after every change |
 | `session.state` | Session phase transitions |
-| `system.*` | Gateway auth, symbols, EOD |
+| `system.*` | Gateway auth, symbols, EOD, GTC-restore summary, absorbed internal failures |
 | *(all others)* | Admin events, combos, quotes, circuit breaker |
+
+### Audit completeness — every state-changing decision, not just its outcome
+
+`pm-audit` can only ever see what the engine publishes on `:5556` — it is a
+bare subscriber with no other visibility into the process. Reconstructing
+"what happened and why" from the log is therefore only as complete as the
+publish call sites are, and a few decision points used to publish an outcome
+without the reason behind it, or nothing at all. The fields and events below
+close those gaps:
+
+| Gap closed | Where it shows up |
+|---|---|
+| Every engine-initiated cancel now states why | `order.cancelled.{GW_ID}`'s `cancel_reason` covers a kill switch (self or admin), a circuit-breaker halt, a gateway disconnect, an admin symbol-level mass cancel, a quote being replaced, and a quote leg cancelled because its sibling filled — in addition to the original `SELF_MATCH_PREVENTED` / `INSUFFICIENT_LIQUIDITY`. Still `null` for a client-requested cancel, which is not the exchange's decision to explain. |
+| Cancels and quote removals join back to the command that caused them | `order.cancelled.{GW_ID}` and `quote.status.{GW_ID}` both carry `command_id` when an admin/kill-switch command caused the event — the same `command_id` echoed on that command's ack and on `admin.action`. `null` when there is no such command (self-match prevention, a participant's own quote cancel, and so on). |
+| A resting order can be told apart from a config-seeded one | `order.ack.{GW_ID}` and `order.fill.{GW_ID}` carry `is_seed` — `true` for an order or quote leg created by `market_maker_quotes`/`market_maker_combos` at startup rather than a live gateway submission (the ack, not `order.new`, is the first audit-visible event for any order, since `order.new` is a PUSH-only submission the engine never re-publishes on `:5556`). The on-demand `order.orders`/`order.price_level_orders` snapshot rows carry it too. Purely observational: nothing in the engine branches on it. |
+| Every combo leg gets an acknowledgement | `order.ack.{GW_ID}` now fires once per child leg when a combo is accepted — live or config-seeded. Previously no combo leg published an ack at all; a subscriber that started after acceptance had no way to learn a leg's symbol, side, price, or qty until it was cancelled, and `order.cancelled`'s minimal shape cannot supply them either. |
+| Startup recovery is on the record | `system.startup_recovery`, published once right after `_restore_gtc()`, reports how many orders were restored, discarded as stale `TIF=DAY`, or failed to restore; how many single-leg quote remnants and rebuilt `QuoteIndex` entries resulted; and how many GTC combos came back. Previously these counts reached only `log.info`/`log.error`. |
+| Absorbed internal failures are on the record | `system.diagnostic` fires for a maintenance-flush exception, a dispatch-handler crash, an undecodable inbound message, or a message on a topic with no handler — cases the engine deliberately survives so trading is not interrupted, but which previously reached only the process log. Carries `component`, `detail` (the flush name or topic, when there is one), `error` (the exception text, when there is one), and `count` (that component's running occurrence count). The client-facing reject for a crashed order handler still stays generic — see `order.ack`'s `INTERNAL_ERROR` — so `system.diagnostic` is the only wire-visible place the real exception text appears. |
+| Amendments show the prior price/qty | `order.amended.{GW_ID}` carries `old_price`/`old_qty` alongside the new values, so a post-mortem does not need the preceding `order.new`/`order.amended` to know what changed. |
+| Index corporate actions show the prior divisor | `index.corp_action_ack`, `index.constituent_change_ack`, and `index.rebalance_ack` all carry `old_divisor` alongside `divisor`, mirroring `HistoryRecord.old_divisor` in pm-index's own local archive — a post-mortem no longer needs that archive to see what changed. |
 
 ### Signal handling and graceful shutdown
 
@@ -376,19 +396,10 @@ pm-audit-cli orders [options]
 | `gateway` | Gateway ID |
 | `symbol` | Instrument symbol |
 | `side` | `BUY` or `SELL` |
-| `qty` | `quantity`, then `filled_qty`, then `remaining_qty` — whichever key is present first in the payload |
+| `qty` | `quantity`, then `fill_qty`, then `remaining_qty` — whichever key is present first in the payload |
 | `price` | Price (limit price or fill price depending on event type) |
 | `status` | Order status after the event |
-
-!!! warning "`qty` does not show the fill quantity for order.fill events"
-    The `qty` column looks for a `filled_qty` key as its second choice, but
-    `order.fill.{GW_ID}` payloads actually use the key `fill_qty` (see
-    [Messages — order.fill](270-message-reference.md#orderfillgateway_id)). Since neither
-    `quantity` nor `filled_qty` is present on a fill event, `qty` falls
-    through to `remaining_qty` instead — the quantity left on the order, not
-    the quantity filled in that event. Use `timeline` (which shows the full
-    payload) or `events --topic order.fill` if you need the actual fill
-    size.
+| `reason` | `reject_code` (from an `order.ack` rejection), `cancel_reason` (from `order.cancelled`), or a generic `reason` string — whichever the event carries |
 
 **Examples:**
 

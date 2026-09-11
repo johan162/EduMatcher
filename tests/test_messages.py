@@ -500,7 +500,7 @@ class TestMarketDataMessages:
                     "tick_decimals": 2,
                     "quantity": 10,
                     "aggressor_side": "BUY",
-                    "timestamp": 1_700_000_000.0,
+                    "ts_ns": 1_700_000_000_000_000_000,
                 }
             )
         )
@@ -519,7 +519,7 @@ class TestMarketDataMessages:
             price=150.75,
             quantity=10,
             aggressor_side="BUY",
-            timestamp=1_700_000_000.5,
+            ts_ns=1_700_000_000_000_000_000,
             tick_decimals=2,
         )
         topic, payload = _rt(make_trade_msg(typed.to_dict()))

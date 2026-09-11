@@ -13,6 +13,11 @@
           print-color-adjust: exact !important; }
 }
 
+/* Toggle the pre-release watermark here: 'block' to show, 'none' to hide once the real release ships. */
+:root {
+  --show-prerelease: block;
+}
+
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
 html, body {
@@ -237,6 +242,22 @@ html, body {
   z-index: 20;
 }
 
+/* ── Pre-release watermark (diagonal stamp) ─────────── */
+.prerelease-watermark {
+  display: var(--show-prerelease);
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%) rotate(-50deg);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 35mm;
+  letter-spacing: 2mm;
+  color: rgba(204, 244, 190, 0.486);
+  white-space: nowrap;
+  z-index: 15;
+  pointer-events: none;
+  user-select: none;
+}
+
 </style>
 </head>
 <body>
@@ -246,6 +267,7 @@ html, body {
   <div class="top-rule"></div>
   <div class="left-stripe"></div>
   <div class="corner-br"></div>
+  <div class="prerelease-watermark">PRE-RELEASE</div>
 
   <!-- Header row -->
   <div class="header-zone">

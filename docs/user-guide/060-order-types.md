@@ -12,6 +12,12 @@
     **Prerequisite**: [The Order Book](../concepts/01-concepts-order-book.md) — you should understand
     price-time priority before diving into order type mechanics.
 
+!!! tip "Key point: priority is not keyed on the order's timestamp"
+    Queue priority ("time priority" in price-time priority) is determined by
+    the engine-assigned **`arrival_seq`**, not by the client-supplied
+    `timestamp` field sent with the order. See [Priority Rules](#priority-rules)
+    in the Order Amendment section below for the full explanation.
+
 EduMatcher supports **eight order types** plus two multi-leg constructs (COMBO and
 OCO), from the simplest market order to multi-leg combo/OCO orders used to execute
 strategies across multiple symbols atomically.
@@ -285,10 +291,18 @@ Use ICEBERG when:
 
 - Only `VISIBLE=` quantity is published to the order book
 - Once the visible peak is fully consumed, a **new peak** is replenished from the hidden quantity
-- Each new peak gets a **new timestamp** → goes to the back of the queue at
+- Each new peak gets a **new `arrival_seq`** → goes to the back of the queue at
   that price level (because the book uses price-time priority: among orders at
-  the same price, the oldest order gets filled first — a fresh timestamp means
-  this peak waits behind all other orders already resting at that price)
+  the same price, the order with the lowest `arrival_seq` — i.e. the one the
+  engine admitted first — gets filled first; a fresh `arrival_seq` means this
+  peak waits behind all other orders already resting at that price)
+
+    !!! info "Priority is keyed on `arrival_seq`, not the order's `timestamp`"
+        `arrival_seq` is a monotonic counter the **engine** assigns when it
+        admits an order into the book — it is not the client-supplied
+        `timestamp` field on the order. See [Priority Rules](#priority-rules)
+        below and [Order Amendment — AMEND](../user-guide/900-app-alf-protocol.md#priority-rules)
+        for the full explanation of why this distinction matters.
 - The total hidden size is **never visible** to other market participants
 
 
@@ -300,8 +314,9 @@ NEW|SYM=AAPL|SIDE=BUY|TYPE=ICEBERG|QTY=1000|PRICE=150.00|VISIBLE=100
 
 **Educational note**: This is how large institutional orders are worked into the market
 without telegraphing their full size. Watch the book viewer as the iceberg refills — the
-qty at that price level resets to 100 after each 100-lot fill, but the order ID changes
-(new timestamp = new queue position).
+qty at that price level resets to 100 after each 100-lot fill. The order ID stays the
+same, but its `arrival_seq` is refreshed (new `arrival_seq` = new queue position — the
+order's original client `timestamp` does not change).
 
 
 
@@ -908,18 +923,37 @@ the order ID** and, under certain conditions, **preserves time priority**.
 
 EduMatcher implements the same priority rules used by most lit exchanges:
 
-| Amendment Type                           | Priority                                                         |
-|------------------------------------------|------------------------------------------------------------------|
-| Quantity decrease only (price unchanged) | **Preserved** — order keeps its original timestamp               |
-| Price change (any direction)             | **Lost** — order moves to the back of the queue at the new price |
-| Quantity increase (price unchanged)      | **Lost** — order moves to the back of the queue                  |
-| Price change + quantity change           | **Lost**                                                         |
+| Amendment Type                           | Priority                                                              |
+|------------------------------------------|-------------------------------------------------------------------------|
+| Quantity decrease only (price unchanged) | **Preserved** — order keeps its original `arrival_seq`                  |
+| Price change (any direction)             | **Lost** — order is assigned a new `arrival_seq` and moves to the back of the queue at the new price |
+| Quantity increase (price unchanged)      | **Lost** — order is assigned a new `arrival_seq` and moves to the back of the queue |
+| Price change + quantity change           | **Lost**                                                              |
 
 **Rationale**: A quantity decrease cannot disadvantage other participants at
 the same price level (there is less competition for incoming aggressor flow).
 Any other change either alters the priority ranking (price change) or grants
 the order more opportunity to fill without having competed for that position
 (quantity increase).
+
+!!! important "Priority is keyed on `arrival_seq`, not on the order's `timestamp`"
+    It is tempting to think of price-time priority as being governed by the
+    order's timestamp — and colloquially that is a fine mental model. But the
+    field that actually determines queue position is the engine-assigned
+    **`arrival_seq`**, a monotonic counter incremented every time the engine
+    admits an order (or a re-priced/re-queued order) into the book.
+
+    The order's `timestamp` field, by contrast, is **client-supplied** at
+    submission time (see [ALF Protocol](900-app-alf-protocol.md) and the
+    [message reference](270-message-reference.md#ordernew)) — it records when
+    the client says it built the order, and a back-dated or clock-skewed
+    value **cannot** be used to jump the queue. Only the engine's own
+    `arrival_seq`, assigned the moment the order (or amendment) is accepted,
+    decides fill order among orders resting at the same price.
+
+    In outbound order snapshots (`order.orders.{GW_ID}`) and in the `AMENDED`
+    event, watch `arrival_seq` — not `timestamp` — to see whether an order
+    kept or lost its place in the queue.
 
 ### AMEND vs. Cancel+New
 
@@ -984,6 +1018,11 @@ AMEND|ID=abc123...|QTY=60|RTAG=amd-partial-001
 |-------------------------------------|------------------------------------------------------------------------------------|
 | `order.amended.{GW}`                | Amendment accepted; contains new `price`, `qty`, `remaining_qty`, `priority_reset` |
 | `order.ack.{GW}` (`accepted=false`) | Amendment rejected; contains stable `reject_code` plus human-readable `reason`     |
+
+`priority_reset=true` means the engine assigned the order a new `arrival_seq`
+(the order fell to the back of the queue at its price level). It says nothing
+about the order's `timestamp` field, which is client-supplied and unrelated to
+queue position — see [Priority Rules](#priority-rules).
 
 ### A price amend can trigger an immediate fill
 

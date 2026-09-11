@@ -312,6 +312,7 @@ class OrderDisplay:
     combo_parent_id: str | None = None
     leg_index: int | None = None  # unit: dimensionless
     origin: OrderDisplayOrigin = "ORDER"
+    is_seed: bool = False
     quote_id: str | None = None
     client_tag: str | None = None
     arrival_seq: int = 0  # unit: dimensionless
@@ -425,6 +426,7 @@ class OrderDisplay:
             ),
             leg_index=None if p.get("leg_index") is None else int(p["leg_index"]),
             origin=cast(OrderDisplayOrigin, str(p.get("origin", "ORDER"))),
+            is_seed=bool(p.get("is_seed", False)),
             quote_id=None if p.get("quote_id") is None else str(p["quote_id"]),
             client_tag=None if p.get("client_tag") is None else str(p["client_tag"]),
             arrival_seq=int(p.get("arrival_seq", 0)),
@@ -452,6 +454,7 @@ class OrderDisplay:
             "combo_parent_id": self.combo_parent_id,
             "leg_index": self.leg_index,
             "origin": self.origin,
+            "is_seed": self.is_seed,
             "quote_id": self.quote_id,
             "client_tag": self.client_tag,
             "arrival_seq": self.arrival_seq,
@@ -546,6 +549,7 @@ class PriceLevelOrder:
     combo_parent_id: str | None = None
     leg_index: int | None = None  # unit: dimensionless
     origin: PriceLevelOrderOrigin = "ORDER"
+    is_seed: bool = False
     quote_id: str | None = None
     client_tag: str | None = None
     arrival_seq: int = 0  # unit: dimensionless
@@ -664,6 +668,7 @@ class PriceLevelOrder:
             ),
             leg_index=None if p.get("leg_index") is None else int(p["leg_index"]),
             origin=cast(PriceLevelOrderOrigin, str(p.get("origin", "ORDER"))),
+            is_seed=bool(p.get("is_seed", False)),
             quote_id=None if p.get("quote_id") is None else str(p["quote_id"]),
             client_tag=None if p.get("client_tag") is None else str(p["client_tag"]),
             arrival_seq=int(p.get("arrival_seq", 0)),
@@ -692,6 +697,7 @@ class PriceLevelOrder:
             "combo_parent_id": self.combo_parent_id,
             "leg_index": self.leg_index,
             "origin": self.origin,
+            "is_seed": self.is_seed,
             "quote_id": self.quote_id,
             "client_tag": self.client_tag,
             "arrival_seq": self.arrival_seq,
@@ -1168,6 +1174,13 @@ _ORDER_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "required": False,
         "doc": "",
     },
+    {
+        "name": "is_seed",
+        "type": "bool",
+        "unit": None,
+        "required": False,
+        "doc": "True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed (above) for the full rationale; this is the ack-time echo of the same fact, since order.ack — not order.new, which never reaches the engine's PUB feed — is the first audit-visible event for any order, seeded or live.",
+    },
 )
 
 
@@ -1197,6 +1210,7 @@ class OrderAck:
     combo_parent_id: str | None = None
     quote_id: str | None = None
     leg_index: int | None = None  # unit: dimensionless
+    is_seed: bool = False
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -1302,6 +1316,7 @@ class OrderAck:
             ),
             quote_id=None if p.get("quote_id") is None else str(p["quote_id"]),
             leg_index=None if p.get("leg_index") is None else int(p["leg_index"]),
+            is_seed=bool(p.get("is_seed", False)),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -1310,6 +1325,7 @@ class OrderAck:
             "order_id": self.order_id,
             "accepted": self.accepted,
             "reason": self.reason,
+            "is_seed": self.is_seed,
         }
         if self.reject_code is not None:
             payload["reject_code"] = self.reject_code
@@ -1385,6 +1401,7 @@ def make_order_ack_unchecked(
     combo_parent_id: str | None = None,
     quote_id: str | None = None,
     leg_index: int | None = None,
+    is_seed: bool = False,
 ) -> list[bytes]:
     """Identical frames to ``make_order_ack``, without ``validate()``.
 
@@ -1400,6 +1417,7 @@ def make_order_ack_unchecked(
         "order_id": str(order_id),
         "accepted": bool(accepted),
         "reason": str(reason),
+        "is_seed": bool(is_seed),
     }
     if reject_code is not None:
         payload["reject_code"] = str(reject_code)
@@ -1593,6 +1611,13 @@ _ORDER_FILL_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "",
     },
     {
+        "name": "is_seed",
+        "type": "bool",
+        "unit": None,
+        "required": False,
+        "doc": "True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed for the full rationale; carried here too so a fill reached after the originating order.ack has rotated out of the audit log still says whether the filled order was a config seed.",
+    },
+    {
         "name": "trade_ids",
         "type": "list",
         "unit": None,
@@ -1633,6 +1658,7 @@ class OrderFill:
     combo_parent_id: str | None = None
     quote_id: str | None = None
     leg_index: int | None = None  # unit: dimensionless
+    is_seed: bool = False
     trade_ids: list[str] = field(default_factory=list)
     liquidity_flag: OrderFillLiquidityFlag | None = None
 
@@ -1731,6 +1757,7 @@ class OrderFill:
             ),
             quote_id=None if p.get("quote_id") is None else str(p["quote_id"]),
             leg_index=None if p.get("leg_index") is None else int(p["leg_index"]),
+            is_seed=bool(p.get("is_seed", False)),
             trade_ids=[str(item) for item in p.get("trade_ids", [])],
             liquidity_flag=(
                 None
@@ -1747,6 +1774,7 @@ class OrderFill:
             "fill_price": self.fill_price,
             "remaining_qty": self.remaining_qty,
             "status": self.status,
+            "is_seed": self.is_seed,
             "trade_ids": self.trade_ids,
         }
         if self.symbol is not None:
@@ -1821,6 +1849,7 @@ def make_order_fill_unchecked(
     combo_parent_id: str | None = None,
     quote_id: str | None = None,
     leg_index: int | None = None,
+    is_seed: bool = False,
     trade_ids: list[str] = [],
     liquidity_flag: OrderFillLiquidityFlag | None = None,
 ) -> list[bytes]:
@@ -1840,6 +1869,7 @@ def make_order_fill_unchecked(
         "fill_price": float(fill_price),
         "remaining_qty": int(remaining_qty),
         "status": str(status),
+        "is_seed": bool(is_seed),
         "trade_ids": [str(item) for item in trade_ids],
     }
     if symbol is not None:
@@ -1899,8 +1929,23 @@ _ORDER_CANCELLED_RE = re.compile("order\\.cancelled\\.(?P<gateway_id>[^.]+)")
 _ORDER_CANCELLED_CANCEL_REASON_VALUES = (
     "SELF_MATCH_PREVENTED",
     "INSUFFICIENT_LIQUIDITY",
+    "KILL_SWITCH",
+    "CIRCUIT_BREAKER_HALT",
+    "GATEWAY_DISCONNECT",
+    "ADMIN_CANCEL_SYMBOL",
+    "QUOTE_REPLACED",
+    "QUOTE_LEG_FILLED",
 )
-OrderCancelledCancelReason = Literal["SELF_MATCH_PREVENTED", "INSUFFICIENT_LIQUIDITY"]
+OrderCancelledCancelReason = Literal[
+    "SELF_MATCH_PREVENTED",
+    "INSUFFICIENT_LIQUIDITY",
+    "KILL_SWITCH",
+    "CIRCUIT_BREAKER_HALT",
+    "GATEWAY_DISCONNECT",
+    "ADMIN_CANCEL_SYMBOL",
+    "QUOTE_REPLACED",
+    "QUOTE_LEG_FILLED",
+]
 
 
 _ORDER_CANCELLED_FIELDS: tuple[dict[str, Any], ...] = (
@@ -1975,6 +2020,14 @@ _ORDER_CANCELLED_FIELDS: tuple[dict[str, Any], ...] = (
         "required": False,
         "doc": "",
     },
+    {
+        "name": "command_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "The admin/kill-switch command_id (see system.admin_action) that caused this cancel, when one exists — lets a post-mortem join this event back to the exact command that triggered it. Null for a client-requested cancel and for engine-initiated cancels with no originating command (e.g. self-match prevention, insufficient liquidity, a quote leg cancelled because its sibling filled).",
+        "constraints": {"max_len": 64},
+    },
 )
 
 
@@ -1991,6 +2044,7 @@ class OrderCancelled:
     combo_parent_id: str | None = None
     quote_id: str | None = None
     leg_index: int | None = None  # unit: dimensionless
+    command_id: str | None = None
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -2037,6 +2091,11 @@ class OrderCancelled:
                 raise MessageValidationError(
                     f"quote_id: length {len(self.quote_id)} exceeds max_len 64"
                 )
+        if self.command_id is not None:
+            if len(self.command_id) > 64:
+                raise MessageValidationError(
+                    f"command_id: length {len(self.command_id)} exceeds max_len 64"
+                )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "OrderCancelled":
@@ -2064,6 +2123,7 @@ class OrderCancelled:
             ),
             quote_id=None if p.get("quote_id") is None else str(p["quote_id"]),
             leg_index=None if p.get("leg_index") is None else int(p["leg_index"]),
+            command_id=None if p.get("command_id") is None else str(p["command_id"]),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -2085,6 +2145,8 @@ class OrderCancelled:
             payload["quote_id"] = self.quote_id
         if self.leg_index is not None:
             payload["leg_index"] = self.leg_index
+        if self.command_id is not None:
+            payload["command_id"] = self.command_id
         return payload
 
 
@@ -2125,6 +2187,7 @@ def make_order_cancelled_unchecked(
     combo_parent_id: str | None = None,
     quote_id: str | None = None,
     leg_index: int | None = None,
+    command_id: str | None = None,
 ) -> list[bytes]:
     """Identical frames to ``make_order_cancelled``, without ``validate()``.
 
@@ -2153,6 +2216,8 @@ def make_order_cancelled_unchecked(
         payload["quote_id"] = str(quote_id)
     if leg_index is not None:
         payload["leg_index"] = int(leg_index)
+    if command_id is not None:
+        payload["command_id"] = str(command_id)
     return [
         topic_order_cancelled(gateway_id).encode(),
         _msg.dumps(payload),
@@ -2474,6 +2539,20 @@ _ORDER_AMENDED_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "True when the amendment lost the order its time priority.",
     },
     {
+        "name": "old_price",
+        "type": "float",
+        "unit": "display_price",
+        "required": False,
+        "doc": "The order's limit price immediately before this amendment, or null for an order that had none. Lets a post-mortem replay the amend without re-deriving the prior state from an earlier message. Absent on records written before this field existed.",
+    },
+    {
+        "name": "old_qty",
+        "type": "int",
+        "unit": "shares",
+        "required": False,
+        "doc": "The order's qty immediately before this amendment. Same replay rationale as old_price; absent on records written before this field existed.",
+    },
+    {
         "name": "client_tag",
         "type": "string",
         "unit": None,
@@ -2508,6 +2587,8 @@ class OrderAmended:
     remaining_qty: int  # unit: shares
     priority_reset: bool
     price: float | None = None  # unit: display_price
+    old_price: float | None = None  # unit: display_price
+    old_qty: int | None = None  # unit: shares
     client_tag: str | None = None
     request_tag: str | None = None
 
@@ -2552,6 +2633,8 @@ class OrderAmended:
             qty=int(p["qty"]),
             remaining_qty=int(p["remaining_qty"]),
             priority_reset=bool(p["priority_reset"]),
+            old_price=None if p.get("old_price") is None else float(p["old_price"]),
+            old_qty=None if p.get("old_qty") is None else int(p["old_qty"]),
             client_tag=None if p.get("client_tag") is None else str(p["client_tag"]),
             request_tag=None if p.get("request_tag") is None else str(p["request_tag"]),
         )
@@ -2565,6 +2648,10 @@ class OrderAmended:
             "remaining_qty": self.remaining_qty,
             "priority_reset": self.priority_reset,
         }
+        if self.old_price is not None:
+            payload["old_price"] = self.old_price
+        if self.old_qty is not None:
+            payload["old_qty"] = self.old_qty
         if self.client_tag is not None:
             payload["client_tag"] = self.client_tag
         if self.request_tag is not None:
@@ -2606,6 +2693,8 @@ def make_order_amended_unchecked(
     remaining_qty: int,
     priority_reset: bool,
     price: float | None = None,
+    old_price: float | None = None,
+    old_qty: int | None = None,
     client_tag: str | None = None,
     request_tag: str | None = None,
 ) -> list[bytes]:
@@ -2626,6 +2715,10 @@ def make_order_amended_unchecked(
         "remaining_qty": int(remaining_qty),
         "priority_reset": bool(priority_reset),
     }
+    if old_price is not None:
+        payload["old_price"] = float(old_price)
+    if old_qty is not None:
+        payload["old_qty"] = int(old_qty)
     if client_tag is not None:
         payload["client_tag"] = str(client_tag)
     if request_tag is not None:
@@ -2859,6 +2952,13 @@ _ORDER_NEW_FIELDS: tuple[dict[str, Any], ...] = (
         "values": _ORDER_NEW_ORIGIN_VALUES,
     },
     {
+        "name": "is_seed",
+        "type": "bool",
+        "unit": None,
+        "required": False,
+        "doc": "True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed for the full rationale.",
+    },
+    {
         "name": "quote_id",
         "type": "string",
         "unit": None,
@@ -2916,6 +3016,7 @@ class OrderNew:
     combo_parent_id: str | None = None
     leg_index: int | None = None  # unit: dimensionless
     origin: OrderNewOrigin = "ORDER"
+    is_seed: bool = False
     quote_id: str | None = None
     client_tag: str | None = None
     arrival_seq: int = 0  # unit: dimensionless
@@ -3034,6 +3135,7 @@ class OrderNew:
             ),
             leg_index=None if p.get("leg_index") is None else int(p["leg_index"]),
             origin=cast(OrderNewOrigin, str(p.get("origin", "ORDER"))),
+            is_seed=bool(p.get("is_seed", False)),
             quote_id=None if p.get("quote_id") is None else str(p["quote_id"]),
             client_tag=None if p.get("client_tag") is None else str(p["client_tag"]),
             arrival_seq=int(p.get("arrival_seq", 0)),
@@ -3062,6 +3164,7 @@ class OrderNew:
             "combo_parent_id": self.combo_parent_id,
             "leg_index": self.leg_index,
             "origin": self.origin,
+            "is_seed": self.is_seed,
             "quote_id": self.quote_id,
             "client_tag": self.client_tag,
             "arrival_seq": self.arrival_seq,
@@ -3110,6 +3213,7 @@ def make_order_new_unchecked(
     combo_parent_id: str | None = None,
     leg_index: int | None = None,
     origin: OrderNewOrigin = "ORDER",
+    is_seed: bool = False,
     quote_id: str | None = None,
     client_tag: str | None = None,
     arrival_seq: int = 0,
@@ -3150,6 +3254,7 @@ def make_order_new_unchecked(
                 ),
                 "leg_index": None if leg_index is None else int(leg_index),
                 "origin": str(origin),
+                "is_seed": bool(is_seed),
                 "quote_id": None if quote_id is None else str(quote_id),
                 "client_tag": None if client_tag is None else str(client_tag),
                 "arrival_seq": int(arrival_seq),

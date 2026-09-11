@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from edumatcher.models.clock import now_ns
+from edumatcher.models.price import from_ticks, get_tick_decimals
 
 # The engine sets this once at startup from a durable, fail-loud counter. The
 # per-run counter stays the hot-path id source; the prefix makes ids globally
@@ -54,7 +55,7 @@ class Trade:
     price: int
     quantity: int
     aggressor_side: str
-    timestamp: int
+    ts_ns: int  # unit: epoch_nanos
     tick_decimals: int = 2
     run_seq: int | None = None
 
@@ -94,12 +95,50 @@ class Trade:
             price=price,
             quantity=quantity,
             aggressor_side=aggressor_side,
-            timestamp=now if now is not None else now_ns(),
+            ts_ns=now if now is not None else now_ns(),
             tick_decimals=tick_decimals,
             run_seq=_run_seq,
         )
 
+    def to_wire(self) -> dict[str, Any]:
+        """This trade as a ``trade.executed`` payload.
+
+        Use this for anything that goes on the bus. It is the *only* correct
+        way to publish a Trade, because ``price`` is **ticks** on the model and
+        **display money** on the wire -- the one place the two shapes still
+        disagree, now that the match instant is ``ts_ns`` on both.
+
+        The scale comes from the tick registry, keyed on the symbol, and *not*
+        from ``self.tick_decimals``: the engine never sets that field (``create``
+        defaults it to 2), so it is wrong for any instrument that does not trade
+        in hundredths. ``price.has_tick_decimals`` spells out why that is not
+        cosmetic -- a 4-decimal price scaled by 100 is a different price, not a
+        rounded one.
+
+        ``to_dict`` is the *internal* shape -- persistence and round-trips --
+        and publishing it directly is the bug this method exists to prevent.
+        """
+        return {
+            "id": self.id,
+            "run_seq": self.run_seq,
+            "symbol": self.symbol,
+            "buy_order_id": self.buy_order_id,
+            "sell_order_id": self.sell_order_id,
+            "buy_gateway_id": self.buy_gateway_id,
+            "sell_gateway_id": self.sell_gateway_id,
+            "price": from_ticks(self.price, self.symbol),
+            "quantity": self.quantity,
+            "aggressor_side": self.aggressor_side,
+            "ts_ns": self.ts_ns,
+            "tick_decimals": get_tick_decimals(self.symbol),
+        }
+
     def to_dict(self) -> dict[str, Any]:
+        """This trade in its **internal** shape: prices in ticks.
+
+        For persistence and in-process round-trips (``from_dict`` is its
+        inverse). Not a wire payload -- see ``to_wire``.
+        """
         return {
             "id": self.id,
             "symbol": self.symbol,
@@ -110,7 +149,7 @@ class Trade:
             "price": self.price,
             "quantity": self.quantity,
             "aggressor_side": self.aggressor_side,
-            "timestamp": self.timestamp,
+            "ts_ns": self.ts_ns,
             "tick_decimals": self.tick_decimals,
             "run_seq": self.run_seq,
         }
@@ -127,7 +166,7 @@ class Trade:
             price=d["price"],
             quantity=d["quantity"],
             aggressor_side=d.get("aggressor_side", ""),
-            timestamp=d["timestamp"],
+            ts_ns=d["ts_ns"],
             tick_decimals=int(d.get("tick_decimals", 2)),
             run_seq=(None if d.get("run_seq") is None else int(d["run_seq"])),
         )

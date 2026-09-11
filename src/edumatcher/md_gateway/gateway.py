@@ -1044,7 +1044,20 @@ class MarketDataGateway:
 
 
 def _extract_ts(payload: dict[str, Any]) -> float:
-    """Extract event timestamp with robust fallback."""
+    """Extract event time as epoch seconds, with a robust fallback.
+
+    This runs over every topic on both SUB sockets, and the bus carries two
+    different time fields: `ts_ns` (integer epoch nanoseconds -- trade.executed
+    and the book's recent-trade rows) and `timestamp` (float epoch seconds --
+    index.update and friends). Prefer the nanosecond field where it exists and
+    scale it here, at the one place the CALF envelope needs seconds.
+    """
+    raw_ns = payload.get("ts_ns")
+    if raw_ns is not None:
+        try:
+            return int(raw_ns) / 1_000_000_000
+        except (TypeError, ValueError):
+            return time.time()
     raw = payload.get("timestamp")
     if raw is None:
         return time.time()

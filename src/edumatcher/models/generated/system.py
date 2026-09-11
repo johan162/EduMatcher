@@ -2241,6 +2241,406 @@ def describe_eod() -> tuple[dict[str, Any], ...]:
     return _EOD_FIELDS
 
 
+TOPIC_STARTUP_RECOVERY = "system.startup_recovery"
+_TOPIC_STARTUP_RECOVERY_BYTES = "system.startup_recovery".encode()
+
+
+_STARTUP_RECOVERY_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "restored_orders",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": True,
+        "doc": "GTC/same-day-DAY orders successfully restored to their book.",
+        "constraints": {"ge": 0},
+    },
+    {
+        "name": "discarded_stale_day_orders",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": True,
+        "doc": "TIF=DAY orders discarded because the business day rolled over.",
+        "constraints": {"ge": 0},
+    },
+    {
+        "name": "failed_orders",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": True,
+        "doc": "Persisted orders that raised during restore and were skipped.",
+        "constraints": {"ge": 0},
+    },
+    {
+        "name": "quote_remnants_restored",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": True,
+        "doc": "Restored quote-origin legs whose sibling did not survive, so they rest as plain orders rather than being rejoined into QuoteIndex.",
+        "constraints": {"ge": 0},
+    },
+    {
+        "name": "rebuilt_quotes",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": True,
+        "doc": "Active QuoteIndex entries rebuilt from both-legs-restored quotes.",
+        "constraints": {"ge": 0},
+    },
+    {
+        "name": "restored_combos",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": True,
+        "doc": "GTC combos restored from the previous session.",
+        "constraints": {"ge": 0},
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class StartupRecovery:
+    """Engine to all subscribers, once, right after `_restore_gtc()` and before the
+    config-seed step runs: how much of the previous session's resting state came
+    back. Every one of these counts previously only reached `log.info`/`log.error`
+    — invisible to `pm-audit`, which is a bare PUB subscriber and sees nothing
+    that is not published (see docs/user-guide/190-audit.md). A post-mortem
+    investigating "why does the book look different after a restart" needs this
+    the same way it needs `order.cancelled` for a live cancel.
+
+    A broadcast with no request, like `system.eod` — nothing asks for a recovery
+    summary, the engine announces it once at startup.
+    """
+
+    restored_orders: int  # unit: dimensionless
+    discarded_stale_day_orders: int  # unit: dimensionless
+    failed_orders: int  # unit: dimensionless
+    quote_remnants_restored: int  # unit: dimensionless
+    rebuilt_quotes: int  # unit: dimensionless
+    restored_combos: int  # unit: dimensionless
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if self.restored_orders < 0:
+            raise MessageValidationError(
+                f"restored_orders: {self.restored_orders!r} must be >= 0"
+            )
+        if self.discarded_stale_day_orders < 0:
+            raise MessageValidationError(
+                f"discarded_stale_day_orders: {self.discarded_stale_day_orders!r} must be >= 0"
+            )
+        if self.failed_orders < 0:
+            raise MessageValidationError(
+                f"failed_orders: {self.failed_orders!r} must be >= 0"
+            )
+        if self.quote_remnants_restored < 0:
+            raise MessageValidationError(
+                f"quote_remnants_restored: {self.quote_remnants_restored!r} must be >= 0"
+            )
+        if self.rebuilt_quotes < 0:
+            raise MessageValidationError(
+                f"rebuilt_quotes: {self.rebuilt_quotes!r} must be >= 0"
+            )
+        if self.restored_combos < 0:
+            raise MessageValidationError(
+                f"restored_combos: {self.restored_combos!r} must be >= 0"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "StartupRecovery":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            restored_orders=int(p["restored_orders"]),
+            discarded_stale_day_orders=int(p["discarded_stale_day_orders"]),
+            failed_orders=int(p["failed_orders"]),
+            quote_remnants_restored=int(p["quote_remnants_restored"]),
+            rebuilt_quotes=int(p["rebuilt_quotes"]),
+            restored_combos=int(p["restored_combos"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "restored_orders": self.restored_orders,
+            "discarded_stale_day_orders": self.discarded_stale_day_orders,
+            "failed_orders": self.failed_orders,
+            "quote_remnants_restored": self.quote_remnants_restored,
+            "rebuilt_quotes": self.rebuilt_quotes,
+            "restored_combos": self.restored_combos,
+        }
+
+
+def is_startup_recovery(topic: str) -> bool:
+    """True when ``topic`` is this message's topic."""
+    return topic == TOPIC_STARTUP_RECOVERY
+
+
+def make_startup_recovery(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = StartupRecovery.from_dict(kw)
+    obj.validate()
+    return _msg.encode(TOPIC_STARTUP_RECOVERY, obj.to_dict())
+
+
+def make_startup_recovery_unchecked(
+    *,
+    restored_orders: int,
+    discarded_stale_day_orders: int,
+    failed_orders: int,
+    quote_remnants_restored: int,
+    rebuilt_quotes: int,
+    restored_combos: int,
+) -> list[bytes]:
+    """Identical frames to ``make_startup_recovery``, without ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    return [
+        _TOPIC_STARTUP_RECOVERY_BYTES,
+        _msg.dumps(
+            {
+                "restored_orders": int(restored_orders),
+                "discarded_stale_day_orders": int(discarded_stale_day_orders),
+                "failed_orders": int(failed_orders),
+                "quote_remnants_restored": int(quote_remnants_restored),
+                "rebuilt_quotes": int(rebuilt_quotes),
+                "restored_combos": int(restored_combos),
+            }
+        ),
+    ]
+
+
+def parse_startup_recovery(frames: list[bytes]) -> "StartupRecovery":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    _topic, payload = _msg.decode(frames)
+    obj = StartupRecovery.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_startup_recovery() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _STARTUP_RECOVERY_FIELDS
+
+
+TOPIC_DIAGNOSTIC = "system.diagnostic"
+_TOPIC_DIAGNOSTIC_BYTES = "system.diagnostic".encode()
+_DIAGNOSTIC_COMPONENT_VALUES = (
+    "MAINTENANCE_FLUSH",
+    "DISPATCH_ERROR",
+    "UNDECODABLE_MESSAGE",
+    "UNROUTED_TOPIC",
+)
+DiagnosticComponent = Literal[
+    "MAINTENANCE_FLUSH",
+    "DISPATCH_ERROR",
+    "UNDECODABLE_MESSAGE",
+    "UNROUTED_TOPIC",
+]
+
+
+_DIAGNOSTIC_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "component",
+        "type": "enum",
+        "unit": None,
+        "required": True,
+        "doc": "Which internal area this diagnostic came from.",
+        "values": _DIAGNOSTIC_COMPONENT_VALUES,
+    },
+    {
+        "name": "detail",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "What within component — the flush function name, the message topic, or empty when there is no finer-grained name (an undecodable message has no topic to report).",
+        "constraints": {"max_len": 256},
+    },
+    {
+        "name": "error",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "The exception text, when this diagnostic came from one.",
+        "constraints": {"max_len": 512},
+    },
+    {
+        "name": "count",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": True,
+        "doc": "This component's running occurrence count for the process lifetime — the same counter the log line already reports, carried onto the wire so a subscriber can tell a first occurrence from a recurring one without correlating timestamps against the log.",
+        "constraints": {"ge": 0},
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class Diagnostic:
+    """Engine to all subscribers: an internal failure or anomaly that the engine
+    absorbed and kept running past, so trading was not interrupted but the event
+    still happened and a post-mortem needs to see it. Before this existed, a
+    maintenance-flush exception, a handler crash, an undecodable inbound message,
+    or a message on an unhandled topic reached only the process log — `pm-audit`'s
+    bare PUB subscription on the engine's :5556 socket (see docs/user-
+    guide/190-audit.md) never saw any of them, so a bug that only ever showed up
+    as "the book snapshot stopped updating" or "an order silently never got a
+    reply" had no trail to replay. This does not replace logging (the process log
+    keeps the full traceback); it is the wire-visible marker that something in
+    `component` happened, with enough detail to go find the log line.
+
+    Deliberately generic — a `component`/`detail`/`error` triple rather than one message
+    type per failure mode, because the failure modes (a maintenance flush, a dispatch-
+    handler crash, an undecodable pull message, an unrouted topic) share nothing
+    structural beyond "engine kept running, something still needs recording."
+    """
+
+    component: DiagnosticComponent
+    detail: str
+    count: int  # unit: dimensionless
+    error: str = ""
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if self.component not in _DIAGNOSTIC_COMPONENT_VALUES:
+            raise MessageValidationError(
+                f"component: {self.component!r} is not one of {_DIAGNOSTIC_COMPONENT_VALUES!r}"
+            )
+        if len(self.detail) > 256:
+            raise MessageValidationError(
+                f"detail: length {len(self.detail)} exceeds max_len 256"
+            )
+        if len(self.error) > 512:
+            raise MessageValidationError(
+                f"error: length {len(self.error)} exceeds max_len 512"
+            )
+        if self.count < 0:
+            raise MessageValidationError(f"count: {self.count!r} must be >= 0")
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "Diagnostic":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            component=cast(DiagnosticComponent, str(p["component"])),
+            detail=str(p["detail"]),
+            error=str(p.get("error", "")),
+            count=int(p["count"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "component": self.component,
+            "detail": self.detail,
+            "error": self.error,
+            "count": self.count,
+        }
+
+
+def is_diagnostic(topic: str) -> bool:
+    """True when ``topic`` is this message's topic."""
+    return topic == TOPIC_DIAGNOSTIC
+
+
+def make_diagnostic(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = Diagnostic.from_dict(kw)
+    obj.validate()
+    return _msg.encode(TOPIC_DIAGNOSTIC, obj.to_dict())
+
+
+def make_diagnostic_unchecked(
+    *,
+    component: DiagnosticComponent,
+    detail: str,
+    count: int,
+    error: str = "",
+) -> list[bytes]:
+    """Identical frames to ``make_diagnostic``, without ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    return [
+        _TOPIC_DIAGNOSTIC_BYTES,
+        _msg.dumps(
+            {
+                "component": str(component),
+                "detail": str(detail),
+                "error": str(error),
+                "count": int(count),
+            }
+        ),
+    ]
+
+
+def parse_diagnostic(frames: list[bytes]) -> "Diagnostic":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    _topic, payload = _msg.decode(frames)
+    obj = Diagnostic.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_diagnostic() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _DIAGNOSTIC_FIELDS
+
+
 TOPIC_SYMBOLS_REQUEST = "system.symbols_request"
 _TOPIC_SYMBOLS_REQUEST_BYTES = "system.symbols_request".encode()
 
@@ -5423,6 +5823,8 @@ FAMILY_TOPICS: tuple[str, ...] = (
     TOPIC_GATEWAY_DISCONNECT,
     TOPIC_GATEWAY_BYE,
     TOPIC_EOD,
+    TOPIC_STARTUP_RECOVERY,
+    TOPIC_DIAGNOSTIC,
     TOPIC_SYMBOLS_REQUEST,
     TOPIC_SYMBOLS,
     TOPIC_REFERENCE_REQUEST,

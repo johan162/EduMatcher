@@ -255,13 +255,14 @@ Sent by a gateway to submit a new order for matching.
 | `quantity` | integer | Total order quantity |
 | `remaining_qty` | integer | Unfilled quantity (equals `quantity` on submission) |
 | `gateway_id` | string | Originating gateway identifier, e.g. `TRADER01` |
-| `timestamp` | float | Unix epoch (seconds) |
+| `timestamp` | integer | Client-supplied submission time, Unix epoch **nanoseconds**. **Not** what the book uses for time priority — see `arrival_seq` — so a back-dated value cannot jump the queue |
+| `arrival_seq` | integer \| absent | Engine-assigned monotonic arrival sequence, and the actual time-priority key. `0` on submission, meaning unassigned |
 | `status` | string | Initial status, always `"NEW"` |
-| `price` | float \| null | Limit price (LIMIT, STOP_LIMIT, FOK, ICEBERG) |
-| `stop_price` | float \| null | Trigger price (STOP, STOP_LIMIT) |
+| `price` | integer (ticks) \| null | Limit price **in ticks** (LIMIT, STOP_LIMIT, FOK, ICEBERG); `null` for MARKET, which has none |
+| `stop_price` | integer (ticks) \| null | Trigger price **in ticks** (STOP, STOP_LIMIT, TRAILING_STOP) |
 | `visible_qty` | integer \| null | Peak size for ICEBERG orders |
 | `displayed_qty` | integer \| null | Current visible slice (ICEBERG) |
-| `trail_offset` | float \| null | Offset from best price for `TRAILING_STOP` orders |
+| `trail_offset` | integer (ticks) \| null | Distance **in ticks** to trail the market price (`TRAILING_STOP`) |
 | `smp_action` | string \| null | Self-match prevention: `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`. `null` when the client omitted `SMP=`, in which case the engine resolves it to the gateway's configured `gateways.alf[].smp_action` default (else `"NONE"`) before the order reaches the book — see [Configuration — Gateway Fields](010-configuration.md#gateway-fields) |
 | `client_tag` | string \| absent | Optional client-supplied tag echoed back on every lifecycle event for this order (ack, fill, cancelled, expired). When present, subscribers can map events back to their submission without a FIFO scheme. |
 | `request_tag` | string \| absent | Optional amend/cancel request tag echoed on the resulting `order.amended`, `order.cancelled`, or rejected `order.ack`. Unlike `client_tag`, it identifies one request against an order, not the order itself. |
@@ -271,6 +272,14 @@ Sent by a gateway to submit a new order for matching.
 | `leg_index` | integer \| null | 0-based position within the parent combo's leg list; `null` for a standalone order |
 | `origin` | `"ORDER"` \| `"QUOTE"` \| `"IMPLIED"` | How this order entered the book: a direct order submission, a market-maker quote leg, or an engine-implied order |
 | `quote_id` | string \| null | Set when `origin` is `"QUOTE"`, echoing the originating `quote.new`'s identifier; `null` otherwise |
+
+> [!NOTE]
+> Prices on `order.new` and `quote.new` are **integer ticks**, not display
+> money: 1 tick is `10^-tick_decimals` for the instrument. The replies are the
+> other way round — `order.ack.price`, `order.fill.fill_price` and
+> `order.amended.price` are display floats — which is why every message field
+> carries a `unit:` declaration in `spec/messages/`, and why the generated
+> tables below are authoritative when this narrative and the spec disagree.
 
 **Valid field combinations by order type:**
 
@@ -319,8 +328,13 @@ At least one of `price` or `qty` must be present.
 
 **Priority rules:**
 
-- Quantity decrease only → priority **preserved** (timestamp unchanged)
-- Price change or quantity increase → priority **lost** (new timestamp assigned)
+- Quantity decrease only → priority **preserved** (`arrival_seq` unchanged)
+- Price change or quantity increase → priority **lost** (new `arrival_seq` assigned)
+
+Priority is keyed on `arrival_seq`, the engine-assigned monotonic counter —
+**not** on the order's client-supplied `timestamp` field (see the `timestamp`
+and `arrival_seq` rows under [`order.new`](#ordernew) above). The `timestamp`
+field is never used by the book to determine queue position.
 
 **Reply:** `order.amended.{GW_ID}` on success, or `order.ack.{GW_ID}` with `accepted=false` on rejection.
 
@@ -340,9 +354,9 @@ Role requirements and MM obligation controls are documented in
 | `gateway_id` | string | Originating gateway identifier |
 | `symbol` | string | Instrument ticker |
 | `quote_id` | string \| absent | Optional client-provided quote label |
-| `bid_price` | float | Bid price |
+| `bid_price` | integer (ticks) | Bid price **in ticks** |
 | `bid_qty` | integer | Bid quantity |
-| `ask_price` | float | Ask price |
+| `ask_price` | integer (ticks) | Ask price **in ticks** |
 | `ask_qty` | integer | Ask quantity |
 | `tif` | string | Quote leg time-in-force (`DAY` or `GTC`) |
 
@@ -551,6 +565,7 @@ Every topic in the system, and which process puts it on the wire.
 | `session.state` | `session` | `engine` |
 | `session.transition` | `session` | `scheduler` |
 | `session.transition_ack.{gateway_id}` | `session` | `engine` |
+| `system.diagnostic` | `system` | `engine` |
 | `system.eod` | `system` | `engine` |
 | `system.gateway_auth.{gateway_id}` | `system` | `engine` |
 | `system.gateway_bye.{gateway_id}` | `system` | `engine` |
@@ -576,6 +591,7 @@ Every topic in the system, and which process puts it on the wire.
 | `system.session_schedule_request` | `system` | `admin`, `api_gateway` |
 | `system.session_state_request` | `system` | `admin`, `api_gateway`, `gateway`, `scheduler` |
 | `system.session_status.{gateway_id}` | `system` | `engine` |
+| `system.startup_recovery` | `system` | `engine` |
 | `system.symbols.{gateway_id}` | `system` | `engine` |
 | `system.symbols_request` | `system` | `admin`, `api_gateway`, `gateway`, `stats` |
 | `system.volume.{gateway_id}` | `system` | `engine` |
@@ -725,7 +741,7 @@ One entry of the book's trade tape. A trimmed view of the public trade.executed 
 | `sell_gateway_id` | `string` | required | max_len 32 |  |
 | `price` | `float` | required | unit `display_price` |  |
 | `quantity` | `int` | required | unit `shares` |  |
-| `timestamp` | `float` | required | unit `epoch_seconds` | Seconds, not nanoseconds: the snapshot divides by 1e9. |
+| `ts_ns` | `int` | required | ge 0, unit `epoch_nanos` | Epoch nanoseconds, carried through unscaled -- identical to the trade.executed print this row mirrors. |
 
 ### `book.{symbol}`
 
@@ -1208,6 +1224,7 @@ pm-index to requestor: the corporate action's outcome.
 | `index_id` | `string` | omitted when empty | max_len 32 |  |
 | `level` | `float` | omitted when unset | unit `dimensionless` |  |
 | `divisor` | `float` | omitted when unset | unit `dimensionless` |  |
+| `old_divisor` | `float` | omitted when unset | unit `dimensionless` | The divisor immediately before this action was applied. Same field name and purpose as HistoryRecord.old_divisor, so a post-mortem does not need pm-index's local JSONL archive to see what changed — the wire event is self-contained. Present only alongside divisor, i.e. on acceptance. |
 
 !!! note
 
@@ -1234,6 +1251,7 @@ pm-index to requestor: the constituent change's outcome.
 | `index_id` | `string` | omitted when empty | max_len 32 |  |
 | `level` | `float` | omitted when unset | unit `dimensionless` |  |
 | `divisor` | `float` | omitted when unset | unit `dimensionless` |  |
+| `old_divisor` | `float` | omitted when unset | unit `dimensionless` | The divisor immediately before this action was applied. Same field name and purpose as HistoryRecord.old_divisor, so a post-mortem does not need pm-index's local JSONL archive to see what changed — the wire event is self-contained. Present only alongside divisor, i.e. on acceptance. |
 
 !!! note
 
@@ -1261,6 +1279,7 @@ pm-index to ADMIN: the batch's outcome.
 | `index_id` | `string` | omitted when empty | max_len 32 |  |
 | `level` | `float` | omitted when unset | unit `dimensionless` |  |
 | `divisor` | `float` | omitted when unset | unit `dimensionless` |  |
+| `old_divisor` | `float` | omitted when unset | unit `dimensionless` | The divisor immediately before this action was applied. Same field name and purpose as HistoryRecord.old_divisor, so a post-mortem does not need pm-index's local JSONL archive to see what changed — the wire event is self-contained. Present only alongside divisor, i.e. on acceptance. |
 | `command_id` | `string` | omitted when empty | max_len 64 |  |
 
 !!! note
@@ -1741,6 +1760,7 @@ One resting order as the engine reports it in an `order.orders` snapshot, in dis
 | `combo_parent_id` | `string` | `null` when unset | max_len 64 |  |
 | `leg_index` | `int` | `null` when unset | unit `dimensionless` | Position in the parent combo's legs, 0-based. |
 | `origin` | enum: `ORDER`, `QUOTE`, `IMPLIED` | defaults to `'ORDER'` | — | Defaulted rather than nullable: to_dict always supplies ORDER. |
+| `is_seed` | `bool` | defaults to `False` | — | True when this order was created by config-driven startup seeding (market_maker_quotes / market_maker_combos in the engine config) rather than a live gateway submission. Purely observational — nothing in the engine branches on it; origin still governs routing. Lets a post-mortem tell a config bootstrap apart from real participant activity without depending on id-naming conventions. Absent on records written before this field existed. |
 | `quote_id` | `string` | `null` when unset | max_len 64 |  |
 | `client_tag` | `string` | `null` when unset | max_len 64 | Client correlation tag, echoed on every lifecycle event. |
 | `arrival_seq` | `int` | defaults to `0` | unit `dimensionless` | Engine-assigned monotonic arrival sequence; 0 = unassigned. |
@@ -1771,6 +1791,7 @@ One resting order as reported by order.price_level_orders — the same projectio
 | `combo_parent_id` | `string` | `null` when unset | max_len 64 |  |
 | `leg_index` | `int` | `null` when unset | unit `dimensionless` | Position in the parent combo's legs, 0-based. |
 | `origin` | enum: `ORDER`, `QUOTE`, `IMPLIED` | defaults to `'ORDER'` | — | Defaulted rather than nullable: to_dict always supplies ORDER. |
+| `is_seed` | `bool` | defaults to `False` | — | True when this order was created by config-driven startup seeding (market_maker_quotes / market_maker_combos in the engine config) rather than a live gateway submission. Purely observational — nothing in the engine branches on it; origin still governs routing. Lets a post-mortem tell a config bootstrap apart from real participant activity without depending on id-naming conventions. Absent on records written before this field existed. |
 | `quote_id` | `string` | `null` when unset | max_len 64 |  |
 | `client_tag` | `string` | `null` when unset | max_len 64 | Client correlation tag, echoed on every lifecycle event. |
 | `arrival_seq` | `int` | defaults to `0` | unit `dimensionless` | Engine-assigned monotonic arrival sequence; 0 = unassigned. |
@@ -1834,6 +1855,7 @@ Acknowledge acceptance or rejection of a new order, addressed to the gateway tha
 | `combo_parent_id` | `string` | omitted when unset | max_len 64 |  |
 | `quote_id` | `string` | omitted when unset | max_len 64 |  |
 | `leg_index` | `int` | omitted when unset | unit `dimensionless` |  |
+| `is_seed` | `bool` | defaults to `False` | — | True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed (above) for the full rationale; this is the ack-time echo of the same fact, since order.ack — not order.new, which never reaches the engine's PUB feed — is the first audit-visible event for any order, seeded or live. |
 
 !!! note
 
@@ -1872,6 +1894,7 @@ Private fill notification for one order, addressed to the gateway that owns it. 
 | `combo_parent_id` | `string` | omitted when unset | max_len 64 |  |
 | `quote_id` | `string` | omitted when unset | max_len 64 |  |
 | `leg_index` | `int` | omitted when unset | unit `dimensionless` |  |
+| `is_seed` | `bool` | defaults to `False` | — | True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed for the full rationale; carried here too so a fill reached after the originating order.ack has rotated out of the audit log still says whether the filled order was a config seed. |
 | `trade_ids` | list of `string` | defaults to `[]` | — | The public trade.executed id(s) that composed this fill event. Usually one; more than one when an aggressor swept several resting orders and the engine coalesced them into a single VWAP fill (H5/H6). Every current call site only publishes order_fill from a real trade, so in practice this is never empty; it is typed as a list (not required) defensively, for a fill notification that might one day exist without one. Lets a reader link a private fill to the public trade tape without re-deriving the join. |
 | `liquidity_flag` | enum: `MAKER`, `TAKER` | omitted when unset | — | Derived from the trade's aggressor side: the aggressor is the TAKER and the resting side the MAKER (same derivation as drop_copy.yaml::liquidity_flag). Nullable/omit_when_none for the same reason trade_ids is typed as an empty-able list: every current call site only publishes order_fill from a real trade, so this is never actually absent today, but nothing enforces that a future fill notification always has a trade behind it. |
 
@@ -1893,11 +1916,12 @@ Confirm that a resting order has been cancelled.
 | `order_id` | `string` | required | max_len 64 |  |
 | `client_tag` | `string` | omitted when unset | max_len 64 |  |
 | `request_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for this cancel request. Engine-initiated cancels publish with request_tag=null. |
-| `cancel_reason` | enum: `SELF_MATCH_PREVENTED`, `INSUFFICIENT_LIQUIDITY` | omitted when unset | — | Why the exchange cancelled this order, when the exchange decided it rather than the client. Null for a client-requested cancel, and for engine-initiated cancels whose cause is not yet classified - so request_tag=null together with cancel_reason=null still means "the exchange did this, cause unstated". Deliberately not the same vocabulary as order_ack.reject_code: a cancel is not a rejection, and most reject codes can never apply to one. New members may be added; existing members are never removed or renamed. A client must ignore a value it does not recognise. |
+| `cancel_reason` | enum: `SELF_MATCH_PREVENTED`, `INSUFFICIENT_LIQUIDITY`, `KILL_SWITCH`, `CIRCUIT_BREAKER_HALT`, `GATEWAY_DISCONNECT`, `ADMIN_CANCEL_SYMBOL`, `QUOTE_REPLACED`, `QUOTE_LEG_FILLED` | omitted when unset | — | Why the exchange cancelled this order, when the exchange decided it rather than the client. Null for a client-requested cancel, and for engine-initiated cancels whose cause is not yet classified - so request_tag=null together with cancel_reason=null still means "the exchange did this, cause unstated". Deliberately not the same vocabulary as order_ack.reject_code: a cancel is not a rejection, and most reject codes can never apply to one. New members may be added; existing members are never removed or renamed. A client must ignore a value it does not recognise. |
 | `oco_group_id` | `string` | omitted when unset | max_len 64 |  |
 | `combo_parent_id` | `string` | omitted when unset | max_len 64 |  |
 | `quote_id` | `string` | omitted when unset | max_len 64 |  |
 | `leg_index` | `int` | omitted when unset | unit `dimensionless` |  |
+| `command_id` | `string` | omitted when unset | max_len 64 | The admin/kill-switch command_id (see system.admin_action) that caused this cancel, when one exists — lets a post-mortem join this event back to the exact command that triggered it. Null for a client-requested cancel and for engine-initiated cancels with no originating command (e.g. self-match prevention, insufficient liquidity, a quote leg cancelled because its sibling filled). |
 
 ### `order.expired.{gateway_id}`
 
@@ -1937,6 +1961,8 @@ Confirm an accepted amendment and report the resulting order.
 | `qty` | `int` | required | unit `shares` |  |
 | `remaining_qty` | `int` | required | unit `shares` |  |
 | `priority_reset` | `bool` | required | — | True when the amendment lost the order its time priority. |
+| `old_price` | `float` | omitted when unset | unit `display_price` | The order's limit price immediately before this amendment, or null for an order that had none. Lets a post-mortem replay the amend without re-deriving the prior state from an earlier message. Absent on records written before this field existed. |
+| `old_qty` | `int` | omitted when unset | unit `shares` | The order's qty immediately before this amendment. Same replay rationale as old_price; absent on records written before this field existed. |
 | `client_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for the amended order. |
 | `request_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for this amend request. Engine-initiated cancels publish with request_tag=null. |
 
@@ -1978,6 +2004,7 @@ Submit a new order to the matching engine. Sent over PUSH/PULL rather than the p
 | `combo_parent_id` | `string` | `null` when unset | max_len 64 |  |
 | `leg_index` | `int` | `null` when unset | unit `dimensionless` | Position in the parent combo's legs, 0-based. |
 | `origin` | enum: `ORDER`, `QUOTE`, `IMPLIED` | defaults to `'ORDER'` | — | Defaulted rather than nullable: from_dict supplies ORDER. |
+| `is_seed` | `bool` | defaults to `False` | — | True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed for the full rationale. |
 | `quote_id` | `string` | `null` when unset | max_len 64 |  |
 | `client_tag` | `string` | `null` when unset | max_len 64 | Client correlation tag, echoed on every lifecycle event. |
 | `arrival_seq` | `int` | defaults to `0` | unit `dimensionless` | Engine-assigned monotonic arrival sequence; time priority is keyed on this, not on timestamp, so a back-dated payload cannot jump the queue. Zero means unassigned, which is what a submission carries. |
@@ -2309,6 +2336,7 @@ Engine to market maker: the quote left the book, and why.
 | `quote_id` | `string` | defaults to `''` | max_len 64 |  |
 | `status` | enum: `ACTIVE`, `INACTIVE_BID_FILLED`, `INACTIVE_ASK_FILLED`, `CANCELLED` | required | — | Mirrors models/quote.py::QuoteState. |
 | `reason` | `string` | defaults to `''` | max_len 512 |  |
+| `command_id` | `string` | omitted when unset | max_len 64 | The admin/kill-switch command_id (see system.admin_action) that caused this quote to leave the book, when one exists — same correlation purpose as order.cancelled.command_id. Null when the quote left for a reason with no originating command (participant cancel, replacement by a new quote, a leg fill). |
 
 !!! note
 
@@ -3339,6 +3367,54 @@ Engine to all subscribers, once, before shutdown: the closing book of every inst
 
 **See also:** `book.{SYMBOL}`, `session.state`
 
+### `system.startup_recovery`
+
+**Published by:** `engine`
+
+**Transport:** `engine_pub`
+
+**Since:** 1.1
+
+Engine to all subscribers, once, right after `_restore_gtc()` and before the config-seed step runs: how much of the previous session's resting state came back. Every one of these counts previously only reached `log.info`/`log.error` — invisible to `pm-audit`, which is a bare PUB subscriber and sees nothing that is not published (see docs/user-guide/190-audit.md). A post-mortem investigating "why does the book look different after a restart" needs this the same way it needs `order.cancelled` for a live cancel.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `restored_orders` | `int` | required | ge 0, unit `dimensionless` | GTC/same-day-DAY orders successfully restored to their book. |
+| `discarded_stale_day_orders` | `int` | required | ge 0, unit `dimensionless` | TIF=DAY orders discarded because the business day rolled over. |
+| `failed_orders` | `int` | required | ge 0, unit `dimensionless` | Persisted orders that raised during restore and were skipped. |
+| `quote_remnants_restored` | `int` | required | ge 0, unit `dimensionless` | Restored quote-origin legs whose sibling did not survive, so they rest as plain orders rather than being rejoined into QuoteIndex. |
+| `rebuilt_quotes` | `int` | required | ge 0, unit `dimensionless` | Active QuoteIndex entries rebuilt from both-legs-restored quotes. |
+| `restored_combos` | `int` | required | ge 0, unit `dimensionless` | GTC combos restored from the previous session. |
+
+!!! note
+
+    A broadcast with no request, like `system.eod` — nothing asks for a recovery summary, the engine announces it once at startup.
+
+**See also:** `book.{SYMBOL}`, `auction.result`
+
+### `system.diagnostic`
+
+**Published by:** `engine`
+
+**Transport:** `engine_pub`
+
+**Since:** 1.1
+
+Engine to all subscribers: an internal failure or anomaly that the engine absorbed and kept running past, so trading was not interrupted but the event still happened and a post-mortem needs to see it. Before this existed, a maintenance-flush exception, a handler crash, an undecodable inbound message, or a message on an unhandled topic reached only the process log — `pm-audit`'s bare PUB subscription on the engine's :5556 socket (see docs/user-guide/190-audit.md) never saw any of them, so a bug that only ever showed up as "the book snapshot stopped updating" or "an order silently never got a reply" had no trail to replay. This does not replace logging (the process log keeps the full traceback); it is the wire-visible marker that something in `component` happened, with enough detail to go find the log line.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `component` | enum: `MAINTENANCE_FLUSH`, `DISPATCH_ERROR`, `UNDECODABLE_MESSAGE`, `UNROUTED_TOPIC` | required | — | Which internal area this diagnostic came from. |
+| `detail` | `string` | required | max_len 256 | What within component — the flush function name, the message topic, or empty when there is no finer-grained name (an undecodable message has no topic to report). |
+| `error` | `string` | defaults to `''` | max_len 512 | The exception text, when this diagnostic came from one. |
+| `count` | `int` | required | ge 0, unit `dimensionless` | This component's running occurrence count for the process lifetime — the same counter the log line already reports, carried onto the wire so a subscriber can tell a first occurrence from a recurring one without correlating timestamps against the log. |
+
+!!! note
+
+    Deliberately generic — a `component`/`detail`/`error` triple rather than one message type per failure mode, because the failure modes (a maintenance flush, a dispatch-handler crash, an undecodable pull message, an unrouted topic) share nothing structural beyond "engine kept running, something still needs recording.".
+
+**See also:** `order.ack.{GW_ID}`
+
 ### `system.symbols_request`
 
 **Published by:** `admin`, `api_gateway`, `gateway`, `stats`
@@ -3870,7 +3946,7 @@ Public print of a completed match. The authoritative record of what traded, cons
 | `price` | `float` | required | gt 0, unit `display_price` | Execution price in display money, already converted from ticks by the publisher. Contrast trade_log.price, which is ticks - the mismatch this `unit` declaration exists to make reviewable. |
 | `quantity` | `int` | required | gt 0, unit `shares` | Matched quantity. |
 | `aggressor_side` | enum: `BUY`, `SELL`, `AUCTION` | required | — | Side that removed liquidity. AUCTION when both sides rested, which happens on an uncross print where there is no true aggressor. |
-| `timestamp` | `float` | required | unit `epoch_seconds` | Match time in Unix epoch seconds. The engine divides its nanosecond clock by 1e9 at publish time. |
+| `ts_ns` | `int` | required | ge 0, unit `epoch_nanos` | Match time in Unix epoch nanoseconds, exactly as the engine's clock read it -- no scaling at publish time. The whole match batch shares one clock read, so trades printed in the same batch carry an identical value; `id` (run_seq + dense counter) is what orders them. Named `ts_ns` rather than `timestamp` so the unit travels with the field, as it does for `resume_at_ns` and `halt_duration_ns`: a bare float `timestamp` was indistinguishable by type from millis or nanos, which is what forced clearing's magnitude-guessing guard (finding CL-M6) and cost ~238ns of the engine's own precision. |
 | `tick_decimals` | `int` | defaults to `2` | ge 0, le 8, unit `dimensionless` | Decimal scale for `price`; 1 tick = 10^-tick_decimals. |
 
 !!! note
