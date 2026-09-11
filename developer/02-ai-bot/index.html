@@ -3925,10 +3925,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#tickns-migration-notes" class="md-nav__link">
+  <a href="#prices-and-ticks" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Tick/Ns Migration Notes
+        Prices and ticks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Logging
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-other-bot-pm-mm-bot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The other bot: pm-mm-bot
       
     </span>
   </a>
@@ -4382,13 +4404,34 @@ the engine must allow <code>AI01</code> through <code>AI30</code>.</p>
 <li>Start small (2–5 bots), verify flow, then scale to 30.</li>
 <li>Use fixed seeds for scenario replay and performance comparisons.</li>
 </ol>
-<h2 id="tickns-migration-notes">Tick/Ns Migration Notes<a class="headerlink" href="#tickns-migration-notes" title="Permanent link">&para;</a></h2>
+<h2 id="prices-and-ticks">Prices and ticks<a class="headerlink" href="#prices-and-ticks" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Bots still choose human-readable decimal prices based on profile settings.</li>
-<li>Engine boundary conversion maps those prices to symbol tick units.</li>
-<li>To avoid off-grid prices, keep profile <code>tick_size</code> aligned with symbol
-  <code>tick_decimals</code> configuration.</li>
+<li>Bots choose human-readable decimal prices from their profile settings; the
+  gateway converts to integer ticks at the boundary, so the engine never does
+  float arithmetic on a price.</li>
+<li>A profile does <strong>not</strong> carry a tick size. <code>PersonalityProfile</code>
+  (<code>ai_trader/personality.py</code>) has <code>passive_offset_ticks</code> — how far off the
+  touch to post — expressed in <em>ticks</em>, so it follows the symbol's own
+  <code>tick_decimals</code> automatically and cannot drift off-grid.</li>
+<li>The fields a profile actually has are <code>decision_interval_ms</code>,
+  <code>order_size_min</code>, <code>order_size_max</code>, <code>cross_probability</code>,
+  <code>passive_offset_ticks</code> and <code>size_distribution</code>.</li>
 </ul>
+<h2 id="logging">Logging<a class="headerlink" href="#logging" title="Permanent link">&para;</a></h2>
+<p>Every bot is a normal EduMatcher process, so it takes the shared
+log-server flags: <code>--log-level</code>, <code>--log-target</code>, <code>--log-file</code> and
+<code>--log-failover-timeout</code>. With <code>pm-log-srv</code> running, a swarm's output is
+collectable in one place instead of scattered across thirty terminals —
+which is the difference between a readable swarm run and an unreadable one.</p>
+<h2 id="the-other-bot-pm-mm-bot">The other bot: <code>pm-mm-bot</code><a class="headerlink" href="#the-other-bot-pm-mm-bot" title="Permanent link">&para;</a></h2>
+<p><code>pm-ai-trader</code> takes liquidity and behaves like a directional participant.
+The <strong>market-maker bot</strong> is a separate program with a different job: it
+posts two-sided <code>quote.new</code> quotes and manages its obligation, quoting one
+or several symbols from a single gateway id. Reach for it when you need a
+book that <em>has</em> resting liquidity to trade against — a swarm of AI traders
+alone tends to produce a thin, jumpy book. See
+<code>docs-design/EduMatcher-MM-bots.md</code> and
+<code>docs-design/EduMatcher-MM-Bot-review.md</code>.</p>
 
 
 

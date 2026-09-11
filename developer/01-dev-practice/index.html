@@ -3876,6 +3876,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#inspecting-a-run-after-the-fact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inspecting a run after the fact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#macos-convenience-launcher" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4645,10 +4656,11 @@ three levels:</p>
 </ol>
 <h2 id="development-environment">Development environment<a class="headerlink" href="#development-environment" title="Permanent link">&para;</a></h2>
 <h3 id="recommended-python-version">Recommended Python version<a class="headerlink" href="#recommended-python-version" title="Permanent link">&para;</a></h3>
-<p><code>pyproject.toml</code> currently allows Python <code>^3.11</code>, but the type-checking and
-formatting configuration targets <strong>Python 3.13</strong>. In practice, <strong>Python 3.13 is
-the safest development target</strong> because it matches the repo's strict-analysis
-configuration.</p>
+<p><code>pyproject.toml</code> requires Python <code>^3.13</code>, and the type-checking and formatting
+configuration targets the same version — so <strong>Python 3.13 is the development
+target</strong>, not merely the safest one. An earlier <code>^3.11</code> floor was raised; code
+in the tree now uses 3.12+ syntax (PEP 701 nested f-strings, for one), so an
+older interpreter fails at import rather than at runtime.</p>
 <h3 id="canonical-setup">Canonical setup<a class="headerlink" href="#canonical-setup" title="Permanent link">&para;</a></h3>
 <p>The project is <strong>Poetry-first</strong>. The most reliable setup path is:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>poetry<span class="w"> </span>config<span class="w"> </span>virtualenvs.in-project<span class="w"> </span><span class="nb">true</span>
@@ -4714,9 +4726,24 @@ for <code>scripts/docs-contctl.sh</code>.</p>
 <td>Core exchange behavior</td>
 </tr>
 <tr>
-<td><code>src/edumatcher/gateway/</code></td>
-<td>Interactive gateway and command parsing</td>
+<td><code>src/edumatcher/alf_gwy/</code>, <code>balf_gwy/</code></td>
+<td>Protocol gateways: ALF (text) and BALF (binary) order entry</td>
 <td>Trader entry workflow</td>
+</tr>
+<tr>
+<td><code>src/edumatcher/alf_console/</code></td>
+<td>Interactive trader console and command parsing</td>
+<td>Hands-on order entry, demos</td>
+</tr>
+<tr>
+<td><code>src/edumatcher/api_gateway/</code></td>
+<td>REST/WebSocket edge for the web GUIs</td>
+<td>Browser-facing flows</td>
+</tr>
+<tr>
+<td><code>src/edumatcher/md_gateway/</code>, <code>dc_gateway/</code>, <code>ralf_gateway/</code></td>
+<td>Market-data (CALF), drop-copy and RALF relay gateways</td>
+<td>Feed and post-trade consumers</td>
 </tr>
 <tr>
 <td><code>src/edumatcher/commands/</code></td>
@@ -4795,10 +4822,15 @@ for <code>scripts/docs-contctl.sh</code>.</p>
 <ol>
 <li><code>src/edumatcher/engine/main.py</code></li>
 <li><code>src/edumatcher/engine/config_loader.py</code></li>
-<li><code>src/edumatcher/gateway/main.py</code></li>
+<li><code>src/edumatcher/alf_gwy/gateway.py</code> — the simplest gateway, and the one
+   <a href="../09-order-flow-engine/">Order flow</a> traces end to end</li>
 <li><code>src/edumatcher/models/message.py</code></li>
 <li><code>tests/test_*</code> files closest to the area you plan to change</li>
 </ol>
+<p>If you prefer a narrative to a file listing, read
+<a href="../09-order-flow-engine/">Order flow: from keystroke to resting order</a> first —
+it walks one order through every file above in the order the code touches
+them.</p>
 <h2 id="development-workflow-expectations">Development workflow expectations<a class="headerlink" href="#development-workflow-expectations" title="Permanent link">&para;</a></h2>
 <h3 id="default-working-style">Default working style<a class="headerlink" href="#default-working-style" title="Permanent link">&para;</a></h3>
 <p>For most changes, follow this loop:</p>
@@ -4912,6 +4944,13 @@ in your checkout needs recompiling: run <code>poetry run pm-config-deploy --exam
 This is <em>exactly</em> the situation a full local <code>pytest</code> run will hit right
 after pulling a change that touches the compiled config's shape — the
 failures are pointing at <code>src/data/</code>, not at the test files.</p>
+<p>The three config commands divide up as: <strong><code>pm-config-gen</code></strong> authors a fresh
+<code>engine_config.yaml</code> from high-level CLI inputs (symbol count, gateways,
+sessions) when you want a new scenario rather than an edit to an existing
+one; <strong><code>pm-config-deploy</code></strong> compiles an authored YAML into the deployed
+<code>ref_data/</code> artifacts; and <strong><code>pm-config-show</code></strong> prints what is actually
+deployed, which is the one to reach for when the engine's behaviour and your
+YAML appear to disagree.</p>
 <h3 id="minimal-reference-data">Minimal reference data<a class="headerlink" href="#minimal-reference-data" title="Permanent link">&para;</a></h3>
 <p>EduMatcher uses <code>engine_config.yaml</code> for reference data. A one-symbol minimal
 configuration can look like this:</p>
@@ -4973,6 +5012,57 @@ configuration can look like this:</p>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-ticker<span class="w"> </span>--db-interval<span class="w"> </span><span class="m">15</span>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-board
 </code></pre></div>
+<h3 id="inspecting-a-run-after-the-fact">Inspecting a run after the fact<a class="headerlink" href="#inspecting-a-run-after-the-fact" title="Permanent link">&para;</a></h3>
+<p>The processes above are the <em>live</em> view. Every store they write also has a
+read-only query CLI, and reaching for one is almost always faster than
+opening the SQLite file or grepping a log by hand:</p>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Reads</th>
+<th>Reach for it when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pm-audit-cli</code></td>
+<td><code>data/audit.log</code> (+ rotated <code>.gz</code>)</td>
+<td>"what happened on the bus?" — filter by topic, gateway, symbol, time</td>
+</tr>
+<tr>
+<td><code>pm-stats-cli</code></td>
+<td>the stats database</td>
+<td>OHLCV, trades, order events, order lifecycle, gaps</td>
+</tr>
+<tr>
+<td><code>pm-clearing-cli</code></td>
+<td>the clearing database</td>
+<td>positions, P&amp;L, and <code>reconcile</code> against the raw trade archive</td>
+</tr>
+<tr>
+<td><code>pm-log-cli</code></td>
+<td><code>pm-log-srv</code></td>
+<td>operational logs from every process in one place</td>
+</tr>
+<tr>
+<td><code>pm-index-admin-cli</code></td>
+<td><code>pm-index</code></td>
+<td>corporate actions, constituent changes, rebalances</td>
+</tr>
+</tbody>
+</table>
+<p>Three more that are easy to miss:</p>
+<ul>
+<li><strong><code>pm-mm-bot</code></strong> — the market-maker bot. Start one before a demo and the
+  book has resting liquidity to trade against; without it an AI-trader swarm
+  produces a thin, jumpy book. See <a href="../02-ai-bot/">AI bot traders</a>.</li>
+<li><strong><code>pm-dc-spy</code></strong>, <strong><code>pm-ralf-spy</code></strong>, <strong><code>pm-calf-spy</code></strong> — tail the drop-copy,
+  RALF and CALF feeds without writing a subscriber. The fastest way to see
+  whether a gateway is emitting what you think it is.</li>
+<li><strong><code>pm-help</code></strong> (alias <strong><code>pm-man</code></strong>) — browses the documentation for any
+  EduMatcher command from the terminal.</li>
+</ul>
 <h3 id="macos-convenience-launcher">macOS convenience launcher<a class="headerlink" href="#macos-convenience-launcher" title="Permanent link">&para;</a></h3>
 <p>For demos or quick manual runs on macOS, use:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>./tools/launch_all.sh

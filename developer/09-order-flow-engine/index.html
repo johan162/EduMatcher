@@ -4068,6 +4068,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="10. Debugging cheat-sheet">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#following-a-chain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Following a chain
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -4231,14 +4248,52 @@ The complexity is in the <em>number</em> of steps, not in any single one of them
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">sock</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="n">addr</span><span class="p">)</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="k">return</span> <span class="n">sock</span>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="k">def</span><span class="w"> </span><span class="nf">make_publisher</span><span class="p">(</span><span class="n">addr</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SequencedPublisher</span><span class="p">:</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">    </span><span class="sd">"""PUB socket — engine broadcasts events, each stamped with a sequence."""</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="k">def</span><span class="w"> </span><span class="nf">make_publisher</span><span class="p">(</span><span class="n">addr</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">"CausalPublisher"</span><span class="p">:</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">    </span><span class="sd">"""PUB socket — broadcasts events, sequenced and causally stamped."""</span>
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">sock</span> <span class="o">=</span> <span class="n">get_context</span><span class="p">()</span><span class="o">.</span><span class="n">socket</span><span class="p">(</span><span class="n">zmq</span><span class="o">.</span><span class="n">PUB</span><span class="p">)</span>
 <a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">sock</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="n">addr</span><span class="p">)</span>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="k">return</span> <span class="n">SequencedPublisher</span><span class="p">(</span><span class="n">sock</span><span class="p">)</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="k">return</span> <span class="n">CausalPublisher</span><span class="p">(</span><span class="n">SequencedPublisher</span><span class="p">(</span><span class="n">sock</span><span class="p">))</span>
 </code></pre></div>
-<p>A message on either socket is two frames: a <strong>topic</strong> string and a <strong>JSON
-payload</strong>.</p>
+<p>A message is two frames of <strong>content</strong> — a topic string and a JSON payload —
+followed by <strong>envelope</strong> frames that describe the message rather than carry
+it:</p>
+<table>
+<thead>
+<tr>
+<th>Frame</th>
+<th>PUB (engine → subscribers)</th>
+<th>PUSH (gateway → engine)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>topic</td>
+<td>topic</td>
+</tr>
+<tr>
+<td>1</td>
+<td>JSON payload</td>
+<td>JSON payload</td>
+</tr>
+<tr>
+<td>2</td>
+<td>per-topic sequence</td>
+<td>causal envelope</td>
+</tr>
+<tr>
+<td>3</td>
+<td>causal envelope</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>The envelope is metadata, not content, which is why it rides in frames
+instead of in the JSON: the hot publish path never decodes and re-encodes a
+message to stamp it, and the same three fields do not have to be declared on
+each of the 114 message types in <code>spec/messages/</code>. Sections 3, 4 and 8 show
+it being written and read; if you only care about the order flow, the one
+thing to know is that <code>decode()</code> ignores it entirely.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># models/message.py</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">encode</span><span class="p">(</span><span class="n">topic</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">payload</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">bytes</span><span class="p">]:</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">topic</span><span class="o">.</span><span class="n">encode</span><span class="p">(),</span> <span class="n">_dumps</span><span class="p">(</span><span class="n">payload</span><span class="p">)]</span>
@@ -4249,7 +4304,9 @@ payload</strong>.</p>
 <a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="k">return</span> <span class="n">topic</span><span class="p">,</span> <span class="n">payload</span>
 </code></pre></div>
 <p>Keep that shape in mind — <code>(topic, payload)</code> — it is the unit everything
-below is built from.</p>
+below is built from. The envelope never changes it; <code>decode</code> reads frames 0
+and 1 and stops, so every consumer written before the envelope existed still
+works unmodified.</p>
 <h2 id="2-the-scenario">2. The scenario<a class="headerlink" href="#2-the-scenario" title="Permanent link">&para;</a></h2>
 <p><code>TRADER01</code>, connected through <code>pm-alf-gwy</code>, types:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>NEW|SYM=AAPL|SIDE=BUY|QTY=100|PRICE=150.00|TIF=DAY|TYPE=LIMIT
@@ -4293,6 +4350,16 @@ same <code>order.new</code> PULL message.</p>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">_send_to_engine</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">frames</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">bytes</span><span class="p">],</span> <span class="o">...</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_push</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">(</span><span class="n">frames</span><span class="p">)</span>
 </code></pre></div>
+<p><strong>This send is where the causal chain begins.</strong> <code>make_pusher</code> returns a
+<code>CausalPusher</code>, which appends an envelope frame carrying a fresh <code>msg_id</code>
+(a ULID), no <code>causation_id</code> — nothing on the bus caused this, the trader
+typed it — and a <code>correlation_id</code> equal to its own <code>msg_id</code>. Everything the
+engine publishes in response will cite that id and carry that chain, which
+is what makes "show me everything this submission caused" a lookup rather
+than a reconstruction. The gateway code above does not mention any of it:
+wrapping the socket is what stops thirteen client processes each having to
+remember. See <code>models/envelope.py</code> and
+<a href="../../architecture/01-architecture/#causal-envelope">Architecture — Causal envelope</a>.</p>
 <pre class="mermaid"><code>sequenceDiagram
     participant T as TRADER01 (client)
     participant GW as pm-alf-gwy
@@ -4300,7 +4367,7 @@ same <code>order.new</code> PULL message.</p>
 
     T-&gt;&gt;GW: NEW|SYM=AAPL|SIDE=BUY|QTY=100|PRICE=150.00|TIF=DAY|TYPE=LIMIT
     GW-&gt;&gt;GW: parse fields, Order.create(...)
-    GW-&gt;&gt;E: PUSH  topic=order.new  payload={symbol, side, qty, price(ticks), gateway_id="TRADER01", ...}</code></pre>
+    GW-&gt;&gt;E: PUSH  frames=[order.new, payload, envelope(msg=A, cause=-, chain=A)]</code></pre>
 <h2 id="4-the-engines-front-door">4. The engine's front door<a class="headerlink" href="#4-the-engines-front-door" title="Permanent link">&para;</a></h2>
 <p>The engine's whole life is one loop: poll the PULL socket, decode, dispatch,
 run maintenance, repeat.</p>
@@ -4310,9 +4377,35 @@ run maintenance, repeat.</p>
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pull_sock</span> <span class="ow">in</span> <span class="n">socks</span><span class="p">:</span>
 <a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>        <span class="n">frames</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pull_sock</span><span class="o">.</span><span class="n">recv_multipart</span><span class="p">()</span>
 <a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>        <span class="n">topic</span><span class="p">,</span> <span class="n">payload</span> <span class="o">=</span> <span class="n">decode</span><span class="p">(</span><span class="n">frames</span><span class="p">)</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_dispatch_pull_message</span><span class="p">(</span><span class="n">topic</span><span class="p">,</span> <span class="n">payload</span><span class="p">)</span>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_run_maintenance</span><span class="p">()</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>        <span class="n">cause</span> <span class="o">=</span> <span class="n">decode_push_envelope</span><span class="p">(</span><span class="n">frames</span><span class="p">)</span>        <span class="c1"># the gateway's msg_id</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">pub_sock</span><span class="o">.</span><span class="n">set_cause</span><span class="p">(</span><span class="n">cause</span><span class="p">)</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>        <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">_dispatch_pull_message</span><span class="p">(</span><span class="n">topic</span><span class="p">,</span> <span class="n">payload</span><span class="p">)</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>        <span class="k">finally</span><span class="p">:</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">pub_sock</span><span class="o">.</span><span class="n">clear_cause</span><span class="p">()</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_run_maintenance</span><span class="p">()</span>
 </code></pre></div>
+<p>Those three extra lines are the entire causality mechanism on the engine
+side. While a cause is set, <strong>everything</strong> published — the ACK, the fills,
+the trade print, a cascade of OCO cancels — is attributed to this message
+and inherits its chain, without a single publish site knowing. Three things
+about that are worth understanding rather than skimming:</p>
+<ul>
+<li><strong><code>decode()</code> still reads only frames 0 and 1.</strong> The envelope rides behind
+  them, so nothing downstream of the payload changed.</li>
+<li><strong>The <code>finally</code> is load-bearing.</strong> If a handler raises, the cause must be
+  cleared anyway — otherwise <code>_run_maintenance()</code> below, which has no
+  external cause at all, would publish scheduler ticks and circuit-breaker
+  trips attributed to an order that had already failed.</li>
+<li><strong>This is safe only because the loop is single-threaded.</strong> Exactly one
+  inbound message is in flight, so there is never more than one cause in
+  scope. A multi-threaded publisher would need a context variable, and
+  <code>CausalPublisher</code>'s docstring says so.</li>
+</ul>
+<p>A message published with <strong>no</strong> cause in scope is not missing information:
+it declares <code>causation_id = null</code>, which is the engine positively stating
+that it decided this by itself.</p>
 <p><code>_dispatch_pull_message</code> is a plain <code>if/elif</code> chain from topic string to
 handler method — no registry, no magic, just a long ladder:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># engine/main.py — _dispatch_pull_message (trimmed)</span>
@@ -4449,6 +4542,14 @@ anything up — <code>order.gateway_id</code> is already <code>"TRADER01"</code>
 payload since Section 3 (<code>self._require_gw(session)</code>), and it becomes half
 of the outbound <em>topic string</em>: <code>order.ack.TRADER01</code>. There is no
 per-connection socket or address to remember on the engine side at all.</p>
+<p><strong>And which submission is it answering?</strong> Note what the snippet above does
+<em>not</em> contain: anything about correlation. The <code>send_multipart</code> call goes
+through the <code>CausalPublisher</code> wrapper, which stamps <code>causation_id</code> = the
+submitting message's <code>msg_id</code> from the cause Section 4 set. So the ACK
+answers a specific <em>message</em>, not merely a gateway — which matters the
+moment a trader has two orders in flight and both acks route to the same
+topic. Before the envelope this had to be inferred by matching <code>order_id</code>
+between the submission and the ack; now the engine states it.</p>
 <p>Delivery is ZeroMQ's job, and it works by <strong>prefix filtering on the
 subscriber side</strong>, not by the publisher picking a destination:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># alf_gwy/gateway.py — _gateway_topics</span>
@@ -4620,6 +4721,19 @@ is the <em>only</em> place any of those four things happen, regardless of whethe
 the trade came from a plain NEW order, a quote leg, a combo child, an OCO
 leg, or an auction uncross — one path, four side effects, always in that
 order.</p>
+<p>Every one of those messages — the ACK from Section 6, each <code>order.fill</code>,
+the <code>trade.executed</code> print, the drop-copy relay — carries the same
+<code>correlation_id</code>, because all of them are published inside the dispatch
+window Section 4 opened. One aggressive order that sweeps four price levels
+produces a dozen messages across five topics and two gateways, and they are
+one <code>WHERE correlation_id = ?</code> away from each other. That is the payoff of
+attributing at the socket rather than at the publish site: the fan-out did
+not have to thread anything through to get it.</p>
+<p>Note also what this does <em>not</em> claim. The counterparty's <code>order.fill</code> is
+caused by <strong>our</strong> submission, and says so — the resting order's own
+submission, minutes earlier, is a different chain. Causality here means
+"this message exists because that one was processed", not "these belong to
+the same trader".</p>
 <p>If nothing filled (our resting-order scenario from 7a), <code>events</code> and
 <code>trades</code> are both empty — the loop above simply does nothing, and the
 resting order's only trace on the wire so far is the ACK from Section 6.</p>
@@ -4798,7 +4912,7 @@ look, roughly in the order you should look at them:</p>
 </tr>
 <tr>
 <td>Is it still resting?</td>
-<td><code>ORDERS</code> (ALF) / <code>system.orders_request</code> — walks <code>book.resting_orders()</code> directly, so it can never disagree with the book</td>
+<td><code>ORDERS</code> (ALF) / <code>order.orders_request</code> — walks <code>book.resting_orders()</code> directly, so it can never disagree with the book</td>
 </tr>
 <tr>
 <td>Did it expire, and when?</td>
@@ -4816,8 +4930,33 @@ look, roughly in the order you should look at them:</p>
 <td>Fine-grained counters for a whole class of rejects</td>
 <td><code>self._debug_counts</code> (<code>new_order_reject_gateway</code>, <code>_reject_symbol</code>, <code>_reject_validation</code>, <code>_reject_session</code>, <code>_reject_halt</code>, <code>_reject_collar</code>, <code>_reject_no_match_phase</code>, ...) — logged as one summary line every 5 seconds at <code>DEBUG</code> via <code>_flush_debug_summary</code></td>
 </tr>
+<tr>
+<td><strong>What did this one submission cause?</strong></td>
+<td>Grep the audit log for its <code>chain=</code> id — every descendant carries it. This replaces walking <code>order_id</code> → <code>trade_ids</code> → counterparty <code>order_id</code> by hand</td>
+</tr>
+<tr>
+<td><strong>Why was this message published at all?</strong></td>
+<td>Its <code>cause=</code> id names the message that caused it. Grep for that <code>msg=</code> to find it. A <em>missing</em> <code>cause=</code> is an answer too: the engine decided it alone</td>
+</tr>
+<tr>
+<td>Did the bus drop anything?</td>
+<td><code>seq=</code> in the audit line is dense <strong>per topic</strong>, so a jump means messages were lost on that topic. PUB/SUB drops silently once a subscriber falls behind; this is the only thing that reveals it</td>
+</tr>
 </tbody>
 </table>
+<h3 id="following-a-chain">Following a chain<a class="headerlink" href="#following-a-chain" title="Permanent link">&para;</a></h3>
+<p>The envelope turns the awkward part of a post-mortem into two greps:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="c1"># 1. find the submission</span>
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>grep<span class="w"> </span><span class="s1">'order.new'</span><span class="w"> </span>data/audit.log<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s1">'AAPL'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>tail<span class="w"> </span>-1
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="c1"># ... [order.new] [seq=8812 msg=01ARZ3NDEKTSV4RRFFQ69G5FAV chain=01ARZ3ND...] {...}</span>
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a><span class="c1"># 2. everything it caused, in order — acks, fills, trade prints, cascades,</span>
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="c1">#    across every topic and both counterparties</span>
+<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a>grep<span class="w"> </span><span class="s1">'chain=01ARZ3NDEKTSV4RRFFQ69G5FAV'</span><span class="w"> </span>data/audit.log
+</code></pre></div>
+<p>The lines come back in audit-receipt order. For true publication order, sort
+by the <code>msg=</code> id: ULIDs are minted in publish order, so lexicographic order
+is the order the engine did things — across all topics, not just one.</p>
 <h2 id="11-the-whole-thing-end-to-end">11. The whole thing, end to end<a class="headerlink" href="#11-the-whole-thing-end-to-end" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>sequenceDiagram
     participant T as TRADER01
@@ -4827,23 +4966,34 @@ look, roughly in the order you should look at them:</p>
 
     T-&gt;&gt;GW: NEW|SYM=AAPL|SIDE=BUY|QTY=100|PRICE=150.00|TIF=DAY
     GW-&gt;&gt;GW: Order.create(gateway_id="TRADER01", price-&gt;ticks)
-    GW-&gt;&gt;E: PUSH  order.new
-    E-&gt;&gt;E: decode() -&gt; _dispatch_pull_message -&gt; _handle_new_order
+    GW-&gt;&gt;E: PUSH  order.new  + envelope(msg=A, cause=-, chain=A)
+    E-&gt;&gt;E: decode() + decode_push_envelope() -&gt; set_cause(A)
+    E-&gt;&gt;E: _dispatch_pull_message -&gt; _handle_new_order
     E-&gt;&gt;E: gate 1..8 (Section 5) — all pass
-    E-&gt;&gt;GW: PUB  order.ack.TRADER01  {accepted: true}
+    E-&gt;&gt;GW: PUB  order.ack.TRADER01  {accepted: true}  + (msg=B, cause=A, chain=A)
     GW-&gt;&gt;T: ACK  order accepted
     E-&gt;&gt;B: book.process(order, match=True)
     B-&gt;&gt;B: _match_limit -&gt; _sweep (no cross) -&gt; _rest
     Note over B: order now on the bid heap, key=(-15000, arrival_seq)
     E-&gt;&gt;E: mark AAPL dirty (next book snapshot will include it)
 
+    E-&gt;&gt;E: clear_cause()  (finally — attribution ends with the dispatch)
+
     Note over E: ... later, session scheduler fires ...
     E-&gt;&gt;E: _handle_session_transition(to=CLOSED)
     E-&gt;&gt;E: _expire_tif(TIF.DAY) -&gt; book.cancel_order(...)
-    E-&gt;&gt;GW: PUB  order.expired.TRADER01
+    E-&gt;&gt;GW: PUB  order.expired.TRADER01  + (msg=Z, cause=-, chain=Z)
     GW-&gt;&gt;T: EXPIRED  {order_id}</code></pre>
-<p>Every arrow in that diagram is a function call or a two-frame ZMQ message
-you can grep for by name. There is no step in between.</p>
+<p>Note the last message. The expiry carries <strong>no</strong> <code>cause</code>: hours after the
+submission, a session transition removed the order, and nothing the trader
+sent caused it. A new chain starts there, and that is the honest record —
+the alternative, attributing the expiry to the original submission, would
+make an automatic venue action look like a consequence of something the
+trader did.</p>
+<p>Every arrow in that diagram is a function call or a ZMQ message you can grep
+for by name. The messages are two frames of content — topic and payload —
+plus the envelope frames behind them (<code>[topic, payload, seq, envelope]</code> on
+PUB, <code>[topic, payload, envelope]</code> on PUSH). There is no step in between.</p>
 
 
 

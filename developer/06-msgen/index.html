@@ -4605,7 +4605,7 @@ page and the spec disagree. Its narrative half lives in
 cannot state belongs.</p>
 <p>Every producer reaches the wire through its generated builder except two
 frames that opt out on purpose — the BALF <code>execution_report</code> and
-<code>index.index_history</code>'s legacy-archive replay — which
+<code>index.history</code>'s legacy-archive replay — which
 <code>tests/test_msgen_adoption.py</code> pins.</p>
 </div>
 <h2 id="the-problem">The problem<a class="headerlink" href="#the-problem" title="Permanent link">&para;</a></h2>
@@ -5596,10 +5596,38 @@ a marker redundant, and <code>ubuntu-latest</code> ships a compiler.</p>
 <a id="__codelineno-29-18" name="__codelineno-29-18" href="#__codelineno-29-18"></a>
 <a id="__codelineno-29-19" name="__codelineno-29-19" href="#__codelineno-29-19"></a><span class="n">publisher</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">(</span><span class="n">frames</span><span class="p">)</span>
 </code></pre></div>
-<p><code>make_*</code> returns <strong>exactly two frames</strong>. The per-topic sequence number is a
-third frame appended by <code>SequencedPublisher.send_multipart()</code> in
-<code>messaging/bus.py</code> at publish time — never by <code>make_*</code>. Adding it here would
-double-stamp every message.</p>
+<p><code>make_*</code> returns <strong>exactly two frames</strong>: topic and payload. Everything behind
+them is added at publish time by the wrappers in <code>messaging/bus.py</code>, never by
+<code>make_*</code> — adding either here would double-stamp every message:</p>
+<table>
+<thead>
+<tr>
+<th>Frame</th>
+<th>Added by</th>
+<th>Contains</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0–1</td>
+<td><code>make_*</code></td>
+<td>topic, JSON payload</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>SequencedPublisher</code></td>
+<td>per-topic sequence number</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>CausalPublisher</code></td>
+<td>causal envelope (<code>msg_id</code>, <code>causation_id</code>, <code>correlation_id</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>On the PUSH side there is no sequence, so <code>CausalPusher</code> puts the envelope at
+frame 2 instead. Readers find it by shape rather than by index — see
+<code>models/message.py::decode_envelope</code>.</p>
 <div class="admonition tip">
 <p class="admonition-title">Missing and mistyped arguments</p>
 <p><code>make_*</code> takes keyword arguments and routes them through <code>from_dict</code>, so it
@@ -5624,7 +5652,8 @@ same as the hand-written factory does. A missing required field raises
 <p><code>parse_*</code> coerces <em>and</em> validates, so a malformed payload raises
 <code>MessageValidationError</code> at the boundary rather than producing a plausible-
 looking object that fails somewhere deeper. It reads only the first two frames,
-so a sequence-stamped message parses unchanged.</p>
+so a message carrying a sequence and a causal envelope parses unchanged — which
+is why neither addition needed a single consumer to change.</p>
 <h3 id="example-3-validating-without-parsing">Example 3 — validating without parsing<a class="headerlink" href="#example-3-validating-without-parsing" title="Permanent link">&para;</a></h3>
 <p>You often have a payload dict already (from a log, a replay file, a database
 row). Skip the frames:</p>
@@ -5689,22 +5718,15 @@ non-validating twin. This is what <code>engine/main.py::_publish_trade</code> ac
 does today:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">edumatcher.models.generated.trade</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_trade_executed_unchecked</span>
 <a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>
-<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="bp">self</span><span class="o">.</span><span class="n">pub_sock</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">(</span>
-<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a>    <span class="n">make_trade_executed_unchecked</span><span class="p">(</span>
-<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a>        <span class="nb">id</span><span class="o">=</span><span class="n">trade</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
-<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a>        <span class="n">symbol</span><span class="o">=</span><span class="n">trade</span><span class="o">.</span><span class="n">symbol</span><span class="p">,</span>
-<a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a>        <span class="n">buy_order_id</span><span class="o">=</span><span class="n">trade</span><span class="o">.</span><span class="n">buy_order_id</span><span class="p">,</span>
-<a id="__codelineno-34-8" name="__codelineno-34-8" href="#__codelineno-34-8"></a>        <span class="n">sell_order_id</span><span class="o">=</span><span class="n">trade</span><span class="o">.</span><span class="n">sell_order_id</span><span class="p">,</span>
-<a id="__codelineno-34-9" name="__codelineno-34-9" href="#__codelineno-34-9"></a>        <span class="n">buy_gateway_id</span><span class="o">=</span><span class="n">trade</span><span class="o">.</span><span class="n">buy_gateway_id</span><span class="p">,</span>
-<a id="__codelineno-34-10" name="__codelineno-34-10" href="#__codelineno-34-10"></a>        <span class="n">sell_gateway_id</span><span class="o">=</span><span class="n">trade</span><span class="o">.</span><span class="n">sell_gateway_id</span><span class="p">,</span>
-<a id="__codelineno-34-11" name="__codelineno-34-11" href="#__codelineno-34-11"></a>        <span class="n">price</span><span class="o">=</span><span class="n">from_ticks</span><span class="p">(</span><span class="n">trade</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="n">trade</span><span class="o">.</span><span class="n">symbol</span><span class="p">),</span>
-<a id="__codelineno-34-12" name="__codelineno-34-12" href="#__codelineno-34-12"></a>        <span class="n">quantity</span><span class="o">=</span><span class="n">trade</span><span class="o">.</span><span class="n">quantity</span><span class="p">,</span>
-<a id="__codelineno-34-13" name="__codelineno-34-13" href="#__codelineno-34-13"></a>        <span class="n">aggressor_side</span><span class="o">=</span><span class="n">trade</span><span class="o">.</span><span class="n">aggressor_side</span><span class="p">,</span>
-<a id="__codelineno-34-14" name="__codelineno-34-14" href="#__codelineno-34-14"></a>        <span class="n">ts_ns</span><span class="o">=</span><span class="n">trade</span><span class="o">.</span><span class="n">timestamp</span><span class="p">,</span>
-<a id="__codelineno-34-15" name="__codelineno-34-15" href="#__codelineno-34-15"></a>        <span class="n">tick_decimals</span><span class="o">=</span><span class="n">get_tick_decimals</span><span class="p">(</span><span class="n">trade</span><span class="o">.</span><span class="n">symbol</span><span class="p">),</span>
-<a id="__codelineno-34-16" name="__codelineno-34-16" href="#__codelineno-34-16"></a>    <span class="p">)</span>
-<a id="__codelineno-34-17" name="__codelineno-34-17" href="#__codelineno-34-17"></a><span class="p">)</span>
+<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="bp">self</span><span class="o">.</span><span class="n">pub_sock</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">(</span><span class="n">make_trade_executed_unchecked</span><span class="p">(</span><span class="o">**</span><span class="n">trade</span><span class="o">.</span><span class="n">to_wire</span><span class="p">()))</span>
 </code></pre></div>
+<p><code>Trade.to_wire()</code> is where the model-to-wire conversion lives — <code>price</code> is
+<strong>ticks</strong> on the model and <strong>display money</strong> on the wire, and the scale comes
+from the tick registry keyed on the symbol, never from <code>Trade.tick_decimals</code>
+(which <code>Trade.create</code> defaults to 2 and the engine never sets, so it is wrong
+for any instrument that does not trade in hundredths). Expanding those kwargs
+at the publish site, as this snippet used to, is exactly how that conversion
+gets forgotten.</p>
 <p>Note the signature difference: <code>make_*</code> takes <code>**kw</code> because its callers have a
 dict of uncertain provenance, while <code>make_*_unchecked</code> takes <strong>explicit
 keyword-only typed parameters</strong>, so a typo is a <code>TypeError</code> at the call site

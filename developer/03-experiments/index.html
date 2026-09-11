@@ -4236,6 +4236,16 @@
 </ul>
 <p>The list is ordered from basic to very complex.</p>
 <h2 id="how-to-use-this-page">How to use this page<a class="headerlink" href="#how-to-use-this-page" title="Permanent link">&para;</a></h2>
+<div class="admonition note">
+<p class="admonition-title">Statuses verified 2026-09-11</p>
+<p>EduMatcher has moved a long way since these experiments were written, and
+several of them have since been built — sometimes under different names
+than proposed here. Every <code>**Status:**</code> line below was re-checked against
+the code on that date, and where something shipped, the status says where
+it lives and how it differs from the proposal. An experiment marked
+<strong>Implemented</strong> is still worth reading for the financial explanation; it
+is just no longer something to build.</p>
+</div>
 <ol>
 <li>Pick one experiment at a time.</li>
 <li>Define acceptance criteria before coding.</li>
@@ -4416,7 +4426,12 @@ Different order classes are accepted or rejected according to phase; policy viol
 <p>Learning objective:
 Understand how session design controls market behavior and participant risk.</p>
 <h2 id="experiment-4-per-gateway-rate-limits-and-burst-controls">Experiment 4: Per-Gateway Rate Limits and Burst Controls<a class="headerlink" href="#experiment-4-per-gateway-rate-limits-and-burst-controls" title="Permanent link">&para;</a></h2>
-<p><strong>Status: Still Valid</strong></p>
+<p><strong>Status: Implemented (gateway layer) — verified 2026-09-11</strong></p>
+<p>Rate limiting is enforced at the gateways rather than in the engine:
+<code>alf_gwy/gateway.py</code> and <code>balf_gwy/gateway.py</code> reject with <code>RATE_LIMITED</code>,
+and <code>api_gateway</code> maps its own <code>RATE_LIMIT</code> to the same code. What remains
+open from the proposal below is the <em>burst</em> shaping (token bucket with a
+configurable refill) and per-gateway limits in config rather than in code.</p>
 <p>Difficulty: Intermediate
 Estimated effort: 1 to 2 days
 Gap vs real exchange: Real gateways enforce throughput and abuse controls.</p>
@@ -4652,7 +4667,17 @@ Multiple gateways can share one account and positions aggregate correctly; contr
 <p>Learning objective:
 Understand how real exchange participants are modeled beyond a single connection ID.</p>
 <h2 id="experiment-10-kill-switch-and-fat-finger-controls">Experiment 10: Kill Switch and Fat-Finger Controls<a class="headerlink" href="#experiment-10-kill-switch-and-fat-finger-controls" title="Permanent link">&para;</a></h2>
-<p><strong>Status: Partially Implemented — Phase 2 Enhancement</strong></p>
+<p><strong>Status: Largely Implemented — verified 2026-09-11</strong></p>
+<p>The kill switch shipped with three scopes, not the two proposed here:
+<code>risk.kill_switch</code> (per symbol), <code>risk.kill_switch_gateway</code>, and
+<code>risk.kill_switch_global</code>, each with a <code>command_id</code> that the resulting
+<code>order.cancelled</code> events carry so a post-mortem can join cancels back to
+the command that caused them. Fat-finger limits exist as <code>MAX_ORDER_QTY</code>,
+<code>MAX_ORDER_VALUE</code> and <code>COLLAR_BREACH</code> reject codes — the names differ from
+the <code>FAT_FINGER_*</code> ones proposed below, and the collar check subsumes
+<code>max_price_distance_ticks</code>. Still open: per-<em>account</em> scope (EduMatcher has
+no account domain — see Experiment 9) and a separate privileged auth token
+for the kill message.</p>
 <p><em>Current state</em>: Kill-switch gateway cancellation exists (<code>_handle_kill_switch()</code>). New work: hard-stop governance (privileged-only reset), notional value guards (<code>max_order_notional</code>), and price-distance guardrails (<code>max_price_distance_ticks</code>).</p>
 <p>Difficulty: Complex
 Estimated effort: 2 to 4 days
@@ -4689,7 +4714,14 @@ Unsafe flow is stopped instantly and deterministically; every kill and reset act
 <p>Learning objective:
 Learn real-time safety controls used in production trading systems.</p>
 <h2 id="experiment-11-drop-copy-and-post-trade-reconciliation-stream">Experiment 11: Drop Copy and Post-Trade Reconciliation Stream<a class="headerlink" href="#experiment-11-drop-copy-and-post-trade-reconciliation-stream" title="Permanent link">&para;</a></h2>
-<p><strong>Status: Partially Implemented — Phase 2 Enhancement</strong></p>
+<p><strong>Status: Largely Implemented — verified 2026-09-11</strong></p>
+<p>Drop copy shipped as <code>drop_copy.event.{gateway_id}</code> with a session-global
+<code>seq</code>, plus <code>drop_copy.replay.{recipient_id}</code> for gap recovery — a live
+replay channel rather than the proposed end-of-session log file.
+Reconciliation is <code>pm-clearing-cli reconcile</code> rather than a standalone
+<code>dropcopy_reconcile.py</code>. Still open from the proposal: the durable
+<code>dropcopy_YYYYMMDD.log</code> JSON-lines artifact, if you want reconciliation
+against a file rather than against the clearing database.</p>
 <p><em>Current state</em>: Drop copy publisher, sequencing, and in-memory replay buffer exist (<code>DropCopyPublisher</code>). New work: durable append-only log file, session-scoped rotation, reconciliation tooling for gap detection and quantity validation.</p>
 <p>Difficulty: Complex
 Estimated effort: 2 to 4 days
@@ -4805,7 +4837,14 @@ Risk controls become portfolio-sensitive; accounts with offsetting positions can
 <p>Learning objective:
 Understand portfolio-level risk governance in modern exchanges and clearing ecosystems.</p>
 <h2 id="experiment-14-auction-imbalance-feed-and-indicative-price-model">Experiment 14: Auction Imbalance Feed and Indicative Price Model<a class="headerlink" href="#experiment-14-auction-imbalance-feed-and-indicative-price-model" title="Permanent link">&para;</a></h2>
-<p><strong>Status: Still Valid</strong></p>
+<p><strong>Status: Implemented — verified 2026-09-11</strong></p>
+<p><code>auction.indicative.{symbol}</code> is published during call phases and
+<code>auction.result.{symbol}</code> at the uncross. The field names differ from the
+proposal below: the spec uses <code>eq_price</code>/<code>eq_qty</code> for the indicative
+equilibrium, and a single <code>imbalance_side</code> + <code>imbalance_qty</code> pair rather
+than separate <code>buy_imbalance_qty</code>/<code>sell_imbalance_qty</code>. Read
+<code>spec/messages/auction.yaml</code> for the authoritative shape; the financial
+explanation below is still the best description of <em>why</em> the feed exists.</p>
 <p>Difficulty: Very Complex
 Estimated effort: 1 to 2 weeks
 Gap vs real exchange: Opening and closing auctions publish rich imbalance signals.</p>
@@ -4894,7 +4933,7 @@ Understand how high-level execution intent is translated into low-level exchange
 <p><strong>Note</strong>: Experiment 16 (Self-Trade Prevention) is already implemented in the gateway and matching engine as <code>SmpAction</code> modes. It serves as a validation that the roadmap's abstractions align with production needs.</p>
 <h2 id="experiment-16-self-trade-prevention">Experiment 16: Self-Trade Prevention<a class="headerlink" href="#experiment-16-self-trade-prevention" title="Permanent link">&para;</a></h2>
 <p><strong>Status: Already Implemented ✓</strong></p>
-<p><em>Implementation location</em>: <code>src/edumatcher/models/order.py</code> (SmpAction enum), <code>src/edumatcher/engine/order_book.py</code> (<code>_sweep()</code> and <code>_smp_cancel_resting()</code>), <code>src/edumatcher/gateway/main.py</code> (SMP command syntax).</p>
+<p><em>Implementation location</em>: <code>src/edumatcher/models/order.py</code> (SmpAction enum), <code>src/edumatcher/engine/order_book.py</code> (<code>_sweep()</code> and <code>_smp_cancel_resting()</code>), <code>src/edumatcher/alf_gwy/gateway.py</code> and <code>src/edumatcher/alf_console/main.py</code> (SMP command syntax).</p>
 <p><em>Why included anyway</em>: Demonstrates that the roadmap's high-level abstractions map cleanly onto production code patterns. Can serve as a learning reference for understanding the matching engine's self-trade enforcement.</p>
 <p>Difficulty: Intermediate
 Estimated effort: —
@@ -4937,11 +4976,21 @@ Self-trades are blocked under all four modes; audit events are produced for ever
 Understand wash-trade prevention, regulatory compliance mechanics, and account identity in order routing.</p>
 <hr />
 <h2 id="experiment-17-statistics-sql-query-cli-layer">Experiment 17: Statistics SQL Query CLI Layer<a class="headerlink" href="#experiment-17-statistics-sql-query-cli-layer" title="Permanent link">&para;</a></h2>
+<p><strong>Status: Largely Implemented — verified 2026-09-11</strong></p>
+<p><code>pm-stats-cli</code> shipped with thirteen subcommands, among them <code>daily</code>,
+<code>trades</code>, <code>order-events</code>, <code>lifecycle</code>, <code>symbols</code>, <code>dates</code> and <code>gaps</code>, and
+<code>pm-clearing-cli</code>, <code>pm-audit-cli</code> and <code>pm-log-cli</code> cover the clearing,
+audit and log databases the same way. The background paragraph below was
+written before any of that existed and is kept for the financial
+motivation, not as a description of the current state.</p>
+<p>Still open from the proposal: a single <code>daily-pnl</code> report that joins
+clearing P&amp;L per gateway, and the <code>--format csv</code> option (the CLIs offer
+table and JSON).</p>
 <p>Difficulty: Intermediate
 Estimated effort: 2 to 3 days
 Gap vs real exchange: Operators and compliance teams need safe, ergonomic CLI tools to extract analytics without writing raw SQL.</p>
 <p>Background:
-The statistics database (SQLite) is currently only accessible via direct SQL queries, which is error-prone and requires database knowledge. Real operations teams use pre-built CLI commands to pull reports by date, gateway, symbol, and time window.</p>
+<em>(As written, before the CLIs existed.)</em> The statistics database (SQLite) is only accessible via direct SQL queries, which is error-prone and requires database knowledge. Real operations teams use pre-built CLI commands to pull reports by date, gateway, symbol, and time window.</p>
 <p>Financial explanation and motivation:</p>
 <p>New terms:</p>
 <ul>
@@ -4976,6 +5025,14 @@ Operators can run <code>pm-report daily-pnl --date 2026-06-14 --format csv</code
 <p>Learning objective:
 Understand operational reporting patterns, data access abstraction, and human-centered CLI design.</p>
 <h2 id="experiment-18-drop-copy-durability-and-restart-recovery">Experiment 18: Drop Copy Durability and Restart Recovery<a class="headerlink" href="#experiment-18-drop-copy-durability-and-restart-recovery" title="Permanent link">&para;</a></h2>
+<p><strong>Status: Partially Implemented — verified 2026-09-11</strong></p>
+<p>The <em>live</em> half exists: <code>drop_copy.replay.{recipient_id}</code> lets a subscriber
+recover a gap without a file, and <code>pm-dc-spy</code> is the tail-and-inspect tool
+the proposal calls <code>dropcopy_tail</code>. What is genuinely still open is the
+<strong>durability</strong> half this experiment is named for — there is no
+<code>data/dropcopy_YYYYMMDD.log</code>, no immutable rename at session close, and no
+sequence recovery from a file at startup. That is the interesting part of
+the exercise, and it is untouched.</p>
 <p>Difficulty: Intermediate
 Estimated effort: 2 to 4 days
 Gap vs real exchange: Production drop-copy systems survive process restarts and network outages.</p>
@@ -5011,6 +5068,13 @@ Drop-copy events survive engine restarts. Participants can query historical drop
 <p>Learning objective:
 Understand durability patterns, log rotation, and participant recovery workflows in high-availability systems.</p>
 <h2 id="experiment-19-cross-host-operational-validation-matrix">Experiment 19: Cross-Host Operational Validation Matrix<a class="headerlink" href="#experiment-19-cross-host-operational-validation-matrix" title="Permanent link">&para;</a></h2>
+<p><strong>Status: Still Valid — verified 2026-09-11</strong></p>
+<p>Cross-host deployment itself is designed and documented
+(<code>docs-design/EduMatcher-Cross-host-connection.md</code>, and the bind/connect
+split in <code>config.py</code>), but the <em>validation matrix</em> this experiment asks for
+— the same scenario replayed under single-host, LAN and latency-injected
+WAN topologies, with the final book state compared across all three — does
+not exist. That comparison is the whole point of the experiment.</p>
 <p>Difficulty: Intermediate
 Estimated effort: 2 to 3 days
 Gap vs real exchange: Multi-host deployments must pass deterministic end-to-end tests before going live.</p>
@@ -5049,6 +5113,13 @@ Operators gain confidence that cross-host deployments will not diverge from sing
 <p>Learning objective:
 Understand distributed systems testing, latency-robust message ordering, and operational validation patterns.</p>
 <h2 id="experiment-20-installed-mode-vs-source-mode-parity-validation">Experiment 20: Installed-Mode vs. Source-Mode Parity Validation<a class="headerlink" href="#experiment-20-installed-mode-vs-source-mode-parity-validation" title="Permanent link">&para;</a></h2>
+<p><strong>Status: Still Valid — verified 2026-09-11</strong></p>
+<p><code>DATA_DIR</code> resolution distinguishes the two modes today
+(<code>config.py::_resolve_data_dir</code>, described in
+<a href="../01-dev-practice/">Dev practice</a>), and <code>pm-setup</code> bootstraps the installed
+layout — but there is no <code>test_mode_parity.py</code> asserting that the two modes
+produce identical audit logs and book state. The mechanism exists; the proof
+does not.</p>
 <p>Difficulty: Basic
 Estimated effort: 1 to 2 days
 Gap vs real exchange: Installation and setup are common operational concerns; deployment paths must be equivalent.</p>

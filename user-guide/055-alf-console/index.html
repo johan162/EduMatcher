@@ -5059,9 +5059,13 @@ in memory only and does not survive an engine restart — see
 <p>Output columns:</p>
 <ul>
 <li><code>Symbol</code>, <code>Quote</code>, <code>Leg</code> (<code>BUY</code>/<code>SELL</code>), <code>Order</code></li>
+<li><code>Price</code> — the leg's limit price in display money, <code>-</code> when unknown</li>
 <li><code>Qty</code>, <code>Rem</code>, <code>Filled</code>, <code>Filled?</code></li>
 <li><code>Leg status</code>, <code>Quote status</code>, <code>Time</code></li>
 </ul>
+<p><code>Filled?</code> is <code>YES</code>/<code>NO</code> derived from <code>Filled</code>, not a separate fact; it exists
+so an operator scanning the table does not have to compare two numbers to
+answer the only question that usually matters.</p>
 <h4 id="operator-examples">Operator examples<a class="headerlink" href="#operator-examples" title="Permanent link">&para;</a></h4>
 <ol>
 <li>Show only currently active quote legs across all symbols:</li>

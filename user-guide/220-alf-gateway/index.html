@@ -4947,11 +4947,11 @@ request and is echoed on <code>CANCELLED</code> or the rejected <code>ACK</code>
 <a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>QUOTE|SYM=AAPL|BID=150.00|ASK=150.10|BID_QTY=500|ASK_QTY=500|QUOTE_ID=my-q1
 </code></pre></div>
 <p>Requires gateway role <code>MARKET_MAKER</code>.  <code>BID</code> must be strictly less than <code>ASK</code>.</p>
-<p><strong>Response:</strong> <code>QUOTE_ACK|QUOTE_ID=...|ACCEPTED=TRUE|BID_ID=...|ASK_ID=...</code></p>
+<p><strong>Response:</strong> <code>QUOTE_ACK|QUOTE_ID=...|SYM=AAPL|ACCEPTED=TRUE|BID_ID=...|ASK_ID=...</code></p>
 <h3 id="quote_cancel-cancel-active-quote-market_maker-role"><code>QUOTE_CANCEL</code> — cancel active quote (MARKET_MAKER role)<a class="headerlink" href="#quote_cancel-cancel-active-quote-market_maker-role" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>QUOTE_CANCEL|SYM=AAPL
 </code></pre></div>
-<p><strong>Response:</strong> <code>QUOTE_ACK|QUOTE_ID=...|ACCEPTED=TRUE|...</code></p>
+<p><strong>Response:</strong> <code>QUOTE_ACK|QUOTE_ID=...|SYM=AAPL|ACCEPTED=TRUE|...</code></p>
 <h3 id="kill-gateway-kill-switch"><code>KILL</code> — gateway kill-switch<a class="headerlink" href="#kill-gateway-kill-switch" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>KILL
 <a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>KILL|SYM=AAPL
@@ -5047,26 +5047,38 @@ full source payload.</p>
 </table>
 <p><code>pm-alf-gwy</code> forwards this straight to the engine's
 <a href="../270-message-reference/#systemquote_legs_request"><code>system.quote_legs_request</code></a>
-message and renders the reply. <code>ACTIVE</code> legs (<code>LEG</code> lines) carry live
-qty/remaining/status per leg, same as before. <code>RECENT</code> rows (<code>RECENT_LEG</code>
-lines) are quote-level summaries drawn from the engine's bounded, in-memory,
+message and renders the reply. <code>ACTIVE</code> legs (<code>LEG</code> lines) carry each leg's
+live price/qty/remaining/status. <code>RECENT</code> rows (<code>RECENT_LEG</code> lines) are
+quote-level summaries drawn from the engine's bounded, in-memory,
 per-gateway history of recently-inactivated quotes. Each <code>RECENT_LEG</code> line
 is optionally followed by <code>RECENT_BID_LEG</code> and/or <code>RECENT_ASK_LEG</code> lines
-carrying that leg's final qty/remaining/filled/status snapshot at the
+carrying that leg's final price/qty/remaining/filled/status snapshot at the
 moment it was cancelled — these are emitted only when the engine had that
 leg's final order state available at removal time, which is the common
 case for every normal inactivation path (see
 <a href="../270-message-reference/#systemquote_legs_request"><code>system.quote_legs_request</code></a>
 for when a leg's snapshot can be absent). See
 <a href="../055-alf-console/#qlegs-inspect-mm-quote-legs-and-fill-flags">ALF Console → QLEGS</a>
-for the full column semantics (shared with <code>pm-alf-console</code>'s <code>QLEGS</code>).</p>
+for the column semantics, which <code>pm-alf-console</code> and <code>pm-alf-gwy</code> now share.</p>
+<div class="admonition note">
+<p class="admonition-title"><code>PRICE</code> on leg lines</p>
+<p><code>PRICE</code> is display money — the leg's limit price, the same number the
+<code>QUOTE</code> command was given. A quote leg is always a priced limit order,
+so it is normally present; an empty value means the engine had no price
+for that order, not that the leg was unpriced.</p>
+<p>On <code>RECENT_BID_LEG</code>/<code>RECENT_ASK_LEG</code> it is the price <strong>as it stood at
+removal</strong>. The engine records it at that moment because once an order
+leaves the book nothing in the engine can recover its price, which is
+the same reason <code>QTY</code>/<code>REMAINING</code>/<code>FILLED</code> on those lines are final
+values rather than live ones.</p>
+</div>
 <p><strong>Multi-line response:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>QLEGS|COUNT=2|RECENT_COUNT=1|SHOW=ALL
-<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>LEG|QUOTE_ID=Q123|SYM=AAPL|SIDE=BUY|ORDER_ID=7c4a91e2|QTY=500|REMAINING=400|FILLED=100|STATUS=PARTIAL_FILL|QUOTE_STATUS=ACTIVE
-<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>LEG|QUOTE_ID=Q123|SYM=AAPL|SIDE=SELL|ORDER_ID=be2170fd|QTY=500|REMAINING=500|FILLED=0|STATUS=RESTING|QUOTE_STATUS=ACTIVE
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>LEG|QUOTE_ID=Q123|SYM=AAPL|SIDE=BUY|ORDER_ID=7c4a91e2|PRICE=150.00|QTY=500|REMAINING=400|FILLED=100|STATUS=PARTIAL_FILL|QUOTE_STATUS=ACTIVE
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>LEG|QUOTE_ID=Q123|SYM=AAPL|SIDE=SELL|ORDER_ID=be2170fd|PRICE=150.10|QTY=500|REMAINING=500|FILLED=0|STATUS=RESTING|QUOTE_STATUS=ACTIVE
 <a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>RECENT_LEG|QUOTE_ID=Q100|SYM=AAPL|QUOTE_STATUS=CANCELLED|REASON=Cancelled by participant|REMOVED_AT_NS=1784468999030221878
-<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>RECENT_BID_LEG|QUOTE_ID=Q100|SIDE=BUY|ORDER_ID=3f9a2b71|QTY=500|REMAINING=500|FILLED=0|STATUS=CANCELLED
-<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>RECENT_ASK_LEG|QUOTE_ID=Q100|SIDE=SELL|ORDER_ID=8d1c4e05|QTY=500|REMAINING=200|FILLED=300|STATUS=CANCELLED
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>RECENT_BID_LEG|QUOTE_ID=Q100|SIDE=BUY|ORDER_ID=3f9a2b71|PRICE=149.90|QTY=500|REMAINING=500|FILLED=0|STATUS=CANCELLED
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>RECENT_ASK_LEG|QUOTE_ID=Q100|SIDE=SELL|ORDER_ID=8d1c4e05|PRICE=150.20|QTY=500|REMAINING=200|FILLED=300|STATUS=CANCELLED
 <a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a>END|TYPE=QLEGS
 </code></pre></div>
 <p>An unconnected/unknown gateway still gets a well-formed, empty reply
@@ -5210,7 +5222,7 @@ delivered automatically after <code>WELCOME</code>.</p>
 </tr>
 <tr>
 <td><code>QUOTE_ACK</code></td>
-<td><code>QUOTE_ID</code>, <code>ACCEPTED</code>, <code>REASON</code>, <code>BID_ID</code>, <code>ASK_ID</code></td>
+<td><code>QUOTE_ID</code>, <code>SYM</code>, <code>ACCEPTED</code>, <code>REASON</code>, <code>BID_ID</code>, <code>ASK_ID</code></td>
 </tr>
 <tr>
 <td><code>QUOTE_STATUS</code></td>
@@ -5246,6 +5258,20 @@ delivered automatically after <code>WELCOME</code>.</p>
 </tr>
 </tbody>
 </table>
+<div class="admonition note">
+<p class="admonition-title"><code>SYM</code> on <code>QUOTE_ACK</code></p>
+<p>Quote events are addressed to a <em>gateway</em>, not to a symbol, so a client
+quoting several instruments would otherwise have to remember which quote
+it sent last and match replies by send order. That breaks the moment one
+reply is missed. <code>SYM</code> names the instrument on the ack itself, so no
+client-side bookkeeping is needed. It is empty only when the quote was
+rejected before its symbol was known — a malformed payload, or a missing
+<code>SYM=</code> on the request.</p>
+<p><code>QUOTE_ID</code> remains the correlation key for the <em>specific quote</em>: supply
+your own <code>QUOTE_ID=</code> on the <code>QUOTE</code> command and it is echoed here, on
+<code>QUOTE_STATUS</code>, and stamped on both leg orders. If you omit it the engine
+generates one.</p>
+</div>
 <p>Every one of these carries <code>TAG</code> when the order was submitted with one, so a
 client correlates an event to its own order without matching on arrival order.
 That includes events you did not ask for — an expiry hours after you last

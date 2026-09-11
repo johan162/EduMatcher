@@ -4539,8 +4539,8 @@ to <code>--buffer-size</code> messages that had not yet been flushed.</p>
 <a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>pm-audit<span class="w"> </span>--terminal
 </code></pre></div>
 <h3 id="log-format">Log format<a class="headerlink" href="#log-format" title="Permanent link">&para;</a></h3>
-<p>Every line is an independent JSON record in this exact format:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[2026-07-08T09:30:00.123+00:00] [trade.executed] {"id": "TRD-001", "symbol": "AAPL", ...}
+<p>Every line is an independent record in this format:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[2026-07-08T09:30:00.123+00:00] [trade.executed] [seq=42 msg=01J… cause=01J… chain=01J…] {"id": "TRD-001", ...}
 </code></pre></div>
 <table>
 <thead>
@@ -4554,7 +4554,7 @@ to <code>--buffer-size</code> messages that had not yet been flushed.</p>
 <tr>
 <td><code>[timestamp]</code></td>
 <td><code>2026-07-08T09:30:00.123+00:00</code></td>
-<td>UTC ISO-8601 with millisecond precision</td>
+<td>UTC ISO-8601 with millisecond precision. This is <code>pm-audit</code>'s <strong>receipt</strong> clock, not the publisher's</td>
 </tr>
 <tr>
 <td><code>[topic]</code></td>
@@ -4562,21 +4562,66 @@ to <code>--buffer-size</code> messages that had not yet been flushed.</p>
 <td>ZeroMQ topic exactly as broadcast by the engine</td>
 </tr>
 <tr>
+<td><code>[metadata]</code></td>
+<td><code>seq=42 msg=01J… cause=01J… chain=01J…</code></td>
+<td>Envelope frames, recorded as <code>key=value</code> pairs. Optional — see below</td>
+</tr>
+<tr>
 <td><code>{...}</code></td>
 <td><code>{"symbol": "AAPL", ...}</code></td>
-<td>Full JSON payload of the message</td>
+<td>Full JSON payload of the message, byte-identical to what was published</td>
 </tr>
 </tbody>
 </table>
+<p><strong>The metadata section</strong></p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>seq</code></td>
+<td>The publisher's per-topic sequence number. Dense within a run, so a gap means messages were <strong>dropped</strong> — PUB/SUB discards silently once a subscriber falls behind, and this is how you find out</td>
+</tr>
+<tr>
+<td><code>msg</code></td>
+<td>ULID of this message</td>
+</tr>
+<tr>
+<td><code>cause</code></td>
+<td>ULID of the message that caused this one. <strong>Absent means nothing caused it</strong> — a scheduler tick, a circuit-breaker trip — not that the cause is unknown</td>
+</tr>
+<tr>
+<td><code>chain</code></td>
+<td>ULID shared by every message descending from one original request</td>
+</tr>
+</tbody>
+</table>
+<p>The section is omitted entirely for a message whose publisher stamps no
+envelope, and lines archived before the section existed are still read
+correctly, so a mixed archive needs no flag.</p>
+<p>This is what makes a post-mortem tractable. To follow one order submission
+through everything it caused:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># find the submission</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>order.new<span class="w"> </span>--limit<span class="w"> </span><span class="m">1</span><span class="w"> </span>--format<span class="w"> </span>json
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># then everything in its causal chain, in order</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>grep<span class="w"> </span><span class="s1">'chain=01ARZ3NDEKTSV4RRFFQ69G5FAV'</span><span class="w"> </span>data/audit.log
+</code></pre></div>
 <p>Lines are appended in arrival order. Within a single session they are
-chronologically monotonic.</p>
+chronologically monotonic by receipt time — but note that receipt order across
+several publishers is not causal order. <code>cause</code> and <code>chain</code> are what establish
+causality; the timestamp only establishes when <code>pm-audit</code> saw it.</p>
 <h3 id="log-rotation">Log rotation<a class="headerlink" href="#log-rotation" title="Permanent link">&para;</a></h3>
 <p>Log files rotate at <strong>10 MB</strong> with <strong>5 backups</strong> kept:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>data/audit.log       ← active, current writes
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>data/audit.log.1     ← previous
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>data/audit.log.2     ← older
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>...
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>data/audit.log.5     ← oldest kept
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>data/audit.log       ← active, current writes
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>data/audit.log.1     ← previous
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>data/audit.log.2     ← older
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>...
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>data/audit.log.5     ← oldest kept
 </code></pre></div>
 <p>When <code>audit.log</code> reaches 10 MB the Python <code>RotatingFileHandler</code> renames it
 to <code>audit.log.1</code> (shifting existing backups up) and opens a fresh
@@ -4685,7 +4730,7 @@ close those gaps:</p>
 </tbody>
 </table>
 <h3 id="signal-handling-and-graceful-shutdown">Signal handling and graceful shutdown<a class="headerlink" href="#signal-handling-and-graceful-shutdown" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>Ctrl-C / SIGINT / SIGTERM → flush buffer → close socket → exit
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>Ctrl-C / SIGINT / SIGTERM → flush buffer → close socket → exit
 </code></pre></div>
 <p>The buffer flush happens synchronously before the process exits so the last
 batch of messages is always written to disk.</p>
@@ -4693,7 +4738,7 @@ batch of messages is always written to disk.</p>
 <p><code>pm-audit-cli</code> is a read-only command-line tool for querying audit logs
 without shell pipelines or SQL knowledge. It reads JSONL files directly from
 disk and produces structured output.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pm-audit-cli<span class="w"> </span><span class="o">[</span>global-options<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>command-options<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-audit-cli<span class="w"> </span><span class="o">[</span>global-options<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>command-options<span class="o">]</span>
 </code></pre></div>
 <h3 id="why-a-separate-query-tool">Why a separate query tool<a class="headerlink" href="#why-a-separate-query-tool" title="Permanent link">&para;</a></h3>
 <p><code>pm-audit</code> is a long-running writer. Querying is a separate one-shot
@@ -4789,15 +4834,15 @@ on argument errors (exit <code>2</code>) or I/O failures (exit <code>1</code>).<
 <h3 id="rotated-log-discovery">Rotated log discovery<a class="headerlink" href="#rotated-log-discovery" title="Permanent link">&para;</a></h3>
 <p>When <code>--log-dir</code> is set (or defaulted from <code>--log-file</code>), <code>pm-audit-cli</code>
 automatically discovers rotated backup files:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>logs/audit.log.2.gz   ← oldest, read first
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>logs/audit.log.1      ← middle
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>logs/audit.log        ← newest, read last
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>logs/audit.log.2.gz   ← oldest, read first
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>logs/audit.log.1      ← middle
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>logs/audit.log        ← newest, read last
 </code></pre></div>
 <p>All results are returned in chronological order across all files.</p>
 <h3 id="events-general-event-search"><code>events</code> — General event search<a class="headerlink" href="#events-general-event-search" title="Permanent link">&para;</a></h3>
 <p>Search log entries by topic prefix, gateway, symbol, and time range. This is
 the most flexible command and the right starting point for any investigation.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
 </code></pre></div>
 <p><strong>Options:</strong></p>
 <table>
@@ -4897,35 +4942,35 @@ readable format. Rebuild the index after querying if you need the
 latest events; the index is never queried automatically for freshness.</p>
 </div>
 <p><strong>Examples:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># All events in the log (last 100)</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>pm-audit-cli<span class="w"> </span>events
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c1"># All fills for gateway GW01 on a specific date</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>order.fill<span class="w"> </span>--gateway<span class="w"> </span>GW01<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="c1"># All trade executions for AAPL in a two-hour window</span>
-<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>trade.executed<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T11:30:00+00:00
-<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>
-<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="c1"># Most recent 50 events across all topics</span>
-<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--limit<span class="w"> </span><span class="m">50</span><span class="w"> </span>--reverse
-<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>
-<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="c1"># All session phase transitions</span>
-<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>session.state
-<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a>
-<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a><span class="c1"># All order rejections</span>
-<a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>order.ack<span class="w"> </span>--symbol<span class="w"> </span>AAPL
-<a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a>
-<a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a><span class="c1"># Export all trade events as JSON for analysis</span>
-<a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>trade.executed<span class="w"> </span>--limit<span class="w"> </span><span class="m">5000</span><span class="w"> </span>&gt;<span class="w"> </span>trades.json
-<a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a>
-<a id="__codelineno-9-23" name="__codelineno-9-23" href="#__codelineno-9-23"></a><span class="c1"># Order submissions from a specific gateway in CSV format</span>
-<a id="__codelineno-9-24" name="__codelineno-9-24" href="#__codelineno-9-24"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>order.new<span class="w"> </span>--gateway<span class="w"> </span>GW01<span class="w"> </span>&gt;<span class="w"> </span>gw01_orders.csv
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># All events in the log (last 100)</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>pm-audit-cli<span class="w"> </span>events
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1"># All fills for gateway GW01 on a specific date</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>order.fill<span class="w"> </span>--gateway<span class="w"> </span>GW01<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="c1"># All trade executions for AAPL in a two-hour window</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>trade.executed<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T11:30:00+00:00
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="c1"># Most recent 50 events across all topics</span>
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--limit<span class="w"> </span><span class="m">50</span><span class="w"> </span>--reverse
+<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>
+<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="c1"># All session phase transitions</span>
+<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>session.state
+<a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a>
+<a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a><span class="c1"># All order rejections</span>
+<a id="__codelineno-10-18" name="__codelineno-10-18" href="#__codelineno-10-18"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>order.ack<span class="w"> </span>--symbol<span class="w"> </span>AAPL
+<a id="__codelineno-10-19" name="__codelineno-10-19" href="#__codelineno-10-19"></a>
+<a id="__codelineno-10-20" name="__codelineno-10-20" href="#__codelineno-10-20"></a><span class="c1"># Export all trade events as JSON for analysis</span>
+<a id="__codelineno-10-21" name="__codelineno-10-21" href="#__codelineno-10-21"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>trade.executed<span class="w"> </span>--limit<span class="w"> </span><span class="m">5000</span><span class="w"> </span>&gt;<span class="w"> </span>trades.json
+<a id="__codelineno-10-22" name="__codelineno-10-22" href="#__codelineno-10-22"></a>
+<a id="__codelineno-10-23" name="__codelineno-10-23" href="#__codelineno-10-23"></a><span class="c1"># Order submissions from a specific gateway in CSV format</span>
+<a id="__codelineno-10-24" name="__codelineno-10-24" href="#__codelineno-10-24"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>order.new<span class="w"> </span>--gateway<span class="w"> </span>GW01<span class="w"> </span>&gt;<span class="w"> </span>gw01_orders.csv
 </code></pre></div>
 <h3 id="orders-order-lifecycle-investigation"><code>orders</code> — Order lifecycle investigation<a class="headerlink" href="#orders-order-lifecycle-investigation" title="Permanent link">&para;</a></h3>
 <p>Find all audit events related to specific order IDs or filter by gateway and
 symbol to reconstruct an order's full journey through the engine.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
 </code></pre></div>
 <p><strong>Options:</strong></p>
 <table>
@@ -5026,28 +5071,28 @@ symbol to reconstruct an order's full journey through the engine.</p>
 </tbody>
 </table>
 <p><strong>Examples:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Full lifecycle of one specific order</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--id<span class="w"> </span>ORD-GW01-00142
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># Two orders side by side</span>
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--id<span class="w"> </span>ORD-GW01-00142<span class="w"> </span>--id<span class="w"> </span>ORD-GW01-00143
-<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
-<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="c1"># All order events for gateway GW01 today</span>
-<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--gateway<span class="w"> </span>GW01<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--limit<span class="w"> </span><span class="m">50</span>
-<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>
-<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="c1"># Order events for AAPL in a session</span>
-<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00
-<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>
-<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="c1"># Export one order's lifecycle as JSON for a support ticket</span>
-<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>orders<span class="w"> </span>--id<span class="w"> </span>ORD-GW01-00142
-<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a>
-<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a><span class="c1"># Order activity for market-maker in CSV</span>
-<a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>orders<span class="w"> </span>--gateway<span class="w"> </span>MM_AAPL_01<span class="w"> </span>&gt;<span class="w"> </span>mm_orders.csv
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># Full lifecycle of one specific order</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--id<span class="w"> </span>ORD-GW01-00142
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="c1"># Two orders side by side</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--id<span class="w"> </span>ORD-GW01-00142<span class="w"> </span>--id<span class="w"> </span>ORD-GW01-00143
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="c1"># All order events for gateway GW01 today</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--gateway<span class="w"> </span>GW01<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--limit<span class="w"> </span><span class="m">50</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="c1"># Order events for AAPL in a session</span>
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00
+<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>
+<a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a><span class="c1"># Export one order's lifecycle as JSON for a support ticket</span>
+<a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>orders<span class="w"> </span>--id<span class="w"> </span>ORD-GW01-00142
+<a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a>
+<a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a><span class="c1"># Order activity for market-maker in CSV</span>
+<a id="__codelineno-12-17" name="__codelineno-12-17" href="#__codelineno-12-17"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>orders<span class="w"> </span>--gateway<span class="w"> </span>MM_AAPL_01<span class="w"> </span>&gt;<span class="w"> </span>mm_orders.csv
 </code></pre></div>
 <h3 id="trades-trade-execution-search"><code>trades</code> — Trade execution search<a class="headerlink" href="#trades-trade-execution-search" title="Permanent link">&para;</a></h3>
 <p>Find <code>trade.executed</code> events with precise filtering on both sides of the
 trade, price ranges, and minimum quantities.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
 </code></pre></div>
 <p><strong>Options:</strong></p>
 <table>
@@ -5165,32 +5210,32 @@ trade, price ranges, and minimum quantities.</p>
 </tbody>
 </table>
 <p><strong>Examples:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># All trades for AAPL today</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="c1"># Block trades (&gt;= 1,000 shares) across all symbols</span>
-<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--min-qty<span class="w"> </span><span class="m">1000</span>
-<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>
-<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="c1"># Trades between two specific gateways</span>
-<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--buy-gateway<span class="w"> </span>GW01<span class="w"> </span>--sell-gateway<span class="w"> </span>MM_AAPL_01
-<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>
-<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="c1"># MSFT trades in a specific price band</span>
-<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--min-price<span class="w"> </span><span class="m">410</span>.0<span class="w"> </span>--max-price<span class="w"> </span><span class="m">420</span>.0
-<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a>
-<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a><span class="c1"># Most recent 20 trades</span>
-<a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--limit<span class="w"> </span><span class="m">20</span><span class="w"> </span>--reverse
-<a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a>
-<a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a><span class="c1"># Export full day as CSV for post-trade analysis</span>
-<a id="__codelineno-13-17" name="__codelineno-13-17" href="#__codelineno-13-17"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>trades<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--limit<span class="w"> </span><span class="m">10000</span><span class="w"> </span>&gt;<span class="w"> </span>day_trades.csv
-<a id="__codelineno-13-18" name="__codelineno-13-18" href="#__codelineno-13-18"></a>
-<a id="__codelineno-13-19" name="__codelineno-13-19" href="#__codelineno-13-19"></a><span class="c1"># All trades involving market maker</span>
-<a id="__codelineno-13-20" name="__codelineno-13-20" href="#__codelineno-13-20"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>trades<span class="w"> </span>--gateway<span class="w"> </span>MM_AAPL_01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1"># All trades for AAPL today</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="c1"># Block trades (&gt;= 1,000 shares) across all symbols</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--min-qty<span class="w"> </span><span class="m">1000</span>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="c1"># Trades between two specific gateways</span>
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--buy-gateway<span class="w"> </span>GW01<span class="w"> </span>--sell-gateway<span class="w"> </span>MM_AAPL_01
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a><span class="c1"># MSFT trades in a specific price band</span>
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--min-price<span class="w"> </span><span class="m">410</span>.0<span class="w"> </span>--max-price<span class="w"> </span><span class="m">420</span>.0
+<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a>
+<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a><span class="c1"># Most recent 20 trades</span>
+<a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--limit<span class="w"> </span><span class="m">20</span><span class="w"> </span>--reverse
+<a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a>
+<a id="__codelineno-14-16" name="__codelineno-14-16" href="#__codelineno-14-16"></a><span class="c1"># Export full day as CSV for post-trade analysis</span>
+<a id="__codelineno-14-17" name="__codelineno-14-17" href="#__codelineno-14-17"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>trades<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--limit<span class="w"> </span><span class="m">10000</span><span class="w"> </span>&gt;<span class="w"> </span>day_trades.csv
+<a id="__codelineno-14-18" name="__codelineno-14-18" href="#__codelineno-14-18"></a>
+<a id="__codelineno-14-19" name="__codelineno-14-19" href="#__codelineno-14-19"></a><span class="c1"># All trades involving market maker</span>
+<a id="__codelineno-14-20" name="__codelineno-14-20" href="#__codelineno-14-20"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>trades<span class="w"> </span>--gateway<span class="w"> </span>MM_AAPL_01
 </code></pre></div>
 <h3 id="topics-topic-discovery-and-statistics"><code>topics</code> — Topic discovery and statistics<a class="headerlink" href="#topics-topic-discovery-and-statistics" title="Permanent link">&para;</a></h3>
 <p>List all topics present in the audit logs with event counts and first/last
 occurrence timestamps. Useful for understanding what happened in a session
 and for checking whether expected event types were produced.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>pm-audit-cli<span class="w"> </span>topics<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>pm-audit-cli<span class="w"> </span>topics<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
 </code></pre></div>
 <p><strong>Options:</strong></p>
 <table>
@@ -5257,28 +5302,28 @@ and for checking whether expected event types were produced.</p>
 </tbody>
 </table>
 <p><strong>Examples:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1"># All topics in the log, most frequent first</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>pm-audit-cli<span class="w"> </span>topics
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="c1"># Topics on a specific trading date</span>
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>pm-audit-cli<span class="w"> </span>topics<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
-<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>
-<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="c1"># Order-related topics only, sorted alphabetically</span>
-<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>pm-audit-cli<span class="w"> </span>topics<span class="w"> </span>--prefix<span class="w"> </span>order.<span class="w"> </span>--sort<span class="w"> </span>alpha
-<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a>
-<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="c1"># What happened during the opening auction?</span>
-<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a>pm-audit-cli<span class="w"> </span>topics<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:00:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00
-<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a>
-<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a><span class="c1"># Export all topic stats as JSON</span>
-<a id="__codelineno-15-14" name="__codelineno-15-14" href="#__codelineno-15-14"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>topics
-<a id="__codelineno-15-15" name="__codelineno-15-15" href="#__codelineno-15-15"></a>
-<a id="__codelineno-15-16" name="__codelineno-15-16" href="#__codelineno-15-16"></a><span class="c1"># Check that trades were produced today</span>
-<a id="__codelineno-15-17" name="__codelineno-15-17" href="#__codelineno-15-17"></a>pm-audit-cli<span class="w"> </span>topics<span class="w"> </span>--prefix<span class="w"> </span>trade.<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="c1"># All topics in the log, most frequent first</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>pm-audit-cli<span class="w"> </span>topics
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="c1"># Topics on a specific trading date</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>pm-audit-cli<span class="w"> </span>topics<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="c1"># Order-related topics only, sorted alphabetically</span>
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>pm-audit-cli<span class="w"> </span>topics<span class="w"> </span>--prefix<span class="w"> </span>order.<span class="w"> </span>--sort<span class="w"> </span>alpha
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>
+<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="c1"># What happened during the opening auction?</span>
+<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>pm-audit-cli<span class="w"> </span>topics<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:00:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00
+<a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a>
+<a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a><span class="c1"># Export all topic stats as JSON</span>
+<a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>topics
+<a id="__codelineno-16-15" name="__codelineno-16-15" href="#__codelineno-16-15"></a>
+<a id="__codelineno-16-16" name="__codelineno-16-16" href="#__codelineno-16-16"></a><span class="c1"># Check that trades were produced today</span>
+<a id="__codelineno-16-17" name="__codelineno-16-17" href="#__codelineno-16-17"></a>pm-audit-cli<span class="w"> </span>topics<span class="w"> </span>--prefix<span class="w"> </span>trade.<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
 </code></pre></div>
 <h3 id="gateways-gateway-activity-summary"><code>gateways</code> — Gateway activity summary<a class="headerlink" href="#gateways-gateway-activity-summary" title="Permanent link">&para;</a></h3>
 <p>List all gateways seen in the audit logs and show a summary of their
 activity: order submissions, fills, and trades participated in.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-audit-cli<span class="w"> </span>gateways<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>pm-audit-cli<span class="w"> </span>gateways<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
 </code></pre></div>
 <p><strong>Options:</strong></p>
 <table>
@@ -5354,31 +5399,31 @@ activity: order submissions, fills, and trades participated in.</p>
 <p>Results are sorted by total event count descending — the most active gateway
 appears first.</p>
 <p><strong>Examples:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="c1"># All gateways in the logs</span>
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>pm-audit-cli<span class="w"> </span>gateways
-<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>
-<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="c1"># Active gateways on a specific date</span>
-<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>pm-audit-cli<span class="w"> </span>gateways<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
-<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>
-<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="c1"># Only gateways with meaningful activity</span>
-<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>pm-audit-cli<span class="w"> </span>gateways<span class="w"> </span>--min-events<span class="w"> </span><span class="m">10</span>
-<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a>
-<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="c1"># Gateway activity in the first hour of trading</span>
-<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a>pm-audit-cli<span class="w"> </span>gateways<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T10:30:00+00:00
-<a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a>
-<a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a><span class="c1"># Export as JSON for automation</span>
-<a id="__codelineno-17-14" name="__codelineno-17-14" href="#__codelineno-17-14"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>gateways
-<a id="__codelineno-17-15" name="__codelineno-17-15" href="#__codelineno-17-15"></a>
-<a id="__codelineno-17-16" name="__codelineno-17-16" href="#__codelineno-17-16"></a><span class="c1"># Check which gateways connected during the closing auction</span>
-<a id="__codelineno-17-17" name="__codelineno-17-17" href="#__codelineno-17-17"></a>pm-audit-cli<span class="w"> </span>gateways<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-17-18" name="__codelineno-17-18" href="#__codelineno-17-18"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T15:30:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T16:00:00+00:00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="c1"># All gateways in the logs</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>pm-audit-cli<span class="w"> </span>gateways
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="c1"># Active gateways on a specific date</span>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>pm-audit-cli<span class="w"> </span>gateways<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="c1"># Only gateways with meaningful activity</span>
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>pm-audit-cli<span class="w"> </span>gateways<span class="w"> </span>--min-events<span class="w"> </span><span class="m">10</span>
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a>
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a><span class="c1"># Gateway activity in the first hour of trading</span>
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a>pm-audit-cli<span class="w"> </span>gateways<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T10:30:00+00:00
+<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a>
+<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a><span class="c1"># Export as JSON for automation</span>
+<a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>gateways
+<a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a>
+<a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a><span class="c1"># Check which gateways connected during the closing auction</span>
+<a id="__codelineno-18-17" name="__codelineno-18-17" href="#__codelineno-18-17"></a>pm-audit-cli<span class="w"> </span>gateways<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-18-18" name="__codelineno-18-18" href="#__codelineno-18-18"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T15:30:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T16:00:00+00:00
 </code></pre></div>
 <h3 id="timeline-chronological-event-stream"><code>timeline</code> — Chronological event stream<a class="headerlink" href="#timeline-chronological-event-stream" title="Permanent link">&para;</a></h3>
 <p>Show a raw chronological stream of events for session replay and forensic
 investigation. Unlike <code>events</code>, the <code>timeline</code> command exposes the full JSON
 payload as a single column, making it suitable for detailed reconstruction of
 what happened over a time window.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>pm-audit-cli<span class="w"> </span>timeline<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>pm-audit-cli<span class="w"> </span>timeline<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
 </code></pre></div>
 <p><strong>Options:</strong></p>
 <table>
@@ -5454,38 +5499,38 @@ what happened over a time window.</p>
 </tbody>
 </table>
 <p><strong>Examples:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="c1"># Opening 5 minutes of trading</span>
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>pm-audit-cli<span class="w"> </span>timeline<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T09:35:00+00:00
-<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>
-<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="c1"># Gateway activity in a 10-minute window</span>
-<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>pm-audit-cli<span class="w"> </span>timeline<span class="w"> </span>--gateway<span class="w"> </span>GW01<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T14:00:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T14:10:00+00:00
-<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>
-<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a><span class="c1"># Symbol-focused replay with higher limit</span>
-<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a>pm-audit-cli<span class="w"> </span>timeline<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T16:00:00+00:00<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a><span class="w">  </span>--limit<span class="w"> </span><span class="m">2000</span>
-<a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a>
-<a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a><span class="c1"># All session state changes across the day (timeline has no --date flag;</span>
-<a id="__codelineno-19-15" name="__codelineno-19-15" href="#__codelineno-19-15"></a><span class="c1"># use --from/--to to bound a trading day instead)</span>
-<a id="__codelineno-19-16" name="__codelineno-19-16" href="#__codelineno-19-16"></a>pm-audit-cli<span class="w"> </span>timeline<span class="w"> </span>--topic<span class="w"> </span>session.state<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-19-17" name="__codelineno-19-17" href="#__codelineno-19-17"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T00:00:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T23:59:59+00:00
-<a id="__codelineno-19-18" name="__codelineno-19-18" href="#__codelineno-19-18"></a>
-<a id="__codelineno-19-19" name="__codelineno-19-19" href="#__codelineno-19-19"></a><span class="c1"># Only trades and fills in the closing auction</span>
-<a id="__codelineno-19-20" name="__codelineno-19-20" href="#__codelineno-19-20"></a>pm-audit-cli<span class="w"> </span>timeline<span class="w"> </span>--topic<span class="w"> </span>trade.<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-19-21" name="__codelineno-19-21" href="#__codelineno-19-21"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T15:30:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T16:00:00+00:00
-<a id="__codelineno-19-22" name="__codelineno-19-22" href="#__codelineno-19-22"></a>
-<a id="__codelineno-19-23" name="__codelineno-19-23" href="#__codelineno-19-23"></a><span class="c1"># Export for external replay tooling</span>
-<a id="__codelineno-19-24" name="__codelineno-19-24" href="#__codelineno-19-24"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>timeline<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-19-25" name="__codelineno-19-25" href="#__codelineno-19-25"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T16:00:00+00:00<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-19-26" name="__codelineno-19-26" href="#__codelineno-19-26"></a><span class="w">  </span>--limit<span class="w"> </span><span class="m">100000</span><span class="w"> </span>&gt;<span class="w"> </span>session_replay.json
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="c1"># Opening 5 minutes of trading</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>pm-audit-cli<span class="w"> </span>timeline<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T09:35:00+00:00
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="c1"># Gateway activity in a 10-minute window</span>
+<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a>pm-audit-cli<span class="w"> </span>timeline<span class="w"> </span>--gateway<span class="w"> </span>GW01<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T14:00:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T14:10:00+00:00
+<a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a>
+<a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a><span class="c1"># Symbol-focused replay with higher limit</span>
+<a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a>pm-audit-cli<span class="w"> </span>timeline<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T16:00:00+00:00<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-12" name="__codelineno-20-12" href="#__codelineno-20-12"></a><span class="w">  </span>--limit<span class="w"> </span><span class="m">2000</span>
+<a id="__codelineno-20-13" name="__codelineno-20-13" href="#__codelineno-20-13"></a>
+<a id="__codelineno-20-14" name="__codelineno-20-14" href="#__codelineno-20-14"></a><span class="c1"># All session state changes across the day (timeline has no --date flag;</span>
+<a id="__codelineno-20-15" name="__codelineno-20-15" href="#__codelineno-20-15"></a><span class="c1"># use --from/--to to bound a trading day instead)</span>
+<a id="__codelineno-20-16" name="__codelineno-20-16" href="#__codelineno-20-16"></a>pm-audit-cli<span class="w"> </span>timeline<span class="w"> </span>--topic<span class="w"> </span>session.state<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-17" name="__codelineno-20-17" href="#__codelineno-20-17"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T00:00:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T23:59:59+00:00
+<a id="__codelineno-20-18" name="__codelineno-20-18" href="#__codelineno-20-18"></a>
+<a id="__codelineno-20-19" name="__codelineno-20-19" href="#__codelineno-20-19"></a><span class="c1"># Only trades and fills in the closing auction</span>
+<a id="__codelineno-20-20" name="__codelineno-20-20" href="#__codelineno-20-20"></a>pm-audit-cli<span class="w"> </span>timeline<span class="w"> </span>--topic<span class="w"> </span>trade.<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-21" name="__codelineno-20-21" href="#__codelineno-20-21"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T15:30:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T16:00:00+00:00
+<a id="__codelineno-20-22" name="__codelineno-20-22" href="#__codelineno-20-22"></a>
+<a id="__codelineno-20-23" name="__codelineno-20-23" href="#__codelineno-20-23"></a><span class="c1"># Export for external replay tooling</span>
+<a id="__codelineno-20-24" name="__codelineno-20-24" href="#__codelineno-20-24"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>timeline<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-25" name="__codelineno-20-25" href="#__codelineno-20-25"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T16:00:00+00:00<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-26" name="__codelineno-20-26" href="#__codelineno-20-26"></a><span class="w">  </span>--limit<span class="w"> </span><span class="m">100000</span><span class="w"> </span>&gt;<span class="w"> </span>session_replay.json
 </code></pre></div>
 <h3 id="stats-log-file-statistics"><code>stats</code> — Log file statistics<a class="headerlink" href="#stats-log-file-statistics" title="Permanent link">&para;</a></h3>
 <p>Show a health-check summary of the audit log files: total events, file sizes,
 date range, and counts of unique topics and gateways. Run this to confirm
 that <code>pm-audit</code> has been recording as expected.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pm-audit-cli<span class="w"> </span>stats<span class="w"> </span><span class="o">[</span>--verbose<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>pm-audit-cli<span class="w"> </span>stats<span class="w"> </span><span class="o">[</span>--verbose<span class="o">]</span>
 </code></pre></div>
 <p><strong>Options:</strong></p>
 <table>
@@ -5505,17 +5550,6 @@ that <code>pm-audit</code> has been recording as expected.</p>
 </tbody>
 </table>
 <p><strong>Example output (default):</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>Audit Log Statistics
-<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>  Total events:       45,678
-<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>  Total size:         12.4 MB
-<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>  Log files:          3
-<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a>  Oldest event:       2026-07-01T09:30:00.123+00:00
-<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a>  Newest event:       2026-07-08T15:59:59.987+00:00
-<a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a>  Topics seen:        24
-<a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a>  Gateways seen:      5
-</code></pre></div>
-<p><strong>Example output (<code>--verbose</code>):</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>Audit Log Statistics
 <a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 <a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>  Total events:       45,678
@@ -5525,27 +5559,38 @@ that <code>pm-audit</code> has been recording as expected.</p>
 <a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a>  Newest event:       2026-07-08T15:59:59.987+00:00
 <a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a>  Topics seen:        24
 <a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a>  Gateways seen:      5
-<a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a>
-<a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a>  Per-file breakdown:
-<a id="__codelineno-22-12" name="__codelineno-22-12" href="#__codelineno-22-12"></a>    data/audit.log.2  12,000 events  4.1 MB
-<a id="__codelineno-22-13" name="__codelineno-22-13" href="#__codelineno-22-13"></a>    data/audit.log.1  18,234 events  6.2 MB
-<a id="__codelineno-22-14" name="__codelineno-22-14" href="#__codelineno-22-14"></a>    data/audit.log     15,444 events  2.1 MB
+</code></pre></div>
+<p><strong>Example output (<code>--verbose</code>):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>Audit Log Statistics
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>  Total events:       45,678
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>  Total size:         12.4 MB
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>  Log files:          3
+<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a>  Oldest event:       2026-07-01T09:30:00.123+00:00
+<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a>  Newest event:       2026-07-08T15:59:59.987+00:00
+<a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a>  Topics seen:        24
+<a id="__codelineno-23-9" name="__codelineno-23-9" href="#__codelineno-23-9"></a>  Gateways seen:      5
+<a id="__codelineno-23-10" name="__codelineno-23-10" href="#__codelineno-23-10"></a>
+<a id="__codelineno-23-11" name="__codelineno-23-11" href="#__codelineno-23-11"></a>  Per-file breakdown:
+<a id="__codelineno-23-12" name="__codelineno-23-12" href="#__codelineno-23-12"></a>    data/audit.log.2  12,000 events  4.1 MB
+<a id="__codelineno-23-13" name="__codelineno-23-13" href="#__codelineno-23-13"></a>    data/audit.log.1  18,234 events  6.2 MB
+<a id="__codelineno-23-14" name="__codelineno-23-14" href="#__codelineno-23-14"></a>    data/audit.log     15,444 events  2.1 MB
 </code></pre></div>
 <p><strong>Examples:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="c1"># Quick health check</span>
-<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>pm-audit-cli<span class="w"> </span>stats
-<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>
-<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="c1"># Full breakdown including per-file stats</span>
-<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>pm-audit-cli<span class="w"> </span>stats<span class="w"> </span>--verbose
-<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a>
-<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a><span class="c1"># Check a specific log file location</span>
-<a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a>pm-audit-cli<span class="w"> </span>--log-file<span class="w"> </span>/mnt/archive/2026-07-01/audit.log<span class="w"> </span>stats
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="c1"># Quick health check</span>
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>pm-audit-cli<span class="w"> </span>stats
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="c1"># Full breakdown including per-file stats</span>
+<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>pm-audit-cli<span class="w"> </span>stats<span class="w"> </span>--verbose
+<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a>
+<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a><span class="c1"># Check a specific log file location</span>
+<a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a>pm-audit-cli<span class="w"> </span>--log-file<span class="w"> </span>/mnt/archive/2026-07-01/audit.log<span class="w"> </span>stats
 </code></pre></div>
 <h3 id="index-build-or-update-the-sqlite-index"><code>index</code> — Build or update the SQLite index<a class="headerlink" href="#index-build-or-update-the-sqlite-index" title="Permanent link">&para;</a></h3>
 <p>For large audit histories or frequent complex queries, <code>pm-audit-cli</code> can
 build an optional SQLite index from the JSONL log files. Once built, the
 <code>events</code> command uses it automatically for significantly faster response.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
 </code></pre></div>
 <p><strong>Options:</strong></p>
 <table>
@@ -5639,25 +5684,25 @@ is kept in a <code>payload</code> column so no information is lost.</p>
 it automatically. Override with <code>--use-index PATH</code> or point at a different
 index location.</p>
 <p><strong>Examples:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="c1"># Build index for the last 7 days</span>
-<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span>--days<span class="w"> </span><span class="m">7</span>
-<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>
-<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="c1"># Build complete index from all log files</span>
-<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span>--rebuild
-<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>
-<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a><span class="c1"># Incremental update — only adds entries not yet in the index</span>
-<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span>--incremental
-<a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a>
-<a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a><span class="c1"># Index a specific date range</span>
-<a id="__codelineno-25-11" name="__codelineno-25-11" href="#__codelineno-25-11"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-25-12" name="__codelineno-25-12" href="#__codelineno-25-12"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-01T00:00:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T23:59:59+00:00
-<a id="__codelineno-25-13" name="__codelineno-25-13" href="#__codelineno-25-13"></a>
-<a id="__codelineno-25-14" name="__codelineno-25-14" href="#__codelineno-25-14"></a><span class="c1"># Build index to a custom location</span>
-<a id="__codelineno-25-15" name="__codelineno-25-15" href="#__codelineno-25-15"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span>--output<span class="w"> </span>/tmp/session_idx.db<span class="w"> </span>--rebuild
-<a id="__codelineno-25-16" name="__codelineno-25-16" href="#__codelineno-25-16"></a>
-<a id="__codelineno-25-17" name="__codelineno-25-17" href="#__codelineno-25-17"></a><span class="c1"># Use a non-default index when querying</span>
-<a id="__codelineno-25-18" name="__codelineno-25-18" href="#__codelineno-25-18"></a>pm-audit-cli<span class="w"> </span>--use-index<span class="w"> </span>/tmp/session_idx.db<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-25-19" name="__codelineno-25-19" href="#__codelineno-25-19"></a><span class="w">  </span>events<span class="w"> </span>--topic<span class="w"> </span>trade.executed<span class="w"> </span>--limit<span class="w"> </span><span class="m">100</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="c1"># Build index for the last 7 days</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span>--days<span class="w"> </span><span class="m">7</span>
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="c1"># Build complete index from all log files</span>
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span>--rebuild
+<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a>
+<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a><span class="c1"># Incremental update — only adds entries not yet in the index</span>
+<a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span>--incremental
+<a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a>
+<a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a><span class="c1"># Index a specific date range</span>
+<a id="__codelineno-26-11" name="__codelineno-26-11" href="#__codelineno-26-11"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-26-12" name="__codelineno-26-12" href="#__codelineno-26-12"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-01T00:00:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T23:59:59+00:00
+<a id="__codelineno-26-13" name="__codelineno-26-13" href="#__codelineno-26-13"></a>
+<a id="__codelineno-26-14" name="__codelineno-26-14" href="#__codelineno-26-14"></a><span class="c1"># Build index to a custom location</span>
+<a id="__codelineno-26-15" name="__codelineno-26-15" href="#__codelineno-26-15"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span>--output<span class="w"> </span>/tmp/session_idx.db<span class="w"> </span>--rebuild
+<a id="__codelineno-26-16" name="__codelineno-26-16" href="#__codelineno-26-16"></a>
+<a id="__codelineno-26-17" name="__codelineno-26-17" href="#__codelineno-26-17"></a><span class="c1"># Use a non-default index when querying</span>
+<a id="__codelineno-26-18" name="__codelineno-26-18" href="#__codelineno-26-18"></a>pm-audit-cli<span class="w"> </span>--use-index<span class="w"> </span>/tmp/session_idx.db<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-26-19" name="__codelineno-26-19" href="#__codelineno-26-19"></a><span class="w">  </span>events<span class="w"> </span>--topic<span class="w"> </span>trade.executed<span class="w"> </span>--limit<span class="w"> </span><span class="m">100</span>
 </code></pre></div>
 <div class="admonition tip">
 <p class="admonition-title">When to build an index</p>
@@ -5671,54 +5716,54 @@ index location.</p>
 </div>
 <h2 id="cookbook-common-audit-workflows">Cookbook — Common Audit Workflows<a class="headerlink" href="#cookbook-common-audit-workflows" title="Permanent link">&para;</a></h2>
 <h3 id="investigate-a-specific-order">Investigate a specific order<a class="headerlink" href="#investigate-a-specific-order" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="c1"># Find all events for order ORD-GW01-00142</span>
-<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--id<span class="w"> </span>ORD-GW01-00142
-<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>
-<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="c1"># Same as JSON (attach to support ticket)</span>
-<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>orders<span class="w"> </span>--id<span class="w"> </span>ORD-GW01-00142
-<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a>
-<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a><span class="c1"># Find by gateway and time window (when order ID is not known)</span>
-<a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--gateway<span class="w"> </span>GW01<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T09:35:00+00:00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="c1"># Find all events for order ORD-GW01-00142</span>
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--id<span class="w"> </span>ORD-GW01-00142
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>
+<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="c1"># Same as JSON (attach to support ticket)</span>
+<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>orders<span class="w"> </span>--id<span class="w"> </span>ORD-GW01-00142
+<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>
+<a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a><span class="c1"># Find by gateway and time window (when order ID is not known)</span>
+<a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--gateway<span class="w"> </span>GW01<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-27-9" name="__codelineno-27-9" href="#__codelineno-27-9"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T09:35:00+00:00
 </code></pre></div>
 <h3 id="reconstruct-a-trade">Reconstruct a trade<a class="headerlink" href="#reconstruct-a-trade" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="c1"># Find trade details by symbol and time</span>
-<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T10:15:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T10:15:01+00:00
-<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>
-<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a><span class="c1"># Find all large trades above a price threshold</span>
-<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--min-qty<span class="w"> </span><span class="m">500</span><span class="w"> </span>--min-price<span class="w"> </span><span class="m">150</span>.0<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="c1"># Find trade details by symbol and time</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T10:15:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T10:15:01+00:00
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>
+<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="c1"># Find all large trades above a price threshold</span>
+<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--min-qty<span class="w"> </span><span class="m">500</span><span class="w"> </span>--min-price<span class="w"> </span><span class="m">150</span>.0<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
 </code></pre></div>
 <h3 id="verify-session-phases-fired-correctly">Verify session phases fired correctly<a class="headerlink" href="#verify-session-phases-fired-correctly" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="c1"># See all session transitions in order</span>
-<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>session.state<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
-<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>
-<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="c1"># Timeline around market open</span>
-<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>pm-audit-cli<span class="w"> </span>timeline<span class="w"> </span>--topic<span class="w"> </span>session.<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:25:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T09:35:00+00:00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="c1"># See all session transitions in order</span>
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>session.state<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="c1"># Timeline around market open</span>
+<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>pm-audit-cli<span class="w"> </span>timeline<span class="w"> </span>--topic<span class="w"> </span>session.<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:25:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T09:35:00+00:00
 </code></pre></div>
 <h3 id="identify-the-most-active-gateway">Identify the most active gateway<a class="headerlink" href="#identify-the-most-active-gateway" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>pm-audit-cli<span class="w"> </span>gateways<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>pm-audit-cli<span class="w"> </span>gateways<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
 </code></pre></div>
 <h3 id="check-log-health-before-end-of-day">Check log health before end of day<a class="headerlink" href="#check-log-health-before-end-of-day" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>pm-audit-cli<span class="w"> </span>stats<span class="w"> </span>--verbose
-<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>pm-audit-cli<span class="w"> </span>topics<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--sort<span class="w"> </span>count<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-10
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>pm-audit-cli<span class="w"> </span>stats<span class="w"> </span>--verbose
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>pm-audit-cli<span class="w"> </span>topics<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--sort<span class="w"> </span>count<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-10
 </code></pre></div>
 <h3 id="export-a-full-session-for-offline-analysis">Export a full session for offline analysis<a class="headerlink" href="#export-a-full-session-for-offline-analysis" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="c1"># Build index first for speed</span>
-<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span>--rebuild
-<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>
-<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="c1"># Export all trades</span>
-<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>trades<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--limit<span class="w"> </span><span class="m">50000</span><span class="w"> </span>&gt;<span class="w"> </span>trades.csv
-<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a>
-<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a><span class="c1"># Export all order events for gateway GW01</span>
-<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>order.<span class="w"> </span>--gateway<span class="w"> </span>GW01<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a><span class="w">  </span>--date<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--limit<span class="w"> </span><span class="m">50000</span><span class="w"> </span>&gt;<span class="w"> </span>gw01_orders.json
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="c1"># Build index first for speed</span>
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span>--rebuild
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="c1"># Export all trades</span>
+<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>trades<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--limit<span class="w"> </span><span class="m">50000</span><span class="w"> </span>&gt;<span class="w"> </span>trades.csv
+<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a>
+<a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a><span class="c1"># Export all order events for gateway GW01</span>
+<a id="__codelineno-32-8" name="__codelineno-32-8" href="#__codelineno-32-8"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>order.<span class="w"> </span>--gateway<span class="w"> </span>GW01<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-32-9" name="__codelineno-32-9" href="#__codelineno-32-9"></a><span class="w">  </span>--date<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--limit<span class="w"> </span><span class="m">50000</span><span class="w"> </span>&gt;<span class="w"> </span>gw01_orders.json
 </code></pre></div>
 <h3 id="filter-across-rotated-log-backups">Filter across rotated log backups<a class="headerlink" href="#filter-across-rotated-log-backups" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="c1"># Pass the directory; pm-audit-cli discovers audit.log, audit.log.1, etc.</span>
-<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>pm-audit-cli<span class="w"> </span>--log-dir<span class="w"> </span>data/<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a><span class="w">  </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--limit<span class="w"> </span><span class="m">10000</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="c1"># Pass the directory; pm-audit-cli discovers audit.log, audit.log.1, etc.</span>
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>pm-audit-cli<span class="w"> </span>--log-dir<span class="w"> </span>data/<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a><span class="w">  </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--limit<span class="w"> </span><span class="m">10000</span>
 </code></pre></div>
 <h2 id="error-handling">Error Handling<a class="headerlink" href="#error-handling" title="Permanent link">&para;</a></h2>
 <table>

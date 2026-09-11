@@ -12833,6 +12833,13 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
+<td><code>symbol</code></td>
+<td><code>string</code></td>
+<td>defaults to <code>''</code></td>
+<td>max_len 16</td>
+<td>Instrument the quote was for. <code>order.ack</code> has always carried this; <code>quote.ack</code> did not, which left every market-making client to work out for itself which symbol an ack belonged to -- the topic is per-gateway, not per-symbol. Empty only on a rejection raised before the symbol was known (a malformed payload, or a missing SYM).</td>
+</tr>
+<tr>
 <td><code>reason</code></td>
 <td><code>string</code></td>
 <td>defaults to <code>''</code></td>
@@ -15204,6 +15211,13 @@ wire-format specification in the
 <td>required</td>
 <td>max_len 64</td>
 <td></td>
+</tr>
+<tr>
+<td><code>price</code></td>
+<td><code>float</code></td>
+<td>omitted when unset</td>
+<td>unit <code>display_price</code></td>
+<td>Leg limit price in display money, as it stood at removal. Mirrors <code>QuoteLeg.price</code> so an ACTIVE row and a RECENT row for the same leg read the same; null when the order's price was unavailable at snapshot time.</td>
 </tr>
 <tr>
 <td><code>qty</code></td>
