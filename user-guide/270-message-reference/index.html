@@ -3803,6 +3803,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#systemrecovery_item" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        system.recovery_item
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#systemdiagnostic" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7633,6 +7644,11 @@ wire-format specification in the
 <td><code>api_gateway</code>, <code>gateway</code></td>
 </tr>
 <tr>
+<td><code>system.recovery_item</code></td>
+<td><code>system</code></td>
+<td><code>engine</code></td>
+</tr>
+<tr>
 <td><code>system.reference.{gateway_id}</code></td>
 <td><code>system</code></td>
 <td><code>engine</code></td>
@@ -7765,6 +7781,13 @@ wire-format specification in the
 <td>Outcome, on accepted kill-switch actions only.</td>
 </tr>
 <tr>
+<td><code>cancelled_order_ids</code></td>
+<td>list of <code>string</code></td>
+<td>omitted when empty</td>
+<td>—</td>
+<td>AR-0.5: the order ids counted in cancelled_orders, mirroring risk.kill_switch_ack (and friends) — see risk.yaml for why this is the right key even for the quote-cancellation counterpart below.</td>
+</tr>
+<tr>
 <td><code>cancelled_quotes</code></td>
 <td><code>int</code></td>
 <td>omitted when unset</td>
@@ -7772,11 +7795,25 @@ wire-format specification in the
 <td>Outcome, on accepted kill-switch actions only.</td>
 </tr>
 <tr>
+<td><code>cancelled_quote_order_ids</code></td>
+<td>list of <code>string</code></td>
+<td>omitted when empty</td>
+<td>—</td>
+<td>AR-0.5: the order ids counted in cancelled_quotes.</td>
+</tr>
+<tr>
 <td><code>affected_gateways</code></td>
 <td><code>int</code></td>
 <td>omitted when unset</td>
 <td>ge 0, unit <code>dimensionless</code></td>
 <td>Outcome, on an accepted <code>kill_switch.global</code> only.</td>
+</tr>
+<tr>
+<td><code>affected_gateway_ids</code></td>
+<td>list of <code>string</code></td>
+<td>omitted when empty</td>
+<td>—</td>
+<td>AR-0.5: the gateway ids counted in affected_gateways.</td>
 </tr>
 </tbody>
 </table>
@@ -8146,6 +8183,13 @@ wire-format specification in the
 <td>The tick scale the display prices here were produced at. Subscribers that store prices exactly need it to convert back to integer ticks; without it they must guess, and guessing 2 for a 4-decimal symbol rounds the price away.</td>
 </tr>
 <tr>
+<td><code>ts_ns</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>ge 0, unit <code>epoch_nanos</code></td>
+<td>When this snapshot was produced (AR-0.4). Previously book.{symbol} carried no time field at all, so nothing could establish whether a snapshot reflects a given trade; ordering against trade.executed.ts_ns (and recent_trades[].ts_ns, which this mirrors) was impossible. Monotonic per edumatcher.models.clock.now_ns().</td>
+</tr>
+<tr>
 <td><code>bids</code></td>
 <td>list of <a href="#booklevel"><code>BookLevel</code></a></td>
 <td>required</td>
@@ -8250,6 +8294,13 @@ wire-format specification in the
 <td>required</td>
 <td>max_len 16</td>
 <td></td>
+</tr>
+<tr>
+<td><code>ts_ns</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>ge 0, unit <code>epoch_nanos</code></td>
+<td>When this depth snapshot was produced (AR-0.4). Previously depth.{symbol} carried no time field at all. Monotonic per edumatcher.models.clock.now_ns().</td>
 </tr>
 <tr>
 <td><code>mid_price_ticks</code></td>
@@ -8810,10 +8861,10 @@ wire-format specification in the
 <td>The discriminator. IndexHistory.query drops any other value with a warning, so an unknown type never reaches the wire.</td>
 </tr>
 <tr>
-<td><code>timestamp</code></td>
-<td><code>float</code></td>
+<td><code>ts_ns</code></td>
+<td><code>int</code></td>
 <td>required</td>
-<td>unit <code>epoch_seconds</code></td>
+<td>unit <code>epoch_nanos</code></td>
 <td></td>
 </tr>
 <tr>
@@ -8990,10 +9041,10 @@ wire-format specification in the
 <td>Mirrors session.state; a plain string there and here.</td>
 </tr>
 <tr>
-<td><code>timestamp</code></td>
-<td><code>float</code></td>
+<td><code>ts_ns</code></td>
+<td><code>int</code></td>
 <td>required</td>
-<td>unit <code>epoch_seconds</code></td>
+<td>unit <code>epoch_nanos</code></td>
 <td></td>
 </tr>
 <tr>
@@ -9042,17 +9093,17 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
-<td><code>from_ts</code></td>
-<td><code>float</code></td>
+<td><code>from_ts_ns</code></td>
+<td><code>int</code></td>
 <td>required</td>
-<td>unit <code>epoch_seconds</code></td>
+<td>unit <code>epoch_nanos</code></td>
 <td></td>
 </tr>
 <tr>
-<td><code>to_ts</code></td>
-<td><code>float</code></td>
+<td><code>to_ts_ns</code></td>
+<td><code>int</code></td>
 <td>required</td>
-<td>unit <code>epoch_seconds</code></td>
+<td>unit <code>epoch_nanos</code></td>
 <td></td>
 </tr>
 <tr>
@@ -9366,10 +9417,10 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
-<td><code>timestamp</code></td>
-<td><code>float</code></td>
+<td><code>ts_ns</code></td>
+<td><code>int</code></td>
 <td>required</td>
-<td>unit <code>epoch_seconds</code></td>
+<td>unit <code>epoch_nanos</code></td>
 <td></td>
 </tr>
 <tr>
@@ -9445,10 +9496,10 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
-<td><code>timestamp</code></td>
-<td><code>float</code></td>
+<td><code>ts_ns</code></td>
+<td><code>int</code></td>
 <td>required</td>
-<td>unit <code>epoch_seconds</code></td>
+<td>unit <code>epoch_nanos</code></td>
 <td></td>
 </tr>
 <tr>
@@ -9524,10 +9575,10 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
-<td><code>timestamp</code></td>
-<td><code>float</code></td>
+<td><code>ts_ns</code></td>
+<td><code>int</code></td>
 <td>required</td>
-<td>unit <code>epoch_seconds</code></td>
+<td>unit <code>epoch_nanos</code></td>
 <td></td>
 </tr>
 <tr>
@@ -9616,10 +9667,10 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
-<td><code>timestamp</code></td>
-<td><code>float</code></td>
+<td><code>ts_ns</code></td>
+<td><code>int</code></td>
 <td>required</td>
-<td>unit <code>epoch_seconds</code></td>
+<td>unit <code>epoch_nanos</code></td>
 <td></td>
 </tr>
 </tbody>
@@ -11000,7 +11051,7 @@ wire-format specification in the
 </tbody>
 </table>
 <h4 id="orderdisplay"><code>OrderDisplay</code><a class="headerlink" href="#orderdisplay" title="Permanent link">&para;</a></h4>
-<p>One resting order as the engine reports it in an <code>order.orders</code> snapshot, in display units. It is <code>Order.to_dict()</code> with price, stop_price and trail_offset converted from ticks to display money and timestamp expressed in seconds - the projection <code>order_to_display_dict</code> builds so an operator reads prices in the same money the book shows, not raw ticks. Gateway_id is not included here; it is topic-only (part of the message topic as order.orders.{gateway_id}, not part of the record). The record contains the order state (id, symbol, side, etc.) exactly as Order.to_dict() produces, minus gateway_id; the eleven nullable ones ride as null when unset.</p>
+<p>One resting order as the engine reports it in an <code>order.orders</code> snapshot, in display units. It is <code>Order.to_dict()</code> with price, stop_price and trail_offset converted from ticks to display money - the projection <code>order_to_display_dict</code> builds so an operator reads prices in the same money the book shows, not raw ticks. <code>timestamp</code> is carried through as <code>ts_ns</code> unconverted (AR-0.3b): unlike price, a raw nanosecond integer is exactly what a post-mortem needs to compare against <code>trade.executed.ts_ns</code> and the rest of the wire's ordering convention, and converting it to seconds here would only have to be undone by anything that wanted to compare it. <code>spec/messages/index.yaml</code>'s family made the same call for the same reason in AR-0.3; this type was out of scope for that pass (it is not part of the index family) and CP-0's own checklist item 3 is what caught it being left behind. Gateway_id is not included here; it is topic-only (part of the message topic as order.orders.{gateway_id}, not part of the record). The record contains the order state (id, symbol, side, etc.) exactly as Order.to_dict() produces, minus gateway_id; the eleven nullable ones ride as null when unset.</p>
 <table>
 <thead>
 <tr>
@@ -11076,11 +11127,11 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
-<td><code>timestamp</code></td>
-<td><code>float</code></td>
+<td><code>ts_ns</code></td>
+<td><code>int</code></td>
 <td>required</td>
-<td>ge 0, unit <code>epoch_seconds</code></td>
-<td>Client-supplied submission time, in seconds. NOT the book's time priority key - see arrival_seq.</td>
+<td>ge 0, unit <code>epoch_nanos</code></td>
+<td>Client-supplied submission time (Order.timestamp, unconverted). NOT the book's time priority key - see arrival_seq. AR-0.3b: previously named "timestamp" and expressed as a seconds-based float; see OrderDisplay's type doc for why that was out of step with the rest of the wire and got fixed here rather than left as the one field of that kind outside log.yaml.</td>
 </tr>
 <tr>
 <td><code>status</code></td>
@@ -11176,7 +11227,7 @@ wire-format specification in the
 </tbody>
 </table>
 <h4 id="pricelevelorder"><code>PriceLevelOrder</code><a class="headerlink" href="#pricelevelorder" title="Permanent link">&para;</a></h4>
-<p>One resting order as reported by order.price_level_orders — the same projection as OrderDisplay (order_to_display_dict), with one field added: gateway_id. OrderDisplay can leave gateway_id topic-only because an order.orders reply is always about a single, already-known gateway; a price_level_orders reply spans every gateway resting at a symbol/price, so each record must say whose order it is. The generator has no type-extension mechanism, so this duplicates OrderDisplay's field list rather than referencing it — keep the two in sync by hand if OrderDisplay's fields change.</p>
+<p>One resting order as reported by order.price_level_orders — the same projection as OrderDisplay (order_to_display_dict, including its ts_ns field — see OrderDisplay's doc for why that one is not converted to display units the way price/stop_price/trail_offset are), with one field added: gateway_id. OrderDisplay can leave gateway_id topic-only because an order.orders reply is always about a single, already-known gateway; a price_level_orders reply spans every gateway resting at a symbol/price, so each record must say whose order it is. The generator has no type-extension mechanism, so this duplicates OrderDisplay's field list rather than referencing it — keep the two in sync by hand if OrderDisplay's fields change.</p>
 <table>
 <thead>
 <tr>
@@ -11259,11 +11310,11 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
-<td><code>timestamp</code></td>
-<td><code>float</code></td>
+<td><code>ts_ns</code></td>
+<td><code>int</code></td>
 <td>required</td>
-<td>ge 0, unit <code>epoch_seconds</code></td>
-<td>Client-supplied submission time, in seconds. NOT the book's time priority key - see arrival_seq.</td>
+<td>ge 0, unit <code>epoch_nanos</code></td>
+<td>Client-supplied submission time (Order.timestamp, unconverted). NOT the book's time priority key - see arrival_seq. AR-0.3b: previously named "timestamp" and expressed as a seconds-based float; see OrderDisplay's type doc for why that was out of step with the rest of the wire and got fixed here rather than left as the one field of that kind outside log.yaml.</td>
 </tr>
 <tr>
 <td><code>status</code></td>
@@ -11785,6 +11836,13 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
+<td><code>symbol</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>max_len 16</td>
+<td>Instrument this order belonged to. The engine has always had this at the publish site (the cancelled Order's own .symbol); it was simply never carried on the wire, which made order.cancelled invisible to a --symbol filter (AR-0.2). Nullable/omit_when_none, like old_price/old_qty on order.amended below, so archived records written before this field existed still parse.</td>
+</tr>
+<tr>
 <td><code>client_tag</code></td>
 <td><code>string</code></td>
 <td>omitted when unset</td>
@@ -11873,6 +11931,13 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
+<td><code>symbol</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>max_len 16</td>
+<td>Instrument this order belonged to. Same AR-0.2 rationale as order.cancelled.symbol above - the engine already has it at the publish site, it was simply never carried.</td>
+</tr>
+<tr>
 <td><code>client_tag</code></td>
 <td><code>string</code></td>
 <td>omitted when unset</td>
@@ -11938,6 +12003,13 @@ wire-format specification in the
 <td>required</td>
 <td>max_len 64</td>
 <td></td>
+</tr>
+<tr>
+<td><code>symbol</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>max_len 16</td>
+<td>Instrument this order belonged to. Same AR-0.2 rationale as order.cancelled.symbol above - the engine already has it at the publish site, it was simply never carried.</td>
 </tr>
 <tr>
 <td><code>price</code></td>
@@ -13026,11 +13098,25 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
+<td><code>cancelled_order_ids</code></td>
+<td>list of <code>string</code></td>
+<td>defaults to <code>[]</code></td>
+<td>—</td>
+<td>AR-0.5: the order ids counted in cancelled_orders, so a caller can tell which orders were hit rather than only how many. A list whose length disagrees with cancelled_orders is itself a detectable defect.</td>
+</tr>
+<tr>
 <td><code>cancelled_quotes</code></td>
 <td><code>int</code></td>
 <td>defaults to <code>0</code></td>
 <td>ge 0, unit <code>dimensionless</code></td>
 <td></td>
+</tr>
+<tr>
+<td><code>cancelled_quote_order_ids</code></td>
+<td>list of <code>string</code></td>
+<td>defaults to <code>[]</code></td>
+<td>—</td>
+<td>AR-0.5: the order ids counted in cancelled_quotes. Named "<em>_order_ids" rather than "</em>_quote_ids" on purpose: cancelled_quotes has always counted cancelled quote LEGS, each an independent Order with its own order_id, not quote objects — a quote's own quote_id is client-supplied and optional (see quote.yaml), so it cannot serve as this list's key even when present.</td>
 </tr>
 <tr>
 <td><code>command_id</code></td>
@@ -13151,11 +13237,25 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
+<td><code>cancelled_order_ids</code></td>
+<td>list of <code>string</code></td>
+<td>defaults to <code>[]</code></td>
+<td>—</td>
+<td>AR-0.5: the order ids counted in cancelled_orders, so a caller can tell which orders were hit rather than only how many. A list whose length disagrees with cancelled_orders is itself a detectable defect.</td>
+</tr>
+<tr>
 <td><code>cancelled_quotes</code></td>
 <td><code>int</code></td>
 <td>defaults to <code>0</code></td>
 <td>ge 0, unit <code>dimensionless</code></td>
 <td></td>
+</tr>
+<tr>
+<td><code>cancelled_quote_order_ids</code></td>
+<td>list of <code>string</code></td>
+<td>defaults to <code>[]</code></td>
+<td>—</td>
+<td>AR-0.5: the order ids counted in cancelled_quotes. Named "<em>_order_ids" rather than "</em>_quote_ids" on purpose: cancelled_quotes has always counted cancelled quote LEGS, each an independent Order with its own order_id, not quote objects — a quote's own quote_id is client-supplied and optional (see quote.yaml), so it cannot serve as this list's key even when present.</td>
 </tr>
 <tr>
 <td><code>command_id</code></td>
@@ -13261,6 +13361,13 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
+<td><code>cancelled_order_ids</code></td>
+<td>list of <code>string</code></td>
+<td>defaults to <code>[]</code></td>
+<td>—</td>
+<td>AR-0.5: the order ids counted in cancelled_orders, so a caller can tell which orders were hit rather than only how many. A list whose length disagrees with cancelled_orders is itself a detectable defect.</td>
+</tr>
+<tr>
 <td><code>cancelled_quotes</code></td>
 <td><code>int</code></td>
 <td>defaults to <code>0</code></td>
@@ -13268,11 +13375,25 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
+<td><code>cancelled_quote_order_ids</code></td>
+<td>list of <code>string</code></td>
+<td>defaults to <code>[]</code></td>
+<td>—</td>
+<td>AR-0.5: the order ids counted in cancelled_quotes. Named "<em>_order_ids" rather than "</em>_quote_ids" on purpose: cancelled_quotes has always counted cancelled quote LEGS, each an independent Order with its own order_id, not quote objects — a quote's own quote_id is client-supplied and optional (see quote.yaml), so it cannot serve as this list's key even when present.</td>
+</tr>
+<tr>
 <td><code>affected_gateways</code></td>
 <td><code>int</code></td>
 <td>defaults to <code>0</code></td>
 <td>ge 0, unit <code>dimensionless</code></td>
 <td></td>
+</tr>
+<tr>
+<td><code>affected_gateway_ids</code></td>
+<td>list of <code>string</code></td>
+<td>defaults to <code>[]</code></td>
+<td>—</td>
+<td>AR-0.5: the gateway ids counted in affected_gateways — every gateway that had at least one order or quote leg cancelled by this sweep.</td>
 </tr>
 <tr>
 <td><code>command_id</code></td>
@@ -13397,6 +13518,13 @@ wire-format specification in the
 <td>defaults to <code>0</code></td>
 <td>ge 0, unit <code>dimensionless</code></td>
 <td>Quotes pulled because the instrument stopped trading.</td>
+</tr>
+<tr>
+<td><code>cancelled_quote_order_ids</code></td>
+<td>list of <code>string</code></td>
+<td>defaults to <code>[]</code></td>
+<td>—</td>
+<td>AR-0.5: the order ids counted in cancelled_quotes. Named "<em>_order_ids" rather than "</em>_quote_ids" on purpose: cancelled_quotes has always counted cancelled quote LEGS, each an independent Order with its own order_id, not quote objects — a quote's own quote_id is client-supplied and optional (see quote.yaml), so it cannot serve as this list's key even when present.</td>
 </tr>
 <tr>
 <td><code>command_id</code></td>
@@ -13621,11 +13749,25 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
+<td><code>cancelled_order_ids</code></td>
+<td>list of <code>string</code></td>
+<td>defaults to <code>[]</code></td>
+<td>—</td>
+<td>AR-0.5: the order ids counted in cancelled_orders, so a caller can tell which orders were hit rather than only how many. A list whose length disagrees with cancelled_orders is itself a detectable defect.</td>
+</tr>
+<tr>
 <td><code>cancelled_quotes</code></td>
 <td><code>int</code></td>
 <td>defaults to <code>0</code></td>
 <td>ge 0, unit <code>dimensionless</code></td>
 <td></td>
+</tr>
+<tr>
+<td><code>cancelled_quote_order_ids</code></td>
+<td>list of <code>string</code></td>
+<td>defaults to <code>[]</code></td>
+<td>—</td>
+<td>AR-0.5: the order ids counted in cancelled_quotes. Named "<em>_order_ids" rather than "</em>_quote_ids" on purpose: cancelled_quotes has always counted cancelled quote LEGS, each an independent Order with its own order_id, not quote objects — a quote's own quote_id is client-supplied and optional (see quote.yaml), so it cannot serve as this list's key even when present.</td>
 </tr>
 <tr>
 <td><code>command_id</code></td>
@@ -13890,11 +14032,25 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
+<td><code>halted_symbol_ids</code></td>
+<td>list of <code>string</code></td>
+<td>defaults to <code>[]</code></td>
+<td>—</td>
+<td>AR-0.5: the symbols counted in halted_symbols, by name.</td>
+</tr>
+<tr>
 <td><code>cancelled_quotes</code></td>
 <td><code>int</code></td>
 <td>defaults to <code>0</code></td>
 <td>ge 0, unit <code>dimensionless</code></td>
 <td></td>
+</tr>
+<tr>
+<td><code>cancelled_quote_order_ids</code></td>
+<td>list of <code>string</code></td>
+<td>defaults to <code>[]</code></td>
+<td>—</td>
+<td>AR-0.5: the order ids counted in cancelled_quotes. Named "<em>_order_ids" rather than "</em>_quote_ids" on purpose: cancelled_quotes has always counted cancelled quote LEGS, each an independent Order with its own order_id, not quote objects — a quote's own quote_id is client-supplied and optional (see quote.yaml), so it cannot serve as this list's key even when present.</td>
 </tr>
 </tbody>
 </table>
@@ -13967,6 +14123,13 @@ wire-format specification in the
 <td>defaults to <code>0</code></td>
 <td>ge 0, unit <code>dimensionless</code></td>
 <td></td>
+</tr>
+<tr>
+<td><code>resumed_symbol_ids</code></td>
+<td>list of <code>string</code></td>
+<td>defaults to <code>[]</code></td>
+<td>—</td>
+<td>AR-0.5: the symbols counted in resumed_symbols, by name.</td>
 </tr>
 </tbody>
 </table>
@@ -14072,6 +14235,13 @@ wire-format specification in the
 <td>—</td>
 <td></td>
 </tr>
+<tr>
+<td><code>command_id</code></td>
+<td><code>string</code></td>
+<td>omitted when empty</td>
+<td>max_len 64</td>
+<td>AR-0.6: echoes the session.transition.reply_to.command_id that caused this broadcast, when the requester supplied one. Absent for a schedule-driven transition (pm-scheduler sends no reply_to at all) and for a rejected request (no broadcast happens at all in that case). Converts the engine's own STRONG session.transition -&gt; session.state link (adjacency in the stream) into a CERTAIN one (a shared id), the same way the risk family's acks already do for kill-switch/circuit-breaker commands. Deliberately just the command_id, not the full reply_to: gateway_id is not repeated here -- session_transition_ack (addressed to that one gateway) is still the only place accepted, reason and to_state travel, since those are meaningless broadcast to every subscriber. A bare command_id is a much smaller disclosure than the full reply-to record, and it is what the audit tooling needs to link the two topics -- not who is allowed to see the outcome.</td>
+</tr>
 </tbody>
 </table>
 <div class="admonition note">
@@ -14175,8 +14345,11 @@ wire-format specification in the
 </table>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Addressed rather than broadcast, because a command_id belongs to whoever issued it - putting it on the public session.state topic would hand every subscriber another operator's correlation id.</p>
+<p>Addressed rather than broadcast: accepted, reason and to_state are meaningful only to the one gateway that asked, and broadcasting a rejection's reason to every subscriber would be noise at best.</p>
 <p>It also closes a silent failure: a request the engine discarded previously produced no reply at all, so a caller could not tell a rejection from a timeout.</p>
+<p>This used to be the whole story for command_id too, on the theory that broadcasting it would hand every subscriber another operator's correlation id.</p>
+<p>AR-0.6 revisited that: session.state now echoes just the command_id (never gateway_id, accepted, or reason) when one caused the transition, because pm-audit-replay needs a CERTAIN link from session.transition to session.state and adjacency in the stream (a STRONG link) is not enough to build one.</p>
+<p>A bare id is a small enough disclosure to be worth that; the rest of the reply still is not, so it stays here.</p>
 </div>
 <h2 id="family-structure">Family <code>structure</code><a class="headerlink" href="#family-structure" title="Permanent link">&para;</a></h2>
 <h3 id="comboackgateway_id"><code>combo.ack.{gateway_id}</code><a class="headerlink" href="#comboackgateway_id" title="Permanent link">&para;</a></h3>
@@ -15773,6 +15946,66 @@ wire-format specification in the
 <p>A broadcast with no request, like <code>system.eod</code> — nothing asks for a recovery summary, the engine announces it once at startup.</p>
 </div>
 <p><strong>See also:</strong> <code>book.{SYMBOL}</code>, <code>auction.result</code></p>
+<h3 id="systemrecovery_item"><code>system.recovery_item</code><a class="headerlink" href="#systemrecovery_item" title="Permanent link">&para;</a></h3>
+<p><strong>Published by:</strong> <code>engine</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Since:</strong> 1.2</p>
+<p>Engine to all subscribers: one restored, discarded or failed entity from <code>_restore_gtc()</code> (AR-0.5). <code>startup_recovery</code>'s six counts say <em>how many</em>; this says <em>which ones</em> — "which order failed to restore?" was unanswerable from either the counts alone or the process log, since a post-mortem investigating a startup only sees what was published (see docs/user-guide/190-audit.md). Published once per entity, before the single summary <code>startup_recovery</code> broadcast, so the counts there are the cross-check: <code>restored_orders + discarded_stale_day_orders + failed_orders</code> must equal the number of ORDER-kind recovery_item lines whose outcome is RESTORED, DISCARDED_STALE_DAY or FAILED respectively, and <code>restored_combos</code> must equal the number of COMBO-kind lines.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Presence</th>
+<th>Rules</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>entity_id</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 64</td>
+<td>The order id (ORDER) or combo id (COMBO) this line is about.</td>
+</tr>
+<tr>
+<td><code>kind</code></td>
+<td>enum: <code>ORDER</code>, <code>COMBO</code></td>
+<td>required</td>
+<td>—</td>
+<td>What restore_gtc() was processing.</td>
+</tr>
+<tr>
+<td><code>outcome</code></td>
+<td>enum: <code>RESTORED</code>, <code>DISCARDED_STALE_DAY</code>, <code>FAILED</code>, <code>QUOTE_REMNANT</code></td>
+<td>required</td>
+<td>—</td>
+<td>RESTORED/DISCARDED_STALE_DAY/FAILED come from the main GTC-order (or GTC-combo) restore pass and are mutually exclusive per entity. QUOTE_REMNANT is a second, additional line for a RESTORED quote-origin order whose sibling leg did not come back — see the example_note above. COMBO-kind lines are always RESTORED today: <code>load_gtc_combos()</code> has no per-combo guard, so there is no combo failure path to report yet.</td>
+</tr>
+<tr>
+<td><code>symbol</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>max_len 16</td>
+<td>The instrument, for an ORDER-kind line. Null for COMBO, which may span more than one symbol across its legs and has none of its own.</td>
+</tr>
+<tr>
+<td><code>detail</code></td>
+<td><code>string</code></td>
+<td>omitted when empty</td>
+<td>max_len 512</td>
+<td>Free text, when there is something worth saying beyond kind and outcome — the exception message for a FAILED order, in particular.</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code>QUOTE_REMNANT</code> is deliberately not exclusive with <code>RESTORED</code>: a quote-origin order whose sibling leg did not survive is <em>both</em> one of <code>restored_orders</code> (it rests on the book, ordinarily) <em>and</em> one of <code>quote_remnants_restored</code> (it is not quote-managed going forward) — <code>_restore_gtc()</code> has always counted it in both totals, so it gets two recovery_item lines with the same entity_id, not one that overwrites the other.</p>
+<p><code>rebuilt_quotes</code> — an active QuoteIndex entry rebuilt once <em>both</em> legs of a quote survive — is deliberately not an entity here.</p>
+<p>It is a pairing of two already-reported order ids, not a persisted thing with an id of its own to fail or be discarded; the summary count on <code>startup_recovery</code> is the whole story for it, same as it always was.</p>
+</div>
+<p><strong>See also:</strong> <code>system.startup_recovery</code></p>
 <h3 id="systemdiagnostic"><code>system.diagnostic</code><a class="headerlink" href="#systemdiagnostic" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>engine</code></p>
 <p><strong>Transport:</strong> <code>engine_pub</code></p>

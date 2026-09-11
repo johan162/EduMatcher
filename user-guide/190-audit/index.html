@@ -4664,15 +4664,15 @@ deliver every published message without exception:</p>
 </tr>
 <tr>
 <td><code>book.*</code></td>
-<td>Book snapshots after every change</td>
+<td>Book snapshots after every change (each carries <code>ts_ns</code>, so a snapshot can be ordered against the trades around it)</td>
 </tr>
 <tr>
 <td><code>session.state</code></td>
-<td>Session phase transitions</td>
+<td>Session phase transitions (<code>command_id</code> present when an operator, not the scheduler, requested it)</td>
 </tr>
 <tr>
 <td><code>system.*</code></td>
-<td>Gateway auth, symbols, EOD, GTC-restore summary, absorbed internal failures</td>
+<td>Gateway auth, symbols, EOD, GTC-restore summary and per-entity restore outcomes, absorbed internal failures</td>
 </tr>
 <tr>
 <td><em>(all others)</em></td>
@@ -4713,7 +4713,23 @@ close those gaps:</p>
 </tr>
 <tr>
 <td>Startup recovery is on the record</td>
-<td><code>system.startup_recovery</code>, published once right after <code>_restore_gtc()</code>, reports how many orders were restored, discarded as stale <code>TIF=DAY</code>, or failed to restore; how many single-leg quote remnants and rebuilt <code>QuoteIndex</code> entries resulted; and how many GTC combos came back. Previously these counts reached only <code>log.info</code>/<code>log.error</code>.</td>
+<td><code>system.startup_recovery</code>, published once right after <code>_restore_gtc()</code>, reports how many orders were restored, discarded as stale <code>TIF=DAY</code>, or failed to restore; how many single-leg quote remnants and rebuilt <code>QuoteIndex</code> entries resulted; and how many GTC combos came back. Previously these counts reached only <code>log.info</code>/<code>log.error</code>. <code>system.recovery_item</code> now accompanies it with one line per entity — <code>entity_id</code>, <code>kind</code> (<code>ORDER</code>/<code>COMBO</code>) and <code>outcome</code> (<code>RESTORED</code>/<code>DISCARDED_STALE_DAY</code>/<code>FAILED</code>/<code>QUOTE_REMNANT</code>), plus <code>detail</code> carrying the exception text for a <code>FAILED</code> order — so a single bad GTC record is a wire fact with a reason attached, not just a decremented count.</td>
+</tr>
+<tr>
+<td>Kill-switch and admin sweeps say which ids they hit, not just how many</td>
+<td><code>risk.kill_switch_ack</code>, <code>kill_switch_gateway_ack</code>, <code>kill_switch_global_ack</code>, <code>symbol_halt_ack</code>, <code>cancel_symbol_ack</code>, <code>circuit_breaker_halt_all_ack</code>, <code>circuit_breaker_resume_all_ack</code>, and <code>admin.action</code>'s <code>scope</code> all carry an id list beside every count they already reported — <code>cancelled_order_ids</code>, <code>cancelled_quote_order_ids</code>, <code>halted_symbol_ids</code>, <code>resumed_symbol_ids</code>, <code>affected_gateway_ids</code>. Previously undoing or auditing the effect of a mass cancel meant re-deriving the affected set from <code>order.cancelled</code> lines by <code>command_id</code>; the ack now says it directly, and a length mismatch against the count is itself a detectable defect.</td>
+</tr>
+<tr>
+<td>Cancellations, expiries and amendments can be filtered by symbol</td>
+<td><code>order.cancelled</code>, <code>order.expired</code> and <code>order.amended</code> all carry <code>symbol</code> now. <code>pm-audit-cli events --topic order.cancelled --symbol AAPL</code> previously returned nothing for any symbol — the engine had <code>symbol</code> at every publish site but never put it on the wire.</td>
+</tr>
+<tr>
+<td>Book and depth snapshots carry a clock</td>
+<td><code>book.{symbol}</code> and <code>depth.{symbol}</code> both gain <code>ts_ns</code>, stamped from the same strictly-monotonic clock <code>trade.executed</code> uses. Previously a snapshot carried no time field at all, so there was no way to tell from the log alone whether a given snapshot reflects a particular trade.</td>
+</tr>
+<tr>
+<td>An operator-driven session transition is distinguishable from a scheduled one</td>
+<td><code>session.state</code> gains an optional <code>command_id</code>, echoing the <code>command_id</code> on the <code>session.transition</code> that caused it — present only when an operator (not <code>pm-scheduler</code>) requested the transition. Previously the broadcast looked identical either way; telling them apart meant inferring it from what else was on the bus at the time.</td>
 </tr>
 <tr>
 <td>Absorbed internal failures are on the record</td>

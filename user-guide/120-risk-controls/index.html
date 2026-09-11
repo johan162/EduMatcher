@@ -6010,8 +6010,10 @@ in <a href="../260-api-gateway/">API Gateway</a>.</p>
 <a id="__codelineno-22-16" name="__codelineno-22-16" href="#__codelineno-22-16"></a>    "accepted":        true,
 <a id="__codelineno-22-17" name="__codelineno-22-17" href="#__codelineno-22-17"></a>    "reason":          "",
 <a id="__codelineno-22-18" name="__codelineno-22-18" href="#__codelineno-22-18"></a>    "halted_symbols":  4,
-<a id="__codelineno-22-19" name="__codelineno-22-19" href="#__codelineno-22-19"></a>    "cancelled_quotes": 12
-<a id="__codelineno-22-20" name="__codelineno-22-20" href="#__codelineno-22-20"></a>}
+<a id="__codelineno-22-19" name="__codelineno-22-19" href="#__codelineno-22-19"></a>    "halted_symbol_ids": ["AAPL", "MSFT", "GOOG", "TSLA"],
+<a id="__codelineno-22-20" name="__codelineno-22-20" href="#__codelineno-22-20"></a>    "cancelled_quotes": 12,
+<a id="__codelineno-22-21" name="__codelineno-22-21" href="#__codelineno-22-21"></a>    "cancelled_quote_order_ids": ["ORD-1", "ORD-2", "..."]
+<a id="__codelineno-22-22" name="__codelineno-22-22" href="#__codelineno-22-22"></a>}
 </code></pre></div>
 <p>If the gateway is not connected or does not carry role <code>ADMIN</code>, the engine
 returns <code>accepted: false</code> and no symbols are halted:</p>
@@ -6053,8 +6055,9 @@ same PUSH socket:</p>
 <a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a>payload: {
 <a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a>    "accepted":         true,
 <a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a>    "reason":           "",
-<a id="__codelineno-26-11" name="__codelineno-26-11" href="#__codelineno-26-11"></a>    "resumed_symbols":  4
-<a id="__codelineno-26-12" name="__codelineno-26-12" href="#__codelineno-26-12"></a>}
+<a id="__codelineno-26-11" name="__codelineno-26-11" href="#__codelineno-26-11"></a>    "resumed_symbols":  4,
+<a id="__codelineno-26-12" name="__codelineno-26-12" href="#__codelineno-26-12"></a>    "resumed_symbol_ids": ["AAPL", "MSFT", "GOOG", "TSLA"]
+<a id="__codelineno-26-13" name="__codelineno-26-13" href="#__codelineno-26-13"></a>}
 </code></pre></div>
 <p>After the ack is received, normal order flow and quote submission resume for all
 previously halted symbols.  Market makers are expected to re-enter fresh quotes;
@@ -6141,7 +6144,8 @@ the "Per-symbol operator halt" row in the
 <li>Publishes <code>circuit_breaker.halt.&lt;SYMBOL&gt;</code> with <code>"level": "ADMIN_SYMBOL"</code>
    and <code>"halt_source": "ADMIN"</code>.</li>
 <li>Sends <code>risk.symbol_halt_ack.&lt;GW_ADMIN&gt;</code> with
-   <code>{"accepted": true, "symbol": "AAPL", "reason": "", "cancelled_quotes": &lt;count&gt;}</code>.</li>
+   <code>{"accepted": true, "symbol": "AAPL", "reason": "", "cancelled_quotes": &lt;count&gt;,
+   "cancelled_quote_order_ids": [&lt;the cancelled legs' order ids&gt;]}</code>.</li>
 </ol>
 <p><code>risk.symbol_resume</code> mirrors this: it requires <code>ADMIN</code> role (rejecting with
 <code>"Per-symbol resume is only allowed for ADMIN participants"</code>), rejects with
@@ -6174,7 +6178,9 @@ and is the command behind the <code>/api/v1/admin/kill-switch/symbol</code> REST
 <li>Cancels every quote leg resting for the symbol, across every gateway, with
    cancellation reason <code>"Symbol mass cancel"</code>.</li>
 <li>Sends <code>risk.cancel_symbol_ack.&lt;GW_ADMIN&gt;</code> with
-   <code>{"accepted": true, "symbol": "AAPL", "reason": "", "cancelled_orders": &lt;count&gt;, "cancelled_quotes": &lt;count&gt;}</code>.</li>
+   <code>{"accepted": true, "symbol": "AAPL", "reason": "", "cancelled_orders": &lt;count&gt;,
+   "cancelled_order_ids": [&lt;ids&gt;], "cancelled_quotes": &lt;count&gt;,
+   "cancelled_quote_order_ids": [&lt;ids&gt;]}</code>.</li>
 </ol>
 <p>Unlike the kill switch (which is scoped to one gateway's own resting
 exposure) and the instrument halt (which stops the symbol from matching),
@@ -6204,7 +6210,7 @@ its own orders.</p>
 <li>Cancels each order and quote leg, excluding child orders that were derived
    from a quote (those are cancelled as part of the quote leg cancellation).</li>
 <li>Sends a <code>risk.kill_switch_ack.{GW_ID}</code> reply with the count of cancelled
-   items.</li>
+   items and the ids of the orders/quote legs cancelled.</li>
 </ol>
 <h3 id="reply">Reply<a class="headerlink" href="#reply" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>topic:   b"risk.kill_switch_ack.GW01"
@@ -6212,8 +6218,10 @@ its own orders.</p>
 <a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>    "accepted":          true,
 <a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>    "reason":            "",
 <a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>    "cancelled_orders":  &lt;count&gt;,
-<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a>    "cancelled_quotes":  &lt;count&gt;
-<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a>}
+<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a>    "cancelled_order_ids": [&lt;the cancelled orders' ids&gt;],
+<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a>    "cancelled_quotes":  &lt;count&gt;,
+<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a>    "cancelled_quote_order_ids": [&lt;the cancelled quote legs' order ids&gt;]
+<a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a>}
 </code></pre></div>
 <h3 id="differences-from-a-halt">Differences from a halt<a class="headerlink" href="#differences-from-a-halt" title="Permanent link">&para;</a></h3>
 <table>

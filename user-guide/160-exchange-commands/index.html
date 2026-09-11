@@ -6203,9 +6203,11 @@ signing.</p>
 <a id="__codelineno-69-6" name="__codelineno-69-6" href="#__codelineno-69-6"></a><span class="c1">#   "accepted": True,</span>
 <a id="__codelineno-69-7" name="__codelineno-69-7" href="#__codelineno-69-7"></a><span class="c1">#   "reason": "",</span>
 <a id="__codelineno-69-8" name="__codelineno-69-8" href="#__codelineno-69-8"></a><span class="c1">#   "halted_symbols": 4,</span>
-<a id="__codelineno-69-9" name="__codelineno-69-9" href="#__codelineno-69-9"></a><span class="c1">#   "cancelled_quotes": 12</span>
-<a id="__codelineno-69-10" name="__codelineno-69-10" href="#__codelineno-69-10"></a><span class="c1"># }</span>
-<a id="__codelineno-69-11" name="__codelineno-69-11" href="#__codelineno-69-11"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Halted </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">'halted_symbols'</span><span class="p">]</span><span class="si">}</span><span class="s2"> symbols, cancelled </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">'cancelled_quotes'</span><span class="p">]</span><span class="si">}</span><span class="s2"> quote legs"</span><span class="p">)</span>
+<a id="__codelineno-69-9" name="__codelineno-69-9" href="#__codelineno-69-9"></a><span class="c1">#   "halted_symbol_ids": ["AAPL", "MSFT", "GOOG", "TSLA"],</span>
+<a id="__codelineno-69-10" name="__codelineno-69-10" href="#__codelineno-69-10"></a><span class="c1">#   "cancelled_quotes": 12,</span>
+<a id="__codelineno-69-11" name="__codelineno-69-11" href="#__codelineno-69-11"></a><span class="c1">#   "cancelled_quote_order_ids": ["ORD-1", "ORD-2", "..."]</span>
+<a id="__codelineno-69-12" name="__codelineno-69-12" href="#__codelineno-69-12"></a><span class="c1"># }</span>
+<a id="__codelineno-69-13" name="__codelineno-69-13" href="#__codelineno-69-13"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Halted </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">'halted_symbols'</span><span class="p">]</span><span class="si">}</span><span class="s2"> symbols, cancelled </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">'cancelled_quotes'</span><span class="p">]</span><span class="si">}</span><span class="s2"> quote legs"</span><span class="p">)</span>
 </code></pre></div>
 <p>The engine sets every known symbol to <code>HALTED</code> with <code>halt_source = ADMIN</code>.
 No timer is set — the halt is permanent until <code>resume_all()</code> is called or the
@@ -6224,9 +6226,10 @@ session transitions to <code>CLOSED</code>.</p>
 <a id="__codelineno-71-2" name="__codelineno-71-2" href="#__codelineno-71-2"></a><span class="c1"># result = {</span>
 <a id="__codelineno-71-3" name="__codelineno-71-3" href="#__codelineno-71-3"></a><span class="c1">#   "accepted": True,</span>
 <a id="__codelineno-71-4" name="__codelineno-71-4" href="#__codelineno-71-4"></a><span class="c1">#   "reason": "",</span>
-<a id="__codelineno-71-5" name="__codelineno-71-5" href="#__codelineno-71-5"></a><span class="c1">#   "resumed_symbols": 4</span>
-<a id="__codelineno-71-6" name="__codelineno-71-6" href="#__codelineno-71-6"></a><span class="c1"># }</span>
-<a id="__codelineno-71-7" name="__codelineno-71-7" href="#__codelineno-71-7"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Resumed </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">'resumed_symbols'</span><span class="p">]</span><span class="si">}</span><span class="s2"> symbols"</span><span class="p">)</span>
+<a id="__codelineno-71-5" name="__codelineno-71-5" href="#__codelineno-71-5"></a><span class="c1">#   "resumed_symbols": 4,</span>
+<a id="__codelineno-71-6" name="__codelineno-71-6" href="#__codelineno-71-6"></a><span class="c1">#   "resumed_symbol_ids": ["AAPL", "MSFT", "GOOG", "TSLA"]</span>
+<a id="__codelineno-71-7" name="__codelineno-71-7" href="#__codelineno-71-7"></a><span class="c1"># }</span>
+<a id="__codelineno-71-8" name="__codelineno-71-8" href="#__codelineno-71-8"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Resumed </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">'resumed_symbols'</span><span class="p">]</span><span class="si">}</span><span class="s2"> symbols"</span><span class="p">)</span>
 </code></pre></div>
 <p>For each previously halted symbol the engine publishes
 <code>circuit_breaker.resume.&lt;SYMBOL&gt;</code> with <code>halt_source = "ADMIN"</code>.  Normal order flow
@@ -6241,8 +6244,10 @@ and MM quote obligations resume immediately after the ack is received.</p>
 <a id="__codelineno-73-4" name="__codelineno-73-4" href="#__codelineno-73-4"></a><span class="c1">#   "accepted": True,</span>
 <a id="__codelineno-73-5" name="__codelineno-73-5" href="#__codelineno-73-5"></a><span class="c1">#   "reason": "",</span>
 <a id="__codelineno-73-6" name="__codelineno-73-6" href="#__codelineno-73-6"></a><span class="c1">#   "cancelled_orders": 7,</span>
-<a id="__codelineno-73-7" name="__codelineno-73-7" href="#__codelineno-73-7"></a><span class="c1">#   "cancelled_quotes": 0</span>
-<a id="__codelineno-73-8" name="__codelineno-73-8" href="#__codelineno-73-8"></a><span class="c1"># }</span>
+<a id="__codelineno-73-7" name="__codelineno-73-7" href="#__codelineno-73-7"></a><span class="c1">#   "cancelled_order_ids": ["ORD-1", "ORD-2", "..."],</span>
+<a id="__codelineno-73-8" name="__codelineno-73-8" href="#__codelineno-73-8"></a><span class="c1">#   "cancelled_quotes": 0,</span>
+<a id="__codelineno-73-9" name="__codelineno-73-9" href="#__codelineno-73-9"></a><span class="c1">#   "cancelled_quote_order_ids": []</span>
+<a id="__codelineno-73-10" name="__codelineno-73-10" href="#__codelineno-73-10"></a><span class="c1"># }</span>
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Kill switch does not halt the gateway</p>
@@ -6256,7 +6261,10 @@ up with <code>gateway_kick()</code>.</p>
 <a id="__codelineno-74-2" name="__codelineno-74-2" href="#__codelineno-74-2"></a>Frame 1:  {"gateway_id": "TRADER01", "symbol": "AAPL"}
 </code></pre></div>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-75-1" name="__codelineno-75-1" href="#__codelineno-75-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">mass_cancel</span><span class="p">(</span><span class="s2">"TRADER01"</span><span class="p">,</span> <span class="s2">"AAPL"</span><span class="p">)</span>
-<a id="__codelineno-75-2" name="__codelineno-75-2" href="#__codelineno-75-2"></a><span class="c1"># result = {"accepted": True, "cancelled_orders": 3, "cancelled_quotes": 2}</span>
+<a id="__codelineno-75-2" name="__codelineno-75-2" href="#__codelineno-75-2"></a><span class="c1"># result = {"accepted": True, "cancelled_orders": 3,</span>
+<a id="__codelineno-75-3" name="__codelineno-75-3" href="#__codelineno-75-3"></a><span class="c1">#           "cancelled_order_ids": ["ORD-1", "ORD-2", "ORD-3"],</span>
+<a id="__codelineno-75-4" name="__codelineno-75-4" href="#__codelineno-75-4"></a><span class="c1">#           "cancelled_quotes": 2,</span>
+<a id="__codelineno-75-5" name="__codelineno-75-5" href="#__codelineno-75-5"></a><span class="c1">#           "cancelled_quote_order_ids": ["ORD-4", "ORD-5"]}</span>
 </code></pre></div>
 <p>Identical to <code>kill_switch</code> with a symbol argument.  Only orders and quotes
 for <code>TRADER01</code> on <code>AAPL</code> are affected.</p>

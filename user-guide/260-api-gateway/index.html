@@ -6331,19 +6331,35 @@ outside it cannot reach the wire:</p>
 <td>accepted kill switches</td>
 </tr>
 <tr>
+<td><code>cancelled_order_ids</code></td>
+<td>list[str]</td>
+<td>accepted kill switches — the ids <code>cancelled_orders</code> counts</td>
+</tr>
+<tr>
 <td><code>cancelled_quotes</code></td>
 <td>int</td>
 <td>accepted kill switches</td>
+</tr>
+<tr>
+<td><code>cancelled_quote_order_ids</code></td>
+<td>list[str]</td>
+<td>accepted kill switches — the leg order ids <code>cancelled_quotes</code> counts</td>
 </tr>
 <tr>
 <td><code>affected_gateways</code></td>
 <td>int</td>
 <td>an accepted <code>kill_switch.global</code></td>
 </tr>
+<tr>
+<td><code>affected_gateway_ids</code></td>
+<td>list[str]</td>
+<td>an accepted <code>kill_switch.global</code> — the gateways <code>affected_gateways</code> counts</td>
+</tr>
 </tbody>
 </table>
-<p>A key whose value is unset is <strong>absent</strong> rather than <code>null</code>, and <code>scope</code> is
-<code>{}</code> on a rejection that named nothing. This event is admin-monitor-only: it
+<p>A key whose value is unset is <strong>absent</strong> rather than <code>null</code> (an id-list key
+follows the same rule: absent, not an empty list, when nothing was
+cancelled), and <code>scope</code> is <code>{}</code> on a rejection that named nothing. This event is admin-monitor-only: it
 never reaches a trading gateway's private stream or the public market-data
 stream, regardless of which gateway initiated it.</p>
 <div class="admonition note">
@@ -6775,6 +6791,11 @@ for the engine's verdict on <code>session.transition_ack.{gateway_id}</code> and
 now returns <strong>409</strong> with <code>TRANSITION_REJECTED</code> and the engine's reason. Those
 cases previously produced no reply at all, so a caller saw a timeout
 indistinguishable from a slow engine.</p>
+<p>The public <code>session.state</code> broadcast also carries this <code>command_id</code> now
+(absent for a schedule-driven transition, which has none to carry) — a
+third-party subscriber reconstructing the day's session history from the bus
+alone, rather than from this API's own response, can tie a transition back
+to the command that caused it without this endpoint's help.</p>
 <div class="admonition note">
 <p class="admonition-title">Why not a <code>command_id</code> on everything</p>
 <p>A second identifier alongside a working one adds ambiguity rather than
