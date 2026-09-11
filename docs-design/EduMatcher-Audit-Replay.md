@@ -1,8 +1,18 @@
-Version: 1.0.0
+Version: 1.1.0
 
-Date: 2026-09-10
+Date: 2026-09-11
 
 Status: Design and Research Proposal
+
+> **Update (2026-09-11):** Section 14 is now a task-level plan with explicit
+> checkpoints, and gains a **Phase 0** of bus changes taken before the tool is
+> built — an engine publish `seq`, `symbol` on the order lifecycle events, the
+> `ts_ns` convention finished in the index family, a clock on book and depth
+> snapshots, id lists beside the counted effects, and `command_id` on
+> `session.state`. Section 5 is revised accordingly: `seq` replaces the
+> `phase_rank` ordering heuristic (§5.2.2), and §5.1.2 **corrects an error in
+> 1.0.0** — `order.cancelled.command_id` already exists and is populated, so
+> the kill-switch link is CERTAIN, not heuristic.
 
 # EduMatcher — Audit Replay and Narration Tool
 
@@ -258,8 +268,8 @@ The full ruleset, ordered by the pass that applies it:
 | `order.cancel` | `order.cancelled.*` | `order_id` + earliest later cancel | STRONG | Fallback when `request_tag` is absent. Degrades to HEURISTIC if two cancels for one order are in flight. |
 | `order.amend` | `order.amended.*` | `request_tag`, else `order_id` | CERTAIN / STRONG | Same ladder as cancel. |
 | `risk.*` / `admin.action` | matching `*_ack.*` | `command_id` | CERTAIN | `command_id` is carried by every risk and admin request/ack pair. |
-| `*_ack` (cancelled_orders) | `order.cancelled.*` | ack's `cancelled_orders` count vs. observed cancels in window | HEURISTIC | The ack reports a **count**, not a list — see §5.1.2. |
-| `order.cancelled.cancel_reason` | causing episode | reason enum → nearest preceding cause | STRONG | `KILL_SWITCH` → nearest kill-switch command; `CIRCUIT_BREAKER_HALT` → active halt for that symbol; `ADMIN_CANCEL_SYMBOL` → nearest `risk.cancel_symbol`. |
+| `risk.*` / `admin.action` | `order.cancelled.*` | `command_id` | CERTAIN | The engine stamps the causing command on every cancel it initiates — see §5.1.2. The ack's count is a completeness cross-check, not the link. |
+| `order.cancelled` (no `command_id`) | causing condition | `cancel_reason` enum | CERTAIN | The reason names the cause directly: `SELF_MATCH_PREVENTED`, `INSUFFICIENT_LIQUIDITY`, `QUOTE_REPLACED`, `QUOTE_LEG_FILLED`. No search required. |
 | `quote.new` | `quote.ack.*` | `quote_id` | CERTAIN | |
 | `quote.ack` | leg orders | `bid_order_id`, `ask_order_id` | CERTAIN | The ack names the two derived orders explicitly. |
 | `order.new` (origin=QUOTE) | `quote` episode | `quote_id` | CERTAIN | |
@@ -272,36 +282,47 @@ The full ruleset, ordered by the pass that applies it:
 | `order.ack` (rejected) | active market condition | `reject_code` → state model | STRONG | `INSTRUMENT_HALTED` / `CIRCUIT_BREAKER_ACTIVE` / `MARKET_CLOSED` / `KILL_SWITCH_ACTIVE` are resolved against the reconstructed market state, letting the tool say *why* the state was that way. |
 | any | `drop_copy.event.*` | `order_id` + `seq` | CERTAIN | Drop-copy is a derived stream; narrate only at `-vv`. |
 
-#### 5.1.2 The counted-effects problem
+#### 5.1.2 Counted effects, and what is actually certain
 
-Several acks report a **count** of side effects rather than a list:
-`risk.kill_switch_ack.cancelled_orders`, `cancelled_quotes`,
-`risk.cancel_symbol_ack.cancelled_orders`,
-`risk.circuit_breaker_halt_all_ack.halted_symbols`.
+An earlier draft of this document claimed the kill-switch-to-cancellation link
+was heuristic. That was wrong, and the correction is worth stating plainly
+because it removes the ugliest inference in the design.
 
-The tool therefore cannot know exactly *which* orders a kill switch cancelled. It
-handles this honestly:
+`order.cancelled` already carries **`command_id`**, and the engine populates it
+(`engine/main.py::_cancel_order_by_id` threads `cancel_reason` and `command_id`
+through every engine-initiated cancel). The spec says what it is for:
 
-1. Collect every `order.cancelled` in the window following the command whose
-   `cancel_reason` matches the command's semantics (`KILL_SWITCH`,
-   `ADMIN_CANCEL_SYMBOL`, `CIRCUIT_BREAKER_HALT`) and whose scope matches.
-2. Attach them to the command episode as `HEURISTIC` links.
-3. **Compare the count to the ack.** If they agree, the set is reported as
-   confirmed-by-count and the link is promoted to `STRONG`. If they disagree, the
-   discrepancy is emitted as an anomaly (§12) — which is itself a useful bug
-   detector.
+> The admin/kill-switch `command_id` that caused this cancel, when one exists —
+> lets a post-mortem join this event back to the exact command that triggered it.
+
+So *"which orders did this kill switch cancel?"* is a **CERTAIN** join on
+`command_id`, not a guess. The same is true for an admin cancel-symbol and a
+circuit-breaker-driven cancel. `command_id` is null for a client-requested
+cancel and for engine-initiated cancels with no originating command
+(self-match prevention, insufficient liquidity, a quote leg cancelled because
+its sibling filled) — and in those cases `cancel_reason` names the cause
+directly, which is also exact.
+
+What the acks add is a **cross-check**, not the link. `cancelled_orders` on the
+ack is a count; the tool compares it against the number of `command_id`-joined
+cancellations it actually observed. Agreement is a completeness proof for that
+command; disagreement is a dropped message, and an anomaly:
 
 ```text
 09:44:10.002  RISKDESK fired the kill switch for TRADER07 (command 8812) — "fat finger"
 09:44:10.019  Engine accepted: 14 orders and 2 quotes cancelled
-              ⤷ 14 of 14 cancellations observed in the log ✓
+              ⤷ 14 cancellations joined on command 8812, matching the ack ✓
 ```
-
-versus the interesting failure:
 
 ```text
-              ⤷ only 11 of 14 cancellations observed within 5.0s  ⚠ AUDIT-GAP
+              ⤷ ack says 14, only 11 carry command 8812  ⚠ EFFECT_COUNT_MISMATCH
 ```
+
+The genuine count-only blind spot is elsewhere: **`system.startup_recovery`**
+reports `restored_orders`, `discarded_stale_day_orders`, `failed_orders`,
+`quote_remnants_restored`, `rebuilt_quotes` and `restored_combos` as bare
+integers, with no per-entity event anywhere. *"Which order failed to restore?"*
+is unanswerable from the audit trail today. Phase 0 (§14.1) closes that.
 
 #### 5.1.3 Identity is per engine run
 
@@ -326,7 +347,8 @@ worse, a plausible one. So ordering deserves an explicit, documented policy.
 
 | Source | Field | Unit | Clock | Trustworthy for ordering? |
 |---|---|---|---|---|
-| audit line prefix | `[ts]` | ISO-8601 ms | `pm-audit` receipt | Yes, within one audit process — it *is* the receipt order |
+| every engine-published message | `seq` | int, per run | engine publish site | **Yes — this is the ordering authority** (§14.1) |
+| audit line prefix | `[ts]` | ISO-8601 ms | `pm-audit` receipt | Only for messages the engine did not publish |
 | `order.new` | `timestamp` | epoch **nanos** | **client** | **No.** Spec says explicitly: not what the book uses for priority |
 | `order.new` | `arrival_seq` | int | engine, per run | **Yes** — this is the engine's own priority order |
 | `trade.executed` | `ts_ns` | epoch **nanos** (int) | engine | Yes, engine-side |
@@ -337,39 +359,59 @@ worse, a plausible one. So ordering deserves an explicit, documented policy.
 
 #### 5.2.2 The canonical ordering key
 
-Every Fact is assigned a sort key, compared lexicographically:
+Phase 0 (§14.1) adds a monotonic **`seq`** to every message the engine
+publishes, assigned at the publish site under the same lock that serialises the
+socket. That makes ordering a lookup rather than an inference, and the sort key
+collapses to:
 
 ```text
-sort_key = (run_seq, phase_rank, engine_seq, receipt_ts, file_ordinal)
+sort_key = (run_seq, seq, receipt_ts, file_ordinal)
 ```
 
-- `run_seq` — engine run, so restarts never interleave. Carried by
-  `trade.executed`; for other facts it is the run in effect at that point of the
-  log, tracked by the state model.
-- `phase_rank` — a small integer that encodes *logical* precedence for facts the
-  bus can deliver out of order but whose causal order is fixed by the protocol.
-  A submission ranks before its ack; an ack before its fills; a trade before the
-  `book`/`depth` snapshot that reflects it. This resolves the common PUB/SUB
-  inversion without inventing timestamps.
-- `engine_seq` — `arrival_seq` for orders, trade counter for trades, `seq` for
-  drop-copy; `None` sorts last within its bucket.
-- `receipt_ts` — the audit prefix, the universal fallback.
+- `run_seq` — engine run, so restarts never interleave. A `seq` is only
+  meaningful within its run.
+- `seq` — the engine's own publication order. This *is* the order the exchange
+  did things in, for every topic, not just trades.
+- `receipt_ts` — the audit prefix. Only reached for messages the engine did not
+  publish (client submissions arriving via PUSH, and other processes' topics).
 - `file_ordinal` — line number, so the sort is stable and total.
+
+Two properties fall out of `seq` that the previous design had to work for:
+
+1. **Out-of-order delivery stops mattering.** An `order.ack` that lands after
+   the `trade.executed` it preceded still sorts correctly, because both carry
+   the engine's own sequence. The `phase_rank` table of protocol-implied
+   precedence — a submission before its ack, an ack before its fills, a trade
+   before the book snapshot reflecting it — is deleted. It was a pile of
+   special cases standing in for a number the engine already knew.
+2. **Message loss becomes provable for every topic.** `seq` is dense within a
+   run, so a gap is missing audit data, full stop. Previously only
+   `trade.executed` could prove this, via the dense counter in its id.
 
 #### 5.2.3 The reorder window
 
-Facts are buffered in a bounded window (default 2 000 facts / 5 s of receipt
-time, `--reorder-window`) and emitted in canonical order once the window
-guarantees no earlier-keyed fact can still arrive. A fact that arrives after its
-window has closed is emitted **in place** and tagged `late`; the renderer prints
-it with an explicit marker rather than silently misordering:
+Still needed, but now trivial and bounded by `seq` rather than by guesswork.
+Facts are buffered until the next expected `seq` arrives or the window expires
+(default 2 000 facts / 5 s of receipt time, `--reorder-window`), then emitted in
+`seq` order. Because `seq` is dense, the tool knows *exactly* what it is waiting
+for instead of guessing whether an earlier-keyed fact might still be coming.
+
+A fact that arrives after its window has closed is emitted **in place** and
+tagged `late`; a `seq` that never arrives is reported as a gap rather than
+silently closing over:
 
 ```text
-09:31:04.881  ⟲ late: ack for 7d10bb… (submitted 09:31:02.104, 2.777s earlier)
+09:31:04.881  ⟲ late: ack for 7d10bb… (engine seq 918 344, 2.777s behind)
+09:31:05.002  ⚠ SEQ_GAP: engine seq 918 350-918 352 never arrived (3 messages)
 ```
 
-That marker is not a defect of the tool. On a healthy system it should never
-appear, so its appearance is itself a finding.
+Neither marker should appear on a healthy system, so either is itself a finding.
+
+Messages the engine does not publish — client submissions on PUSH, and topics
+from `pm-index`, `pm-stats` and the gateways — carry no engine `seq` and fall
+back to `receipt_ts`. They are ordered *relative to* the engine stream by
+receipt time, which is honest: the audit process genuinely does not know more
+than that. The renderer marks such a fact's position as approximate at `-vv`.
 
 #### 5.2.4 Displayed time
 
@@ -1081,12 +1123,14 @@ matters.
 | `CLIENT_CLOCK_ABSURD` | info | `order.new.timestamp` more than an hour from receipt — a client-clock problem, harmless to the engine (priority uses `arrival_seq`) but worth knowing |
 | `ARRIVAL_SEQ_GAP` | info | A gap in `arrival_seq` within a run; expected across gateways, reported only with `--strict` |
 | `RUN_SEQ_CHANGE` | info | Engine restart observed mid-window |
-| `TRADE_COUNTER_GAP` | error | A gap in the per-run trade counter: trades are missing from the log |
+| `SEQ_GAP` | error | A gap in the engine's publish `seq` within a run: messages are missing from the audit trail, on any topic |
+| `TRADE_COUNTER_GAP` | error | A gap in the per-run trade counter: trades specifically are missing. Redundant with `SEQ_GAP`, but kept — it localises the loss to the trade stream |
 
-`TRADE_COUNTER_GAP` deserves emphasis. Because `trade.executed.id` is
-`{run_seq}-{counter}` and the counter is dense within a run, the tool can prove
-that trades are missing from the audit trail rather than merely suspecting it.
-That is a completeness check on the audit system itself.
+`SEQ_GAP` deserves emphasis. Because the engine's publish `seq` is dense within
+a run, the tool can **prove** that messages are missing from the audit trail
+rather than merely suspecting it — for every topic, not just trades. That is a
+completeness check on the audit system itself, and it is the single strongest
+argument for adding `seq` in Phase 0.
 
 ### 12.4 Command reconciliation
 
@@ -1187,77 +1231,514 @@ of log size — cheap for what it removes from §5.1.
 
 ## 14. Implementation Plan
 
-New package `src/edumatcher/audit/replay/`, leaving the existing audit modules
-untouched apart from the two small additive changes in §6.3.
+### How to read this plan
 
-```text
-src/edumatcher/audit/replay/
-├── __init__.py
-├── cli.py            # argparse surface, subcommand dispatch  (§9)
-├── facts.py          # Event → Fact: units, clocks, topic split  (§5.3)
-├── ordering.py       # canonical sort key, reorder window  (§5.2)
-├── state.py          # order / market / gateway / run state models  (§7.1)
-├── links.py          # link resolver, three tiers, confidence  (§5.1, §7.2)
-├── episodes.py       # episode assembly, derived facts  (§7.3, §7.4)
-├── index.py          # SQLite episode index build/read  (§6.2)
-├── lexicon.py        # enum → business English  (§5.3.3)
-├── templates.py      # sentence templates per kind and level  (§8.2)
-├── render_text.py    # prose renderer  (§8)
-├── render_json.py    # NDJSON / JSON narrative model  (§11)
-└── anomalies.py      # invariant checks  (§12)
+Work is broken into **phases**, each a sequence of numbered **tasks**. Every
+phase ends in a **checkpoint (CP-n)**: a statement that can be demonstrated, not
+a feeling that the code looks done. A checkpoint that cannot be demonstrated is
+not passed, and the next phase does not start.
+
+Each task carries:
+
+- **Do** — the change.
+- **Verify** — how you know it worked, *before* moving on. Prefer a command
+  whose output you can read over an assertion you have to trust.
+- **Done when** — the observable condition.
+
+Conventions for the whole plan:
+
+- **One task, one commit.** The commit message names the task id (`AR-2.3`).
+- **Tests land with the code they test**, in the same commit. A task whose
+  verification step is a test is not done until that test is committed.
+- **`poetry run pytest` must be green at every checkpoint.** Not merely the new
+  tests — the whole suite. Phase 0 in particular touches the engine.
+- **`poetry run pm-msgen check` must pass after any spec edit**, and CI enforces
+  it. If it fails, the generated bindings were not regenerated.
+- When a task says *"write the test first"*, write it, watch it **fail for the
+  right reason**, then make it pass. A test that has never failed has not been
+  shown to test anything.
+
+Estimates are working days for one mid-level developer already familiar with the
+codebase. They assume review latency is handled outside the estimate.
+
+---
+
+### Phase 0 — Bus changes that make the tool simpler (≈ 8 days)
+
+Do this first. Every item here either deletes work from a later phase or closes
+a hole the tool would otherwise have to paper over. All are breaking wire
+changes, taken deliberately while backwards compatibility is not yet a
+constraint.
+
+Each task follows the same shape, which is worth internalising once:
+**edit `spec/messages/*.yaml` → `pm-msgen generate` → fix publishers → fix
+consumers → fix tests → `pm-msgen check`.** The generator will not let the
+bindings drift; it will happily let a *consumer* drift, which is where the risk
+actually lives.
+
+#### AR-0.1 — Engine publish sequence (2 days) — the highest-value item here
+
+**Do.** Add to the shared envelope of every message the engine publishes on its
+PUB socket:
+
+| Field | Type | Rules | Meaning |
+|---|---|---|---|
+| `seq` | `int` | `ge: 0`, unit `dimensionless` | Monotonic, dense, per engine run |
+| `run_seq` | `int` | `ge: 0`, unit `dimensionless` | The run the `seq` belongs to |
+
+`run_seq` already exists on `trade.executed`; this generalises it, so every
+engine message can be partitioned by run without inference.
+
+Assign `seq` at the **single publish site**, incremented under the same lock
+that serialises `pub_sock.send_multipart`. Assigning it earlier — at decision
+time — would let two messages reach the socket out of `seq` order, which
+destroys the one property the whole design now rests on. Put that reasoning in
+a comment; it is the kind of thing an optimisation removes by accident.
+
+**Verify.**
+1. Unit test: 10 000 messages published from 4 threads yield `seq` values
+   `0..9999` with no gap and no duplicate.
+2. Unit test: `seq` restarts at 0 when `run_seq` advances.
+3. Integration: run `scripts/launch_all.sh`, capture audit output, assert the
+   `seq` values of engine-published lines form a dense run with no gaps.
+4. Benchmark: `pytest tests/test_msgen_trade_perf.py`. The publish path is
+   hot — a lock-held counter increment should be lost in the noise, but measure
+   rather than assume. Record the before/after number in the commit message.
+
+**Done when** every engine-published topic in a captured session carries a dense
+`seq`, and the perf number is recorded.
+
+#### AR-0.2 — `symbol` on the order lifecycle events (0.5 day)
+
+**Do.** Add `symbol` (string, required, `max_len: 16`) to `order.cancelled`,
+`order.expired` and `order.amended`. The engine already has it at every publish
+site (`cancelled.symbol` in `_cancel_order_by_id`); it was simply never carried.
+
+**Verify.** This one has a *pre-existing user-visible bug* attached, so verify
+against that:
+
+```bash
+# Before: silently empty, because query.py reads payload["symbol"]
+poetry run pm-audit-cli events --topic order.cancelled --symbol AAPL
+# After: returns the AAPL cancellations
 ```
 
-### Phase 1 — Fact layer and ordering *(foundation)*
+Write that as a regression test in `tests/test_audit_cli.py` — a cancellation
+for AAPL and one for MSFT, filtered by symbol, expecting exactly one row. It
+must fail before the change.
 
-`facts.py`, `ordering.py`. Unit conversion with the tick-decimals ladder,
-timestamp normalisation, topic wildcard split, canonical sort key, reorder
-window. Testable in isolation against synthetic entries, and the part everything
-else depends on being right.
+**Done when** `pm-audit-cli --symbol` returns cancellations, expiries and
+amendments, and the regression test is committed.
 
-### Phase 2 — State models and links
+#### AR-0.3 — Finish the `ts_ns` convention in the index family (1 day)
 
-`state.py`, `links.py`. Tier 1 and 2 link rules, order and market state, link
-confidence. Deliverable: a link resolver that can be exercised against a captured
-log and report its confidence distribution.
+**Do.** Convert the 7 `float`/`epoch_seconds` time fields in
+`spec/messages/index.yaml` to `int`/`epoch_nanos`, renaming each to carry its
+unit (`timestamp` → `ts_ns`, `from_ts`/`to_ts` → `from_ts_ns`/`to_ts_ns`), as
+`trade.executed` already did.
 
-### Phase 3 — Episodes and index
+**Verify.** Grep is the test here:
 
-`episodes.py`, `index.py`. Episode assembly, derived facts, SQLite schema,
-incremental build, `rules_version` guard. Deliverable: `pm-audit-replay index
---stats`.
+```bash
+grep -rn "epoch_seconds" spec/messages/          # expect: only log.yaml
+```
 
-### Phase 4 — Narration
+Plus a round-trip test per changed message asserting a nanosecond value survives
+`from_dict`/`to_dict` exactly.
 
-`lexicon.py`, `templates.py`, `render_text.py`. Detail levels 0–2, the `stream`
-and `story` subcommands. **This is the first user-visible deliverable** and the
-right point to get feedback on wording before adding surface.
+**Note.** The `log` family has 13 more such fields. Deliberately *not* in scope:
+it is `pm-log-srv`'s operational protocol, not exchange state, and the replay
+tool never reads it. Leaving it is a considered exclusion, not an oversight —
+say so in the commit message so the next person does not "finish the job".
 
-### Phase 5 — Anomalies and remaining views
+**Done when** `epoch_seconds` appears only in `log.yaml`.
 
-`anomalies.py`, the `digest`, `episodes` and `anomalies` subcommands, detail
-levels 3–4, semantic-tier links and count reconciliation.
+#### AR-0.4 — A clock on book and depth snapshots (0.5 day)
 
-### Phase 6 — Machine-readable output and polish
+**Do.** Add `ts_ns` (int, required, `epoch_nanos`) to `book.{symbol}` and
+`depth.{symbol}`. Today they carry **no time field at all**, so nothing can
+establish whether a snapshot reflects a given trade.
 
-`render_json.py`, `--format ndjson|json|markdown`, `--explain`, `--show-source`,
-colour, `--tz`.
+**Verify.** Test: publish a trade, then a snapshot; assert
+`snapshot.ts_ns >= trade.ts_ns`. Then assert the ordering survives a round trip
+through `pm-audit` and back out via `pm-audit-cli`.
 
-### Phase 7 *(optional, separate decision)* — Envelope causation IDs
+**Done when** both snapshot topics carry `ts_ns`.
 
-§13. Spec change, engine and gateway stamping, tier-0 resolver.
+#### AR-0.5 — Effect id lists and per-entity recovery events (2 days)
+
+**Do.** Two related changes:
+
+1. Add an id **list** beside each count on the risk acks — `cancelled_order_ids`
+   beside `cancelled_orders`, and so on. Keep the counts: a count that disagrees
+   with its own list is itself a detectable defect.
+2. `system.startup_recovery` currently reports six bare integers and emits no
+   per-entity event, so *"which order failed to restore?"* is unanswerable. Add
+   a `system.recovery_item` message — one per restored, discarded or failed
+   entity, carrying the entity id, kind and outcome — and keep the summary
+   counts on `startup_recovery` as the cross-check.
+
+**Verify.** Kill-switch test: submit 3 orders across 2 symbols, fire the kill
+switch, assert `cancelled_order_ids` has exactly the 3 ids **and** that
+`len(cancelled_order_ids) == cancelled_orders`. Recovery test: seed a persistence
+file with one deliberately corrupt order, restart, assert exactly one
+`recovery_item` with outcome `FAILED` naming that order id, and that the
+`failed_orders` count is 1.
+
+**Done when** every count-only effect field has a matching id list, and a failed
+restore names the order.
+
+#### AR-0.6 — `command_id` on `session.state` (0.5 day)
+
+**Do.** Add optional `command_id` to `session.state`, echoing the
+`session.transition` that caused the change. Converts the last common STRONG
+link into a CERTAIN one.
+
+**Verify.** Test: issue a transition with a known `command_id`, assert the
+resulting `session.state` carries it. Assert it is absent for a
+schedule-driven transition, which has no originating command.
+
+**Done when** operator-driven and schedule-driven transitions are
+distinguishable from the payload alone.
+
+#### AR-0.7 — Documentation and changelog sweep (1 day)
+
+**Do.** Regenerate the message reference; update the hand-written tables in
+`270-preamble.md`; update `docs/user-guide/190-audit.md` for the new fields;
+write the breaking-change entries in `CHANGELOG.md`.
+
+**Verify.** `pm-msgen check` passes; `make -C docs-design` builds; read the
+generated reference for the changed families and confirm every new field has a
+`doc:` worth reading.
+
+> ### ✅ CP-0 — the bus is ready
+>
+> Demonstrate all of the following on one captured session from
+> `scripts/launch_all.sh`:
+>
+> 1. Every engine-published line carries a dense `seq` and a `run_seq`.
+> 2. `pm-audit-cli events --symbol AAPL` returns cancellations.
+> 3. `grep -rn epoch_seconds spec/messages/` matches only `log.yaml`.
+> 4. `book.*` and `depth.*` lines carry `ts_ns`.
+> 5. A kill switch's ack lists the ids it cancelled, and the count agrees.
+> 6. `poetry run pytest` green; `pm-msgen check` green.
+>
+> **Do not start Phase 1 until every line above has been demonstrated.** Each
+> later phase assumes these fields exist; discovering in Phase 4 that `seq` is
+> not actually dense means rewriting Pass 1.
+
+---
+
+### Phase 1 — Fact layer and ordering (≈ 4 days)
+
+Foundation. Everything downstream is wrong if this is wrong, and wrong here is
+quiet: a misordered narrative still reads plausibly. Invest in the tests.
+
+New package `src/edumatcher/audit/replay/`.
+
+#### AR-1.1 — Package skeleton and entry point (0.5 day)
+
+**Do.** Create the package, register `pm-audit-replay` in `pyproject.toml`,
+add a `cli.py` that parses the global options in §9.1 and exits 0.
+
+**Verify.** `poetry run pm-audit-replay --help` prints the options.
+**Done when** the command exists and is registered in `pm_help/registry.py`.
+
+#### AR-1.2 — `AuditEntry` gains source coordinates (0.5 day)
+
+**Do.** In the existing `audit/query.py`, surface `(file, line_no)` on
+`AuditEntry`, and extract the topic-wildcard split
+(`order.ack.TRADER01` → `("order.ack", "TRADER01")`) into a shared helper both
+tools use.
+
+**Verify.** `pytest tests/test_audit_cli.py` — the existing suite must stay
+green, since this is a change to a shipped tool. Add a test for the wildcard
+split covering **every** wildcard topic in `spec/messages/`, generated by
+enumerating the spec rather than by hand, so a new topic cannot be missed.
+
+**Done when** `pm-audit-cli` behaviour is unchanged and the split is shared.
+
+#### AR-1.3 — `facts.py`: unit normalisation (1 day)
+
+**Do.** Event → Fact. Resolve the tick-decimals ladder of §5.3.1, convert prices
+to display money, normalise timestamps, split topics.
+
+**Verify.** Test each rung of the ladder separately, including the **refusal**
+case — no `tick_decimals` available anywhere must raise/flag, never guess. That
+refusal test is the important one: a tool that silently guesses a price scale is
+worse than one that stops.
+
+**Done when** every price a Fact exposes carries a resolved scale or an explicit
+refusal.
+
+#### AR-1.4 — `ordering.py`: canonical sort key (1 day)
+
+**Do.** Implement `(run_seq, seq, receipt_ts, file_ordinal)` per §5.2.2, plus
+the `seq`-bounded reorder window and `late` tagging.
+
+**Verify.** Write these tests first, and watch each fail:
+
+1. A deliberately inverted ack/fill pair — ack written to the log *after* the
+   fill — sorts back into `seq` order.
+2. Facts spanning a `run_seq` change never interleave.
+3. A missing `seq` is reported as a gap, not silently skipped.
+4. Non-engine facts (no `seq`) fall back to `receipt_ts` and sort stably
+   among themselves.
+5. Property test: shuffle a known-good fact stream, sort, assert the original
+   order is recovered exactly.
+
+**Done when** test 5 passes over 1 000 random shuffles.
+
+#### AR-1.5 — Golden fixture harness (1 day)
+
+**Do.** Build the fixture tooling now, before there is output to freeze: a
+helper that takes a scenario name, runs the tool over
+`tests/fixtures/replay/<name>.log`, and compares against
+`<name>.expected.<level>.txt`, with an `--update-goldens` flag.
+
+**Verify.** Use it immediately for fixture `01_simple_limit_partial_fill.log`,
+even though Phase 1 renders nothing yet: assert the *ordering* of the parsed
+facts against a committed expected list.
+
+**Done when** `--update-goldens` regenerates files and a deliberate corruption
+of an expected file fails the suite.
+
+> ### ✅ CP-1 — facts are correct and ordered
+>
+> 1. A shuffled stream re-sorts to the exact original order (1 000 trials).
+> 2. Every price is display money with a resolved scale, or explicitly refused.
+> 3. The wildcard split covers every topic in `spec/messages/`.
+> 4. The golden harness fails on a corrupted expectation.
+> 5. `pm-audit-cli` still green.
+
+---
+
+### Phase 2 — State models and the link resolver (≈ 5 days)
+
+#### AR-2.1 — `state.py`: order and run models (1 day)
+
+**Do.** Per-order lifecycle state and the status ladder; run tracking.
+
+**Verify.** Test every legal transition, and that each illegal one is recorded
+as an anomaly rather than raising. **A malformed log must never crash the
+tool** — it is the thing you reach for *when* the system is misbehaving.
+
+#### AR-2.2 — `state.py`: market and gateway models (1 day)
+
+**Do.** Per-symbol session state, halt state and source, auction phase,
+corridor; per-gateway connection span and description.
+
+**Verify.** Test that a halt spanning a `CIRCUIT_BREAKER_ACTIVE` rejection lets
+the tool state *why* the symbol was halted, with the corridor figures from the
+original `circuit_breaker.halt`.
+
+#### AR-2.3 — `links.py`: tier 1, the direct-key joins (1 day)
+
+**Do.** The CERTAIN rows of §5.1.1 — `order_id`, `trade_ids`, `command_id`,
+`quote_id`, `oco_id`, `combo_id`, `request_tag`.
+
+**Verify.** One test per table row, each asserting **both** the link and its
+confidence. The confidence assertions matter more than the links: a regression
+that silently promotes a weak link to CERTAIN makes the tool lie with a
+straight face, and nothing else in the suite would catch it.
+
+#### AR-2.4 — `links.py`: tiers 2 and 3 (1.5 days)
+
+**Do.** Constrained candidate search, then reason-code attachment and the
+ack-count reconciliation of §5.1.2.
+
+**Verify.** Test the ambiguous cases explicitly: two cancels in flight for one
+order with no `request_tag` must produce HEURISTIC, not a confident wrong
+answer. Test that an ack count disagreeing with the observed `command_id` joins
+raises `EFFECT_COUNT_MISMATCH`.
+
+#### AR-2.5 — Confidence report (0.5 day)
+
+**Do.** A `--stats` mode reporting the share of links at each confidence level.
+
+**Verify.** Run against a captured session. **Post the distribution in the PR.**
+After Phase 0 the overwhelming majority should be CERTAIN; if it is not, a
+link rule is not firing and it is much cheaper to find out now than in Phase 4.
+
+> ### ✅ CP-2 — causality is recovered and honest
+>
+> 1. Every §5.1.1 row has a test asserting link **and** confidence.
+> 2. Confidence distribution on a real session posted, and CERTAIN dominates.
+> 3. A corrupt log produces anomalies, not a traceback.
+> 4. Ambiguous cancels degrade to HEURISTIC rather than guessing.
+
+---
+
+### Phase 3 — Episodes and the index (≈ 4 days)
+
+#### AR-3.1 — `episodes.py`: assembly (1.5 days)
+
+**Do.** Episode open/close for all 11 kinds in §4; `OPEN` outcome at window end.
+
+**Verify.** One fixture per kind. Explicitly test the window-edge case: an
+episode still open when the window ends must narrate as open, never as complete.
+Silent truncation is the most misleading thing this tool could do.
+
+#### AR-3.2 — `episodes.py`: derived facts (1 day)
+
+**Do.** Fill progress, VWAP, notional, timings, roles, price improvement.
+
+**Verify.** Hand-computed expectations — not values copied from the
+implementation's own output, which only proves it is self-consistent. Include an
+`AUCTION` trade and assert nobody is described as taking. Include a case with no
+contract multiplier available and assert notional is **omitted**, not assumed.
+
+#### AR-3.3 — `index.py`: SQLite schema and build (1 day)
+
+**Do.** The §6.2 schema, batched writes, `rules_version` guard.
+
+**Verify.** Build over a 200 MB log; assert bounded memory (peak RSS
+proportional to concurrently-open episodes, not file size). Assert a stale
+`rules_version` is refused with a readable message rather than rendering.
+
+#### AR-3.4 — Incremental indexing (0.5 day)
+
+**Do.** Resume from `last_line_ordinal`.
+
+**Verify.** Property test: indexing in 3 chunks yields a byte-identical database
+to indexing in one pass.
+
+> ### ✅ CP-3 — the model is materialised
+>
+> 1. Three-chunk and single-pass index builds are identical.
+> 2. 200 MB build inside the §16 budget, memory bounded.
+> 3. Stale `rules_version` refused with a clear message.
+> 4. Window-edge episodes narrate as open.
+
+---
+
+### Phase 4 — Narration (≈ 5 days) — first user-visible output
+
+#### AR-4.1 — `lexicon.py` (0.5 day)
+
+**Do.** Enum → business English for every enum in `spec/messages/`.
+
+**Verify.** A test enumerating the spec and asserting full coverage. An unmapped
+value must print verbatim in backticks **and** raise a coverage anomaly — never
+fail silently, never crash.
+
+#### AR-4.2 — `templates.py` and `render_text.py`, levels 0–2 (2 days)
+
+**Do.** Sentence templates and the renderer.
+
+**Verify.** Golden outputs for fixtures 01–05 at `-q`, default and `-v`.
+
+#### AR-4.3 — `stream` subcommand (0.5 day) · #### AR-4.4 — `story` subcommand (1 day)
+
+**Do.** The two primary views; `story` follows links to `--depth`.
+
+**Verify.** `story --order` on a partially filled order shows both sides of every
+trade. `story --command` on a kill switch reaches the cancelled orders.
+
+#### AR-4.5 — The round-trip property (1 day) — the most important test here
+
+**Do.** Assert that for any window, every event `pm-audit-cli events` returns is
+either narrated, explicitly suppressed at this detail level, or reported as an
+orphan.
+
+**Verify.** Run over a full captured session. **Nothing may vanish silently.**
+This is the property that makes the tool trustworthy; a narrative that quietly
+drops events is worse than no narrative, because it will be believed.
+
+> ### ✅ CP-4 — the tool is usable, and worth showing people
+>
+> 1. Round-trip property passes over a full session.
+> 2. Goldens committed for fixtures 01–05 at three levels.
+> 3. Lexicon covers every enum in the spec.
+> 4. **Demo it.** Show the output to someone who did not write it and have them
+>    read a bug from it. Wording problems are cheap now and expensive after
+>    §11's NDJSON contract freezes the `text` field.
+
+---
+
+### Phase 5 — Anomalies and the remaining views (≈ 4 days)
+
+#### AR-5.1 — `anomalies.py` (2 days)
+
+**Do.** All codes in §12.
+
+**Verify.** One fixture per code, each asserting the code fires — **and** a
+clean-log test asserting none fire. False positives destroy trust in an anomaly
+report faster than false negatives do.
+
+#### AR-5.2 — `digest`, `episodes`, `anomalies` subcommands (1 day)
+#### AR-5.3 — Detail levels 3–4 (1 day)
+
+**Verify.** At `-vvv`, the round-trip property becomes strict equality: every
+event narrated, nothing suppressed.
+
+> ### ✅ CP-5 — bug-hunting works
+>
+> 1. Every anomaly code has a firing fixture and does not fire on a clean log.
+> 2. `anomalies --severity warn` is **empty** on a `verify_matching.sh` run.
+> 3. `-vvv` narrates every event.
+
+---
+
+### Phase 6 — Machine-readable output and polish (≈ 3 days)
+
+#### AR-6.1 — `render_json.py` (1.5 days)
+
+**Verify.** Property test: every prose line equals the `text` of exactly one
+`beat`. The two formats cannot be allowed to drift.
+
+#### AR-6.2 — `--explain`, `--show-source`, `--show-units`, colour, `--tz` (1 day)
+#### AR-6.3 — User guide section (0.5 day)
+
+> ### ✅ CP-6 — shippable
+>
+> 1. Every §17 acceptance checklist item ticked.
+> 2. Text and NDJSON agree beat for beat.
+> 3. `--no-index` and indexed runs identical.
+> 4. Performance targets in §16 met on a 200 MB log.
+
+---
+
+### Phase 7 (optional, separate decision) — Envelope causation IDs
+
+§13. Note that Phase 0's `seq` solves *ordering* and *completeness*;
+`causation_id` solves *causality*. They are complementary, and after Phase 0 the
+remaining gap is narrow enough that this should be re-justified on the measured
+confidence distribution from AR-2.5 rather than assumed to be worth doing.
+
+---
+
+### Summary and critical path
+
+| Phase | Days | Gate |
+|---|---|---|
+| 0 — Bus changes | 8 | CP-0 |
+| 1 — Facts and ordering | 4 | CP-1 |
+| 2 — State and links | 5 | CP-2 |
+| 3 — Episodes and index | 4 | CP-3 |
+| 4 — Narration | 5 | CP-4 |
+| 5 — Anomalies and views | 4 | CP-5 |
+| 6 — Machine output and polish | 3 | CP-6 |
+| **Total** | **33** | |
+
+Phases 1–6 are strictly sequential: each consumes the previous phase's output.
+Phase 0 is the exception — AR-0.2 through AR-0.6 are independent of each other
+and can be parallelised or reordered freely. **AR-0.1 (`seq`) is the critical
+path**: it is the one item the whole ordering design depends on, so start it
+first and do not let it slip behind the easier tasks.
 
 ### Files changed outside the new package
 
 | File | Change |
 |---|---|
-| `pyproject.toml` | Add the `pm-audit-replay` entry point |
-| `src/edumatcher/audit/query.py` | Surface `(file, line_no)` on `AuditEntry`; extract the topic wildcard split into a shared helper |
-| `src/edumatcher/pm_help/registry.py` | Register the new command |
-| `docs/user-guide/190-audit.md` | New section on replay, with worked examples |
-| `docs-design/README.md` | Add this document to the index |
-| `CHANGELOG.md` | Feature entry |
-
-
+| `spec/messages/*.yaml` | Phase 0 field additions |
+| `src/edumatcher/engine/main.py` | `seq` assignment at the publish site; `symbol` on lifecycle events |
+| `src/edumatcher/audit/query.py` | `(file, line_no)` on `AuditEntry`; shared wildcard split |
+| `pyproject.toml` | `pm-audit-replay` entry point |
+| `src/edumatcher/pm_help/registry.py` | Register the command |
+| `docs/user-guide/190-audit.md` | Replay section |
+| `docs/user-guide/270-preamble.md` | Hand-written tables for changed messages |
+| `CHANGELOG.md` | Phase 0 breaking changes; tool feature entry |
 
 ## 15. Testing Guide
 
