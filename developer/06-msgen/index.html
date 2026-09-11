@@ -4456,6 +4456,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../09-order-flow-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Order Flow Through the Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -5269,8 +5297,8 @@ message:</p>
 <td><code>SIDE</code></td>
 </tr>
 <tr>
-<td><code>timestamp</code></td>
-<td><code>timestamp</code></td>
+<td><code>ts_ns</code></td>
+<td><code>ts_ns</code></td>
 <td><code>TS</code> (gateway)</td>
 <td><code>TS</code> (gateway)</td>
 </tr>
@@ -5560,7 +5588,7 @@ a marker redundant, and <code>ubuntu-latest</code> ships a compiler.</p>
 <a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a>    <span class="n">price</span><span class="o">=</span><span class="mf">101.5</span><span class="p">,</span>
 <a id="__codelineno-29-11" name="__codelineno-29-11" href="#__codelineno-29-11"></a>    <span class="n">quantity</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span>
 <a id="__codelineno-29-12" name="__codelineno-29-12" href="#__codelineno-29-12"></a>    <span class="n">aggressor_side</span><span class="o">=</span><span class="s2">"BUY"</span><span class="p">,</span>
-<a id="__codelineno-29-13" name="__codelineno-29-13" href="#__codelineno-29-13"></a>    <span class="n">timestamp</span><span class="o">=</span><span class="mf">1_700_000_000.0</span><span class="p">,</span>
+<a id="__codelineno-29-13" name="__codelineno-29-13" href="#__codelineno-29-13"></a>    <span class="n">ts_ns</span><span class="o">=</span><span class="mi">1_700_000_000_000_000_000</span><span class="p">,</span>
 <a id="__codelineno-29-14" name="__codelineno-29-14" href="#__codelineno-29-14"></a>    <span class="n">tick_decimals</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
 <a id="__codelineno-29-15" name="__codelineno-29-15" href="#__codelineno-29-15"></a><span class="p">)</span>
 <a id="__codelineno-29-16" name="__codelineno-29-16" href="#__codelineno-29-16"></a><span class="c1"># [b'trade.executed',</span>
@@ -5651,7 +5679,7 @@ pretty-printer render units and constraints without hard-coding them:</p>
 <a id="__codelineno-33-10" name="__codelineno-33-10" href="#__codelineno-33-10"></a><span class="c1"># price           float   [display_price]</span>
 <a id="__codelineno-33-11" name="__codelineno-33-11" href="#__codelineno-33-11"></a><span class="c1"># quantity        int     [shares]</span>
 <a id="__codelineno-33-12" name="__codelineno-33-12" href="#__codelineno-33-12"></a><span class="c1"># aggressor_side  enum</span>
-<a id="__codelineno-33-13" name="__codelineno-33-13" href="#__codelineno-33-13"></a><span class="c1"># timestamp       float   [epoch_seconds]</span>
+<a id="__codelineno-33-13" name="__codelineno-33-13" href="#__codelineno-33-13"></a><span class="c1"># ts_ns           int     [epoch_nanos]</span>
 <a id="__codelineno-33-14" name="__codelineno-33-14" href="#__codelineno-33-14"></a><span class="c1"># tick_decimals   int     [dimensionless]</span>
 </code></pre></div>
 <h3 id="example-6-the-hot-path">Example 6 — the hot path<a class="headerlink" href="#example-6-the-hot-path" title="Permanent link">&para;</a></h3>
@@ -5672,7 +5700,7 @@ does today:</p>
 <a id="__codelineno-34-11" name="__codelineno-34-11" href="#__codelineno-34-11"></a>        <span class="n">price</span><span class="o">=</span><span class="n">from_ticks</span><span class="p">(</span><span class="n">trade</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="n">trade</span><span class="o">.</span><span class="n">symbol</span><span class="p">),</span>
 <a id="__codelineno-34-12" name="__codelineno-34-12" href="#__codelineno-34-12"></a>        <span class="n">quantity</span><span class="o">=</span><span class="n">trade</span><span class="o">.</span><span class="n">quantity</span><span class="p">,</span>
 <a id="__codelineno-34-13" name="__codelineno-34-13" href="#__codelineno-34-13"></a>        <span class="n">aggressor_side</span><span class="o">=</span><span class="n">trade</span><span class="o">.</span><span class="n">aggressor_side</span><span class="p">,</span>
-<a id="__codelineno-34-14" name="__codelineno-34-14" href="#__codelineno-34-14"></a>        <span class="n">timestamp</span><span class="o">=</span><span class="n">trade</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">/</span> <span class="mi">1_000_000_000</span><span class="p">,</span>
+<a id="__codelineno-34-14" name="__codelineno-34-14" href="#__codelineno-34-14"></a>        <span class="n">ts_ns</span><span class="o">=</span><span class="n">trade</span><span class="o">.</span><span class="n">timestamp</span><span class="p">,</span>
 <a id="__codelineno-34-15" name="__codelineno-34-15" href="#__codelineno-34-15"></a>        <span class="n">tick_decimals</span><span class="o">=</span><span class="n">get_tick_decimals</span><span class="p">(</span><span class="n">trade</span><span class="o">.</span><span class="n">symbol</span><span class="p">),</span>
 <a id="__codelineno-34-16" name="__codelineno-34-16" href="#__codelineno-34-16"></a>    <span class="p">)</span>
 <a id="__codelineno-34-17" name="__codelineno-34-17" href="#__codelineno-34-17"></a><span class="p">)</span>

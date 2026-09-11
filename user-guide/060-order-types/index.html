@@ -5033,6 +5033,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/09-order-flow-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Order Flow Through the Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -5127,6 +5155,13 @@
 </ul>
 <p><strong>Prerequisite</strong>: <a href="../../concepts/01-concepts-order-book/">The Order Book</a> — you should understand
 price-time priority before diving into order type mechanics.</p>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Key point: priority is not keyed on the order's timestamp</p>
+<p>Queue priority ("time priority" in price-time priority) is determined by
+the engine-assigned <strong><code>arrival_seq</code></strong>, not by the client-supplied
+<code>timestamp</code> field sent with the order. See <a href="#priority-rules">Priority Rules</a>
+in the Order Amendment section below for the full explanation.</p>
 </div>
 <p>EduMatcher supports <strong>eight order types</strong> plus two multi-leg constructs (COMBO and
 OCO), from the simplest market order to multi-leg combo/OCO orders used to execute
@@ -5400,19 +5435,33 @@ a small slice while preserving the same total parent quantity.</p>
 <p>Only <code>VISIBLE=</code> quantity is published to the order book</p>
 </li>
 <li>Once the visible peak is fully consumed, a <strong>new peak</strong> is replenished from the hidden quantity</li>
-<li>Each new peak gets a <strong>new timestamp</strong> → goes to the back of the queue at
+<li>
+<p>Each new peak gets a <strong>new <code>arrival_seq</code></strong> → goes to the back of the queue at
   that price level (because the book uses price-time priority: among orders at
-  the same price, the oldest order gets filled first — a fresh timestamp means
-  this peak waits behind all other orders already resting at that price)</li>
+  the same price, the order with the lowest <code>arrival_seq</code> — i.e. the one the
+  engine admitted first — gets filled first; a fresh <code>arrival_seq</code> means this
+  peak waits behind all other orders already resting at that price)</p>
+<div class="admonition info">
+<p class="admonition-title">Priority is keyed on <code>arrival_seq</code>, not the order's <code>timestamp</code></p>
+<p><code>arrival_seq</code> is a monotonic counter the <strong>engine</strong> assigns when it
+admits an order into the book — it is not the client-supplied
+<code>timestamp</code> field on the order. See <a href="#priority-rules">Priority Rules</a>
+below and <a href="../900-app-alf-protocol/#priority-rules">Order Amendment — AMEND</a>
+for the full explanation of why this distinction matters.</p>
+</div>
+<ul>
 <li>The total hidden size is <strong>never visible</strong> to other market participants</li>
+</ul>
+</li>
 </ul>
 <h3 id="gateway-syntax_4">Gateway Syntax<a class="headerlink" href="#gateway-syntax_4" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=ICEBERG|QTY=1000|PRICE=150.00|VISIBLE=100
 </code></pre></div>
 <p><strong>Educational note</strong>: This is how large institutional orders are worked into the market
 without telegraphing their full size. Watch the book viewer as the iceberg refills — the
-qty at that price level resets to 100 after each 100-lot fill, but the order ID changes
-(new timestamp = new queue position).</p>
+qty at that price level resets to 100 after each 100-lot fill. The order ID stays the
+same, but its <code>arrival_seq</code> is refreshed (new <code>arrival_seq</code> = new queue position — the
+order's original client <code>timestamp</code> does not change).</p>
 <h2 id="combo">COMBO<a class="headerlink" href="#combo" title="Permanent link">&para;</a></h2>
 <p><a href="#contents">Back to Contents</a></p>
 <p>A <strong>multi-leg order</strong> that bundles two or more child orders across different
@@ -5965,15 +6014,15 @@ the order ID</strong> and, under certain conditions, <strong>preserves time prio
 <tbody>
 <tr>
 <td>Quantity decrease only (price unchanged)</td>
-<td><strong>Preserved</strong> — order keeps its original timestamp</td>
+<td><strong>Preserved</strong> — order keeps its original <code>arrival_seq</code></td>
 </tr>
 <tr>
 <td>Price change (any direction)</td>
-<td><strong>Lost</strong> — order moves to the back of the queue at the new price</td>
+<td><strong>Lost</strong> — order is assigned a new <code>arrival_seq</code> and moves to the back of the queue at the new price</td>
 </tr>
 <tr>
 <td>Quantity increase (price unchanged)</td>
-<td><strong>Lost</strong> — order moves to the back of the queue</td>
+<td><strong>Lost</strong> — order is assigned a new <code>arrival_seq</code> and moves to the back of the queue</td>
 </tr>
 <tr>
 <td>Price change + quantity change</td>
@@ -5986,6 +6035,24 @@ the same price level (there is less competition for incoming aggressor flow).
 Any other change either alters the priority ranking (price change) or grants
 the order more opportunity to fill without having competed for that position
 (quantity increase).</p>
+<div class="admonition important">
+<p class="admonition-title">Priority is keyed on <code>arrival_seq</code>, not on the order's <code>timestamp</code></p>
+<p>It is tempting to think of price-time priority as being governed by the
+order's timestamp — and colloquially that is a fine mental model. But the
+field that actually determines queue position is the engine-assigned
+<strong><code>arrival_seq</code></strong>, a monotonic counter incremented every time the engine
+admits an order (or a re-priced/re-queued order) into the book.</p>
+<p>The order's <code>timestamp</code> field, by contrast, is <strong>client-supplied</strong> at
+submission time (see <a href="../900-app-alf-protocol/">ALF Protocol</a> and the
+<a href="../270-message-reference/#ordernew">message reference</a>) — it records when
+the client says it built the order, and a back-dated or clock-skewed
+value <strong>cannot</strong> be used to jump the queue. Only the engine's own
+<code>arrival_seq</code>, assigned the moment the order (or amendment) is accepted,
+decides fill order among orders resting at the same price.</p>
+<p>In outbound order snapshots (<code>order.orders.{GW_ID}</code>) and in the <code>AMENDED</code>
+event, watch <code>arrival_seq</code> — not <code>timestamp</code> — to see whether an order
+kept or lost its place in the queue.</p>
+</div>
 <h3 id="amend-vs-cancelnew">AMEND vs. Cancel+New<a class="headerlink" href="#amend-vs-cancelnew" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -6088,6 +6155,10 @@ make in-place amendment ambiguous (STOP, STOP_LIMIT, TRAILING_STOP).</p>
 </tr>
 </tbody>
 </table>
+<p><code>priority_reset=true</code> means the engine assigned the order a new <code>arrival_seq</code>
+(the order fell to the back of the queue at its price level). It says nothing
+about the order's <code>timestamp</code> field, which is client-supplied and unrelated to
+queue position — see <a href="#priority-rules">Priority Rules</a>.</p>
 <h3 id="a-price-amend-can-trigger-an-immediate-fill">A price amend can trigger an immediate fill<a class="headerlink" href="#a-price-amend-can-trigger-an-immediate-fill" title="Permanent link">&para;</a></h3>
 <p>If a price amend makes the order <strong>marketable</strong> — the new price crosses the
 current best opposite price — the engine does not simply leave it resting at

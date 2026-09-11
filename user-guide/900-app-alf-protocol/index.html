@@ -4853,6 +4853,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/09-order-flow-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Order Flow Through the Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -5512,12 +5540,30 @@ echoed on the corresponding <code>AMENDED</code> event or rejected <code>ACK</co
 <li><strong>price change</strong> -&gt; priority is reset</li>
 <li><strong>quantity increase</strong> -&gt; priority is reset</li>
 </ul>
+<div class="admonition important">
+<p class="admonition-title">What actually determines priority: <code>arrival_seq</code>, not <code>timestamp</code></p>
+<p>"Priority" here means queue position under price-time priority, and it is
+decided by <strong><code>arrival_seq</code></strong> — a monotonic counter the <em>engine</em> assigns
+each time it admits an order (or a re-priced/re-queued amendment) into
+the book. It is <strong>not</strong> the order's <code>timestamp</code> field, which is supplied
+by the <em>client</em> at submission time and is never used by the book to
+order the queue (a back-dated <code>timestamp</code> cannot jump the line).</p>
+<p>Do not confuse <code>arrival_seq</code> with the "no sequence numbers" bullet
+earlier on this page — that refers to ALF having no FIX-style
+<code>MsgSeqNum</code>/session-layer sequencing on the wire. <code>arrival_seq</code> is an
+unrelated, internal engine field that is assigned after ALF parses the
+command and is visible on outbound <code>order.orders.{GW_ID}</code> snapshots and
+<code>order.amended.{GW}</code> events. See the
+<a href="../060-order-types/#priority-rules">Order Types — Priority Rules</a> and the
+<a href="../270-message-reference/#ordernew">message reference</a> for the field-level
+detail.</p>
+</div>
 <p>Example:</p>
 <ol>
 <li><code>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00</code></li>
-<li><code>AMEND|ID=...|QTY=80|RTAG=AMD-KEEP</code> keeps queue priority if the price stays <code>150.00</code></li>
-<li><code>AMEND|ID=...|PRICE=150.10|RTAG=AMD-PRICE</code> loses queue priority</li>
-<li><code>AMEND|ID=...|QTY=120|RTAG=AMD-UP</code> also loses queue priority</li>
+<li><code>AMEND|ID=...|QTY=80|RTAG=AMD-KEEP</code> keeps queue priority (<code>arrival_seq</code> unchanged) if the price stays <code>150.00</code></li>
+<li><code>AMEND|ID=...|PRICE=150.10|RTAG=AMD-PRICE</code> loses queue priority (new <code>arrival_seq</code> assigned)</li>
+<li><code>AMEND|ID=...|QTY=120|RTAG=AMD-UP</code> also loses queue priority (new <code>arrival_seq</code> assigned)</li>
 </ol>
 <h3 id="important-identifier-rule">Important identifier rule<a class="headerlink" href="#important-identifier-rule" title="Permanent link">&para;</a></h3>
 <p>Use the <strong>full order ID</strong> from the gateway's order table or acknowledgement

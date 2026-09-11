@@ -1631,6 +1631,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#audit-completeness-every-state-changing-decision-not-just-its-outcome" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit completeness — every state-changing decision, not just its outcome
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#signal-handling-and-graceful-shutdown" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4250,6 +4261,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/09-order-flow-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Order Flow Through the Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -4588,11 +4627,60 @@ deliver every published message without exception:</p>
 </tr>
 <tr>
 <td><code>system.*</code></td>
-<td>Gateway auth, symbols, EOD</td>
+<td>Gateway auth, symbols, EOD, GTC-restore summary, absorbed internal failures</td>
 </tr>
 <tr>
 <td><em>(all others)</em></td>
 <td>Admin events, combos, quotes, circuit breaker</td>
+</tr>
+</tbody>
+</table>
+<h3 id="audit-completeness-every-state-changing-decision-not-just-its-outcome">Audit completeness — every state-changing decision, not just its outcome<a class="headerlink" href="#audit-completeness-every-state-changing-decision-not-just-its-outcome" title="Permanent link">&para;</a></h3>
+<p><code>pm-audit</code> can only ever see what the engine publishes on <code>:5556</code> — it is a
+bare subscriber with no other visibility into the process. Reconstructing
+"what happened and why" from the log is therefore only as complete as the
+publish call sites are, and a few decision points used to publish an outcome
+without the reason behind it, or nothing at all. The fields and events below
+close those gaps:</p>
+<table>
+<thead>
+<tr>
+<th>Gap closed</th>
+<th>Where it shows up</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Every engine-initiated cancel now states why</td>
+<td><code>order.cancelled.{GW_ID}</code>'s <code>cancel_reason</code> covers a kill switch (self or admin), a circuit-breaker halt, a gateway disconnect, an admin symbol-level mass cancel, a quote being replaced, and a quote leg cancelled because its sibling filled — in addition to the original <code>SELF_MATCH_PREVENTED</code> / <code>INSUFFICIENT_LIQUIDITY</code>. Still <code>null</code> for a client-requested cancel, which is not the exchange's decision to explain.</td>
+</tr>
+<tr>
+<td>Cancels and quote removals join back to the command that caused them</td>
+<td><code>order.cancelled.{GW_ID}</code> and <code>quote.status.{GW_ID}</code> both carry <code>command_id</code> when an admin/kill-switch command caused the event — the same <code>command_id</code> echoed on that command's ack and on <code>admin.action</code>. <code>null</code> when there is no such command (self-match prevention, a participant's own quote cancel, and so on).</td>
+</tr>
+<tr>
+<td>A resting order can be told apart from a config-seeded one</td>
+<td><code>order.ack.{GW_ID}</code> and <code>order.fill.{GW_ID}</code> carry <code>is_seed</code> — <code>true</code> for an order or quote leg created by <code>market_maker_quotes</code>/<code>market_maker_combos</code> at startup rather than a live gateway submission (the ack, not <code>order.new</code>, is the first audit-visible event for any order, since <code>order.new</code> is a PUSH-only submission the engine never re-publishes on <code>:5556</code>). The on-demand <code>order.orders</code>/<code>order.price_level_orders</code> snapshot rows carry it too. Purely observational: nothing in the engine branches on it.</td>
+</tr>
+<tr>
+<td>Every combo leg gets an acknowledgement</td>
+<td><code>order.ack.{GW_ID}</code> now fires once per child leg when a combo is accepted — live or config-seeded. Previously no combo leg published an ack at all; a subscriber that started after acceptance had no way to learn a leg's symbol, side, price, or qty until it was cancelled, and <code>order.cancelled</code>'s minimal shape cannot supply them either.</td>
+</tr>
+<tr>
+<td>Startup recovery is on the record</td>
+<td><code>system.startup_recovery</code>, published once right after <code>_restore_gtc()</code>, reports how many orders were restored, discarded as stale <code>TIF=DAY</code>, or failed to restore; how many single-leg quote remnants and rebuilt <code>QuoteIndex</code> entries resulted; and how many GTC combos came back. Previously these counts reached only <code>log.info</code>/<code>log.error</code>.</td>
+</tr>
+<tr>
+<td>Absorbed internal failures are on the record</td>
+<td><code>system.diagnostic</code> fires for a maintenance-flush exception, a dispatch-handler crash, an undecodable inbound message, or a message on a topic with no handler — cases the engine deliberately survives so trading is not interrupted, but which previously reached only the process log. Carries <code>component</code>, <code>detail</code> (the flush name or topic, when there is one), <code>error</code> (the exception text, when there is one), and <code>count</code> (that component's running occurrence count). The client-facing reject for a crashed order handler still stays generic — see <code>order.ack</code>'s <code>INTERNAL_ERROR</code> — so <code>system.diagnostic</code> is the only wire-visible place the real exception text appears.</td>
+</tr>
+<tr>
+<td>Amendments show the prior price/qty</td>
+<td><code>order.amended.{GW_ID}</code> carries <code>old_price</code>/<code>old_qty</code> alongside the new values, so a post-mortem does not need the preceding <code>order.new</code>/<code>order.amended</code> to know what changed.</td>
+</tr>
+<tr>
+<td>Index corporate actions show the prior divisor</td>
+<td><code>index.corp_action_ack</code>, <code>index.constituent_change_ack</code>, and <code>index.rebalance_ack</code> all carry <code>old_divisor</code> alongside <code>divisor</code>, mirroring <code>HistoryRecord.old_divisor</code> in pm-index's own local archive — a post-mortem no longer needs that archive to see what changed.</td>
 </tr>
 </tbody>
 </table>
@@ -4921,7 +5009,7 @@ symbol to reconstruct an order's full journey through the engine.</p>
 </tr>
 <tr>
 <td><code>qty</code></td>
-<td><code>quantity</code>, then <code>filled_qty</code>, then <code>remaining_qty</code> — whichever key is present first in the payload</td>
+<td><code>quantity</code>, then <code>fill_qty</code>, then <code>remaining_qty</code> — whichever key is present first in the payload</td>
 </tr>
 <tr>
 <td><code>price</code></td>
@@ -4931,19 +5019,12 @@ symbol to reconstruct an order's full journey through the engine.</p>
 <td><code>status</code></td>
 <td>Order status after the event</td>
 </tr>
+<tr>
+<td><code>reason</code></td>
+<td><code>reject_code</code> (from an <code>order.ack</code> rejection), <code>cancel_reason</code> (from <code>order.cancelled</code>), or a generic <code>reason</code> string — whichever the event carries</td>
+</tr>
 </tbody>
 </table>
-<div class="admonition warning">
-<p class="admonition-title"><code>qty</code> does not show the fill quantity for order.fill events</p>
-<p>The <code>qty</code> column looks for a <code>filled_qty</code> key as its second choice, but
-<code>order.fill.{GW_ID}</code> payloads actually use the key <code>fill_qty</code> (see
-<a href="../270-message-reference/#orderfillgateway_id">Messages — order.fill</a>). Since neither
-<code>quantity</code> nor <code>filled_qty</code> is present on a fill event, <code>qty</code> falls
-through to <code>remaining_qty</code> instead — the quantity left on the order, not
-the quantity filled in that event. Use <code>timeline</code> (which shows the full
-payload) or <code>events --topic order.fill</code> if you need the actual fill
-size.</p>
-</div>
 <p><strong>Examples:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Full lifecycle of one specific order</span>
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--id<span class="w"> </span>ORD-GW01-00142

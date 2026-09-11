@@ -3792,6 +3792,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#systemstartup_recovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        system.startup_recovery
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#systemdiagnostic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        system.diagnostic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#systemsymbols_request" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6102,6 +6124,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/09-order-flow-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Order Flow Through the Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -6545,8 +6595,13 @@ and received atomically:</p>
 </tr>
 <tr>
 <td><code>timestamp</code></td>
-<td>float</td>
-<td>Unix epoch (seconds)</td>
+<td>integer</td>
+<td>Client-supplied submission time, Unix epoch <strong>nanoseconds</strong>. <strong>Not</strong> what the book uses for time priority — see <code>arrival_seq</code> — so a back-dated value cannot jump the queue</td>
+</tr>
+<tr>
+<td><code>arrival_seq</code></td>
+<td>integer | absent</td>
+<td>Engine-assigned monotonic arrival sequence, and the actual time-priority key. <code>0</code> on submission, meaning unassigned</td>
 </tr>
 <tr>
 <td><code>status</code></td>
@@ -6555,13 +6610,13 @@ and received atomically:</p>
 </tr>
 <tr>
 <td><code>price</code></td>
-<td>float | null</td>
-<td>Limit price (LIMIT, STOP_LIMIT, FOK, ICEBERG)</td>
+<td>integer (ticks) | null</td>
+<td>Limit price <strong>in ticks</strong> (LIMIT, STOP_LIMIT, FOK, ICEBERG); <code>null</code> for MARKET, which has none</td>
 </tr>
 <tr>
 <td><code>stop_price</code></td>
-<td>float | null</td>
-<td>Trigger price (STOP, STOP_LIMIT)</td>
+<td>integer (ticks) | null</td>
+<td>Trigger price <strong>in ticks</strong> (STOP, STOP_LIMIT, TRAILING_STOP)</td>
 </tr>
 <tr>
 <td><code>visible_qty</code></td>
@@ -6575,8 +6630,8 @@ and received atomically:</p>
 </tr>
 <tr>
 <td><code>trail_offset</code></td>
-<td>float | null</td>
-<td>Offset from best price for <code>TRAILING_STOP</code> orders</td>
+<td>integer (ticks) | null</td>
+<td>Distance <strong>in ticks</strong> to trail the market price (<code>TRAILING_STOP</code>)</td>
 </tr>
 <tr>
 <td><code>smp_action</code></td>
@@ -6625,6 +6680,15 @@ and received atomically:</p>
 </tr>
 </tbody>
 </table>
+<blockquote>
+<p>[!NOTE]
+Prices on <code>order.new</code> and <code>quote.new</code> are <strong>integer ticks</strong>, not display
+money: 1 tick is <code>10^-tick_decimals</code> for the instrument. The replies are the
+other way round — <code>order.ack.price</code>, <code>order.fill.fill_price</code> and
+<code>order.amended.price</code> are display floats — which is why every message field
+carries a <code>unit:</code> declaration in <code>spec/messages/</code>, and why the generated
+tables below are authoritative when this narrative and the spec disagree.</p>
+</blockquote>
 <p><strong>Valid field combinations by order type:</strong></p>
 <table>
 <thead>
@@ -6767,9 +6831,13 @@ and received atomically:</p>
 <p>At least one of <code>price</code> or <code>qty</code> must be present.</p>
 <p><strong>Priority rules:</strong></p>
 <ul>
-<li>Quantity decrease only → priority <strong>preserved</strong> (timestamp unchanged)</li>
-<li>Price change or quantity increase → priority <strong>lost</strong> (new timestamp assigned)</li>
+<li>Quantity decrease only → priority <strong>preserved</strong> (<code>arrival_seq</code> unchanged)</li>
+<li>Price change or quantity increase → priority <strong>lost</strong> (new <code>arrival_seq</code> assigned)</li>
 </ul>
+<p>Priority is keyed on <code>arrival_seq</code>, the engine-assigned monotonic counter —
+<strong>not</strong> on the order's client-supplied <code>timestamp</code> field (see the <code>timestamp</code>
+and <code>arrival_seq</code> rows under <a href="#ordernew"><code>order.new</code></a> above). The <code>timestamp</code>
+field is never used by the book to determine queue position.</p>
 <p><strong>Reply:</strong> <code>order.amended.{GW_ID}</code> on success, or <code>order.ack.{GW_ID}</code> with <code>accepted=false</code> on rejection.</p>
 <h3 id="quotenew"><code>quote.new</code><a class="headerlink" href="#quotenew" title="Permanent link">&para;</a></h3>
 <p><strong>Motivation:</strong> Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
@@ -6803,8 +6871,8 @@ Role requirements and MM obligation controls are documented in
 </tr>
 <tr>
 <td><code>bid_price</code></td>
-<td>float</td>
-<td>Bid price</td>
+<td>integer (ticks)</td>
+<td>Bid price <strong>in ticks</strong></td>
 </tr>
 <tr>
 <td><code>bid_qty</code></td>
@@ -6813,8 +6881,8 @@ Role requirements and MM obligation controls are documented in
 </tr>
 <tr>
 <td><code>ask_price</code></td>
-<td>float</td>
-<td>Ask price</td>
+<td>integer (ticks)</td>
+<td>Ask price <strong>in ticks</strong></td>
 </tr>
 <tr>
 <td><code>ask_qty</code></td>
@@ -7485,6 +7553,11 @@ wire-format specification in the
 <td><code>engine</code></td>
 </tr>
 <tr>
+<td><code>system.diagnostic</code></td>
+<td><code>system</code></td>
+<td><code>engine</code></td>
+</tr>
+<tr>
 <td><code>system.eod</code></td>
 <td><code>system</code></td>
 <td><code>engine</code></td>
@@ -7606,6 +7679,11 @@ wire-format specification in the
 </tr>
 <tr>
 <td><code>system.session_status.{gateway_id}</code></td>
+<td><code>system</code></td>
+<td><code>engine</code></td>
+</tr>
+<tr>
+<td><code>system.startup_recovery</code></td>
 <td><code>system</code></td>
 <td><code>engine</code></td>
 </tr>
@@ -8029,11 +8107,11 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
-<td><code>timestamp</code></td>
-<td><code>float</code></td>
+<td><code>ts_ns</code></td>
+<td><code>int</code></td>
 <td>required</td>
-<td>unit <code>epoch_seconds</code></td>
-<td>Seconds, not nanoseconds: the snapshot divides by 1e9.</td>
+<td>ge 0, unit <code>epoch_nanos</code></td>
+<td>Epoch nanoseconds, carried through unscaled -- identical to the trade.executed print this row mirrors.</td>
 </tr>
 </tbody>
 </table>
@@ -9315,6 +9393,13 @@ wire-format specification in the
 <td>unit <code>dimensionless</code></td>
 <td></td>
 </tr>
+<tr>
+<td><code>old_divisor</code></td>
+<td><code>float</code></td>
+<td>omitted when unset</td>
+<td>unit <code>dimensionless</code></td>
+<td>The divisor immediately before this action was applied. Same field name and purpose as HistoryRecord.old_divisor, so a post-mortem does not need pm-index's local JSONL archive to see what changed — the wire event is self-contained. Present only alongside divisor, i.e. on acceptance.</td>
+</tr>
 </tbody>
 </table>
 <div class="admonition note">
@@ -9386,6 +9471,13 @@ wire-format specification in the
 <td>omitted when unset</td>
 <td>unit <code>dimensionless</code></td>
 <td></td>
+</tr>
+<tr>
+<td><code>old_divisor</code></td>
+<td><code>float</code></td>
+<td>omitted when unset</td>
+<td>unit <code>dimensionless</code></td>
+<td>The divisor immediately before this action was applied. Same field name and purpose as HistoryRecord.old_divisor, so a post-mortem does not need pm-index's local JSONL archive to see what changed — the wire event is self-contained. Present only alongside divisor, i.e. on acceptance.</td>
 </tr>
 </tbody>
 </table>
@@ -9465,6 +9557,13 @@ wire-format specification in the
 <td>omitted when unset</td>
 <td>unit <code>dimensionless</code></td>
 <td></td>
+</tr>
+<tr>
+<td><code>old_divisor</code></td>
+<td><code>float</code></td>
+<td>omitted when unset</td>
+<td>unit <code>dimensionless</code></td>
+<td>The divisor immediately before this action was applied. Same field name and purpose as HistoryRecord.old_divisor, so a post-mortem does not need pm-index's local JSONL archive to see what changed — the wire event is self-contained. Present only alongside divisor, i.e. on acceptance.</td>
 </tr>
 <tr>
 <td><code>command_id</code></td>
@@ -11047,6 +11146,13 @@ wire-format specification in the
 <td>Defaulted rather than nullable: to_dict always supplies ORDER.</td>
 </tr>
 <tr>
+<td><code>is_seed</code></td>
+<td><code>bool</code></td>
+<td>defaults to <code>False</code></td>
+<td>—</td>
+<td>True when this order was created by config-driven startup seeding (market_maker_quotes / market_maker_combos in the engine config) rather than a live gateway submission. Purely observational — nothing in the engine branches on it; origin still governs routing. Lets a post-mortem tell a config bootstrap apart from real participant activity without depending on id-naming conventions. Absent on records written before this field existed.</td>
+</tr>
+<tr>
 <td><code>quote_id</code></td>
 <td><code>string</code></td>
 <td><code>null</code> when unset</td>
@@ -11221,6 +11327,13 @@ wire-format specification in the
 <td>defaults to <code>'ORDER'</code></td>
 <td>—</td>
 <td>Defaulted rather than nullable: to_dict always supplies ORDER.</td>
+</tr>
+<tr>
+<td><code>is_seed</code></td>
+<td><code>bool</code></td>
+<td>defaults to <code>False</code></td>
+<td>—</td>
+<td>True when this order was created by config-driven startup seeding (market_maker_quotes / market_maker_combos in the engine config) rather than a live gateway submission. Purely observational — nothing in the engine branches on it; origin still governs routing. Lets a post-mortem tell a config bootstrap apart from real participant activity without depending on id-naming conventions. Absent on records written before this field existed.</td>
 </tr>
 <tr>
 <td><code>quote_id</code></td>
@@ -11467,6 +11580,13 @@ wire-format specification in the
 <td>unit <code>dimensionless</code></td>
 <td></td>
 </tr>
+<tr>
+<td><code>is_seed</code></td>
+<td><code>bool</code></td>
+<td>defaults to <code>False</code></td>
+<td>—</td>
+<td>True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed (above) for the full rationale; this is the ack-time echo of the same fact, since order.ack — not order.new, which never reaches the engine's PUB feed — is the first audit-visible event for any order, seeded or live.</td>
+</tr>
 </tbody>
 </table>
 <div class="admonition note">
@@ -11611,6 +11731,13 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
+<td><code>is_seed</code></td>
+<td><code>bool</code></td>
+<td>defaults to <code>False</code></td>
+<td>—</td>
+<td>True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed for the full rationale; carried here too so a fill reached after the originating order.ack has rotated out of the audit log still says whether the filled order was a config seed.</td>
+</tr>
+<tr>
 <td><code>trade_ids</code></td>
 <td>list of <code>string</code></td>
 <td>defaults to <code>[]</code></td>
@@ -11673,7 +11800,7 @@ wire-format specification in the
 </tr>
 <tr>
 <td><code>cancel_reason</code></td>
-<td>enum: <code>SELF_MATCH_PREVENTED</code>, <code>INSUFFICIENT_LIQUIDITY</code></td>
+<td>enum: <code>SELF_MATCH_PREVENTED</code>, <code>INSUFFICIENT_LIQUIDITY</code>, <code>KILL_SWITCH</code>, <code>CIRCUIT_BREAKER_HALT</code>, <code>GATEWAY_DISCONNECT</code>, <code>ADMIN_CANCEL_SYMBOL</code>, <code>QUOTE_REPLACED</code>, <code>QUOTE_LEG_FILLED</code></td>
 <td>omitted when unset</td>
 <td>—</td>
 <td>Why the exchange cancelled this order, when the exchange decided it rather than the client. Null for a client-requested cancel, and for engine-initiated cancels whose cause is not yet classified - so request_tag=null together with cancel_reason=null still means "the exchange did this, cause unstated". Deliberately not the same vocabulary as order_ack.reject_code: a cancel is not a rejection, and most reject codes can never apply to one. New members may be added; existing members are never removed or renamed. A client must ignore a value it does not recognise.</td>
@@ -11705,6 +11832,13 @@ wire-format specification in the
 <td>omitted when unset</td>
 <td>unit <code>dimensionless</code></td>
 <td></td>
+</tr>
+<tr>
+<td><code>command_id</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>max_len 64</td>
+<td>The admin/kill-switch command_id (see system.admin_action) that caused this cancel, when one exists — lets a post-mortem join this event back to the exact command that triggered it. Null for a client-requested cancel and for engine-initiated cancels with no originating command (e.g. self-match prevention, insufficient liquidity, a quote leg cancelled because its sibling filled).</td>
 </tr>
 </tbody>
 </table>
@@ -11832,6 +11966,20 @@ wire-format specification in the
 <td>required</td>
 <td>—</td>
 <td>True when the amendment lost the order its time priority.</td>
+</tr>
+<tr>
+<td><code>old_price</code></td>
+<td><code>float</code></td>
+<td>omitted when unset</td>
+<td>unit <code>display_price</code></td>
+<td>The order's limit price immediately before this amendment, or null for an order that had none. Lets a post-mortem replay the amend without re-deriving the prior state from an earlier message. Absent on records written before this field existed.</td>
+</tr>
+<tr>
+<td><code>old_qty</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>unit <code>shares</code></td>
+<td>The order's qty immediately before this amendment. Same replay rationale as old_price; absent on records written before this field existed.</td>
 </tr>
 <tr>
 <td><code>client_tag</code></td>
@@ -12009,6 +12157,13 @@ wire-format specification in the
 <td>defaults to <code>'ORDER'</code></td>
 <td>—</td>
 <td>Defaulted rather than nullable: from_dict supplies ORDER.</td>
+</tr>
+<tr>
+<td><code>is_seed</code></td>
+<td><code>bool</code></td>
+<td>defaults to <code>False</code></td>
+<td>—</td>
+<td>True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed for the full rationale.</td>
 </tr>
 <tr>
 <td><code>quote_id</code></td>
@@ -12748,6 +12903,13 @@ wire-format specification in the
 <td>defaults to <code>''</code></td>
 <td>max_len 512</td>
 <td></td>
+</tr>
+<tr>
+<td><code>command_id</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>max_len 64</td>
+<td>The admin/kill-switch command_id (see system.admin_action) that caused this quote to leave the book, when one exists — same correlation purpose as order.cancelled.command_id. Null when the quote left for a reason with no originating command (participant cancel, replacement by a new quote, a leg fill).</td>
 </tr>
 </tbody>
 </table>
@@ -15532,6 +15694,122 @@ wire-format specification in the
 <p>That is why it has no <code>_request</code> sibling and why it is in this half rather than 6.1f's request/reply pairs.</p>
 </div>
 <p><strong>See also:</strong> <code>book.{SYMBOL}</code>, <code>session.state</code></p>
+<h3 id="systemstartup_recovery"><code>system.startup_recovery</code><a class="headerlink" href="#systemstartup_recovery" title="Permanent link">&para;</a></h3>
+<p><strong>Published by:</strong> <code>engine</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Since:</strong> 1.1</p>
+<p>Engine to all subscribers, once, right after <code>_restore_gtc()</code> and before the config-seed step runs: how much of the previous session's resting state came back. Every one of these counts previously only reached <code>log.info</code>/<code>log.error</code> — invisible to <code>pm-audit</code>, which is a bare PUB subscriber and sees nothing that is not published (see docs/user-guide/190-audit.md). A post-mortem investigating "why does the book look different after a restart" needs this the same way it needs <code>order.cancelled</code> for a live cancel.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Presence</th>
+<th>Rules</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>restored_orders</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>ge 0, unit <code>dimensionless</code></td>
+<td>GTC/same-day-DAY orders successfully restored to their book.</td>
+</tr>
+<tr>
+<td><code>discarded_stale_day_orders</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>ge 0, unit <code>dimensionless</code></td>
+<td>TIF=DAY orders discarded because the business day rolled over.</td>
+</tr>
+<tr>
+<td><code>failed_orders</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>ge 0, unit <code>dimensionless</code></td>
+<td>Persisted orders that raised during restore and were skipped.</td>
+</tr>
+<tr>
+<td><code>quote_remnants_restored</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>ge 0, unit <code>dimensionless</code></td>
+<td>Restored quote-origin legs whose sibling did not survive, so they rest as plain orders rather than being rejoined into QuoteIndex.</td>
+</tr>
+<tr>
+<td><code>rebuilt_quotes</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>ge 0, unit <code>dimensionless</code></td>
+<td>Active QuoteIndex entries rebuilt from both-legs-restored quotes.</td>
+</tr>
+<tr>
+<td><code>restored_combos</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>ge 0, unit <code>dimensionless</code></td>
+<td>GTC combos restored from the previous session.</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>A broadcast with no request, like <code>system.eod</code> — nothing asks for a recovery summary, the engine announces it once at startup.</p>
+</div>
+<p><strong>See also:</strong> <code>book.{SYMBOL}</code>, <code>auction.result</code></p>
+<h3 id="systemdiagnostic"><code>system.diagnostic</code><a class="headerlink" href="#systemdiagnostic" title="Permanent link">&para;</a></h3>
+<p><strong>Published by:</strong> <code>engine</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Since:</strong> 1.1</p>
+<p>Engine to all subscribers: an internal failure or anomaly that the engine absorbed and kept running past, so trading was not interrupted but the event still happened and a post-mortem needs to see it. Before this existed, a maintenance-flush exception, a handler crash, an undecodable inbound message, or a message on an unhandled topic reached only the process log — <code>pm-audit</code>'s bare PUB subscription on the engine's :5556 socket (see docs/user-guide/190-audit.md) never saw any of them, so a bug that only ever showed up as "the book snapshot stopped updating" or "an order silently never got a reply" had no trail to replay. This does not replace logging (the process log keeps the full traceback); it is the wire-visible marker that something in <code>component</code> happened, with enough detail to go find the log line.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Presence</th>
+<th>Rules</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>component</code></td>
+<td>enum: <code>MAINTENANCE_FLUSH</code>, <code>DISPATCH_ERROR</code>, <code>UNDECODABLE_MESSAGE</code>, <code>UNROUTED_TOPIC</code></td>
+<td>required</td>
+<td>—</td>
+<td>Which internal area this diagnostic came from.</td>
+</tr>
+<tr>
+<td><code>detail</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 256</td>
+<td>What within component — the flush function name, the message topic, or empty when there is no finer-grained name (an undecodable message has no topic to report).</td>
+</tr>
+<tr>
+<td><code>error</code></td>
+<td><code>string</code></td>
+<td>defaults to <code>''</code></td>
+<td>max_len 512</td>
+<td>The exception text, when this diagnostic came from one.</td>
+</tr>
+<tr>
+<td><code>count</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>ge 0, unit <code>dimensionless</code></td>
+<td>This component's running occurrence count for the process lifetime — the same counter the log line already reports, carried onto the wire so a subscriber can tell a first occurrence from a recurring one without correlating timestamps against the log.</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Deliberately generic — a <code>component</code>/<code>detail</code>/<code>error</code> triple rather than one message type per failure mode, because the failure modes (a maintenance flush, a dispatch-handler crash, an undecodable pull message, an unrouted topic) share nothing structural beyond "engine kept running, something still needs recording.".</p>
+</div>
+<p><strong>See also:</strong> <code>order.ack.{GW_ID}</code></p>
 <h3 id="systemsymbols_request"><code>system.symbols_request</code><a class="headerlink" href="#systemsymbols_request" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>admin</code>, <code>api_gateway</code>, <code>gateway</code>, <code>stats</code></p>
 <p><strong>Transport:</strong> <code>engine_pub</code></p>
@@ -16527,11 +16805,11 @@ wire-format specification in the
 <td>Side that removed liquidity. AUCTION when both sides rested, which happens on an uncross print where there is no true aggressor.</td>
 </tr>
 <tr>
-<td><code>timestamp</code></td>
-<td><code>float</code></td>
+<td><code>ts_ns</code></td>
+<td><code>int</code></td>
 <td>required</td>
-<td>unit <code>epoch_seconds</code></td>
-<td>Match time in Unix epoch seconds. The engine divides its nanosecond clock by 1e9 at publish time.</td>
+<td>ge 0, unit <code>epoch_nanos</code></td>
+<td>Match time in Unix epoch nanoseconds, exactly as the engine's clock read it -- no scaling at publish time. The whole match batch shares one clock read, so trades printed in the same batch carry an identical value; <code>id</code> (run_seq + dense counter) is what orders them. Named <code>ts_ns</code> rather than <code>timestamp</code> so the unit travels with the field, as it does for <code>resume_at_ns</code> and <code>halt_duration_ns</code>: a bare float <code>timestamp</code> was indistinguishable by type from millis or nanos, which is what forced clearing's magnitude-guessing guard (finding CL-M6) and cost ~238ns of the engine's own precision.</td>
 </tr>
 <tr>
 <td><code>tick_decimals</code></td>

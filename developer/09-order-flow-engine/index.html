@@ -1,0 +1,4913 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A multi-process Python trading system for learning order matching and market microstructure.">
+      
+      
+        <meta name="author" content="Johan Persson <johan162@gmail.com>">
+      
+      
+        <link rel="canonical" href="https://github.com/johan162/EduMatcher/developer/09-order-flow-engine/">
+      
+      
+        <link rel="prev" href="../08-dev-workflow/">
+      
+      
+        <link rel="next" href="../../glossary/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Order Flow Through the Engine - EduMatcher — Educational Trading System</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#order-flow-through-the-engine-a-new-limit-order-step-by-step" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-header__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            EduMatcher — Educational Trading System
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Order Flow Through the Engine
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/johan162/EduMatcher" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    johan162/EduMatcher
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../how-exchange-works/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  How an Exchange Works
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/01-concepts-order-book/" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../user-guide/000-getting-started/" class="md-tabs__link">
+          
+  
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../training/" class="md-tabs__link">
+          
+  
+  
+  Training
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../architecture/01-architecture/" class="md-tabs__link">
+          
+  
+  
+  Architecture
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../01-dev-practice/" class="md-tabs__link">
+          
+  
+  
+  Developer Info
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../glossary/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Glossary
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../faq/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  FAQ
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-nav__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    EduMatcher — Educational Trading System
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/johan162/EduMatcher" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    johan162/EduMatcher
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-exchange-works/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How an Exchange Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/01-concepts-order-book/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/02-concepts-order-book-deep-dive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/03-concepts-mm-quotes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MM Quotes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/04-concepts-first-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your First Trade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/05-concepts-trading-day/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A Full Trading Day
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/06-concepts-market-data-feed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/07-concepts-implied-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Implied Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/000-getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/001-learning-path/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A Path Through the Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/005-installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/010-configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/020-config-verifier/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Config Verifier
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/030-config-GUI/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration GUI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/040-running-the-exchange/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running the Exchange
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/051-gateway-intro/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gateway Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/055-alf-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF Console (pm-alf-console)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/060-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Order Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/070-combo-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/080-session-scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auctions & Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/090-market-maker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/100-mm-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market-Maker Bot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/110-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Traders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/120-risk-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/130-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/140-statistics-and-reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistics and Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/150-market-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/152-index-admin-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index Admin CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/160-exchange-commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exchange Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/170-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/180-persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/190-audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit Trail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/200-drop-copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/201-dc-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy TCP Gateway (pm-dc-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/202-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/210-protocols-overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External Protocols Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/220-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/230-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/240-calf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/241-calf-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CALF Protocol Spy (pm-calf-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/250-ralf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-Trade Dissemination (RALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/251-ralf-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RALF Protocol Spy (pm-ralf-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/260-api-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/270-message-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Message Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/280-log-srv/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/285-log-srv-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GUI: Trading Info Terminal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/300-trader-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GUI: Trading platform
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/800-examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/810-example-configs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Example Engine Configs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/890-known-limitations-bugs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Known Limitations & Bugs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/900-app-alf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: ALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/910-app-balf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: BALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/920-app-calf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: CALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/930-app-ralf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: RALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/940-app-lalf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: LALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/950-app-REST-API-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: REST API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/990-app-config-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: Engine Config Specification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Training
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 1 — Foundations
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 1 — Foundations
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/000-installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    00 — Installation & Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/010-configuring-startup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    01 — Configuring & Starting Up
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/020-setting-up-MM-bots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    02 — Setting Up Market-Maker Liquidity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/030-the-first-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    03 — The First Trade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/180-exchange-observer-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    04 — Exchange Observer Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 2 — Trading mechanics
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 2 — Trading mechanics
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/040-amending-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    05 — Amending Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/080-cancelling-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    06 — Cancelling & Managing Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/050-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    07 — Order Types Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/060-time-in-force-sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    08 — Time-in-Force & Sessions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/070-auctions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    09 — Auctions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/100-combo-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    10 — Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/250-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    11 — Market Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_4" id="__nav_5_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 3 — Liquidity and automation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 3 — Liquidity and automation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/090-market-making/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    12 — Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/140-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    13 — AI Traders & Swarm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/210-automation-commandclient-mm-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    14 — Automation & MM Bot Tuning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_5" id="__nav_5_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 4 — Operating the exchange
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 4 — Operating the exchange
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/110-risk-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    15 — Risk Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/190-advanced-admin-operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    16 — Advanced Admin Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/120-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    17 — P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/150-statistics-reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    18 — Statistics & Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/250-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    11 — Market Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/160-persistence-recovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    20 — Persistence & Recovery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/170-capstone-scenario/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    21 — Capstone Scenario
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_6" id="__nav_5_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 5 — External connectivity
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 5 — External connectivity
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/130-market-data-drop-copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    22 — Market Data & Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/200-drop-copy-replay-recovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    23 — Drop-Copy Replay & Recovery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/260-alf-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    24 — ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/270-balf-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    25 — BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/230-calf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    26 — CALF Market-Data Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/220-ralf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    27 — RALF Post-Trade Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/240-api-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    28 — API Gateway (REST/WebSocket)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/01-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/02-architecture-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Detailed Walkthrough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Info
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Developer Info
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../01-dev-practice/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Practice
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../02-ai-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Bot Traders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../03-experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../04-verification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Verification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../05-vm-runtime-image/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VM Runtime Image
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../06-msgen/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Message Generator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../07-container-and-networks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Container and Network Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../08-dev-workflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Development Loop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Order Flow Through the Engine
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Order Flow Through the Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-the-moving-parts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. The moving parts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-the-scenario" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. The scenario
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-from-keystroke-to-the-engines-doorstep" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. From keystroke to the engine's doorstep
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-the-engines-front-door" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. The engine's front door
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-the-gauntlet-every-check-in-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. The gauntlet: every check, in order
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-the-ack-sent-before-the-book-ever-sees-the-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. The ACK — sent before the book ever sees the order
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-handing-the-order-to-the-book" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Handing the order to the book
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. Handing the order to the book">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#7a-outcome-1-the-order-rests-our-scenario" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7a. Outcome 1 — the order rests (our scenario)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7b-outcome-2-a-crossing-order-worked-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7b. Outcome 2 — a crossing order (worked example)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-publishing-what-happened" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Publishing what happened
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-tif-and-the-lifetime-of-a-resting-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. TIF and the lifetime of a resting order
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="9. TIF and the lifetime of a resting order">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-happens-at-shutdown-and-it-is-not-removal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What happens at shutdown — and it is not removal
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-happens-at-the-next-startup-this-is-where-staleness-is-decided" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What happens at the next startup — this is where staleness is decided
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#summary-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary table
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-debugging-cheat-sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Debugging cheat-sheet
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-the-whole-thing-end-to-end" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. The whole thing, end to end
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="order-flow-through-the-engine-a-new-limit-order-step-by-step">Order Flow Through the Engine: A NEW LIMIT Order, Step by Step<a class="headerlink" href="#order-flow-through-the-engine-a-new-limit-order-step-by-step" title="Permanent link">&para;</a></h1>
+<div class="admonition note">
+<p class="admonition-title">Learning objectives</p>
+<p>After reading this page you will understand:</p>
+<ul>
+<li>The exact sequence of sockets and processes a <code>NEW</code> order crosses between
+  a trader's keystroke and a resting entry in the book</li>
+<li>Every check the engine runs before an order can rest or trade, in the
+  order it runs them, with the code that runs them</li>
+<li>How the engine's <code>ACK</code> finds its way back to the <em>one</em> gateway that sent
+  the order — there is no per-connection routing table, just a topic
+  string</li>
+<li>What actually happens to the order inside <code>OrderBook.process()</code> —
+  resting, partial fill, full fill — with a worked numeric example</li>
+<li>Exactly when a <code>TIF=DAY</code> order leaves the book: on a fill, on an
+  explicit cancel, on the scheduled session close — and, separately, what
+  happens (and does <strong>not</strong> happen) to it across a process restart</li>
+<li>Where to look first when something about an order's fate is unclear</li>
+</ul>
+</div>
+<div class="admonition info">
+<p class="admonition-title">What is covered</p>
+<p>This page walks one concrete case end to end: gateway <code>TRADER01</code> submits
+<code>NEW BUY 100 AAPL LIMIT @150.00</code> while the session is <code>CONTINUOUS</code>. Every
+code snippet below is taken from the real files (line numbers omitted —
+they drift; the surrounding context does not). Nothing here is
+simplified into a lie; where a snippet is trimmed for length, the
+omission is marked and the full function is named so you can go read it.</p>
+</div>
+<p>The goal is to make it boring. An exchange matching engine sounds like it
+should be full of clever tricks. It mostly is not — it is a long, explicit
+checklist, run in a fixed order, each step small enough to hold in your head.
+The complexity is in the <em>number</em> of steps, not in any single one of them.</p>
+<h2 id="1-the-moving-parts">1. The moving parts<a class="headerlink" href="#1-the-moving-parts" title="Permanent link">&para;</a></h2>
+<p>Two ZeroMQ sockets connect every gateway process to the one engine process:</p>
+<pre class="mermaid"><code>graph LR
+    subgraph GW1["pm-alf-gwy  (or pm-alf-console)"]
+        PUSH1["PUSH socket"]
+        SUB1["SUB socket"]
+    end
+    subgraph ENGINE["pm-engine"]
+        PULL[["PULL :5555\nbind"]]
+        PUB[["PUB :5556\nbind"]]
+    end
+    PUSH1 -- "order.new / order.cancel / ..." --&gt; PULL
+    PUB -- "order.ack.TRADER01 / order.fill.TRADER01 / ..." --&gt; SUB1</code></pre>
+<ul>
+<li><strong>PULL (<code>:5555</code>)</strong> — every gateway process <code>connect()</code>s a PUSH socket to it
+  and sends commands <em>in</em>. Many gateways, one engine, one-way traffic.</li>
+<li><strong>PUB (<code>:5556</code>)</strong> — the engine broadcasts <em>everything</em> it does. Every
+  gateway <code>connect()</code>s a SUB socket and filters, by topic prefix, for only
+  the events addressed to the gateway ids it is currently serving.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># messaging/bus.py</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">make_puller</span><span class="p">(</span><span class="n">addr</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">zmq</span><span class="o">.</span><span class="n">Socket</span><span class="p">[</span><span class="nb">bytes</span><span class="p">]:</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="sd">"""PULL socket — engine receives orders."""</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">sock</span> <span class="o">=</span> <span class="n">get_context</span><span class="p">()</span><span class="o">.</span><span class="n">socket</span><span class="p">(</span><span class="n">zmq</span><span class="o">.</span><span class="n">PULL</span><span class="p">)</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">sock</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="n">addr</span><span class="p">)</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="k">return</span> <span class="n">sock</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="k">def</span><span class="w"> </span><span class="nf">make_publisher</span><span class="p">(</span><span class="n">addr</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SequencedPublisher</span><span class="p">:</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">    </span><span class="sd">"""PUB socket — engine broadcasts events, each stamped with a sequence."""</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">sock</span> <span class="o">=</span> <span class="n">get_context</span><span class="p">()</span><span class="o">.</span><span class="n">socket</span><span class="p">(</span><span class="n">zmq</span><span class="o">.</span><span class="n">PUB</span><span class="p">)</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">sock</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="n">addr</span><span class="p">)</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="k">return</span> <span class="n">SequencedPublisher</span><span class="p">(</span><span class="n">sock</span><span class="p">)</span>
+</code></pre></div>
+<p>A message on either socket is two frames: a <strong>topic</strong> string and a <strong>JSON
+payload</strong>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># models/message.py</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">encode</span><span class="p">(</span><span class="n">topic</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">payload</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">bytes</span><span class="p">]:</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">topic</span><span class="o">.</span><span class="n">encode</span><span class="p">(),</span> <span class="n">_dumps</span><span class="p">(</span><span class="n">payload</span><span class="p">)]</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">decode</span><span class="p">(</span><span class="n">frames</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">bytes</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">topic</span> <span class="o">=</span> <span class="n">frames</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="n">payload</span> <span class="o">=</span> <span class="n">_loads</span><span class="p">(</span><span class="n">frames</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="k">return</span> <span class="n">topic</span><span class="p">,</span> <span class="n">payload</span>
+</code></pre></div>
+<p>Keep that shape in mind — <code>(topic, payload)</code> — it is the unit everything
+below is built from.</p>
+<h2 id="2-the-scenario">2. The scenario<a class="headerlink" href="#2-the-scenario" title="Permanent link">&para;</a></h2>
+<p><code>TRADER01</code>, connected through <code>pm-alf-gwy</code>, types:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>NEW|SYM=AAPL|SIDE=BUY|QTY=100|PRICE=150.00|TIF=DAY|TYPE=LIMIT
+</code></pre></div>
+<p>Session state is <code>CONTINUOUS</code>. AAPL's book currently has no resting bids and
+one resting ask at 150.50 for 200 shares. This order does not cross — it
+will rest. Section 7 below re-runs the same order at a price that <em>does</em>
+cross, to show a partial fill too.</p>
+<h2 id="3-from-keystroke-to-the-engines-doorstep">3. From keystroke to the engine's doorstep<a class="headerlink" href="#3-from-keystroke-to-the-engines-doorstep" title="Permanent link">&para;</a></h2>
+<p><code>pm-alf-gwy</code> parses the ALF text line, builds an <code>Order</code>, and pushes it —
+there is no engine-visible difference between an order that arrived over
+ALF, BALF, REST, or from <code>pm-alf-console</code> directly; they all end up as the
+same <code>order.new</code> PULL message.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># alf_gwy/gateway.py — _handle_new_single (trimmed)</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">order</span> <span class="o">=</span> <span class="n">Order</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">symbol</span><span class="o">=</span><span class="n">symbol</span><span class="p">,</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">side</span><span class="o">=</span><span class="n">side</span><span class="p">,</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">order_type</span><span class="o">=</span><span class="n">order_type</span><span class="p">,</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">quantity</span><span class="o">=</span><span class="n">quantity</span><span class="p">,</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">gateway_id</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_require_gw</span><span class="p">(</span><span class="n">session</span><span class="p">),</span>   <span class="c1"># ← the AUTHENTICATED session's id</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="n">tif</span><span class="o">=</span><span class="n">tif</span><span class="p">,</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="n">price</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_ticks</span><span class="p">(</span><span class="n">price</span><span class="p">,</span> <span class="n">symbol</span><span class="p">,</span> <span class="s2">"PRICE"</span><span class="p">)</span> <span class="k">if</span> <span class="n">price</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="o">...</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="p">)</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="bp">self</span><span class="o">.</span><span class="n">_send_to_engine</span><span class="p">(</span><span class="n">make_order_new_unchecked_msg</span><span class="p">(</span><span class="n">order</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()))</span>
+</code></pre></div>
+<p>Two things worth pausing on:</p>
+<ul>
+<li><strong><code>gateway_id</code> comes from the session, not from the wire fields.</strong> A
+  client cannot claim to be a different gateway than the one it
+  authenticated as — <code>_require_gw(session)</code> raises if the session never
+  completed <code>HELLO</code>. This is the fact the ACK routing in Section 6 depends
+  on.</li>
+<li><strong>Price is already converted to ticks</strong> (<code>self._ticks(...)</code>) before the
+  order ever leaves the gateway process. The engine never does float
+  arithmetic on a price — see <code>docs-design/EduMatcher-Requirements.md</code>
+  section 15.2 if you want the full story on ticks vs. display money.</li>
+</ul>
+<p><code>_send_to_engine</code> is a thin wrapper around the PUSH socket:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># alf_gwy/gateway.py — _send_to_engine (trimmed)</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">_send_to_engine</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">frames</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">bytes</span><span class="p">],</span> <span class="o">...</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_push</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">(</span><span class="n">frames</span><span class="p">)</span>
+</code></pre></div>
+<pre class="mermaid"><code>sequenceDiagram
+    participant T as TRADER01 (client)
+    participant GW as pm-alf-gwy
+    participant E as pm-engine (PULL :5555)
+
+    T-&gt;&gt;GW: NEW|SYM=AAPL|SIDE=BUY|QTY=100|PRICE=150.00|TIF=DAY|TYPE=LIMIT
+    GW-&gt;&gt;GW: parse fields, Order.create(...)
+    GW-&gt;&gt;E: PUSH  topic=order.new  payload={symbol, side, qty, price(ticks), gateway_id="TRADER01", ...}</code></pre>
+<h2 id="4-the-engines-front-door">4. The engine's front door<a class="headerlink" href="#4-the-engines-front-door" title="Permanent link">&para;</a></h2>
+<p>The engine's whole life is one loop: poll the PULL socket, decode, dispatch,
+run maintenance, repeat.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># engine/main.py — run() (trimmed)</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">_running</span><span class="p">:</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">socks</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">poller</span><span class="o">.</span><span class="n">poll</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mi">200</span><span class="p">))</span>          <span class="c1"># 200 ms tick</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pull_sock</span> <span class="ow">in</span> <span class="n">socks</span><span class="p">:</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>        <span class="n">frames</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pull_sock</span><span class="o">.</span><span class="n">recv_multipart</span><span class="p">()</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>        <span class="n">topic</span><span class="p">,</span> <span class="n">payload</span> <span class="o">=</span> <span class="n">decode</span><span class="p">(</span><span class="n">frames</span><span class="p">)</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_dispatch_pull_message</span><span class="p">(</span><span class="n">topic</span><span class="p">,</span> <span class="n">payload</span><span class="p">)</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_run_maintenance</span><span class="p">()</span>
+</code></pre></div>
+<p><code>_dispatch_pull_message</code> is a plain <code>if/elif</code> chain from topic string to
+handler method — no registry, no magic, just a long ladder:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># engine/main.py — _dispatch_pull_message (trimmed)</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="k">if</span> <span class="n">topic</span> <span class="o">==</span> <span class="n">TOPIC_ORDER_NEW</span><span class="p">:</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_handle_new_order</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="k">elif</span> <span class="n">topic</span> <span class="o">==</span> <span class="n">TOPIC_ORDER_CANCEL</span><span class="p">:</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_handle_cancel</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="k">elif</span> <span class="n">topic</span> <span class="o">==</span> <span class="n">TOPIC_ORDER_AMEND</span><span class="p">:</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_handle_amend</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>    <span class="o">...</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>    <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_unknown_topic_count</span> <span class="o">+=</span> <span class="mi">1</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>        <span class="n">log</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"No dispatch handler for topic </span><span class="si">%s</span><span class="s2"> ..."</span><span class="p">,</span> <span class="n">topic</span><span class="p">)</span>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_error_count</span> <span class="o">+=</span> <span class="mi">1</span>
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>    <span class="n">log</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">"Error processing </span><span class="si">%s</span><span class="s2"> (#</span><span class="si">%d</span><span class="s2">): </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">topic</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_error_count</span><span class="p">,</span> <span class="n">exc</span><span class="p">)</span>
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_reject_after_error</span><span class="p">(</span><span class="n">topic</span><span class="p">,</span> <span class="n">payload</span><span class="p">,</span> <span class="n">fills_before</span><span class="p">)</span>
+</code></pre></div>
+<p>The <code>try/except</code> around the whole ladder is deliberate: one malformed or
+unexpected payload must never take the process down, and it must never
+leave the submitting gateway simply waiting forever for an ACK that will
+never come — <code>_reject_after_error</code> sends a <code>REJECTED</code> with
+<code>code=INTERNAL_ERROR</code> so the caller's wait always terminates in <em>something</em>.</p>
+<p>Our message matches <code>TOPIC_ORDER_NEW</code>, so <code>_handle_new_order(payload)</code> runs
+next. Everything from here to "resting or trading" happens inside that one
+method.</p>
+<h2 id="5-the-gauntlet-every-check-in-order">5. The gauntlet: every check, in order<a class="headerlink" href="#5-the-gauntlet-every-check-in-order" title="Permanent link">&para;</a></h2>
+<p><code>_handle_new_order</code> is a sequence of guard clauses. Each one either rejects
+(sends a NACK and returns) or falls through to the next. Below is the exact
+order, each with the real check.</p>
+<pre class="mermaid"><code>flowchart TD
+    A["order.new received"] --&gt; B{"Gateway connected &amp; allowed?"}
+    B -- "no" --&gt; RB["REJECT: GATEWAY_NOT_CONFIGURED / AUTH_REQUIRED"]
+    B -- "yes" --&gt; C{"Symbol in allowlist?"}
+    C -- "no" --&gt; RC["REJECT: UNKNOWN_SYMBOL"]
+    C -- "yes" --&gt; D["ensure book exists (self._book(symbol))"]
+    D --&gt; E{"_validate_new_order: duplicate id? qty greater than 0? price required? iceberg ok? order-size / notional caps?"}
+    E -- "fails" --&gt; RE["REJECT: DUPLICATE_ORDER / QTY_OUT_OF_RANGE / PRICE_OUT_OF_RANGE / MISSING_FIELD"]
+    E -- "passes" --&gt; F{"Session accepts orders right now?"}
+    F -- "no" --&gt; RF["REJECT: MARKET_CLOSED"]
+    F -- "yes" --&gt; G{"TIF=ATO outside OPENING_AUCTION, or TIF=ATC outside CLOSING_AUCTION?"}
+    G -- "yes" --&gt; RG["REJECT: SESSION_NOT_PERMITTED"]
+    G -- "no" --&gt; H{"Symbol halted?"}
+    H -- "yes, and MARKET/FOK/IOC" --&gt; RH["REJECT: CIRCUIT_BREAKER_ACTIVE / INSTRUMENT_HALTED"]
+    H -- "yes, but LIMIT/ICEBERG" --&gt; I["do_match = False, will rest, not sweep"]
+    H -- "no" --&gt; J{"Price collar breached?"}
+    I --&gt; J
+    J -- "yes" --&gt; RJ["REJECT: COLLAR_BREACH"]
+    J -- "no" --&gt; K{"do_match is False and order is MARKET/FOK/IOC?"}
+    K -- "yes" --&gt; RK["REJECT: SESSION_NOT_PERMITTED, cannot rest"]
+    K -- "no" --&gt; L["ACCEPT: send ACK (Section 6)"]
+    L --&gt; M["book.process(order) (Section 7)"]</code></pre>
+<p>The code, one gate at a time:</p>
+<p><strong>Gate 1 — gateway connected and allowed.</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">ok</span><span class="p">,</span> <span class="n">reason</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_gateway_status</span><span class="p">(</span><span class="n">order</span><span class="o">.</span><span class="n">gateway_id</span><span class="p">)</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="k">if</span> <span class="ow">not</span> <span class="n">ok</span><span class="p">:</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_reject</span><span class="p">(</span><span class="n">gateway_id</span><span class="o">=</span><span class="n">order</span><span class="o">.</span><span class="n">gateway_id</span><span class="p">,</span> <span class="n">order_id</span><span class="o">=</span><span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>                  <span class="n">code</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_gateway_reject_code</span><span class="p">(</span><span class="n">reason</span><span class="p">),</span> <span class="n">reason</span><span class="o">=</span><span class="n">reason</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="k">return</span>
+</code></pre></div>
+<p><strong>Gate 2 — symbol allowlist.</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_allowed_symbols</span> <span class="ow">and</span> <span class="n">order</span><span class="o">.</span><span class="n">symbol</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_allowed_symbols</span><span class="p">:</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_reject</span><span class="p">(</span><span class="o">...</span><span class="p">,</span> <span class="n">code</span><span class="o">=</span><span class="s2">"UNKNOWN_SYMBOL"</span><span class="p">,</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>                  <span class="n">reason</span><span class="o">=</span><span class="sa">f</span><span class="s2">"Symbol not configured: </span><span class="si">{</span><span class="n">order</span><span class="o">.</span><span class="n">symbol</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="k">return</span>
+</code></pre></div>
+<p><strong>Gate 3 — boundary validation</strong>, all in one place
+(<code>_validate_new_order</code>), run <em>before</em> any ACK so a malformed order never
+reaches the book:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># engine/main.py — _validate_new_order (trimmed)</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_order_symbol</span><span class="p">:</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="k">return</span> <span class="s2">"DUPLICATE_ORDER"</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"Duplicate order id </span><span class="si">{</span><span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s2">"</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">quantity</span> <span class="o">&lt;=</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">order</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="k">return</span> <span class="s2">"QTY_OUT_OF_RANGE"</span><span class="p">,</span> <span class="s2">"Quantity must be positive"</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="n">price_required</span> <span class="o">=</span> <span class="n">order</span><span class="o">.</span><span class="n">order_type</span> <span class="ow">in</span> <span class="p">(</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>    <span class="n">OrderType</span><span class="o">.</span><span class="n">LIMIT</span><span class="p">,</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">FOK</span><span class="p">,</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">STOP_LIMIT</span><span class="p">,</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">ICEBERG</span><span class="p">,</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="p">)</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="k">if</span> <span class="n">price_required</span> <span class="ow">and</span> <span class="p">(</span><span class="n">order</span><span class="o">.</span><span class="n">price</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">order</span><span class="o">.</span><span class="n">price</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">):</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>    <span class="k">return</span> <span class="p">(</span><span class="s2">"PRICE_OUT_OF_RANGE"</span><span class="p">,</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">order</span><span class="o">.</span><span class="n">order_type</span><span class="o">.</span><span class="n">value</span><span class="si">}</span><span class="s2"> order requires a positive price"</span><span class="p">)</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="c1"># ... ICEBERG visible_qty checks ...</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="c1"># ... order-size / notional cap check via validate_order_limits() ...</span>
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="k">return</span> <span class="kc">None</span>
+</code></pre></div>
+<p>Our order is <code>LIMIT</code>, <code>quantity=100</code>, <code>price=15000</code> ticks — every check
+here passes.</p>
+<p><strong>Gate 4 — session gating.</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sessions_enabled</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">accepts_orders</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_session_state</span><span class="p">):</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_reject</span><span class="p">(</span><span class="o">...</span><span class="p">,</span> <span class="n">code</span><span class="o">=</span><span class="s2">"MARKET_CLOSED"</span><span class="p">,</span> <span class="n">reason</span><span class="o">=</span><span class="s2">"Market is closed"</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    <span class="k">return</span>
+</code></pre></div>
+<p>Session is <code>CONTINUOUS</code>, which <code>accepts_orders()</code> allows.</p>
+<p><strong>Gate 5 — ATO/ATC window.</strong> <code>TIF=DAY</code> skips both of these gates outright
+(they only fire for <code>TIF=ATO</code> outside <code>OPENING_AUCTION</code> and <code>TIF=ATC</code>
+outside <code>CLOSING_AUCTION</code>).</p>
+<p><strong>Gate 6 — halt check.</strong> AAPL is not halted, so this falls straight
+through.</p>
+<p><strong>Gate 7 — price collar.</strong> If a collar is configured for AAPL,
+<code>validate_collar</code> compares 150.00 against the reference price and the
+configured band. Assume it passes.</p>
+<p><strong>Gate 8 — no-match-phase rejection.</strong> Only bites <code>MARKET</code>/<code>FOK</code>/<code>IOC</code>
+orders when <code>do_match</code> is <code>False</code> (auction phase or halted symbol forcing
+LIMIT-only resting). Our order is <code>LIMIT</code>, so this is a no-op either way.</p>
+<p>Every gate passed. The order is now <strong>accepted</strong>.</p>
+<h2 id="6-the-ack-sent-before-the-book-ever-sees-the-order">6. The ACK — sent before the book ever sees the order<a class="headerlink" href="#6-the-ack-sent-before-the-book-ever-sees-the-order" title="Permanent link">&para;</a></h2>
+<p>This is the detail most people expect to be complicated and is not: the ACK
+is built and published <em>before</em> <code>book.process()</code> runs at all.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># engine/main.py — _handle_new_order (trimmed)</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="n">_gw</span> <span class="o">=</span> <span class="n">order</span><span class="o">.</span><span class="n">gateway_id</span>                         <span class="c1"># "TRADER01"</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="n">ack_topic</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_topic_cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">_gw</span><span class="p">)</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="k">if</span> <span class="n">ack_topic</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_topic_cache</span><span class="p">[</span><span class="n">_gw</span><span class="p">]</span> <span class="o">=</span> <span class="n">topic_order_ack</span><span class="p">(</span><span class="n">_gw</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>   <span class="c1"># b"order.ack.TRADER01"</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>    <span class="n">ack_topic</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_topic_cache</span><span class="p">[</span><span class="n">_gw</span><span class="p">]</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="bp">self</span><span class="o">.</span><span class="n">pub_sock</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">([</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>    <span class="n">ack_topic</span><span class="p">,</span>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>    <span class="n">dumps</span><span class="p">({</span>
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>        <span class="s2">"order_id"</span><span class="p">:</span> <span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>        <span class="s2">"accepted"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>        <span class="s2">"reason"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
+<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>        <span class="s2">"symbol"</span><span class="p">:</span> <span class="n">order</span><span class="o">.</span><span class="n">symbol</span><span class="p">,</span>
+<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a>        <span class="s2">"side"</span><span class="p">:</span> <span class="n">_side_v</span><span class="p">,</span>
+<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a>        <span class="s2">"order_type"</span><span class="p">:</span> <span class="n">_ot_v</span><span class="p">,</span>
+<a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a>        <span class="s2">"tif"</span><span class="p">:</span> <span class="n">_tif_v</span><span class="p">,</span>
+<a id="__codelineno-11-18" name="__codelineno-11-18" href="#__codelineno-11-18"></a>        <span class="s2">"qty"</span><span class="p">:</span> <span class="n">order</span><span class="o">.</span><span class="n">quantity</span><span class="p">,</span>
+<a id="__codelineno-11-19" name="__codelineno-11-19" href="#__codelineno-11-19"></a>        <span class="s2">"price"</span><span class="p">:</span> <span class="n">_price_v</span><span class="p">,</span>
+<a id="__codelineno-11-20" name="__codelineno-11-20" href="#__codelineno-11-20"></a>        <span class="s2">"client_tag"</span><span class="p">:</span> <span class="n">order</span><span class="o">.</span><span class="n">client_tag</span><span class="p">,</span>
+<a id="__codelineno-11-21" name="__codelineno-11-21" href="#__codelineno-11-21"></a>    <span class="p">}),</span>
+<a id="__codelineno-11-22" name="__codelineno-11-22" href="#__codelineno-11-22"></a><span class="p">])</span>
+</code></pre></div>
+<p><strong>How does the engine know which gateway to answer?</strong> It doesn't look
+anything up — <code>order.gateway_id</code> is already <code>"TRADER01"</code>, carried in the
+payload since Section 3 (<code>self._require_gw(session)</code>), and it becomes half
+of the outbound <em>topic string</em>: <code>order.ack.TRADER01</code>. There is no
+per-connection socket or address to remember on the engine side at all.</p>
+<p>Delivery is ZeroMQ's job, and it works by <strong>prefix filtering on the
+subscriber side</strong>, not by the publisher picking a destination:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># alf_gwy/gateway.py — _gateway_topics</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">_gateway_topics</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">gateway_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>    <span class="k">return</span> <span class="p">(</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>        <span class="n">topic_gateway_auth</span><span class="p">(</span><span class="n">gateway_id</span><span class="p">),</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>        <span class="n">topic_order_ack</span><span class="p">(</span><span class="n">gateway_id</span><span class="p">),</span>      <span class="c1"># "order.ack.TRADER01"</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>        <span class="n">topic_order_fill</span><span class="p">(</span><span class="n">gateway_id</span><span class="p">),</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>        <span class="o">...</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>    <span class="p">)</span>
+</code></pre></div>
+<p>When <code>TRADER01</code> authenticates, <code>pm-alf-gwy</code> calls <code>SUBSCRIBE</code> on exactly
+those topic strings. The engine's PUB socket broadcasts to <em>every</em> gateway
+process indiscriminately; each one's SUB socket silently drops anything that
+does not match one of its subscribed prefixes. <code>MM01</code>'s gateway process
+never even receives <code>order.ack.TRADER01</code> — ZeroMQ filters it at the network
+layer before it reaches Python.</p>
+<pre class="mermaid"><code>sequenceDiagram
+    participant E as pm-engine (PUB :5556)
+    participant GW1 as pm-alf-gwy for TRADER01
+    participant GW2 as pm-alf-gwy for MM01
+    participant T as TRADER01 client
+
+    Note over GW1: SUBSCRIBE order.ack.TRADER01, ...
+    Note over GW2: SUBSCRIBE order.ack.MM01, ...
+    E-&gt;&gt;GW1: topic=order.ack.TRADER01  accepted=true
+    E-&gt;&gt;GW2: same broadcast — filtered out, never delivered to app code
+    GW1-&gt;&gt;T: ACK  d8539c29  order accepted</code></pre>
+<p><code>pm-alf-gwy</code> then relays the ACK into the ALF text protocol
+(<code>_dispatch_response</code> → <code>ACK|ORDER_ID=...|ACCEPTED=TRUE</code>), and <code>TRADER01</code>'s
+terminal prints it.</p>
+<p>One caveat: this ACK means <em>"the engine accepted the order for
+processing"</em>, not <em>"this is its final state"</em>. For <code>MARKET</code>/<code>FOK</code>/<code>IOC</code>
+orders the book can still reject afterwards (e.g. insufficient liquidity for
+a <code>FOK</code>) — a second, <code>accepted=False</code> message follows in that case. For our
+resting <code>LIMIT</code> order, this ACK is the only acknowledgement it gets; its
+fate from here is reported via <code>order.fill</code> / <code>order.cancelled</code> /
+<code>order.expired</code>.</p>
+<h2 id="7-handing-the-order-to-the-book">7. Handing the order to the book<a class="headerlink" href="#7-handing-the-order-to-the-book" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># engine/main.py — _handle_new_order (trimmed)</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="n">do_match</span> <span class="o">=</span> <span class="n">is_matching_enabled</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_session_state</span><span class="p">)</span>   <span class="c1"># True in CONTINUOUS</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="n">trades</span><span class="p">,</span> <span class="n">events</span> <span class="o">=</span> <span class="n">book</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="n">do_match</span><span class="p">,</span> <span class="n">now</span><span class="o">=</span><span class="n">now</span><span class="p">)</span>
+</code></pre></div>
+<p><code>OrderBook.process</code> dispatches on <code>order_type</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1"># engine/order_book.py — process (trimmed)</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="k">elif</span> <span class="n">order</span><span class="o">.</span><span class="n">order_type</span> <span class="o">==</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">LIMIT</span><span class="p">:</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_match_limit</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="n">now</span><span class="p">)</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1"># engine/order_book.py — _match_limit</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">_match_limit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="n">now</span><span class="p">):</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>    <span class="n">opposite</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_asks</span> <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bids</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_sweep</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">opposite</span><span class="p">,</span> <span class="n">price_limit</span><span class="o">=</span><span class="n">order</span><span class="o">.</span><span class="n">price</span><span class="p">,</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>                <span class="n">trades</span><span class="o">=</span><span class="n">trades</span><span class="p">,</span> <span class="n">events</span><span class="o">=</span><span class="n">events</span><span class="p">,</span> <span class="n">now</span><span class="o">=</span><span class="n">now</span><span class="p">)</span>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>    <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">order</span><span class="o">.</span><span class="n">status</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_DEAD_STATUSES</span><span class="p">:</span>
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_rest</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</code></pre></div>
+<p><code>_sweep</code> is one <code>while</code> loop: peek the best opposite order, stop if its
+price is worse than our limit, otherwise fill against it and keep going
+until either side runs out.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="c1"># engine/order_book.py — _sweep (trimmed)</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="k">while</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">opposite_heap</span><span class="p">:</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>    <span class="n">best</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_peek</span><span class="p">(</span><span class="n">opposite_heap</span><span class="p">)</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>    <span class="k">if</span> <span class="n">best</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>        <span class="k">break</span>
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>    <span class="k">if</span> <span class="n">price_limit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>        <span class="k">if</span> <span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span> <span class="ow">and</span> <span class="n">best</span><span class="o">.</span><span class="n">price</span> <span class="o">&gt;</span> <span class="n">price_limit</span><span class="p">:</span>
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>            <span class="k">break</span>                      <span class="c1"># nothing left is cheap enough — stop</span>
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>        <span class="k">if</span> <span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">SELL</span> <span class="ow">and</span> <span class="n">best</span><span class="o">.</span><span class="n">price</span> <span class="o">&lt;</span> <span class="n">price_limit</span><span class="p">:</span>
+<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a>            <span class="k">break</span>
+<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>    <span class="n">fill_qty</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">aggressor</span><span class="o">.</span><span class="n">remaining_qty</span><span class="p">,</span> <span class="n">best</span><span class="o">.</span><span class="n">remaining_qty</span><span class="p">)</span>
+<a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_apply_fill</span><span class="p">(</span><span class="n">aggressor</span><span class="p">,</span> <span class="n">best</span><span class="p">,</span> <span class="n">fill_qty</span><span class="p">,</span> <span class="n">best</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="n">now</span><span class="p">)</span>
+</code></pre></div>
+<p>That's the entire matching algorithm for a LIMIT order: <strong>peek, compare
+price, fill the smaller of the two remaining quantities, repeat.</strong> No
+special cases beyond price-time priority (best price first, then arrival
+order at a tied price — see the heap key in <code>_rest</code> below) and self-match
+prevention (skipped here for brevity — see
+<code>docs/architecture/02-architecture-guide.md</code> section 4 for the full sweep
+including SMP).</p>
+<h3 id="7a-outcome-1-the-order-rests-our-scenario">7a. Outcome 1 — the order rests (our scenario)<a class="headerlink" href="#7a-outcome-1-the-order-rests-our-scenario" title="Permanent link">&para;</a></h3>
+<p>AAPL's best ask is 150.50; our bid is 150.00. <code>150.50 &gt; 150.00</code>, so the very
+first price check in <code>_sweep</code> breaks the loop immediately — nothing trades.
+Back in <code>_match_limit</code>, <code>order.remaining_qty</code> is still 100, so it rests:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="c1"># engine/order_book.py — _rest (trimmed)</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">_rest</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="p">:</span> <span class="n">Order</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>    <span class="n">price</span> <span class="o">=</span> <span class="n">order</span><span class="o">.</span><span class="n">price</span>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>    <span class="n">order</span><span class="o">.</span><span class="n">arrival_seq</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_next_seq</span><span class="p">()</span>          <span class="c1"># time priority (H1)</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>    <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span><span class="p">:</span>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>        <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="n">price</span><span class="p">,</span> <span class="n">order</span><span class="o">.</span><span class="n">arrival_seq</span><span class="p">)</span>         <span class="c1"># highest price first</span>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>        <span class="n">heap</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bids</span>
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_bid_qty</span><span class="p">[</span><span class="n">price</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bid_qty</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">price</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="n">order</span><span class="o">.</span><span class="n">remaining_qty</span>
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a>    <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a>        <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="n">price</span><span class="p">,</span> <span class="n">order</span><span class="o">.</span><span class="n">arrival_seq</span><span class="p">)</span>          <span class="c1"># lowest price first</span>
+<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a>        <span class="n">heap</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_asks</span>
+<a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a>        <span class="o">...</span>
+<a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a>    <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="n">_HeapEntry</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">order</span><span class="p">))</span>
+<a id="__codelineno-17-14" name="__codelineno-17-14" href="#__codelineno-17-14"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_order_index</span><span class="p">[</span><span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="p">]</span> <span class="o">=</span> <span class="n">order</span>
+<a id="__codelineno-17-15" name="__codelineno-17-15" href="#__codelineno-17-15"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_entry_index</span><span class="p">[</span><span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="p">]</span> <span class="o">=</span> <span class="n">entry</span>
+</code></pre></div>
+<p>That's the whole "resting order" concept: a heap entry keyed
+<code>(-price, arrival_seq)</code> for bids (so <code>heapq</code>, a min-heap, naturally pops the
+<em>highest</em> price first) or <code>(price, arrival_seq)</code> for asks (lowest price
+first), plus two dict lookups (<code>_order_index</code>, <code>_entry_index</code>) so a later
+<code>CANCEL</code>/<code>AMEND</code> can find it in O(1) instead of scanning a heap.</p>
+<p><code>book.process</code> returns <code>trades=[]</code>, <code>events=[]</code> — nothing to publish. The
+book is now dirty (marked via <code>self._mark_dirty(order.symbol)</code>) and will
+appear in the next throttled <code>book.AAPL</code> snapshot.</p>
+<h3 id="7b-outcome-2-a-crossing-order-worked-example">7b. Outcome 2 — a crossing order (worked example)<a class="headerlink" href="#7b-outcome-2-a-crossing-order-worked-example" title="Permanent link">&para;</a></h3>
+<p>Suppose instead <code>TRADER01</code> had bid <strong>150.50 for 50 shares</strong> — at or above
+the resting ask. <code>_sweep</code>'s price check now passes (<code>150.50</code> is not
+<code>&gt; 150.50</code>), so it fills:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>fill_qty = min(50, 200) = 50
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>_apply_fill(aggressor=bid, resting=ask@150.50, fill_qty=50, price=150.50, ...)
+</code></pre></div>
+<p><code>_apply_fill</code> (not reproduced in full — see <code>order_book.py</code>) does three
+things: creates a <code>Trade</code>, decrements both orders' <code>remaining_qty</code>, and sets
+each order's <code>status</code> (<code>FILLED</code> if <code>remaining_qty</code> hits zero, <code>PARTIAL</code>
+otherwise). The aggressor's <code>remaining_qty</code> is now 0 — the loop exits
+because <code>aggressor.remaining_qty &gt; 0</code> is false — and since it is not
+<code>&gt; 0</code>, <code>_match_limit</code> does <strong>not</strong> rest it. The resting ask had 200 shares
+and is now down to 150, still resting with <code>status=PARTIAL</code>.</p>
+<pre class="mermaid"><code>sequenceDiagram
+    participant Agg as incoming BUY 50@150.50
+    participant Book as AAPL book (ask heap)
+    participant Rest as resting SELL 200@150.50
+
+    Agg-&gt;&gt;Book: _sweep() — peek best ask
+    Book--&gt;&gt;Agg: 150.50, qty=200 (price OK: 150.50 &lt;= 150.50)
+    Agg-&gt;&gt;Rest: _apply_fill(fill_qty=50)
+    Rest--&gt;&gt;Rest: remaining_qty 200 -&gt; 150, status=PARTIAL
+    Agg--&gt;&gt;Agg: remaining_qty 50 -&gt; 0, status=FILLED
+    Note over Agg,Rest: aggressor remaining_qty == 0 -&gt; loop exits, not rested</code></pre>
+<p><code>trades</code> now has one <code>Trade</code>, <code>events</code> has both <code>Order</code> objects (the filled
+aggressor and the partially-filled resting order) — Section 8 covers what
+happens to them next.</p>
+<h2 id="8-publishing-what-happened">8. Publishing what happened<a class="headerlink" href="#8-publishing-what-happened" title="Permanent link">&para;</a></h2>
+<p>Back in <code>_handle_new_order</code>, the <code>events</code> list (every order whose status
+just changed) drives the publish loop. The important subtlety is
+deduplication: a single aggressive order that sweeps several price levels
+appears <strong>once per level</strong> in <code>events</code>, each occurrence carrying the same
+order object with its <em>final</em>, cumulative state — so a naive loop would
+publish the same fill several times with the wrong quantity split. A
+seen-set fixes it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="c1"># engine/main.py — _handle_new_order (trimmed)</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="n">published_fill_ids</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="k">for</span> <span class="n">evt</span> <span class="ow">in</span> <span class="n">events</span><span class="p">:</span>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>    <span class="n">filled_qty</span> <span class="o">=</span> <span class="n">evt</span><span class="o">.</span><span class="n">quantity</span> <span class="o">-</span> <span class="n">evt</span><span class="o">.</span><span class="n">remaining_qty</span>
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>    <span class="k">if</span> <span class="n">filled_qty</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">evt</span><span class="o">.</span><span class="n">id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">published_fill_ids</span><span class="p">:</span>
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>        <span class="n">published_fill_ids</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">evt</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">pub_sock</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">([</span>
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>            <span class="n">fill_topic_for</span><span class="p">(</span><span class="n">evt</span><span class="o">.</span><span class="n">gateway_id</span><span class="p">),</span>
+<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>            <span class="n">dumps</span><span class="p">({</span>
+<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a>                <span class="s2">"order_id"</span><span class="p">:</span> <span class="n">evt</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+<a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a>                <span class="s2">"fill_qty"</span><span class="p">:</span> <span class="n">filled_qty</span><span class="p">,</span>
+<a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a>                <span class="s2">"fill_price"</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
+<a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a>                <span class="s2">"remaining_qty"</span><span class="p">:</span> <span class="n">evt</span><span class="o">.</span><span class="n">remaining_qty</span><span class="p">,</span>
+<a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a>                <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"PARTIAL_FILL"</span> <span class="k">if</span> <span class="n">evt</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="k">else</span> <span class="s2">"FILLED"</span><span class="p">,</span>
+<a id="__codelineno-19-15" name="__codelineno-19-15" href="#__codelineno-19-15"></a>                <span class="o">...</span>
+<a id="__codelineno-19-16" name="__codelineno-19-16" href="#__codelineno-19-16"></a>            <span class="p">}),</span>
+<a id="__codelineno-19-17" name="__codelineno-19-17" href="#__codelineno-19-17"></a>        <span class="p">])</span>
+<a id="__codelineno-19-18" name="__codelineno-19-18" href="#__codelineno-19-18"></a><span class="k">for</span> <span class="n">trade</span> <span class="ow">in</span> <span class="n">trades</span><span class="p">:</span>
+<a id="__codelineno-19-19" name="__codelineno-19-19" href="#__codelineno-19-19"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_publish_trade</span><span class="p">(</span><span class="n">trade</span><span class="p">)</span>     <span class="c1"># trade.executed + both sides' positions</span>
+</code></pre></div>
+<p><code>_publish_trade</code> is the single fan-out point for a trade: it broadcasts the
+public <code>trade.executed</code> tape event, updates <strong>both</strong> counterparties'
+position ledgers (<code>_update_position</code>), feeds the drop-copy relay if one is
+attached, and checks whether this print should trip a circuit breaker. This
+is the <em>only</em> place any of those four things happen, regardless of whether
+the trade came from a plain NEW order, a quote leg, a combo child, an OCO
+leg, or an auction uncross — one path, four side effects, always in that
+order.</p>
+<p>If nothing filled (our resting-order scenario from 7a), <code>events</code> and
+<code>trades</code> are both empty — the loop above simply does nothing, and the
+resting order's only trace on the wire so far is the ACK from Section 6.</p>
+<h2 id="9-tif-and-the-lifetime-of-a-resting-order">9. TIF and the lifetime of a resting order<a class="headerlink" href="#9-tif-and-the-lifetime-of-a-resting-order" title="Permanent link">&para;</a></h2>
+<p>Our order rested with <code>TIF=DAY</code>. What removes it, and when?</p>
+<pre class="mermaid"><code>stateDiagram-v2
+    state "gone, silently (stale restart)" as GONE
+    [*] --&gt; NEW : ACK sent, rests on book
+    NEW --&gt; PARTIAL : partial fill (Section 7b)
+    NEW --&gt; FILLED : fully filled later
+    PARTIAL --&gt; FILLED : remainder fills
+    NEW --&gt; CANCELLED : explicit CANCEL (any TIF)
+    PARTIAL --&gt; CANCELLED : explicit CANCEL (any TIF)
+    NEW --&gt; EXPIRED : session transitions to CLOSED (TIF=DAY only, sessions_enabled=true)
+    PARTIAL --&gt; EXPIRED : same
+    NEW --&gt; GONE : process restarts and the persisted order's calendar day has passed (TIF=DAY only)
+    FILLED --&gt; [*]
+    CANCELLED --&gt; [*]
+    EXPIRED --&gt; [*]
+    GONE --&gt; [*]</code></pre>
+<p>There are exactly four ways a <code>TIF=DAY</code> order stops resting. Two are the
+same for every TIF; two are DAY-specific.</p>
+<p><strong>1 &amp; 2 — fill and explicit cancel.</strong> Nothing DAY-specific here: a fill
+happens the moment a crossing order sweeps it (Section 7b); a cancel happens
+the moment the owning gateway sends <code>CANCEL</code> (<code>Engine._handle_cancel</code>). Both
+apply identically to <code>GTC</code>.</p>
+<p><strong>3 — the scheduled end of the trading day</strong>, <em>if and only if</em>
+<code>sessions_enabled</code> is <code>true</code> and <code>pm-scheduler</code> actually drives a transition
+to <code>CLOSED</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="c1"># engine/main.py — _handle_session_transition (trimmed)</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">_session_state</span> <span class="o">=</span> <span class="n">to_state</span>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="k">if</span> <span class="n">to_state</span> <span class="o">==</span> <span class="n">SessionState</span><span class="o">.</span><span class="n">CLOSED</span><span class="p">:</span>
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_expire_tif</span><span class="p">(</span><span class="n">TIF</span><span class="o">.</span><span class="n">DAY</span><span class="p">)</span>     <span class="c1"># &lt;- the only caller of this, for TIF.DAY</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="c1"># engine/main.py — _expire_tif</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">_expire_tif</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tif</span><span class="p">:</span> <span class="n">TIF</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>    <span class="k">for</span> <span class="n">book</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">books</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>        <span class="k">for</span> <span class="n">order</span> <span class="ow">in</span> <span class="n">book</span><span class="o">.</span><span class="n">resting_orders</span><span class="p">():</span>
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>            <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">tif</span> <span class="o">==</span> <span class="n">tif</span><span class="p">:</span>
+<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a>                <span class="n">cancelled</span> <span class="o">=</span> <span class="n">book</span><span class="o">.</span><span class="n">cancel_order</span><span class="p">(</span><span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a>                <span class="k">if</span> <span class="n">cancelled</span><span class="p">:</span>
+<a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a>                    <span class="n">cancelled</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">OrderStatus</span><span class="o">.</span><span class="n">EXPIRED</span>
+<a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a>                    <span class="bp">self</span><span class="o">.</span><span class="n">pub_sock</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">(</span><span class="n">make_expired_msg</span><span class="p">(</span>
+<a id="__codelineno-21-10" name="__codelineno-21-10" href="#__codelineno-21-10"></a>                        <span class="n">cancelled</span><span class="o">.</span><span class="n">gateway_id</span><span class="p">,</span> <span class="n">cancelled</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+<a id="__codelineno-21-11" name="__codelineno-21-11" href="#__codelineno-21-11"></a>                        <span class="n">order</span><span class="o">=</span><span class="n">cancelled</span><span class="o">.</span><span class="n">to_dict</span><span class="p">(),</span>
+<a id="__codelineno-21-12" name="__codelineno-21-12" href="#__codelineno-21-12"></a>                    <span class="p">))</span>
+</code></pre></div>
+<p>This is the <em>only</em> code path that ever publishes <code>order.expired</code> for a
+<code>TIF=DAY</code> order. If <code>sessions_enabled</code> is <code>false</code> (many training/demo
+configs run this way), <strong>this path never runs at all</strong> — nothing in the
+engine ever expires a DAY order on a clock. It rests exactly as long as a
+<code>GTC</code> order would, until something else removes it.</p>
+<p><strong>4 — a stale restart</strong>, which is a completely different mechanism and does
+<em>not</em> publish anything.</p>
+<h3 id="what-happens-at-shutdown-and-it-is-not-removal">What happens at shutdown — and it is <em>not</em> removal<a class="headerlink" href="#what-happens-at-shutdown-and-it-is-not-removal" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="c1"># engine/main.py — _shutdown (trimmed)</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">_shutdown</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>    <span class="n">all_resting</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resting_gtc_orders</span><span class="p">()</span>      <span class="c1"># TIF in (GTC, DAY)</span>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>    <span class="n">save_gtc_orders</span><span class="p">(</span><span class="n">all_resting</span><span class="p">,</span> <span class="n">GTC_ORDERS_FILE</span><span class="p">)</span>
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>    <span class="n">save_book_stats</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">books</span><span class="p">,</span> <span class="n">BOOK_STATS_FILE</span><span class="p">)</span>
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>    <span class="o">...</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="c1"># engine/persistence.py — save_gtc_orders</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="n">gtc</span> <span class="o">=</span> <span class="p">[</span>
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>    <span class="n">o</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span> <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">orders</span>
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>    <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">tif</span> <span class="ow">in</span> <span class="p">(</span><span class="n">TIF</span><span class="o">.</span><span class="n">GTC</span><span class="p">,</span> <span class="n">TIF</span><span class="o">.</span><span class="n">DAY</span><span class="p">)</span>
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>    <span class="ow">and</span> <span class="n">o</span><span class="o">.</span><span class="n">status</span> <span class="ow">in</span> <span class="p">(</span><span class="n">OrderStatus</span><span class="o">.</span><span class="n">NEW</span><span class="p">,</span> <span class="n">OrderStatus</span><span class="o">.</span><span class="n">PARTIAL</span><span class="p">)</span>
+<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a><span class="p">]</span>
+<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a><span class="n">_atomic_write_text</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">gtc</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">))</span>
+</code></pre></div>
+<p><strong>A <code>TIF=DAY</code> order is persisted to <code>data/gtc_orders.json</code> on shutdown,
+exactly like a <code>GTC</code> order.</strong> Nothing is expired, nothing is discarded — a
+clean shutdown (SIGINT/SIGTERM) and a crash both leave the file in this
+state (a crash loses at most <code>_PERSIST_INTERVAL_SEC</code> = 5 seconds of changes,
+via the periodic <code>_flush_persistence</code> checkpoint that runs the same
+save on every maintenance tick — see <code>_run_maintenance</code>). <strong>A process exit
+is not a day boundary.</strong></p>
+<h3 id="what-happens-at-the-next-startup-this-is-where-staleness-is-decided">What happens at the next startup — this is where staleness is decided<a class="headerlink" href="#what-happens-at-the-next-startup-this-is-where-staleness-is-decided" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="c1"># engine/main.py — _restore_gtc (trimmed)</span>
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="n">today</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">date</span><span class="p">()</span>
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="k">for</span> <span class="n">order</span> <span class="ow">in</span> <span class="n">orders</span><span class="p">:</span>                                  <span class="c1"># loaded from the JSON file</span>
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>    <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">tif</span> <span class="o">==</span> <span class="n">TIF</span><span class="o">.</span><span class="n">DAY</span><span class="p">:</span>
+<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>        <span class="n">order_day</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">fromtimestamp</span><span class="p">(</span><span class="n">order</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">/</span> <span class="mf">1e9</span><span class="p">)</span><span class="o">.</span><span class="n">date</span><span class="p">()</span>
+<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a>        <span class="k">if</span> <span class="n">order_day</span> <span class="o">&lt;</span> <span class="n">today</span><span class="p">:</span>
+<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a>            <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Discarding stale TIF=DAY order </span><span class="si">{</span><span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="p">[:</span><span class="mi">8</span><span class="p">]</span><span class="si">}</span><span class="s2"> ..."</span><span class="p">)</span>
+<a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a>            <span class="k">continue</span>                                   <span class="c1"># &lt;- never restored, never expired</span>
+<a id="__codelineno-24-9" name="__codelineno-24-9" href="#__codelineno-24-9"></a>    <span class="n">order</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">OrderStatus</span><span class="o">.</span><span class="n">NEW</span>
+<a id="__codelineno-24-10" name="__codelineno-24-10" href="#__codelineno-24-10"></a>    <span class="n">book</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>                  <span class="c1"># rest it, no sweep</span>
+</code></pre></div>
+<p>The check is a plain calendar-date comparison against the order's original
+<code>timestamp</code>, evaluated <strong>once, at process startup</strong> — not continuously, not
+at midnight, not tied to the scheduler in any way. Two consequences follow
+directly from that:</p>
+<ul>
+<li>If the engine is restarted several times <em>within</em> the same calendar day, a
+  <code>TIF=DAY</code> order survives every restart unchanged — the date comparison
+  keeps passing.</li>
+<li>If the engine simply never restarts, a <code>TIF=DAY</code> order with
+  <code>sessions_enabled=false</code> never expires at all, ever — there is no
+  wall-clock timer for it, only the two checks above (session-close, or a
+  restart after the date has rolled over).</li>
+</ul>
+<p>And critically: <strong>a stale order discarded here never generates an
+<code>order.expired</code> message.</strong> By the time this code runs, the PUB socket may
+not even have a single subscriber yet — the order is simply absent from the
+book that gets rebuilt, and absent from the file the next time it is
+re-saved. A gateway reconnecting after a multi-day outage learns about the
+loss only by <em>absence</em>: it is not in the <code>ORDERS</code> snapshot it requests on
+reconnect, not in <code>QLEGS</code> (Section 10 below), and no lifecycle event for it
+will ever arrive.</p>
+<h3 id="summary-table">Summary table<a class="headerlink" href="#summary-table" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Trigger</th>
+<th>Applies to</th>
+<th>Publishes <code>order.expired</code>?</th>
+<th>Where in the code</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fill (full or partial)</td>
+<td>any TIF</td>
+<td>no — <code>order.fill</code> instead</td>
+<td><code>OrderBook._apply_fill</code></td>
+</tr>
+<tr>
+<td>Explicit <code>CANCEL</code></td>
+<td>any TIF</td>
+<td>no — <code>order.cancelled</code> instead</td>
+<td><code>Engine._handle_cancel</code></td>
+</tr>
+<tr>
+<td>Session → <code>CLOSED</code></td>
+<td><code>TIF=DAY</code> (and <code>ATO</code>/<code>ATC</code> at their own phase boundaries)</td>
+<td><strong>yes</strong></td>
+<td><code>Engine._expire_tif</code>, called from <code>_handle_session_transition</code></td>
+</tr>
+<tr>
+<td>Process shutdown (clean or crash)</td>
+<td>none — it is persisted, not removed</td>
+<td>no</td>
+<td><code>Engine._shutdown</code> / <code>_flush_persistence</code></td>
+</tr>
+<tr>
+<td>Process restart, order's date has passed</td>
+<td><code>TIF=DAY</code> only</td>
+<td>no — silently dropped</td>
+<td><code>Engine._restore_gtc</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="10-debugging-cheat-sheet">10. Debugging cheat-sheet<a class="headerlink" href="#10-debugging-cheat-sheet" title="Permanent link">&para;</a></h2>
+<p>When an order did something you did not expect, these are the places to
+look, roughly in the order you should look at them:</p>
+<table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Where to look</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Was the order rejected, and why?</td>
+<td>The <code>REJECT_CODE</code>/<code>reason</code> on the <code>ACK</code> — every reject in Section 5 goes through <code>Engine._reject</code>, which always sets both</td>
+</tr>
+<tr>
+<td>Did the engine even see it?</td>
+<td>Engine log at <code>INFO</code>: <code>NEW {id} {symbol} {side} ...</code> is logged right before <code>book.process</code> in <code>_handle_new_order</code></td>
+</tr>
+<tr>
+<td>Did it fill, partially or fully?</td>
+<td><code>order.fill.{gateway_id}</code> on the wire; <code>trade.executed</code> for the public tape; engine log <code>TRADE {id} {symbol} qty=... @...</code></td>
+</tr>
+<tr>
+<td>Is it still resting?</td>
+<td><code>ORDERS</code> (ALF) / <code>system.orders_request</code> — walks <code>book.resting_orders()</code> directly, so it can never disagree with the book</td>
+</tr>
+<tr>
+<td>Did it expire, and when?</td>
+<td><code>order.expired.{gateway_id}</code>; only ever sent from <code>_expire_tif</code>, only for a real session transition to <code>CLOSED</code></td>
+</tr>
+<tr>
+<td>Did I lose it across a restart?</td>
+<td>Check the engine's startup log for <code>Discarding stale TIF=DAY order ...</code> — if you see it, that order is gone and nothing else will tell you</td>
+</tr>
+<tr>
+<td>Is a handler silently swallowing exceptions?</td>
+<td>It cannot — every branch of <code>_dispatch_pull_message</code> is wrapped, and any exception increments <code>self._error_count</code> and logs at <code>ERROR</code> with the topic name</td>
+</tr>
+<tr>
+<td>Fine-grained counters for a whole class of rejects</td>
+<td><code>self._debug_counts</code> (<code>new_order_reject_gateway</code>, <code>_reject_symbol</code>, <code>_reject_validation</code>, <code>_reject_session</code>, <code>_reject_halt</code>, <code>_reject_collar</code>, <code>_reject_no_match_phase</code>, ...) — logged as one summary line every 5 seconds at <code>DEBUG</code> via <code>_flush_debug_summary</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="11-the-whole-thing-end-to-end">11. The whole thing, end to end<a class="headerlink" href="#11-the-whole-thing-end-to-end" title="Permanent link">&para;</a></h2>
+<pre class="mermaid"><code>sequenceDiagram
+    participant T as TRADER01
+    participant GW as pm-alf-gwy
+    participant E as pm-engine
+    participant B as AAPL OrderBook
+
+    T-&gt;&gt;GW: NEW|SYM=AAPL|SIDE=BUY|QTY=100|PRICE=150.00|TIF=DAY
+    GW-&gt;&gt;GW: Order.create(gateway_id="TRADER01", price-&gt;ticks)
+    GW-&gt;&gt;E: PUSH  order.new
+    E-&gt;&gt;E: decode() -&gt; _dispatch_pull_message -&gt; _handle_new_order
+    E-&gt;&gt;E: gate 1..8 (Section 5) — all pass
+    E-&gt;&gt;GW: PUB  order.ack.TRADER01  {accepted: true}
+    GW-&gt;&gt;T: ACK  order accepted
+    E-&gt;&gt;B: book.process(order, match=True)
+    B-&gt;&gt;B: _match_limit -&gt; _sweep (no cross) -&gt; _rest
+    Note over B: order now on the bid heap, key=(-15000, arrival_seq)
+    E-&gt;&gt;E: mark AAPL dirty (next book snapshot will include it)
+
+    Note over E: ... later, session scheduler fires ...
+    E-&gt;&gt;E: _handle_session_transition(to=CLOSED)
+    E-&gt;&gt;E: _expire_tif(TIF.DAY) -&gt; book.cancel_order(...)
+    E-&gt;&gt;GW: PUB  order.expired.TRADER01
+    GW-&gt;&gt;T: EXPIRED  {order_id}</code></pre>
+<p>Every arrow in that diagram is a function call or a two-frame ZMQ message
+you can grep for by name. There is no step in between.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["toc.integrate", "navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

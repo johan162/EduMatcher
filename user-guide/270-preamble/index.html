@@ -3818,6 +3818,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/09-order-flow-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Order Flow Through the Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -4250,8 +4278,13 @@ and received atomically:</p>
 </tr>
 <tr>
 <td><code>timestamp</code></td>
-<td>float</td>
-<td>Unix epoch (seconds)</td>
+<td>integer</td>
+<td>Client-supplied submission time, Unix epoch <strong>nanoseconds</strong>. <strong>Not</strong> what the book uses for time priority — see <code>arrival_seq</code> — so a back-dated value cannot jump the queue</td>
+</tr>
+<tr>
+<td><code>arrival_seq</code></td>
+<td>integer | absent</td>
+<td>Engine-assigned monotonic arrival sequence, and the actual time-priority key. <code>0</code> on submission, meaning unassigned</td>
 </tr>
 <tr>
 <td><code>status</code></td>
@@ -4260,13 +4293,13 @@ and received atomically:</p>
 </tr>
 <tr>
 <td><code>price</code></td>
-<td>float | null</td>
-<td>Limit price (LIMIT, STOP_LIMIT, FOK, ICEBERG)</td>
+<td>integer (ticks) | null</td>
+<td>Limit price <strong>in ticks</strong> (LIMIT, STOP_LIMIT, FOK, ICEBERG); <code>null</code> for MARKET, which has none</td>
 </tr>
 <tr>
 <td><code>stop_price</code></td>
-<td>float | null</td>
-<td>Trigger price (STOP, STOP_LIMIT)</td>
+<td>integer (ticks) | null</td>
+<td>Trigger price <strong>in ticks</strong> (STOP, STOP_LIMIT, TRAILING_STOP)</td>
 </tr>
 <tr>
 <td><code>visible_qty</code></td>
@@ -4280,8 +4313,8 @@ and received atomically:</p>
 </tr>
 <tr>
 <td><code>trail_offset</code></td>
-<td>float | null</td>
-<td>Offset from best price for <code>TRAILING_STOP</code> orders</td>
+<td>integer (ticks) | null</td>
+<td>Distance <strong>in ticks</strong> to trail the market price (<code>TRAILING_STOP</code>)</td>
 </tr>
 <tr>
 <td><code>smp_action</code></td>
@@ -4330,6 +4363,15 @@ and received atomically:</p>
 </tr>
 </tbody>
 </table>
+<blockquote>
+<p>[!NOTE]
+Prices on <code>order.new</code> and <code>quote.new</code> are <strong>integer ticks</strong>, not display
+money: 1 tick is <code>10^-tick_decimals</code> for the instrument. The replies are the
+other way round — <code>order.ack.price</code>, <code>order.fill.fill_price</code> and
+<code>order.amended.price</code> are display floats — which is why every message field
+carries a <code>unit:</code> declaration in <code>spec/messages/</code>, and why the generated
+tables below are authoritative when this narrative and the spec disagree.</p>
+</blockquote>
 <p><strong>Valid field combinations by order type:</strong></p>
 <table>
 <thead>
@@ -4472,9 +4514,13 @@ and received atomically:</p>
 <p>At least one of <code>price</code> or <code>qty</code> must be present.</p>
 <p><strong>Priority rules:</strong></p>
 <ul>
-<li>Quantity decrease only → priority <strong>preserved</strong> (timestamp unchanged)</li>
-<li>Price change or quantity increase → priority <strong>lost</strong> (new timestamp assigned)</li>
+<li>Quantity decrease only → priority <strong>preserved</strong> (<code>arrival_seq</code> unchanged)</li>
+<li>Price change or quantity increase → priority <strong>lost</strong> (new <code>arrival_seq</code> assigned)</li>
 </ul>
+<p>Priority is keyed on <code>arrival_seq</code>, the engine-assigned monotonic counter —
+<strong>not</strong> on the order's client-supplied <code>timestamp</code> field (see the <code>timestamp</code>
+and <code>arrival_seq</code> rows under <a href="#ordernew"><code>order.new</code></a> above). The <code>timestamp</code>
+field is never used by the book to determine queue position.</p>
 <p><strong>Reply:</strong> <code>order.amended.{GW_ID}</code> on success, or <code>order.ack.{GW_ID}</code> with <code>accepted=false</code> on rejection.</p>
 <h3 id="quotenew"><code>quote.new</code><a class="headerlink" href="#quotenew" title="Permanent link">&para;</a></h3>
 <p><strong>Motivation:</strong> Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
@@ -4508,8 +4554,8 @@ Role requirements and MM obligation controls are documented in
 </tr>
 <tr>
 <td><code>bid_price</code></td>
-<td>float</td>
-<td>Bid price</td>
+<td>integer (ticks)</td>
+<td>Bid price <strong>in ticks</strong></td>
 </tr>
 <tr>
 <td><code>bid_qty</code></td>
@@ -4518,8 +4564,8 @@ Role requirements and MM obligation controls are documented in
 </tr>
 <tr>
 <td><code>ask_price</code></td>
-<td>float</td>
-<td>Ask price</td>
+<td>integer (ticks)</td>
+<td>Ask price <strong>in ticks</strong></td>
 </tr>
 <tr>
 <td><code>ask_qty</code></td>

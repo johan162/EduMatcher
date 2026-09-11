@@ -4021,6 +4021,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/09-order-flow-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Order Flow Through the Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -4154,6 +4182,18 @@ of the queue at the new price level.</p>
 <p>Why: a new price is treated as a new offer, so queue fairness requires
 re-entering at the back.</p>
 </div>
+<div class="admonition info">
+<p class="admonition-title">What 'time priority' actually means: <code>arrival_seq</code>, not <code>timestamp</code></p>
+<p>Queue order is decided by <strong><code>arrival_seq</code></strong>, a counter the <em>engine</em>
+assigns the moment it admits an order or a re-priced/re-queued amendment.
+It is <strong>not</strong> the <code>timestamp</code> field the client sends with the order —
+that field just records when the client says it built the order, and the
+book never uses it to decide who goes first. "Losing priority" on this
+page always means "the engine assigned a new <code>arrival_seq</code>," never "the
+timestamp changed." See
+<a href="../../user-guide/060-order-types/#priority-rules">Order Types — Priority Rules</a>
+for the full explanation.</p>
+</div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>ORDERS</code> shows price=419.70.</p>
 <h2 id="exercise-4-amend-both-price-and-quantity">Exercise 4: Amend Both Price and Quantity<a class="headerlink" href="#exercise-4-amend-both-price-and-quantity" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[TRADER01]&gt; AMEND|ID=&lt;order_id&gt;|PRICE=419.60|QTY=150|RTAG=AMD-BOTH-001
@@ -4243,26 +4283,31 @@ each amend you want to correlate in logs, terminal output, or tests.</p>
 <tbody>
 <tr>
 <td>Quantity down</td>
-<td>Priority preserved</td>
+<td>Priority preserved (<code>arrival_seq</code> unchanged)</td>
 <td>You are asking for less; nobody behind you is disadvantaged</td>
 </tr>
 <tr>
 <td>Quantity up</td>
-<td>Priority lost</td>
+<td>Priority lost (new <code>arrival_seq</code>)</td>
 <td>The extra quantity never queued — keeping your slot would jump it ahead of orders that arrived earlier</td>
 </tr>
 <tr>
 <td>Price change (any direction)</td>
-<td>Priority lost</td>
+<td>Priority lost (new <code>arrival_seq</code>)</td>
 <td>A different price is a different queue</td>
 </tr>
 <tr>
 <td>Both price and qty</td>
-<td>Priority lost</td>
+<td>Priority lost (new <code>arrival_seq</code>)</td>
 <td>As above</td>
 </tr>
 </tbody>
 </table>
+<div class="admonition note">
+<p class="admonition-title">Reminder</p>
+<p>"Priority" throughout this table is governed by the engine-assigned
+<code>arrival_seq</code>, never by the order's client-supplied <code>timestamp</code> field.</p>
+</div>
 <h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
 <p>Why does reducing quantity preserve time priority, but increasing it does
 not? What unfair advantage would a trader gain if increasing quantity kept
