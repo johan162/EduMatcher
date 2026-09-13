@@ -121,7 +121,7 @@ class _OpDriver:
                 order_type=OrderType.LIMIT,
                 quantity=qty,
                 gateway_id=gw,
-                price=price,
+                price_ticks=price,
                 smp_action=smp,
             )
             self._submit(o)
@@ -149,7 +149,7 @@ class _OpDriver:
                 order_type=OrderType.IOC,
                 quantity=qty,
                 gateway_id=gw,
-                price=price,
+                price_ticks=price,
                 smp_action=smp,
             )
             self._submit(o)
@@ -164,7 +164,7 @@ class _OpDriver:
                 order_type=OrderType.FOK,
                 quantity=qty,
                 gateway_id=gw,
-                price=price,
+                price_ticks=price,
                 smp_action=smp,
             )
             self._submit(o)
@@ -179,7 +179,7 @@ class _OpDriver:
                     order_type=OrderType.LIMIT,
                     quantity=qty,
                     gateway_id=gw,
-                    price=price,
+                    price_ticks=price,
                     smp_action=self._smp(),
                 )
                 self._submit(o)
@@ -191,7 +191,7 @@ class _OpDriver:
                 order_type=OrderType.ICEBERG,
                 quantity=qty,
                 gateway_id=gw,
-                price=price,
+                price_ticks=price,
                 visible_qty=visible,
                 smp_action=self._smp(),
             )
@@ -232,7 +232,7 @@ class _OpDriver:
                 order_type=OrderType.LIMIT,
                 quantity=rng.randint(1, 300),
                 gateway_id=rng.choice(GATEWAYS),
-                price=self._price(),
+                price_ticks=self._price(),
             )
             self.book.process(o, match=False)
             self.all_orders.append(o)

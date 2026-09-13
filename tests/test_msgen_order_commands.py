@@ -34,9 +34,10 @@ _ORDER = Order(
     quantity=100,
     remaining_qty=100,
     gateway_id="GW1",
-    timestamp=1_700_000_000_000_000_000,
+    ts_ns=1_700_000_000_000_000_000,
     status=OrderStatus.NEW,
-    price=15000,
+    tick_decimals=2,
+    price_ticks=15000,
 )
 
 
@@ -75,9 +76,9 @@ class TestPresenceFollowsTheConsumer:
     @pytest.mark.parametrize(
         "field",
         [
-            "trail_offset",
+            "trail_offset_ticks",
             "oco_group_id",
-            "stop_price",
+            "stop_price_ticks",
             "visible_qty",
             "displayed_qty",
             "smp_action",
@@ -198,7 +199,7 @@ class TestStructureCancels:
         assert hasattr(G, "TOPIC_ORDER_OCO")
         assert hasattr(G, "OcoLeg")
         declared = {f["name"] for f in G.describe_order_oco()}
-        assert {"leg1", "leg2"} <= declared
+        assert {"tick_decimals", "leg1", "leg2"} <= declared
 
     def test_order_combo_arrived_with_its_legs_as_a_list(self) -> None:
         """The second guard in this class to fire, and for the same reason.
@@ -220,12 +221,14 @@ class TestStructureCancels:
                         "symbol": "AAPL",
                         "side": "BUY",
                         "order_type": "LIMIT",
+                        "tick_decimals": 2,
                         "quantity": 1,
                     },
                     {
                         "symbol": "MSFT",
                         "side": "SELL",
                         "order_type": "LIMIT",
+                        "tick_decimals": 2,
                         "quantity": 1,
                     },
                 ],
@@ -240,7 +243,7 @@ class TestUnits:
 
     def test_order_new_price_is_ticks(self) -> None:
         spec = {f["name"]: f for f in G.describe_order_new()}
-        assert spec["price"]["unit"] == "ticks"
+        assert spec["price_ticks"]["unit"] == "ticks"
 
     def test_order_amend_price_is_display_money(self) -> None:
         spec = {f["name"]: f for f in G.describe_order_amend()}
@@ -249,8 +252,8 @@ class TestUnits:
     def test_a_tick_price_survives_as_an_int(self) -> None:
         """Coercion must not turn ticks into a float on the way out."""
         _topic, payload = M.decode(G.make_order_new_unchecked(**_ORDER.to_dict()))
-        assert payload["price"] == 15000
-        assert isinstance(payload["price"], int)
+        assert payload["price_ticks"] == 15000
+        assert isinstance(payload["price_ticks"], int)
 
 
 class TestTopicConstants:

@@ -56,26 +56,28 @@ class TestQuotePricesAreTicksNow:
             G.make_quote_new(
                 gateway_id="GW1",
                 symbol="AAPL",
-                bid_price=to_ticks(99.50, "AAPL"),
+                tick_decimals=2,
+                bid_price_ticks=to_ticks(99.50, "AAPL"),
                 bid_qty=10,
-                ask_price=to_ticks(100.50, "AAPL"),
+                ask_price_ticks=to_ticks(100.50, "AAPL"),
                 ask_qty=10,
                 tif="DAY",
                 quote_id="",
             )
         )
-        assert isinstance(payload["bid_price"], int)
-        assert payload["bid_price"] == 9950
-        assert payload["ask_price"] == 10050
+        assert isinstance(payload["bid_price_ticks"], int)
+        assert payload["bid_price_ticks"] == 9950
+        assert payload["ask_price_ticks"] == 10050
 
     def test_a_zero_price_is_rejected(self) -> None:
-        with pytest.raises(MessageValidationError, match="bid_price"):
+        with pytest.raises(MessageValidationError, match="bid_price_ticks"):
             G.make_quote_new(
                 gateway_id="GW1",
                 symbol="AAPL",
-                bid_price=0,
+                tick_decimals=2,
+                bid_price_ticks=0,
                 bid_qty=10,
-                ask_price=10050,
+                ask_price_ticks=10050,
                 ask_qty=10,
             )
 
@@ -84,9 +86,10 @@ class TestQuotePricesAreTicksNow:
             G.make_quote_new(
                 gateway_id="GW1",
                 symbol="AAPL",
-                bid_price=9950,
+                tick_decimals=2,
+                bid_price_ticks=9950,
                 bid_qty=0,
-                ask_price=10050,
+                ask_price_ticks=10050,
                 ask_qty=10,
             )
 
@@ -117,8 +120,8 @@ class TestQuotePricesAreTicksNow:
                 or "to_ticks_exact(" in source
                 or "self._ticks(" in source
             ), rel
-            assert '"bid_price": bid_price,' not in source, rel
-            assert '"bid_price": bid,' not in source, rel
+            assert '"bid_price_ticks": bid_price,' not in source, rel
+            assert '"bid_price_ticks": bid,' not in source, rel
 
     def test_the_engine_no_longer_converts(self) -> None:
         import inspect
@@ -152,9 +155,10 @@ class TestPresence:
             G.make_quote_new(
                 gateway_id="GW1",
                 symbol="AAPL",
-                bid_price=9950,
+                tick_decimals=2,
+                bid_price_ticks=9950,
                 bid_qty=10,
-                ask_price=10050,
+                ask_price_ticks=10050,
                 ask_qty=10,
             )
         )
@@ -165,9 +169,10 @@ class TestPresence:
             G.make_quote_new(
                 gateway_id="GW1",
                 symbol="AAPL",
-                bid_price=9950,
+                tick_decimals=2,
+                bid_price_ticks=9950,
                 bid_qty=10,
-                ask_price=10050,
+                ask_price_ticks=10050,
                 ask_qty=10,
             )
         )

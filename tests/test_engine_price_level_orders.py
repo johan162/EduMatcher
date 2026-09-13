@@ -97,7 +97,7 @@ def _rest_order(
         quantity=qty,
         gateway_id=gateway_id,
         tif=TIF.DAY,
-        price=to_ticks(price, symbol),
+        price_ticks=to_ticks(price, symbol),
     )
     engine._handle_new_order(order.to_dict())
 

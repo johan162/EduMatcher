@@ -680,10 +680,11 @@ def test_fill_event_delivered(running_gateway: GatewayFixture) -> None:
                     "fill_price": 150.0,
                     "fill_qty": 50,
                     "remaining_qty": 50,
+                    "tick_decimals": 2,
                     "status": "PARTIAL",
                     "symbol": "AAPL",
                     "side": "BUY",
-                    "timestamp": now_ns(),
+                    "ts_ns": now_ns(),
                 },
             )
         )

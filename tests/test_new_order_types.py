@@ -69,9 +69,9 @@ def _make_order(
         quantity=qty,
         gateway_id=gateway_id,
         tif=tif,
-        price=price,
-        stop_price=stop_price,
-        trail_offset=trail_offset,
+        price_ticks=price,
+        stop_price_ticks=stop_price,
+        trail_offset_ticks=trail_offset,
         smp_action=smp_action,
     )
 
@@ -317,7 +317,7 @@ class TestTrailingStopOrderBook:
         # Trade at 105 → stop ratchets to 103
         book.process(_make_order(side=Side.BUY, qty=1, price=105.0))
         book.process(_make_order(side=Side.SELL, qty=1, price=105.0))
-        assert ts.stop_price == 103.0
+        assert ts.stop_price_ticks == 103.0
 
         # Now need a buy resting at 103 so the triggered MARKET order can fill
         book.process(_make_order(side=Side.BUY, qty=10, price=103.0))
@@ -347,12 +347,12 @@ class TestTrailingStopOrderBook:
         # Price rises: stop moves up
         book.process(_make_order(side=Side.BUY, qty=1, price=110.0))
         book.process(_make_order(side=Side.SELL, qty=1, price=110.0))
-        assert ts.stop_price == 108.0  # 110 - 2
+        assert ts.stop_price_ticks == 108.0  # 110 - 2
 
         # Price falls back: stop does NOT move down
         book.process(_make_order(side=Side.BUY, qty=1, price=102.0))
         book.process(_make_order(side=Side.SELL, qty=1, price=102.0))
-        assert ts.stop_price == 108.0  # unchanged — still 108, not 100
+        assert ts.stop_price_ticks == 108.0  # unchanged — still 108, not 100
 
     def test_buy_trailing_stop_triggers_when_price_rises(self, book):
         """BUY trailing stop triggers when price rises to stop level."""
@@ -374,7 +374,7 @@ class TestTrailingStopOrderBook:
         # Price falls to 95 → stop ratchets down to 97
         book.process(_make_order(side=Side.BUY, qty=1, price=95.0))
         book.process(_make_order(side=Side.SELL, qty=1, price=95.0))
-        assert ts.stop_price == 97.0
+        assert ts.stop_price_ticks == 97.0
 
         # Add resting sell at 97 for the triggered MARKET buy to fill against
         book.process(_make_order(side=Side.SELL, qty=10, price=97.0))
@@ -402,12 +402,12 @@ class TestTrailingStopOrderBook:
         # Price falls → stop moves down
         book.process(_make_order(side=Side.BUY, qty=1, price=90.0))
         book.process(_make_order(side=Side.SELL, qty=1, price=90.0))
-        assert ts.stop_price == 92.0  # 90 + 2
+        assert ts.stop_price_ticks == 92.0  # 90 + 2
 
         # Price rises back → stop does NOT move up
         book.process(_make_order(side=Side.BUY, qty=1, price=99.0))
         book.process(_make_order(side=Side.SELL, qty=1, price=99.0))
-        assert ts.stop_price == 92.0  # unchanged
+        assert ts.stop_price_ticks == 92.0  # unchanged
 
     def test_trailing_stop_cancel_removes_from_list(self, book):
         """Cancelling a trailing stop removes it from the active list."""
@@ -497,8 +497,8 @@ class TestTrailingStopOrderBook:
         book.process(_make_order(side=Side.BUY, qty=1, price=110.0))
         book.process(_make_order(side=Side.SELL, qty=1, price=110.0))
 
-        assert ts1.stop_price == 108.0
-        assert ts2.stop_price == 105.0
+        assert ts1.stop_price_ticks == 108.0
+        assert ts2.stop_price_ticks == 105.0
 
 
 class TestTrailingStopEngine:
@@ -522,7 +522,7 @@ class TestTrailingStopEngine:
             order_type=OrderType.TRAILING_STOP,
             quantity=5,
             gateway_id="TRADER01",
-            trail_offset=300,
+            trail_offset_ticks=300,
         )
         engine._handle_new_order(ts.to_dict())
 
@@ -536,7 +536,7 @@ class TestTrailingStopEngine:
         book = engine._book("AAPL")
         internal = book._order_index.get(ts.id)
         assert internal is not None, "trailing stop should be registered in the book"
-        assert internal.stop_price == 9700
+        assert internal.stop_price_ticks == 9700
 
     def test_engine_rejects_trailing_stop_with_no_last_price(self, eng):
         """Engine rejects trailing stop if no last trade and no STOP= provided."""
@@ -548,7 +548,7 @@ class TestTrailingStopEngine:
             order_type=OrderType.TRAILING_STOP,
             quantity=5,
             gateway_id="TRADER01",
-            trail_offset=3.0,
+            trail_offset_ticks=3.0,
         )
         # stop_price is None, no prior trade on AAPL
         engine._handle_new_order(ts.to_dict())
@@ -568,8 +568,8 @@ class TestTrailingStopEngine:
             order_type=OrderType.TRAILING_STOP,
             quantity=5,
             gateway_id="TRADER01",
-            trail_offset=2.0,
-            stop_price=95.0,
+            trail_offset_ticks=2.0,
+            stop_price_ticks=95.0,
         )
         engine._handle_new_order(ts.to_dict())
 
@@ -595,8 +595,8 @@ class TestTrailingStopEngine:
             order_type=OrderType.TRAILING_STOP,
             quantity=5,
             gateway_id="TRADER01",
-            trail_offset=2.0,
-            stop_price=98.0,
+            trail_offset_ticks=2.0,
+            stop_price_ticks=98.0,
         )
         engine._handle_new_order(ts.to_dict())
 
@@ -650,11 +650,16 @@ class TestOCOEngine:
             "symbol": symbol,
             "quantity": qty,
             "tif": tif,
-            "leg1": {"side": leg1_side, "order_type": leg1_type, "price": leg1_price},
+            "tick_decimals": 2,
+            "leg1": {
+                "side": leg1_side,
+                "order_type": leg1_type,
+                "price_ticks": leg1_price,
+            },
             "leg2": {
                 "side": leg2_side,
                 "order_type": leg2_type,
-                "stop_price": leg2_stop,
+                "stop_price_ticks": leg2_stop,
             },
         }
         engine._handle_oco_order(payload)
@@ -771,8 +776,9 @@ class TestOCOEngine:
             "symbol": "AAPL",
             "quantity": 10,
             "tif": "DAY",
-            "leg1": {"side": "SELL", "order_type": "LIMIT", "price": 11000},
-            "leg2": {"side": "SELL", "order_type": "STOP", "stop_price": 9000},
+            "tick_decimals": 2,
+            "leg1": {"side": "SELL", "order_type": "LIMIT", "price_ticks": 11000},
+            "leg2": {"side": "SELL", "order_type": "STOP", "stop_price_ticks": 9000},
         }
         engine._handle_oco_order(payload)
 
@@ -791,8 +797,9 @@ class TestOCOEngine:
             "symbol": "NOSYM",
             "quantity": 10,
             "tif": "DAY",
-            "leg1": {"side": "SELL", "order_type": "LIMIT", "price": 11000},
-            "leg2": {"side": "SELL", "order_type": "STOP", "stop_price": 9000},
+            "tick_decimals": 2,
+            "leg1": {"side": "SELL", "order_type": "LIMIT", "price_ticks": 11000},
+            "leg2": {"side": "SELL", "order_type": "STOP", "stop_price_ticks": 9000},
         }
         engine._handle_oco_order(payload)
 
@@ -811,8 +818,9 @@ class TestOCOEngine:
             "symbol": "AAPL",
             "quantity": 10,
             "tif": "DAY",
+            "tick_decimals": 2,
             "leg1": {"side": "SELL", "order_type": "LIMIT"},  # missing price
-            "leg2": {"side": "SELL", "order_type": "STOP", "stop_price": 9000},
+            "leg2": {"side": "SELL", "order_type": "STOP", "stop_price_ticks": 9000},
         }
         engine._handle_oco_order(payload)
 
@@ -840,8 +848,9 @@ class TestOCOEngine:
             "symbol": "AAPL",
             "quantity": 10,
             "tif": "DAY",
-            "leg1": {"side": "SELL", "order_type": "LIMIT", "price": 12000},
-            "leg2": {"side": "SELL", "order_type": "LIMIT", "price": 8500},
+            "tick_decimals": 2,
+            "leg1": {"side": "SELL", "order_type": "LIMIT", "price_ticks": 12000},
+            "leg2": {"side": "SELL", "order_type": "LIMIT", "price_ticks": 8500},
         }
         engine._handle_oco_order(payload)
 
@@ -934,14 +943,14 @@ class TestNewOrderTypeInteractions:
             order_type=OrderType.TRAILING_STOP,
             quantity=100,
             gateway_id="TRADER01",
-            stop_price=98.0,
-            trail_offset=2.0,
+            stop_price_ticks=98.0,
+            trail_offset_ticks=2.0,
         )
         restored = Order.from_dict(ts.to_dict())
 
         assert restored.order_type == OrderType.TRAILING_STOP
-        assert restored.trail_offset == 2.0
-        assert restored.stop_price == 98.0
+        assert restored.trail_offset_ticks == 2.0
+        assert restored.stop_price_ticks == 98.0
 
     def test_oco_order_serialization(self):
         """OCO leg serializes and preserves oco_group_id."""
@@ -951,7 +960,7 @@ class TestNewOrderTypeInteractions:
             order_type=OrderType.LIMIT,
             quantity=10,
             gateway_id="TRADER01",
-            price=110.0,
+            price_ticks=110.0,
             oco_group_id="MY_OCO",
         )
         restored = Order.from_dict(leg.to_dict())
@@ -965,7 +974,7 @@ class TestNewOrderTypeInteractions:
             order_type=OrderType.IOC,
             quantity=10,
             gateway_id="TRADER01",
-            price=100.0,
+            price_ticks=100.0,
         )
         restored = Order.from_dict(ioc.to_dict())
         assert restored.order_type == OrderType.IOC
@@ -980,7 +989,7 @@ class TestNewOrderTypeInteractions:
             order_type=OrderType.LIMIT,
             quantity=10,
             gateway_id="TRADER01",
-            price=100.0,
+            price_ticks=100.0,
         )
         assert order.smp_action is None
 
@@ -994,7 +1003,7 @@ class TestNewOrderTypeInteractions:
             order_type=OrderType.LIMIT,
             quantity=10,
             gateway_id="TRADER01",
-            price=100.0,
+            price_ticks=100.0,
         )
         wire = order.to_dict()
         assert wire["smp_action"] is None
@@ -1012,7 +1021,7 @@ class TestNewOrderTypeInteractions:
             order_type=OrderType.LIMIT,
             quantity=10,
             gateway_id="TRADER01",
-            price=100.0,
+            price_ticks=100.0,
             smp_action=SmpAction.NONE,
         )
         wire = order.to_dict()
@@ -1037,7 +1046,7 @@ class TestNewOrderTypeInteractions:
             order_type=OrderType.LIMIT,
             quantity=10,
             gateway_id="TRADER01",
-            price=100,
+            price_ticks=100,
             smp_action=smp_action,
         )
         restored = Order.from_dict(order.to_dict())
@@ -1165,14 +1174,16 @@ class TestSmpGatewayDefaultFallback:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=100.0,
+                    tick_decimals=2,
+                    price_ticks=100.0,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=5,
-                    price=200.0,
+                    tick_decimals=2,
+                    price_ticks=200.0,
                 ),
             ],
         )
@@ -1208,7 +1219,8 @@ class TestSmpGatewayDefaultFallback:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=100.0,
+                    tick_decimals=2,
+                    price_ticks=100.0,
                     smp_action=SmpAction.NONE,
                 ),
                 ComboLeg(
@@ -1216,7 +1228,8 @@ class TestSmpGatewayDefaultFallback:
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=5,
-                    price=200.0,
+                    tick_decimals=2,
+                    price_ticks=200.0,
                     smp_action=SmpAction.CANCEL_BOTH,
                 ),
             ],
@@ -1254,7 +1267,8 @@ class TestComboLegSmpSentinel:
             side=Side.BUY,
             order_type=OrderType.LIMIT,
             quantity=10,
-            price=100.0,
+            tick_decimals=2,
+            price_ticks=100.0,
         )
         assert leg.smp_action is None
 
@@ -1264,7 +1278,8 @@ class TestComboLegSmpSentinel:
             side=Side.BUY,
             order_type=OrderType.LIMIT,
             quantity=10,
-            price=100.0,
+            tick_decimals=2,
+            price_ticks=100.0,
         )
         wire = leg.to_dict()
         assert wire["smp_action"] is None
@@ -1280,7 +1295,8 @@ class TestComboLegSmpSentinel:
             side=Side.BUY,
             order_type=OrderType.LIMIT,
             quantity=10,
-            price=100.0,
+            tick_decimals=2,
+            price_ticks=100.0,
             smp_action=SmpAction.NONE,
         )
         wire = leg.to_dict()
@@ -1306,7 +1322,8 @@ class TestComboLegSmpSentinel:
             side=Side.BUY,
             order_type=OrderType.LIMIT,
             quantity=10,
-            price=100,
+            tick_decimals=2,
+            price_ticks=100,
             smp_action=smp_action,
         )
         restored = ComboLeg.from_dict(leg.to_dict())

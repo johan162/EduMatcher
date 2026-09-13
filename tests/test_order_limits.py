@@ -279,7 +279,7 @@ def _order_dict(
         quantity=qty,
         gateway_id="TRADER01",
         tif=tif,
-        price=price,
+        price_ticks=price,
     ).to_dict()
 
 

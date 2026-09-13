@@ -328,8 +328,11 @@ class TestXB5CrossSystemPositionAgreement:
                 "gateway_id": "GW01",
                 "symbol": SYMBOL,
                 "quote_id": "QXB5",
-                "bid_price": to_ticks(101.0, "AAPL"),  # crosses the resting ask → trade
-                "ask_price": to_ticks(102.0, "AAPL"),
+                "tick_decimals": 2,
+                "bid_price_ticks": to_ticks(
+                    101.0, "AAPL"
+                ),  # crosses the resting ask → trade
+                "ask_price_ticks": to_ticks(102.0, "AAPL"),
                 "bid_qty": 100,
                 "ask_qty": 100,
                 "tif": "DAY",

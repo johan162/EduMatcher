@@ -66,7 +66,7 @@ def _limit(
         order_type=OrderType.LIMIT,
         quantity=qty,
         gateway_id=gw,
-        price=price_ticks,
+        price_ticks=price_ticks,
         **kw,
     )
 
@@ -126,7 +126,7 @@ class TestM2ImmediatelyTriggerableStop:
             order_type=OrderType.STOP,
             quantity=100,
             gateway_id="GW1",
-            stop_price=9900,
+            stop_price_ticks=9900,
         )
         trades, events = book.process(stop)
 
@@ -168,7 +168,7 @@ class TestM3CrossedBookRecovery:
                 quantity=100,
                 gateway_id="GW01",
                 tif=TIF.GTC,
-                price=10100,
+                price_ticks=10100,
             ),
             Order.create(
                 symbol=SYMBOL,
@@ -177,7 +177,7 @@ class TestM3CrossedBookRecovery:
                 quantity=100,
                 gateway_id="GW02",
                 tif=TIF.GTC,
-                price=10000,
+                price_ticks=10000,
             ),
         ]
         engine, pub = make_engine(monkeypatch, tmp_path, gtc_orders=crossed)
@@ -235,7 +235,7 @@ class TestM4RestoreSnapshotTickDecimals:
             quantity=100,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=1_000_000,  # ticks at 4 decimals == 100.0000
+            price_ticks=1_000_000,  # ticks at 4 decimals == 100.0000
         )
         engine, pub = make_engine(
             monkeypatch,
@@ -287,14 +287,16 @@ class TestM5AonComboAtomicity:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=10000,
+                    tick_decimals=2,
+                    price_ticks=10000,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=5000,  # empty book — cannot fill
+                    tick_decimals=2,
+                    price_ticks=5000,  # empty book — cannot fill
                 ),
             ],
         )
@@ -329,7 +331,7 @@ class TestM6StopCascadeDepth:
                     order_type=OrderType.STOP,
                     quantity=1,
                     gateway_id="GW1",
-                    stop_price=10000 + 10 * (i - 1),
+                    stop_price_ticks=10000 + 10 * (i - 1),
                 )
             )
 
@@ -361,7 +363,7 @@ class TestM7BoundaryValidation:
         connect(engine)
 
         payload = order_payload(Side.BUY, OrderType.LIMIT, 100, "GW01", price=100.0)
-        payload["price"] = None
+        payload["price_ticks"] = None
 
         # Must not raise …
         engine._handle_new_order(payload)
@@ -474,7 +476,7 @@ class TestM10EqualTimestampFifo:
         sells: list[Order] = []
         for _ in range(5):
             o = _limit(Side.SELL, 10000, qty=1, gw="GW2")
-            o.timestamp = ts  # same-instant burst
+            o.ts_ns = ts  # same-instant burst
             book.process(o)
             sells.append(o)
 

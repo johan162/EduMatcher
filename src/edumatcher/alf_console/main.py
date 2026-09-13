@@ -108,7 +108,11 @@ from edumatcher.models.order import (
     SmpAction,
     TIF,
 )
-from edumatcher.models.price import TickViolation, to_ticks_exact
+from edumatcher.models.price import (
+    TickViolation,
+    get_tick_decimals,
+    to_ticks_exact,
+)
 
 # Extracted submodules — re-exported here so that existing
 # ``from edumatcher.alf_console.main import ...`` imports keep working.
@@ -1538,15 +1542,17 @@ class Gateway:
                 quantity=quantity,
                 gateway_id=self.gateway_id,
                 tif=tif,
-                price=to_ticks_exact(price, symbol) if price is not None else None,
-                stop_price=(
+                price_ticks=(
+                    to_ticks_exact(price, symbol) if price is not None else None
+                ),
+                stop_price_ticks=(
                     to_ticks_exact(stop_price, symbol)
                     if stop_price is not None
                     else None
                 ),
                 visible_qty=visible,
                 smp_action=smp_action,
-                trail_offset=(
+                trail_offset_ticks=(
                     to_ticks_exact(float(kv["TRAIL"]), symbol)
                     if "TRAIL" in kv
                     else None
@@ -1616,9 +1622,10 @@ class Gateway:
                 "symbol": symbol,
                 # Ticks on the wire: converting is the submitting gateway's
                 # job (design section 15.2, extended to quotes in 6.1b).
-                "bid_price": to_ticks_exact(bid_price, symbol),
+                "tick_decimals": get_tick_decimals(symbol),
+                "bid_price_ticks": to_ticks_exact(bid_price, symbol),
                 "bid_qty": bid_qty,
-                "ask_price": to_ticks_exact(ask_price, symbol),
+                "ask_price_ticks": to_ticks_exact(ask_price, symbol),
                 "ask_qty": ask_qty,
                 "tif": tif.value,
             }
@@ -1797,9 +1804,10 @@ class Gateway:
                     side=Side(side),
                     order_type=OrderType(leg_type),
                     quantity=int(qty),
+                    tick_decimals=2,
                     # TickViolation subclasses ValueError, so the except below
                     # already reports an off-grid leg price as a parse error.
-                    price=to_ticks_exact(float(price), sym) if price else None,
+                    price_ticks=to_ticks_exact(float(price), sym) if price else None,
                     smp_action=SmpAction(smp_str) if smp_str is not None else None,
                 )
             except (ValueError, KeyError) as exc:

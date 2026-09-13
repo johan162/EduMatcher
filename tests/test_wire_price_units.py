@@ -57,7 +57,7 @@ def _leg_prices(payload: dict[str, Any]) -> list[Any]:
     return [
         leg[key]
         for leg in (payload["leg1"], payload["leg2"])
-        for key in ("price", "stop_price", "trail_offset")
+        for key in ("price_ticks", "stop_price_ticks", "trail_offset_ticks")
         if key in leg
     ]
 
@@ -86,8 +86,8 @@ class TestGatewaysEmitTicks:
         )
         payload = build_oco_payload(request, "GW1")
 
-        assert payload["leg1"]["price"] == 9550
-        assert payload["leg2"]["price"] == 13025
+        assert payload["leg1"]["price_ticks"] == 9550
+        assert payload["leg2"]["price_ticks"] == 13025
         assert all(isinstance(v, int) for v in _leg_prices(payload))
 
     def test_api_gateway_combo_legs_are_ticks(self) -> None:
@@ -113,7 +113,7 @@ class TestGatewaysEmitTicks:
         payload = build_combo_payload(
             ComboRequest(combo_id="C1", tif=TIF.DAY, legs=[leg, other]), "GW1"
         )
-        prices = [each["price"] for each in payload["legs"]]
+        prices = [each["price_ticks"] for each in payload["legs"]]
         assert prices == [9550, 13025]
         assert all(isinstance(p, int) for p in prices)
 
@@ -133,8 +133,8 @@ class TestGatewaysEmitTicks:
             ),
             "GW1",
         )
-        assert order.to_dict()["price"] == 9550
-        assert isinstance(order.to_dict()["price"], int)
+        assert order.to_dict()["price_ticks"] == 9550
+        assert isinstance(order.to_dict()["price_ticks"], int)
 
 
 class TestTheEngineRejectsDisplayMoney:
@@ -161,8 +161,9 @@ class TestTheEngineRejectsDisplayMoney:
                 "symbol": "AAPL",
                 "quantity": 100,
                 "tif": "DAY",
+                "tick_decimals": 2,
                 "leg1": {"side": "BUY", "order_type": "LIMIT", key: 95.0},
-                "leg2": {"side": "SELL", "order_type": "LIMIT", "price": 10500},
+                "leg2": {"side": "SELL", "order_type": "LIMIT", "price_ticks": 10500},
             }
         )
         _topic, msg = decode(pub_sock.sent[-1])
@@ -185,8 +186,9 @@ class TestTheEngineRejectsDisplayMoney:
                 "symbol": "AAPL",
                 "quantity": 100,
                 "tif": "DAY",
-                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 9500},
-                "leg2": {"side": "SELL", "order_type": "LIMIT", "price": 10500},
+                "tick_decimals": 2,
+                "leg1": {"side": "BUY", "order_type": "LIMIT", "price_ticks": 9500},
+                "leg2": {"side": "SELL", "order_type": "LIMIT", "price_ticks": 10500},
             }
         )
         _topic, msg = decode(pub_sock.sent[-1])
@@ -246,10 +248,10 @@ class TestQuotePricesAreTicks:
             ),
             "GW1",
         )
-        assert payload["bid_price"] == to_ticks(99.50, "AAPL")
-        assert payload["ask_price"] == to_ticks(100.50, "AAPL")
-        assert isinstance(payload["bid_price"], int)
-        assert isinstance(payload["ask_price"], int)
+        assert payload["bid_price_ticks"] == to_ticks(99.50, "AAPL")
+        assert payload["ask_price_ticks"] == to_ticks(100.50, "AAPL")
+        assert isinstance(payload["bid_price_ticks"], int)
+        assert isinstance(payload["ask_price_ticks"], int)
 
     def test_the_engine_rejects_a_display_float(self) -> None:
         """Rejected, not truncated — the loud alternative.
@@ -265,23 +267,25 @@ class TestQuotePricesAreTicks:
             {
                 "gateway_id": "GW1",
                 "symbol": "AAPL",
-                "bid_price": 9950,
+                "tick_decimals": 2,
+                "bid_price_ticks": 9950,
                 "bid_qty": 10,
-                "ask_price": 10050,
+                "ask_price_ticks": 10050,
                 "ask_qty": 10,
             }
         )
         obj.validate()
-        assert isinstance(obj.bid_price, int)
+        assert isinstance(obj.bid_price_ticks, int)
 
         with pytest.raises(MessageValidationError):
             QuoteNew.from_dict(
                 {
                     "gateway_id": "GW1",
                     "symbol": "AAPL",
-                    "bid_price": 0,
+                    "tick_decimals": 2,
+                    "bid_price_ticks": 0,
                     "bid_qty": 10,
-                    "ask_price": 10050,
+                    "ask_price_ticks": 10050,
                     "ask_qty": 10,
                 }
             ).validate()
@@ -300,5 +304,5 @@ class TestQuotePricesAreTicks:
         from edumatcher.models.generated.quote import describe_quote_new
 
         units = {f["name"]: f.get("unit") for f in describe_quote_new()}
-        assert units["bid_price"] == "ticks"
-        assert units["ask_price"] == "ticks"
+        assert units["bid_price_ticks"] == "ticks"
+        assert units["ask_price_ticks"] == "ticks"

@@ -266,7 +266,7 @@ def test_stale_day_quote_is_purged_then_reseeded_on_next_restart(monkeypatch, tm
 
     yesterday_ns = int(_time.time() * 1e9) - 2 * 24 * 3600 * 1_000_000_000
     for order in engine1.books["AAPL"].resting_orders():
-        order.timestamp = yesterday_ns
+        order.ts_ns = yesterday_ns
 
     engine2, _ = _persist_and_reopen(
         monkeypatch, tmp_path, engine1, symbol_configs=symbol_configs

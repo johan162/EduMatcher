@@ -88,7 +88,7 @@ def _order(
         quantity=qty,
         gateway_id=gateway_id,
         tif=TIF.DAY,
-        price=price,
+        price_ticks=price,
     )
     return o.to_dict()
 

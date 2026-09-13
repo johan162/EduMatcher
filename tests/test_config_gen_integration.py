@@ -1203,8 +1203,8 @@ def test_combo_leg_decimal_price_converts_to_ticks(
     )
     cfg = load_engine_config(out_file)
     combo = cfg.market_maker_combos[0]
-    assert combo.legs[0].price == 20950
-    assert combo.legs[1].price == 41550
+    assert combo.legs[0].price_ticks == 20950
+    assert combo.legs[1].price_ticks == 41550
 
 
 def test_combo_leg_decimal_price_honours_per_symbol_tick_decimals(
@@ -1230,8 +1230,8 @@ def test_combo_leg_decimal_price_honours_per_symbol_tick_decimals(
     )
     cfg = load_engine_config(out_file)
     combo = cfg.market_maker_combos[0]
-    assert combo.legs[0].price == 2095000  # AAPL tick_decimals=4
-    assert combo.legs[1].price == 41550  # MSFT default tick_decimals=2
+    assert combo.legs[0].price_ticks == 2095000  # AAPL tick_decimals=4
+    assert combo.legs[1].price_ticks == 41550  # MSFT default tick_decimals=2
 
 
 def test_combo_leg_price_bad_decimal_fails(

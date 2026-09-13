@@ -782,7 +782,7 @@ Broadcast an aggregated view of one instrument's order book, on a timer. What ev
 
 **Published by:** `stats`, `gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_push`
 
 **Since:** 1.0
 
@@ -808,6 +808,7 @@ Book-depth metrics within a tolerance band of the last trade: how much size sits
 |---|---|---|---|---|
 | `symbol` | `string` | required | max_len 16 |  |
 | `ts_ns` | `int` | required | ge 0, unit `epoch_nanos` | When this depth snapshot was produced (AR-0.4). Previously depth.{symbol} carried no time field at all. Monotonic per edumatcher.models.clock.now_ns(). |
+| `tick_decimals` | `int` | required | ge 0, le 8, unit `dimensionless` | Decimal scale for the `_ticks` fields below; 1 tick = 10^-tick_decimals. Same field, same name and same meaning as `book.tick_decimals`. |
 | `mid_price_ticks` | `ticks` | required | unit `ticks` | The last trade price, in ticks; the band is centred here. |
 | `mid_price` | `float` | required | unit `display_price` |  |
 | `tolerance_ticks` | `ticks` | required | unit `ticks` | Half-width of the band, in ticks. |
@@ -1723,9 +1724,9 @@ One side of an OCO pair. It has no symbol or quantity of its own: both legs trad
 |---|---|---|---|---|
 | `side` | enum: `BUY`, `SELL` | required | — |  |
 | `order_type` | enum: `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP` | required | — |  |
-| `price` | `ticks` | omitted when unset | unit `ticks` | Limit price in engine ticks. Absent for a leg with none. |
-| `stop_price` | `ticks` | omitted when unset | unit `ticks` |  |
-| `trail_offset` | `ticks` | omitted when unset | unit `ticks` |  |
+| `price_ticks` | `ticks` | omitted when unset | unit `ticks` | Limit price in engine ticks. Absent for a leg with none. The scale is `order.oco.tick_decimals`: both legs trade one instrument, so one scale covers the pair. |
+| `stop_price_ticks` | `ticks` | omitted when unset | unit `ticks` |  |
+| `trail_offset_ticks` | `ticks` | omitted when unset | unit `ticks` |  |
 
 #### `ComboLeg`
 
@@ -1737,8 +1738,9 @@ One leg of a combo. Unlike an OcoLeg it owns a symbol and a quantity: the legs o
 | `side` | enum: `BUY`, `SELL` | required | — |  |
 | `order_type` | enum: `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP` | required | — |  |
 | `quantity` | `int` | required | gt 0, unit `shares` |  |
-| `price` | `ticks` | `null` when unset | unit `ticks` | Limit price in engine ticks; null for a leg with none. |
-| `stop_price` | `ticks` | `null` when unset | unit `ticks` |  |
+| `tick_decimals` | `int` | required | ge 0, le 8, unit `dimensionless` | Decimal scale for this leg's tick prices; 1 tick = 10^-tick_decimals. Per leg rather than on the combo, because a combo's legs trade different instruments and two instruments need not share a scale - which is exactly the distinction that makes ComboLeg a separate record from OcoLeg. |
+| `price_ticks` | `ticks` | `null` when unset | unit `ticks` | Limit price in engine ticks; null for a leg with none. |
+| `stop_price_ticks` | `ticks` | `null` when unset | unit `ticks` |  |
 | `smp_action` | enum: `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | `null` when unset | — | Null means the client did not specify SMP, which is distinct from an explicit NONE. Combo-level in the ALF protocols, so every leg carries the same value. |
 
 #### `OrderDisplay`
@@ -1985,7 +1987,7 @@ Confirm an accepted amendment and report the resulting order.
 
 **Published by:** `gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_pub`, `engine_push`
 
 **Since:** 1.0
 
@@ -2001,12 +2003,13 @@ Submit a new order to the matching engine. Sent over PUSH/PULL rather than the p
 | `quantity` | `int` | required | gt 0, unit `shares` | Total original quantity. |
 | `remaining_qty` | `int` | required | ge 0, unit `shares` | Quantity yet to be filled; equals quantity on submission. |
 | `gateway_id` | `string` | required | max_len 32 |  |
-| `trail_offset` | `ticks` | `null` when unset | unit `ticks` | TRAILING_STOP: fixed distance to trail the market price. |
+| `tick_decimals` | `int` | required | ge 0, le 8, unit `dimensionless` | Decimal scale for every `_ticks` field below; 1 tick = 10^-tick_decimals. Carried so a reader can turn a tick price into money from this message alone. Without it the scale has to be recovered from a `book` or `trade.executed` for the same symbol, which a reader of a *window* of the audit trail may not have - the snapshot that declared it is usually at session start, hours outside the window being read. |
+| `trail_offset_ticks` | `ticks` | `null` when unset | unit `ticks` | TRAILING_STOP: fixed distance to trail the market price. |
 | `oco_group_id` | `string` | `null` when unset | max_len 64 |  |
-| `timestamp` | `int` | required | ge 0, unit `epoch_nanos` | Client-supplied submission time. NOT what the book uses for time priority - see arrival_seq. BALF has no timestamp field on NEW_ORDER, so balf_gwy stamps one at ingress. |
+| `ts_ns` | `int` | required | ge 0, unit `epoch_nanos` | Client-supplied submission time. NOT what the book uses for time priority - see arrival_seq. BALF has no timestamp field on NEW_ORDER, so balf_gwy stamps one at ingress. |
 | `status` | enum: `NEW`, `PARTIAL`, `FILLED`, `CANCELLED`, `REJECTED`, `EXPIRED` | required | — | Always NEW on submission; the enum is the full lifecycle. |
-| `price` | `ticks` | `null` when unset | unit `ticks` | Limit price in ticks. Null for MARKET, which has none. |
-| `stop_price` | `ticks` | `null` when unset | unit `ticks` | STOP / STOP_LIMIT / TRAILING_STOP trigger. |
+| `price_ticks` | `ticks` | `null` when unset | unit `ticks` | Limit price in ticks. Null for MARKET, which has none. |
+| `stop_price_ticks` | `ticks` | `null` when unset | unit `ticks` | STOP / STOP_LIMIT / TRAILING_STOP trigger. |
 | `visible_qty` | `int` | `null` when unset | unit `shares` | ICEBERG: fixed peak size. |
 | `displayed_qty` | `int` | `null` when unset | unit `shares` | ICEBERG: current visible slice on the book. |
 | `smp_action` | enum: `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | `null` when unset | — | Self-match prevention. Null means the client did not specify SMP at all, which is distinct from an explicit NONE: the engine resolves null to the gateway's configured default. See SmpAction's docstring. |
@@ -2022,7 +2025,7 @@ Submit a new order to the matching engine. Sent over PUSH/PULL rather than the p
 
     The payload is exactly Order.to_dict().
 
-    Eleven fields are nullable and are emitted as null when unset rather than omitted - a MARKET order carries "price": null.
+    Eleven fields are nullable and are emitted as null when unset rather than omitted - a MARKET order carries "price_ticks": null.
 
     The engine's Order.from_dict reads absent and null alike, so a producer that omits them is still accepted.
 
@@ -2032,7 +2035,7 @@ Submit a new order to the matching engine. Sent over PUSH/PULL rather than the p
 
 **Published by:** `gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_pub`, `engine_push`
 
 **Since:** 1.0
 
@@ -2050,7 +2053,7 @@ Request cancellation of one resting order by id.
 
 **Published by:** `gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_pub`, `engine_push`
 
 **Since:** 1.0
 
@@ -2078,7 +2081,7 @@ Request a price and/or quantity change to a resting order.
 
 **Published by:** `gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_pub`, `engine_push`
 
 **Since:** 1.0
 
@@ -2095,7 +2098,7 @@ Cancel a combo order and all of its resting child legs.
 
 **Published by:** `gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_pub`, `engine_push`
 
 **Since:** 1.0
 
@@ -2126,7 +2129,7 @@ Submit a combo: two or more orders on different instruments that the engine post
 
 **Published by:** `gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_pub`, `engine_push`
 
 **Since:** 1.0
 
@@ -2137,6 +2140,7 @@ Submit a One-Cancels-Other pair: two orders on the same instrument, of which a f
 | `oco_id` | `string` | defaults to `''` | max_len 64 | Client-supplied label for the pair. |
 | `gateway_id` | `string` | defaults to `''` | max_len 32 |  |
 | `symbol` | `string` | defaults to `''` | max_len 16 | Both legs trade this instrument. |
+| `tick_decimals` | `int` | defaults to `0` | ge 0, le 8, unit `dimensionless` | Decimal scale for both legs' `_ticks` prices; 1 tick = 10^-tick_decimals. One value for the pair rather than one per leg, because both legs trade the instrument named above. |
 | `quantity` | `int` | defaults to `0` | unit `shares` | Size of each leg; they are equal by construction. |
 | `tif` | enum: `DAY`, `GTC`, `ATO`, `ATC` | defaults to `'DAY'` | — |  |
 | `leg1` | [`OcoLeg`](#ocoleg) | required | — |  |
@@ -2147,7 +2151,7 @@ Submit a One-Cancels-Other pair: two orders on the same instrument, of which a f
 
     The first message in any spec to use a nested record.
 
-    Both legs are `OcoLeg`, and their prices are engine ticks - the gateway converts.
+    Both legs are `OcoLeg`, and their prices are engine ticks at `tick_decimals` - the gateway converts.
 
     A leg omits a price it does not have rather than sending null, which is what the three producing gateways already do.
 
@@ -2157,7 +2161,7 @@ Submit a One-Cancels-Other pair: two orders on the same instrument, of which a f
 
 **Published by:** `gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_pub`, `engine_push`
 
 **Since:** 1.0
 
@@ -2174,7 +2178,7 @@ Cancel an OCO pair and both of its legs.
 
 **Published by:** `admin`, `api_gateway`, `gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_push`
 
 **Since:** 1.0
 
@@ -2211,7 +2215,7 @@ Engine to caller: the gateway's resting orders in display units, one OrderDispla
 
 **Published by:** `admin`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_push`
 
 **Since:** 1.0
 
@@ -2252,7 +2256,7 @@ Engine to ADMIN caller: per-order detail (not just the aggregate {price, qty, co
 
 **Published by:** `gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_pub`, `engine_push`
 
 **Since:** 1.0
 
@@ -2262,9 +2266,10 @@ Market maker to engine: submit or replace a two-sided quote on one instrument. A
 |---|---|---|---|---|
 | `gateway_id` | `string` | required | max_len 32 |  |
 | `symbol` | `string` | required | max_len 16 |  |
-| `bid_price` | `ticks` | required | gt 0, unit `ticks` |  |
+| `tick_decimals` | `int` | required | ge 0, le 8, unit `dimensionless` | Decimal scale for both `_ticks` prices; 1 tick = 10^-tick_decimals. Carried so a reader can turn a tick price into money from this message alone, rather than recovering the scale from a `book` for the same symbol that may be outside the window being read. |
+| `bid_price_ticks` | `ticks` | required | gt 0, unit `ticks` |  |
 | `bid_qty` | `int` | required | gt 0, unit `shares` |  |
-| `ask_price` | `ticks` | required | gt 0, unit `ticks` |  |
+| `ask_price_ticks` | `ticks` | required | gt 0, unit `ticks` |  |
 | `ask_qty` | `int` | required | gt 0, unit `shares` |  |
 | `tif` | enum: `DAY`, `GTC`, `ATO`, `ATC` | defaults to `'DAY'` | — | Applies to both legs; the engine reads it once. Same four values as models/order.py::TIF and order.combo's own tif - a quote's legs are ordinary orders once they rest. |
 | `quote_id` | `string` | omitted when empty | max_len 64 |  |
@@ -2285,7 +2290,7 @@ Market maker to engine: submit or replace a two-sided quote on one instrument. A
 
 **Published by:** `admin`, `api_gateway`, `gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_pub`, `engine_push`
 
 **Since:** 1.0
 
@@ -2362,7 +2367,7 @@ Engine to market maker: the quote left the book, and why.
 
 **Published by:** `admin`, `api_gateway`, `gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_pub`, `engine_push`
 
 **Since:** 1.0
 
@@ -2418,7 +2423,7 @@ Engine to caller: what the kill switch cancelled.
 
 **Published by:** `api_gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_pub`, `engine_push`
 
 **Since:** 1.0
 
@@ -2473,7 +2478,7 @@ Engine to ADMIN: what the gateway-targeted kill switch cancelled.
 
 **Published by:** `api_gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_pub`, `engine_push`
 
 **Since:** 1.0
 
@@ -2524,7 +2529,7 @@ Engine to ADMIN: what the market-wide kill switch cancelled.
 
 **Published by:** `admin`, `api_gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_pub`, `engine_push`
 
 **Since:** 1.0
 
@@ -2578,7 +2583,7 @@ Engine to ADMIN: the per-symbol halt's outcome.
 
 **Published by:** `admin`, `api_gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_pub`, `engine_push`
 
 **Since:** 1.0
 
@@ -2621,7 +2626,7 @@ Engine to ADMIN: the per-symbol resume's outcome.
 
 **Published by:** `admin`, `api_gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_pub`, `engine_push`
 
 **Since:** 1.0
 
@@ -2668,7 +2673,7 @@ Engine to ADMIN: what the symbol-wide mass cancel removed.
 
 **Published by:** `admin`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_pub`, `engine_push`
 
 **Since:** 1.0
 
@@ -2730,7 +2735,7 @@ Engine to ADMIN: the outcome of a force-uncross. On a dry run it carries the ind
 
 **Published by:** `admin`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_pub`, `engine_push`
 
 **Since:** 1.0
 
@@ -2778,7 +2783,7 @@ Engine to ADMIN: how wide the market-wide halt reached.
 
 **Published by:** `admin`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_pub`, `engine_push`
 
 **Since:** 1.0
 
@@ -2865,7 +2870,7 @@ Broadcast the engine's current session state to every subscriber. The most widel
 
 **Published by:** `scheduler`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_pub`, `engine_push`
 
 **Since:** 1.0
 
@@ -3297,7 +3302,7 @@ One instrument's traded volume so far today. Was a map entry keyed by symbol; th
 
 **Published by:** `admin`, `api_gateway`, `gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_pub`, `engine_push`
 
 **Since:** 1.0
 
@@ -3340,7 +3345,7 @@ Engine to all subscribers: a participant's connection was accepted or rejected. 
 
 **Published by:** `admin`, `api_gateway`, `gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_pub`, `engine_push`
 
 **Since:** 1.0
 
@@ -3478,7 +3483,7 @@ Engine to all subscribers: an internal failure or anomaly that the engine absorb
 
 **Published by:** `admin`, `api_gateway`, `gateway`, `stats`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_push`
 
 **Since:** 1.0
 
@@ -3523,7 +3528,7 @@ Engine to caller: the tradable instruments, with the tick scale and this caller'
 
 **Published by:** `api_gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_push`
 
 **Since:** 1.0
 
@@ -3580,7 +3585,7 @@ Engine to caller: every piece of static venue configuration in one round trip --
 
 **Published by:** `api_gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_pub`, `engine_push`
 
 **Since:** 1.0
 
@@ -3623,7 +3628,7 @@ Engine to ADMIN: the reload verdict, and the new configuration hash when it took
 
 **Published by:** `admin`, `api_gateway`, `gateway`, `scheduler`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_push`
 
 **Since:** 1.0
 
@@ -3663,7 +3668,7 @@ Engine to caller: the current session state, on request. The polled answer to th
 
 **Published by:** `admin`, `api_gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_push`
 
 **Since:** 1.0
 
@@ -3705,7 +3710,7 @@ Engine to operator: the trading day's clock as configured. The same `SessionTime
 
 **Published by:** `api_gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_push`
 
 **Since:** 1.0
 
@@ -3744,7 +3749,7 @@ Engine to caller: every currently-halted instrument, with the breaker state behi
 
 **Published by:** `gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_push`
 
 **Since:** 1.0
 
@@ -3789,7 +3794,7 @@ Engine to gateway: per-symbol net position and average cost, for the asking gate
 
 **Published by:** `admin`, `api_gateway`, `gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_push`
 
 **Since:** 1.0
 
@@ -3823,7 +3828,7 @@ Engine to market maker: the active quotes it already holds.
 
 **Published by:** `api_gateway`, `gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_push`
 
 **Since:** 1.0
 
@@ -3871,7 +3876,7 @@ Engine to caller: live quote legs, recently-removed quotes, or both.
 
 **Published by:** `api_gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_push`
 
 **Since:** 1.0
 
@@ -3910,7 +3915,7 @@ Engine to ADMIN: live risk state per symbol. The counterpart to `reference.risk`
 
 **Published by:** `admin`, `api_gateway`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_push`
 
 **Since:** 1.0
 
@@ -3943,7 +3948,7 @@ Engine to operator: every configured participant with its role and current conne
 
 **Published by:** `admin`
 
-**Transport:** `engine_pub`
+**Transport:** `engine_push`
 
 **Since:** 1.0
 

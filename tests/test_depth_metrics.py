@@ -24,7 +24,7 @@ def _limit(symbol: str, side: Side, price: int, qty: int, gw: str = "GW01") -> O
         quantity=qty,
         gateway_id=gw,
         tif=TIF.DAY,
-        price=price,
+        price_ticks=price,
     )
     return o
 
@@ -63,6 +63,7 @@ class TestDepthSnapshotWithTrades:
         expected_keys = {
             "symbol",
             "ts_ns",  # AR-0.4
+            "tick_decimals",
             "mid_price_ticks",
             "mid_price",
             "microprice",

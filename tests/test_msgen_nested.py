@@ -32,8 +32,9 @@ def _payload() -> dict[str, object]:
         "symbol": "AAPL",
         "quantity": 10,
         "tif": "DAY",
-        "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 9500},
-        "leg2": {"side": "SELL", "order_type": "STOP", "stop_price": 10500},
+        "tick_decimals": 2,
+        "leg1": {"side": "BUY", "order_type": "LIMIT", "price_ticks": 9500},
+        "leg2": {"side": "SELL", "order_type": "STOP", "stop_price_ticks": 10500},
     }
 
 
@@ -42,7 +43,7 @@ class TestTheRecordRoundTrips:
         oco = G.OrderOco.from_dict(_payload())
         assert isinstance(oco.leg1, G.OcoLeg)
         assert oco.leg1.side == "BUY"
-        assert oco.leg1.price == 9500
+        assert oco.leg1.price_ticks == 9500
 
     def test_to_dict_reproduces_the_payload_exactly(self) -> None:
         """Byte-identity, which is every family adoption's acceptance bar."""
@@ -51,7 +52,7 @@ class TestTheRecordRoundTrips:
     def test_a_leg_omits_the_prices_it_does_not_have(self) -> None:
         """``omit_when_none`` applies inside a record, as it does outside."""
         leg = G.OrderOco.from_dict(_payload()).leg1.to_dict()
-        assert leg == {"side": "BUY", "order_type": "LIMIT", "price": 9500}
+        assert leg == {"side": "BUY", "order_type": "LIMIT", "price_ticks": 9500}
         assert "stop_price" not in leg
         assert "trail_offset" not in leg
 
@@ -320,18 +321,20 @@ class TestListOfRecords:
                     "symbol": "AAPL",
                     "side": "BUY",
                     "order_type": "LIMIT",
+                    "tick_decimals": 2,
                     "quantity": 10,
-                    "price": 9500,
-                    "stop_price": None,
+                    "price_ticks": 9500,
+                    "stop_price_ticks": None,
                     "smp_action": None,
                 },
                 {
                     "symbol": "MSFT",
                     "side": "SELL",
                     "order_type": "LIMIT",
+                    "tick_decimals": 2,
                     "quantity": 10,
-                    "price": 13000,
-                    "stop_price": None,
+                    "price_ticks": 13000,
+                    "stop_price_ticks": None,
                     "smp_action": None,
                 },
             ],
@@ -363,14 +366,14 @@ class TestListOfRecords:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=9500,
+                    price_ticks=9500,
                 ),
                 ModelLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=13000,
+                    price_ticks=13000,
                 ),
             ],
         )

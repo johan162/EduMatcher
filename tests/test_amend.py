@@ -36,7 +36,7 @@ def _limit(
         order_type=OrderType.LIMIT,
         quantity=qty,
         gateway_id=gateway_id,
-        price=price,
+        price_ticks=price,
     )
 
 
@@ -52,7 +52,7 @@ def _iceberg(
         order_type=OrderType.ICEBERG,
         quantity=qty,
         gateway_id="GW1",
-        price=price,
+        price_ticks=price,
         visible_qty=visible_qty,
     )
 
@@ -73,7 +73,7 @@ class TestAmendPrice:
         amended, priority_reset, err = book.amend_order(buy.id, new_price=101.0)
 
         assert amended is buy
-        assert amended.price == 101.0
+        assert amended.price_ticks == 101.0
         assert priority_reset is True
         assert err == ""
 
@@ -81,12 +81,12 @@ class TestAmendPrice:
         book = OrderBook("AAPL")
         buy = _limit(Side.BUY, 100.0)
         book.process(buy)
-        original_ts = buy.timestamp
+        original_ts = buy.ts_ns
 
         time.sleep(0.001)
         book.amend_order(buy.id, new_price=101.0)
 
-        assert buy.timestamp > original_ts
+        assert buy.ts_ns > original_ts
 
     def test_price_decrease_also_loses_priority(self):
         book = OrderBook("AAPL")
@@ -103,7 +103,7 @@ class TestAmendPrice:
 
         amended, priority_reset, _ = book.amend_order(sell.id, new_price=99.0)
 
-        assert amended.price == 99.0
+        assert amended.price_ticks == 99.0
         assert priority_reset is True
 
 
@@ -114,14 +114,14 @@ class TestAmendQuantityDecrease:
         book = OrderBook("AAPL")
         buy = _limit(Side.BUY, 100.0, qty=100)
         book.process(buy)
-        original_ts = buy.timestamp
+        original_ts = buy.ts_ns
 
         amended, priority_reset, _ = book.amend_order(buy.id, new_qty=80)
 
         assert amended.remaining_qty == 80
         assert amended.quantity == 80
         assert priority_reset is False
-        assert amended.timestamp == original_ts
+        assert amended.ts_ns == original_ts
 
     def test_qty_decrease_updates_remaining(self):
         book = OrderBook("AAPL")
@@ -158,7 +158,7 @@ class TestAmendQuantityIncrease:
         book = OrderBook("AAPL")
         buy = _limit(Side.BUY, 100.0, qty=100)
         book.process(buy)
-        original_ts = buy.timestamp
+        original_ts = buy.ts_ns
 
         time.sleep(0.001)
         amended, priority_reset, _ = book.amend_order(buy.id, new_qty=200)
@@ -166,7 +166,7 @@ class TestAmendQuantityIncrease:
         assert priority_reset is True
         assert amended.quantity == 200
         assert amended.remaining_qty == 200
-        assert amended.timestamp > original_ts
+        assert amended.ts_ns > original_ts
 
 
 class TestAmendPriceAndQty:
@@ -182,7 +182,7 @@ class TestAmendPriceAndQty:
         )
 
         assert priority_reset is True
-        assert amended.price == 101.0
+        assert amended.price_ticks == 101.0
         assert amended.quantity == 150
         assert amended.remaining_qty == 150
 
@@ -255,7 +255,7 @@ class TestAmendRejections:
             order_type=OrderType.STOP,
             quantity=100,
             gateway_id="GW1",
-            stop_price=105.0,
+            stop_price_ticks=105.0,
         )
         book.process(stop)
 
@@ -378,7 +378,7 @@ class TestAmendIceberg:
 
         amended, priority_reset, _ = book.amend_order(ice.id, new_price=101.0)
 
-        assert amended.price == 101.0
+        assert amended.price_ticks == 101.0
         assert priority_reset is True
         assert amended.displayed_qty == 100  # still limited to visible_qty
 

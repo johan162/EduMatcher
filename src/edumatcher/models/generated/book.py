@@ -500,6 +500,14 @@ _DEPTH_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"ge": 0},
     },
     {
+        "name": "tick_decimals",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": True,
+        "doc": "Decimal scale for the `_ticks` fields below; 1 tick = 10^-tick_decimals. Same field, same name and same meaning as `book.tick_decimals`.",
+        "constraints": {"ge": 0, "le": 8},
+    },
+    {
         "name": "mid_price_ticks",
         "type": "ticks",
         "unit": "ticks",
@@ -570,6 +578,7 @@ class Depth:
 
     symbol: str
     ts_ns: int  # unit: epoch_nanos
+    tick_decimals: int  # unit: dimensionless
     mid_price_ticks: int  # unit: ticks
     mid_price: float  # unit: display_price
     tolerance_ticks: int  # unit: ticks
@@ -592,6 +601,14 @@ class Depth:
             )
         if self.ts_ns < 0:
             raise MessageValidationError(f"ts_ns: {self.ts_ns!r} must be >= 0")
+        if self.tick_decimals < 0:
+            raise MessageValidationError(
+                f"tick_decimals: {self.tick_decimals!r} must be >= 0"
+            )
+        if self.tick_decimals > 8:
+            raise MessageValidationError(
+                f"tick_decimals: {self.tick_decimals!r} must be <= 8"
+            )
         if self.imbalance < -1:
             raise MessageValidationError(f"imbalance: {self.imbalance!r} must be >= -1")
         if self.imbalance > 1:
@@ -608,6 +625,7 @@ class Depth:
         return cls(
             symbol=str(p["symbol"]),
             ts_ns=int(p["ts_ns"]),
+            tick_decimals=int(p["tick_decimals"]),
             mid_price_ticks=int(p["mid_price_ticks"]),
             mid_price=float(p["mid_price"]),
             tolerance_ticks=int(p["tolerance_ticks"]),
@@ -623,6 +641,7 @@ class Depth:
         return {
             "symbol": self.symbol,
             "ts_ns": self.ts_ns,
+            "tick_decimals": self.tick_decimals,
             "mid_price_ticks": self.mid_price_ticks,
             "mid_price": self.mid_price,
             "tolerance_ticks": self.tolerance_ticks,
@@ -664,6 +683,7 @@ def make_depth_unchecked(
     *,
     symbol: str,
     ts_ns: int,
+    tick_decimals: int,
     mid_price_ticks: int,
     mid_price: float,
     tolerance_ticks: int,
@@ -689,6 +709,7 @@ def make_depth_unchecked(
             {
                 "symbol": str(symbol),
                 "ts_ns": int(ts_ns),
+                "tick_decimals": int(tick_decimals),
                 "mid_price_ticks": int(mid_price_ticks),
                 "mid_price": float(mid_price),
                 "tolerance_ticks": int(tolerance_ticks),

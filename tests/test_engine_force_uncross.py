@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from edumatcher.models.order import Order, OrderStatus, OrderType, Side, TIF
-from edumatcher.models.price import to_ticks
+from edumatcher.models.price import get_tick_decimals, to_ticks
 
 from tests.engine_harness import SYMBOL, FakeSock, all_msgs, connect, make_engine, msgs
 
@@ -40,12 +40,13 @@ def _rest(engine: Any, side: Side, price: float, qty: int, oid: str) -> None:
             symbol=SYMBOL,
             side=side,
             order_type=OrderType.LIMIT,
-            price=to_ticks(price, SYMBOL),
+            price_ticks=to_ticks(price, SYMBOL),
             quantity=qty,
             remaining_qty=qty,
             gateway_id="GW01",
             tif=TIF.DAY,
-            timestamp=0,
+            ts_ns=0,
+            tick_decimals=get_tick_decimals(SYMBOL),
             status=OrderStatus.NEW,
         ),
         match=False,

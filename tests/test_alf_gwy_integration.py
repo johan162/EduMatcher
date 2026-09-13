@@ -570,6 +570,7 @@ def test_fill_event_delivered_to_client(
                     "fill_qty": 50,
                     "fill_price": 150.25,
                     "remaining_qty": 50,
+                    "tick_decimals": 2,
                     "status": "PARTIAL",
                     "trade_ids": ["000001-000000001", "000001-000000002"],
                 },
@@ -666,7 +667,8 @@ def test_orders_multi_line_response(
                             "order_type": "LIMIT",
                             "quantity": 100,
                             "remaining_qty": 100,
-                            "price": 150.0,
+                            "price_ticks": 150.0,
+                            "tick_decimals": 2,
                             "status": "NEW",
                         }
                     ]

@@ -566,7 +566,7 @@ def _order(order_id: str, tif: TIF) -> Order:
         side=Side.BUY,
         order_type=OrderType.LIMIT,
         quantity=100,
-        price=10000,
+        price_ticks=10000,
         gateway_id="GW01",
         tif=tif,
     )
@@ -583,7 +583,7 @@ def _quote_leg(order_id: str, tif: TIF, side: Side, quote_id: str = "Q1") -> Ord
         side=side,
         order_type=OrderType.LIMIT,
         quantity=100,
-        price=10000 if side == Side.BUY else 10010,
+        price_ticks=10000 if side == Side.BUY else 10010,
         gateway_id="GW01",
         tif=tif,
     )

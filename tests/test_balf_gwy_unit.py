@@ -912,7 +912,7 @@ class TestBuildEngineNewOrder:
         assert order["quantity"] == 100
         assert order["gateway_id"] == "TRADER01"
         assert order["id"] == "uuid-1"
-        assert "price" in order
+        assert "price_ticks" in order
 
     def test_market_order_no_price_field(self):
         parsed = {
@@ -939,7 +939,7 @@ class TestBuildEngineNewOrder:
             "smp": 0x00,
         }
         order = build_engine_new_order(parsed, "GW1", "uuid-3")
-        assert "stop_price" in order
+        assert "stop_price_ticks" in order
 
     def test_trailing_stop_trail_offset_in_result(self):
         parsed = {
@@ -957,7 +957,7 @@ class TestBuildEngineNewOrder:
         }
         order = build_engine_new_order(parsed, "GW1", "uuid-ts")
         assert order["order_type"] == "TRAILING_STOP"
-        assert "trail_offset" in order
+        assert "trail_offset_ticks" in order
 
     def test_invalid_side_raises(self):
         parsed = {**self._limit_parsed(), "side": 0x99}
@@ -998,8 +998,8 @@ class TestBuildEngineNewOrder:
         order_dict = build_engine_new_order(self._limit_parsed(), "GW1", "uuid-10")
         restored = Order.from_dict(order_dict)
         assert restored.id == "uuid-10"
-        assert isinstance(restored.timestamp, int)
-        assert restored.timestamp > 0
+        assert isinstance(restored.ts_ns, int)
+        assert restored.ts_ns > 0
 
 
 class TestEngineEventTranslations:

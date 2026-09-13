@@ -211,9 +211,9 @@ def execute_uncross(
 
         if best_bid is None or best_ask is None:
             break
-        if best_bid.price < eq_price:  # type: ignore[operator]
+        if best_bid.price_ticks < eq_price:  # type: ignore[operator]
             break  # remaining bids below equilibrium
-        if best_ask.price > eq_price:  # type: ignore[operator]
+        if best_ask.price_ticks > eq_price:  # type: ignore[operator]
             break  # remaining asks above equilibrium
 
         fill_qty = min(best_bid.remaining_qty, best_ask.remaining_qty)

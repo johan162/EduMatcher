@@ -86,8 +86,9 @@ def flow_oco(engine, pub) -> str | None:
             "symbol": SYMBOL,
             "quantity": QTY,
             "tif": "DAY",
-            "leg1": {"side": "BUY", "order_type": "LIMIT", "price": PRICE_TICKS},
-            "leg2": {"side": "SELL", "order_type": "LIMIT", "price": 13000},
+            "tick_decimals": 2,
+            "leg1": {"side": "BUY", "order_type": "LIMIT", "price_ticks": PRICE_TICKS},
+            "leg2": {"side": "SELL", "order_type": "LIMIT", "price_ticks": 13000},
         }
     )
     acks = [m for m in msgs(pub, "oco.ack.GW01") if m.get("accepted")]
@@ -114,14 +115,16 @@ def flow_combo(engine, pub) -> str | None:
                 side=Side.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=QTY,
-                price=PRICE_TICKS,
+                tick_decimals=2,
+                price_ticks=PRICE_TICKS,
             ),
             ComboLeg(
                 symbol="MSFT",
                 side=Side.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=10,
-                price=5000,  # 50.00 — fills against GW03's MSFT ask
+                tick_decimals=2,
+                price_ticks=5000,  # 50.00 — fills against GW03's MSFT ask
             ),
         ],
     )

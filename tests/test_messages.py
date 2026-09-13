@@ -231,6 +231,7 @@ def _depth_payload() -> dict:
     return {
         "symbol": "AAPL",
         "ts_ns": 1_700_000_000_000_000_000,
+        "tick_decimals": 2,
         "mid_price_ticks": 9525,
         "mid_price": 95.25,
         "tolerance_ticks": 100,
@@ -271,9 +272,10 @@ class TestOrderMessages:
             "quantity": 100,
             "remaining_qty": 100,
             "gateway_id": "GW01",
-            "timestamp": 1_700_000_000_000_000_000,
+            "ts_ns": 1_700_000_000_000_000_000,
+            "tick_decimals": 2,
             "status": "NEW",
-            "price": 15000,
+            "price_ticks": 15000,
         }
         topic, payload = _rt(make_order_new_msg(d))
         assert topic == "order.new"
@@ -319,8 +321,9 @@ class TestOrderMessages:
             "side": "BUY",
             "order_type": "LIMIT",
             "tif": "DAY",
+            "tick_decimals": 2,
             "quantity": 100,
-            "price": 150.0,
+            "price_ticks": 150.0,
         }
         topic, payload = _rt(make_ack_msg("GW01", "ORD1", True, order=order))
         assert payload["symbol"] == "AAPL"
@@ -338,8 +341,9 @@ class TestOrderMessages:
             "side": "BUY",
             "order_type": "LIMIT",
             "tif": "DAY",
+            "tick_decimals": 2,
             "quantity": 100,
-            "price": 150.0,
+            "price_ticks": 150.0,
         }
         _, payload = _rt(
             make_fill_msg("GW01", "ORD1", 100, 150.0, 0, "FILLED", order=order)
@@ -445,6 +449,7 @@ class TestSystemMessages:
             "remaining_qty": 100,
             "gateway_id": "GW01",
             "ts_ns": 1_000_000_000,  # AR-0.3b: OrderDisplay.ts_ns, not "timestamp"
+            "tick_decimals": 2,
             "status": "NEW",
         }
         topic, payload = _rt(make_orders_msg("GW01", [order]))
@@ -606,18 +611,20 @@ class TestComboMessages:
                     "symbol": "AAPL",
                     "side": "BUY",
                     "order_type": "LIMIT",
+                    "tick_decimals": 2,
                     "quantity": 10,
-                    "price": 100,
-                    "stop_price": None,
+                    "price_ticks": 100,
+                    "stop_price_ticks": None,
                     "smp_action": None,
                 },
                 {
                     "symbol": "MSFT",
                     "side": "SELL",
                     "order_type": "LIMIT",
+                    "tick_decimals": 2,
                     "quantity": 10,
-                    "price": 200,
-                    "stop_price": None,
+                    "price_ticks": 200,
+                    "stop_price_ticks": None,
                     "smp_action": None,
                 },
             ],
@@ -681,19 +688,20 @@ class TestOcoMessages:
             "symbol": "AAPL",
             "quantity": 10,
             "tif": "DAY",
+            "tick_decimals": 2,
             "leg1": {
                 "side": "BUY",
                 "order_type": "LIMIT",
-                "price": 100,
-                "stop_price": None,
-                "trail_offset": None,
+                "price_ticks": 100,
+                "stop_price_ticks": None,
+                "trail_offset_ticks": None,
             },
             "leg2": {
                 "side": "BUY",
                 "order_type": "STOP",
-                "price": None,
-                "stop_price": 90,
-                "trail_offset": None,
+                "price_ticks": None,
+                "stop_price_ticks": 90,
+                "trail_offset_ticks": None,
             },
         }
         topic, payload = _rt(make_oco_order_msg(oco))
@@ -714,9 +722,10 @@ class TestMMQuoteAndRiskMessages:
                 {
                     "gateway_id": "GW01",
                     "symbol": "AAPL",
-                    "bid_price": 100,
+                    "tick_decimals": 2,
+                    "bid_price_ticks": 100,
                     "bid_qty": 10,
-                    "ask_price": 101,
+                    "ask_price_ticks": 101,
                     "ask_qty": 10,
                     "tif": "DAY",
                 }

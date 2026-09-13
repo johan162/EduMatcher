@@ -56,6 +56,7 @@ from edumatcher.models.message import (
 from edumatcher.models.order import Order, OrderType, Side, SmpAction, TIF
 from edumatcher.models.price import (
     TickViolation,
+    get_tick_decimals,
     register_tick_decimals,
     to_ticks_exact,
 )
@@ -727,15 +728,17 @@ class AlfGateway:
             quantity=quantity,
             gateway_id=self._require_gw(session),
             tif=tif,
-            price=self._ticks(price, symbol, "PRICE") if price is not None else None,
-            stop_price=(
+            price_ticks=(
+                self._ticks(price, symbol, "PRICE") if price is not None else None
+            ),
+            stop_price_ticks=(
                 self._ticks(stop_price, symbol, "STOP")
                 if stop_price is not None
                 else None
             ),
             visible_qty=visible,
             smp_action=smp,
-            trail_offset=(
+            trail_offset_ticks=(
                 self._ticks(trail_offset, symbol, "TRAIL")
                 if trail_offset is not None
                 else None
@@ -872,10 +875,11 @@ class AlfGateway:
                     side=side,
                     order_type=leg_type,
                     quantity=qty,
-                    price=(
+                    tick_decimals=2,
+                    price_ticks=(
                         self._ticks(price, sym, "PRICE") if price is not None else None
                     ),
-                    stop_price=(
+                    stop_price_ticks=(
                         self._ticks(stop, sym, "STOP") if stop is not None else None
                     ),
                     smp_action=smp_action,
@@ -973,9 +977,10 @@ class AlfGateway:
             "gateway_id": self._require_gw(session),
             "symbol": symbol,
             # Ticks on the wire (design section 15.2, quotes joined in 6.1b).
-            "bid_price": self._ticks(bid, symbol, "BID"),
+            "tick_decimals": get_tick_decimals(symbol),
+            "bid_price_ticks": self._ticks(bid, symbol, "BID"),
             "bid_qty": bid_qty,
-            "ask_price": self._ticks(ask, symbol, "ASK"),
+            "ask_price_ticks": self._ticks(ask, symbol, "ASK"),
             "ask_qty": ask_qty,
             "tif": tif.value,
         }

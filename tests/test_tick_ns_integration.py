@@ -20,7 +20,7 @@ def test_order_book_snapshot_converts_ticks_to_display_prices() -> None:
         quantity=10,
         gateway_id="GW1",
         tif=TIF.DAY,
-        price=10050,
+        price_ticks=10050,
     )
     ask = Order.create(
         symbol="AAPL",
@@ -29,7 +29,7 @@ def test_order_book_snapshot_converts_ticks_to_display_prices() -> None:
         quantity=10,
         gateway_id="GW2",
         tif=TIF.DAY,
-        price=10050,
+        price_ticks=10050,
     )
 
     # First order rests, second order crosses and creates a trade.
@@ -65,7 +65,7 @@ class TestAr04SnapshotClock:
             quantity=10,
             gateway_id="GW1",
             tif=TIF.DAY,
-            price=10050,
+            price_ticks=10050,
         )
         ask = Order.create(
             symbol="AAPL",
@@ -74,7 +74,7 @@ class TestAr04SnapshotClock:
             quantity=10,
             gateway_id="GW2",
             tif=TIF.DAY,
-            price=10050,
+            price_ticks=10050,
         )
         book.process(bid)
         trades, _ = book.process(ask)

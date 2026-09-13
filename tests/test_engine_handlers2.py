@@ -116,7 +116,7 @@ def _order(
         quantity=qty,
         gateway_id=gateway_id,
         tif=tif,
-        price=price,
+        price_ticks=price,
         smp_action=smp,
     )
     return o.to_dict()
@@ -144,7 +144,7 @@ class TestRestoreGTC:
             quantity=50,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=99,
+            price_ticks=99,
         )
         gtc.status = OrderStatus.NEW
         engine, pub_sock = _make_engine(monkeypatch, tmp_path, gtc_orders=[gtc])
@@ -161,7 +161,7 @@ class TestRestoreGTC:
             quantity=50,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=99,
+            price_ticks=99,
         )
         gtc.status = OrderStatus.NEW
         engine, pub_sock = _make_engine(
@@ -232,14 +232,16 @@ class TestUpdateComboStatusPartial:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=100,
+                    tick_decimals=2,
+                    price_ticks=100,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=50,
-                    price=200,
+                    tick_decimals=2,
+                    price_ticks=200,
                 ),
             ],
         )
@@ -277,14 +279,16 @@ class TestComboCancelTerminal:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=100,
+                    tick_decimals=2,
+                    price_ticks=100,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=5,
-                    price=200,
+                    tick_decimals=2,
+                    price_ticks=200,
                 ),
             ],
         )
@@ -311,8 +315,9 @@ class TestOCOValidation:
             "symbol": "AAPL",
             "quantity": 100,
             "tif": "DAY",
-            "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 9500},
-            "leg2": {"side": "BUY", "order_type": "STOP", "stop_price": 10500},
+            "tick_decimals": 2,
+            "leg1": {"side": "BUY", "order_type": "LIMIT", "price_ticks": 9500},
+            "leg2": {"side": "BUY", "order_type": "STOP", "stop_price_ticks": 10500},
         }
 
     def test_stop_leg_missing_stop_price_rejected(self, monkeypatch, tmp_path) -> None:
@@ -367,8 +372,13 @@ class TestOCOSiblingCancel:
                 "symbol": "AAPL",
                 "quantity": 100,
                 "tif": "DAY",
-                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 9500},
-                "leg2": {"side": "BUY", "order_type": "STOP", "stop_price": 10500},
+                "tick_decimals": 2,
+                "leg1": {"side": "BUY", "order_type": "LIMIT", "price_ticks": 9500},
+                "leg2": {
+                    "side": "BUY",
+                    "order_type": "STOP",
+                    "stop_price_ticks": 10500,
+                },
             }
         )
         order_ids = engine._oco_groups.get("OCO_FILL", [])
@@ -405,14 +415,16 @@ class TestCancelWithComboCascade:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=100,
+                    tick_decimals=2,
+                    price_ticks=100,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=5,
-                    price=200,
+                    tick_decimals=2,
+                    price_ticks=200,
                 ),
             ],
         )
@@ -635,7 +647,7 @@ class TestExpireTIF:
             quantity=100,
             gateway_id="GW01",
             tif=TIF.ATO,
-            price=100,
+            price_ticks=100,
         )
         engine._handle_new_order(o.to_dict())
         pub_sock.sent.clear()

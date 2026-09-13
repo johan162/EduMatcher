@@ -36,6 +36,9 @@ def _gtc(order_type: OrderType, **kw) -> Order:
         quantity=kw.pop("quantity", 100),
         gateway_id="GW01",
         tif=TIF.GTC,
+        price_ticks=kw.pop("price", None),
+        stop_price_ticks=kw.pop("stop_price", None),
+        trail_offset_ticks=kw.pop("trail_offset", None),
         **kw,
     )
 
@@ -99,7 +102,7 @@ class TestGtcOrderRoundTrip:
             quantity=100,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=10000,
+            price_ticks=10000,
         )
         path = tmp_path / "gtc_orders.json"
         save_gtc_orders([day], path)
@@ -134,14 +137,16 @@ class TestGtcComboRoundTrip:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=10000,
+                    tick_decimals=2,
+                    price_ticks=10000,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=50,
-                    price=5000,
+                    tick_decimals=2,
+                    price_ticks=5000,
                 ),
             ],
         )

@@ -49,8 +49,12 @@ class ComboLeg:
     side: Side
     order_type: OrderType
     quantity: int
-    price: Optional[int] = None
-    stop_price: Optional[int] = None
+    # Per leg, not per combo: a combo's legs trade different instruments, and
+    # two instruments need not share a tick scale. That is the whole reason
+    # ComboLeg is a separate record from OcoLeg, whose legs share one symbol.
+    tick_decimals: int = 0
+    price_ticks: Optional[int] = None
+    stop_price_ticks: Optional[int] = None
     # None means "not specified" (client/config omitted smp_action), distinct
     # from an explicit NONE. See SmpAction's docstring in models/order.py —
     # the engine resolves this to a concrete value (gateway default, else
@@ -63,8 +67,9 @@ class ComboLeg:
             "side": self.side.value,
             "order_type": self.order_type.value,
             "quantity": self.quantity,
-            "price": self.price,
-            "stop_price": self.stop_price,
+            "tick_decimals": self.tick_decimals,
+            "price_ticks": self.price_ticks,
+            "stop_price_ticks": self.stop_price_ticks,
             "smp_action": (
                 self.smp_action.value if self.smp_action is not None else None
             ),
@@ -78,8 +83,9 @@ class ComboLeg:
             side=Side(d["side"]),
             order_type=OrderType(d["order_type"]),
             quantity=d["quantity"],
-            price=d.get("price"),
-            stop_price=d.get("stop_price"),
+            tick_decimals=d.get("tick_decimals", 0),
+            price_ticks=d.get("price_ticks"),
+            stop_price_ticks=d.get("stop_price_ticks"),
             smp_action=SmpAction(_smp_raw) if _smp_raw is not None else None,
         )
 

@@ -166,7 +166,7 @@ def _order(
         quantity=qty,
         gateway_id=gateway_id,
         tif=tif,
-        price=price,
+        price_ticks=price,
         smp_action=smp,
     )
     return o.to_dict()
@@ -297,11 +297,12 @@ class TestOCOStopLimitValidation:
                 "symbol": "AAPL",
                 "quantity": 100,
                 "tif": "DAY",
-                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 9500},
+                "tick_decimals": 2,
+                "leg1": {"side": "BUY", "order_type": "LIMIT", "price_ticks": 9500},
                 "leg2": {
                     "side": "BUY",
                     "order_type": "STOP_LIMIT",
-                    "price": 105.0,
+                    "price_ticks": 105.0,
                 },  # missing stop_price
             }
         )
@@ -332,14 +333,16 @@ class TestVerboseCombo:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=100,
+                    tick_decimals=2,
+                    price_ticks=100,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=5,
-                    price=200,
+                    tick_decimals=2,
+                    price_ticks=200,
                 ),
             ],
         )
@@ -363,14 +366,16 @@ class TestVerboseCombo:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=100,
+                    tick_decimals=2,
+                    price_ticks=100,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=5,
-                    price=200,
+                    tick_decimals=2,
+                    price_ticks=200,
                 ),
             ],
         )
@@ -397,8 +402,13 @@ class TestVerboseOCO:
                 "symbol": "AAPL",
                 "quantity": 100,
                 "tif": "DAY",
-                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 9500},
-                "leg2": {"side": "BUY", "order_type": "STOP", "stop_price": 10500},
+                "tick_decimals": 2,
+                "leg1": {"side": "BUY", "order_type": "LIMIT", "price_ticks": 9500},
+                "leg2": {
+                    "side": "BUY",
+                    "order_type": "STOP",
+                    "stop_price_ticks": 10500,
+                },
             }
         )
         assert "OCO" in caplog.text
@@ -414,8 +424,13 @@ class TestVerboseOCO:
                 "symbol": "AAPL",
                 "quantity": 100,
                 "tif": "DAY",
-                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 9500},
-                "leg2": {"side": "BUY", "order_type": "STOP", "stop_price": 10500},
+                "tick_decimals": 2,
+                "leg1": {"side": "BUY", "order_type": "LIMIT", "price_ticks": 9500},
+                "leg2": {
+                    "side": "BUY",
+                    "order_type": "STOP",
+                    "stop_price_ticks": 10500,
+                },
             }
         )
         caplog.clear()
@@ -445,14 +460,16 @@ class TestExpireTIFWithCombo:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=100,
+                    tick_decimals=2,
+                    price_ticks=100,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=5,
-                    price=200,
+                    tick_decimals=2,
+                    price_ticks=200,
                 ),
             ],
         )
@@ -480,8 +497,13 @@ class TestCancelOCOLeg:
                 "symbol": "AAPL",
                 "quantity": 100,
                 "tif": "DAY",
-                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 9500},
-                "leg2": {"side": "BUY", "order_type": "STOP", "stop_price": 10500},
+                "tick_decimals": 2,
+                "leg1": {"side": "BUY", "order_type": "LIMIT", "price_ticks": 9500},
+                "leg2": {
+                    "side": "BUY",
+                    "order_type": "STOP",
+                    "stop_price_ticks": 10500,
+                },
             }
         )
         order_ids = engine._oco_groups.get("OC_CASCADE", [])
@@ -510,7 +532,7 @@ class TestTrailingStopBuy:
             quantity=100,
             gateway_id="GW01",
             tif=TIF.DAY,
-            trail_offset=5,
+            trail_offset_ticks=5,
         )
         engine._handle_new_order(o.to_dict())
         _, msg = decode(pub_sock.sent[-1])

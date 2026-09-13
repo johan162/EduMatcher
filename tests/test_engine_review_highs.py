@@ -187,7 +187,7 @@ def _payload(
         quantity=qty,
         gateway_id=gateway_id,
         tif=tif,
-        price=price,
+        price_ticks=price,
     )
     return o.to_dict()
 
@@ -222,8 +222,9 @@ def _quote(
             # Callers pass display money, as a market maker's own pricer
             # produces; the wire carries ticks, and converting is the
             # submitting side's job (design section 15.2, quotes in 6.1b).
-            "bid_price": to_ticks(bid_price, SYMBOL),
-            "ask_price": to_ticks(ask_price, SYMBOL),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(bid_price, SYMBOL),
+            "ask_price_ticks": to_ticks(ask_price, SYMBOL),
             "bid_qty": bid_qty,
             "ask_qty": ask_qty,
             "tif": "DAY",
@@ -235,7 +236,7 @@ def _quote(
 # H1 — time priority must be assigned by the engine, not the client
 #
 # The heap key uses Order.timestamp exactly as received in the payload
-# (Order.from_dict keeps d["timestamp"]).  A participant that back-dates its
+# (Order.from_dict keeps d["ts_ns"]).  A participant that back-dates its
 # timestamp jumps the FIFO queue at a price level.
 # ---------------------------------------------------------------------------
 
@@ -252,7 +253,7 @@ class TestH1TimePriorityIsEngineAssigned:
 
         # GW02 arrives strictly later but spoofs an older timestamp.
         spoofer = _payload(Side.BUY, OrderType.LIMIT, 100, "GW02", price=10000)
-        spoofer["timestamp"] = first["timestamp"] - 1_000_000
+        spoofer["ts_ns"] = first["ts_ns"] - 1_000_000
         engine._handle_new_order(spoofer)
 
         # One sell for exactly one order's quantity — must hit GW01 (FIFO).
@@ -335,9 +336,9 @@ class TestH2AmendSemantics:
 
         resting = engine.books[SYMBOL].get_order(order["id"])
         assert resting is not None  # precondition: still on the book
-        assert resting.price is not None and resting.price <= 12000, (
+        assert resting.price_ticks is not None and resting.price_ticks <= 12000, (
             f"H2: amend bypassed the price collar — resting price is now "
-            f"{resting.price} ticks, outside the ±20% band around 10000"
+            f"{resting.price_ticks} ticks, outside the ±20% band around 10000"
         )
 
 
@@ -389,8 +390,9 @@ class TestH3PositionLedgerCompleteness:
                 "symbol": SYMBOL,
                 "quantity": 100,
                 "tif": "DAY",
-                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 10000},
-                "leg2": {"side": "SELL", "order_type": "LIMIT", "price": 12000},
+                "tick_decimals": 2,
+                "leg1": {"side": "BUY", "order_type": "LIMIT", "price_ticks": 10000},
+                "leg2": {"side": "SELL", "order_type": "LIMIT", "price_ticks": 12000},
             }
         )
 
@@ -549,7 +551,7 @@ class TestH7TerminalOrderPurge:
             order_type=OrderType.LIMIT,
             quantity=100,
             gateway_id="GW01",
-            price=10000,
+            price_ticks=10000,
         )
         book.process(filled)
         aggressor = Order.create(
@@ -558,7 +560,7 @@ class TestH7TerminalOrderPurge:
             order_type=OrderType.LIMIT,
             quantity=100,
             gateway_id="GW02",
-            price=10000,
+            price_ticks=10000,
         )
         book.process(aggressor)
         assert filled.status == OrderStatus.FILLED  # precondition
@@ -576,7 +578,7 @@ class TestH7TerminalOrderPurge:
             order_type=OrderType.LIMIT,
             quantity=100,
             gateway_id="GW01",
-            price=10100,
+            price_ticks=10100,
         )
         book.process(cancelled)
         assert book.cancel_order(cancelled.id) is not None  # precondition
@@ -627,7 +629,7 @@ class TestH8FokCorrectness:
             order_type=OrderType.ICEBERG,
             quantity=100,
             gateway_id="GW01",
-            price=10000,
+            price_ticks=10000,
             visible_qty=10,
         )
         book.process(iceberg)
@@ -638,7 +640,7 @@ class TestH8FokCorrectness:
             order_type=OrderType.FOK,
             quantity=100,
             gateway_id="GW02",
-            price=10000,
+            price_ticks=10000,
         )
         trades, _events = book.process(fok)
 
@@ -658,7 +660,7 @@ class TestH8FokCorrectness:
             order_type=OrderType.LIMIT,
             quantity=50,
             gateway_id="GW02",
-            price=10000,
+            price_ticks=10000,
         )
         book.process(other)
         # … and 50 from the aggressor's own gateway (SMP will skip it).
@@ -668,7 +670,7 @@ class TestH8FokCorrectness:
             order_type=OrderType.LIMIT,
             quantity=50,
             gateway_id="GW01",
-            price=10000,
+            price_ticks=10000,
         )
         book.process(own)
 
@@ -678,7 +680,7 @@ class TestH8FokCorrectness:
             order_type=OrderType.FOK,
             quantity=100,
             gateway_id="GW01",
-            price=10000,
+            price_ticks=10000,
             smp_action=SmpAction.CANCEL_RESTING,
         )
         book.process(fok)
@@ -771,14 +773,16 @@ class TestH9SessionGating:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=10000,  # crosses the queued ask if matching runs
+                    tick_decimals=2,
+                    price_ticks=10000,  # crosses the queued ask if matching runs
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=5000,
+                    tick_decimals=2,
+                    price_ticks=5000,
                 ),
             ],
         )

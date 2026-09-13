@@ -35,14 +35,16 @@ _LEGS = [
         side=Side.BUY,
         order_type=OrderType.LIMIT,
         quantity=10,
-        price=9500,
+        tick_decimals=2,
+        price_ticks=9500,
     ),
     ComboLeg(
         symbol="MSFT",
         side=Side.SELL,
         order_type=OrderType.LIMIT,
         quantity=10,
-        price=13000,
+        tick_decimals=2,
+        price_ticks=13000,
     ),
 ]
 
@@ -78,7 +80,7 @@ class TestTheSubmissionShape:
         """Dropping state must not drop the part that carries the order."""
         legs = _combo().to_submission_dict()["legs"]
         assert [leg["symbol"] for leg in legs] == ["AAPL", "MSFT"]
-        assert [leg["price"] for leg in legs] == [9500, 13000]
+        assert [leg["price_ticks"] for leg in legs] == [9500, 13000]
 
 
 class TestNoMapsReachTheWire:

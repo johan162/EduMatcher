@@ -98,7 +98,7 @@ class TestSelfMatchPrevention:
             quantity=qty,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=to_ticks(price, SYMBOL),
+            price_ticks=to_ticks(price, SYMBOL),
             smp_action=action,
         )
         return order.to_dict()

@@ -58,8 +58,9 @@ COMBO_LEG = {
     "side": "BUY",
     "order_type": "LIMIT",
     "tif": "DAY",
+    "tick_decimals": 2,
     "quantity": 100,
-    "price": 150.0,
+    "price_ticks": 150.0,
     "combo_parent_id": "CMB-1",
     "leg_index": 0,
 }
@@ -69,8 +70,9 @@ PLAIN_ORDER = {
     "side": "BUY",
     "order_type": "LIMIT",
     "tif": "DAY",
+    "tick_decimals": 2,
     "quantity": 100,
-    "price": 150.0,
+    "price_ticks": 150.0,
 }
 
 

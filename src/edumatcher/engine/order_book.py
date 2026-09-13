@@ -341,7 +341,7 @@ class OrderBook:
             o = entry.order
             if (
                 o.order_type not in (OrderType.STOP, OrderType.STOP_LIMIT)
-                and o.price is not None
+                and o.price_ticks is not None
             ):
                 qty = (
                     o.displayed_qty or 0
@@ -406,7 +406,7 @@ class OrderBook:
         if now is None:
             now = now_ns()
 
-        old_price = order.price
+        old_price = order.price_ticks
         old_qty = order.quantity
         filled_qty = old_qty - order.remaining_qty
 
@@ -454,7 +454,7 @@ class OrderBook:
             self._deduct_qty_index(order, old_visible)
 
         # Update order fields
-        order.price = price
+        order.price_ticks = price
         order.quantity = qty
         order.remaining_qty = qty - filled_qty
         if order.order_type == OrderType.ICEBERG and order.visible_qty is not None:
@@ -466,7 +466,7 @@ class OrderBook:
             else order.remaining_qty
         )
         if priority_reset:
-            order.timestamp = now
+            order.ts_ns = now
             # Priority lost: assign a fresh arrival sequence so the order goes
             # to the back of the queue at its (new) price level (finding H1).
             order.arrival_seq = self._next_seq()
@@ -629,6 +629,9 @@ class OrderBook:
             # snapshot taken after a given trade always carries ts_ns >= that
             # trade's — see now_ns()'s docstring.
             "ts_ns": now_ns(),
+            # The scale for the `_ticks` fields below, so a reader can turn
+            # them into money from this message alone.
+            "tick_decimals": get_tick_decimals(self.symbol),
             "mid_price_ticks": mid,
             "mid_price": mid_price,
             "tolerance_ticks": tolerance_ticks,
@@ -659,7 +662,7 @@ class OrderBook:
                 OrderStatus.EXPIRED,
             ):
                 continue
-            price = o.price
+            price = o.price_ticks
             assert price is not None  # resting orders always have a price (L7)
             qty = (
                 o.displayed_qty or 0
@@ -681,7 +684,7 @@ class OrderBook:
                 OrderStatus.EXPIRED,
             ):
                 continue
-            price = o.price
+            price = o.price_ticks
             assert price is not None  # resting orders always have a price (L7)
             qty = (
                 o.displayed_qty or 0
@@ -798,7 +801,7 @@ class OrderBook:
         self._sweep(
             order,
             opposite,
-            price_limit=order.price,
+            price_limit=order.price_ticks,
             trades=trades,
             events=events,
             now=now,
@@ -813,7 +816,7 @@ class OrderBook:
                 order.id,
                 self.symbol,
                 order.side.value,
-                order.price,
+                order.price_ticks,
                 order.remaining_qty,
             )
             self._rest(order)
@@ -839,20 +842,20 @@ class OrderBook:
             # resolve it (should not happen — see SmpAction's docstring);
             # treat that defensively as "no SMP" rather than raising.
             smp = order.smp_action or SmpAction.NONE
-            price_limit = order.price
+            price_limit = order.price_ticks
             same_gw_conflicts = [
                 e.order
                 for e in opposite
                 if e.valid
                 and e.order.status not in _DEAD_STATUSES
                 and e.order.gateway_id == order.gateway_id
-                and e.order.price is not None
+                and e.order.price_ticks is not None
                 and (
                     price_limit is None
                     or (
-                        e.order.price <= price_limit
+                        e.order.price_ticks <= price_limit
                         if order.side == Side.BUY
-                        else e.order.price >= price_limit
+                        else e.order.price_ticks >= price_limit
                     )
                 )
             ]
@@ -875,7 +878,7 @@ class OrderBook:
                 order.id,
                 self.symbol,
                 order.side.value,
-                order.price,
+                order.price_ticks,
                 order.quantity,
                 available,
                 order.status.value,
@@ -885,7 +888,7 @@ class OrderBook:
         self._sweep(
             order,
             opposite,
-            price_limit=order.price,
+            price_limit=order.price_ticks,
             trades=trades,
             events=events,
             now=now,
@@ -916,12 +919,12 @@ class OrderBook:
             if not entry.valid:
                 continue
             o = entry.order
-            if o.status in _DEAD_STATUSES or o.price is None:
+            if o.status in _DEAD_STATUSES or o.price_ticks is None:
                 continue
             if price_limit is not None:
-                if side == Side.BUY and o.price > price_limit:
+                if side == Side.BUY and o.price_ticks > price_limit:
                     continue
-                if side == Side.SELL and o.price < price_limit:
+                if side == Side.SELL and o.price_ticks < price_limit:
                     continue
             total += o.remaining_qty
         return total
@@ -934,7 +937,7 @@ class OrderBook:
         quantity is included), and excluding same-gateway orders when SMP is
         active (they are skipped/cancelled and cannot fill the FOK).  See H8.
         """
-        price_limit = order.price
+        price_limit = order.price_ticks
         side = order.side
         # See _process_fok's comment: None should never reach here, but treat
         # it as "no SMP" rather than raising if it somehow does.
@@ -947,12 +950,12 @@ class OrderBook:
             o = entry.order
             if o.status in _DEAD_STATUSES:
                 continue
-            if o.price is None:
+            if o.price_ticks is None:
                 continue
             if price_limit is not None:
-                if side == Side.BUY and o.price > price_limit:
+                if side == Side.BUY and o.price_ticks > price_limit:
                     continue
-                if side == Side.SELL and o.price < price_limit:
+                if side == Side.SELL and o.price_ticks < price_limit:
                     continue
             # SMP: same-gateway resting liquidity is skipped/cancelled by the
             # sweep, so it cannot be used to fill this FOK.
@@ -988,7 +991,7 @@ class OrderBook:
         self._sweep(
             order,
             opposite,
-            price_limit=order.price,
+            price_limit=order.price_ticks,
             trades=trades,
             events=events,
             now=now,
@@ -1017,10 +1020,10 @@ class OrderBook:
         The order must have stop_price (initial stop level) and trail_offset (distance).
         """
         assert (
-            order.stop_price is not None
+            order.stop_price_ticks is not None
         ), "Trailing stop must have an initial stop_price"
         assert (
-            order.trail_offset is not None and order.trail_offset > 0
+            order.trail_offset_ticks is not None and order.trail_offset_ticks > 0
         ), "Trailing stop must have a positive trail_offset"
         self._trailing_stops.append(order)
         self._order_index[order.id] = order
@@ -1035,11 +1038,11 @@ class OrderBook:
         A BUY stop fires when the market rises to/through its stop price; a
         SELL stop fires when the market falls to/through it.
         """
-        if order.stop_price is None:
+        if order.stop_price_ticks is None:
             return False
         if order.side == Side.BUY:
-            return price >= order.stop_price
-        return price <= order.stop_price
+            return price >= order.stop_price_ticks
+        return price <= order.stop_price_ticks
 
     def _trigger_stop_now(
         self, order: Order, trades: list[Trade], events: list[Order], now: int
@@ -1048,33 +1051,33 @@ class OrderBook:
         immediately on entry (M2), instead of resting it until a future trade."""
         if order.order_type == OrderType.STOP:
             order.order_type = OrderType.MARKET
-            order.price = None
-            order.timestamp = now
+            order.price_ticks = None
+            order.ts_ns = now
             self._match_market(order, trades, events, now)
         else:  # STOP_LIMIT → LIMIT
             order.order_type = OrderType.LIMIT
-            order.timestamp = now
+            order.ts_ns = now
             self._match_limit(order, trades, events, now)
 
     def _add_stop(self, order: Order, events: list[Order]) -> None:
-        assert order.stop_price is not None, "Stop order must have a stop_price"
+        assert order.stop_price_ticks is not None, "Stop order must have a stop_price"
         log.debug(
             "stop armed order_id=%s symbol=%s side=%s stop_price=%s order_type=%s",
             order.id,
             self.symbol,
             order.side.value,
-            order.stop_price,
+            order.stop_price_ticks,
             order.order_type.value,
         )
         # Arrival sequence breaks ties among stops at the same trigger price
         # (finding H1 / M10) instead of the client timestamp.
         order.arrival_seq = self._next_seq()
         if order.side == Side.BUY:
-            key = (order.stop_price, order.arrival_seq)
+            key = (order.stop_price_ticks, order.arrival_seq)
             entry = _HeapEntry(key=key, order=order)
             heapq.heappush(self._buy_stops, entry)
         else:
-            key = (-order.stop_price, order.arrival_seq)
+            key = (-order.stop_price_ticks, order.arrival_seq)
             entry = _HeapEntry(key=key, order=order)
             heapq.heappush(self._sell_stops, entry)
         self._order_index[order.id] = order
@@ -1094,14 +1097,14 @@ class OrderBook:
             order.id,
             self.symbol,
             order.side.value,
-            order.price,
+            order.price_ticks,
             order.remaining_qty,
             order.gateway_id,
         )
         order.status = OrderStatus.CANCELLED
         order.cancel_reason = "SELF_MATCH_PREVENTED"
         entry = self._entry_index.get(order.id)
-        if entry and order.price is not None:
+        if entry and order.price_ticks is not None:
             qty = (
                 order.displayed_qty or 0
                 if order.order_type == OrderType.ICEBERG
@@ -1146,7 +1149,7 @@ class OrderBook:
             if best is None:
                 break
             # Resting bid/ask orders always carry a price (L7: local narrowing).
-            best_price = best.price
+            best_price = best.price_ticks
             assert best_price is not None
             # Price check
             if price_limit is not None:
@@ -1233,11 +1236,11 @@ class OrderBook:
                 break
             # Both the iceberg and the resting order always carry a price
             # (L7: local narrowing removes the Optional-comparison ignores).
-            best_price = best.price
-            assert best_price is not None and iceberg.price is not None
-            if iceberg.side == Side.BUY and best_price > iceberg.price:
+            best_price = best.price_ticks
+            assert best_price is not None and iceberg.price_ticks is not None
+            if iceberg.side == Side.BUY and best_price > iceberg.price_ticks:
                 break
-            if iceberg.side == Side.SELL and best_price < iceberg.price:
+            if iceberg.side == Side.SELL and best_price < iceberg.price_ticks:
                 break
 
             # Self-match prevention
@@ -1299,7 +1302,7 @@ class OrderBook:
                 iceberg.displayed_qty = new_peak
                 # Reuse the cached batch timestamp for the replenished slice
                 # that re-queues to the back at the same price level.
-                iceberg.timestamp = now
+                iceberg.ts_ns = now
                 log.debug(
                     "iceberg replenish order_id=%s symbol=%s new_displayed_qty=%s remaining_qty=%s",
                     iceberg.id,
@@ -1400,7 +1403,7 @@ class OrderBook:
                 if aggressor.remaining_qty > 0 and aggressor.displayed_qty == 0:
                     new_peak = min(aggressor.visible_qty or 0, aggressor.remaining_qty)
                     aggressor.displayed_qty = new_peak
-                    aggressor.timestamp = now
+                    aggressor.ts_ns = now
                     self._deduct_qty_index(aggressor, fill_qty)
                     self._reinsert_iceberg(aggressor)
                 else:
@@ -1424,7 +1427,7 @@ class OrderBook:
                 new_peak = min(passive.visible_qty or 0, passive.remaining_qty)
                 passive.displayed_qty = new_peak
                 # Reuse the cached batch timestamp for iceberg replenishment.
-                passive.timestamp = now
+                passive.ts_ns = now
                 # Deduct the consumed peak from the qty index BEFORE reinserting
                 # the fresh peak.  Without this call the index over-counts by
                 # fill_qty, corrupting FOK pre-checks and depth snapshots.
@@ -1480,26 +1483,26 @@ class OrderBook:
 
     def _deduct_qty_index(self, order: Order, qty: int) -> None:
         """Subtract qty from the price-level index for the given resting order."""
-        if order.price is None or qty <= 0:
+        if order.price_ticks is None or qty <= 0:
             return
         if order.side == Side.BUY:
             idx = self._bid_qty
         else:
             idx = self._ask_qty
-        current = idx.get(order.price, 0)
+        current = idx.get(order.price_ticks, 0)
         updated = current - qty
         if updated <= 0:
-            idx.pop(order.price, None)
+            idx.pop(order.price_ticks, None)
         else:
-            idx[order.price] = updated
+            idx[order.price_ticks] = updated
 
     def _rest(self, order: Order) -> None:
         """Place a resting order on the appropriate heap and update the qty index."""
-        assert order.price is not None, "Resting order must have a price"
+        assert order.price_ticks is not None, "Resting order must have a price"
         # L7: bind the narrowed price to a local so mypy keeps the non-None
         # narrowing across the following calls (attribute narrowing is dropped
         # after a method call) — removes the Optional-arithmetic type: ignores.
-        price = order.price
+        price = order.price_ticks
         qty = (
             order.displayed_qty or 0
             if order.order_type == OrderType.ICEBERG
@@ -1523,8 +1526,8 @@ class OrderBook:
 
     def _reinsert_iceberg(self, order: Order) -> None:
         """Invalidate old heap entry and push fresh one after peak replenishment."""
-        assert order.price is not None, "Iceberg must have a price"
-        price = order.price
+        assert order.price_ticks is not None, "Iceberg must have a price"
+        price = order.price_ticks
         old_entry = self._entry_index.get(order.id)
         if old_entry:
             old_entry.valid = False
@@ -1605,11 +1608,11 @@ class OrderBook:
             stop_order = entry.order
             if stop_order.order_type == OrderType.STOP:
                 stop_order.order_type = OrderType.MARKET
-                stop_order.price = None
+                stop_order.price_ticks = None
             else:
                 stop_order.order_type = OrderType.LIMIT
             # Reuse the cached batch timestamp.
-            stop_order.timestamp = now
+            stop_order.ts_ns = now
             self._order_index.pop(stop_order.id, None)
             # Remove from _entry_index; if the triggered order converts to MARKET
             # (never rests) the entry would otherwise leak indefinitely.
@@ -1648,11 +1651,11 @@ class OrderBook:
             stop_order = entry.order
             if stop_order.order_type == OrderType.STOP:
                 stop_order.order_type = OrderType.MARKET
-                stop_order.price = None
+                stop_order.price_ticks = None
             else:
                 stop_order.order_type = OrderType.LIMIT
             # Reuse the cached batch timestamp.
-            stop_order.timestamp = now
+            stop_order.ts_ns = now
             self._order_index.pop(stop_order.id, None)
             self._entry_index.pop(stop_order.id, None)
             self._discard_from_gateway_index(stop_order)
@@ -1701,8 +1704,8 @@ class OrderBook:
                 # Lazy-delete terminal orders; do NOT re-add to still_active
                 continue
 
-            offset = order.trail_offset
-            stop_price = order.stop_price
+            offset = order.trail_offset_ticks
+            stop_price = order.stop_price_ticks
             if offset is None or stop_price is None:
                 still_active.append(order)
                 continue
@@ -1719,7 +1722,7 @@ class OrderBook:
                         candidate,
                         trade_price,
                     )
-                    order.stop_price = candidate
+                    order.stop_price_ticks = candidate
                     stop_price = candidate
                 # Trigger when price falls to/below the current stop
                 if trade_price <= stop_price:
@@ -1731,9 +1734,9 @@ class OrderBook:
                         trade_price,
                     )
                     order.order_type = OrderType.MARKET
-                    order.trail_offset = None
+                    order.trail_offset_ticks = None
                     # Reuse the cached batch timestamp.
-                    order.timestamp = now
+                    order.ts_ns = now
                     self._order_index.pop(order.id, None)
                     self._discard_from_gateway_index(order)
                     triggered.append(order)
@@ -1750,7 +1753,7 @@ class OrderBook:
                         candidate,
                         trade_price,
                     )
-                    order.stop_price = candidate
+                    order.stop_price_ticks = candidate
                     stop_price = candidate
                 # Trigger when price rises to/at the current stop
                 if trade_price >= stop_price:
@@ -1762,9 +1765,9 @@ class OrderBook:
                         trade_price,
                     )
                     order.order_type = OrderType.MARKET
-                    order.trail_offset = None
+                    order.trail_offset_ticks = None
                     # Reuse the cached batch timestamp.
-                    order.timestamp = now
+                    order.ts_ns = now
                     self._order_index.pop(order.id, None)
                     self._discard_from_gateway_index(order)
                     triggered.append(order)

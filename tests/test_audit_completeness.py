@@ -120,8 +120,9 @@ class TestCancelReasonCoverage:
                 "gateway_id": "GW01",
                 "symbol": SYMBOL,
                 "quote_id": "Q1",
-                "bid_price": 9900,
-                "ask_price": 10100,
+                "tick_decimals": 2,
+                "bid_price_ticks": 9900,
+                "ask_price_ticks": 10100,
                 "bid_qty": 100,
                 "ask_qty": 100,
                 "tif": "DAY",
@@ -145,8 +146,9 @@ class TestCancelReasonCoverage:
             "gateway_id": "GW01",
             "symbol": SYMBOL,
             "quote_id": "Q1",
-            "bid_price": 9900,
-            "ask_price": 10100,
+            "tick_decimals": 2,
+            "bid_price_ticks": 9900,
+            "ask_price_ticks": 10100,
             "bid_qty": 100,
             "ask_qty": 100,
             "tif": "DAY",
@@ -169,8 +171,9 @@ class TestCancelReasonCoverage:
                 "gateway_id": "GW01",
                 "symbol": SYMBOL,
                 "quote_id": "Q1",
-                "bid_price": 10000,
-                "ask_price": 10100,
+                "tick_decimals": 2,
+                "bid_price_ticks": 10000,
+                "ask_price_ticks": 10100,
                 "bid_qty": 100,
                 "ask_qty": 100,
                 "tif": "DAY",
@@ -197,8 +200,9 @@ class TestCancelReasonCoverage:
                 "gateway_id": "GW01",
                 "symbol": SYMBOL,
                 "quote_id": "Q1",
-                "bid_price": 9900,
-                "ask_price": 10100,
+                "tick_decimals": 2,
+                "bid_price_ticks": 9900,
+                "ask_price_ticks": 10100,
                 "bid_qty": 100,
                 "ask_qty": 100,
                 "tif": "DAY",
@@ -237,14 +241,16 @@ class TestComboLegAck:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=10000,
+                    tick_decimals=2,
+                    price_ticks=10000,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=10500,
+                    tick_decimals=2,
+                    price_ticks=10500,
                 ),
             ],
         )
@@ -268,7 +274,7 @@ class TestIsSeed:
             order_type=OrderType.LIMIT,
             quantity=10,
             gateway_id="GW01",
-            price=10000,
+            price_ticks=10000,
             is_seed=True,
         )
         assert o.is_seed is True
@@ -281,7 +287,7 @@ class TestIsSeed:
             order_type=OrderType.LIMIT,
             quantity=10,
             gateway_id="GW01",
-            price=10000,
+            price_ticks=10000,
         )
         assert live.is_seed is False
         assert Order.from_dict(live.to_dict()).is_seed is False
@@ -341,7 +347,7 @@ class TestStartupRecovery:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=10000,
+            price_ticks=10000,
         )
         engine, pub = make_engine(monkeypatch, tmp_path, gtc_orders=[gtc_order])
 

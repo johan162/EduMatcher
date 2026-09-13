@@ -27,7 +27,7 @@ from edumatcher.balf_gwy.protocol import (
 )
 from edumatcher.models.clock import now_ns
 from edumatcher.models.ids import new_order_id
-from edumatcher.models.price import TickViolation, to_ticks_exact
+from edumatcher.models.price import TickViolation, get_tick_decimals, to_ticks_exact
 
 # ---------------------------------------------------------------------------
 # NEW_ORDER → engine order dict
@@ -103,17 +103,18 @@ def build_engine_new_order(
         "quantity": quantity,
         "remaining_qty": quantity,
         "gateway_id": gateway_id,
+        "tick_decimals": get_tick_decimals(symbol),
         # BALF NEW_ORDER has no timestamp field; stamp at gateway ingress.
-        "timestamp": now_ns(),
+        "ts_ns": now_ns(),
         "smp_action": smp_str,
         "status": "NEW",
     }
     if price_ticks is not None:
-        order["price"] = price_ticks
+        order["price_ticks"] = price_ticks
     if stop_price_ticks is not None:
-        order["stop_price"] = stop_price_ticks
+        order["stop_price_ticks"] = stop_price_ticks
     if trail_offset_ticks is not None:
-        order["trail_offset"] = trail_offset_ticks
+        order["trail_offset_ticks"] = trail_offset_ticks
     if visible_qty is not None:
         order["visible_qty"] = visible_qty
     return order

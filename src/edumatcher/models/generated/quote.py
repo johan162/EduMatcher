@@ -47,7 +47,15 @@ _QUOTE_NEW_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"max_len": 16},
     },
     {
-        "name": "bid_price",
+        "name": "tick_decimals",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": True,
+        "doc": "Decimal scale for both `_ticks` prices; 1 tick = 10^-tick_decimals. Carried so a reader can turn a tick price into money from this message alone, rather than recovering the scale from a `book` for the same symbol that may be outside the window being read.",
+        "constraints": {"ge": 0, "le": 8},
+    },
+    {
+        "name": "bid_price_ticks",
         "type": "ticks",
         "unit": "ticks",
         "required": True,
@@ -63,7 +71,7 @@ _QUOTE_NEW_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"gt": 0},
     },
     {
-        "name": "ask_price",
+        "name": "ask_price_ticks",
         "type": "ticks",
         "unit": "ticks",
         "required": True,
@@ -114,9 +122,10 @@ class QuoteNew:
 
     gateway_id: str
     symbol: str
-    bid_price: int  # unit: ticks
+    tick_decimals: int  # unit: dimensionless
+    bid_price_ticks: int  # unit: ticks
     bid_qty: int  # unit: shares
-    ask_price: int  # unit: ticks
+    ask_price_ticks: int  # unit: ticks
     ask_qty: int  # unit: shares
     tif: QuoteNewTif = "DAY"
     quote_id: str = ""
@@ -136,12 +145,24 @@ class QuoteNew:
             raise MessageValidationError(
                 f"symbol: length {len(self.symbol)} exceeds max_len 16"
             )
-        if self.bid_price <= 0:
-            raise MessageValidationError(f"bid_price: {self.bid_price!r} must be > 0")
+        if self.tick_decimals < 0:
+            raise MessageValidationError(
+                f"tick_decimals: {self.tick_decimals!r} must be >= 0"
+            )
+        if self.tick_decimals > 8:
+            raise MessageValidationError(
+                f"tick_decimals: {self.tick_decimals!r} must be <= 8"
+            )
+        if self.bid_price_ticks <= 0:
+            raise MessageValidationError(
+                f"bid_price_ticks: {self.bid_price_ticks!r} must be > 0"
+            )
         if self.bid_qty <= 0:
             raise MessageValidationError(f"bid_qty: {self.bid_qty!r} must be > 0")
-        if self.ask_price <= 0:
-            raise MessageValidationError(f"ask_price: {self.ask_price!r} must be > 0")
+        if self.ask_price_ticks <= 0:
+            raise MessageValidationError(
+                f"ask_price_ticks: {self.ask_price_ticks!r} must be > 0"
+            )
         if self.ask_qty <= 0:
             raise MessageValidationError(f"ask_qty: {self.ask_qty!r} must be > 0")
         if self.tif not in _QUOTE_NEW_TIF_VALUES:
@@ -164,9 +185,10 @@ class QuoteNew:
         return cls(
             gateway_id=str(p["gateway_id"]),
             symbol=str(p["symbol"]),
-            bid_price=int(p["bid_price"]),
+            tick_decimals=int(p["tick_decimals"]),
+            bid_price_ticks=int(p["bid_price_ticks"]),
             bid_qty=int(p["bid_qty"]),
-            ask_price=int(p["ask_price"]),
+            ask_price_ticks=int(p["ask_price_ticks"]),
             ask_qty=int(p["ask_qty"]),
             tif=cast(QuoteNewTif, str(p.get("tif", "DAY"))),
             quote_id=str(p.get("quote_id", "")),
@@ -177,9 +199,10 @@ class QuoteNew:
         payload: dict[str, Any] = {
             "gateway_id": self.gateway_id,
             "symbol": self.symbol,
-            "bid_price": self.bid_price,
+            "tick_decimals": self.tick_decimals,
+            "bid_price_ticks": self.bid_price_ticks,
             "bid_qty": self.bid_qty,
-            "ask_price": self.ask_price,
+            "ask_price_ticks": self.ask_price_ticks,
             "ask_qty": self.ask_qty,
             "tif": self.tif,
         }
@@ -212,9 +235,10 @@ def make_quote_new_unchecked(
     *,
     gateway_id: str,
     symbol: str,
-    bid_price: int,
+    tick_decimals: int,
+    bid_price_ticks: int,
     bid_qty: int,
-    ask_price: int,
+    ask_price_ticks: int,
     ask_qty: int,
     tif: QuoteNewTif = "DAY",
     quote_id: str = "",
@@ -232,9 +256,10 @@ def make_quote_new_unchecked(
     payload: dict[str, Any] = {
         "gateway_id": str(gateway_id),
         "symbol": str(symbol),
-        "bid_price": int(bid_price),
+        "tick_decimals": int(tick_decimals),
+        "bid_price_ticks": int(bid_price_ticks),
         "bid_qty": int(bid_qty),
-        "ask_price": int(ask_price),
+        "ask_price_ticks": int(ask_price_ticks),
         "ask_qty": int(ask_qty),
         "tif": str(tif),
     }

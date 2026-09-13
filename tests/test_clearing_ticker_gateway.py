@@ -310,14 +310,16 @@ class TestComboIsFullyFilled:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=150,
+                    tick_decimals=2,
+                    price_ticks=150,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=200,
+                    tick_decimals=2,
+                    price_ticks=200,
                 ),
             ],
         )

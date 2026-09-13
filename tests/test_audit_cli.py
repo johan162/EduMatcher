@@ -65,8 +65,9 @@ _LINES = [
             "symbol": "AAPL",
             "side": "BUY",
             "order_type": "LIMIT",
+            "tick_decimals": 2,
             "quantity": 100,
-            "price": 150.0,
+            "price_ticks": 150.0,
         }
     ),
     f"[{_TS2}] [order.ack.GW01] "
@@ -566,6 +567,7 @@ _AR04_SNAPSHOT_LINES = [
         {
             "symbol": "AAPL",
             "ts_ns": _AR04_DEPTH_TS_NS,
+            "tick_decimals": 2,
             "mid_price_ticks": 15000,
             "mid_price": 150.0,
             "tolerance_ticks": 100,

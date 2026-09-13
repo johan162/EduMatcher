@@ -2314,7 +2314,7 @@ class TestMMBotQuoting:
             bot._quote_id = "q-002"
             bot._bid_order_id = "bid-002"
             bot._ask_order_id = "ask-002"
-            return new_payload["bid_price"], new_payload["ask_price"]
+            return new_payload["bid_price_ticks"], new_payload["ask_price_ticks"]
 
         # Buy fills (BID leg) push the bot long, widening/lowering ask.
         # The first fill must reference the order id already live on the

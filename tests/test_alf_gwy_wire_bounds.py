@@ -220,7 +220,7 @@ class TestStructurallySafeFields:
         assert payload["status"] == "NEW"
         assert payload["origin"] == "ORDER"
         assert payload["remaining_qty"] == payload["quantity"] == 100
-        assert payload["timestamp"] > 0
+        assert payload["ts_ns"] > 0
 
 
 class TestTheTwoBuildersStillAgree:
@@ -230,7 +230,7 @@ class TestTheTwoBuildersStillAgree:
         "extra",
         [
             {},
-            {"price": 15000, "client_tag": "T-1"},
+            {"price_ticks": 15000, "client_tag": "T-1"},
             {"smp_action": "CANCEL_BOTH"},
             {"oco_group_id": "OCO-1", "leg_index": 0, "combo_parent_id": "CMB-1"},
             {"visible_qty": 10, "displayed_qty": 10},
@@ -246,7 +246,8 @@ class TestTheTwoBuildersStillAgree:
             "quantity": 100,
             "remaining_qty": 100,
             "gateway_id": "TRADER01",
-            "timestamp": 1,
+            "ts_ns": 1,
+            "tick_decimals": 2,
             "status": "NEW",
             **extra,
         }
@@ -269,6 +270,7 @@ def test_every_validate_rule_is_accounted_for() -> None:
         "side",
         "order_type",
         "tif",
+        "tick_decimals",
         "quantity",
         "smp_action",
         "symbol",
@@ -278,7 +280,8 @@ def test_every_validate_rule_is_accounted_for() -> None:
     set_by_order_create = {
         "id",
         "remaining_qty",
-        "timestamp",
+        "ts_ns",
+        "tick_decimals",
         "status",
         "origin",
         # Always None on the single-order path; the OCO and combo handlers

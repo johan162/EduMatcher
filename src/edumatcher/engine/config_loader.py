@@ -960,6 +960,29 @@ def load_engine_config(path: Path) -> EngineConfig:
                 leg_payload["order_type"] = str(leg_payload["order_type"]).upper()
             if "smp_action" in leg_payload and leg_payload["smp_action"] is not None:
                 leg_payload["smp_action"] = str(leg_payload["smp_action"]).upper()
+            # The engine config is a user-facing YAML file, not a bus message,
+            # and its combo-leg keys stay as they are. Its `price`/`stop_price`
+            # already hold ticks (pm-config-gen converts on the way in), so the
+            # translation here is a rename and nothing more.
+            #
+            # Worth noting rather than fixing here: those YAML keys are named
+            # like display money and hold ticks, which is the ambiguity the
+            # `_ticks` suffix removed from the wire. Renaming them would be a
+            # config-format change.
+            for yaml_key, leg_key in (
+                ("price", "price_ticks"),
+                ("stop_price", "stop_price_ticks"),
+            ):
+                if yaml_key in leg_payload:
+                    leg_payload[leg_key] = leg_payload.pop(yaml_key)
+            leg_payload.setdefault(
+                "tick_decimals",
+                (
+                    symbols[str(leg_payload.get("symbol", "")).upper()].tick_decimals
+                    if str(leg_payload.get("symbol", "")).upper() in symbols
+                    else 2
+                ),
+            )
 
             try:
                 leg = ComboLeg.from_dict(leg_payload)

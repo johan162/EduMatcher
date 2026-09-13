@@ -24,7 +24,11 @@ import zmq
 
 from edumatcher.messaging.bus import PushSocket, make_pusher, make_subscriber
 from edumatcher.models.envelope import new_ulid
-from edumatcher.models.price import register_tick_decimals, to_ticks
+from edumatcher.models.price import (
+    get_tick_decimals,
+    register_tick_decimals,
+    to_ticks,
+)
 from edumatcher.models.message import (
     decode,
     make_gateway_connect_msg,
@@ -812,8 +816,9 @@ class MMBot:
             "symbol": symbol,
             # The pricer works in display money; the wire carries ticks
             # (design section 15.2, quotes joined in 6.1b).
-            "bid_price": to_ticks(bid, symbol),
-            "ask_price": to_ticks(ask, symbol),
+            "tick_decimals": get_tick_decimals(symbol),
+            "bid_price_ticks": to_ticks(bid, symbol),
+            "ask_price_ticks": to_ticks(ask, symbol),
             "bid_qty": self.qty,
             "ask_qty": self.qty,
             "tif": self.tif,

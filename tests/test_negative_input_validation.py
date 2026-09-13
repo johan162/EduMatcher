@@ -547,7 +547,7 @@ class TestEngineSymbolAllowlist:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=100,
+            price_ticks=100,
         )
         engine._handle_new_order(o.to_dict())
         ack = _last_ack(pub_sock)
@@ -581,7 +581,7 @@ class TestEngineGatewayAuth:
             quantity=10,
             gateway_id="GW99",
             tif=TIF.DAY,
-            price=100,
+            price_ticks=100,
         )
         engine._handle_new_order(o.to_dict())
         ack = _last_ack(pub_sock)
@@ -600,7 +600,7 @@ class TestEngineGatewayAuth:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=100,
+            price_ticks=100,
         )
         engine._handle_new_order(o.to_dict())
         ack = _last_ack(pub_sock)
@@ -641,7 +641,7 @@ class TestEngineMalformedPayloads:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=100,
+            price_ticks=100,
         )
         payload = o.to_dict()
         payload["side"] = "SIDEWAYS"  # corrupt the enum value
@@ -660,7 +660,7 @@ class TestEngineMalformedPayloads:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=100,
+            price_ticks=100,
         )
         payload = o.to_dict()
         payload["order_type"] = "MAGIC_ORDER"
@@ -677,7 +677,7 @@ class TestEngineMalformedPayloads:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=100,
+            price_ticks=100,
         )
         payload = o.to_dict()
         payload["tif"] = "WHENEVER"
@@ -706,7 +706,7 @@ class TestEngineSessionGating:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=100,
+            price_ticks=100,
         )
         engine._handle_new_order(o.to_dict())
         ack = _last_ack(pub_sock)
@@ -726,7 +726,7 @@ class TestEngineSessionGating:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=100,
+            price_ticks=100,
         )
         engine._handle_new_order(o.to_dict())
         ack = _last_ack(pub_sock)

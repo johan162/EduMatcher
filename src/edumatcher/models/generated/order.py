@@ -62,9 +62,9 @@ class OcoLeg:
 
     side: OcoLegSide
     order_type: OcoLegOrderType
-    price: int | None = None  # unit: ticks
-    stop_price: int | None = None  # unit: ticks
-    trail_offset: int | None = None  # unit: ticks
+    price_ticks: int | None = None  # unit: ticks
+    stop_price_ticks: int | None = None  # unit: ticks
+    trail_offset_ticks: int | None = None  # unit: ticks
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -93,10 +93,16 @@ class OcoLeg:
         return cls(
             side=cast(OcoLegSide, str(p["side"])),
             order_type=cast(OcoLegOrderType, str(p["order_type"])),
-            price=None if p.get("price") is None else int(p["price"]),
-            stop_price=None if p.get("stop_price") is None else int(p["stop_price"]),
-            trail_offset=(
-                None if p.get("trail_offset") is None else int(p["trail_offset"])
+            price_ticks=None if p.get("price_ticks") is None else int(p["price_ticks"]),
+            stop_price_ticks=(
+                None
+                if p.get("stop_price_ticks") is None
+                else int(p["stop_price_ticks"])
+            ),
+            trail_offset_ticks=(
+                None
+                if p.get("trail_offset_ticks") is None
+                else int(p["trail_offset_ticks"])
             ),
         )
 
@@ -106,12 +112,12 @@ class OcoLeg:
             "side": self.side,
             "order_type": self.order_type,
         }
-        if self.price is not None:
-            payload["price"] = self.price
-        if self.stop_price is not None:
-            payload["stop_price"] = self.stop_price
-        if self.trail_offset is not None:
-            payload["trail_offset"] = self.trail_offset
+        if self.price_ticks is not None:
+            payload["price_ticks"] = self.price_ticks
+        if self.stop_price_ticks is not None:
+            payload["stop_price_ticks"] = self.stop_price_ticks
+        if self.trail_offset_ticks is not None:
+            payload["trail_offset_ticks"] = self.trail_offset_ticks
         return payload
 
 
@@ -158,8 +164,9 @@ class ComboLeg:
     side: ComboLegSide
     order_type: ComboLegOrderType
     quantity: int  # unit: shares
-    price: int | None = None  # unit: ticks
-    stop_price: int | None = None  # unit: ticks
+    tick_decimals: int  # unit: dimensionless
+    price_ticks: int | None = None  # unit: ticks
+    stop_price_ticks: int | None = None  # unit: ticks
     smp_action: ComboLegSmpAction | None = None
 
     def validate(self) -> None:
@@ -183,6 +190,14 @@ class ComboLeg:
             )
         if self.quantity <= 0:
             raise MessageValidationError(f"quantity: {self.quantity!r} must be > 0")
+        if self.tick_decimals < 0:
+            raise MessageValidationError(
+                f"tick_decimals: {self.tick_decimals!r} must be >= 0"
+            )
+        if self.tick_decimals > 8:
+            raise MessageValidationError(
+                f"tick_decimals: {self.tick_decimals!r} must be <= 8"
+            )
         if self.smp_action is not None:
             if self.smp_action not in _COMBO_LEG_SMP_ACTION_VALUES:
                 raise MessageValidationError(
@@ -202,8 +217,13 @@ class ComboLeg:
             side=cast(ComboLegSide, str(p["side"])),
             order_type=cast(ComboLegOrderType, str(p["order_type"])),
             quantity=int(p["quantity"]),
-            price=None if p.get("price") is None else int(p["price"]),
-            stop_price=None if p.get("stop_price") is None else int(p["stop_price"]),
+            tick_decimals=int(p["tick_decimals"]),
+            price_ticks=None if p.get("price_ticks") is None else int(p["price_ticks"]),
+            stop_price_ticks=(
+                None
+                if p.get("stop_price_ticks") is None
+                else int(p["stop_price_ticks"])
+            ),
             smp_action=(
                 None
                 if p.get("smp_action") is None
@@ -218,8 +238,9 @@ class ComboLeg:
             "side": self.side,
             "order_type": self.order_type,
             "quantity": self.quantity,
-            "price": self.price,
-            "stop_price": self.stop_price,
+            "tick_decimals": self.tick_decimals,
+            "price_ticks": self.price_ticks,
+            "stop_price_ticks": self.stop_price_ticks,
             "smp_action": self.smp_action,
         }
 
@@ -2931,7 +2952,15 @@ _ORDER_NEW_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"max_len": 32},
     },
     {
-        "name": "trail_offset",
+        "name": "tick_decimals",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": True,
+        "doc": "Decimal scale for every `_ticks` field below; 1 tick = 10^-tick_decimals. Carried so a reader can turn a tick price into money from this message alone. Without it the scale has to be recovered from a `book` or `trade.executed` for the same symbol, which a reader of a *window* of the audit trail may not have - the snapshot that declared it is usually at session start, hours outside the window being read.",
+        "constraints": {"ge": 0, "le": 8},
+    },
+    {
+        "name": "trail_offset_ticks",
         "type": "ticks",
         "unit": "ticks",
         "required": False,
@@ -2946,7 +2975,7 @@ _ORDER_NEW_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"max_len": 64},
     },
     {
-        "name": "timestamp",
+        "name": "ts_ns",
         "type": "int",
         "unit": "epoch_nanos",
         "required": True,
@@ -2962,14 +2991,14 @@ _ORDER_NEW_FIELDS: tuple[dict[str, Any], ...] = (
         "values": _ORDER_NEW_STATUS_VALUES,
     },
     {
-        "name": "price",
+        "name": "price_ticks",
         "type": "ticks",
         "unit": "ticks",
         "required": False,
         "doc": "Limit price in ticks. Null for MARKET, which has none.",
     },
     {
-        "name": "stop_price",
+        "name": "stop_price_ticks",
         "type": "ticks",
         "unit": "ticks",
         "required": False,
@@ -3060,9 +3089,9 @@ class OrderNew:
     everything else.
 
     The payload is exactly Order.to_dict(). Eleven fields are nullable and are emitted
-    as null when unset rather than omitted - a MARKET order carries "price": null. The
-    engine's Order.from_dict reads absent and null alike, so a producer that omits them
-    is still accepted.
+    as null when unset rather than omitted - a MARKET order carries "price_ticks": null.
+    The engine's Order.from_dict reads absent and null alike, so a producer that omits
+    them is still accepted.
     """
 
     id: str
@@ -3073,12 +3102,13 @@ class OrderNew:
     quantity: int  # unit: shares
     remaining_qty: int  # unit: shares
     gateway_id: str
-    timestamp: int  # unit: epoch_nanos
+    tick_decimals: int  # unit: dimensionless
+    ts_ns: int  # unit: epoch_nanos
     status: OrderNewStatus
-    trail_offset: int | None = None  # unit: ticks
+    trail_offset_ticks: int | None = None  # unit: ticks
     oco_group_id: str | None = None
-    price: int | None = None  # unit: ticks
-    stop_price: int | None = None  # unit: ticks
+    price_ticks: int | None = None  # unit: ticks
+    stop_price_ticks: int | None = None  # unit: ticks
     visible_qty: int | None = None  # unit: shares
     displayed_qty: int | None = None  # unit: shares
     smp_action: OrderNewSmpAction | None = None
@@ -3127,13 +3157,21 @@ class OrderNew:
             raise MessageValidationError(
                 f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
             )
+        if self.tick_decimals < 0:
+            raise MessageValidationError(
+                f"tick_decimals: {self.tick_decimals!r} must be >= 0"
+            )
+        if self.tick_decimals > 8:
+            raise MessageValidationError(
+                f"tick_decimals: {self.tick_decimals!r} must be <= 8"
+            )
         if self.oco_group_id is not None:
             if len(self.oco_group_id) > 64:
                 raise MessageValidationError(
                     f"oco_group_id: length {len(self.oco_group_id)} exceeds max_len 64"
                 )
-        if self.timestamp < 0:
-            raise MessageValidationError(f"timestamp: {self.timestamp!r} must be >= 0")
+        if self.ts_ns < 0:
+            raise MessageValidationError(f"ts_ns: {self.ts_ns!r} must be >= 0")
         if self.status not in _ORDER_NEW_STATUS_VALUES:
             raise MessageValidationError(
                 f"status: {self.status!r} is not one of {_ORDER_NEW_STATUS_VALUES!r}"
@@ -3180,16 +3218,23 @@ class OrderNew:
             quantity=int(p["quantity"]),
             remaining_qty=int(p["remaining_qty"]),
             gateway_id=str(p["gateway_id"]),
-            trail_offset=(
-                None if p.get("trail_offset") is None else int(p["trail_offset"])
+            tick_decimals=int(p["tick_decimals"]),
+            trail_offset_ticks=(
+                None
+                if p.get("trail_offset_ticks") is None
+                else int(p["trail_offset_ticks"])
             ),
             oco_group_id=(
                 None if p.get("oco_group_id") is None else str(p["oco_group_id"])
             ),
-            timestamp=int(p["timestamp"]),
+            ts_ns=int(p["ts_ns"]),
             status=cast(OrderNewStatus, str(p["status"])),
-            price=None if p.get("price") is None else int(p["price"]),
-            stop_price=None if p.get("stop_price") is None else int(p["stop_price"]),
+            price_ticks=None if p.get("price_ticks") is None else int(p["price_ticks"]),
+            stop_price_ticks=(
+                None
+                if p.get("stop_price_ticks") is None
+                else int(p["stop_price_ticks"])
+            ),
             visible_qty=None if p.get("visible_qty") is None else int(p["visible_qty"]),
             displayed_qty=(
                 None if p.get("displayed_qty") is None else int(p["displayed_qty"])
@@ -3221,12 +3266,13 @@ class OrderNew:
             "quantity": self.quantity,
             "remaining_qty": self.remaining_qty,
             "gateway_id": self.gateway_id,
-            "trail_offset": self.trail_offset,
+            "tick_decimals": self.tick_decimals,
+            "trail_offset_ticks": self.trail_offset_ticks,
             "oco_group_id": self.oco_group_id,
-            "timestamp": self.timestamp,
+            "ts_ns": self.ts_ns,
             "status": self.status,
-            "price": self.price,
-            "stop_price": self.stop_price,
+            "price_ticks": self.price_ticks,
+            "stop_price_ticks": self.stop_price_ticks,
             "visible_qty": self.visible_qty,
             "displayed_qty": self.displayed_qty,
             "smp_action": self.smp_action,
@@ -3270,12 +3316,13 @@ def make_order_new_unchecked(
     quantity: int,
     remaining_qty: int,
     gateway_id: str,
-    timestamp: int,
+    tick_decimals: int,
+    ts_ns: int,
     status: OrderNewStatus,
-    trail_offset: int | None = None,
+    trail_offset_ticks: int | None = None,
     oco_group_id: str | None = None,
-    price: int | None = None,
-    stop_price: int | None = None,
+    price_ticks: int | None = None,
+    stop_price_ticks: int | None = None,
     visible_qty: int | None = None,
     displayed_qty: int | None = None,
     smp_action: OrderNewSmpAction | None = None,
@@ -3309,12 +3356,17 @@ def make_order_new_unchecked(
                 "quantity": int(quantity),
                 "remaining_qty": int(remaining_qty),
                 "gateway_id": str(gateway_id),
-                "trail_offset": None if trail_offset is None else int(trail_offset),
+                "tick_decimals": int(tick_decimals),
+                "trail_offset_ticks": (
+                    None if trail_offset_ticks is None else int(trail_offset_ticks)
+                ),
                 "oco_group_id": None if oco_group_id is None else str(oco_group_id),
-                "timestamp": int(timestamp),
+                "ts_ns": int(ts_ns),
                 "status": str(status),
-                "price": None if price is None else int(price),
-                "stop_price": None if stop_price is None else int(stop_price),
+                "price_ticks": None if price_ticks is None else int(price_ticks),
+                "stop_price_ticks": (
+                    None if stop_price_ticks is None else int(stop_price_ticks)
+                ),
                 "visible_qty": None if visible_qty is None else int(visible_qty),
                 "displayed_qty": None if displayed_qty is None else int(displayed_qty),
                 "smp_action": None if smp_action is None else str(smp_action),
@@ -4031,6 +4083,14 @@ _ORDER_OCO_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"max_len": 16},
     },
     {
+        "name": "tick_decimals",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": False,
+        "doc": "Decimal scale for both legs' `_ticks` prices; 1 tick = 10^-tick_decimals. One value for the pair rather than one per leg, because both legs trade the instrument named above.",
+        "constraints": {"ge": 0, "le": 8},
+    },
+    {
         "name": "quantity",
         "type": "int",
         "unit": "shares",
@@ -4076,9 +4136,9 @@ class OrderOco:
     fill on either cancels the other.
 
     The first message in any spec to use a nested record. Both legs are `OcoLeg`, and
-    their prices are engine ticks - the gateway converts. A leg omits a price it does
-    not have rather than sending null, which is what the three producing gateways
-    already do.
+    their prices are engine ticks at `tick_decimals` - the gateway converts. A leg omits
+    a price it does not have rather than sending null, which is what the three producing
+    gateways already do.
     """
 
     leg1: OcoLeg
@@ -4086,6 +4146,7 @@ class OrderOco:
     oco_id: str = ""
     gateway_id: str = ""
     symbol: str = ""
+    tick_decimals: int = 0  # unit: dimensionless
     quantity: int = 0  # unit: shares
     tif: OrderOcoTif = "DAY"
     client_tag: str | None = None
@@ -4108,6 +4169,14 @@ class OrderOco:
         if len(self.symbol) > 16:
             raise MessageValidationError(
                 f"symbol: length {len(self.symbol)} exceeds max_len 16"
+            )
+        if self.tick_decimals < 0:
+            raise MessageValidationError(
+                f"tick_decimals: {self.tick_decimals!r} must be >= 0"
+            )
+        if self.tick_decimals > 8:
+            raise MessageValidationError(
+                f"tick_decimals: {self.tick_decimals!r} must be <= 8"
             )
         if self.tif not in _ORDER_OCO_TIF_VALUES:
             raise MessageValidationError(
@@ -4133,6 +4202,7 @@ class OrderOco:
             oco_id=str(p.get("oco_id", "")),
             gateway_id=str(p.get("gateway_id", "")),
             symbol=str(p.get("symbol", "")),
+            tick_decimals=int(p.get("tick_decimals", 0)),
             quantity=int(p.get("quantity", 0)),
             tif=cast(OrderOcoTif, str(p.get("tif", "DAY"))),
             leg1=OcoLeg.from_dict(p["leg1"]),
@@ -4146,6 +4216,7 @@ class OrderOco:
             "oco_id": self.oco_id,
             "gateway_id": self.gateway_id,
             "symbol": self.symbol,
+            "tick_decimals": self.tick_decimals,
             "quantity": self.quantity,
             "tif": self.tif,
             "leg1": self.leg1.to_dict(),
