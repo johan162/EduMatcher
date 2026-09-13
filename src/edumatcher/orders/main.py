@@ -215,29 +215,6 @@ for _msg in _startup_warnings:
     print(f"[pm-orders] WARNING: {_msg}", file=sys.stderr)
 
 
-def _ticks_to_price(raw: Any, symbol: str | None) -> Any:
-    """Convert a raw integer-tick price to real money for display.
-
-    ``symbol`` selects the tick precision; unknown or missing symbols fall
-    back to ``_DEFAULT_TICK_DECIMALS``, matching the rest of the codebase's
-    documented fallback (edumatcher.models.price, edumatcher.calf_client.
-    refdata). A non-numeric ``raw`` is returned unchanged so a malformed
-    value stays visible as itself instead of crashing the render loop —
-    that's also why this returns ``Any`` rather than ``float | None``: the
-    pass-through case is deliberate, not an oversight.
-    """
-    if raw is None:
-        return None
-    if not isinstance(raw, (int, float)):
-        return raw
-    decimals = (
-        _TICK_DECIMALS.get(symbol.upper(), _DEFAULT_TICK_DECIMALS)
-        if symbol
-        else _DEFAULT_TICK_DECIMALS
-    )
-    return raw / (10**decimals)
-
-
 def _format_price(value: Any, symbol: str | None) -> str:
     """Render a (already-normalized, real-money) price at the symbol's own
     decimal precision, e.g. 123.5 -> "123.50" for a 2-decimal symbol."""
@@ -572,23 +549,14 @@ class OrderMonitor:
             if entry.get("quote_id") and "symbol" not in entry:
                 self._backfill_from_quote_meta(entry, oid)
 
-            # Price normalization: order.ack's "price" (the submitted limit
-            # price) and the aggressor side's "price" on order.fill are both
-            # published straight from the client's request payload — raw
-            # integer ticks, never converted. order.fill's "fill_price" (and
-            # the passive side's "price") ARE already converted to display
-            # money via from_ticks() on the engine side. Prefer fill_price
-            # when present since it's already correct; otherwise treat the
-            # raw value as ticks and convert using this symbol's own
-            # tick_decimals so every row ends up in the same real-money
-            # units regardless of which upstream field it came from.
-            symbol = entry.get("symbol")
+            # Every price on the wire is display money: order.ack.price and
+            # order.fill's "price" used to carry raw ticks on the aggressor
+            # side, and this is where that was compensated for. The engine now
+            # converts at the publish site, so there is nothing to undo — take
+            # fill_price when the event has one, else the order's own price.
             raw_price = payload.get("fill_price", payload.get("price"))
             if raw_price is not None:
-                if "fill_price" in payload:
-                    entry["price"] = raw_price
-                else:
-                    entry["price"] = _ticks_to_price(raw_price, symbol)
+                entry["price"] = raw_price
 
             if PREFIX_ORDER_ACK in topic:
                 # Extract gateway_id from topic: order.ack.GW01
