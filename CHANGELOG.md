@@ -1,4 +1,4 @@
-## [v0.38.0] - 2026-09-13
+## [v0.38.1] - 2026-09-13
 
 Release Type: major
 
@@ -34,6 +34,10 @@ be more important than speed.
 
 ### 🛠 Internal
 - Added test coverage for `pm-opctl-cli` and `pm-audit-replay` ordering and golden scenarios
+
+## [v0.38.0] - 2026-09-13
+
+(Broken release — retracted.)
 
 
 ## [v0.37.0] - 2026-09-11
