@@ -58,6 +58,11 @@ _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
 _POLL_TIMEOUT_MS = 300
 _JOIN_POLL_SEC = 0.5
+#: Receive high-water mark for the engine subscription. Deep enough to ride
+#: out a burst without dropping, bounded so a stalled writer cannot grow
+#: the process without limit.
+_SUB_RCVHWM = 200_000
+
 _DEFAULT_BUFFER_SIZE = 100
 _DEFAULT_FLUSH_INTERVAL = 10.0
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
@@ -246,7 +251,12 @@ class AuditProcess:
         self._log_path = log_path
         self._to_terminal = to_terminal
         self._running = True
-        self.sub = make_subscriber(ENGINE_PUB_ADDR)  # subscribe to everything
+        # Subscribe to everything, with a deep receive buffer. Past the
+        # high-water mark a SUB socket drops *silently*, and this is the one
+        # process in the system whose whole job is to miss nothing: a hole in
+        # the audit trail is invisible in the trail itself. ZMQ's default of
+        # 1000 is a burst of well under a second at the engine's rate.
+        self.sub = make_subscriber(ENGINE_PUB_ADDR, rcvhwm=_SUB_RCVHWM)
         self.buffer_size = buffer_size
         self.flush_interval = flush_interval
         self._buffer: List[str] = []

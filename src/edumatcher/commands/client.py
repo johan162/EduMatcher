@@ -27,6 +27,7 @@ from typing import Any
 
 import zmq
 
+from edumatcher.messaging.bus import make_pusher
 from edumatcher.config import (
     ENGINE_PUB_ADDR,
     ENGINE_PULL_ADDR,
@@ -238,11 +239,15 @@ class ExchangeCommandClient:
 
         ctx: zmq.Context[zmq.Socket[bytes]] = zmq.Context.instance()
 
-        self._push = ctx.socket(zmq.PUSH)
-        self._push.connect(push_addr)
-
-        self._index_push = ctx.socket(zmq.PUSH)
-        self._index_push.connect(index_pull_addr)
+        # make_pusher, not a bare zmq.PUSH. This built its own sockets, and so
+        # missed both things that wrapper exists for: the causal envelope, so
+        # every admin command arrived at the engine anonymous and each of its
+        # effects -- kill-switch cancellations, session transitions, symbol
+        # halts -- started an orphan chain naming no cause; and SNDTIMEO /
+        # IMMEDIATE, without which a send to an engine that is not there blocks
+        # indefinitely instead of failing fast.
+        self._push = make_pusher(push_addr)
+        self._index_push = make_pusher(index_pull_addr)
 
         self._sub = ctx.socket(zmq.SUB)
         self._sub.connect(pub_addr)
