@@ -9,13 +9,31 @@ The engine runs in the *same* Python process and thread; the mocked socket's
 
   What IS measured
     Engine processing time: validation → order-book matching → message
-    construction and "publish" (list-append).  This is the dominant cost
+    construction → the per-topic sequence and causal envelope → "publish"
+    (a list-append standing in for the socket).  This is the dominant cost
     on a single host and is the right baseline for optimisation work.
 
+    The envelope is in scope deliberately and was not always: the socket
+    double used to replace the whole publisher rather than the socket under
+    it, so these numbers excluded envelope stamping entirely -- which is
+    about half the engine leg, since a filling order publishes four messages
+    and each mints a ULID.  A benchmark blind to that could not see the
+    envelope arrive in 0.36.0, and cannot see a regression in it.
+
   What is NOT measured (add these in a full end-to-end test)
+    • The ZMQ syscall itself:            the socket is a list-append
     • Gateway → Engine PUSH/PULL hop:    ~10–30 µs on loopback
     • Engine  → Clearing PUB/SUB hop:   ~10–30 µs on loopback
     • Clearing CSV write:               ~50–200 µs (disk-dependent)
+    • The receive loop around the handler: dispatch, and the command echo
+      that records the inbound message (engine/main.py::_echo_command).
+      Loop-level, not handler-level; see test_engine_command_echo.py for the
+      guard on the echo's own cost.
+    • The maintenance flushes: book and depth snapshots, circuit-breaker
+      timers, persistence.  These run from _run_maintenance on the poll tick,
+      throttled to at most every 200 ms, so they are not per-order work --
+      but it does mean an order here publishes one to four messages, never
+      the snapshot behind them.
 
   Approximate production end-to-end = engine time + 20–260 µs overhead.
 
@@ -43,6 +61,8 @@ from edumatcher.engine.config_loader import (
     SymbolConfig,
 )
 from edumatcher.engine.main import Engine
+from edumatcher.messaging.bus import CausalPublisher, SequencedPublisher
+from edumatcher.models.envelope import Envelope
 from edumatcher.models.message import decode
 from edumatcher.models.order import Order, OrderType, Side, TIF
 
@@ -54,6 +74,12 @@ _SYMBOL = "AAPL"
 _GW = "PERF01"
 
 # Passive resting prices — the book will always have deep liquidity here.
+#
+# These are ENGINE TICKS, not money: Order.create takes ticks, and on a
+# 2-decimal symbol 150 ticks is $1.50. Nothing here depends on the scale —
+# matching is tick-on-tick — but the numbers read like dollars and are not,
+# which is the exact confusion spec/messages/order.yaml's unit declarations
+# exist to prevent.
 _ASK = 150  # passive SELL; aggressive BUYs and MARKET buys match here
 _BID = 149  # passive BUY;  aggressive SELLs and MARKET sells match here
 
@@ -82,6 +108,12 @@ _LIQUIDITY_QTY = 5_000_000
 
 @dataclass
 class _DummySocket:
+    """Stands in for the ZMQ socket *under* the publisher wrappers.
+
+    It replaces the socket, not the publisher: see ``_make_publisher`` below
+    for why that distinction is the whole point.
+    """
+
     #: Retain frames only for the tests that assert on published output.
     #: The throughput test needs the count, not the frames, and retaining
     #: tens of thousands of them is what makes its result bimodal (see
@@ -95,8 +127,29 @@ class _DummySocket:
         if self.keep:
             self.sent.append(frames)
 
-    def close(self) -> None:
+    def close(self, linger: int | None = None) -> None:
         pass
+
+    @property
+    def closed(self) -> bool:
+        return False
+
+
+def _make_publisher(pub_sock: _DummySocket) -> CausalPublisher:
+    """Wrap the socket double the way ``make_publisher`` wraps a real socket.
+
+    This used to substitute the whole publisher, so the benchmark paid neither
+    the per-topic sequence nor the causal envelope -- both of which are on the
+    real hot path, and the second of which is *half the engine leg*: stamping
+    an envelope mints a ULID per published message, and a filling order
+    publishes four. A benchmark blind to that cannot see a regression in it,
+    and did not see the envelope arriving in 0.36.0 at all.
+
+    What is still excluded is the ZMQ syscall, which is what the module
+    docstring's "wire latency is not included" refers to and is genuinely out
+    of scope for engine optimisation work.
+    """
+    return CausalPublisher(SequencedPublisher(pub_sock))
 
 
 # ---------------------------------------------------------------------------
@@ -121,7 +174,9 @@ def _build_engine(
     pub_sock = _DummySocket(keep=keep)
 
     monkeypatch.setattr("edumatcher.engine.main.make_puller", lambda _: _DummySocket())
-    monkeypatch.setattr("edumatcher.engine.main.make_publisher", lambda _: pub_sock)
+    monkeypatch.setattr(
+        "edumatcher.engine.main.make_publisher", lambda _: _make_publisher(pub_sock)
+    )
     monkeypatch.setattr("edumatcher.engine.main.load_engine_config", lambda _: cfg)
     monkeypatch.setattr("edumatcher.engine.main.load_gtc_orders", lambda _: [])
     monkeypatch.setattr("edumatcher.engine.main.load_gtc_combos", lambda _: [])
@@ -133,7 +188,14 @@ def _build_engine(
 
     engine = Engine(config_path=str(cfg_path))
     engine._handle_gateway_connect({"gateway_id": _GW})
+    # The receive loop attributes everything a handler publishes to the inbound
+    # message. Setting a cause once here rather than per order mirrors that
+    # without timing the two attribute writes, which are loop-level and not
+    # what these tests measure. It matters because `caused()` and `root()` do
+    # the same work: an envelope is minted either way.
+    engine.pub_sock.set_cause(Envelope.root())
     pub_sock.sent.clear()
+    pub_sock.count = 0
     return engine, pub_sock
 
 
@@ -152,7 +214,7 @@ def _seed_liquidity(engine: Engine, pub_sock: _DummySocket) -> None:
             quantity=_LIQUIDITY_QTY,
             gateway_id="MM",
             tif=TIF.GTC,
-            price=price,
+            price_ticks=price,
         )
         engine._book(_SYMBOL).process(order)
     pub_sock.sent.clear()
@@ -229,6 +291,15 @@ class TestOrderLatency:
         latencies: list[int] = []
         total_runs = n_warmup + n_samples
 
+        # Self-contained: retention is turned back on for this run's warm-up
+        # and the list emptied. test_latency_comparison calls this twice on
+        # one engine, and without the reset the second measurement started
+        # against a list already holding the first run's frames -- so the
+        # market numbers were taken under heavier GC pressure than the limit
+        # numbers they were printed beside.
+        pub_sock.keep = True
+        pub_sock.sent.clear()
+
         for i in range(total_runs):
             order = Order.create(
                 symbol=_SYMBOL,
@@ -237,7 +308,7 @@ class TestOrderLatency:
                 quantity=1,
                 gateway_id=_GW,
                 tif=TIF.DAY,
-                price=price,
+                price_ticks=price,
             )
             payload = order.to_dict()
             idx_before = len(pub_sock.sent)
@@ -246,12 +317,23 @@ class TestOrderLatency:
             engine._handle_new_order(payload)
             t1 = time.perf_counter_ns()
 
-            # Verify a trade was generated (sanity check on first real sample)
-            if i == n_warmup:
+            if i == n_warmup - 1:
+                # Sanity-check on the *last warm-up* order, not the first timed
+                # one, so the check and the retention it needs both finish
+                # before measurement starts.
                 assert _has_trade(pub_sock, idx_before), (
                     f"No trade.executed found for {order_type.value} order — "
                     "check that liquidity was seeded correctly."
                 )
+                # Stop retaining. §4 and §11 of the perf analysis found that a
+                # growing list of published frames contaminates the result
+                # through GC pressure; the throughput test was fixed with
+                # keep=False and this one was not. Measured on a quiet host,
+                # retaining inflated the latency median by 22-28% -- a
+                # quarter of the reported number was the benchmark's own
+                # bookkeeping.
+                pub_sock.keep = False
+                pub_sock.sent.clear()
 
             if i >= n_warmup:
                 latencies.append(t1 - t0)
@@ -422,7 +504,7 @@ class TestThroughput:
                     quantity=1,
                     gateway_id=_GW,
                     tif=TIF.DAY,
-                    price=_ASK,
+                    price_ticks=_ASK,
                 ).to_dict()
             )
 
@@ -435,7 +517,7 @@ class TestThroughput:
                     quantity=1,
                     gateway_id=_GW,
                     tif=TIF.DAY,
-                    price=_PASSIVE_BUY_PRICE,
+                    price_ticks=_PASSIVE_BUY_PRICE,
                 ).to_dict()
             )
 
@@ -448,7 +530,7 @@ class TestThroughput:
                     quantity=1,
                     gateway_id=_GW,
                     tif=TIF.DAY,
-                    price=_PASSIVE_SELL_PRICE,
+                    price_ticks=_PASSIVE_SELL_PRICE,
                 ).to_dict()
             )
 

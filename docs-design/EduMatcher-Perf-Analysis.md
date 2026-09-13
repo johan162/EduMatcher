@@ -4,6 +4,31 @@ Date: 2026-09-03
 
 Status: Measurement report — findings are reproducible; the headline recommendation is a test fix, not an engine fix
 
+> **Update (2026-09-13): every engine figure below is stale, and by a factor
+> of about two.** The benchmark's socket double replaced the whole publisher
+> rather than the socket under it, so these measurements excluded the per-topic
+> sequence *and* the causal envelope — and the envelope landed in 0.36.0
+> (`b1a14eef`), after this report was written. Stamping one mints a ULID per
+> published message and a filling order publishes up to four, which on the
+> verification host cost **~29 µs/order, roughly half the engine leg**. The
+> benchmark could not see it arrive and could not see a regression in it.
+>
+> `tests/test_perf.py` now wraps the socket double the way `make_publisher`
+> wraps a real socket, so the numbers it reports include both. Two consequences
+> for this document:
+>
+> - The **22.1 µs** engine leg in §1, §2 and §6, and every TPS figure, were
+>   measured on the older shape. They are not wrong about what they measured;
+>   they are wrong about what they claim to measure, which §6 calls
+>   "`_handle_new_order` to published ack".
+> - The **latency** figures were additionally inflated by the benchmark's own
+>   bookkeeping: the latency tests retained every published frame, the defect
+>   §4 and §11 identified and fixed for throughput only. Measured at 22–28% at
+>   the median. That is also fixed.
+>
+> Both need re-running on the Intel Mac this report is about before any figure
+> here is quoted again; §12's commands still apply.
+
 # EduMatcher — Order-Entry Hot Path Performance Analysis
 
 ## Table of Contents
