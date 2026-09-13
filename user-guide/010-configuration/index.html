@@ -8317,10 +8317,12 @@ symbol overrides, startup combo seeds, and scheduler times.</p>
 <a id="__codelineno-50-184" name="__codelineno-50-184" href="#__codelineno-50-184"></a><span class="w">  </span><span class="nt">closing_auction_end</span><span class="p">:</span><span class="w"> </span><span class="s">"16:05"</span>
 </code></pre></div>
 <div class="admonition important">
-<p class="admonition-title">Combo seed prices are ticks</p>
-<p><code>market_maker_quotes</code> use display prices such as <code>209.00</code>. Startup combo
-legs are parsed through the combo model and expect integer tick prices. With
-<code>tick_decimals: 2</code>, <code>price: 20950</code> represents <code>209.50</code>.</p>
+<p class="admonition-title">Every price in this file is display money</p>
+<p><code>market_maker_quotes</code>, <code>last_buy_price</code>/<code>last_sell_price</code> and startup combo
+legs all use display prices such as <code>209.50</code>. The engine converts them to
+ticks as it loads, and rejects a price the symbol's tick grid cannot
+represent: at <code>tick_decimals: 2</code>, <code>209.505</code> is a config error rather than a
+price quietly rounded to <code>209.50</code> or <code>209.51</code>.</p>
 </div>
 <h2 id="configuration-checklist">Configuration Checklist<a class="headerlink" href="#configuration-checklist" title="Permanent link">&para;</a></h2>
 <p>Use this checklist when creating a new engine configuration.</p>
@@ -9321,12 +9323,12 @@ by live combo entry.</p>
 <tr>
 <td><code>price</code></td>
 <td style="text-align: right;">Conditional</td>
-<td>Integer tick price for priced order types</td>
+<td>Display price for priced order types, on the leg symbol's tick grid</td>
 </tr>
 <tr>
 <td><code>stop_price</code></td>
 <td style="text-align: right;">Conditional</td>
-<td>Integer tick stop price for stop order types</td>
+<td>Display stop price for stop order types, on the leg symbol's tick grid</td>
 </tr>
 <tr>
 <td><code>smp_action</code></td>
@@ -10412,19 +10414,19 @@ symbol has no breaker):</p>
 </tr>
 <tr>
 <td><code>price</code></td>
-<td>int</td>
+<td>float</td>
 <td style="text-align: right;">Conditional</td>
 <td><code>null</code></td>
-<td>Integer tick price</td>
-<td>Required for <code>LIMIT</code>, <code>STOP_LIMIT</code>, <code>FOK</code>, <code>ICEBERG</code> (not enforced for <code>IOC</code>)</td>
+<td>Display price</td>
+<td>Required for <code>LIMIT</code>, <code>STOP_LIMIT</code>, <code>FOK</code>, <code>ICEBERG</code> (not enforced for <code>IOC</code>); must be a multiple of the leg symbol's tick size</td>
 </tr>
 <tr>
 <td><code>stop_price</code></td>
-<td>int</td>
+<td>float</td>
 <td style="text-align: right;">Optional</td>
 <td><code>null</code></td>
-<td>Integer tick price</td>
-<td>Not currently validated as required for any order type, including <code>STOP</code>/<code>STOP_LIMIT</code>/<code>TRAILING_STOP</code></td>
+<td>Display price</td>
+<td>Not currently validated as required for any order type, including <code>STOP</code>/<code>STOP_LIMIT</code>/<code>TRAILING_STOP</code>; must be a multiple of the leg symbol's tick size</td>
 </tr>
 <tr>
 <td><code>smp_action</code></td>
@@ -10437,10 +10439,10 @@ symbol has no breaker):</p>
 </tbody>
 </table>
 <div class="admonition note">
-<p class="admonition-title">Combo leg prices are integer ticks</p>
-<p>All combo leg price fields (<code>price</code>, <code>stop_price</code>) are integer tick values,
-not display floats. For a symbol with <code>tick_decimals: 2</code>, the display price
-<code>209.50</code> is stored as <code>20950</code> ticks.</p>
+<p class="admonition-title">Combo leg prices use the leg symbol's scale</p>
+<p>The legs of one combo trade different instruments, which need not share a
+tick size, so each leg's price is checked against its own symbol's
+<code>tick_decimals</code> rather than the combo's.</p>
 </div>
 <hr />
 <h3 id="schedule-fields"><code>schedule</code> fields<a class="headerlink" href="#schedule-fields" title="Permanent link">&para;</a></h3>

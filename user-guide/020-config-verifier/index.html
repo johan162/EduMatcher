@@ -4843,6 +4843,30 @@ exactly as if it were not.</p>
 </tr>
 </tbody>
 </table>
+<p><strong>Price tick grid</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Condition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>S078</code></td>
+<td>A price is not a whole multiple of its symbol's tick size</td>
+</tr>
+</tbody>
+</table>
+<p><code>S078</code> covers every price in the file — <code>last_buy_price</code>, <code>last_sell_price</code>,
+<code>market_maker_quotes[n].bid_price</code>/<code>ask_price</code>, and
+<code>market_maker_combos[n].legs[m].price</code>/<code>stop_price</code>. Each is display money the
+engine converts to integer ticks as it loads, and it refuses one it cannot
+represent rather than rounding it. A combo leg is checked against its own
+symbol's <code>tick_decimals</code>, not the combo's first leg: the legs of one combo
+trade different instruments, which need not share a tick size. The check
+stands down for a symbol whose <code>tick_decimals</code> is itself invalid — <code>S010</code>
+reports that, and there is no grid to check against until it is fixed.</p>
 <p><strong>API gateway sections</strong></p>
 <table>
 <thead>

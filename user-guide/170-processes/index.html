@@ -10592,7 +10592,7 @@ reference, confirmation-prompt behaviour, and worked examples.</p>
 the recommended way to bring up (or tear down) a full EduMatcher stack,
 instead of launching each process by hand in its own terminal — see
 <a href="../040-running-the-exchange/#starting-the-stack-with-pm-opctl-cli">Running the Exchange → Starting the stack with pm-opctl-cli</a>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a>pm-opctl-cli<span class="w"> </span>start<span class="w"> </span><span class="o">[</span>PROFILE<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a>pm-opctl-cli<span class="w"> </span>start<span class="w"> </span><span class="o">[</span>PROFILE<span class="o">]</span><span class="w"> </span><span class="o">[</span>-d<span class="w"> </span><span class="p">|</span><span class="w"> </span>--debug<span class="o">]</span>
 <a id="__codelineno-47-2" name="__codelineno-47-2" href="#__codelineno-47-2"></a>pm-opctl-cli<span class="w"> </span>list<span class="w"> </span><span class="o">[</span>-y<span class="w"> </span><span class="p">|</span><span class="w"> </span>--no-restart<span class="o">]</span>
 <a id="__codelineno-47-3" name="__codelineno-47-3" href="#__codelineno-47-3"></a>pm-opctl-cli<span class="w"> </span>health<span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
 <a id="__codelineno-47-4" name="__codelineno-47-4" href="#__codelineno-47-4"></a>pm-opctl-cli<span class="w"> </span>stop
@@ -10644,7 +10644,7 @@ once that file exists its profiles replace the built-ins entirely (a missing
 <tr>
 <td><code>start [PROFILE]</code></td>
 <td><code>up</code></td>
-<td>—</td>
+<td><code>-d</code>/<code>--debug</code>/<code>-vv</code> (append <code>--log-level DEBUG</code> to every process's command)</td>
 <td>Start a profile (<code>default</code> when omitted), skipping entries already running</td>
 </tr>
 <tr>
@@ -10692,6 +10692,14 @@ once that file exists its profiles replace the built-ins entirely (a missing
 </tbody>
 </table>
 <p>Exactly one of <code>--state</code>/<code>--all</code> must be given to <code>clear</code>.</p>
+<p><code>start --debug</code> appends <code>--log-level DEBUG</code> to every process's command line
+before it is launched, overriding whatever level a profile's <code>--verbose</code> (or
+lack of one) would otherwise select — see
+<a href="../../developer/08-dev-workflow/#logging-levels-and-pm-log-srv">Developer → Logging levels and pm-log-srv</a>
+for what that changes and why every process still needs to be <em>started</em> this
+way (an already-running process must be stopped and restarted with <code>--debug</code>
+to pick up DEBUG logging; there is no way to raise a running process's log
+level in place).</p>
 <p><strong>Expected runtime input arguments:</strong></p>
 <p>None. Each subcommand runs once and exits (<code>list</code>/<code>health</code> print a snapshot,
 they do not stay running).</p>

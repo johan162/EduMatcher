@@ -8248,7 +8248,7 @@ wire-format specification in the
 <p><strong>See also:</strong> <code>depth.{SYMBOL}</code>, <code>book.snapshot_request</code></p>
 <h3 id="booksnapshot_request"><code>book.snapshot_request</code><a class="headerlink" href="#booksnapshot_request" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>stats</code>, <code>gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>Ask the engine to publish one symbol's book immediately.</p>
 <table>
@@ -8301,6 +8301,13 @@ wire-format specification in the
 <td>required</td>
 <td>ge 0, unit <code>epoch_nanos</code></td>
 <td>When this depth snapshot was produced (AR-0.4). Previously depth.{symbol} carried no time field at all. Monotonic per edumatcher.models.clock.now_ns().</td>
+</tr>
+<tr>
+<td><code>tick_decimals</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>ge 0, le 8, unit <code>dimensionless</code></td>
+<td>Decimal scale for the <code>_ticks</code> fields below; 1 tick = 10^-tick_decimals. Same field, same name and same meaning as <code>book.tick_decimals</code>.</td>
 </tr>
 <tr>
 <td><code>mid_price_ticks</code></td>
@@ -10964,21 +10971,21 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
-<td><code>price</code></td>
+<td><code>price_ticks</code></td>
 <td><code>ticks</code></td>
 <td>omitted when unset</td>
 <td>unit <code>ticks</code></td>
-<td>Limit price in engine ticks. Absent for a leg with none.</td>
+<td>Limit price in engine ticks. Absent for a leg with none. The scale is <code>order.oco.tick_decimals</code>: both legs trade one instrument, so one scale covers the pair.</td>
 </tr>
 <tr>
-<td><code>stop_price</code></td>
+<td><code>stop_price_ticks</code></td>
 <td><code>ticks</code></td>
 <td>omitted when unset</td>
 <td>unit <code>ticks</code></td>
 <td></td>
 </tr>
 <tr>
-<td><code>trail_offset</code></td>
+<td><code>trail_offset_ticks</code></td>
 <td><code>ticks</code></td>
 <td>omitted when unset</td>
 <td>unit <code>ticks</code></td>
@@ -11028,14 +11035,21 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
-<td><code>price</code></td>
+<td><code>tick_decimals</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>ge 0, le 8, unit <code>dimensionless</code></td>
+<td>Decimal scale for this leg's tick prices; 1 tick = 10^-tick_decimals. Per leg rather than on the combo, because a combo's legs trade different instruments and two instruments need not share a scale - which is exactly the distinction that makes ComboLeg a separate record from OcoLeg.</td>
+</tr>
+<tr>
+<td><code>price_ticks</code></td>
 <td><code>ticks</code></td>
 <td><code>null</code> when unset</td>
 <td>unit <code>ticks</code></td>
 <td>Limit price in engine ticks; null for a leg with none.</td>
 </tr>
 <tr>
-<td><code>stop_price</code></td>
+<td><code>stop_price_ticks</code></td>
 <td><code>ticks</code></td>
 <td><code>null</code> when unset</td>
 <td>unit <code>ticks</code></td>
@@ -12076,7 +12090,7 @@ wire-format specification in the
 </div>
 <h3 id="ordernew_1"><code>order.new</code><a class="headerlink" href="#ordernew_1" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>Submit a new order to the matching engine. Sent over PUSH/PULL rather than the pub bus, but it carries a topic so the audit log can classify it alongside everything else.</p>
 <table>
@@ -12147,7 +12161,14 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
-<td><code>trail_offset</code></td>
+<td><code>tick_decimals</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>ge 0, le 8, unit <code>dimensionless</code></td>
+<td>Decimal scale for every <code>_ticks</code> field below; 1 tick = 10^-tick_decimals. Carried so a reader can turn a tick price into money from this message alone. Without it the scale has to be recovered from a <code>book</code> or <code>trade.executed</code> for the same symbol, which a reader of a <em>window</em> of the audit trail may not have - the snapshot that declared it is usually at session start, hours outside the window being read.</td>
+</tr>
+<tr>
+<td><code>trail_offset_ticks</code></td>
 <td><code>ticks</code></td>
 <td><code>null</code> when unset</td>
 <td>unit <code>ticks</code></td>
@@ -12161,7 +12182,7 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
-<td><code>timestamp</code></td>
+<td><code>ts_ns</code></td>
 <td><code>int</code></td>
 <td>required</td>
 <td>ge 0, unit <code>epoch_nanos</code></td>
@@ -12175,14 +12196,14 @@ wire-format specification in the
 <td>Always NEW on submission; the enum is the full lifecycle.</td>
 </tr>
 <tr>
-<td><code>price</code></td>
+<td><code>price_ticks</code></td>
 <td><code>ticks</code></td>
 <td><code>null</code> when unset</td>
 <td>unit <code>ticks</code></td>
 <td>Limit price in ticks. Null for MARKET, which has none.</td>
 </tr>
 <tr>
-<td><code>stop_price</code></td>
+<td><code>stop_price_ticks</code></td>
 <td><code>ticks</code></td>
 <td><code>null</code> when unset</td>
 <td>unit <code>ticks</code></td>
@@ -12263,13 +12284,13 @@ wire-format specification in the
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>The payload is exactly Order.to_dict().</p>
-<p>Eleven fields are nullable and are emitted as null when unset rather than omitted - a MARKET order carries "price": null.</p>
+<p>Eleven fields are nullable and are emitted as null when unset rather than omitted - a MARKET order carries "price_ticks": null.</p>
 <p>The engine's Order.from_dict reads absent and null alike, so a producer that omits them is still accepted.</p>
 </div>
 <p><strong>See also:</strong> <code>order.ack.{GW_ID}</code>, <code>order.cancel</code>, <code>order.amend</code></p>
 <h3 id="ordercancel_1"><code>order.cancel</code><a class="headerlink" href="#ordercancel_1" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>Request cancellation of one resting order by id.</p>
 <table>
@@ -12309,7 +12330,7 @@ wire-format specification in the
 <p><strong>See also:</strong> <code>order.cancelled.{GW_ID}</code></p>
 <h3 id="orderamend_1"><code>order.amend</code><a class="headerlink" href="#orderamend_1" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>Request a price and/or quantity change to a resting order.</p>
 <table>
@@ -12369,7 +12390,7 @@ wire-format specification in the
 <p><strong>See also:</strong> <code>order.amended.{GW_ID}</code></p>
 <h3 id="ordercombo_cancel"><code>order.combo_cancel</code><a class="headerlink" href="#ordercombo_cancel" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>Cancel a combo order and all of its resting child legs.</p>
 <table>
@@ -12402,7 +12423,7 @@ wire-format specification in the
 <p><strong>See also:</strong> <code>order.combo</code>, <code>order.cancel</code></p>
 <h3 id="ordercombo"><code>order.combo</code><a class="headerlink" href="#ordercombo" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>Submit a combo: two or more orders on different instruments that the engine posts together and tracks as one aggregate.</p>
 <table>
@@ -12470,7 +12491,7 @@ wire-format specification in the
 <p><strong>See also:</strong> <code>combo.ack.{GW_ID}</code>, <code>order.combo_cancel</code></p>
 <h3 id="orderoco"><code>order.oco</code><a class="headerlink" href="#orderoco" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>Submit a One-Cancels-Other pair: two orders on the same instrument, of which a fill on either cancels the other.</p>
 <table>
@@ -12504,6 +12525,13 @@ wire-format specification in the
 <td>defaults to <code>''</code></td>
 <td>max_len 16</td>
 <td>Both legs trade this instrument.</td>
+</tr>
+<tr>
+<td><code>tick_decimals</code></td>
+<td><code>int</code></td>
+<td>defaults to <code>0</code></td>
+<td>ge 0, le 8, unit <code>dimensionless</code></td>
+<td>Decimal scale for both legs' <code>_ticks</code> prices; 1 tick = 10^-tick_decimals. One value for the pair rather than one per leg, because both legs trade the instrument named above.</td>
 </tr>
 <tr>
 <td><code>quantity</code></td>
@@ -12545,13 +12573,13 @@ wire-format specification in the
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>The first message in any spec to use a nested record.</p>
-<p>Both legs are <code>OcoLeg</code>, and their prices are engine ticks - the gateway converts.</p>
+<p>Both legs are <code>OcoLeg</code>, and their prices are engine ticks at <code>tick_decimals</code> - the gateway converts.</p>
 <p>A leg omits a price it does not have rather than sending null, which is what the three producing gateways already do.</p>
 </div>
 <p><strong>See also:</strong> <code>oco.ack.{GW_ID}</code>, <code>order.oco_cancel</code></p>
 <h3 id="orderoco_cancel"><code>order.oco_cancel</code><a class="headerlink" href="#orderoco_cancel" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>Cancel an OCO pair and both of its legs.</p>
 <table>
@@ -12584,7 +12612,7 @@ wire-format specification in the
 <p><strong>See also:</strong> <code>order.oco</code>, <code>order.cancel</code></p>
 <h3 id="orderorders_request"><code>order.orders_request</code><a class="headerlink" href="#orderorders_request" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>admin</code>, <code>api_gateway</code>, <code>gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>Caller to engine: the resting (unfilled, non-cancelled) orders a gateway currently has on the books, across all symbols.</p>
 <table>
@@ -12647,7 +12675,7 @@ wire-format specification in the
 <p><strong>See also:</strong> <code>order.orders_request</code>, <code>order.new</code></p>
 <h3 id="orderprice_level_orders_request"><code>order.price_level_orders_request</code><a class="headerlink" href="#orderprice_level_orders_request" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>admin</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>ADMIN to engine: every resting order for one symbol, across every gateway, optionally narrowed to a single price level. Rejected for any non-ADMIN participant (see order.price_level_orders' rejection note) since it exposes other participants' resting order detail that order.orders_request deliberately withholds.</p>
 <table>
@@ -12749,7 +12777,7 @@ wire-format specification in the
 <h2 id="family-quote">Family <code>quote</code><a class="headerlink" href="#family-quote" title="Permanent link">&para;</a></h2>
 <h3 id="quotenew_1"><code>quote.new</code><a class="headerlink" href="#quotenew_1" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>Market maker to engine: submit or replace a two-sided quote on one instrument. A quote is a bid and an ask posted as a pair; replacing one cancels the previous pair for that gateway and symbol.</p>
 <table>
@@ -12778,7 +12806,14 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
-<td><code>bid_price</code></td>
+<td><code>tick_decimals</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>ge 0, le 8, unit <code>dimensionless</code></td>
+<td>Decimal scale for both <code>_ticks</code> prices; 1 tick = 10^-tick_decimals. Carried so a reader can turn a tick price into money from this message alone, rather than recovering the scale from a <code>book</code> for the same symbol that may be outside the window being read.</td>
+</tr>
+<tr>
+<td><code>bid_price_ticks</code></td>
 <td><code>ticks</code></td>
 <td>required</td>
 <td>gt 0, unit <code>ticks</code></td>
@@ -12792,7 +12827,7 @@ wire-format specification in the
 <td></td>
 </tr>
 <tr>
-<td><code>ask_price</code></td>
+<td><code>ask_price_ticks</code></td>
 <td><code>ticks</code></td>
 <td>required</td>
 <td>gt 0, unit <code>ticks</code></td>
@@ -12831,7 +12866,7 @@ wire-format specification in the
 <p><strong>See also:</strong> <code>quote.ack.{GW_ID}</code>, <code>quote.cancel</code>, <code>quote.status.{GW_ID}</code></p>
 <h3 id="quotecancel_1"><code>quote.cancel</code><a class="headerlink" href="#quotecancel_1" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>admin</code>, <code>api_gateway</code>, <code>gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>Market maker to engine: pull the active quote on one symbol.</p>
 <table>
@@ -13001,7 +13036,7 @@ wire-format specification in the
 <h2 id="family-risk">Family <code>risk</code><a class="headerlink" href="#family-risk" title="Permanent link">&para;</a></h2>
 <h3 id="riskkill_switch"><code>risk.kill_switch</code><a class="headerlink" href="#riskkill_switch" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>admin</code>, <code>api_gateway</code>, <code>gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>Gateway or admin to engine: cancel a gateway's open risk-bearing exposure. The gateway is NOT halted - it may submit again as soon as the ack arrives.</p>
 <table>
@@ -13134,7 +13169,7 @@ wire-format specification in the
 </div>
 <h3 id="riskkill_switch_gateway"><code>risk.kill_switch_gateway</code><a class="headerlink" href="#riskkill_switch_gateway" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>api_gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>ADMIN to engine: cancel every order and quote belonging to one named participant.</p>
 <table>
@@ -13273,7 +13308,7 @@ wire-format specification in the
 </div>
 <h3 id="riskkill_switch_global"><code>risk.kill_switch_global</code><a class="headerlink" href="#riskkill_switch_global" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>api_gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>ADMIN to engine: cancel every resting order and quote, for every gateway. The full-market emergency stop.</p>
 <table>
@@ -13410,7 +13445,7 @@ wire-format specification in the
 </div>
 <h3 id="risksymbol_halt"><code>risk.symbol_halt</code><a class="headerlink" href="#risksymbol_halt" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>admin</code>, <code>api_gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>ADMIN to engine: halt trading on one instrument.</p>
 <table>
@@ -13542,7 +13577,7 @@ wire-format specification in the
 </div>
 <h3 id="risksymbol_resume"><code>risk.symbol_resume</code><a class="headerlink" href="#risksymbol_resume" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>admin</code>, <code>api_gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>ADMIN to engine: resume trading on one halted instrument.</p>
 <table>
@@ -13647,7 +13682,7 @@ wire-format specification in the
 </div>
 <h3 id="riskcancel_symbol"><code>risk.cancel_symbol</code><a class="headerlink" href="#riskcancel_symbol" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>admin</code>, <code>api_gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>ADMIN to engine: cancel every resting order for one instrument, across every gateway.</p>
 <table>
@@ -13780,7 +13815,7 @@ wire-format specification in the
 </table>
 <h3 id="riskforce_uncross"><code>risk.force_uncross</code><a class="headerlink" href="#riskforce_uncross" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>admin</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>ADMIN to engine: force one symbol to uncross now, optionally asserting the print price, and clear any halt in the same step. The operational recovery for an auction that failed to discover a price - see risk.cancel_symbol for the "abandon and re-collect" alternative.</p>
 <table>
@@ -13955,7 +13990,7 @@ wire-format specification in the
 </div>
 <h3 id="riskcircuit_breaker_halt_all"><code>risk.circuit_breaker_halt_all</code><a class="headerlink" href="#riskcircuit_breaker_halt_all" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>admin</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>ADMIN to engine: halt trading on every known symbol.</p>
 <table>
@@ -14056,7 +14091,7 @@ wire-format specification in the
 </table>
 <h3 id="riskcircuit_breaker_resume_all"><code>risk.circuit_breaker_resume_all</code><a class="headerlink" href="#riskcircuit_breaker_resume_all" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>admin</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>ADMIN to engine: resume every symbol halted by the market-wide halt.</p>
 <table>
@@ -14252,7 +14287,7 @@ wire-format specification in the
 <p><strong>See also:</strong> <code>session.transition</code></p>
 <h3 id="sessiontransition"><code>session.transition</code><a class="headerlink" href="#sessiontransition" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>scheduler</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>Scheduler or operator to engine: request a state change.</p>
 <table>
@@ -15702,7 +15737,7 @@ wire-format specification in the
 </table>
 <h3 id="systemgateway_connect_1"><code>system.gateway_connect</code><a class="headerlink" href="#systemgateway_connect_1" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>admin</code>, <code>api_gateway</code>, <code>gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>Gateway to engine: authenticate this participant. Sent over PUSH/PULL rather than the pub bus; it carries a topic so the audit log can classify it alongside everything else.</p>
 <table>
@@ -15781,7 +15816,7 @@ wire-format specification in the
 <p><strong>See also:</strong> <code>system.gateway_connect</code>, <code>system.gateway_bye.{GW_ID}</code></p>
 <h3 id="systemgateway_disconnect"><code>system.gateway_disconnect</code><a class="headerlink" href="#systemgateway_disconnect" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>admin</code>, <code>api_gateway</code>, <code>gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>Gateway to engine: I am leaving cleanly. PUSH/PULL, like <code>gateway_connect</code>; the engine republishes it as <code>gateway_bye</code> so PUB subscribers hear about it at all.</p>
 <table>
@@ -16059,7 +16094,7 @@ wire-format specification in the
 <p><strong>See also:</strong> <code>order.ack.{GW_ID}</code></p>
 <h3 id="systemsymbols_request"><code>system.symbols_request</code><a class="headerlink" href="#systemsymbols_request" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>admin</code>, <code>api_gateway</code>, <code>gateway</code>, <code>stats</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>Caller to engine: which instruments are tradable, and on what terms for me.</p>
 <table>
@@ -16126,7 +16161,7 @@ wire-format specification in the
 <p><strong>See also:</strong> <code>system.symbols_request</code>, <code>system.reference.{GW_ID}</code></p>
 <h3 id="systemreference_request"><code>system.reference_request</code><a class="headerlink" href="#systemreference_request" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>api_gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>Any caller to engine: the compiled reference-data bundle. Static configuration only -- nothing that changes during a session.</p>
 <table>
@@ -16225,7 +16260,7 @@ wire-format specification in the
 <p><strong>See also:</strong> <code>system.reference_request</code>, <code>system.reference_reload_ack.{GW_ID}</code>, <code>system.symbols.{GW_ID}</code></p>
 <h3 id="systemreference_reload"><code>system.reference_reload</code><a class="headerlink" href="#systemreference_reload" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>api_gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>ADMIN to engine: re-read static reference data from disk. Deliberately narrower than a startup load -- it never re-seeds quotes, creates or removes books, or touches session and halt state, so a reload that changed the symbol set is rejected rather than partially applied.</p>
 <table>
@@ -16317,7 +16352,7 @@ wire-format specification in the
 <p><strong>See also:</strong> <code>system.reference_reload</code></p>
 <h3 id="systemsession_state_request"><code>system.session_state_request</code><a class="headerlink" href="#systemsession_state_request" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>admin</code>, <code>api_gateway</code>, <code>gateway</code>, <code>scheduler</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>Caller to engine: what session are we in, without advancing it. The scheduler is the dominant producer -- it asks rather than assuming, because it is not the only thing that can move the session.</p>
 <table>
@@ -16388,7 +16423,7 @@ wire-format specification in the
 <p><strong>See also:</strong> <code>session.state</code>, <code>system.session_state_request</code></p>
 <h3 id="systemsession_schedule_request"><code>system.session_schedule_request</code><a class="headerlink" href="#systemsession_schedule_request" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>admin</code>, <code>api_gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>Operator to engine: the configured session schedule.</p>
 <table>
@@ -16460,7 +16495,7 @@ wire-format specification in the
 <p><strong>See also:</strong> <code>system.session_schedule_request</code>, <code>system.reference.{GW_ID}</code></p>
 <h3 id="systemhalt_status_request"><code>system.halt_status_request</code><a class="headerlink" href="#systemhalt_status_request" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>api_gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>Any process to engine: which instruments are halted now.</p>
 <table>
@@ -16524,7 +16559,7 @@ wire-format specification in the
 <p><strong>See also:</strong> <code>system.halt_status_request</code>, <code>system.risk_state.{GW_ID}</code></p>
 <h3 id="systemposition_request"><code>system.position_request</code><a class="headerlink" href="#systemposition_request" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>Gateway to engine: what am I holding.</p>
 <table>
@@ -16591,7 +16626,7 @@ wire-format specification in the
 <p><strong>See also:</strong> <code>system.position_request</code>, <code>trade.executed</code></p>
 <h3 id="systemquote_bootstrap_request"><code>system.quote_bootstrap_request</code><a class="headerlink" href="#systemquote_bootstrap_request" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>admin</code>, <code>api_gateway</code>, <code>gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>Market maker to engine, on reconnect: what quotes do I already have resting. Without it a bot cannot tell a fresh start from a reconnect and will quote into its own orders.</p>
 <table>
@@ -16657,7 +16692,7 @@ wire-format specification in the
 <p><strong>See also:</strong> <code>system.quote_bootstrap_request</code>, <code>quote.status.{GW_ID}</code></p>
 <h3 id="systemquote_legs_request"><code>system.quote_legs_request</code><a class="headerlink" href="#systemquote_legs_request" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>api_gateway</code>, <code>gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>Operator or market maker to engine: the per-leg detail behind this gateway's quotes, live and recently removed. What <code>QLEGS</code> asks for.</p>
 <table>
@@ -16758,7 +16793,7 @@ wire-format specification in the
 <p><strong>See also:</strong> <code>system.quote_legs_request</code></p>
 <h3 id="systemrisk_state_request"><code>system.risk_state_request</code><a class="headerlink" href="#systemrisk_state_request" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>api_gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>ADMIN to engine: the live collar and circuit-breaker state of every symbol that has either configured, halted or not.</p>
 <table>
@@ -16822,7 +16857,7 @@ wire-format specification in the
 <p><strong>See also:</strong> <code>system.risk_state_request</code>, <code>system.halt_status.{GW_ID}</code></p>
 <h3 id="systemgateways_request"><code>system.gateways_request</code><a class="headerlink" href="#systemgateways_request" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>admin</code>, <code>api_gateway</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>Operator to engine: which participants exist, and who is on.</p>
 <table>
@@ -16881,7 +16916,7 @@ wire-format specification in the
 <p><strong>See also:</strong> <code>system.gateways_request</code>, <code>system.gateway_bye.{GW_ID}</code></p>
 <h3 id="systemvolume_request"><code>system.volume_request</code><a class="headerlink" href="#systemvolume_request" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>admin</code></p>
-<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Transport:</strong> <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
 <p>Operator to engine: how much has traded today.</p>
 <table>

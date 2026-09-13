@@ -4528,7 +4528,7 @@ this document specifies the content of a <em>present</em> file.</p>
 <tr>
 <td><code>Price</code></td>
 <td>number</td>
-<td>price in <strong>display units</strong> (e.g. <code>150.10</code>)</td>
+<td>price in <strong>display units</strong> (e.g. <code>150.10</code>); MUST be a whole multiple of the owning symbol's tick size <code>10^-tick_decimals</code> (see CV18)</td>
 </tr>
 <tr>
 <td><code>Qty</code></td>
@@ -4980,17 +4980,17 @@ entering small and amending up.</p>
 </tr>
 <tr>
 <td><code>price</code></td>
-<td><code>Int</code></td>
+<td><code>Price</code></td>
 <td style="text-align: center;">–</td>
 <td><code>null</code></td>
-<td>tick price; required by <code>LIMIT</code>, <code>FOK</code>, <code>STOP_LIMIT</code>, <code>ICEBERG</code> legs (not enforced for <code>IOC</code> despite carrying a limit price); positivity is <strong>not</strong> validated anywhere in code, unlike other <code>Ticks</code>-typed fields</td>
+<td>required by <code>LIMIT</code>, <code>FOK</code>, <code>STOP_LIMIT</code>, <code>ICEBERG</code> legs (not enforced for <code>IOC</code> despite carrying a limit price); on <strong>this leg's</strong> symbol's tick grid, which need not be the grid of the combo's other legs; positivity is <strong>not</strong> validated anywhere in code</td>
 </tr>
 <tr>
 <td><code>stop_price</code></td>
-<td><code>Int</code></td>
+<td><code>Price</code></td>
 <td style="text-align: center;">–</td>
 <td><code>null</code></td>
-<td>tick stop price; currently unvalidated for any order type, including <code>STOP</code>/<code>STOP_LIMIT</code>/<code>TRAILING_STOP</code></td>
+<td>stop price; currently unvalidated for any order type, including <code>STOP</code>/<code>STOP_LIMIT</code>/<code>TRAILING_STOP</code>; on this leg's symbol's tick grid</td>
 </tr>
 <tr>
 <td><code>smp_action</code></td>
@@ -5403,7 +5403,9 @@ be rejected; set <code>order_limits</code> on each symbol that needs a cap (§4.
 merge, the built-in ladder applies: <code>L1 = 0.07 / 5 min</code>, <code>L2 = 0.13 / 15 min</code>,
 <code>L3 = 0.20 / rest-of-day</code>, all <code>AUCTION</code>.</p>
 <h3 id="57-market_maker_combos-optional">5.7 <code>market_maker_combos</code> (OPTIONAL)<a class="headerlink" href="#57-market_maker_combos-optional" title="Permanent link">&para;</a></h3>
-<p><code>List&lt;ComboSeedSpec&gt;</code> — see §4.5.</p>
+<p><code>List&lt;ComboSeedSpec&gt;</code> — see §4.5. Leg prices are display money on the leg
+symbol's own tick grid: the legs of one combo trade different instruments,
+which need not share a tick size.</p>
 <h3 id="58-indices-optional">5.8 <code>indices</code> (OPTIONAL)<a class="headerlink" href="#58-indices-optional" title="Permanent link">&para;</a></h3>
 <p><code>List&lt;IndexSpec&gt;</code>, <strong>at most 5</strong> entries — see §4.6.</p>
 <h3 id="59-schedule-optional">5.9 <code>schedule</code> (OPTIONAL)<a class="headerlink" href="#59-schedule-optional" title="Permanent link">&para;</a></h3>
@@ -6278,6 +6280,10 @@ rejected at load.</p>
 <tr>
 <td>CV16</td>
 <td>(<code>pm-scheduler</code>) An unrecognised <code>country</code> value is the <strong>sole exception</strong> to the "MUST be rejected" rule in this section — the loader substitutes the default (<code>"Sweden"</code>) and logs a warning instead of aborting. <code>pm-scheduler</code> treats a calendar day as non-trading (and sends no <code>schedule</code> transitions) when it is a Saturday, a Sunday, or a <code>country</code> bank holiday.</td>
+</tr>
+<tr>
+<td>CV18</td>
+<td>Every <code>Price</code> in the file is a whole multiple of its symbol's tick size — <code>symbols.&lt;S&gt;.last_buy_price</code>/<code>last_sell_price</code>, <code>market_maker_quotes[].bid_price</code>/<code>ask_price</code>, and <code>market_maker_combos[].legs[].price</code>/<code>stop_price</code>. The scale is the owning symbol's <code>tick_decimals</code>; for a combo leg that is the <strong>leg's</strong> symbol, not the combo's first. An off-grid price is rejected, not rounded.</td>
 </tr>
 <tr>
 <td>CV17</td>

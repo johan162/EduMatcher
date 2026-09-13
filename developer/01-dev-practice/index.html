@@ -3887,6 +3887,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#logging-levels-and-pm-log-srv" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Logging levels and pm-log-srv
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#macos-convenience-launcher" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5063,10 +5074,46 @@ opening the SQLite file or grepping a log by hand:</p>
 <li><strong><code>pm-help</code></strong> (alias <strong><code>pm-man</code></strong>) — browses the documentation for any
   EduMatcher command from the terminal.</li>
 </ul>
+<h3 id="logging-levels-and-pm-log-srv">Logging levels and pm-log-srv<a class="headerlink" href="#logging-levels-and-pm-log-srv" title="Permanent link">&para;</a></h3>
+<p>Every <code>pm-*</code> process configures its own logging once at startup, in a
+<code>_configure_logging(args)</code> function in that process's <code>main.py</code>. Three things
+are decided there: the <strong>level</strong> (from <code>--log-level {CRITICAL,ERROR,WARNING,
+INFO,DEBUG}</code>, or <code>-v</code>/<code>-vv</code>/<code>-q</code> if <code>--log-level</code> is not given — see the flag
+table under <a href="../../user-guide/170-processes/#pm-engine-matching-engine"><code>pm-engine</code></a>
+for the exact precedence, which is the same in every process), and the
+<strong>target</strong> — where the resulting <code>LogRecord</code>s go, via <code>--log-target
+{server,stdout,file}</code>. The default target, <code>server</code>, auto-detects a running
+<code>pm-log-srv</code> with a LALF <code>HELLO</code>/<code>WELCOME</code> handshake and, if one answers,
+attaches a <code>TcpLogHandler</code> as the process's <em>only</em> logging handler. That
+handler ships every record — at whatever level the process was started
+with — over TCP to <code>pm-log-srv</code>, so <code>log.debug(...)</code> calls throughout the
+codebase reach the same centralized log you would otherwise read with
+<code>pm-log-cli</code> or <code>log-gui</code>, with no separate wiring required.</p>
+<p>This has two consequences worth knowing before you go looking for a way
+around them:</p>
+<ul>
+<li><strong>There is no environment variable.</strong> The level is a plain CLI argument,
+  resolved once per process at startup. Nothing in this codebase reads a
+  <code>LOG_LEVEL</code>-style variable.</li>
+<li><strong>The level cannot be changed on a running process.</strong> <code>_configure_logging</code>
+  runs once in <code>main()</code>, before the process's event loop starts, and nothing
+  listens for <code>SIGHUP</code> or any other runtime toggle. To see <code>DEBUG</code> output
+  from a process, restart it with <code>--log-level DEBUG</code> (or <code>-vv</code>). <code>pm-log-srv</code>
+  itself does not need restarting — it is a passive collector — only the
+  client process whose behaviour you are debugging does.</li>
+</ul>
+<p>If you normally bring the stack up with <code>pm-opctl-cli</code> rather than starting
+processes by hand, start (or restart) it with <code>-d</code>/<code>--debug</code> (alias <code>-vv</code>) to
+apply <code>--log-level DEBUG</code> to every process in the profile at once:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-opctl-cli<span class="w"> </span>stop
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>pm-opctl-cli<span class="w"> </span>start<span class="w"> </span>--debug
+</code></pre></div>
+<p>See <a href="../../user-guide/170-processes/#pm-opctl-cli-operational-process-control"><code>pm-opctl-cli</code></a>
+for the full flag reference.</p>
 <h3 id="macos-convenience-launcher">macOS convenience launcher<a class="headerlink" href="#macos-convenience-launcher" title="Permanent link">&para;</a></h3>
 <p>For demos or quick manual runs on macOS, use:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>./tools/launch_all.sh
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>./tools/launch_all.sh<span class="w"> </span>AAPL<span class="w"> </span>MSFT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>./tools/launch_all.sh
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>./tools/launch_all.sh<span class="w"> </span>AAPL<span class="w"> </span>MSFT
 </code></pre></div>
 <p><code>tools/launch_all.sh</code> opens one Terminal window per process using AppleScript.
 It is convenient, but it is <strong>macOS-only</strong> and it launches the standard demo
@@ -5084,7 +5131,7 @@ layout, not a custom research topology.</p>
 different questions.</p>
 <h3 id="normal-regression-tests">Normal regression tests<a class="headerlink" href="#normal-regression-tests" title="Permanent link">&para;</a></h3>
 <p>Run these continuously while developing:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/<span class="w"> </span>-m<span class="w"> </span><span class="s2">"not perf"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/<span class="w"> </span>-m<span class="w"> </span><span class="s2">"not perf"</span>
 </code></pre></div>
 <p>These are the default correctness tests and should remain fast enough for
 frequent reruns.</p>
@@ -5092,12 +5139,12 @@ frequent reruns.</p>
 <p>EduMatcher includes a dedicated replay-and-compare verification flow under
 <code>tools/</code>. This is the right choice when you need confidence that the production
 engine still agrees with the paper-trading oracle.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>bash<span class="w"> </span>tools/verify_matching.sh
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>bash<span class="w"> </span>tools/verify_matching.sh
 </code></pre></div>
 <p>Useful variants:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>bash<span class="w"> </span>tools/verify_matching.sh<span class="w"> </span>--seed<span class="w"> </span><span class="m">7</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>bash<span class="w"> </span>tools/verify_matching.sh<span class="w"> </span>--count<span class="w"> </span><span class="m">500</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>bash<span class="w"> </span>tools/verify_matching.sh<span class="w"> </span>--tolerance<span class="w"> </span><span class="m">0</span>.01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>bash<span class="w"> </span>tools/verify_matching.sh<span class="w"> </span>--seed<span class="w"> </span><span class="m">7</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>bash<span class="w"> </span>tools/verify_matching.sh<span class="w"> </span>--count<span class="w"> </span><span class="m">500</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>bash<span class="w"> </span>tools/verify_matching.sh<span class="w"> </span>--tolerance<span class="w"> </span><span class="m">0</span>.01
 </code></pre></div>
 <p>Read <a href="../04-verification/">Verification</a> before changing this flow. It explains
 why deterministic replay is hard and how the repository avoids common traps such
@@ -5105,17 +5152,17 @@ as clocks, ACK ordering, and persisted GTC state.</p>
 <h3 id="performance-tests">Performance tests<a class="headerlink" href="#performance-tests" title="Permanent link">&para;</a></h3>
 <p>Performance tests are intentionally separate from the normal CI path. They
 measure engine behavior, not the full end-to-end network stack.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Full perf run</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>-o<span class="w"> </span><span class="nv">addopts</span><span class="o">=</span><span class="s1">''</span><span class="w"> </span>tests/test_perf.py<span class="w"> </span>-v<span class="w"> </span>-s<span class="w"> </span>-m<span class="w"> </span>perf<span class="w"> </span>-p<span class="w"> </span>no:cov
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># Throughput-focused view</span>
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>-o<span class="w"> </span><span class="nv">addopts</span><span class="o">=</span><span class="s1">''</span><span class="w"> </span>tests/test_perf.py<span class="w"> </span>-v<span class="w"> </span>-s<span class="w"> </span>-m<span class="w"> </span>perf<span class="w"> </span>-k<span class="w"> </span>max_tps<span class="w"> </span>-p<span class="w"> </span>no:cov
-<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
-<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="c1"># Latency-focused view</span>
-<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>-o<span class="w"> </span><span class="nv">addopts</span><span class="o">=</span><span class="s1">''</span><span class="w"> </span>tests/test_perf.py<span class="w"> </span>-v<span class="w"> </span>-s<span class="w"> </span>-m<span class="w"> </span>perf<span class="w"> </span>-k<span class="w"> </span>latency<span class="w"> </span>-p<span class="w"> </span>no:cov
-<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>
-<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="c1"># Normal test run without perf tests</span>
-<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/<span class="w"> </span>-m<span class="w"> </span><span class="s2">"not perf"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># Full perf run</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>-o<span class="w"> </span><span class="nv">addopts</span><span class="o">=</span><span class="s1">''</span><span class="w"> </span>tests/test_perf.py<span class="w"> </span>-v<span class="w"> </span>-s<span class="w"> </span>-m<span class="w"> </span>perf<span class="w"> </span>-p<span class="w"> </span>no:cov
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="c1"># Throughput-focused view</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>-o<span class="w"> </span><span class="nv">addopts</span><span class="o">=</span><span class="s1">''</span><span class="w"> </span>tests/test_perf.py<span class="w"> </span>-v<span class="w"> </span>-s<span class="w"> </span>-m<span class="w"> </span>perf<span class="w"> </span>-k<span class="w"> </span>max_tps<span class="w"> </span>-p<span class="w"> </span>no:cov
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="c1"># Latency-focused view</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>-o<span class="w"> </span><span class="nv">addopts</span><span class="o">=</span><span class="s1">''</span><span class="w"> </span>tests/test_perf.py<span class="w"> </span>-v<span class="w"> </span>-s<span class="w"> </span>-m<span class="w"> </span>perf<span class="w"> </span>-k<span class="w"> </span>latency<span class="w"> </span>-p<span class="w"> </span>no:cov
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="c1"># Normal test run without perf tests</span>
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/<span class="w"> </span>-m<span class="w"> </span><span class="s2">"not perf"</span>
 </code></pre></div>
 <p>Important interpretation rule: the performance tests primarily measure <strong>engine
 processing cost</strong>, not total production wire latency.</p>
@@ -5229,10 +5276,10 @@ date.</p>
 <h2 id="documentation-workflow">Documentation workflow<a class="headerlink" href="#documentation-workflow" title="Permanent link">&para;</a></h2>
 <p>Developer-facing work is not finished until the docs still build cleanly.</p>
 <h3 id="fast-documentation-loop">Fast documentation loop<a class="headerlink" href="#fast-documentation-loop" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>mkdocs<span class="w"> </span>serve
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>mkdocs<span class="w"> </span>serve
 </code></pre></div>
 <h3 id="one-shot-validation">One-shot validation<a class="headerlink" href="#one-shot-validation" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>mkdocs<span class="w"> </span>build
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>mkdocs<span class="w"> </span>build
 </code></pre></div>
 <h3 id="what-to-update-when-behavior-changes">What to update when behavior changes<a class="headerlink" href="#what-to-update-when-behavior-changes" title="Permanent link">&para;</a></h3>
 <p>If you change:</p>
@@ -5301,7 +5348,7 @@ The practical flow below is aligned with the current script behavior.</p>
 <ol>
 <li>
 <p>Bump the <code>pyproject.toml</code> version<br />
-    <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>poetry<span class="w"> </span>version<span class="w"> </span>&lt;NEW<span class="w"> </span>VERSION&gt;<span class="w">  </span>
+    <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>poetry<span class="w"> </span>version<span class="w"> </span>&lt;NEW<span class="w"> </span>VERSION&gt;<span class="w">  </span>
 </code></pre></div></p>
 </li>
 <li>
@@ -5329,27 +5376,27 @@ The practical flow below is aligned with the current script behavior.</p>
 <li>Create GitHub release from latest tag on <code>main</code></li>
 </ol>
 <h3 id="step-by-step">Step-by-step<a class="headerlink" href="#step-by-step" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1"># 1. Bump version in pyproject.toml</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>poetry<span class="w"> </span>version<span class="w"> </span><span class="m">0</span>.3.2
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="c1"># 2. Create the changelog template (release type is major|minor|patch)</span>
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>./scripts/mkchlogentry.sh<span class="w"> </span><span class="m">0</span>.3.2<span class="w"> </span>patch
-<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>
-<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="c1"># 3. Edit CHANGELOG.md and replace placeholder bullets</span>
-<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>
-<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="c1"># 4. Build and validate release artifacts.</span>
-<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="c1"># Use --intro for real releases because mkghrelease.sh expects the intro bundle.</span>
-<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a>./scripts/mkbld.sh<span class="w"> </span>--intro
-<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a>
-<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a><span class="c1"># 5. Commit release-ready changes on develop, then preview release actions</span>
-<a id="__codelineno-15-14" name="__codelineno-15-14" href="#__codelineno-15-14"></a><span class="nv">GITHUB_USER</span><span class="o">=</span>&lt;your-gh-user&gt;<span class="w"> </span>./scripts/mkrelease.sh<span class="w"> </span>patch<span class="w"> </span>--dry-run
-<a id="__codelineno-15-15" name="__codelineno-15-15" href="#__codelineno-15-15"></a>
-<a id="__codelineno-15-16" name="__codelineno-15-16" href="#__codelineno-15-16"></a><span class="c1"># 6. Execute the local release flow (squash merge develop -&gt; main, tag, push, sync back)</span>
-<a id="__codelineno-15-17" name="__codelineno-15-17" href="#__codelineno-15-17"></a><span class="nv">GITHUB_USER</span><span class="o">=</span>&lt;your-gh-user&gt;<span class="w"> </span>./scripts/mkrelease.sh<span class="w"> </span>patch
-<a id="__codelineno-15-18" name="__codelineno-15-18" href="#__codelineno-15-18"></a>
-<a id="__codelineno-15-19" name="__codelineno-15-19" href="#__codelineno-15-19"></a><span class="c1"># 7. After CI is green on main, create the GitHub release from main</span>
-<a id="__codelineno-15-20" name="__codelineno-15-20" href="#__codelineno-15-20"></a>git<span class="w"> </span>switch<span class="w"> </span>main<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>git<span class="w"> </span>pull<span class="w"> </span>--ff-only
-<a id="__codelineno-15-21" name="__codelineno-15-21" href="#__codelineno-15-21"></a>./scripts/mkghrelease.sh
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="c1"># 1. Bump version in pyproject.toml</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>poetry<span class="w"> </span>version<span class="w"> </span><span class="m">0</span>.3.2
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="c1"># 2. Create the changelog template (release type is major|minor|patch)</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>./scripts/mkchlogentry.sh<span class="w"> </span><span class="m">0</span>.3.2<span class="w"> </span>patch
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="c1"># 3. Edit CHANGELOG.md and replace placeholder bullets</span>
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="c1"># 4. Build and validate release artifacts.</span>
+<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="c1"># Use --intro for real releases because mkghrelease.sh expects the intro bundle.</span>
+<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>./scripts/mkbld.sh<span class="w"> </span>--intro
+<a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a>
+<a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a><span class="c1"># 5. Commit release-ready changes on develop, then preview release actions</span>
+<a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a><span class="nv">GITHUB_USER</span><span class="o">=</span>&lt;your-gh-user&gt;<span class="w"> </span>./scripts/mkrelease.sh<span class="w"> </span>patch<span class="w"> </span>--dry-run
+<a id="__codelineno-16-15" name="__codelineno-16-15" href="#__codelineno-16-15"></a>
+<a id="__codelineno-16-16" name="__codelineno-16-16" href="#__codelineno-16-16"></a><span class="c1"># 6. Execute the local release flow (squash merge develop -&gt; main, tag, push, sync back)</span>
+<a id="__codelineno-16-17" name="__codelineno-16-17" href="#__codelineno-16-17"></a><span class="nv">GITHUB_USER</span><span class="o">=</span>&lt;your-gh-user&gt;<span class="w"> </span>./scripts/mkrelease.sh<span class="w"> </span>patch
+<a id="__codelineno-16-18" name="__codelineno-16-18" href="#__codelineno-16-18"></a>
+<a id="__codelineno-16-19" name="__codelineno-16-19" href="#__codelineno-16-19"></a><span class="c1"># 7. After CI is green on main, create the GitHub release from main</span>
+<a id="__codelineno-16-20" name="__codelineno-16-20" href="#__codelineno-16-20"></a>git<span class="w"> </span>switch<span class="w"> </span>main<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>git<span class="w"> </span>pull<span class="w"> </span>--ff-only
+<a id="__codelineno-16-21" name="__codelineno-16-21" href="#__codelineno-16-21"></a>./scripts/mkghrelease.sh
 </code></pre></div>
 <h3 id="what-mkreleasesh-expects">What <code>mkrelease.sh</code> expects<a class="headerlink" href="#what-mkreleasesh-expects" title="Permanent link">&para;</a></h3>
 <p>The script is designed around this model:</p>
@@ -5427,7 +5474,7 @@ above.</p>
 <p><code>pm-ticker</code> and <code>pm-board</code> rely on statistics written by <code>pm-stats</code>.</p>
 <h3 id="assuming-docs-only-changes-need-no-validation">Assuming docs-only changes need no validation<a class="headerlink" href="#assuming-docs-only-changes-need-no-validation" title="Permanent link">&para;</a></h3>
 <p>They still need:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>mkdocs<span class="w"> </span>build
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>mkdocs<span class="w"> </span>build
 </code></pre></div>
 <h3 id="treating-helper-scripts-as-canonical-truth">Treating helper scripts as canonical truth<a class="headerlink" href="#treating-helper-scripts-as-canonical-truth" title="Permanent link">&para;</a></h3>
 <p>Some scripts are polished automation; others still show drift from earlier repo
