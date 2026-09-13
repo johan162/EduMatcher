@@ -2601,7 +2601,7 @@ instead of launching each process by hand in its own terminal — see
 [Running the Exchange → Starting the stack with pm-opctl-cli](040-running-the-exchange.md#starting-the-stack-with-pm-opctl-cli).
 
 ```bash
-pm-opctl-cli start [PROFILE]
+pm-opctl-cli start [PROFILE] [-d | --debug]
 pm-opctl-cli list [-y | --no-restart]
 pm-opctl-cli health [-q]
 pm-opctl-cli stop
@@ -2631,7 +2631,7 @@ once that file exists its profiles replace the built-ins entirely (a missing
 
 | Subcommand | Aliases | Options | Purpose |
 |---|---|---|---|
-| `start [PROFILE]` | `up` | — | Start a profile (`default` when omitted), skipping entries already running |
+| `start [PROFILE]` | `up` | `-d`/`--debug`/`-vv` (append `--log-level DEBUG` to every process's command) | Start a profile (`default` when omitted), skipping entries already running |
 | `list` | — | `-y`/`--restart` (restart dead entries without asking), `--no-restart` (never offer) | Status table for the active profile: uptime (`HH:MM`) and resident memory (MiB) per process |
 | `health` | — | `-q`/`--quiet` (print nothing) | Same checks as `list`; exits `0` only when every process is running — for monitoring scripts |
 | `stop` | `down` | — | Send `SIGTERM` to processes this tool started (recorded in the PID directory) |
@@ -2641,6 +2641,15 @@ once that file exists its profiles replace the built-ins entirely (a missing
 | `clear` | — | `--state` (engine/session state only) or `--all` (also logs and audit trail), `--yes` (skip prompt) | Delete persisted data under the data directory; `ref_data/` (configuration) is never touched |
 
 Exactly one of `--state`/`--all` must be given to `clear`.
+
+`start --debug` appends `--log-level DEBUG` to every process's command line
+before it is launched, overriding whatever level a profile's `--verbose` (or
+lack of one) would otherwise select — see
+[Developer → Logging levels and pm-log-srv](../developer/08-dev-workflow.md#logging-levels-and-pm-log-srv)
+for what that changes and why every process still needs to be *started* this
+way (an already-running process must be stopped and restarted with `--debug`
+to pick up DEBUG logging; there is no way to raise a running process's log
+level in place).
 
 **Expected runtime input arguments:**
 

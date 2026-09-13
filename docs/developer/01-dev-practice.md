@@ -359,6 +359,48 @@ Three more that are easy to miss:
 - **`pm-help`** (alias **`pm-man`**) — browses the documentation for any
   EduMatcher command from the terminal.
 
+### Logging levels and pm-log-srv
+
+Every `pm-*` process configures its own logging once at startup, in a
+`_configure_logging(args)` function in that process's `main.py`. Three things
+are decided there: the **level** (from `--log-level {CRITICAL,ERROR,WARNING,
+INFO,DEBUG}`, or `-v`/`-vv`/`-q` if `--log-level` is not given — see the flag
+table under [`pm-engine`](../user-guide/170-processes.md#pm-engine-matching-engine)
+for the exact precedence, which is the same in every process), and the
+**target** — where the resulting `LogRecord`s go, via `--log-target
+{server,stdout,file}`. The default target, `server`, auto-detects a running
+`pm-log-srv` with a LALF `HELLO`/`WELCOME` handshake and, if one answers,
+attaches a `TcpLogHandler` as the process's *only* logging handler. That
+handler ships every record — at whatever level the process was started
+with — over TCP to `pm-log-srv`, so `log.debug(...)` calls throughout the
+codebase reach the same centralized log you would otherwise read with
+`pm-log-cli` or `log-gui`, with no separate wiring required.
+
+This has two consequences worth knowing before you go looking for a way
+around them:
+
+- **There is no environment variable.** The level is a plain CLI argument,
+  resolved once per process at startup. Nothing in this codebase reads a
+  `LOG_LEVEL`-style variable.
+- **The level cannot be changed on a running process.** `_configure_logging`
+  runs once in `main()`, before the process's event loop starts, and nothing
+  listens for `SIGHUP` or any other runtime toggle. To see `DEBUG` output
+  from a process, restart it with `--log-level DEBUG` (or `-vv`). `pm-log-srv`
+  itself does not need restarting — it is a passive collector — only the
+  client process whose behaviour you are debugging does.
+
+If you normally bring the stack up with `pm-opctl-cli` rather than starting
+processes by hand, start (or restart) it with `-d`/`--debug` (alias `-vv`) to
+apply `--log-level DEBUG` to every process in the profile at once:
+
+```bash
+pm-opctl-cli stop
+pm-opctl-cli start --debug
+```
+
+See [`pm-opctl-cli`](../user-guide/170-processes.md#pm-opctl-cli-operational-process-control)
+for the full flag reference.
+
 ### macOS convenience launcher
 
 For demos or quick manual runs on macOS, use:

@@ -689,7 +689,7 @@ def health_profile(quiet: bool) -> int:
     return 0 if healthy else 1
 
 
-def start_profile(profile_name: str) -> int:
+def start_profile(profile_name: str, *, debug: bool = False) -> int:
     profiles = load_profiles()
     if profile_name not in profiles:
         available = ", ".join(sorted(profiles))
@@ -701,6 +701,11 @@ def start_profile(profile_name: str) -> int:
 
     runtime_dir().mkdir(parents=True, exist_ok=True)
     processes = profiles[profile_name]
+    if debug:
+        processes = [
+            {**process, "command": [*process["command"], "--log-level", "DEBUG"]}
+            for process in processes
+        ]
     write_active_profile(profile_name)
     print(f"Starting pm-opctl configuration {profile_name!r} from {config_path()}")
     print(f"Data directory: {DATA_DIR}")
@@ -910,6 +915,14 @@ def build_parser() -> argparse.ArgumentParser:
         "start", aliases=["up"], help="start a named process profile"
     )
     start.add_argument("config_name", nargs="?", default="default")
+    start.add_argument(
+        "-d",
+        "--debug",
+        "-vv",
+        dest="debug",
+        action="store_true",
+        help="start every process with --log-level DEBUG",
+    )
     subparsers.add_parser(
         "init", help="create the built-in process profile configuration"
     )
@@ -994,7 +1007,7 @@ def main() -> int:
         if args.command == "init":
             return create_config()
         if args.command in ("start", "up"):
-            return start_profile(args.config_name or "default")
+            return start_profile(args.config_name or "default", debug=args.debug)
         if args.command in ("stop", "down"):
             return stop_profile()
         if args.command == "kill":
