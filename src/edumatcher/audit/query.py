@@ -26,6 +26,7 @@ from edumatcher.models.generated.order import (
     TOPIC_ORDER_CANCEL,
     TOPIC_ORDER_NEW,
 )
+from edumatcher.models.generated.registry import TOPIC_REGISTRY
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 
 # ---------------------------------------------------------------------------
@@ -58,6 +59,79 @@ def parse_meta(raw: str | None) -> dict[str, str]:
         if key and value:
             out[key] = value
     return out
+
+
+# ---------------------------------------------------------------------------
+# Topic resolution
+#
+# A topic read off the wire is either a spec topic verbatim (`order.new`) or a
+# wildcard topic with its parameter filled in (`order.ack.TRADER01`). Splitting
+# the second into kind and actor cannot be done by string surgery: naive
+# rsplit turns `index.corp_action` into `("index", "corp_action")`, inventing
+# an actor for a topic that has none. It has to be a lookup against the spec,
+# which is what the generated registry is for.
+#
+# Shared rather than private because pm-audit-replay resolves the same topics,
+# and two tools disagreeing about what `order.ack.TRADER01` means would be a
+# silent, plausible-looking wrong answer in exactly the place a reader would
+# not think to check.
+# ---------------------------------------------------------------------------
+
+_EXACT_TOPICS: frozenset[str] = frozenset(
+    topic for topic, entry in TOPIC_REGISTRY.items() if not entry["params"]
+)
+
+#: (prefix, template), longest prefix first. Order matters: `index.rebalance.`
+#: would otherwise be shadowed by a shorter sibling that also matches.
+_WILDCARD_PREFIXES: tuple[tuple[str, str], ...] = tuple(
+    sorted(
+        (
+            (str(entry["prefix"]), topic)
+            for topic, entry in TOPIC_REGISTRY.items()
+            if entry["params"]
+        ),
+        key=lambda pair: -len(pair[0]),
+    )
+)
+
+
+def _match_topic(topic: str) -> tuple[str, str | None] | None:
+    """Return ``(template, actor)`` for a wire topic, or None if unknown."""
+    if topic in _EXACT_TOPICS:
+        return topic, None
+    for prefix, template in _WILDCARD_PREFIXES:
+        if topic.startswith(prefix):
+            return template, topic[len(prefix) :]
+    return None
+
+
+def split_topic(topic: str) -> tuple[str, str | None]:
+    """Split a wire topic into ``(kind, actor)``.
+
+    ``order.ack.TRADER01`` splits into kind ``order.ack`` and actor
+    ``TRADER01``; a topic with no wildcard is its own kind and has no actor.
+    An unrecognised topic is returned whole with no actor rather than guessed at — the caller reports it (design section 12.5,
+    ``UNKNOWN_TOPIC``) instead of narrating a fabricated split.
+    """
+    match = _match_topic(topic)
+    if match is None:
+        return topic, None
+    template, actor = match
+    if actor is None:
+        return template, None
+    return template[: template.index("{")].rstrip("."), actor
+
+
+def lookup_topic(topic: str) -> dict[str, Any] | None:
+    """Return the spec registry entry a wire topic resolves to, else None.
+
+    The entry carries the declaring family and message and, most usefully for a
+    reader of the log, every field's declared unit.
+    """
+    match = _match_topic(topic)
+    if match is None:
+        return None
+    return dict(TOPIC_REGISTRY[match[0]])
 
 
 # ---------------------------------------------------------------------------
@@ -199,6 +273,8 @@ class AuditEntry:
         "msg_id",
         "causation_id",
         "correlation_id",
+        "file",
+        "line_no",
     )
 
     def __init__(
@@ -207,10 +283,20 @@ class AuditEntry:
         topic: str,
         payload: dict[str, Any],
         meta: dict[str, str] | None = None,
+        *,
+        file: str | None = None,
+        line_no: int = 0,
     ) -> None:
         self.timestamp = timestamp
         self.topic = topic
         self.payload = payload
+        #: Source coordinates, so any derived output can be traced back to the
+        #: bytes it came from (`audit.log:118423`). A reader who distrusts a
+        #: narration has to be able to go and read the line themselves.
+        #: Absent (None / 0) for an entry constructed directly rather than read
+        #: from a file.
+        self.file = file
+        self.line_no = line_no
         meta = meta or {}
         raw_seq = meta.get("seq")
         self.seq: int | None = int(raw_seq) if raw_seq and raw_seq.isdigit() else None
@@ -250,6 +336,8 @@ class AuditEntry:
             "msg_id": self.msg_id,
             "causation_id": self.causation_id,
             "correlation_id": self.correlation_id,
+            "file": self.file,
+            "line_no": self.line_no,
             "payload": self.payload,
         }
 
@@ -288,7 +376,10 @@ def iter_entries(
     for path in log_files:
         if not path.exists():
             continue
-        for raw in _open_file(path):
+        file_name = str(path)
+        # Counted over raw lines, not parsed ones: the ordinal has to be what
+        # `sed -n 118423p` would show, or it is no use for tracing back.
+        for line_no, raw in enumerate(_open_file(path), start=1):
             parsed = _parse_line(raw)
             if parsed is None:
                 continue
@@ -319,7 +410,9 @@ def iter_entries(
                 if to_dt is not None and entry_dt > to_dt:
                     continue
 
-            entry = AuditEntry(ts_str, topic, payload, meta)
+            entry = AuditEntry(
+                ts_str, topic, payload, meta, file=file_name, line_no=line_no
+            )
 
             # Gateway filter
             if gateway is not None and entry.gateway_id != gateway:
