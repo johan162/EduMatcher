@@ -190,6 +190,15 @@ class SequenceTracker:
             return True, None
 
         entry.holes.append((previous + 1, seq - 1))
+        log.debug(
+            "gap detected stream=(%s,%s) missing %d..%d (had %d, saw %d)",
+            channel,
+            symbol,
+            previous + 1,
+            seq - 1,
+            previous,
+            seq,
+        )
         return True, Gap(
             channel=channel,
             symbol=symbol,

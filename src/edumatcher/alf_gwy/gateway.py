@@ -295,12 +295,14 @@ class AlfGateway:
                     conn.close()
                 except OSError:
                     pass
+                log.warning("ALF max_connections reached, rejecting %s", addr)
                 continue
 
             session = ClientSession(sock=conn, addr=addr)
             session.rate_tokens = float(self.config.max_commands_per_second)
             self._clients[conn.fileno()] = session
             self._global_stats["connected_clients"] = len(self._clients)
+            log.debug("ALF new connection from %s", addr)
 
     def _read_client_data(self) -> None:
         if not self._clients:
@@ -511,6 +513,11 @@ class AlfGateway:
                 tag=self._error_tag_for(cmd, fields),
             )
         except Exception:
+            log.exception(
+                "[%s] unexpected error handling %s",
+                session.gateway_id or session.addr,
+                cmd,
+            )
             self._global_stats["commands_rejected_total"] += 1
             self._register_error(
                 session,
@@ -1111,6 +1118,7 @@ class AlfGateway:
                     )
                 break
             except Exception:
+                log.warning("decode error on engine SUB event", exc_info=True)
                 budget -= 1
                 continue
 
@@ -1217,6 +1225,7 @@ class AlfGateway:
                     )
                 break
             except Exception:
+                log.warning("decode error on drop-copy SUB event", exc_info=True)
                 budget -= 1
                 continue
 
@@ -1903,6 +1912,13 @@ class AlfGateway:
         if tag:
             fields["TAG"] = tag
         self._queue_line(session, "ERR", fields)
+        log.debug(
+            "[%s] rejected code=%s reject_code=%s detail=%s",
+            session.gateway_id or session.addr,
+            code,
+            fields["REJECT_CODE"],
+            detail,
+        )
 
         now = time.monotonic()
         session.error_times.append(now)
@@ -1931,6 +1947,7 @@ class AlfGateway:
 
     def _disconnect(self, session: ClientSession, *, reason: str) -> None:
         gateway_id = session.gateway_id
+        log.info("[%s] disconnected reason=%s", gateway_id or session.addr, reason)
 
         if (
             gateway_id

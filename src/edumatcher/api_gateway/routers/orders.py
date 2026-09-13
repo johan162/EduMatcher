@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -36,10 +37,13 @@ from edumatcher.models.generated.order import (
 
 router = APIRouter(prefix="/api/v1", tags=["orders"])
 
+log = logging.getLogger(__name__)
+
 
 def _check_rate_limit(request: Request, session: Session) -> None:
     """Raise 429 if the per-key write rate is exceeded."""
     if not request.app.state.rate_limiter.allow(session.api_key):
+        log.debug("rate limit exceeded api_key=%s", session.api_key)
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={"error": {"code": "RATE_LIMIT", "message": "Write rate exceeded"}},
@@ -59,6 +63,7 @@ def _check_symbol_ready(symbol: str) -> None:
     retry.
     """
     if not has_tick_decimals(symbol):
+        log.debug("symbol not ready symbol=%s", symbol)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={
@@ -119,6 +124,14 @@ async def submit_order(
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
     _check_symbol_ready(body.symbol)
+    log.debug(
+        "[%s] submit_order symbol=%s side=%s order_type=%s qty=%s",
+        gateway_id,
+        body.symbol,
+        wire_value(body.side),
+        wire_value(body.order_type),
+        body.quantity,
+    )
     order = build_order(body, gateway_id)
     request.app.state.engine.get_caches(gateway_id).orders[order.id] = {
         "order_id": order.id,
@@ -157,6 +170,12 @@ async def cancel_order(
 ) -> CancelAccepted:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
+    log.debug(
+        "[%s] cancel_order order_id=%s request_tag=%s",
+        gateway_id,
+        order_id,
+        request_tag,
+    )
     request.app.state.engine.send_cancel(order_id, gateway_id, request_tag=request_tag)
     event = await _await_order_event(
         request,
@@ -183,6 +202,14 @@ async def amend_order(
 ) -> dict[str, Any]:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
+    log.debug(
+        "[%s] amend_order order_id=%s price=%s qty=%s request_tag=%s",
+        gateway_id,
+        order_id,
+        body.price,
+        body.quantity,
+        body.request_tag,
+    )
     request.app.state.engine.send_amend(
         order_id,
         gateway_id,
