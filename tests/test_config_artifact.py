@@ -78,8 +78,8 @@ def _engine() -> EngineConfig:
                 market_maker_quotes=[
                     MMQuoteSeed(
                         gateway_id="MM01",
-                        bid_price=149.0,
-                        ask_price=151.0,
+                        bid_price_ticks=14900,
+                        ask_price_ticks=15100,
                         bid_qty=500,
                         ask_qty=500,
                         tif=TIF.GTC,

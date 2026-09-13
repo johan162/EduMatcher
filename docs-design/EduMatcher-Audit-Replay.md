@@ -482,6 +482,8 @@ publisher stalls visible.
 
 #### 5.3.1 Ticks versus display money
 
+FIXED: 2026-09-14 by including tick size 
+
 This is a real, live trap in the current schema:
 
 | Field | Unit |

@@ -7,7 +7,6 @@ import math
 import sys
 from collections.abc import Callable
 from datetime import date
-from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import TypeVar
@@ -21,6 +20,7 @@ from edumatcher.cli_version import package_version
 from edumatcher.engine.config_loader import load_engine_config
 from edumatcher.models.order import SmpAction
 from edumatcher.models.participant import ParticipantRole
+from edumatcher.models.price import TickViolation, to_ticks_exact_at
 
 from edumatcher.config_gen.builder import ConfigBuilder, ConfigSpec
 from edumatcher.config_gen.builder import ApiCredentialSpec, ApiGatewaySpec
@@ -1496,32 +1496,26 @@ def _tick_decimals_by_symbol(
     return result
 
 
-def _parse_leg_price(raw: str, tick_decimals: int, label: str) -> int:
-    """Parse a combo leg price/stop_price.
+def _parse_leg_price(raw: str, tick_decimals: int, symbol: str, label: str) -> float:
+    """Parse a combo leg price/stop_price, which is display money.
 
-    Accepts either a plain integer tick count (legacy, backward-compatible
-    format, e.g. '20950') or a decimal display price (e.g. '209.50'), which
-    is converted to ticks using the leg symbol's tick_decimals. A value is
-    treated as decimal input only when it contains a '.'; this keeps every
-    existing integer-only invocation working unchanged.
+    Whether the price sits on the symbol's tick grid is checked here rather
+    than left to the engine: pm-config-gen should not write a file its own
+    loader will refuse to read.
     """
     text = raw.strip()
-    if "." in text:
-        try:
-            decimal_price = Decimal(text)
-        except InvalidOperation as exc:
-            raise ValueError(
-                f"{label} must be an integer tick count or a decimal price"
-            ) from exc
-        tick_size = Decimal(1).scaleb(-tick_decimals)
-        ticks = (decimal_price / tick_size).to_integral_value(rounding=ROUND_HALF_UP)
-        return int(ticks)
     try:
-        return int(text)
+        price = float(text)
     except ValueError as exc:
+        raise ValueError(f"{label} must be a decimal price") from exc
+    try:
+        to_ticks_exact_at(price, tick_decimals, symbol)
+    except TickViolation as exc:
         raise ValueError(
-            f"{label} must be an integer tick count or a decimal price"
+            f"{label} {price} is not a multiple of {symbol}'s tick size "
+            f"{exc.tick_size:.{tick_decimals}f} (tick_decimals={tick_decimals})"
         ) from exc
+    return price
 
 
 def _parse_combo_specs(
@@ -1592,8 +1586,8 @@ def _parse_combo_specs(
             if qty <= 0:
                 raise ValueError(f"Invalid --combo '{raw}': leg quantity must be > 0")
 
-            price: int | None = None
-            stop_price: int | None = None
+            price: float | None = None
+            stop_price: float | None = None
             smp_action_str = "NONE"
             leg_tick_decimals = tick_decimals_by_symbol.get(
                 sym, int(args.tick_decimals)
@@ -1604,6 +1598,7 @@ def _parse_combo_specs(
                     price = _parse_leg_price(
                         fields[4],
                         leg_tick_decimals,
+                        sym,
                         f"Invalid --combo '{raw}': leg price",
                     )
                 except ValueError as exc:
@@ -1613,6 +1608,7 @@ def _parse_combo_specs(
                     stop_price = _parse_leg_price(
                         fields[5],
                         leg_tick_decimals,
+                        sym,
                         f"Invalid --combo '{raw}': leg stop_price",
                     )
                 except ValueError as exc:

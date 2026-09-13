@@ -712,6 +712,68 @@ const gatewayMmObligationUnknownSymbol: Rule = (draft) => {
   return out;
 };
 
+/**
+ * layer2_schema.py S078: every price in the file is display money the engine
+ * converts to integer ticks, and it refuses one that is not a whole number of
+ * them. The GUI used to round these off on export, which turned a typo into a
+ * silently different price; it now writes what was typed, so the typo has to
+ * be reported here instead.
+ */
+function offGrid(price: number, tickDecimals: number): boolean {
+  const scaled = price * Math.pow(10, tickDecimals);
+  return Math.abs(scaled - Math.round(scaled)) > 1e-6;
+}
+
+const priceTickGrid: Rule = (draft) => {
+  const out: Diagnostic[] = [];
+  const decimalsOf = (symbol: string): number =>
+    draft.symbols[symbol]?.tickDecimals ?? draft.tickDecimals;
+  const check = (
+    price: number | null | undefined,
+    symbol: string,
+    label: string,
+    fieldPath: string,
+    tab: Diagnostic["tab"],
+  ): void => {
+    if (price === null || price === undefined) return;
+    const td = decimalsOf(symbol);
+    if (!offGrid(price, td)) return;
+    out.push({
+      id: "price-off-tick-grid",
+      severity: "error",
+      message:
+        `${label} ${price} is not a multiple of ${symbol}'s tick size ` +
+        `${Math.pow(10, -td).toFixed(td)} (tick_decimals=${td}).`,
+      fieldPaths: [fieldPath],
+      tab,
+    });
+  };
+
+  for (const symbol of draft.symbolOrder) {
+    const cfg = draft.symbols[symbol];
+    if (!cfg) continue;
+    const sp = `symbols.${symbol}`;
+    const lbl = `Symbol ${symbol}`;
+    check(cfg.lastBuyPrice, symbol, `${lbl} last_buy_price`, `${sp}.lastBuyPrice`, "symbols");
+    check(cfg.lastSellPrice, symbol, `${lbl} last_sell_price`, `${sp}.lastSellPrice`, "symbols");
+    (cfg.marketMakerQuotes ?? []).forEach((q, i) => {
+      const qp = `${sp}.marketMakerQuotes.${i}`;
+      const qlbl = `${lbl} quote #${i + 1}`;
+      check(q.bidPrice, symbol, `${qlbl} bid_price`, `${qp}.bidPrice`, "symbols");
+      check(q.askPrice, symbol, `${qlbl} ask_price`, `${qp}.askPrice`, "symbols");
+    });
+  }
+  for (const combo of draft.combos) {
+    combo.legs.forEach((leg, li) => {
+      const lp = `combos.${combo.comboId}.legs.${li}`;
+      const llbl = `Combo ${combo.comboId} leg ${li + 1}`;
+      check(leg.price, leg.symbol, `${llbl} price`, `${lp}.price`, "combos");
+      check(leg.stopPrice, leg.symbol, `${llbl} stop_price`, `${lp}.stopPrice`, "combos");
+    });
+  }
+  return out;
+};
+
 const RULES: Rule[] = [
   undefinedRiskLevel,
   gatewayMmObligationUnknownSymbol,
@@ -735,6 +797,7 @@ const RULES: Rule[] = [
   largeSymbolUniverse,
   symbolMissingReferencePrices,
   mmQuoteRules,
+  priceTickGrid,
   lastPriceWithinSeededQuote,
   symbolMissingOutstandingShares,
 ];

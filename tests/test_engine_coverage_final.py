@@ -508,8 +508,8 @@ class TestLoadConfigWithStats:
                 "AAPL": [
                     MMQuoteSeed(
                         gateway_id="GW01",
-                        bid_price=104.0,
-                        ask_price=105.0,
+                        bid_price_ticks=10400,
+                        ask_price_ticks=10500,
                         bid_qty=100,
                         ask_qty=100,
                     )

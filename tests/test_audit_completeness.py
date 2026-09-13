@@ -305,8 +305,8 @@ class TestIsSeed:
                     market_maker_quotes=[
                         MMQuoteSeed(
                             gateway_id="MM01",
-                            bid_price=99.0,
-                            ask_price=101.0,
+                            bid_price_ticks=9900,
+                            ask_price_ticks=10100,
                             bid_qty=100,
                             ask_qty=100,
                         )

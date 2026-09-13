@@ -179,6 +179,7 @@ use `{placeholders}` for context-specific values.
 | `S014` | ERROR | `market_maker_quotes[n]` missing required fields | `Symbol '{sym}': market_maker_quotes[{n}] is missing '{field}'. Each quote seed requires gateway_id, bid_price, ask_price, bid_qty, and ask_qty.` |
 | `S015` | ERROR | `market_maker_quotes[n].bid_price >= ask_price` | `Symbol '{sym}': market_maker_quotes[{n}] has bid_price ({bid}) >= ask_price ({ask}). The bid must be strictly less than the ask.` |
 | `S016` | ERROR | `market_maker_quotes[n]` has a non-numeric price, a non-positive/non-integer quantity, or an invalid `tif` | `Symbol '{sym}': market_maker_quotes[{n}] is invalid: {detail}. The engine rejects this seed at startup. Quantities must be positive integers, prices numeric, and tif one of DAY or GTC.` |
+| `S078` | ERROR | A price is not a whole multiple of its symbol's tick size (`last_buy_price`, `last_sell_price`, `market_maker_quotes[n].bid_price`/`ask_price`, `market_maker_combos[n].legs[m].price`/`stop_price`) | `{field} {price} is not a multiple of {sym}'s tick size {tick_size}. With tick_decimals={n}, {sym} prices carry at most {n} decimal place(s). Round the price, or raise symbols.{sym}.tick_decimals.` |
 
 **Gateway fields**
 

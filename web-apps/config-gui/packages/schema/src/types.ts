@@ -247,7 +247,7 @@ export interface ComboLeg {
   side: Side;
   orderType: OrderType;
   quantity: number;
-  /** Decimal display price; converted to ticks on export using the symbol's tickDecimals. */
+  /** Decimal display price, as written to the YAML. */
   price?: number | null;
   stopPrice?: number | null;
   smpAction: SmpAction;

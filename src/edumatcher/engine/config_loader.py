@@ -12,6 +12,10 @@ Returned structure:
         .last_buy_price:    float | None
         .last_sell_price:   float | None
         .market_maker_quotes: list[MMQuoteSeed]
+
+Every price in the YAML is display money. This module is the only place that
+converts one to ticks, and it converts exactly: a price that is not a multiple
+of its symbol's tick size is a config error, not something to round off.
 """
 
 from __future__ import annotations
@@ -27,6 +31,7 @@ from edumatcher.models.combo import ComboLeg, ComboType
 from edumatcher.models.participant import DisconnectBehaviour, ParticipantRole
 from edumatcher.models.quote import QuoteRefreshPolicy
 from edumatcher.models.order import TIF, SmpAction
+from edumatcher.models.price import TickViolation, to_ticks_exact_at
 from edumatcher.models.mm_obligation import MarketMakerObligation
 
 # Imported at runtime, not under TYPE_CHECKING: the compiled-config codec
@@ -67,6 +72,26 @@ DEFAULT_COUNTRY = "Sweden"
 #: `max_len` `spec/messages/circuit_breaker.yaml` puts on `halt.level`, which
 #: carries this name to every subscriber.
 _MAX_CB_LEVEL_NAME = 32
+
+
+def _config_ticks(price: float, tick_decimals: int, symbol: str, where: str) -> int:
+    """Convert a display price from the config file to ticks, exactly.
+
+    ``to_ticks_exact`` cannot be used here: it resolves the scale from the
+    tick registry, and the registry is populated from this very config, so
+    while the file is being read every symbol still answers the two-decimal
+    default. The declared ``tick_decimals`` is passed in instead.
+
+    ``where`` is the dotted config path, so an off-grid price reads like every
+    other validation failure in this module rather than like an engine crash.
+    """
+    try:
+        return to_ticks_exact_at(price, tick_decimals, symbol)
+    except TickViolation as exc:
+        raise ValueError(
+            f"{where}: {price} is not a multiple of {symbol}'s tick size "
+            f"{exc.tick_size:.{tick_decimals}f} (tick_decimals={tick_decimals})"
+        ) from exc
 
 
 def _parse_reopening(raw: Any, where: str) -> ReopeningConfig:
@@ -205,6 +230,10 @@ class SymbolConfig:
     level: str | None = None
     tick_decimals: int = 2
     outstanding_shares: int | None = None
+    # Display money. Unlike the quote seeds and combo legs below, these have
+    # two consumers that want different units - the engine converts them to
+    # ticks for the book, pm-index reads them as money for a market cap - so
+    # they stay in the unit the file declares and each converts for itself.
     last_buy_price: Optional[float] = None
     last_sell_price: Optional[float] = None
     market_maker_quotes: list[MMQuoteSeed] = field(default_factory=list)
@@ -220,8 +249,8 @@ class SymbolConfig:
 @dataclass
 class MMQuoteSeed:
     gateway_id: str
-    bid_price: float
-    ask_price: float
+    bid_price_ticks: int
+    ask_price_ticks: int
     bid_qty: int
     ask_qty: int
     tif: TIF = TIF.DAY
@@ -559,11 +588,15 @@ def load_engine_config(path: Path) -> EngineConfig:
                 lbp = float(lbp)
             except (TypeError, ValueError):
                 raise ValueError(f"Symbol '{sym}': last_buy_price must be a number")
+            # Converted only to reject a price the symbol's grid cannot
+            # represent; the value kept is the display price.
+            _config_ticks(lbp, tick_decimals, sym, f"Symbol '{sym}': last_buy_price")
         if lsp is not None:
             try:
                 lsp = float(lsp)
             except (TypeError, ValueError):
                 raise ValueError(f"Symbol '{sym}': last_sell_price must be a number")
+            _config_ticks(lsp, tick_decimals, sym, f"Symbol '{sym}': last_sell_price")
         outstanding_shares: int | None = None
         if outstanding_shares_raw is not None:
             try:
@@ -626,8 +659,18 @@ def load_engine_config(path: Path) -> EngineConfig:
             mm_quotes.append(
                 MMQuoteSeed(
                     gateway_id=gateway_id,
-                    bid_price=bid_price,
-                    ask_price=ask_price,
+                    bid_price_ticks=_config_ticks(
+                        bid_price,
+                        tick_decimals,
+                        sym,
+                        f"Symbol '{sym}': market_maker_quotes[{i}].bid_price",
+                    ),
+                    ask_price_ticks=_config_ticks(
+                        ask_price,
+                        tick_decimals,
+                        sym,
+                        f"Symbol '{sym}': market_maker_quotes[{i}].ask_price",
+                    ),
                     bid_qty=bid_qty,
                     ask_qty=ask_qty,
                     tif=tif,
@@ -960,29 +1003,36 @@ def load_engine_config(path: Path) -> EngineConfig:
                 leg_payload["order_type"] = str(leg_payload["order_type"]).upper()
             if "smp_action" in leg_payload and leg_payload["smp_action"] is not None:
                 leg_payload["smp_action"] = str(leg_payload["smp_action"]).upper()
-            # The engine config is a user-facing YAML file, not a bus message,
-            # and its combo-leg keys stay as they are. Its `price`/`stop_price`
-            # already hold ticks (pm-config-gen converts on the way in), so the
-            # translation here is a rename and nothing more.
-            #
-            # Worth noting rather than fixing here: those YAML keys are named
-            # like display money and hold ticks, which is the ambiguity the
-            # `_ticks` suffix removed from the wire. Renaming them would be a
-            # config-format change.
+            # Leg prices are display money, like every other price in this
+            # file. The scale is resolved per leg rather than per combo: the
+            # legs of one combo trade different instruments, which need not
+            # share a tick size.
+            leg_symbol = str(leg_payload.get("symbol", ""))
+            if leg_symbol not in symbols:
+                raise ValueError(
+                    f"market_maker_combos[{i}] references unknown symbol '{leg_symbol}'"
+                )
+            leg_decimals = symbols[leg_symbol].tick_decimals
+            leg_payload["tick_decimals"] = leg_decimals
             for yaml_key, leg_key in (
                 ("price", "price_ticks"),
                 ("stop_price", "stop_price_ticks"),
             ):
-                if yaml_key in leg_payload:
-                    leg_payload[leg_key] = leg_payload.pop(yaml_key)
-            leg_payload.setdefault(
-                "tick_decimals",
-                (
-                    symbols[str(leg_payload.get("symbol", "")).upper()].tick_decimals
-                    if str(leg_payload.get("symbol", "")).upper() in symbols
-                    else 2
-                ),
-            )
+                leg_price = leg_payload.pop(yaml_key, None)
+                if leg_price is None:
+                    continue
+                try:
+                    leg_price = float(leg_price)
+                except (TypeError, ValueError):
+                    raise ValueError(
+                        f"market_maker_combos[{i}].legs[{j}].{yaml_key} must be a number"
+                    )
+                leg_payload[leg_key] = _config_ticks(
+                    leg_price,
+                    leg_decimals,
+                    leg_symbol,
+                    f"market_maker_combos[{i}].legs[{j}].{yaml_key}",
+                )
 
             try:
                 leg = ComboLeg.from_dict(leg_payload)
@@ -994,10 +1044,6 @@ def load_engine_config(path: Path) -> EngineConfig:
             if leg.symbol in seen_symbols:
                 raise ValueError(
                     f"market_maker_combos[{i}] contains duplicate symbol '{leg.symbol}'"
-                )
-            if leg.symbol not in symbols:
-                raise ValueError(
-                    f"market_maker_combos[{i}] references unknown symbol '{leg.symbol}'"
                 )
 
             seen_symbols.add(leg.symbol)

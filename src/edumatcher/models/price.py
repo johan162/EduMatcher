@@ -85,13 +85,18 @@ class TickViolation(ValueError):
     Carries the offending price and the symbol so a caller can build its own
     message; every order-entry edge words the rejection differently and none
     of them should have to re-derive the tick size.
+
+    ``tick_decimals`` is passed in rather than read from the registry: the
+    config loader raises this before any symbol has been registered, and a
+    message quoting the two-decimal default there would name a tick size the
+    file never asked for.
     """
 
-    def __init__(self, price: float, symbol: str) -> None:
+    def __init__(self, price: float, symbol: str, tick_decimals: int) -> None:
         self.price = price
         self.symbol = symbol
-        self.tick_decimals = get_tick_decimals(symbol)
-        self.tick_size = 10**-self.tick_decimals
+        self.tick_decimals = tick_decimals
+        self.tick_size = 10**-tick_decimals
         super().__init__(
             f"{price} is not a multiple of {symbol}'s tick size "
             f"{self.tick_size:.{self.tick_decimals}f}"
@@ -105,6 +110,33 @@ class TickViolation(ValueError):
 _TICK_EPSILON = 1e-6
 
 
+def to_ticks_exact_at(price: float, tick_decimals: int, symbol: str) -> int:
+    """Convert a display price to ticks at an explicitly supplied scale.
+
+    The check cannot be ``price % tick == 0``. Prices arrive as binary floats,
+    where a value a client both meant and typed exactly is routinely off by
+    an ulp or two, so an exact test rejects almost everything. Compare the
+    scaled value against its own rounding instead, within `_TICK_EPSILON`.
+
+    This is the form config loading needs. :func:`to_ticks_exact` resolves the
+    scale from the tick registry, and the registry is populated *from* the
+    config - so while the file is being read every symbol still answers the
+    two-decimal default, and a 4-decimal price would convert at the wrong
+    scale without ever being wrong enough to notice. The loader has the
+    declared ``tick_decimals`` in hand and passes it.
+
+    *symbol* only names the instrument in the raised violation.
+
+    Raises:
+        TickViolation: if *price* is not a multiple of ``10**-tick_decimals``.
+    """
+    scaled = price * 10**tick_decimals
+    ticks = round(scaled)
+    if abs(scaled - ticks) > _TICK_EPSILON:
+        raise TickViolation(price, symbol, tick_decimals)
+    return int(ticks)
+
+
 def to_ticks_exact(price: float, symbol: str) -> int:
     """Convert a display price to ticks, rejecting one that is off the grid.
 
@@ -113,11 +145,6 @@ def to_ticks_exact(price: float, symbol: str) -> int:
     a client asking for 100.005 on a 2-decimal symbol gets a resting order at
     100.00 or 100.01 and is never told. This is the checking variant that the
     order-entry edges use.
-
-    The check cannot be ``price % tick == 0``. Prices arrive as binary floats,
-    where a value a client both meant and typed exactly is routinely off by
-    an ulp or two, so an exact test rejects almost everything. Compare the
-    scaled value against its own rounding instead, within `_TICK_EPSILON`.
 
     The grid it checks against is whatever ``get_tick_decimals`` reports, so
     for an unregistered symbol that is the two-decimal default. Deciding
@@ -129,15 +156,7 @@ def to_ticks_exact(price: float, symbol: str) -> int:
     Raises:
         TickViolation: if *price* is not on the symbol's tick grid.
     """
-    scale = _to_scale_cache.get(symbol)
-    if scale is None:
-        scale = 10 ** get_tick_decimals(symbol)
-        _to_scale_cache[symbol.upper()] = scale
-    scaled = price * scale
-    ticks = round(scaled)
-    if abs(scaled - ticks) > _TICK_EPSILON:
-        raise TickViolation(price, symbol)
-    return int(ticks)
+    return to_ticks_exact_at(price, get_tick_decimals(symbol), symbol)
 
 
 def to_ticks_exact_or_none(price: Optional[float], symbol: str) -> Optional[int]:

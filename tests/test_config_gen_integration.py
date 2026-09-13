@@ -1098,7 +1098,7 @@ def test_combo_round_trips_through_loader(
             "--gateways",
             "TRADER01",
             "--combo",
-            "SEED-PAIR:AON:DAY:AAPL/BUY/LIMIT/100/20950,MSFT/SELL/LIMIT/50/41550",
+            "SEED-PAIR:AON:DAY:AAPL/BUY/LIMIT/100/209.50,MSFT/SELL/LIMIT/50/415.50",
             "--output",
             str(out_file),
         ],
@@ -1110,6 +1110,8 @@ def test_combo_round_trips_through_loader(
     assert len(combo.legs) == 2
     assert combo.legs[0].symbol == "AAPL"
     assert combo.legs[1].symbol == "MSFT"
+    assert combo.legs[0].price_ticks == 20950
+    assert combo.legs[1].price_ticks == 41550
 
 
 def test_combo_unknown_symbol_fails(
@@ -1127,7 +1129,7 @@ def test_combo_unknown_symbol_fails(
                 "--gateways",
                 "TRADER01",
                 "--combo",
-                "PAIR:AON:DAY:AAPL/BUY/LIMIT/100/20950,UNKNOWN/SELL/LIMIT/50/41550",
+                "PAIR:AON:DAY:AAPL/BUY/LIMIT/100/209.50,UNKNOWN/SELL/LIMIT/50/415.50",
                 "--dry-run",
             ],
         )
@@ -1151,7 +1153,7 @@ def test_combo_duplicate_leg_symbol_fails(
                 "--gateways",
                 "TRADER01",
                 "--combo",
-                "PAIR:AON:DAY:AAPL/BUY/LIMIT/100/20950,AAPL/SELL/LIMIT/50/41550",
+                "PAIR:AON:DAY:AAPL/BUY/LIMIT/100/209.50,AAPL/SELL/LIMIT/50/415.50",
                 "--dry-run",
             ],
         )
@@ -1174,37 +1176,12 @@ def test_combo_too_few_legs_fails(
                 "--gateways",
                 "TRADER01",
                 "--combo",
-                "PAIR:AON:DAY:AAPL/BUY/LIMIT/100/20950",
+                "PAIR:AON:DAY:AAPL/BUY/LIMIT/100/209.50",
                 "--dry-run",
             ],
         )
     assert exc_info.value.code == 2
     assert "2 legs" in capsys.readouterr().err
-
-
-def test_combo_leg_decimal_price_converts_to_ticks(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    out_file = tmp_path / "engine_config.yaml"
-    _run_main(
-        monkeypatch,
-        [
-            "--symbols",
-            "AAPL",
-            "MSFT",
-            "--gateways",
-            "TRADER01",
-            "--combo",
-            "SEED-PAIR:AON:DAY:AAPL/BUY/LIMIT/100/209.50,MSFT/SELL/LIMIT/50/415.50",
-            "--output",
-            str(out_file),
-        ],
-    )
-    cfg = load_engine_config(out_file)
-    combo = cfg.market_maker_combos[0]
-    assert combo.legs[0].price_ticks == 20950
-    assert combo.legs[1].price_ticks == 41550
 
 
 def test_combo_leg_decimal_price_honours_per_symbol_tick_decimals(
@@ -1234,6 +1211,31 @@ def test_combo_leg_decimal_price_honours_per_symbol_tick_decimals(
     assert combo.legs[1].price_ticks == 41550  # MSFT default tick_decimals=2
 
 
+def test_combo_leg_price_off_the_tick_grid_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """pm-config-gen must not write a file its own loader would refuse."""
+    import pytest as _pytest
+
+    with _pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "MSFT",
+                "--gateways",
+                "TRADER01",
+                "--combo",
+                "PAIR:AON:DAY:AAPL/BUY/LIMIT/100/209.505,MSFT/SELL/LIMIT/50/415.50",
+                "--dry-run",
+            ],
+        )
+    assert exc_info.value.code == 2
+    assert "tick size" in capsys.readouterr().err
+
+
 def test_combo_leg_price_bad_decimal_fails(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -1250,7 +1252,7 @@ def test_combo_leg_price_bad_decimal_fails(
                 "--gateways",
                 "TRADER01",
                 "--combo",
-                "PAIR:AON:DAY:AAPL/BUY/LIMIT/100/1.2.3,MSFT/SELL/LIMIT/50/1",
+                "PAIR:AON:DAY:AAPL/BUY/LIMIT/100/1.2.3,MSFT/SELL/LIMIT/50/1.00",
                 "--dry-run",
             ],
         )

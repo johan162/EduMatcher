@@ -925,7 +925,7 @@ class Engine:
                     quantity=quote_seed.bid_qty,
                     gateway_id=gateway_id,
                     tif=quote_seed.tif,
-                    price_ticks=to_ticks(quote_seed.bid_price, sym),
+                    price_ticks=quote_seed.bid_price_ticks,
                     is_seed=True,
                 )
                 ask = Order.create(
@@ -935,7 +935,7 @@ class Engine:
                     quantity=quote_seed.ask_qty,
                     gateway_id=gateway_id,
                     tif=quote_seed.tif,
-                    price_ticks=to_ticks(quote_seed.ask_price, sym),
+                    price_ticks=quote_seed.ask_price_ticks,
                     is_seed=True,
                 )
                 bid.origin = OrderOrigin.QUOTE
@@ -1062,8 +1062,10 @@ class Engine:
                 n_mm_quotes += 1
                 log.info(
                     f"MM quote {quote_id} {sym} "
-                    f"bid={quote_seed.bid_price}x{quote_seed.bid_qty} "
-                    f"ask={quote_seed.ask_price}x{quote_seed.ask_qty} "
+                    f"bid={from_ticks(quote_seed.bid_price_ticks, sym)}"
+                    f"x{quote_seed.bid_qty} "
+                    f"ask={from_ticks(quote_seed.ask_price_ticks, sym)}"
+                    f"x{quote_seed.ask_qty} "
                     f"gw={gateway_id}"
                 )
 

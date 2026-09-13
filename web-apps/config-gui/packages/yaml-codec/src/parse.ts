@@ -574,10 +574,8 @@ function parseCombos(node: unknown, draft: EngineConfigDraft): void {
     const legs = Array.isArray(entry.legs)
       ? entry.legs.filter(isDict).map((leg) => {
           const symbol = asString(leg.symbol) ?? "";
-          const td = draft.symbols[symbol]?.tickDecimals ?? draft.tickDecimals;
-          const factor = Math.pow(10, td);
-          const priceTicks = asNumber(leg.price);
-          const stopTicks = asNumber(leg.stop_price);
+          const price = asNumber(leg.price);
+          const stopPrice = asNumber(leg.stop_price);
           return {
             symbol,
             side: (asString(leg.side) as "BUY" | "SELL") ?? "BUY",
@@ -586,8 +584,8 @@ function parseCombos(node: unknown, draft: EngineConfigDraft): void {
                 leg.order_type,
               ) as ComboConfig["legs"][number]["orderType"]) ?? "LIMIT",
             quantity: asNumber(leg.quantity) ?? 0,
-            price: priceTicks === undefined ? null : priceTicks / factor,
-            stopPrice: stopTicks === undefined ? null : stopTicks / factor,
+            price: price ?? null,
+            stopPrice: stopPrice ?? null,
             smpAction:
               (asString(
                 leg.smp_action,

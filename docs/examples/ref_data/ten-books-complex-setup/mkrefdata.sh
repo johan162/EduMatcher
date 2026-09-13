@@ -148,8 +148,9 @@ SPECIFIC_ARGS=(
 # Pass 1: generate base config to obtain seeded MM quote / last-price values.
 "${CONFIG_GEN[@]}" "${COMMON_ARGS[@]}" "${SPECIFIC_ARGS[@]}"
 
-# Extract integer tick prices from the seeded last_buy_price fields
-# (tick_decimals=2, so display price × 100 gives integer ticks).
+# Reuse the seeded last_buy_price values as the combo leg prices. Both are
+# display money, so there is nothing to convert - and a seeded price is
+# already on the symbol's tick grid, which pm-config-gen requires.
 combo_a="${SYMBOLS[0]}"
 combo_b="${SYMBOLS[1]}"
 combo_price_a="$(awk -v symbol="$combo_a" '
@@ -160,7 +161,7 @@ in_symbols && $0 ~ /^  [A-Z0-9_.-]+:$/ {
   next
 }
 in_symbols && current == symbol && $1 == "last_buy_price:" {
-  printf "%d\n", (($2 + 0) * 100) + 0.5
+  print $2
   exit
 }
 ' engine_config.yaml)"
@@ -172,7 +173,7 @@ in_symbols && $0 ~ /^  [A-Z0-9_.-]+:$/ {
   next
 }
 in_symbols && current == symbol && $1 == "last_buy_price:" {
-  printf "%d\n", (($2 + 0) * 100) + 0.5
+  print $2
   exit
 }
 ' engine_config.yaml)"

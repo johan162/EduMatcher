@@ -26,7 +26,7 @@ export function CombosTab() {
     <Panel
       tabId="combos"
       title="Combos (Seed Orders)"
-      intro="Multi-leg startup seed orders. Each combo needs 2–10 legs across distinct symbols. Prices are entered as decimal display values and converted to ticks on export using each symbol's precision."
+      intro="Multi-leg startup seed orders. Each combo needs 2–10 legs across distinct symbols. Prices are decimal display values and must sit on each leg symbol's tick grid."
       actions={
         <button
           type="button"

@@ -498,8 +498,8 @@ class TestLoadConfigWithMMOrders:
                 "AAPL": [
                     MMQuoteSeed(
                         gateway_id="GW01",
-                        bid_price=99.0,
-                        ask_price=101.0,
+                        bid_price_ticks=9900,
+                        ask_price_ticks=10100,
                         bid_qty=200,
                         ask_qty=200,
                         tif=TIF.GTC,
@@ -536,8 +536,8 @@ class TestLoadConfigWithMMOrders:
             market_maker_quotes=[
                 MMQuoteSeed(
                     gateway_id="GW01",
-                    bid_price=1.23450,
-                    ask_price=1.23470,
+                    bid_price_ticks=12345,
+                    ask_price_ticks=12347,
                     bid_qty=200,
                     ask_qty=300,
                     tif=TIF.GTC,
@@ -607,8 +607,8 @@ class TestLoadConfigWithMMOrders:
                 "AAPL": [
                     MMQuoteSeed(
                         gateway_id="GW01",
-                        bid_price=99.0,
-                        ask_price=101.0,
+                        bid_price_ticks=9900,
+                        ask_price_ticks=10100,
                         bid_qty=200,
                         ask_qty=200,
                         tif=TIF.GTC,

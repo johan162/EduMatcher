@@ -270,8 +270,9 @@ class ComboLegSpec:
     side: str
     order_type: str
     quantity: int
-    price: int | None = None
-    stop_price: int | None = None
+    #: Display money, like every price in engine_config.yaml.
+    price: float | None = None
+    stop_price: float | None = None
     smp_action: str = "NONE"
 
 

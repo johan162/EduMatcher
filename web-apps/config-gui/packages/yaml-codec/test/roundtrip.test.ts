@@ -377,7 +377,7 @@ describe("buildConfigDocument", () => {
     });
   });
 
-  it("converts combo leg decimal prices to ticks using tick_decimals", () => {
+  it("emits combo leg prices as the display money they were entered as", () => {
     const draft = twoTraderExchange();
     draft.combos = [
       {
@@ -405,8 +405,8 @@ describe("buildConfigDocument", () => {
       },
     ];
     const doc = buildConfigDocument(draft) as any;
-    expect(doc.market_maker_combos[0].legs[0].price).toBe(20950);
-    expect(doc.market_maker_combos[0].legs[1].price).toBe(21050);
+    expect(doc.market_maker_combos[0].legs[0].price).toBe(209.5);
+    expect(doc.market_maker_combos[0].legs[1].price).toBe(210.5);
   });
 });
 

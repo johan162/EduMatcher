@@ -24,11 +24,6 @@ import {
 
 export type PlainConfig = Record<string, unknown>;
 
-/** Convert a decimal display price to integer ticks using the given precision. */
-export function priceToTicks(price: number, tickDecimals: number): number {
-  return Math.round(price * Math.pow(10, tickDecimals));
-}
-
 function marketMakerGatewayIds(draft: EngineConfigDraft): string[] {
   return draft.gateways
     .filter((g) => g.role === "MARKET_MAKER")
@@ -340,36 +335,20 @@ function buildIndices(draft: EngineConfigDraft): PlainConfig[] {
   }));
 }
 
-function effectiveTickDecimals(
-  draft: EngineConfigDraft,
-  symbol: string,
-): number {
-  return draft.symbols[symbol]?.tickDecimals ?? draft.tickDecimals;
-}
-
 function buildCombos(draft: EngineConfigDraft): PlainConfig[] {
   return draft.combos.map((combo) => ({
     combo_id: combo.comboId,
     combo_type: combo.comboType,
     tif: combo.tif,
-    legs: combo.legs.map((leg) => {
-      const td = effectiveTickDecimals(draft, leg.symbol);
-      return {
-        symbol: leg.symbol,
-        side: leg.side,
-        order_type: leg.orderType,
-        quantity: leg.quantity,
-        price:
-          leg.price === null || leg.price === undefined
-            ? null
-            : priceToTicks(leg.price, td),
-        stop_price:
-          leg.stopPrice === null || leg.stopPrice === undefined
-            ? null
-            : priceToTicks(leg.stopPrice, td),
-        smp_action: leg.smpAction,
-      };
-    }),
+    legs: combo.legs.map((leg) => ({
+      symbol: leg.symbol,
+      side: leg.side,
+      order_type: leg.orderType,
+      quantity: leg.quantity,
+      price: leg.price ?? null,
+      stop_price: leg.stopPrice ?? null,
+      smp_action: leg.smpAction,
+    })),
   }));
 }
 
