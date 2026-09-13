@@ -32,6 +32,7 @@ from edumatcher.models.generated.quote import (
     PREFIX_QUOTE_ACK,
     PREFIX_QUOTE_STATUS,
 )
+from edumatcher.models.generated.registry import TOPIC_REGISTRY
 from edumatcher.models.generated.system import (
     PREFIX_GATEWAY_AUTH,
     PREFIX_QUOTE_BOOTSTRAP,
@@ -54,6 +55,21 @@ SYSTEM_SYMBOLS_PREFIX = PREFIX_SYMBOLS
 #: checks this prefix before the private/market-data split so it only ever
 #: reaches admin monitor sinks.
 ADMIN_ACTION_PREFIX = PREFIX_ADMIN_ACTION
+
+#: Topics a *client* sends to the engine, which the engine now re-publishes so
+#: the audit trail contains them (engine/main.py::_echo_command). They must
+#: reach no client stream: one trader's order intent is not market data, and it
+#: is not addressed to any gateway the way an ack is.
+#:
+#: Read from the spec rather than listed here. Every one of these travels on
+#: `engine_push`, and nothing else does, so the set maintains itself as the
+#: message families grow -- which matters because the failure mode of a missing
+#: entry is a silent leak, not an error.
+COMMAND_TOPICS: frozenset[str] = frozenset(
+    topic
+    for topic, entry in TOPIC_REGISTRY.items()
+    if "engine_push" in entry["transport"]
+)
 
 PRIVATE_PREFIXES = (
     ORDER_ACK_PREFIX,

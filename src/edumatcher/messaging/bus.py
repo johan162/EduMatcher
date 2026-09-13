@@ -183,6 +183,24 @@ class CausalPublisher:
         env = self.current_envelope()
         return self._inner.send_multipart([*frames, env.to_frame()], *args, **kwargs)
 
+    def send_with_envelope(self, frames: list[bytes], envelope_frame: bytes) -> Any:
+        """Publish carrying an envelope minted elsewhere, verbatim.
+
+        For re-publishing a message this process *received* rather than
+        originated. ``send_multipart`` would stamp a fresh id caused by the
+        message being republished — making it, absurdly, its own child. The
+        recorded copy has to keep the sender's ``msg_id``, for two reasons:
+        it is the id every effect's ``causation_id`` already names, and it
+        was minted at send time, so the copy sorts into the order the sender
+        acted rather than the order this process got round to recording it.
+        That second property is what lets a recorder re-publish off the
+        latency-critical path without misordering the record.
+
+        The frame goes last, so ``SequencedPublisher`` still inserts its
+        per-topic sequence at index 2 and the wire shape is unchanged.
+        """
+        return self._inner.send_multipart([*frames, envelope_frame])
+
     # The socket surface callers actually use, declared rather than left to
     # __getattr__. __getattr__ keeps working for everything else, but a
     # *declared* member is what lets these wrappers satisfy `PushSocket`
