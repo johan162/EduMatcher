@@ -555,6 +555,13 @@ class CalfClient:
         if has_snapshot(gap.channel):
             return
 
+        log.info(
+            "gap on (%s,%s): %d..%d missing; not resumable, reporting to caller",
+            gap.channel,
+            gap.symbol,
+            gap.first_seq,
+            gap.last_seq,
+        )
         if on_gap is not None:
             on_gap(Gap(gap.channel, gap.symbol, gap.first_seq, gap.last_seq, ts))
 

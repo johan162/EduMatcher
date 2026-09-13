@@ -1217,13 +1217,23 @@ class TestOrderCancelValidation:
 class TestComboLegValidation:
     def test_valid_market(self) -> None:
         _assert_validates(
-            ORD.ComboLeg(symbol="AAPL", side="BUY", order_type="MARKET", quantity=100)
+            ORD.ComboLeg(
+                symbol="AAPL",
+                tick_decimals=2,
+                side="BUY",
+                order_type="MARKET",
+                quantity=100,
+            )
         )
 
     def test_symbol_too_long(self) -> None:
         _assert_rejects(
             ORD.ComboLeg(
-                symbol="X" * 17, side="BUY", order_type="MARKET", quantity=100
+                symbol="X" * 17,
+                tick_decimals=2,
+                side="BUY",
+                order_type="MARKET",
+                quantity=100,
             ),
             "symbol",
         )
@@ -1231,7 +1241,12 @@ class TestComboLegValidation:
     def test_quantity_zero(self) -> None:
         _assert_rejects(
             ORD.ComboLeg(
-                symbol="AAPL", side="BUY", order_type="LIMIT", quantity=0, price=100
+                symbol="AAPL",
+                tick_decimals=2,
+                side="BUY",
+                order_type="LIMIT",
+                quantity=0,
+                price_ticks=100,
             ),
             "quantity",
         )

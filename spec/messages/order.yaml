@@ -44,12 +44,14 @@ types:
       - { name: order_type, type: enum,
           values: [MARKET, LIMIT, STOP, STOP_LIMIT, FOK, ICEBERG, IOC,
                    TRAILING_STOP] }
-      - { name: price, type: ticks, unit: ticks, required: false,
+      - { name: price_ticks, type: ticks, unit: ticks, required: false,
           nullable: true, omit_when_none: true,
-          doc: "Limit price in engine ticks. Absent for a leg with none." }
-      - { name: stop_price, type: ticks, unit: ticks, required: false,
+          doc: "Limit price in engine ticks. Absent for a leg with none.
+                The scale is `order.oco.tick_decimals`: both legs trade one
+                instrument, so one scale covers the pair." }
+      - { name: stop_price_ticks, type: ticks, unit: ticks, required: false,
           nullable: true, omit_when_none: true }
-      - { name: trail_offset, type: ticks, unit: ticks, required: false,
+      - { name: trail_offset_ticks, type: ticks, unit: ticks, required: false,
           nullable: true, omit_when_none: true }
 
   ComboLeg:
@@ -66,10 +68,20 @@ types:
           values: [MARKET, LIMIT, STOP, STOP_LIMIT, FOK, ICEBERG, IOC,
                    TRAILING_STOP] }
       - { name: quantity, type: int, unit: shares, validate: { gt: 0 } }
-      - { name: price, type: ticks, unit: ticks, required: false,
+      - name: tick_decimals
+        type: int
+        unit: dimensionless
+        validate: { ge: 0, le: 8 }
+        doc: >
+          Decimal scale for this leg's tick prices; 1 tick = 10^-tick_decimals.
+          Per leg rather than on the combo, because a combo's legs trade
+          different instruments and two instruments need not share a scale -
+          which is exactly the distinction that makes ComboLeg a separate
+          record from OcoLeg.
+      - { name: price_ticks, type: ticks, unit: ticks, required: false,
           nullable: true,
           doc: "Limit price in engine ticks; null for a leg with none." }
-      - { name: stop_price, type: ticks, unit: ticks, required: false,
+      - { name: stop_price_ticks, type: ticks, unit: ticks, required: false,
           nullable: true }
       - name: smp_action
         type: enum
@@ -811,7 +823,7 @@ messages:
 
   - name: order_new
     topic: "order.new"
-    transport: [engine_pub]
+    transport: [engine_pub, engine_push]
     doc:
       motivation: >
         Submit a new order to the matching engine. Sent over PUSH/PULL rather
@@ -823,8 +835,8 @@ messages:
       example_note: >
         The payload is exactly Order.to_dict(). Eleven fields are nullable and
         are emitted as null when unset rather than omitted - a MARKET order
-        carries "price": null. The engine's Order.from_dict reads absent and
-        null alike, so a producer that omits them is still accepted.
+        carries "price_ticks": null. The engine's Order.from_dict reads absent
+        and null alike, so a producer that omits them is still accepted.
     fields:
       - { name: id, type: string, doc: "Engine order id; a UUID string.",
           validate: { max_len: 64 } }
@@ -840,12 +852,24 @@ messages:
           doc: "Quantity yet to be filled; equals quantity on submission.",
           validate: { ge: 0 } }
       - { name: gateway_id, type: string, validate: { max_len: 32 } }
-      - { name: trail_offset, type: ticks, unit: ticks, required: false,
+      - name: tick_decimals
+        type: int
+        unit: dimensionless
+        validate: { ge: 0, le: 8 }
+        doc: >
+          Decimal scale for every `_ticks` field below; 1 tick =
+          10^-tick_decimals. Carried so a reader can turn a tick price into
+          money from this message alone. Without it the scale has to be
+          recovered from a `book` or `trade.executed` for the same symbol,
+          which a reader of a *window* of the audit trail may not have - the
+          snapshot that declared it is usually at session start, hours
+          outside the window being read.
+      - { name: trail_offset_ticks, type: ticks, unit: ticks, required: false,
           nullable: true,
           doc: "TRAILING_STOP: fixed distance to trail the market price." }
       - { name: oco_group_id, type: string, required: false, nullable: true,
           validate: { max_len: 64 } }
-      - name: timestamp
+      - name: ts_ns
         type: int
         unit: epoch_nanos
         validate: { ge: 0 }
@@ -856,10 +880,10 @@ messages:
       - { name: status, type: enum,
           values: [NEW, PARTIAL, FILLED, CANCELLED, REJECTED, EXPIRED],
           doc: "Always NEW on submission; the enum is the full lifecycle." }
-      - { name: price, type: ticks, unit: ticks, required: false,
+      - { name: price_ticks, type: ticks, unit: ticks, required: false,
           nullable: true,
           doc: "Limit price in ticks. Null for MARKET, which has none." }
-      - { name: stop_price, type: ticks, unit: ticks, required: false,
+      - { name: stop_price_ticks, type: ticks, unit: ticks, required: false,
           nullable: true, doc: "STOP / STOP_LIMIT / TRAILING_STOP trigger." }
       - { name: visible_qty, type: int, unit: shares, required: false,
           nullable: true, doc: "ICEBERG: fixed peak size." }
@@ -908,7 +932,7 @@ messages:
 
   - name: order_cancel
     topic: "order.cancel"
-    transport: [engine_pub]
+    transport: [engine_pub, engine_push]
     doc:
       motivation: "Request cancellation of one resting order by id."
       published_by: [gateway]
@@ -931,7 +955,7 @@ messages:
 
   - name: order_amend
     topic: "order.amend"
-    transport: [engine_pub]
+    transport: [engine_pub, engine_push]
     doc:
       motivation: "Request a price and/or quantity change to a resting order."
       published_by: [gateway]
@@ -987,7 +1011,7 @@ messages:
 
   - name: order_combo_cancel
     topic: "order.combo_cancel"
-    transport: [engine_pub]
+    transport: [engine_pub, engine_push]
     doc:
       motivation: "Cancel a combo order and all of its resting child legs."
       published_by: [gateway]
@@ -1004,7 +1028,7 @@ messages:
 
   - name: order_combo
     topic: "order.combo"
-    transport: [engine_pub]
+    transport: [engine_pub, engine_push]
     doc:
       motivation: >
         Submit a combo: two or more orders on different instruments that the
@@ -1045,7 +1069,7 @@ messages:
 
   - name: order_oco
     topic: "order.oco"
-    transport: [engine_pub]
+    transport: [engine_pub, engine_push]
     doc:
       motivation: >
         Submit a One-Cancels-Other pair: two orders on the same instrument, of
@@ -1055,7 +1079,8 @@ messages:
       see_also: ["oco.ack.{GW_ID}", "order.oco_cancel"]
       example_note: >
         The first message in any spec to use a nested record. Both legs are
-        `OcoLeg`, and their prices are engine ticks - the gateway converts.
+        `OcoLeg`, and their prices are engine ticks at `tick_decimals` - the
+        gateway converts.
         A leg omits a price it does not have rather than sending null, which
         is what the three producing gateways already do.
     fields:
@@ -1068,6 +1093,16 @@ messages:
           validate: { max_len: 32 } }
       - { name: symbol, type: string, required: false, default: "",
           doc: "Both legs trade this instrument.", validate: { max_len: 16 } }
+      - name: tick_decimals
+        type: int
+        unit: dimensionless
+        required: false
+        default: 0
+        validate: { ge: 0, le: 8 }
+        doc: >
+          Decimal scale for both legs' `_ticks` prices; 1 tick =
+          10^-tick_decimals. One value for the pair rather than one per leg,
+          because both legs trade the instrument named above.
       - { name: quantity, type: int, unit: shares, required: false, default: 0,
           doc: "Size of each leg; they are equal by construction." }
       - { name: tif, type: enum, values: [DAY, GTC, ATO, ATC],
@@ -1085,7 +1120,7 @@ messages:
 
   - name: order_oco_cancel
     topic: "order.oco_cancel"
-    transport: [engine_pub]
+    transport: [engine_pub, engine_push]
     doc:
       motivation: "Cancel an OCO pair and both of its legs."
       published_by: [gateway]
@@ -1107,7 +1142,7 @@ messages:
   # --------------------------------------------------------------------------
   - name: orders_request
     topic: "order.orders_request"
-    transport: [engine_pub]
+    transport: [engine_push]
     doc:
       motivation: >
         Caller to engine: the resting (unfilled, non-cancelled) orders a
@@ -1120,7 +1155,7 @@ messages:
           doc: "Whose resting orders to return, and the reply's correlation
                 key." }
     encoding:
-      engine_pub: { frames: [topic, json_payload] }
+      engine_push: { frames: [topic, json_payload] }
 
   - name: orders
     topic: "order.orders.{gateway_id}"
@@ -1158,7 +1193,7 @@ messages:
   # --------------------------------------------------------------------------
   - name: price_level_orders_request
     topic: "order.price_level_orders_request"
-    transport: [engine_pub]
+    transport: [engine_push]
     doc:
       motivation: >
         ADMIN to engine: every resting order for one symbol, across every
@@ -1182,7 +1217,7 @@ messages:
                 null returns every resting order for the symbol, across all
                 price levels." }
     encoding:
-      engine_pub: { frames: [topic, json_payload] }
+      engine_push: { frames: [topic, json_payload] }
 
   - name: price_level_orders
     topic: "order.price_level_orders.{gateway_id}"

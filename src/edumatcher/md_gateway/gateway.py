@@ -606,6 +606,13 @@ class MarketDataGateway:
         try:
             lines = self._replay.replay_since(ch, sym, last_seq)
         except ReplayMissError:
+            log.debug(
+                "[fd=%d] replay miss ch=%s sym=%s last_seq=%s",
+                session.sock.fileno(),
+                ch,
+                sym,
+                last_seq,
+            )
             self._queue_line(
                 session,
                 "ERR",

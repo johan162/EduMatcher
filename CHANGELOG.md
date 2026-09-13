@@ -1,3 +1,41 @@
+## [v0.38.0] - 2026-09-13
+
+Release Type: major
+
+### 📋 Summary
+This release introduces Phase 1 of `pm-audit-replay` for deterministic session replay and anomaly detection, establishes consistent display money formatting across `engine_config.yaml` combo definitions, and ensures tick prices carry explicit unit and scale information across messages.
+Some of the additional work to handle additional messages in the hot-path has reduced engine TPS but proof of correctness will always 
+be more important than speed.
+
+### ⚠️ Breaking Changes
+- Combo leg prices in `engine_config.yaml` are now specified in display money (e.g. `10.50`) instead of raw integer ticks, unifying price representations across all configuration sections. Existing combo configs specifying raw integer ticks must be updated to display prices
+
+### ✨ Additions
+- Added `pm-audit-replay` (Phase 1) CLI and engine to verify audit stream ordering, reconstruct session facts, and detect sequencing anomalies
+- Added `--follow` (`-f`) flag to `pm-audit-cli` to stream and tail live audit log entries in real-time
+- Added `--debug` flag to `pm-opctl-cli start` for configurable debug-level subsystem logging
+- Added public cross-family topic registry generator in `msgen` for topic discovery and validation
+- Added comprehensive DEBUG-level logging across matching engine, auction processing, and ALF console
+
+### 🚀 Improvements
+- Standardized tick price representation in message specifications so prices carry explicit unit and scale context
+- Unified `order.ack` and `order.fill` message prices to consistently use display money
+- Enhanced audit trail capture to record inbound commands and maintain causal chain links across edge boundaries
+
+### 🐛 Bug Fixes
+- Fixed loss of causality headers and edge messages in the audit trail
+- Fixed transport declaration for inbound commands in message specifications
+- Fixed performance benchmark harness to measure the publisher directly this gave tooptimistic figures.
+
+### 📚 Documentation
+- Updated message reference documentation to reflect tick scale and price unit definitions
+- Documented logging levels and opctl debug options
+- Preserved `--mathml` Pandoc compatibility for macOS environments
+
+### 🛠 Internal
+- Added test coverage for `pm-opctl-cli` and `pm-audit-replay` ordering and golden scenarios
+
+
 ## [v0.37.0] - 2026-09-11
 
 Release Type: major

@@ -123,8 +123,8 @@ def _payload(
         quantity=qty,
         gateway_id=gateway_id,
         tif=tif,
-        price=price,
-        stop_price=stop_price,
+        price_ticks=price,
+        stop_price_ticks=stop_price,
     )
     return o.to_dict()
 
@@ -153,7 +153,7 @@ def _rest_limit(
         order_type=OrderType.LIMIT,
         quantity=qty,
         gateway_id=gw,
-        price=price_ticks,
+        price_ticks=price_ticks,
     )
     book.process(o, match=False)
     return o
@@ -261,7 +261,7 @@ class TestC3SmpCancelledAggressorNotRested:
             order_type=OrderType.LIMIT,
             quantity=100,
             gateway_id="GW01",
-            price=10000,
+            price_ticks=10000,
         )
         book.process(resting)
 
@@ -271,7 +271,7 @@ class TestC3SmpCancelledAggressorNotRested:
             order_type=OrderType.LIMIT,
             quantity=100,
             gateway_id="GW01",  # same gateway → SMP fires
-            price=10000,
+            price_ticks=10000,
             smp_action=smp_action,
         )
         book.process(aggressor)
@@ -386,8 +386,9 @@ class TestC5OcoImmediateFillRace:
                 "symbol": SYMBOL,
                 "quantity": 100,
                 "tif": "DAY",
-                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 10000},
-                "leg2": {"side": "SELL", "order_type": "LIMIT", "price": 12000},
+                "tick_decimals": 2,
+                "leg1": {"side": "BUY", "order_type": "LIMIT", "price_ticks": 10000},
+                "leg2": {"side": "SELL", "order_type": "LIMIT", "price_ticks": 12000},
             }
         )
 
@@ -424,8 +425,9 @@ class TestC5OcoImmediateFillRace:
                 "symbol": SYMBOL,
                 "quantity": 100,
                 "tif": "DAY",
-                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 10000},
-                "leg2": {"side": "SELL", "order_type": "LIMIT", "price": 12000},
+                "tick_decimals": 2,
+                "leg1": {"side": "BUY", "order_type": "LIMIT", "price_ticks": 10000},
+                "leg2": {"side": "SELL", "order_type": "LIMIT", "price_ticks": 12000},
             }
         )
         acks = [m for m in _msgs(pub, "oco.ack.GW01") if m.get("accepted")]
@@ -460,8 +462,8 @@ def _trailing_stop(tif: TIF = TIF.DAY) -> Order:
         quantity=100,
         gateway_id="GW01",
         tif=tif,
-        stop_price=9900,  # ticks
-        trail_offset=100,  # ticks
+        stop_price_ticks=9900,  # ticks
+        trail_offset_ticks=100,  # ticks
     )
 
 
@@ -516,7 +518,7 @@ class TestC7IcebergDisplayedSliceSemantics:
             order_type=OrderType.ICEBERG,
             quantity=100,
             gateway_id="GW1",
-            price=10000,
+            price_ticks=10000,
             visible_qty=10,
         )
         book.process(iceberg)
@@ -526,7 +528,7 @@ class TestC7IcebergDisplayedSliceSemantics:
             order_type=OrderType.LIMIT,
             quantity=200,
             gateway_id="GW3",
-            price=10000,
+            price_ticks=10000,
         )
         book.process(plain)
         return book, iceberg, plain
@@ -540,7 +542,7 @@ class TestC7IcebergDisplayedSliceSemantics:
             order_type=OrderType.LIMIT,
             quantity=50,
             gateway_id="GW2",
-            price=10000,
+            price_ticks=10000,
         )
         book.process(buy)
 
@@ -564,7 +566,7 @@ class TestC7IcebergDisplayedSliceSemantics:
             order_type=OrderType.LIMIT,
             quantity=50,
             gateway_id="GW2",
-            price=10000,
+            price_ticks=10000,
         )
         book.process(buy)
 

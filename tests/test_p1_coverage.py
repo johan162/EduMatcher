@@ -42,7 +42,7 @@ def _limit(
         quantity=qty,
         gateway_id=gateway_id,
         tif=tif,
-        price=price,
+        price_ticks=price,
         smp_action=smp_action,
         visible_qty=visible_qty,
     )
@@ -300,7 +300,7 @@ def _iceberg(
         quantity=total_qty,
         gateway_id=gateway_id,
         tif=TIF.DAY,
-        price=price,
+        price_ticks=price,
         smp_action=smp_action,
         visible_qty=visible_qty,
     )
@@ -320,7 +320,7 @@ def _fok(
         quantity=qty,
         gateway_id=gateway_id,
         tif=TIF.DAY,
-        price=price,
+        price_ticks=price,
         smp_action=smp_action,
     )
 
@@ -681,7 +681,7 @@ class TestBookCancel:
             order_type=OrderType.STOP,
             quantity=100,
             gateway_id="GW1",
-            stop_price=105.0,
+            stop_price_ticks=105.0,
         )
         book.process(stop)
 
@@ -718,7 +718,7 @@ class TestGtcPersistence:
             quantity=100,
             gateway_id="GW1",
             tif=TIF.GTC,
-            price=150.0,
+            price_ticks=150.0,
         )
         save_gtc_orders([order], path)
         loaded = load_gtc_orders(path)
@@ -727,7 +727,7 @@ class TestGtcPersistence:
         assert loaded[0].id == order.id
         assert loaded[0].symbol == "AAPL"
         assert loaded[0].side == Side.BUY
-        assert loaded[0].price == 150.0
+        assert loaded[0].price_ticks == 150.0
         assert loaded[0].quantity == 100
         assert loaded[0].remaining_qty == 100
         assert loaded[0].tif == TIF.GTC
@@ -743,13 +743,13 @@ class TestGtcPersistence:
             quantity=100,
             gateway_id="GW1",
             tif=TIF.GTC,
-            price=150.0,
+            price_ticks=150.0,
         )
-        original_ts = order.timestamp
+        original_ts = order.ts_ns
         save_gtc_orders([order], path)
         loaded = load_gtc_orders(path)
 
-        assert loaded[0].timestamp == original_ts
+        assert loaded[0].ts_ns == original_ts
 
     def test_partial_order_persisted(self, tmp_path):
         """PARTIAL-status GTC orders are also saved."""
@@ -761,7 +761,7 @@ class TestGtcPersistence:
             quantity=200,
             gateway_id="GW1",
             tif=TIF.GTC,
-            price=150.0,
+            price_ticks=150.0,
         )
         # Simulate partial fill
         order.remaining_qty = 100
@@ -789,7 +789,7 @@ class TestGtcPersistence:
             quantity=100,
             gateway_id="GW1",
             tif=TIF.DAY,
-            price=150.0,
+            price_ticks=150.0,
         )
         gtc_order = Order.create(
             symbol="AAPL",
@@ -798,7 +798,7 @@ class TestGtcPersistence:
             quantity=50,
             gateway_id="GW1",
             tif=TIF.GTC,
-            price=149.0,
+            price_ticks=149.0,
         )
         save_gtc_orders([day_order, gtc_order], path)
         loaded = load_gtc_orders(path)
@@ -816,7 +816,7 @@ class TestGtcPersistence:
             quantity=100,
             gateway_id="GW1",
             tif=TIF.GTC,
-            price=150.0,
+            price_ticks=150.0,
         )
         order.status = OrderStatus.FILLED
         order.remaining_qty = 0
@@ -836,7 +836,7 @@ class TestGtcPersistence:
             quantity=100,
             gateway_id="GW1",
             tif=TIF.GTC,
-            price=150.0,
+            price_ticks=150.0,
         )
         order.status = OrderStatus.CANCELLED
 
@@ -869,7 +869,7 @@ class TestGtcPersistence:
                 quantity=100,
                 gateway_id="GW1",
                 tif=TIF.GTC,
-                price=p,
+                price_ticks=p,
             )
             for sym, p in [("AAPL", 150.0), ("MSFT", 400.0), ("GOOG", 170.0)]
         ]
@@ -890,7 +890,7 @@ class TestGtcPersistence:
             quantity=100,
             gateway_id="GW1",
             tif=TIF.GTC,
-            price=150.0,
+            price_ticks=150.0,
         )
         save_gtc_orders([order], path)
         loaded = load_gtc_orders(path)
@@ -933,7 +933,7 @@ class TestIcebergReplenishment:
         """Replenished iceberg gets a new timestamp (back of price-time queue)."""
         book = OrderBook("AAPL")
         iceberg = _limit(Side.BUY, 100.0, qty=300, visible_qty=100)
-        original_ts = iceberg.timestamp
+        original_ts = iceberg.ts_ns
         book.process(iceberg)
 
         # Small delay to ensure timestamp differs
@@ -943,7 +943,7 @@ class TestIcebergReplenishment:
         book.process(sell)
 
         # Timestamp should have been updated
-        assert iceberg.timestamp > original_ts
+        assert iceberg.ts_ns > original_ts
 
     def test_hidden_qty_fully_revealed_over_multiple_fills(self):
         """Multiple fill cycles reveal all hidden quantity."""
@@ -1024,7 +1024,7 @@ class TestIcebergReplenishment:
         book = OrderBook("AAPL")
         iceberg = _limit(Side.BUY, 100.0, qty=300, visible_qty=100)
         book.process(iceberg)
-        original_ts = iceberg.timestamp
+        original_ts = iceberg.ts_ns
 
         # Sell only 50 — partial consumption of the visible slice
         sell = _limit(Side.SELL, 100.0, qty=50)
@@ -1034,7 +1034,7 @@ class TestIcebergReplenishment:
         # Displayed qty should be reduced but NOT replenished (still > 0)
         assert iceberg.displayed_qty == 50
         # Timestamp unchanged (no replenishment occurred)
-        assert iceberg.timestamp == original_ts
+        assert iceberg.ts_ns == original_ts
 
     def test_aggressive_iceberg_sweeps_then_rests(self):
         """An aggressive iceberg that partially fills rests with correct displayed_qty."""

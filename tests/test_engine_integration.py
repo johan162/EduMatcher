@@ -64,7 +64,7 @@ def _new_limit_order(symbol: str, gateway_id: str) -> dict:
         order_type=OrderType.LIMIT,
         quantity=10,
         gateway_id=gateway_id,
-        price=100,
+        price_ticks=100,
     )
     return order.to_dict()
 
@@ -134,8 +134,9 @@ def test_quote_rejected_when_symbol_not_allowed_and_no_book_created(
             "gateway_id": "TRADER01",
             "symbol": "MSFT",
             "quote_id": "Q-1",
-            "bid_price": to_ticks(100.0, "AAPL"),
-            "ask_price": to_ticks(101.0, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(100.0, "AAPL"),
+            "ask_price_ticks": to_ticks(101.0, "AAPL"),
             "bid_qty": 10,
             "ask_qty": 10,
             "tif": "DAY",

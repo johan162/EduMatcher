@@ -331,7 +331,7 @@ async def test_alf_and_rest_agree_on_tick_violation(
 
     app = create_app(ApiGatewayConfig(swagger_enabled=False))
     handler = app.exception_handlers[TickViolation]
-    result = handler(_request(), TickViolation(off_grid, "AAPL"))
+    result = handler(_request(), TickViolation(off_grid, "AAPL", 2))
     response = await result if inspect.isawaitable(result) else result
     content = cast(dict[str, Any], json.loads(bytes(response.body).decode("utf-8")))
     rest_code = str(cast(dict[str, Any], content["error"])["reject_code"])

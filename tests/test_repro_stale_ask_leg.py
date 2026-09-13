@@ -54,9 +54,10 @@ def test_repro_stale_ask_leg_crosses_new_bid(monkeypatch, tmp_path) -> None:
             "gateway_id": "MM01",
             "symbol": "AAPL",
             "quote_id": "SEED-MM01-AAPL-1",
-            "bid_price": to_ticks(95.83, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(95.83, "AAPL"),
             "bid_qty": 1000,
-            "ask_price": to_ticks(95.85, "AAPL"),
+            "ask_price_ticks": to_ticks(95.85, "AAPL"),
             "ask_qty": 1000,
         }
     )
@@ -72,7 +73,7 @@ def test_repro_stale_ask_leg_crosses_new_bid(monkeypatch, tmp_path) -> None:
         quantity=50,
         gateway_id="TRADER01",
         tif=TIF.DAY,
-        price=to_ticks(100.0, "AAPL"),
+        price_ticks=to_ticks(100.0, "AAPL"),
     )
     engine._handle_new_order(taker.to_dict())
 
@@ -90,9 +91,10 @@ def test_repro_stale_ask_leg_crosses_new_bid(monkeypatch, tmp_path) -> None:
             "gateway_id": "MM01",
             "symbol": "AAPL",
             "quote_id": "MM01-AAPL-2",
-            "bid_price": to_ticks(99.50, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(99.50, "AAPL"),
             "bid_qty": 1000,
-            "ask_price": to_ticks(99.80, "AAPL"),
+            "ask_price_ticks": to_ticks(99.80, "AAPL"),
             "ask_qty": 1000,
         }
     )

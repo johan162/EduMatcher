@@ -49,6 +49,7 @@ _SAMPLE: dict[str, Any] = {
     "timestamp_ns": 1_700_000_000_000_000_000,
     "symbol": "MSFT",
     "side": "SELL",
+    "tick_decimals": 2,
     "status": "FILLED",
 }
 
@@ -175,7 +176,7 @@ def _run(harness: Path, frame: bytes) -> dict[str, Any]:
 
 _CASES = [
     {},
-    {"side": "BUY", "status": "PARTIAL", "remaining_qty": 50},
+    {"side": "BUY", "tick_decimals": 2, "status": "PARTIAL", "remaining_qty": 50},
     {"fill_price": 150.0, "symbol": "AAPL"},
     {"fill_price": 0.00000001},
     {"client_order_id": 0, "order_id": 0},

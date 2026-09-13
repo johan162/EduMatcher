@@ -82,9 +82,10 @@ def test_quote_rejected_for_non_market_maker(monkeypatch, tmp_path) -> None:
         {
             "gateway_id": "GW01",
             "symbol": "AAPL",
-            "bid_price": to_ticks(100.0, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(100.0, "AAPL"),
             "bid_qty": 10,
-            "ask_price": to_ticks(101.0, "AAPL"),
+            "ask_price_ticks": to_ticks(101.0, "AAPL"),
             "ask_qty": 10,
         }
     )
@@ -103,9 +104,10 @@ def test_quote_accept_and_cancel(monkeypatch, tmp_path) -> None:
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q1",
-            "bid_price": to_ticks(100.0, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(100.0, "AAPL"),
             "bid_qty": 10,
-            "ask_price": to_ticks(101.0, "AAPL"),
+            "ask_price_ticks": to_ticks(101.0, "AAPL"),
             "ask_qty": 12,
         }
     )
@@ -131,7 +133,7 @@ def test_kill_switch_cancels_quote_and_orders(monkeypatch, tmp_path) -> None:
         quantity=20,
         gateway_id="GW01",
         tif=TIF.DAY,
-        price=9900,
+        price_ticks=9900,
     )
     engine._handle_new_order(order.to_dict())
 
@@ -140,9 +142,10 @@ def test_kill_switch_cancels_quote_and_orders(monkeypatch, tmp_path) -> None:
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q2",
-            "bid_price": to_ticks(99.0, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(99.0, "AAPL"),
             "bid_qty": 5,
-            "ask_price": to_ticks(102.0, "AAPL"),
+            "ask_price_ticks": to_ticks(102.0, "AAPL"),
             "ask_qty": 5,
         }
     )
@@ -175,7 +178,7 @@ def test_disconnect_cancels_quotes_only(monkeypatch, tmp_path) -> None:
         quantity=20,
         gateway_id="GW01",
         tif=TIF.DAY,
-        price=9800,
+        price_ticks=9800,
     )
     engine._handle_new_order(order.to_dict())
     engine._handle_quote_new(
@@ -183,9 +186,10 @@ def test_disconnect_cancels_quotes_only(monkeypatch, tmp_path) -> None:
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q3",
-            "bid_price": to_ticks(97.0, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(97.0, "AAPL"),
             "bid_qty": 5,
-            "ask_price": to_ticks(103.0, "AAPL"),
+            "ask_price_ticks": to_ticks(103.0, "AAPL"),
             "ask_qty": 5,
         }
     )
@@ -213,9 +217,10 @@ def test_quote_obligation_enforced_when_enabled(monkeypatch, tmp_path) -> None:
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q-OBL-1",
-            "bid_price": to_ticks(100.0, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(100.0, "AAPL"),
             "bid_qty": 10,
-            "ask_price": to_ticks(100.10, "AAPL"),
+            "ask_price_ticks": to_ticks(100.10, "AAPL"),
             "ask_qty": 10,
         }
     )
@@ -240,9 +245,10 @@ def test_quote_obligation_not_enforced_when_disabled(monkeypatch, tmp_path) -> N
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q-OBL-2",
-            "bid_price": to_ticks(100.0, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(100.0, "AAPL"),
             "bid_qty": 10,
-            "ask_price": to_ticks(100.10, "AAPL"),
+            "ask_price_ticks": to_ticks(100.10, "AAPL"),
             "ask_qty": 10,
         }
     )
@@ -268,9 +274,10 @@ def test_quote_legs_inherit_gateway_smp_action(monkeypatch, tmp_path) -> None:
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q-SMP-1",
-            "bid_price": to_ticks(100.0, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(100.0, "AAPL"),
             "bid_qty": 10,
-            "ask_price": to_ticks(101.0, "AAPL"),
+            "ask_price_ticks": to_ticks(101.0, "AAPL"),
             "ask_qty": 10,
         }
     )
@@ -293,9 +300,10 @@ def test_quote_smp_action_defaults_to_none_when_unconfigured(
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q-SMP-DEFAULT",
-            "bid_price": to_ticks(100.0, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(100.0, "AAPL"),
             "bid_qty": 10,
-            "ask_price": to_ticks(101.0, "AAPL"),
+            "ask_price_ticks": to_ticks(101.0, "AAPL"),
             "ask_qty": 10,
         }
     )
@@ -328,7 +336,7 @@ def test_quote_smp_cancel_resting_prevents_self_match(monkeypatch, tmp_path) -> 
         quantity=10,
         gateway_id="GW01",
         tif=TIF.DAY,
-        price=10000,  # ticks; 100.00
+        price_ticks=10000,  # ticks; 100.00
     )
     stale_ask_id = stale_ask_seed.id
     # _handle_new_order rebuilds its own Order from the payload dict (via
@@ -345,9 +353,10 @@ def test_quote_smp_cancel_resting_prevents_self_match(monkeypatch, tmp_path) -> 
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q-SMP-CROSS",
-            "bid_price": to_ticks(100.0, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(100.0, "AAPL"),
             "bid_qty": 10,
-            "ask_price": to_ticks(101.0, "AAPL"),
+            "ask_price_ticks": to_ticks(101.0, "AAPL"),
             "ask_qty": 10,
         }
     )
@@ -381,7 +390,7 @@ def test_quote_without_smp_action_self_trades_against_stale_resting_order(
         quantity=10,
         gateway_id="GW01",
         tif=TIF.DAY,
-        price=10000,
+        price_ticks=10000,
     )
     engine._handle_new_order(stale_ask.to_dict())
 
@@ -391,9 +400,10 @@ def test_quote_without_smp_action_self_trades_against_stale_resting_order(
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q-NO-SMP-CROSS",
-            "bid_price": to_ticks(100.0, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(100.0, "AAPL"),
             "bid_qty": 10,
-            "ask_price": to_ticks(101.0, "AAPL"),
+            "ask_price_ticks": to_ticks(101.0, "AAPL"),
             "ask_qty": 10,
         }
     )
@@ -575,9 +585,10 @@ def test_partial_fill_sibling_cancelled_but_hit_leg_survives(
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q1",
-            "bid_price": to_ticks(100.0, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(100.0, "AAPL"),
             "bid_qty": 500,
-            "ask_price": to_ticks(101.0, "AAPL"),
+            "ask_price_ticks": to_ticks(101.0, "AAPL"),
             "ask_qty": 500,
         }
     )
@@ -599,7 +610,7 @@ def test_partial_fill_sibling_cancelled_but_hit_leg_survives(
         quantity=100,
         gateway_id="GW01",
         tif=TIF.DAY,
-        price=to_ticks(100.0, "AAPL"),
+        price_ticks=to_ticks(100.0, "AAPL"),
     )
     engine._handle_new_order(taker.to_dict())
 
@@ -627,7 +638,7 @@ def test_partial_fill_sibling_cancelled_but_hit_leg_survives(
         quantity=50,
         gateway_id="GW01",
         tif=TIF.DAY,
-        price=to_ticks(100.0, "AAPL"),
+        price_ticks=to_ticks(100.0, "AAPL"),
     )
     engine._handle_new_order(taker2.to_dict())
     bid_order = book._order_index.get(bid_leg_id)
@@ -658,9 +669,10 @@ def test_reissue_after_partial_fill_cancels_stale_remainder(
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q1",
-            "bid_price": to_ticks(100.0, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(100.0, "AAPL"),
             "bid_qty": 500,
-            "ask_price": to_ticks(101.0, "AAPL"),
+            "ask_price_ticks": to_ticks(101.0, "AAPL"),
             "ask_qty": 500,
         }
     )
@@ -676,7 +688,7 @@ def test_reissue_after_partial_fill_cancels_stale_remainder(
         quantity=100,
         gateway_id="GW01",
         tif=TIF.DAY,
-        price=to_ticks(100.0, "AAPL"),
+        price_ticks=to_ticks(100.0, "AAPL"),
     )
     engine._handle_new_order(taker.to_dict())
     assert stale_bid_id in _resting_ids(book)  # sanity: still there pre-reissue
@@ -688,9 +700,10 @@ def test_reissue_after_partial_fill_cancels_stale_remainder(
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q2",
-            "bid_price": to_ticks(100.05, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(100.05, "AAPL"),
             "bid_qty": 500,
-            "ask_price": to_ticks(101.05, "AAPL"),
+            "ask_price_ticks": to_ticks(101.05, "AAPL"),
             "ask_qty": 500,
         }
     )
@@ -730,9 +743,10 @@ def test_reissue_with_no_prior_quote_is_unaffected(monkeypatch, tmp_path) -> Non
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q1",
-            "bid_price": to_ticks(100.0, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(100.0, "AAPL"),
             "bid_qty": 500,
-            "ask_price": to_ticks(101.0, "AAPL"),
+            "ask_price_ticks": to_ticks(101.0, "AAPL"),
             "ask_qty": 500,
         }
     )
@@ -761,9 +775,10 @@ def test_reissue_after_full_fill_still_finds_nothing_stray(
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q1",
-            "bid_price": to_ticks(100.0, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(100.0, "AAPL"),
             "bid_qty": 500,
-            "ask_price": to_ticks(101.0, "AAPL"),
+            "ask_price_ticks": to_ticks(101.0, "AAPL"),
             "ask_qty": 500,
         }
     )
@@ -780,7 +795,7 @@ def test_reissue_after_full_fill_still_finds_nothing_stray(
         quantity=500,
         gateway_id="GW01",
         tif=TIF.DAY,
-        price=to_ticks(100.0, "AAPL"),
+        price_ticks=to_ticks(100.0, "AAPL"),
     )
     engine._handle_new_order(taker.to_dict())
     assert full_bid_id not in _resting_ids(book)  # already purged, full fill
@@ -791,9 +806,10 @@ def test_reissue_after_full_fill_still_finds_nothing_stray(
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q2",
-            "bid_price": to_ticks(100.05, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(100.05, "AAPL"),
             "bid_qty": 500,
-            "ask_price": to_ticks(101.05, "AAPL"),
+            "ask_price_ticks": to_ticks(101.05, "AAPL"),
             "ask_qty": 500,
         }
     )
@@ -827,9 +843,10 @@ def test_inactivate_on_full_fill_partial_leg_stays_active_and_unaffected(
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q1",
-            "bid_price": to_ticks(100.0, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(100.0, "AAPL"),
             "bid_qty": 500,
-            "ask_price": to_ticks(101.0, "AAPL"),
+            "ask_price_ticks": to_ticks(101.0, "AAPL"),
             "ask_qty": 500,
         }
     )
@@ -847,7 +864,7 @@ def test_inactivate_on_full_fill_partial_leg_stays_active_and_unaffected(
         quantity=100,
         gateway_id="GW01",
         tif=TIF.DAY,
-        price=to_ticks(100.0, "AAPL"),
+        price_ticks=to_ticks(100.0, "AAPL"),
     )
     engine._handle_new_order(taker.to_dict())
 
@@ -870,9 +887,10 @@ def test_inactivate_on_full_fill_partial_leg_stays_active_and_unaffected(
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q2",
-            "bid_price": to_ticks(100.05, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(100.05, "AAPL"),
             "bid_qty": 500,
-            "ask_price": to_ticks(101.05, "AAPL"),
+            "ask_price_ticks": to_ticks(101.05, "AAPL"),
             "ask_qty": 500,
         }
     )
@@ -905,9 +923,10 @@ def test_reissue_after_partial_fill_uses_orderbook_index_not_a_scan(
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q1",
-            "bid_price": to_ticks(100.0, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(100.0, "AAPL"),
             "bid_qty": 500,
-            "ask_price": to_ticks(101.0, "AAPL"),
+            "ask_price_ticks": to_ticks(101.0, "AAPL"),
             "ask_qty": 500,
         }
     )
@@ -929,7 +948,7 @@ def test_reissue_after_partial_fill_uses_orderbook_index_not_a_scan(
         quantity=100,
         gateway_id="GW01",
         tif=TIF.DAY,
-        price=to_ticks(100.0, "AAPL"),
+        price_ticks=to_ticks(100.0, "AAPL"),
     )
     engine._handle_new_order(taker.to_dict())
 
@@ -949,9 +968,10 @@ def test_reissue_after_partial_fill_uses_orderbook_index_not_a_scan(
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q2",
-            "bid_price": to_ticks(100.05, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(100.05, "AAPL"),
             "bid_qty": 500,
-            "ask_price": to_ticks(101.05, "AAPL"),
+            "ask_price_ticks": to_ticks(101.05, "AAPL"),
             "ask_qty": 500,
         }
     )
@@ -1018,9 +1038,10 @@ def test_orphaned_leg_cleanup_does_not_affect_other_gateways_index_entries(
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q1",
-            "bid_price": to_ticks(100.0, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(100.0, "AAPL"),
             "bid_qty": 500,
-            "ask_price": to_ticks(101.0, "AAPL"),
+            "ask_price_ticks": to_ticks(101.0, "AAPL"),
             "ask_qty": 500,
         }
     )
@@ -1029,9 +1050,10 @@ def test_orphaned_leg_cleanup_does_not_affect_other_gateways_index_entries(
             "gateway_id": "GW02",
             "symbol": "AAPL",
             "quote_id": "QG2",
-            "bid_price": to_ticks(99.0, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(99.0, "AAPL"),
             "bid_qty": 300,
-            "ask_price": to_ticks(102.0, "AAPL"),
+            "ask_price_ticks": to_ticks(102.0, "AAPL"),
             "ask_qty": 300,
         }
     )
@@ -1047,7 +1069,7 @@ def test_orphaned_leg_cleanup_does_not_affect_other_gateways_index_entries(
         quantity=100,
         gateway_id="GW01",
         tif=TIF.DAY,
-        price=to_ticks(100.0, "AAPL"),
+        price_ticks=to_ticks(100.0, "AAPL"),
     )
     engine._handle_new_order(taker.to_dict())
     assert engine._quote_index.get("GW01", "AAPL") is None
@@ -1063,9 +1085,10 @@ def test_orphaned_leg_cleanup_does_not_affect_other_gateways_index_entries(
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q2",
-            "bid_price": to_ticks(100.05, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(100.05, "AAPL"),
             "bid_qty": 500,
-            "ask_price": to_ticks(101.05, "AAPL"),
+            "ask_price_ticks": to_ticks(101.05, "AAPL"),
             "ask_qty": 500,
         }
     )
@@ -1147,9 +1170,10 @@ def test_smp_cancel_of_stale_quote_remainder_does_not_crash_reissue(
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q1",
-            "bid_price": to_ticks(100.0, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(100.0, "AAPL"),
             "bid_qty": 500,
-            "ask_price": to_ticks(101.0, "AAPL"),
+            "ask_price_ticks": to_ticks(101.0, "AAPL"),
             "ask_qty": 500,
         }
     )
@@ -1168,7 +1192,7 @@ def test_smp_cancel_of_stale_quote_remainder_does_not_crash_reissue(
         quantity=100,
         gateway_id="GW03",
         tif=TIF.DAY,
-        price=to_ticks(100.0, "AAPL"),
+        price_ticks=to_ticks(100.0, "AAPL"),
     )
     engine._handle_new_order(other_gw_taker.to_dict())
     assert engine._quote_index.get("GW01", "AAPL") is None
@@ -1183,7 +1207,7 @@ def test_smp_cancel_of_stale_quote_remainder_does_not_crash_reissue(
         quantity=400,
         gateway_id="GW01",
         tif=TIF.DAY,
-        price=to_ticks(100.0, "AAPL"),
+        price_ticks=to_ticks(100.0, "AAPL"),
     )
     engine._handle_new_order(same_gw_aggressor.to_dict())
     assert stale_bid_id not in _resting_ids(book)  # SMP-cancelled, not filled
@@ -1196,9 +1220,10 @@ def test_smp_cancel_of_stale_quote_remainder_does_not_crash_reissue(
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q2",
-            "bid_price": to_ticks(100.05, "AAPL"),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(100.05, "AAPL"),
             "bid_qty": 500,
-            "ask_price": to_ticks(101.05, "AAPL"),
+            "ask_price_ticks": to_ticks(101.05, "AAPL"),
             "ask_qty": 500,
         }
     )

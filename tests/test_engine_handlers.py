@@ -115,8 +115,8 @@ def _make_order_payload(
         quantity=qty,
         gateway_id=gateway_id,
         tif=tif,
-        price=price,
-        stop_price=stop_price,
+        price_ticks=price,
+        stop_price_ticks=stop_price,
         client_tag=client_tag,
     )
     return o.to_dict()
@@ -401,7 +401,7 @@ class TestSessionTransition:
             quantity=100,
             gateway_id="GW01",
             tif=TIF.ATC,
-            price=100,
+            price_ticks=100,
         )
         engine._handle_new_order(o.to_dict())
         pub_sock.sent.clear()
@@ -559,7 +559,7 @@ class TestTrailingStopNewOrder:
             quantity=100,
             gateway_id="GW01",
             tif=TIF.DAY,
-            trail_offset=5,
+            trail_offset_ticks=5,
         )
         engine._handle_new_order(o.to_dict())
         _, msg = decode(pub_sock.sent[-1])
@@ -580,7 +580,7 @@ class TestTrailingStopNewOrder:
             quantity=100,
             gateway_id="GW01",
             tif=TIF.DAY,
-            trail_offset=5,
+            trail_offset_ticks=5,
         )
         engine._handle_new_order(o.to_dict())
         _, msg = decode(pub_sock.sent[-1])
@@ -607,14 +607,16 @@ class TestComboHandlers:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=100,
+                    tick_decimals=2,
+                    price_ticks=100,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=50,
-                    price=200,
+                    tick_decimals=2,
+                    price_ticks=200,
                 ),
             ],
         )
@@ -666,7 +668,8 @@ class TestComboHandlers:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=100,
+                    tick_decimals=2,
+                    price_ticks=100,
                 ),
             ],
         )
@@ -688,14 +691,16 @@ class TestComboHandlers:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=100,
+                    tick_decimals=2,
+                    price_ticks=100,
                 ),
                 ComboLeg(
                     symbol="AAPL",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=101,
+                    tick_decimals=2,
+                    price_ticks=101,
                 ),
             ],
         )
@@ -716,8 +721,9 @@ class TestOCOHandlers:
             "symbol": "AAPL",
             "quantity": 100,
             "tif": "DAY",
-            "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 9500},
-            "leg2": {"side": "BUY", "order_type": "STOP", "stop_price": 10500},
+            "tick_decimals": 2,
+            "leg1": {"side": "BUY", "order_type": "LIMIT", "price_ticks": 9500},
+            "leg2": {"side": "BUY", "order_type": "STOP", "stop_price_ticks": 10500},
         }
 
     def test_oco_accepted(self, monkeypatch, tmp_path) -> None:

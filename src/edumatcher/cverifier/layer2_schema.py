@@ -12,6 +12,7 @@ from edumatcher.log_srv.config import validate_log_server_section
 from edumatcher.md_gateway.config import validate_market_data_gateway_section
 from edumatcher.models.combo import ComboLeg, ComboType
 from edumatcher.models.order import TIF
+from edumatcher.models.price import TickViolation, to_ticks_exact_at
 from edumatcher.ralf_gateway.config import validate_ralf_gateway_section
 from edumatcher.cverifier.models import CheckResult, Severity
 
@@ -138,6 +139,71 @@ def _check_top_level(raw: dict[str, Any], results: list[CheckResult]) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Price grid
+# ---------------------------------------------------------------------------
+
+
+def _tick_decimals_of(cfg: dict[str, Any]) -> int | None:
+    """A symbol's declared tick precision, or None when it is unusable.
+
+    A malformed ``tick_decimals`` is S010's to report. There is no grid to
+    check prices against until it is fixed, so the grid checks stand down
+    rather than guessing at the two-decimal default.
+    """
+    td = cfg.get("tick_decimals", 2)
+    if isinstance(td, bool):
+        return None
+    try:
+        td_int = int(td)
+    except (TypeError, ValueError):
+        return None
+    return td_int if 0 <= td_int <= 8 else None
+
+
+def _check_price_on_grid(
+    value: Any,
+    tick_decimals: int,
+    symbol: str,
+    label: str,
+    path: str,
+    results: list[CheckResult],
+) -> None:
+    """S078 — a price the symbol's tick grid cannot represent.
+
+    Every price in this file is display money that the engine converts to
+    integer ticks, and it refuses one that is not a whole number of them.
+    Checking it here costs nothing and moves the failure from a startup on a
+    deployed host to the verifier the config passes through first.
+
+    A non-numeric value is somebody else's check; this one stays quiet so a
+    single bad field does not report twice.
+    """
+    try:
+        price = float(value)
+    except (TypeError, ValueError):
+        return
+    try:
+        to_ticks_exact_at(price, tick_decimals, symbol)
+    except TickViolation as exc:
+        results.append(
+            CheckResult(
+                code="S078",
+                severity=Severity.ERROR,
+                message=(
+                    f"{label} {price} is not a multiple of {symbol}'s tick size "
+                    f"{exc.tick_size:.{tick_decimals}f}."
+                ),
+                suggestion=(
+                    f"With tick_decimals={tick_decimals}, {symbol} prices carry at "
+                    f"most {tick_decimals} decimal place(s). Round the price, or "
+                    f"raise symbols.{symbol}.tick_decimals."
+                ),
+                path=path,
+            )
+        )
+
+
+# ---------------------------------------------------------------------------
 # Symbol validation
 # ---------------------------------------------------------------------------
 
@@ -196,23 +262,35 @@ def _check_symbol_tick_decimals(
 def _check_symbol_prices(
     sym: str, cfg: dict[str, Any], results: list[CheckResult]
 ) -> None:
+    tick_decimals = _tick_decimals_of(cfg)
     for price_field in ("last_buy_price", "last_sell_price"):
         val = cfg.get(price_field)
-        if val is not None:
-            try:
-                float(val)
-            except (TypeError, ValueError):
-                results.append(
-                    CheckResult(
-                        code="S011",
-                        severity=Severity.ERROR,
-                        message=(
-                            f"Symbol '{sym}': {price_field} must be numeric. Got '{val}'."
-                        ),
-                        suggestion="Set to a positive number or omit entirely.",
-                        path=f"symbols.{sym}.{price_field}",
-                    )
+        if val is None:
+            continue
+        try:
+            float(val)
+        except (TypeError, ValueError):
+            results.append(
+                CheckResult(
+                    code="S011",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"Symbol '{sym}': {price_field} must be numeric. Got '{val}'."
+                    ),
+                    suggestion="Set to a positive number or omit entirely.",
+                    path=f"symbols.{sym}.{price_field}",
                 )
+            )
+            continue
+        if tick_decimals is not None:
+            _check_price_on_grid(
+                val,
+                tick_decimals,
+                sym,
+                f"Symbol '{sym}': {price_field}",
+                f"symbols.{sym}.{price_field}",
+                results,
+            )
 
 
 def _check_symbol_outstanding_shares(
@@ -374,11 +452,15 @@ def _check_symbol_mm_quotes(
             except (TypeError, ValueError):
                 pass
 
-        _check_mm_quote_validity(sym, i, quote, results)
+        _check_mm_quote_validity(sym, i, quote, _tick_decimals_of(cfg), results)
 
 
 def _check_mm_quote_validity(
-    sym: str, i: int, quote: dict[str, Any], results: list[CheckResult]
+    sym: str,
+    i: int,
+    quote: dict[str, Any],
+    tick_decimals: int | None,
+    results: list[CheckResult],
 ) -> None:
     """S016 — prices/quantities/tif that the engine would reject at startup."""
     problems: list[str] = []
@@ -391,6 +473,16 @@ def _check_mm_quote_validity(
             float(val)
         except (TypeError, ValueError):
             problems.append(f"{price_field} must be numeric (got '{val}')")
+            continue
+        if tick_decimals is not None:
+            _check_price_on_grid(
+                val,
+                tick_decimals,
+                sym,
+                f"Symbol '{sym}': market_maker_quotes[{i}].{price_field}",
+                f"symbols.{sym}.market_maker_quotes[{i}].{price_field}",
+                results,
+            )
 
     for qty_field in ("bid_qty", "ask_qty"):
         val = quote.get(qty_field)
@@ -949,7 +1041,12 @@ def _check_market_maker_combos(raw: dict[str, Any], results: list[CheckResult]) 
         )
         return
 
-    symbol_names = {str(sym).upper() for sym in raw.get("symbols", {})}
+    raw_symbols = raw.get("symbols") or {}
+    symbol_names = {str(sym).upper() for sym in raw_symbols}
+    tick_decimals_by_symbol = {
+        str(sym).upper(): _tick_decimals_of(cfg if isinstance(cfg, dict) else {})
+        for sym, cfg in raw_symbols.items()
+    }
     for i, combo in enumerate(combos):
         if not isinstance(combo, dict):
             results.append(
@@ -1102,6 +1199,25 @@ def _check_market_maker_combos(raw: dict[str, Any], results: list[CheckResult]) 
                         ),
                         path=f"market_maker_combos[{i}].legs[{j}].symbol",
                     )
+                )
+                continue
+
+            # A leg's scale comes from its own symbol: the legs of one combo
+            # trade different instruments and need not share a tick size.
+            leg_decimals = tick_decimals_by_symbol.get(parsed_leg.symbol)
+            if leg_decimals is None:
+                continue
+            for price_field in ("price", "stop_price"):
+                leg_price = leg.get(price_field)
+                if leg_price is None:
+                    continue
+                _check_price_on_grid(
+                    leg_price,
+                    leg_decimals,
+                    parsed_leg.symbol,
+                    f"market_maker_combos[{i}].legs[{j}].{price_field}",
+                    f"market_maker_combos[{i}].legs[{j}].{price_field}",
+                    results,
                 )
 
 

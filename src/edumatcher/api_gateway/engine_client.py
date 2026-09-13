@@ -17,6 +17,7 @@ from edumatcher.api_gateway.caches import SessionCaches
 from edumatcher.api_gateway.market_cache import MarketDataCache
 from edumatcher.api_gateway.events import (
     ADMIN_ACTION_PREFIX,
+    COMMAND_TOPICS,
     envelope,
     gateway_from_topic,
     new_command_id,
@@ -460,6 +461,15 @@ class EngineClient:
     def _handle_event(self, topic: str, payload: dict[str, Any]) -> None:
         self._dbg_count("events_handled")
         self._resolve_pending(topic, payload)
+        if topic in COMMAND_TOPICS:
+            # A client's own request, re-published by the engine for the audit
+            # trail. It is nobody's market data and it is not addressed to the
+            # gateway that sent it, so it goes no further here. Dropped before
+            # _resolve_pending's siblings below rather than after, because the
+            # market-data branch at the bottom is a *fallthrough*: any topic
+            # with no gateway suffix lands there, and order.new has none.
+            self._dbg_count("command_echo_dropped")
+            return
         if topic.startswith(ADMIN_ACTION_PREFIX):
             # Admin-monitor-only: must reach neither the initiating gateway's
             # own private stream nor market data, so it bypasses both branches

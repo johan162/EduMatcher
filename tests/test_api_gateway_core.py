@@ -66,7 +66,7 @@ def test_build_order_converts_display_price_to_ticks() -> None:
     order = build_order(request, "GW01")
     assert order.symbol == "AAPL"
     assert order.order_type == OrderType.LIMIT
-    assert order.price == 15025
+    assert order.price_ticks == 15025
     assert order.gateway_id == "GW01"
 
 
@@ -90,8 +90,9 @@ def test_d1_client_order_id_is_not_a_rest_field() -> None:
                 "symbol": "AAPL",
                 "side": Side.BUY,
                 "order_type": OrderType.LIMIT,
+                "tick_decimals": 2,
                 "quantity": 10,
-                "price": 150.25,
+                "price_ticks": 150.25,
                 "client_order_id": "legacy-1",
             }
         )

@@ -82,8 +82,8 @@ def test_gtc_quote_survives_restart_without_duplicating(monkeypatch, tmp_path):
             market_maker_quotes=[
                 MMQuoteSeed(
                     gateway_id=GW,
-                    bid_price=99.95,
-                    ask_price=100.05,
+                    bid_price_ticks=9995,
+                    ask_price_ticks=10005,
                     bid_qty=100,
                     ask_qty=100,
                     tif=TIF.GTC,
@@ -134,8 +134,8 @@ def test_default_tif_day_seed_quote_survives_same_day_restart(monkeypatch, tmp_p
             market_maker_quotes=[
                 MMQuoteSeed(
                     gateway_id=GW,
-                    bid_price=99.95,
-                    ask_price=100.05,
+                    bid_price_ticks=9995,
+                    ask_price_ticks=10005,
                     bid_qty=100,
                     ask_qty=100,
                     tif=TIF.DAY,  # the config default — deliberately not GTC
@@ -183,8 +183,8 @@ def test_fully_hit_quote_is_reseeded_on_next_restart(monkeypatch, tmp_path):
             market_maker_quotes=[
                 MMQuoteSeed(
                     gateway_id=GW,
-                    bid_price=99.95,
-                    ask_price=100.05,
+                    bid_price_ticks=9995,
+                    ask_price_ticks=10005,
                     bid_qty=100,
                     ask_qty=100,
                     tif=TIF.GTC,
@@ -238,8 +238,8 @@ def test_stale_day_quote_is_purged_then_reseeded_on_next_restart(monkeypatch, tm
             market_maker_quotes=[
                 MMQuoteSeed(
                     gateway_id=GW,
-                    bid_price=99.95,
-                    ask_price=100.05,
+                    bid_price_ticks=9995,
+                    ask_price_ticks=10005,
                     bid_qty=100,
                     ask_qty=100,
                     tif=TIF.DAY,
@@ -266,7 +266,7 @@ def test_stale_day_quote_is_purged_then_reseeded_on_next_restart(monkeypatch, tm
 
     yesterday_ns = int(_time.time() * 1e9) - 2 * 24 * 3600 * 1_000_000_000
     for order in engine1.books["AAPL"].resting_orders():
-        order.timestamp = yesterday_ns
+        order.ts_ns = yesterday_ns
 
     engine2, _ = _persist_and_reopen(
         monkeypatch, tmp_path, engine1, symbol_configs=symbol_configs
@@ -291,8 +291,8 @@ def test_mm_vs_mm_startup_crossing(monkeypatch, tmp_path):
     # by cancelling the bid leg before shutdown.
     mm_b_config = MMQuoteSeed(
         gateway_id="MM02",
-        bid_price=100.00,  # crosses MM01's restored ask (99.95) on restart
-        ask_price=100.10,
+        bid_price_ticks=10000,  # crosses MM01's restored ask (99.95) on restart
+        ask_price_ticks=10010,
         bid_qty=100,
         ask_qty=100,
         tif=TIF.GTC,

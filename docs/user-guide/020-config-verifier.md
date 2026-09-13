@@ -349,6 +349,22 @@ exactly as if it were not.
 | `S076` | `mm_obligation_defaults.symbols.<symbol>.enforce_mm_obligation` invalid   |
 | `S077` | `mm_obligation_defaults.symbols.<symbol>.mm_max_spread_ticks/min_qty` invalid |
 
+**Price tick grid**
+
+| Code   | Condition                                              |
+|--------|--------------------------------------------------------|
+| `S078` | A price is not a whole multiple of its symbol's tick size |
+
+`S078` covers every price in the file — `last_buy_price`, `last_sell_price`,
+`market_maker_quotes[n].bid_price`/`ask_price`, and
+`market_maker_combos[n].legs[m].price`/`stop_price`. Each is display money the
+engine converts to integer ticks as it loads, and it refuses one it cannot
+represent rather than rounding it. A combo leg is checked against its own
+symbol's `tick_decimals`, not the combo's first leg: the legs of one combo
+trade different instruments, which need not share a tick size. The check
+stands down for a symbol whose `tick_decimals` is itself invalid — `S010`
+reports that, and there is no grid to check against until it is fixed.
+
 **API gateway sections**
 
 | Code   | Condition                                              |

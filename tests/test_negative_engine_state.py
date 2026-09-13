@@ -128,7 +128,7 @@ def _make_order_payload(
         quantity=qty,
         gateway_id=gateway_id,
         tif=tif,
-        price=price,
+        price_ticks=price,
     )
     return o.to_dict()
 
@@ -168,7 +168,7 @@ class TestShutdownDuringActiveMatching:
             quantity=100,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=99,
+            price_ticks=99,
         )
         engine._handle_new_order(o.to_dict())
         with pytest.raises(OSError, match="disk full"):
@@ -204,7 +204,7 @@ class TestShutdownDuringActiveMatching:
             quantity=100,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=99,
+            price_ticks=99,
         )
         engine._handle_new_order(o.to_dict())
         pub_sock.sent.clear()
@@ -265,7 +265,7 @@ class TestCorruptedGTCOrdersFile:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=100,
+            price_ticks=100,
         )
         bad = o.to_dict()
         bad["side"] = "SIDEWAYS"
@@ -286,7 +286,7 @@ class TestCorruptedGTCOrdersFile:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=100,
+            price_ticks=100,
         )
         bad = o.to_dict()
         bad["side"] = "SIDEWAYS"
@@ -312,7 +312,7 @@ class TestCorruptedGTCOrdersFile:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=100,
+            price_ticks=100,
         )
         bad = good1.to_dict()
         bad["id"] = "corrupt-order"
@@ -324,7 +324,7 @@ class TestCorruptedGTCOrdersFile:
             quantity=5,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=110,
+            price_ticks=110,
         )
         path = tmp_path / "gtc.json"
         path.write_text(json.dumps([good1.to_dict(), bad, good2.to_dict()]))
@@ -355,7 +355,7 @@ class TestCorruptedGTCOrdersFile:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=100,
+            price_ticks=100,
         )
         bad = o.to_dict()
         del bad["id"]
@@ -376,7 +376,7 @@ class TestCorruptedGTCOrdersFile:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=100,
+            price_ticks=100,
         )
         o.status = OrderStatus.NEW
         path = tmp_path / "gtc.json"
@@ -473,7 +473,7 @@ class TestEngineStartupWithCorruptGTCFile:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=100,
+            price_ticks=100,
         )
         bad = good.to_dict()
         bad["id"] = "corrupt-order"
@@ -508,7 +508,7 @@ class TestEngineStartupWithCorruptGTCFile:
             quantity=50,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=99,
+            price_ticks=99,
         )
         o.status = OrderStatus.NEW
         gtc = tmp_path / "gtc.json"
@@ -528,7 +528,7 @@ class TestEngineStartupWithCorruptGTCFile:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=50,
+            price_ticks=50,
         )
         o.status = OrderStatus.NEW
         gtc = tmp_path / "gtc.json"
@@ -696,7 +696,7 @@ class TestEngineStartupWithoutConfig:
             quantity=10,
             gateway_id="ANY_GW",
             tif=TIF.DAY,
-            price=50,
+            price_ticks=50,
         )
         engine._handle_new_order(o.to_dict())
         ack = _last_ack(pub_sock)

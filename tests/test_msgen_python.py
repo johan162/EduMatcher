@@ -429,3 +429,61 @@ class TestTheWrappingRules:
             ]
             duplicates = [n for n, count in Counter(names).items() if count > 1]
             assert duplicates == [], f"{path.name} binds {duplicates} twice"
+
+
+class TestTopicRegistry:
+    """The cross-family registry emitted as ``generated/registry.py``.
+
+    A family module answers questions about its own messages. Nothing before
+    this could answer "which message defines the topic I just read off the
+    bus?", which is the question every log-reading tool starts from.
+    """
+
+    def test_every_bus_topic_in_the_spec_is_registered(self) -> None:
+        """Enumerated from the spec, so a new topic cannot be missed."""
+        from edumatcher.models.generated.registry import TOPIC_REGISTRY
+
+        declared: set[str] = set()
+        for path in sorted((SPEC_ROOT / "messages").glob("*.yaml")):
+            family = yaml.safe_load(path.read_text(encoding="utf-8"))
+            for message in family["messages"]:
+                if message.get("topic"):
+                    declared.add(message["topic"])
+        assert declared == set(TOPIC_REGISTRY)
+
+    def test_a_wildcard_topic_carries_its_prefix_and_params(self) -> None:
+        from edumatcher.models.generated.registry import TOPIC_REGISTRY
+
+        entry = TOPIC_REGISTRY["order.ack.{gateway_id}"]
+        assert entry["family"] == "order"
+        assert entry["message"] == "order_ack"
+        assert entry["prefix"] == "order.ack."
+        assert entry["params"] == ("gateway_id",)
+
+    def test_a_fixed_topic_has_no_params_and_prefixes_itself(self) -> None:
+        from edumatcher.models.generated.registry import TOPIC_REGISTRY
+
+        entry = TOPIC_REGISTRY["trade.executed"]
+        assert entry["params"] == ()
+        assert entry["prefix"] == "trade.executed"
+
+    def test_field_units_come_through(self) -> None:
+        """The reason the replay tool needs this: which fields are ticks."""
+        from edumatcher.models.generated.registry import TOPIC_REGISTRY
+
+        units = {f["name"]: f["unit"] for f in TOPIC_REGISTRY["order.new"]["fields"]}
+        assert units["price_ticks"] == "ticks"
+        assert units["quantity"] == "shares"
+
+    def test_an_external_only_message_is_absent(self) -> None:
+        """``execution_report`` is BALF-only and has no bus topic."""
+        from edumatcher.models.generated.registry import TOPIC_REGISTRY
+
+        assert not any(
+            entry["message"] == "execution_report" for entry in TOPIC_REGISTRY.values()
+        )
+
+    def test_all_topics_matches_the_registry_keys(self) -> None:
+        from edumatcher.models.generated.registry import ALL_TOPICS, TOPIC_REGISTRY
+
+        assert ALL_TOPICS == tuple(TOPIC_REGISTRY)

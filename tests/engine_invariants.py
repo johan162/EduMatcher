@@ -64,8 +64,8 @@ def _live_level_qty(book: OrderBook, side_heap) -> dict[int, int]:
         if o.status in _DEAD or o.id in seen:
             continue
         seen.add(o.id)
-        if o.price is not None:
-            levels[o.price] += _visible_qty(o)
+        if o.price_ticks is not None:
+            levels[o.price_ticks] += _visible_qty(o)
     return {p: q for p, q in levels.items() if q != 0}
 
 

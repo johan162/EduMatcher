@@ -78,5 +78,5 @@ class TestAITraderHelpers:
         assert payload["symbol"] == "AAPL"
         assert payload["order_type"] == "LIMIT"
         assert payload["quantity"] > 0
-        assert payload["price"] > 0
+        assert payload["price_ticks"] > 0
         assert payload["gateway_id"] == "AI02"

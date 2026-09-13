@@ -458,14 +458,14 @@ def test_builder_combos_emitted() -> None:
                         side="BUY",
                         order_type="LIMIT",
                         quantity=100,
-                        price=20950,
+                        price=209.50,
                     ),
                     ComboLegSpec(
                         symbol="MSFT",
                         side="SELL",
                         order_type="LIMIT",
                         quantity=50,
-                        price=41550,
+                        price=415.50,
                     ),
                 ),
             )
@@ -484,7 +484,7 @@ def test_builder_combos_emitted() -> None:
         "side": "BUY",
         "order_type": "LIMIT",
         "quantity": 100,
-        "price": 20950,
+        "price": 209.50,
         "stop_price": None,
         "smp_action": "NONE",
     }

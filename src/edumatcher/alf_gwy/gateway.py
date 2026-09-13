@@ -56,6 +56,7 @@ from edumatcher.models.message import (
 from edumatcher.models.order import Order, OrderType, Side, SmpAction, TIF
 from edumatcher.models.price import (
     TickViolation,
+    get_tick_decimals,
     register_tick_decimals,
     to_ticks_exact,
 )
@@ -295,12 +296,14 @@ class AlfGateway:
                     conn.close()
                 except OSError:
                     pass
+                log.warning("ALF max_connections reached, rejecting %s", addr)
                 continue
 
             session = ClientSession(sock=conn, addr=addr)
             session.rate_tokens = float(self.config.max_commands_per_second)
             self._clients[conn.fileno()] = session
             self._global_stats["connected_clients"] = len(self._clients)
+            log.debug("ALF new connection from %s", addr)
 
     def _read_client_data(self) -> None:
         if not self._clients:
@@ -511,6 +514,11 @@ class AlfGateway:
                 tag=self._error_tag_for(cmd, fields),
             )
         except Exception:
+            log.exception(
+                "[%s] unexpected error handling %s",
+                session.gateway_id or session.addr,
+                cmd,
+            )
             self._global_stats["commands_rejected_total"] += 1
             self._register_error(
                 session,
@@ -720,15 +728,17 @@ class AlfGateway:
             quantity=quantity,
             gateway_id=self._require_gw(session),
             tif=tif,
-            price=self._ticks(price, symbol, "PRICE") if price is not None else None,
-            stop_price=(
+            price_ticks=(
+                self._ticks(price, symbol, "PRICE") if price is not None else None
+            ),
+            stop_price_ticks=(
                 self._ticks(stop_price, symbol, "STOP")
                 if stop_price is not None
                 else None
             ),
             visible_qty=visible,
             smp_action=smp,
-            trail_offset=(
+            trail_offset_ticks=(
                 self._ticks(trail_offset, symbol, "TRAIL")
                 if trail_offset is not None
                 else None
@@ -865,10 +875,11 @@ class AlfGateway:
                     side=side,
                     order_type=leg_type,
                     quantity=qty,
-                    price=(
+                    tick_decimals=2,
+                    price_ticks=(
                         self._ticks(price, sym, "PRICE") if price is not None else None
                     ),
-                    stop_price=(
+                    stop_price_ticks=(
                         self._ticks(stop, sym, "STOP") if stop is not None else None
                     ),
                     smp_action=smp_action,
@@ -966,9 +977,10 @@ class AlfGateway:
             "gateway_id": self._require_gw(session),
             "symbol": symbol,
             # Ticks on the wire (design section 15.2, quotes joined in 6.1b).
-            "bid_price": self._ticks(bid, symbol, "BID"),
+            "tick_decimals": get_tick_decimals(symbol),
+            "bid_price_ticks": self._ticks(bid, symbol, "BID"),
             "bid_qty": bid_qty,
-            "ask_price": self._ticks(ask, symbol, "ASK"),
+            "ask_price_ticks": self._ticks(ask, symbol, "ASK"),
             "ask_qty": ask_qty,
             "tif": tif.value,
         }
@@ -1111,6 +1123,7 @@ class AlfGateway:
                     )
                 break
             except Exception:
+                log.warning("decode error on engine SUB event", exc_info=True)
                 budget -= 1
                 continue
 
@@ -1217,6 +1230,7 @@ class AlfGateway:
                     )
                 break
             except Exception:
+                log.warning("decode error on drop-copy SUB event", exc_info=True)
                 budget -= 1
                 continue
 
@@ -1903,6 +1917,13 @@ class AlfGateway:
         if tag:
             fields["TAG"] = tag
         self._queue_line(session, "ERR", fields)
+        log.debug(
+            "[%s] rejected code=%s reject_code=%s detail=%s",
+            session.gateway_id or session.addr,
+            code,
+            fields["REJECT_CODE"],
+            detail,
+        )
 
         now = time.monotonic()
         session.error_times.append(now)
@@ -1931,6 +1952,7 @@ class AlfGateway:
 
     def _disconnect(self, session: ClientSession, *, reason: str) -> None:
         gateway_id = session.gateway_id
+        log.info("[%s] disconnected reason=%s", gateway_id or session.addr, reason)
 
         if (
             gateway_id

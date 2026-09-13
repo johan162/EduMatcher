@@ -192,6 +192,7 @@ class TestOrderMonitorHandle:
                 "fill_qty": 50,
                 "fill_price": 100.0,
                 "remaining_qty": 50,
+                "tick_decimals": 2,
                 "status": "PARTIAL",
             },
         )
@@ -368,8 +369,13 @@ class TestEngineCancelOCO:
                 "symbol": "AAPL",
                 "quantity": 100,
                 "tif": "DAY",
-                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 9500},
-                "leg2": {"side": "BUY", "order_type": "STOP", "stop_price": 10500},
+                "tick_decimals": 2,
+                "leg1": {"side": "BUY", "order_type": "LIMIT", "price_ticks": 9500},
+                "leg2": {
+                    "side": "BUY",
+                    "order_type": "STOP",
+                    "stop_price_ticks": 10500,
+                },
             }
         )
         order_ids = engine._oco_groups.get("OCO_CANCEL_TEST", [])
@@ -453,7 +459,7 @@ class TestEngineSessionTransitions:
             order_type=OrderType.LIMIT,
             quantity=100,
             gateway_id="GW01",
-            price=100,
+            price_ticks=100,
         )
         engine._session_state = SessionState.OPENING_AUCTION
         engine._handle_new_order(o.to_dict())

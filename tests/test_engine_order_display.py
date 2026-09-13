@@ -23,8 +23,9 @@ def base_order():
         quantity=100,
         remaining_qty=100,
         gateway_id="GW001",
-        timestamp=1_000_000_000,
+        ts_ns=1_000_000_000,
         status=OrderStatus.NEW,
+        tick_decimals=2,
     )
 
 
@@ -42,11 +43,12 @@ class TestOrderToDisplayDictPriceCoverage:
             quantity=base_order.quantity,
             remaining_qty=base_order.remaining_qty,
             gateway_id=base_order.gateway_id,
-            timestamp=base_order.timestamp,
+            ts_ns=base_order.ts_ns,
             status=OrderStatus.NEW,
-            price=12550,  # display: 125.50
-            stop_price=12450,  # display: 124.50
-            trail_offset=50,  # display: 0.50
+            tick_decimals=2,
+            price_ticks=12550,  # display: 125.50
+            stop_price_ticks=12450,  # display: 124.50
+            trail_offset_ticks=50,  # display: 0.50
         )
         result = order_to_display_dict(order)
 
@@ -70,11 +72,12 @@ class TestOrderToDisplayDictPriceCoverage:
             quantity=base_order.quantity,
             remaining_qty=base_order.remaining_qty,
             gateway_id=base_order.gateway_id,
-            timestamp=base_order.timestamp,
+            ts_ns=base_order.ts_ns,
             status=OrderStatus.NEW,
-            price=None,
-            stop_price=12450,
-            trail_offset=50,
+            tick_decimals=2,
+            price_ticks=None,
+            stop_price_ticks=12450,
+            trail_offset_ticks=50,
         )
         result = order_to_display_dict(order)
 
@@ -93,11 +96,12 @@ class TestOrderToDisplayDictPriceCoverage:
             quantity=base_order.quantity,
             remaining_qty=base_order.remaining_qty,
             gateway_id=base_order.gateway_id,
-            timestamp=base_order.timestamp,
+            ts_ns=base_order.ts_ns,
             status=OrderStatus.NEW,
-            price=12550,
-            stop_price=None,
-            trail_offset=50,
+            tick_decimals=2,
+            price_ticks=12550,
+            stop_price_ticks=None,
+            trail_offset_ticks=50,
         )
         result = order_to_display_dict(order)
 
@@ -116,11 +120,12 @@ class TestOrderToDisplayDictPriceCoverage:
             quantity=base_order.quantity,
             remaining_qty=base_order.remaining_qty,
             gateway_id=base_order.gateway_id,
-            timestamp=base_order.timestamp,
+            ts_ns=base_order.ts_ns,
             status=OrderStatus.NEW,
-            price=12550,
-            stop_price=12450,
-            trail_offset=None,
+            tick_decimals=2,
+            price_ticks=12550,
+            stop_price_ticks=12450,
+            trail_offset_ticks=None,
         )
         result = order_to_display_dict(order)
 
@@ -139,11 +144,12 @@ class TestOrderToDisplayDictPriceCoverage:
             quantity=base_order.quantity,
             remaining_qty=base_order.remaining_qty,
             gateway_id=base_order.gateway_id,
-            timestamp=base_order.timestamp,
+            ts_ns=base_order.ts_ns,
             status=OrderStatus.NEW,
-            price=None,
-            stop_price=None,
-            trail_offset=None,
+            tick_decimals=2,
+            price_ticks=None,
+            stop_price_ticks=None,
+            trail_offset_ticks=None,
         )
         result = order_to_display_dict(order)
 
@@ -169,8 +175,9 @@ class TestOrderToDisplayDictPriceCoverage:
             quantity=base_order.quantity,
             remaining_qty=base_order.remaining_qty,
             gateway_id=base_order.gateway_id,
-            timestamp=1_234_567_890,
+            ts_ns=1_234_567_890,
             status=OrderStatus.NEW,
+            tick_decimals=2,
         )
         result = order_to_display_dict(order)
 
@@ -188,8 +195,9 @@ class TestOrderToDisplayDictPriceCoverage:
             quantity=500,
             remaining_qty=250,
             gateway_id="GW-ALF",
-            timestamp=base_order.timestamp,
+            ts_ns=base_order.ts_ns,
             status=OrderStatus.NEW,
+            tick_decimals=2,
         )
         result = order_to_display_dict(order)
 

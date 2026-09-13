@@ -60,6 +60,10 @@ _last_rand = 0
 _RAND_MAX = (1 << 80) - 1
 
 
+#: Reverse of ``_B32``, for reading a timestamp back out of a ULID.
+_B32_INDEX = {char: index for index, char in enumerate(_B32)}
+
+
 def _encode_b32(value: int, length: int) -> str:
     out = [""] * length
     for i in range(length - 1, -1, -1):
@@ -93,6 +97,28 @@ def new_ulid() -> str:
             _last_rand = int.from_bytes(os.urandom(10), "big")
         rand = _last_rand
     return _encode_b32(ms, 10) + _encode_b32(rand, 16)
+
+
+def ulid_millis(value: str) -> int | None:
+    """Return the millisecond timestamp a ULID encodes, or None if it is not one.
+
+    The inverse of the first ten characters ``new_ulid`` emits. Lexicographic
+    ULID order is already generation order, so this is not needed to sort ids
+    against each other -- it is needed to sort them against something that is
+    *not* a ULID, which is what reading a mixed archive requires: a line
+    recorded before the envelope existed has only a receipt timestamp, and the
+    two have to land on one scale to interleave at all.
+    """
+    text = value.strip().upper()
+    if len(text) != _ULID_LEN:
+        return None
+    ms = 0
+    for char in text[:10]:
+        index = _B32_INDEX.get(char)
+        if index is None:
+            return None
+        ms = (ms << 5) | index
+    return ms
 
 
 @dataclass(frozen=True, slots=True)

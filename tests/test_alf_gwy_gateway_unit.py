@@ -396,6 +396,7 @@ def test_order_events_echo_client_tag(gateway: AlfGateway) -> None:
                 "fill_qty": 1,
                 "fill_price": 100.0,
                 "remaining_qty": 1,
+                "tick_decimals": 2,
                 "status": "PARTIAL",
                 "client_tag": "TAG-001",
                 "trade_ids": ["000001-000000001", "000001-000000002"],
@@ -436,6 +437,7 @@ def test_fill_carries_the_liquidity_flag(gateway: AlfGateway) -> None:
                 "fill_qty": 1,
                 "fill_price": 100.0,
                 "remaining_qty": 0,
+                "tick_decimals": 2,
                 "status": "FILLED",
                 "trade_ids": ["000001-000000001"],
                 "liquidity_flag": "TAKER",
@@ -471,6 +473,7 @@ def test_fill_omits_liquidity_when_the_engine_did_not_send_one(
                 "fill_qty": 1,
                 "fill_price": 100.0,
                 "remaining_qty": 0,
+                "tick_decimals": 2,
                 "status": "FILLED",
             },
         )

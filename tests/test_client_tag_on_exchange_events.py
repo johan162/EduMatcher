@@ -39,6 +39,7 @@ _ORDER = {
     "side": "BUY",
     "order_type": "LIMIT",
     "tif": "DAY",
+    "tick_decimals": 2,
     "quantity": 10,
     "client_tag": "CT-FROM-ORDER",
     "oco_group_id": "OCO-9",
@@ -118,8 +119,13 @@ class TestExchangeInitiatedEventsOnTheWire:
                 "quantity": 100,
                 "tif": "DAY",
                 "client_tag": "CT-OCO",
-                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 9500},
-                "leg2": {"side": "BUY", "order_type": "STOP", "stop_price": 10500},
+                "tick_decimals": 2,
+                "leg1": {"side": "BUY", "order_type": "LIMIT", "price_ticks": 9500},
+                "leg2": {
+                    "side": "BUY",
+                    "order_type": "STOP",
+                    "stop_price_ticks": 10500,
+                },
             }
         )
         engine._handle_oco_cancel({"oco_id": "OCO001", "gateway_id": "GW01"})

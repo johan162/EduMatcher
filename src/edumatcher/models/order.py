@@ -10,6 +10,7 @@ from typing import Any, Optional
 
 from edumatcher.models.clock import now_ns
 from edumatcher.models.ids import new_order_id
+from edumatcher.models.price import get_tick_decimals
 
 
 class Side(str, Enum):
@@ -123,13 +124,20 @@ class Order:
     quantity: int  # total original quantity
     remaining_qty: int  # quantity yet to be filled
     gateway_id: str
-    timestamp: int
+    ts_ns: int
     status: OrderStatus
+    # Decimal scale of every `_ticks` field below. Stored rather than looked up
+    # from the symbol registry at serialisation time, because a resting order
+    # restored from persistence holds ticks at the scale in force when it was
+    # written: deriving the current scale would silently reprice it if the
+    # symbol's configuration ever changed.
+    tick_decimals: int
 
-    price: Optional[int] = (
+    price_ticks: Optional[int] = (
         None  # limit / stop-limit / FOK / iceberg limit price (ticks)
     )
-    stop_price: Optional[int] = None  # STOP / STOP_LIMIT / TRAILING_STOP trigger price
+    # STOP / STOP_LIMIT / TRAILING_STOP trigger price
+    stop_price_ticks: Optional[int] = None
     visible_qty: Optional[int] = None  # ICEBERG: fixed peak size
     displayed_qty: Optional[int] = None  # ICEBERG: current visible slice on book
     # Self-match prevention. None means "not yet resolved": either the client
@@ -140,7 +148,7 @@ class Order:
     smp_action: Optional[SmpAction] = None
 
     # Trailing stop field
-    trail_offset: Optional[int] = (
+    trail_offset_ticks: Optional[int] = (
         None  # TRAILING_STOP: fixed distance to trail market price
     )
 
@@ -168,7 +176,7 @@ class Order:
     client_tag: Optional[str] = None
 
     # Engine-assigned monotonic arrival sequence (finding H1).  Time priority
-    # in the book is keyed on this, NOT on the client-supplied `timestamp`,
+    # in the book is keyed on this, NOT on the client-supplied `ts_ns`,
     # so a back-dated payload timestamp cannot jump the price-time queue.
     # Assigned by OrderBook when the order is placed on a heap; 0 = unassigned.
     arrival_seq: int = 0
@@ -194,14 +202,15 @@ class Order:
         quantity: int,
         gateway_id: str,
         tif: TIF = TIF.DAY,
-        price: Optional[int] = None,
-        stop_price: Optional[int] = None,
+        price_ticks: Optional[int] = None,
+        stop_price_ticks: Optional[int] = None,
         visible_qty: Optional[int] = None,
         smp_action: Optional[SmpAction] = None,
-        trail_offset: Optional[int] = None,
+        trail_offset_ticks: Optional[int] = None,
         oco_group_id: Optional[str] = None,
         client_tag: Optional[str] = None,
         is_seed: bool = False,
+        tick_decimals: Optional[int] = None,
     ) -> "Order":
         displayed = visible_qty if order_type == OrderType.ICEBERG else None
         return cls(
@@ -213,14 +222,19 @@ class Order:
             quantity=quantity,
             remaining_qty=quantity,
             gateway_id=gateway_id,
-            timestamp=now_ns(),
+            ts_ns=now_ns(),
             status=OrderStatus.NEW,
-            price=price,
-            stop_price=stop_price,
+            # Resolved from the symbol registry here, at the one moment the
+            # order's ticks are chosen, and carried from then on.
+            tick_decimals=(
+                get_tick_decimals(symbol) if tick_decimals is None else tick_decimals
+            ),
+            price_ticks=price_ticks,
+            stop_price_ticks=stop_price_ticks,
             visible_qty=visible_qty,
             displayed_qty=displayed,
             smp_action=smp_action,
-            trail_offset=trail_offset,
+            trail_offset_ticks=trail_offset_ticks,
             oco_group_id=oco_group_id,
             client_tag=client_tag,
             is_seed=is_seed,
@@ -239,12 +253,13 @@ class Order:
             "quantity": self.quantity,
             "remaining_qty": self.remaining_qty,
             "gateway_id": self.gateway_id,
-            "trail_offset": self.trail_offset,
+            "tick_decimals": self.tick_decimals,
+            "trail_offset_ticks": self.trail_offset_ticks,
             "oco_group_id": self.oco_group_id,
-            "timestamp": self.timestamp,
+            "ts_ns": self.ts_ns,
             "status": self.status.value,
-            "price": self.price,
-            "stop_price": self.stop_price,
+            "price_ticks": self.price_ticks,
+            "stop_price_ticks": self.stop_price_ticks,
             "visible_qty": self.visible_qty,
             "displayed_qty": self.displayed_qty,
             "smp_action": (
@@ -278,10 +293,11 @@ class Order:
         o.quantity = d["quantity"]
         o.remaining_qty = d["remaining_qty"]
         o.gateway_id = d["gateway_id"]
-        o.timestamp = d["timestamp"]
+        o.ts_ns = d["ts_ns"]
         o.status = _STATUS_MAP[d["status"]]
-        o.price = d.get("price")
-        o.stop_price = d.get("stop_price")
+        o.tick_decimals = d["tick_decimals"]
+        o.price_ticks = d.get("price_ticks")
+        o.stop_price_ticks = d.get("stop_price_ticks")
         o.visible_qty = d.get("visible_qty")
         o.displayed_qty = d.get("displayed_qty")
         # Absent key or explicit null both mean "client did not specify" —
@@ -290,7 +306,7 @@ class Order:
         # difference from an explicit SMP=NONE and apply a gateway default.
         _smp_raw = d.get("smp_action")
         o.smp_action = _SMP_MAP.get(_smp_raw) if _smp_raw is not None else None
-        o.trail_offset = d.get("trail_offset")
+        o.trail_offset_ticks = d.get("trail_offset_ticks")
         o.oco_group_id = d.get("oco_group_id")
         o.combo_parent_id = d.get("combo_parent_id")
         o.leg_index = d.get("leg_index")

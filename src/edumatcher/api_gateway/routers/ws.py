@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
@@ -36,6 +37,8 @@ from edumatcher.models.generated.system import (
 )
 
 router = APIRouter(prefix="/api/v1", tags=["websockets"])
+
+log = logging.getLogger(__name__)
 
 #: Stands in for "every symbol" inside a subscription pair.
 _ANY_SYMBOL = "*"
@@ -195,6 +198,7 @@ async def private_events(websocket: WebSocket) -> None:
                 }
             )
         except Exception:
+            log.exception("[%s] private stream snapshot/setup failed", gateway_id)
             engine.remove_sink(gateway_id, queue)
             raise
         try:
@@ -245,6 +249,7 @@ async def admin_monitor(websocket: WebSocket) -> None:
             await websocket.send_json({"type": "authenticated"})
             await websocket.send_json(await _monitor_snapshot(websocket, gateway_id))
         except Exception:
+            log.exception("[%s] admin monitor snapshot/setup failed", gateway_id)
             engine.remove_admin_sink(queue)
             raise
         try:
@@ -278,7 +283,13 @@ async def _monitor_snapshot(websocket: WebSocket, gateway_id: str) -> dict[str, 
         try:
             request_fn(gateway_id)
             return await engine.await_topic(topic, timeout)
-        except (TimeoutError, Exception):
+        except (TimeoutError, Exception) as exc:
+            log.debug(
+                "[%s] admin monitor snapshot: %s unavailable (%s)",
+                gateway_id,
+                key,
+                exc,
+            )
             incomplete.append(key)
             return None
 

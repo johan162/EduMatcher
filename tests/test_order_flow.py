@@ -23,8 +23,8 @@ def make_order(
         quantity=qty,
         gateway_id=gateway_id,
         tif=tif,
-        price=price,
-        stop_price=stop_price,
+        price_ticks=price,
+        stop_price_ticks=stop_price,
         visible_qty=visible_qty,
     )
 

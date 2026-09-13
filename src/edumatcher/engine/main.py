@@ -293,14 +293,25 @@ def order_to_display_dict(order: Order) -> dict[str, Any]:
     """
     d = order.to_dict()
     sym = order.symbol
-    d["price"] = from_ticks(order.price, sym) if order.price is not None else None
+    # The projection renames as well as converts: what leaves here is display
+    # money, so it must not keep a name that says ticks.
+    d["price"] = (
+        from_ticks(order.price_ticks, sym) if order.price_ticks is not None else None
+    )
     d["stop_price"] = (
-        from_ticks(order.stop_price, sym) if order.stop_price is not None else None
+        from_ticks(order.stop_price_ticks, sym)
+        if order.stop_price_ticks is not None
+        else None
     )
     d["trail_offset"] = (
-        from_ticks(order.trail_offset, sym) if order.trail_offset is not None else None
+        from_ticks(order.trail_offset_ticks, sym)
+        if order.trail_offset_ticks is not None
+        else None
     )
-    d["ts_ns"] = d.pop("timestamp")
+    for tick_key in ("price_ticks", "stop_price_ticks", "trail_offset_ticks"):
+        del d[tick_key]
+    # `tick_decimals` rides through: it is what the display floats above were
+    # produced at, so a reader can still tell 75.7 from 75.70.
     return d
 
 
@@ -914,7 +925,7 @@ class Engine:
                     quantity=quote_seed.bid_qty,
                     gateway_id=gateway_id,
                     tif=quote_seed.tif,
-                    price=to_ticks(quote_seed.bid_price, sym),
+                    price_ticks=quote_seed.bid_price_ticks,
                     is_seed=True,
                 )
                 ask = Order.create(
@@ -924,7 +935,7 @@ class Engine:
                     quantity=quote_seed.ask_qty,
                     gateway_id=gateway_id,
                     tif=quote_seed.tif,
-                    price=to_ticks(quote_seed.ask_price, sym),
+                    price_ticks=quote_seed.ask_price_ticks,
                     is_seed=True,
                 )
                 bid.origin = OrderOrigin.QUOTE
@@ -1051,8 +1062,10 @@ class Engine:
                 n_mm_quotes += 1
                 log.info(
                     f"MM quote {quote_id} {sym} "
-                    f"bid={quote_seed.bid_price}x{quote_seed.bid_qty} "
-                    f"ask={quote_seed.ask_price}x{quote_seed.ask_qty} "
+                    f"bid={from_ticks(quote_seed.bid_price_ticks, sym)}"
+                    f"x{quote_seed.bid_qty} "
+                    f"ask={from_ticks(quote_seed.ask_price_ticks, sym)}"
+                    f"x{quote_seed.ask_qty} "
                     f"gw={gateway_id}"
                 )
 
@@ -1166,7 +1179,7 @@ class Engine:
             # still ends its validity, same as it always has for TIF=DAY.
             # TIF=GTC orders are never date-gated. See §13.4.
             if order.tif == TIF.DAY:
-                order_day = datetime.fromtimestamp(order.timestamp / 1e9).date()
+                order_day = datetime.fromtimestamp(order.ts_ns / 1e9).date()
                 if order_day < today:
                     log.info(
                         f"Discarding stale TIF=DAY order {order.id[:8]} "
@@ -1353,7 +1366,7 @@ class Engine:
             OrderType.STOP_LIMIT,
             OrderType.ICEBERG,
         )
-        if price_required and (order.price is None or order.price <= 0):
+        if price_required and (order.price_ticks is None or order.price_ticks <= 0):
             return (
                 "PRICE_OUT_OF_RANGE",
                 f"{order.order_type.value} order requires a positive price",
@@ -1376,8 +1389,8 @@ class Engine:
             breach = validate_order_limits(
                 order.quantity,
                 (
-                    from_ticks(order.price, order.symbol)
-                    if order.price is not None
+                    from_ticks(order.price_ticks, order.symbol)
+                    if order.price_ticks is not None
                     else None
                 ),
                 limits,
@@ -1533,12 +1546,22 @@ class Engine:
             do_match = False
 
         # Price collar check — static and dynamic band protection
-        if self._enforce_collars and order.price is not None:
+        if self._enforce_collars and order.price_ticks is not None:
             collar = self._collars.get(order.symbol)
             if collar is not None:
-                result = validate_collar(order.price, collar, book.last_trade_price)
+                result = validate_collar(
+                    order.price_ticks, collar, book.last_trade_price
+                )
                 if result.rejected:
                     self._dbg_count("new_order_reject_collar")
+                    log.debug(
+                        "collar reject order_id=%s symbol=%s price=%s last_trade=%s reason=%s",
+                        order.id,
+                        order.symbol,
+                        order.price_ticks,
+                        book.last_trade_price,
+                        result.reason,
+                    )
                     self._reject(
                         gateway_id=order.gateway_id,
                         order_id=order.id,
@@ -1568,13 +1591,13 @@ class Engine:
 
         log.info(
             f"NEW {order.id[:8]} {order.symbol} {order.side.value} "
-            f"{order.order_type.value} qty={order.quantity} price={order.price}"
+            f"{order.order_type.value} qty={order.quantity} price={order.price_ticks}"
         )
 
         # TRAILING_STOP: compute initial stop_price from last trade if not supplied
         if order.order_type == OrderType.TRAILING_STOP:
             book = self._book(order.symbol)
-            if order.stop_price is None:
+            if order.stop_price_ticks is None:
                 if book.last_trade_price is None:
                     self._reject(
                         gateway_id=order.gateway_id,
@@ -1586,9 +1609,9 @@ class Engine:
                     )
                     return
                 if order.side == Side.SELL:
-                    order.stop_price = book.last_trade_price - order.trail_offset  # type: ignore[operator]
+                    order.stop_price_ticks = book.last_trade_price - order.trail_offset_ticks  # type: ignore[operator]
                 else:
-                    order.stop_price = book.last_trade_price + order.trail_offset  # type: ignore[operator]
+                    order.stop_price_ticks = book.last_trade_price + order.trail_offset_ticks  # type: ignore[operator]
 
         # M8: order→symbol registration happens AFTER book.process() succeeds
         # (below), not here — so a failure mid-processing leaves no half-applied
@@ -1628,7 +1651,16 @@ class Engine:
         _side_v: str = payload["side"]
         _ot_v: str = payload["order_type"]
         _tif_v: str = payload["tif"]
-        _price_v = payload.get("price")  # None for MARKET orders
+        # order.new carries the limit price in ticks; order.ack.price and
+        # order.fill.price are both declared display_price. Every other ack and
+        # fill path converts (order_to_display_dict, and the passive branch of
+        # the fill below) -- this hot path echoed the tick value straight
+        # through, so a 46.78 limit acked and filled as 4700 on the aggressor
+        # side while the passive leg of the same match reported 46.78.
+        _tick_px = payload.get("price_ticks")  # None for MARKET orders
+        _ack_price = (
+            from_ticks(_tick_px, order.symbol) if _tick_px is not None else None
+        )
         _pub.send_multipart(
             [
                 ack_topic,
@@ -1642,7 +1674,7 @@ class Engine:
                         "order_type": _ot_v,
                         "tif": _tif_v,
                         "qty": order.quantity,
-                        "price": _price_v,
+                        "price": _ack_price,
                         "client_tag": order.client_tag,
                     }
                 ),
@@ -1747,11 +1779,11 @@ class Engine:
                                 "order_type": (_ot_v if _is_agg else evt.order_type),
                                 "qty": evt.quantity,
                                 "price": (
-                                    _price_v
+                                    _ack_price
                                     if _is_agg
                                     else (
-                                        from_ticks(evt.price, evt.symbol)
-                                        if evt.price is not None
+                                        from_ticks(evt.price_ticks, evt.symbol)
+                                        if evt.price_ticks is not None
                                         else None
                                     )
                                 ),
@@ -2494,11 +2526,11 @@ class Engine:
         matching = [
             order
             for order in book.resting_orders()
-            if price_ticks is None or order.price == price_ticks
+            if price_ticks is None or order.price_ticks == price_ticks
         ]
         matching.sort(
             key=lambda o: (
-                o.price if o.price is not None else 0,
+                o.price_ticks if o.price_ticks is not None else 0,
                 o.arrival_seq,
             )
         )
@@ -2547,13 +2579,13 @@ class Engine:
                     "bid_order_id": entry.bid_order_id,
                     "ask_order_id": entry.ask_order_id,
                     "bid_price": (
-                        from_ticks(bid.price, bid.symbol)
-                        if bid is not None and bid.price is not None
+                        from_ticks(bid.price_ticks, bid.symbol)
+                        if bid is not None and bid.price_ticks is not None
                         else None
                     ),
                     "ask_price": (
-                        from_ticks(ask.price, ask.symbol)
-                        if ask is not None and ask.price is not None
+                        from_ticks(ask.price_ticks, ask.symbol)
+                        if ask is not None and ask.price_ticks is not None
                         else None
                     ),
                     "bid_qty": bid.quantity if bid is not None else 0,
@@ -2648,8 +2680,8 @@ class Engine:
                         "symbol": entry.symbol,
                         "leg_side": leg_side,
                         "price": (
-                            from_ticks(leg_order.price, entry.symbol)
-                            if leg_order.price is not None
+                            from_ticks(leg_order.price_ticks, entry.symbol)
+                            if leg_order.price_ticks is not None
                             else None
                         ),
                         "qty": leg_order.quantity,
@@ -2794,8 +2826,8 @@ class Engine:
             filled=order.quantity - order.remaining_qty,
             status=order.status.value,
             price=(
-                from_ticks(order.price, order.symbol)
-                if order.price is not None
+                from_ticks(order.price_ticks, order.symbol)
+                if order.price_ticks is not None
                 else None
             ),
         )
@@ -3024,6 +3056,14 @@ class Engine:
         if triggered_level is None:
             return
 
+        log.debug(
+            "circuit breaker tripped symbol=%s level=%s trigger_price=%s reference_price=%s shift_pct=%s",
+            symbol,
+            triggered_level.name,
+            cb.trigger_price,
+            cb.reference_price,
+            triggered_level.price_shift_pct,
+        )
         cb.activate(now, triggered_level, self._reopening_rng)
         self._halted_symbols[symbol] = True
 
@@ -3378,8 +3418,8 @@ class Engine:
             return value
 
         try:
-            bid_price = _quote_ticks("bid_price")
-            ask_price = _quote_ticks("ask_price")
+            bid_price = _quote_ticks("bid_price_ticks")
+            ask_price = _quote_ticks("ask_price_ticks")
             bid_qty = int(payload["bid_qty"])
             ask_qty = int(payload["ask_qty"])
             tif = TIF(str(payload.get("tif", "DAY")).upper())
@@ -3518,7 +3558,7 @@ class Engine:
             quantity=bid_qty,
             gateway_id=gateway_id,
             tif=tif,
-            price=bid_price,
+            price_ticks=bid_price,
             smp_action=smp_action,
         )
         ask = Order.create(
@@ -3528,7 +3568,7 @@ class Engine:
             quantity=ask_qty,
             gateway_id=gateway_id,
             tif=tif,
-            price=ask_price,
+            price_ticks=ask_price,
             smp_action=smp_action,
         )
         bid.origin = OrderOrigin.QUOTE
@@ -4622,7 +4662,7 @@ class Engine:
                 OrderType.STOP_LIMIT,
                 OrderType.ICEBERG,
             )
-            if needs_price and leg.price is None:
+            if needs_price and leg.price_ticks is None:
                 return f"Leg {i}: {leg.order_type.value} requires a price"
 
         return ""
@@ -4651,7 +4691,7 @@ class Engine:
         aon_blocked = False
         if combo.combo_type == ComboType.AON:
             aon_blocked = not all(
-                self._book(leg.symbol).fillable_quantity(leg.side, leg.price)
+                self._book(leg.symbol).fillable_quantity(leg.side, leg.price_ticks)
                 >= leg.quantity
                 for leg in combo.legs
             )
@@ -4669,8 +4709,8 @@ class Engine:
                 quantity=leg.quantity,
                 gateway_id=combo.gateway_id,
                 tif=combo.tif,
-                price=leg.price,
-                stop_price=leg.stop_price,
+                price_ticks=leg.price_ticks,
+                stop_price_ticks=leg.stop_price_ticks,
                 visible_qty=None,
                 smp_action=leg_smp_action,
                 client_tag=combo.client_tag,
@@ -5382,9 +5422,9 @@ class Engine:
                     gateway_id=gateway_id,
                     tif=tif,
                     # Ticks on the wire: the submitting gateway converted.
-                    price=_leg_ticks(raw, "price"),
-                    stop_price=_leg_ticks(raw, "stop_price"),
-                    trail_offset=_leg_ticks(raw, "trail_offset"),
+                    price_ticks=_leg_ticks(raw, "price_ticks"),
+                    stop_price_ticks=_leg_ticks(raw, "stop_price_ticks"),
+                    trail_offset_ticks=_leg_ticks(raw, "trail_offset_ticks"),
                     client_tag=(
                         str(payload["client_tag"])
                         if payload.get("client_tag") is not None
@@ -5412,7 +5452,7 @@ class Engine:
         for i, leg in enumerate((leg1, leg2), 1):
             if (
                 leg.order_type in (OrderType.LIMIT, OrderType.IOC, OrderType.FOK)
-                and leg.price is None
+                and leg.price_ticks is None
             ):
                 self.pub_sock.send_multipart(
                     make_oco_ack_msg(
@@ -5425,7 +5465,7 @@ class Engine:
                 return
             if (
                 leg.order_type in (OrderType.STOP, OrderType.STOP_LIMIT)
-                and leg.stop_price is None
+                and leg.stop_price_ticks is None
             ):
                 self.pub_sock.send_multipart(
                     make_oco_ack_msg(
@@ -5436,7 +5476,10 @@ class Engine:
                     )
                 )
                 return
-            if leg.order_type == OrderType.TRAILING_STOP and leg.trail_offset is None:
+            if (
+                leg.order_type == OrderType.TRAILING_STOP
+                and leg.trail_offset_ticks is None
+            ):
                 self.pub_sock.send_multipart(
                     make_oco_ack_msg(
                         gateway_id,
@@ -5482,12 +5525,15 @@ class Engine:
 
         for leg in (leg1, leg2):
             # Resolve trailing stop initial price if needed
-            if leg.order_type == OrderType.TRAILING_STOP and leg.stop_price is None:
+            if (
+                leg.order_type == OrderType.TRAILING_STOP
+                and leg.stop_price_ticks is None
+            ):
                 if book.last_trade_price is not None:
                     if leg.side == Side.SELL:
-                        leg.stop_price = book.last_trade_price - leg.trail_offset  # type: ignore[operator]
+                        leg.stop_price_ticks = book.last_trade_price - leg.trail_offset_ticks  # type: ignore[operator]
                     else:
-                        leg.stop_price = book.last_trade_price + leg.trail_offset  # type: ignore[operator]
+                        leg.stop_price_ticks = book.last_trade_price + leg.trail_offset_ticks  # type: ignore[operator]
 
             # ACK each leg individually so the gateway can track them
             self.pub_sock.send_multipart(
@@ -5502,8 +5548,8 @@ class Engine:
                         "tif": leg.tif.value,
                         "quantity": leg.quantity,
                         "price": (
-                            from_ticks(leg.price, leg.symbol)
-                            if leg.price is not None
+                            from_ticks(leg.price_ticks, leg.symbol)
+                            if leg.price_ticks is not None
                             else None
                         ),
                     },
@@ -5867,6 +5913,14 @@ class Engine:
                 result = validate_collar(new_price_ticks, collar, book.last_trade_price)
                 if result.rejected:
                     self._dbg_count("amend_reject_collar")
+                    log.debug(
+                        "collar reject order_id=%s symbol=%s price=%s last_trade=%s reason=%s",
+                        order_id,
+                        symbol,
+                        new_price_ticks,
+                        book.last_trade_price,
+                        result.reason,
+                    )
                     self._reject(
                         gateway_id=gateway_id,
                         order_id=order_id,
@@ -5885,7 +5939,7 @@ class Engine:
         if limits is not None and resting is not None:
             amended_qty = new_qty if new_qty is not None else resting.quantity
             amended_price = (
-                new_price_ticks if new_price_ticks is not None else resting.price
+                new_price_ticks if new_price_ticks is not None else resting.price_ticks
             )
             breach = validate_order_limits(
                 amended_qty,
@@ -5898,6 +5952,14 @@ class Engine:
             )
             if breach is not None:
                 self._dbg_count("amend_reject_order_limits")
+                log.debug(
+                    "order_limits reject order_id=%s symbol=%s qty=%s price=%s reason=%s",
+                    order_id,
+                    symbol,
+                    amended_qty,
+                    amended_price,
+                    breach[1],
+                )
                 self._reject(
                     gateway_id=gateway_id,
                     order_id=order_id,
@@ -5911,7 +5973,7 @@ class Engine:
         # Captured before book.amend_order() mutates the resting Order object
         # in place -- resting and amended are the same object once that call
         # returns, so this is the last point old_price/old_qty are readable.
-        old_price_ticks = resting.price if resting is not None else None
+        old_price_ticks = resting.price_ticks if resting is not None else None
         old_qty = resting.quantity if resting is not None else None
 
         now = now_ns()
@@ -5940,8 +6002,8 @@ class Engine:
                 gateway_id,
                 order_id,
                 price=(
-                    from_ticks(amended.price, amended.symbol)
-                    if amended.price is not None
+                    from_ticks(amended.price_ticks, amended.symbol)
+                    if amended.price_ticks is not None
                     else None
                 ),
                 qty=amended.quantity,
@@ -5962,7 +6024,7 @@ class Engine:
         self._mark_dirty(amended.symbol)
         prio_str = " (priority reset)" if priority_reset else " (priority kept)"
         log.info(
-            f"AMENDED {order_id[:8]} price={amended.price} "
+            f"AMENDED {order_id[:8]} price={amended.price_ticks} "
             f"qty={amended.quantity}{prio_str}"
         )
 
@@ -5971,7 +6033,7 @@ class Engine:
         # resting copy and run it through matching (cancel/replace semantics).
         if (
             do_match
-            and amended.price is not None
+            and amended.price_ticks is not None
             and amended.status
             not in (
                 OrderStatus.FILLED,
@@ -5982,10 +6044,10 @@ class Engine:
         ):
             if amended.side == Side.BUY:
                 best_ask = book.best_ask_ticks()
-                marketable = best_ask is not None and amended.price >= best_ask
+                marketable = best_ask is not None and amended.price_ticks >= best_ask
             else:
                 best_bid = book.best_bid_ticks()
-                marketable = best_bid is not None and amended.price <= best_bid
+                marketable = best_bid is not None and amended.price_ticks <= best_bid
 
             if marketable:
                 # Remove the resting copy (deducts qty index, invalidates entry)
@@ -6177,6 +6239,59 @@ class Engine:
     # ------------------------------------------------------------------
     # Main loop
     # ------------------------------------------------------------------
+
+    #: A dispatched topic ending in this is a read query, not a decision the
+    #: exchange made. Queries are excluded from the command echo below — see
+    #: `_echo_command`. Derived rather than listed so a new command is
+    #: recorded automatically and a new query is not.
+    _QUERY_SUFFIX = "_request"
+
+    def _echo_command(self, topic: str, frames: list[bytes]) -> None:
+        """Re-publish an inbound command so the audit trail contains it.
+
+        `pm-audit` subscribes to this PUB socket and nothing else, and ZMQ
+        PUSH/PULL cannot be tapped — so without this, no command the exchange
+        was ever asked to perform is recorded. Every effect cites a
+        `causation_id` naming a message that exists nowhere, and a command
+        that produced *no* effect leaves no trace at all: a cancel the engine
+        ignored, a request rejected before any handler ran. That last case is
+        the whole reason this is worth doing.
+
+        The frames are re-published exactly as received, including the
+        sender's own envelope frame — see `CausalPublisher.send_with_envelope`
+        for why the id must not be re-minted. Nothing is decoded, encoded or
+        copied, which is what makes this about half the cost of an ordinary
+        publish.
+
+        Called *before* dispatch, which is a deliberate trade of about two
+        microseconds of order-to-ack latency for two properties:
+
+        **The raw log reads in causal order.** Re-publishing after the handler
+        would still narrate correctly — the sender's ULID was minted before any
+        of the effects, and `pm-audit-replay` orders by that — but nothing else
+        does. `pm-audit-cli timeline`, `grep` and `less` show receipt order, and
+        a request appearing after its own ack is the kind of thing a reader
+        spends an hour on before concluding it was an artefact.
+
+        **The record survives a hard crash inside the handler.** Write-ahead
+        ordering: the command the post-mortem most needs is the one whose
+        handling did not finish. A `finally` would cover a handler that raises,
+        but not a segfault or a SIGKILL mid-dispatch.
+
+        Best-effort regardless: a raise here would escape the receive loop and
+        end it. Recording must never be able to stop the exchange.
+        """
+        if len(frames) < 3 or topic.endswith(self._QUERY_SUFFIX):
+            # Fewer than three frames means no envelope: a client that builds
+            # its own PUSH socket instead of going through `make_pusher`.
+            # There is no id to preserve, and minting one would invent a
+            # causal root that nothing cites.
+            return
+        try:
+            self.pub_sock.send_with_envelope(frames[:2], frames[2])
+        except Exception as exc:  # pragma: no cover - transport failure
+            self._dbg_count("command_echo_failures")
+            log.warning("Command echo failed for %s: %s", topic, exc)
 
     def _dispatch_pull_message(self, topic: str, payload: dict[str, Any]) -> None:
         """Route one decoded PULL-socket message to its handler.
@@ -6509,6 +6624,15 @@ class Engine:
                     # claim one.
                     if cause is None:
                         self._dbg_count("pull_messages_without_envelope")
+                    # Record the request before acting on it. Placing this
+                    # after the dispatch would cost no order-to-ack latency
+                    # and still narrate correctly -- the sender's ULID was
+                    # minted before every effect, and pm-audit-replay orders
+                    # by that -- but the raw log would then show a command
+                    # after its own ack, which is a trap for everyone reading
+                    # the file with grep. The ~2 us buys causal order in the
+                    # bytes, and a record that survives a crash mid-dispatch.
+                    self._echo_command(topic, frames)
                     self.pub_sock.set_cause(cause)
                     try:
                         self._dispatch_pull_message(topic, payload)

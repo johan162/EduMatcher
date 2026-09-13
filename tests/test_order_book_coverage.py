@@ -50,13 +50,13 @@ def _make(
         quantity=qty,
         gateway_id=gateway,
         tif=TIF.DAY,
-        price=price,
-        stop_price=stop_price,
+        price_ticks=price,
+        stop_price_ticks=stop_price,
         visible_qty=visible_qty,
     )
     if trail_offset is not None:
-        o.trail_offset = trail_offset
-        o.stop_price = stop_price
+        o.trail_offset_ticks = trail_offset
+        o.stop_price_ticks = stop_price
     return o
 
 
@@ -267,7 +267,7 @@ class TestAmendEdgeCases:
         result, reset, reason = book.amend_order(o.id, new_price=101)
         assert result is not None
         assert reset is True
-        assert o.price == 101.0
+        assert o.price_ticks == 101.0
 
     def test_amend_qty_increase_resets_priority(self) -> None:
         book = OrderBook("TEST")
@@ -389,7 +389,7 @@ class TestTrailingStops:
     def test_sell_trailing_stop_ratchets_up(self) -> None:
         book = OrderBook("TEST")
         ts = _make(Side.SELL, OrderType.TRAILING_STOP, 100, trail_offset=5)
-        ts.stop_price = 95.0  # initial stop: 100 - 5
+        ts.stop_price_ticks = 95.0  # initial stop: 100 - 5
         book.last_trade_price = 100.0
         book._trailing_stops = [ts]
         book._order_index[ts.id] = ts
@@ -397,12 +397,12 @@ class TestTrailingStops:
         book.last_trade_price = 103.0
         triggered = book._check_trailing_stops(time.time_ns())
         assert triggered == []
-        assert ts.stop_price == pytest.approx(98.0)
+        assert ts.stop_price_ticks == pytest.approx(98.0)
 
     def test_sell_trailing_stop_triggered(self) -> None:
         book = OrderBook("TEST")
         ts = _make(Side.SELL, OrderType.TRAILING_STOP, 100, trail_offset=5)
-        ts.stop_price = 100.0
+        ts.stop_price_ticks = 100.0
         book._trailing_stops = [ts]
         book._order_index[ts.id] = ts
         # Price falls to/below stop
@@ -414,19 +414,19 @@ class TestTrailingStops:
     def test_buy_trailing_stop_ratchets_down(self) -> None:
         book = OrderBook("TEST")
         ts = _make(Side.BUY, OrderType.TRAILING_STOP, 100, trail_offset=5)
-        ts.stop_price = 105.0  # initial stop: 100 + 5
+        ts.stop_price_ticks = 105.0  # initial stop: 100 + 5
         book._trailing_stops = [ts]
         book._order_index[ts.id] = ts
         # Price falls to 97 → stop ratchets down to 102 (97+5), not triggered
         book.last_trade_price = 97.0
         triggered = book._check_trailing_stops(time.time_ns())
         assert triggered == []
-        assert ts.stop_price == pytest.approx(102.0)
+        assert ts.stop_price_ticks == pytest.approx(102.0)
 
     def test_buy_trailing_stop_triggered(self) -> None:
         book = OrderBook("TEST")
         ts = _make(Side.BUY, OrderType.TRAILING_STOP, 100, trail_offset=5)
-        ts.stop_price = 100.0
+        ts.stop_price_ticks = 100.0
         book._trailing_stops = [ts]
         book._order_index[ts.id] = ts
         book.last_trade_price = 101.0  # >= stop
@@ -436,7 +436,7 @@ class TestTrailingStops:
     def test_trailing_stop_no_trade_price(self) -> None:
         book = OrderBook("TEST")
         ts = _make(Side.SELL, OrderType.TRAILING_STOP, 100, trail_offset=5)
-        ts.stop_price = 95.0
+        ts.stop_price_ticks = 95.0
         book._trailing_stops = [ts]
         triggered = book._check_trailing_stops(time.time_ns())
         assert triggered == []
@@ -444,7 +444,7 @@ class TestTrailingStops:
     def test_filled_trailing_stop_skipped(self) -> None:
         book = OrderBook("TEST")
         ts = _make(Side.SELL, OrderType.TRAILING_STOP, 100, trail_offset=5)
-        ts.stop_price = 100.0
+        ts.stop_price_ticks = 100.0
         ts.status = OrderStatus.FILLED
         book._trailing_stops = [ts]
         book.last_trade_price = 90.0
@@ -505,7 +505,7 @@ def _make_quote_leg(
         quantity=qty,
         gateway_id=gateway,
         tif=TIF.DAY,
-        price=price,
+        price_ticks=price,
     )
     o.origin = OrderOrigin.QUOTE
     o.quote_id = quote_id
@@ -687,7 +687,7 @@ class TestQuoteOrdersByGatewayIndex:
             quantity=100,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=100,
+            price_ticks=100,
             smp_action=SmpAction.CANCEL_RESTING,
         )
         resting_quote_leg.origin = OrderOrigin.QUOTE
@@ -705,7 +705,7 @@ class TestQuoteOrdersByGatewayIndex:
             quantity=100,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=100,
+            price_ticks=100,
             smp_action=SmpAction.CANCEL_RESTING,
         )
         trades, events = book.process(aggressor, match=True)
@@ -739,7 +739,7 @@ class TestQuoteOrdersByGatewayIndex:
             quantity=100,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=100,
+            price_ticks=100,
             smp_action=SmpAction.CANCEL_BOTH,
         )
         resting_quote_leg.origin = OrderOrigin.QUOTE
@@ -753,7 +753,7 @@ class TestQuoteOrdersByGatewayIndex:
             quantity=100,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=100,
+            price_ticks=100,
             smp_action=SmpAction.CANCEL_BOTH,
         )
         trades, events = book.process(aggressor, match=True)
@@ -803,7 +803,7 @@ class TestOrdersByGatewayIndexStops:
         ts = _make(
             Side.SELL, OrderType.TRAILING_STOP, 100, trail_offset=5, gateway="GW01"
         )
-        ts.stop_price = 95
+        ts.stop_price_ticks = 95
         book.process(ts, match=False)
         assert [o.id for o in book.orders_for_gateway("GW01")] == [ts.id]
 
@@ -826,7 +826,7 @@ class TestOrdersByGatewayIndexStops:
         ts = _make(
             Side.SELL, OrderType.TRAILING_STOP, 100, trail_offset=5, gateway="GW01"
         )
-        ts.stop_price = 95
+        ts.stop_price_ticks = 95
         book.process(ts, match=False)
         assert book.orders_for_gateway("GW01") != []
         book.cancel_order(ts.id)
@@ -892,7 +892,7 @@ class TestOrdersByGatewayIndexStops:
         ts = _make(
             Side.SELL, OrderType.TRAILING_STOP, 100, trail_offset=5, gateway="GW01"
         )
-        ts.stop_price = 103
+        ts.stop_price_ticks = 103
         book.process(ts, match=False)
         assert [o.id for o in book.orders_for_gateway("GW01")] == [ts.id]
 
@@ -913,7 +913,7 @@ class TestOrdersByGatewayIndexStops:
         ts = _make(
             Side.BUY, OrderType.TRAILING_STOP, 100, trail_offset=5, gateway="GW01"
         )
-        ts.stop_price = 97
+        ts.stop_price_ticks = 97
         book.process(ts, match=False)
         assert [o.id for o in book.orders_for_gateway("GW01")] == [ts.id]
 
@@ -949,7 +949,7 @@ class TestOrdersByGatewayIndexStops:
         ts = _make(
             Side.SELL, OrderType.TRAILING_STOP, 100, trail_offset=5, gateway="GW01"
         )
-        ts.stop_price = 115
+        ts.stop_price_ticks = 115
         for o in (plain, quote_leg, stop, ts):
             book.process(o, match=False)
 

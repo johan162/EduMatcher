@@ -62,6 +62,7 @@ class TestEventLinesShowTheFullOrderId:
                     "fill_qty": 50,
                     "fill_price": 100.0,
                     "remaining_qty": 50,
+                    "tick_decimals": 2,
                     "status": "PARTIAL",
                     "symbol": "AAPL",
                     "side": "BUY",

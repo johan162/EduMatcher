@@ -1209,6 +1209,55 @@ _QUERY_CLIS: tuple[CommandInfo, ...] = (
         ),
     ),
     CommandInfo(
+        name="pm-audit-replay",
+        category="Query & Reporting CLIs",
+        title="Audit Replay and Narration",
+        summary=(
+            "Reconstructs the causal structure of the audit trail and narrates "
+            "it as business-level prose."
+        ),
+        synopsis=(
+            "pm-audit-replay [--log-file data/audit.log] [--db data/audit_replay.db]",
+            "                [--from ISO_TS] [--to ISO_TS] [-q|-v|-vv] COMMAND",
+        ),
+        description=(
+            "pm-audit-cli answers 'which events match this filter?'. This "
+            "answers 'what happened, in order, and why?' -- it reads causality "
+            "from each message's envelope, groups events into episodes, and "
+            "renders them.",
+            "Read-only with respect to the audit trail, and a separate index "
+            "(data/audit_replay.db) from pm-audit-cli's event index.",
+            "Under construction: the global options below are settled, but no "
+            "subcommand is registered yet.",
+        ),
+        options=(
+            Option("--log-file PATH", "data/audit.log", "Audit log to read"),
+            Option("--db PATH", "data/audit_replay.db", "Episode index"),
+            Option("--no-index", "off", "Stream without building or reading an index"),
+            Option("--rebuild", "off", "Rebuild the episode index before rendering"),
+            Option("--from ISO_TS", "-", "Start of window"),
+            Option("--to ISO_TS", "-", "End of window"),
+            Option("--date YYYY-MM-DD", "-", "Shorthand for a whole UTC day"),
+            Option("--last DURATION", "-", "Relative window, e.g. 15m, 2h, 1d"),
+            Option("--symbol SYMBOL", "all", "Restrict to symbols (repeatable)"),
+            Option("--gateway GW_ID", "all", "Restrict to gateways (repeatable)"),
+            Option("--kind KIND", "all", "Restrict to episode kinds (repeatable)"),
+            Option("-q, -v, -vv, -vvv", "-v", "Detail level"),
+            Option("--format FORMAT", "text", "text, ndjson, json or markdown"),
+            Option("--show-source", "off", "Append audit.log:LINE to every line"),
+            Option("--show-units", "off", "Append unit provenance to every price"),
+            Option("--explain", "off", "Show link evidence and confidence inline"),
+            Option("--id-len N|full", "6", "Order-id abbreviation"),
+            Option("--actor-style STYLE", "id", "Actor naming: id or descriptive"),
+            Option("--tz TZ", "UTC", "Render timestamps in this zone"),
+            Option("--reorder-window SPEC", "2000/5s", "Reorder buffer size"),
+            Option("--no-color", "off", "Disable ANSI colour"),
+        ),
+        related=("pm-audit-cli", "pm-audit", "pm-stats-cli"),
+        examples=("pm-audit-replay --date 2026-09-08 --symbol AAPL -v",),
+        notes=("Design: docs-design/EduMatcher-Audit-Replay.md",),
+    ),
+    CommandInfo(
         name="pm-clearing-cli",
         category="Query & Reporting CLIs",
         title="Clearing Query CLI",

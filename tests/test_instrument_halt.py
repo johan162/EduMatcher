@@ -88,7 +88,7 @@ def _order_dict(
         quantity=qty,
         gateway_id=gateway_id,
         tif=tif,
-        price=price,
+        price_ticks=price,
     ).to_dict()
 
 

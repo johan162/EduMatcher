@@ -1995,10 +1995,12 @@ schedule:
   closing_auction_end: "16:05"
 ```
 
-!!! important "Combo seed prices are ticks"
-    `market_maker_quotes` use display prices such as `209.00`. Startup combo
-    legs are parsed through the combo model and expect integer tick prices. With
-    `tick_decimals: 2`, `price: 20950` represents `209.50`.
+!!! important "Every price in this file is display money"
+    `market_maker_quotes`, `last_buy_price`/`last_sell_price` and startup combo
+    legs all use display prices such as `209.50`. The engine converts them to
+    ticks as it loads, and rejects a price the symbol's tick grid cannot
+    represent: at `tick_decimals: 2`, `209.505` is a config error rather than a
+    price quietly rounded to `209.50` or `209.51`.
 
 
 ## Configuration Checklist
@@ -2685,8 +2687,8 @@ Leg fields:
 | `side`       |         Yes | `BUY`, `SELL`                                                                     |
 | `order_type` |         Yes | `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP` |
 | `quantity`   |         Yes | Integer quantity                                                                  |
-| `price`      | Conditional | Integer tick price for priced order types                                         |
-| `stop_price` | Conditional | Integer tick stop price for stop order types                                      |
+| `price`      | Conditional | Display price for priced order types, on the leg symbol's tick grid               |
+| `stop_price` | Conditional | Display stop price for stop order types, on the leg symbol's tick grid            |
 | `smp_action` |          No | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`; if omitted, falls back to the seeding gateway's `gateways.alf[].smp_action` (§below), then `NONE` |
 
 Combo leg values are passed to `ComboLeg.from_dict()`, so these are the only leg
@@ -3058,14 +3060,14 @@ symbol has no breaker):
 | `side` | Enum | Yes | — | `BUY`, `SELL` | Case-insensitive |
 | `order_type` | Enum | Yes | — | `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP` | Case-insensitive |
 | `quantity` | int | Yes | — | Positive integer | — |
-| `price` | int | Conditional | `null` | Integer tick price | Required for `LIMIT`, `STOP_LIMIT`, `FOK`, `ICEBERG` (not enforced for `IOC`) |
-| `stop_price` | int | Optional | `null` | Integer tick price | Not currently validated as required for any order type, including `STOP`/`STOP_LIMIT`/`TRAILING_STOP` |
+| `price` | float | Conditional | `null` | Display price | Required for `LIMIT`, `STOP_LIMIT`, `FOK`, `ICEBERG` (not enforced for `IOC`); must be a multiple of the leg symbol's tick size |
+| `stop_price` | float | Optional | `null` | Display price | Not currently validated as required for any order type, including `STOP`/`STOP_LIMIT`/`TRAILING_STOP`; must be a multiple of the leg symbol's tick size |
 | `smp_action` | Enum | No | Seeding gateway's `gateways.alf[].smp_action`, else `NONE` | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | Case-insensitive |
 
-!!! note "Combo leg prices are integer ticks"
-    All combo leg price fields (`price`, `stop_price`) are integer tick values,
-    not display floats. For a symbol with `tick_decimals: 2`, the display price
-    `209.50` is stored as `20950` ticks.
+!!! note "Combo leg prices use the leg symbol's scale"
+    The legs of one combo trade different instruments, which need not share a
+    tick size, so each leg's price is checked against its own symbol's
+    `tick_decimals` rather than the combo's.
 
 ---
 

@@ -452,7 +452,7 @@ class AITraderBot:
             quantity=qty,
             gateway_id=self.gateway_id,
             tif=TIF.DAY,
-            price=to_ticks(price, symbol),
+            price_ticks=to_ticks(price, symbol),
         )
         order.client_tag = f"{self.profile.name}:{self._run_id}"
         return order.to_dict()
@@ -492,7 +492,7 @@ class AITraderBot:
         self._dbg_count("orders_submitted")
         self._debug(
             f"order SUBMIT {payload['side']} {payload['quantity']}@"
-            f"{payload['price']} {payload['symbol']}"
+            f"{payload['price_ticks']} {payload['symbol']}"
         )
 
     def run(self, duration_sec: float) -> int:

@@ -120,7 +120,7 @@ def _gtc_order(symbol="AAPL", side=Side.BUY, price=100.0):
         quantity=100,
         gateway_id="GW01",
         tif=TIF.GTC,
-        price=price,
+        price_ticks=price,
     )
     o.status = OrderStatus.NEW
     return o
@@ -142,12 +142,12 @@ def _day_order(symbol="AAPL", side=Side.BUY, price=100.0, days_ago=0):
         quantity=100,
         gateway_id="GW01",
         tif=TIF.DAY,
-        price=price,
+        price_ticks=price,
     )
     o.status = OrderStatus.NEW
     if days_ago:
         order_date = datetime.now() - timedelta(days=days_ago)
-        o.timestamp = int(order_date.timestamp() * 1e9)
+        o.ts_ns = int(order_date.timestamp() * 1e9)
     return o
 
 
@@ -171,7 +171,7 @@ def _quote_leg(
         quantity=100,
         gateway_id=gateway_id,
         tif=tif,
-        price=100.0 if side == Side.BUY else 100.10,
+        price_ticks=100.0 if side == Side.BUY else 100.10,
     )
     o.id = order_id
     o.status = OrderStatus.NEW
@@ -179,7 +179,7 @@ def _quote_leg(
     o.quote_id = quote_id
     if days_ago:
         order_date = datetime.now() - timedelta(days=days_ago)
-        o.timestamp = int(order_date.timestamp() * 1e9)
+        o.ts_ns = int(order_date.timestamp() * 1e9)
     return o
 
 
@@ -267,14 +267,16 @@ class TestRestoreGTCWithOrders:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=100,
+                    tick_decimals=2,
+                    price_ticks=100,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=200,
+                    tick_decimals=2,
+                    price_ticks=200,
                 ),
             ],
         )
@@ -328,7 +330,7 @@ class TestRestoreGTCBusinessDayCheck:
         """The business-day check is DAY-only — GTC restores unconditionally
         regardless of how old the order is."""
         order = _gtc_order()
-        order.timestamp = int((datetime.now() - timedelta(days=1)).timestamp() * 1e9)
+        order.ts_ns = int((datetime.now() - timedelta(days=1)).timestamp() * 1e9)
         engine, _ = _make_engine(
             monkeypatch, tmp_path, gtc_orders=[order], verbose=False
         )
@@ -457,7 +459,7 @@ class TestRestoreQuoteIndexRebuild:
 
         good_leg = _quote_leg("Q1-BID", Side.BUY, tif=TIF.GTC)
         corrupt_leg = _quote_leg("Q1-ASK", Side.SELL, tif=TIF.GTC)
-        corrupt_leg.price = None  # simulates a corrupt/hand-edited record
+        corrupt_leg.price_ticks = None  # simulates a corrupt/hand-edited record
 
         engine, _ = _make_engine(
             monkeypatch,
@@ -506,8 +508,8 @@ class TestLoadConfigWithStats:
                 "AAPL": [
                     MMQuoteSeed(
                         gateway_id="GW01",
-                        bid_price=104.0,
-                        ask_price=105.0,
+                        bid_price_ticks=10400,
+                        ask_price_ticks=10500,
                         bid_qty=100,
                         ask_qty=100,
                     )
@@ -634,7 +636,7 @@ class TestVerboseRejectedOrder:
             quantity=100,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=100,
+            price_ticks=100,
         )
         engine._handle_new_order(order.to_dict())
         topics = [decode(f)[0] for f in pub_sock.sent]
@@ -655,7 +657,7 @@ class TestVerboseRejectedOrder:
             quantity=100,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=100,
+            price_ticks=100,
         )
         engine._handle_new_order(order.to_dict())
         topics = [decode(f)[0] for f in pub_sock.sent]
@@ -697,7 +699,7 @@ class TestEngineSMPIOCEvents:
             quantity=50,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=100,
+            price_ticks=100,
             smp_action=SmpAction.CANCEL_AGGRESSOR,
         )
         engine._handle_new_order(resting.to_dict())
@@ -711,7 +713,7 @@ class TestEngineSMPIOCEvents:
             quantity=100,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=105,
+            price_ticks=105,
             smp_action=SmpAction.CANCEL_AGGRESSOR,
         )
         engine._handle_new_order(ioc.to_dict())

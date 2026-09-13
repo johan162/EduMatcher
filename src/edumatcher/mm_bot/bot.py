@@ -24,7 +24,11 @@ import zmq
 
 from edumatcher.messaging.bus import PushSocket, make_pusher, make_subscriber
 from edumatcher.models.envelope import new_ulid
-from edumatcher.models.price import register_tick_decimals, to_ticks
+from edumatcher.models.price import (
+    get_tick_decimals,
+    register_tick_decimals,
+    to_ticks,
+)
 from edumatcher.models.message import (
     decode,
     make_gateway_connect_msg,
@@ -783,15 +787,38 @@ class MMBot:
             self._debug(f"[{symbol}] cannot send quote — no mid price")
             return
 
+        prior_quoted_mid = st.quoted_at_mid
         bid, ask = st.pricer.compute_prices()
+        if (
+            self._max_position is not None
+            and abs(st.net_position) >= self._max_position
+        ):
+            log.debug(
+                "[%s] inventory skew saturated: net_position=%d max_position=%d bid=%s ask=%s",
+                symbol,
+                st.net_position,
+                self._max_position,
+                bid,
+                ask,
+            )
+        log.debug(
+            "[%s] requote: prior_quoted_mid=%s current_mid=%s new_bid=%s new_ask=%s net_position=%d",
+            symbol,
+            prior_quoted_mid,
+            st.pricer.mid_price,
+            bid,
+            ask,
+            st.net_position,
+        )
         quote_id = f"{self.gateway_id}-{symbol}-{new_ulid()}"
         quote_payload: dict[str, Any] = {
             "gateway_id": self.gateway_id,
             "symbol": symbol,
             # The pricer works in display money; the wire carries ticks
             # (design section 15.2, quotes joined in 6.1b).
-            "bid_price": to_ticks(bid, symbol),
-            "ask_price": to_ticks(ask, symbol),
+            "tick_decimals": get_tick_decimals(symbol),
+            "bid_price_ticks": to_ticks(bid, symbol),
+            "ask_price_ticks": to_ticks(ask, symbol),
             "bid_qty": self.qty,
             "ask_qty": self.qty,
             "tif": self.tif,
@@ -907,6 +934,12 @@ class MMBot:
         else:
             if ack_quote_id:
                 self._dbg_count("quote_ack_unknown_id")
+                log.debug(
+                    "quote.ack unknown quote_id=%s — falling back to FIFO "
+                    "(pending_ack_symbols=%s)",
+                    ack_quote_id,
+                    list(self._pending_ack_symbols),
+                )
             symbol = (
                 self._pending_ack_symbols.popleft()
                 if self._pending_ack_symbols
@@ -1011,8 +1044,20 @@ class MMBot:
         # which pricing strategy is active -- inventory_skew reads it below,
         # symmetric simply never looks.
         order_side = "BUY" if side == "BID" else "SELL"
+        prior_position, prior_avg_cost = st.net_position, st.avg_cost
         st.net_position, st.avg_cost = _update_position(
             st.net_position, st.avg_cost, order_side, fill_qty, fill_price
+        )
+        log.debug(
+            "[%s] position update: %d->%d avg_cost=%.4f->%.4f (fill %s %d@%s)",
+            symbol,
+            prior_position,
+            st.net_position,
+            prior_avg_cost,
+            st.avg_cost,
+            order_side,
+            fill_qty,
+            fill_price,
         )
         if hasattr(st.pricer, "update_position"):
             st.pricer.update_position(st.net_position)  # type: ignore[union-attr]
@@ -1209,6 +1254,14 @@ class MMBot:
                 and st.pricer.mid_price is not None
             ):
                 self._log(f"[{symbol}] heartbeat: no active quote — reissuing")
+                log.debug(
+                    "[%s] heartbeat reissue reason: quote_id=%s reissue_at=%s "
+                    "elapsed_since_last_quote=%.1fs",
+                    symbol,
+                    st.quote_id,
+                    st.reissue_at,
+                    now - st.last_quote_sent_at,
+                )
                 self._dbg_count("heartbeat_reissues")
                 self._cancel_and_reissue(symbol)
 
@@ -1271,6 +1324,12 @@ class MMBot:
             leg_order_id = str(leg.get("order_id", ""))
             if leg_qid and st.quote_id and leg_qid != st.quote_id:
                 self._log(f"[{symbol}] QLEGS mismatch: quote_id divergence — reissuing")
+                log.debug(
+                    "[%s] QLEGS quote_id divergence: local=%s engine=%s",
+                    symbol,
+                    st.quote_id,
+                    leg_qid,
+                )
                 self._clear_quote_state(symbol)
                 st.reissue_at = time.monotonic()
                 return
@@ -1284,6 +1343,12 @@ class MMBot:
             and expected_order_ids != seen_order_ids
         ):
             self._log(f"[{symbol}] QLEGS mismatch: leg order_id divergence — reissuing")
+            log.debug(
+                "[%s] QLEGS order_id divergence: expected=%s seen=%s",
+                symbol,
+                sorted(expected_order_ids),
+                sorted(seen_order_ids),
+            )
             self._clear_quote_state(symbol)
             st.reissue_at = time.monotonic()
             return

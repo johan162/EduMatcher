@@ -401,7 +401,7 @@ $(USER_GUIDE_EPUB): $(USER_GUIDE_MD_SOURCES) $(EPUB_DEPS) $(EPUB_CSS) | $(NODE_M
 	MERMAID_FILTER_WIDTH="$(MERMAID_FILTER_WIDTH)" \
 	MERMAID_FILTER_LOC="$(EPUB_EXPANDED_DIR)/.mermaid-img" \
 	pandoc --from=markdown-raw_html --to=epub3 \
-		--math-method=mathml --syntax-highlighting=none \
+		--mathml --syntax-highlighting=none \
 		--toc --toc-depth=2 \
 		--css $(EPUB_CSS) \
 		--epub-cover-image=$(EPUB_COVER) \

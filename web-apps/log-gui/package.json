@@ -28,5 +28,9 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true,
+    "zeromq@6.5.0": true
   }
 }

@@ -48,7 +48,7 @@ Field tables and the schema tree (§3) use these type names:
 | `Symbol` | string | instrument id; **normalised to upper-case** on load |
 | `GatewayId` | string | participant id; non-empty; **normalised to upper-case** |
 | `IndexId` | string | index id; **alphanumeric**, upper-case, unique |
-| `Price` | number | price in **display units** (e.g. `150.10`) |
+| `Price` | number | price in **display units** (e.g. `150.10`); MUST be a whole multiple of the owning symbol's tick size `10^-tick_decimals` (see CV18) |
 | `Qty` | integer | quantity; `> 0` unless stated |
 | `Ticks` | integer | count of minimum price increments; `> 0` |
 | `Pct01` | number | fraction in the **open** interval `(0, 1)` |
@@ -237,8 +237,8 @@ entering small and amending up.
 | `side` | `Enum<Side>` | ✔ | — | |
 | `order_type` | `Enum<OrderType>` | ✔ | — | |
 | `quantity` | `Qty` | ✔ | — | |
-| `price` | `Int` | – | `null` | tick price; required by `LIMIT`, `FOK`, `STOP_LIMIT`, `ICEBERG` legs (not enforced for `IOC` despite carrying a limit price); positivity is **not** validated anywhere in code, unlike other `Ticks`-typed fields |
-| `stop_price` | `Int` | – | `null` | tick stop price; currently unvalidated for any order type, including `STOP`/`STOP_LIMIT`/`TRAILING_STOP` |
+| `price` | `Price` | – | `null` | required by `LIMIT`, `FOK`, `STOP_LIMIT`, `ICEBERG` legs (not enforced for `IOC` despite carrying a limit price); on **this leg's** symbol's tick grid, which need not be the grid of the combo's other legs; positivity is **not** validated anywhere in code |
+| `stop_price` | `Price` | – | `null` | stop price; currently unvalidated for any order type, including `STOP`/`STOP_LIMIT`/`TRAILING_STOP`; on this leg's symbol's tick grid |
 | `smp_action` | `Enum<SmpAction>` | – | seeding gateway's `gateways.alf[].smp_action`, else `NONE` | |
 
 ### 4.6 `IndexSpec` — `indices[]`
@@ -367,7 +367,9 @@ merge, the built-in ladder applies: `L1 = 0.07 / 5 min`, `L2 = 0.13 / 15 min`,
 
 ### 5.7 `market_maker_combos` (OPTIONAL)
 
-`List<ComboSeedSpec>` — see §4.5.
+`List<ComboSeedSpec>` — see §4.5. Leg prices are display money on the leg
+symbol's own tick grid: the legs of one combo trade different instruments,
+which need not share a tick size.
 
 ### 5.8 `indices` (OPTIONAL)
 
@@ -587,6 +589,7 @@ rejected at load.
 | CV14 | (`pm-alf-gwy`, `pm-balf-gwy`) No `gateways.alf` id may be a prefix of another id. |
 | CV15 | (`pm-api-gwy`) The singular `api_gateway` key is not supported; a `gateway_id` credential MUST NOT be shared across two `api_gateways` instances. |
 | CV16 | (`pm-scheduler`) An unrecognised `country` value is the **sole exception** to the "MUST be rejected" rule in this section — the loader substitutes the default (`"Sweden"`) and logs a warning instead of aborting. `pm-scheduler` treats a calendar day as non-trading (and sends no `schedule` transitions) when it is a Saturday, a Sunday, or a `country` bank holiday. |
+| CV18 | Every `Price` in the file is a whole multiple of its symbol's tick size — `symbols.<S>.last_buy_price`/`last_sell_price`, `market_maker_quotes[].bid_price`/`ask_price`, and `market_maker_combos[].legs[].price`/`stop_price`. The scale is the owning symbol's `tick_decimals`; for a combo leg that is the **leg's** symbol, not the combo's first. An off-grid price is rejected, not rounded. |
 | CV17 | (`pm-log-srv`) `log_server.retention_days`, when present, MUST be `>= 0` or `null`; `port`, `max_message_bytes`, `max_client_queue`, `write_batch_size`, `write_batch_interval_ms`, and `heartbeat_interval_sec` MUST each be `> 0`. |
 
 ---

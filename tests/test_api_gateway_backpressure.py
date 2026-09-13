@@ -53,7 +53,7 @@ def _order() -> Order:
         side=Side.BUY,
         order_type=OrderType.LIMIT,
         quantity=100,
-        price=10000,  # integer ticks
+        price_ticks=10000,  # integer ticks
         gateway_id="GW01",
     )
 
@@ -70,18 +70,20 @@ def _combo_payload() -> dict[str, Any]:
                 "symbol": "AAPL",
                 "side": "BUY",
                 "order_type": "LIMIT",
+                "tick_decimals": 2,
                 "quantity": 10,
-                "price": 100,
-                "stop_price": None,
+                "price_ticks": 100,
+                "stop_price_ticks": None,
                 "smp_action": None,
             },
             {
                 "symbol": "MSFT",
                 "side": "SELL",
                 "order_type": "LIMIT",
+                "tick_decimals": 2,
                 "quantity": 10,
-                "price": 200,
-                "stop_price": None,
+                "price_ticks": 200,
+                "stop_price_ticks": None,
                 "smp_action": None,
             },
         ],
@@ -96,19 +98,20 @@ def _oco_payload() -> dict[str, Any]:
         "symbol": "AAPL",
         "quantity": 10,
         "tif": "DAY",
+        "tick_decimals": 2,
         "leg1": {
             "side": "BUY",
             "order_type": "LIMIT",
-            "price": 100,
-            "stop_price": None,
-            "trail_offset": None,
+            "price_ticks": 100,
+            "stop_price_ticks": None,
+            "trail_offset_ticks": None,
         },
         "leg2": {
             "side": "BUY",
             "order_type": "STOP",
-            "price": None,
-            "stop_price": 90,
-            "trail_offset": None,
+            "price_ticks": None,
+            "stop_price_ticks": 90,
+            "trail_offset_ticks": None,
         },
     }
 
@@ -118,9 +121,10 @@ def _quote_payload() -> dict[str, Any]:
     return {
         "gateway_id": "GW01",
         "symbol": "AAPL",
-        "bid_price": 100,
+        "tick_decimals": 2,
+        "bid_price_ticks": 100,
         "bid_qty": 10,
-        "ask_price": 101,
+        "ask_price_ticks": 101,
         "ask_qty": 10,
         "tif": "DAY",
     }

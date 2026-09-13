@@ -206,6 +206,11 @@ BOOK_STATS_FILE = DATA_DIR / "book_stats.json"
 RUN_SEQ_FILE = DATA_DIR / "engine_run_seq.json"
 AUDIT_LOG_FILE = DATA_DIR / "audit.log"
 AUDIT_INDEX_DB_FILE = DATA_DIR / "audit_index.db"
+#: pm-audit-replay's episode index. Separate from the event index above
+#: because the two have different lifecycles: the event index is
+#: append-only, while the episode index is derived and is rebuilt
+#: whenever the reconstruction rules change.
+AUDIT_REPLAY_DB_FILE = DATA_DIR / "audit_replay.db"
 CLEARING_REPORT_FILE = DATA_DIR / "clearing_report.csv"
 CLEARING_DB_FILE = DATA_DIR / "clearing.db"
 STATS_DB_FILE = DATA_DIR / "stats.db"

@@ -14,6 +14,7 @@ trades + events for the engine to publish.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -24,6 +25,8 @@ from edumatcher.models.trade import Trade
 
 if TYPE_CHECKING:
     from edumatcher.engine.order_book import OrderBook
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -57,6 +60,9 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
     ask_prices = sorted(book._ask_qty.keys())  # lowest first
 
     if not bid_prices or not ask_prices:
+        log.debug(
+            "uncross calc symbol=%s no crossable interest (empty side)", book.symbol
+        )
         return AuctionResult(eq_price=None, eq_qty=0, surplus=0, imbalance_side="")
 
     # Build cumulative buy qty from highest price downward:
@@ -137,6 +143,15 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
     else:
         imbalance_side = ""
 
+    log.debug(
+        "uncross calc symbol=%s eq_price=%s eq_qty=%s surplus=%s imbalance_side=%s candidates=%d",
+        book.symbol,
+        best_price,
+        best_qty,
+        int(best_surplus),
+        imbalance_side,
+        len(all_prices),
+    )
     return AuctionResult(
         eq_price=best_price,
         eq_qty=best_qty,
@@ -196,12 +211,20 @@ def execute_uncross(
 
         if best_bid is None or best_ask is None:
             break
-        if best_bid.price < eq_price:  # type: ignore[operator]
+        if best_bid.price_ticks < eq_price:  # type: ignore[operator]
             break  # remaining bids below equilibrium
-        if best_ask.price > eq_price:  # type: ignore[operator]
+        if best_ask.price_ticks > eq_price:  # type: ignore[operator]
             break  # remaining asks above equilibrium
 
         fill_qty = min(best_bid.remaining_qty, best_ask.remaining_qty)
+        log.debug(
+            "uncross fill symbol=%s bid_id=%s ask_id=%s eq_price=%s qty=%s",
+            book.symbol,
+            best_bid.id,
+            best_ask.id,
+            eq_price,
+            fill_qty,
+        )
         # both_resting=True: in an uncross both orders are resting and counted
         # in the level index, so both sides must be deducted (finding #3).
         book._apply_fill(
@@ -220,4 +243,11 @@ def execute_uncross(
         book.last_trade_price = eq_price
         book.last_trade_qty = trades[-1].quantity
 
+    log.debug(
+        "uncross done symbol=%s eq_price=%s trades=%d total_qty=%s",
+        book.symbol,
+        eq_price,
+        len(trades),
+        sum(t.quantity for t in trades),
+    )
     return trades, events

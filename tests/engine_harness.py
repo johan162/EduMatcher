@@ -56,6 +56,16 @@ class FakeSock:
     def clear_cause(self) -> None:
         pass
 
+    def send_with_envelope(self, frames: list[bytes], envelope_frame: bytes) -> None:
+        """Record a re-published message the way the real wrapper sends it.
+
+        No sequence frame is inserted, matching this double's ``send_multipart``
+        above: what a test asserts on here is the topic, the payload and the
+        envelope that was preserved, not the sequence the real
+        ``SequencedPublisher`` would stamp under them.
+        """
+        self.sent.append([*frames, envelope_frame])
+
 
 @dataclass
 class FakeDropCopy:
@@ -198,11 +208,13 @@ def order_payload(
         quantity=qty,
         gateway_id=gateway_id,
         tif=tif,
-        price=to_ticks(price, symbol) if price is not None else None,
-        stop_price=to_ticks(stop_price, symbol) if stop_price is not None else None,
+        price_ticks=to_ticks(price, symbol) if price is not None else None,
+        stop_price_ticks=(
+            to_ticks(stop_price, symbol) if stop_price is not None else None
+        ),
         visible_qty=visible_qty,
         smp_action=smp_action,
-        trail_offset=(
+        trail_offset_ticks=(
             to_ticks(trail_offset, symbol) if trail_offset is not None else None
         ),
     )
@@ -247,8 +259,9 @@ def submit_quote(
             # Callers pass display money, as a market maker's own pricer
             # produces; the wire carries ticks, and converting is the
             # submitting side's job (design section 15.2, quotes in 6.1b).
-            "bid_price": to_ticks(bid_price, symbol),
-            "ask_price": to_ticks(ask_price, symbol),
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(bid_price, symbol),
+            "ask_price_ticks": to_ticks(ask_price, symbol),
             "bid_qty": bid_qty,
             "ask_qty": ask_qty,
             "tif": tif,

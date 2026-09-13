@@ -94,6 +94,7 @@ def test_receive_tracks_fill_even_without_prior_ack(
                 {
                     "order_id": "ORD-LATE",
                     "remaining_qty": 3,
+                    "tick_decimals": 2,
                     "status": "PARTIAL",
                     "symbol": "AAPL",
                 },
@@ -222,6 +223,7 @@ def test_fill_after_ack_overrides_seeded_remaining() -> None:
         {
             "order_id": "partial-1",
             "remaining_qty": 70,
+            "tick_decimals": 2,
             "status": "PARTIAL",
             "fill_price": 150.0,
         },
@@ -254,6 +256,7 @@ def test_cancelled_sibling_leg_backfills_symbol_and_side_from_fill() -> None:
             "side": "BUY",
             "quote_id": "SEED-MM01-AAPL-1",
             "remaining_qty": 0,
+            "tick_decimals": 2,
             "status": "FILLED",
             "fill_price": 149.50,
         },

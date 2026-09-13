@@ -56,6 +56,7 @@ def _depth() -> dict[str, Any]:
     return {
         "symbol": "AAPL",
         "ts_ns": 1_700_000_000_000_000_000,  # AR-0.4
+        "tick_decimals": 2,
         "mid_price_ticks": 9525,
         "mid_price": 95.25,
         "tolerance_ticks": 100,

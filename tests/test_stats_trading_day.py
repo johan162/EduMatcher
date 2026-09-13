@@ -919,6 +919,7 @@ def test_depth_topic_does_not_match_a_book_subscription() -> None:
     depth = {
         "symbol": "AAPL",
         "ts_ns": 1_700_000_000_000_000_000,
+        "tick_decimals": 2,
         "mid_price_ticks": 9525,
         "mid_price": 95.25,
         "tolerance_ticks": 100,

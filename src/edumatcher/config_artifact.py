@@ -44,7 +44,13 @@ from edumatcher.ralf_gateway.config import RalfGatewayConfig
 # Bumped whenever the artifact's shape changes in a way an older reader would
 # misinterpret. A process that meets an unknown version refuses to start rather
 # than guessing — see `load_compiled_config`.
-SCHEMA_VERSION = 3
+#
+# 4: prices moved. ComboLeg gained tick_decimals and renamed price/stop_price
+# to price_ticks/stop_price_ticks; MMQuoteSeed's bid_price/ask_price became
+# bid_price_ticks/ask_price_ticks. A version-3 artifact decoded by this build
+# raises a bare TypeError from the codec instead of the refusal above, which
+# is the whole reason this constant exists.
+SCHEMA_VERSION = 4
 
 T = TypeVar("T")
 
