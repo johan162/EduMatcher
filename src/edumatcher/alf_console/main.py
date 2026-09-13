@@ -760,6 +760,7 @@ class Gateway:
         if PREFIX_ORDER_ACK in topic:
             if payload.get("accepted"):
                 console.print(f"[{ts}] [green]ACK[/green]       {oid}  order accepted")
+                log.debug("order ack order_id=%s accepted=True", oid)
                 # Register in cache
                 full_id = payload.get("order_id", "?")
                 if full_id in self.order_cache:
@@ -772,6 +773,9 @@ class Gateway:
                 rtag_text = f" rtag={rtag}" if rtag else ""
                 console.print(
                     f"[{ts}] [red]REJECTED[/red]  {oid}{code_text}{rtag_text}  {reason}"
+                )
+                log.debug(
+                    "order rejected order_id=%s code=%s reason=%s", oid, code, reason
                 )
                 full_id = payload.get("order_id", "?")
                 if full_id in self.order_cache:
@@ -787,6 +791,14 @@ class Gateway:
             )  # resting leg's own limit price, not fill_price
             console.print(
                 f"[{ts}] [cyan]FILL[/cyan]      {oid}  qty={qty} @{price}  remaining={rem}  [{status}]"
+            )
+            log.debug(
+                "order fill order_id=%s qty=%s price=%s remaining=%s status=%s",
+                oid,
+                qty,
+                price,
+                rem,
+                status,
             )
             full_id = payload.get("order_id", "?")
             if full_id in self.order_cache:
@@ -824,6 +836,7 @@ class Gateway:
             rtag = payload.get("request_tag")
             rtag_text = f" rtag={rtag}" if rtag else ""
             console.print(f"[{ts}] [yellow]CANCELLED[/yellow] {oid}{rtag_text}")
+            log.debug("order cancelled order_id=%s", oid)
             full_id = payload.get("order_id", "?")
             if full_id in self.order_cache:
                 self.order_cache[full_id]["status"] = "CANCELLED"
@@ -844,6 +857,14 @@ class Gateway:
                 f"price={new_price} qty={new_qty} remaining={rem}{prio}"
                 f"{f' rtag={payload.get('request_tag')}' if payload.get('request_tag') else ''}"
             )
+            log.debug(
+                "order amended order_id=%s price=%s qty=%s remaining=%s priority_reset=%s",
+                oid,
+                new_price,
+                new_qty,
+                rem,
+                payload.get("priority_reset"),
+            )
             full_id = payload.get("order_id", "?")
             if full_id in self.order_cache:
                 if new_price is not None:
@@ -857,6 +878,7 @@ class Gateway:
             console.print(
                 f"[{ts}] [dim]EXPIRED[/dim]   {oid}  (DAY order — trading day ended)"
             )
+            log.debug("order expired order_id=%s", oid)
             full_id = payload.get("order_id", "?")
             if full_id in self.order_cache:
                 self.order_cache[full_id]["status"] = "EXPIRED"
@@ -1209,6 +1231,11 @@ class Gateway:
             show = kv.get("SHOW", "ACTIVE").upper()
             if show not in {"ACTIVE", "RECENT", "ALL"}:
                 console.print("[red]QLEGS SHOW must be ACTIVE, RECENT, or ALL[/red]")
+                log.debug(
+                    "command rejected cmd=%s reason=%s",
+                    cmd,
+                    "QLEGS SHOW must be ACTIVE, RECENT, or ALL",
+                )
                 return
             print_quote_legs(self.gateway_id, self.quote_leg_cache, symbol, show)
             return
@@ -1279,6 +1306,11 @@ class Gateway:
             symbol = kv.get("SYM")
             if not symbol:
                 console.print("[red]QUOTE_CANCEL requires SYM=<symbol>[/red]")
+                log.debug(
+                    "command rejected cmd=%s reason=%s",
+                    cmd,
+                    "QUOTE_CANCEL requires SYM=<symbol>",
+                )
                 return
             self._send(self.push_sock, make_quote_cancel_msg(self.gateway_id, symbol))
             return
@@ -1299,6 +1331,11 @@ class Gateway:
                 self._set_drop_copy(False)
             else:
                 console.print("[red]DC requires STATE=ON or STATE=OFF[/red]")
+                log.debug(
+                    "command rejected cmd=%s reason=%s",
+                    cmd,
+                    "DC requires STATE=ON or STATE=OFF",
+                )
             return
 
         if cmd == "CANCEL":
@@ -1316,6 +1353,11 @@ class Gateway:
             order_id = kv.get("ID")
             if not order_id:
                 console.print("[red]CANCEL requires ID=, COMBO_ID=, or OCO_ID=[/red]")
+                log.debug(
+                    "command rejected cmd=%s reason=%s",
+                    cmd,
+                    "CANCEL requires ID=, COMBO_ID=, or OCO_ID=",
+                )
                 return
             self._send(
                 self.push_sock,
@@ -1332,11 +1374,21 @@ class Gateway:
             order_id = kv.get("ID")
             if not order_id:
                 console.print("[red]AMEND requires ID=<order-id>[/red]")
+                log.debug(
+                    "command rejected cmd=%s reason=%s",
+                    cmd,
+                    "AMEND requires ID=<order-id>",
+                )
                 return
             new_price = float(kv["PRICE"]) if "PRICE" in kv else None
             new_qty = int(kv["QTY"]) if "QTY" in kv else None
             if new_price is None and new_qty is None:
                 console.print("[red]AMEND requires at least PRICE= or QTY=[/red]")
+                log.debug(
+                    "command rejected cmd=%s reason=%s",
+                    cmd,
+                    "AMEND requires at least PRICE= or QTY=",
+                )
                 return
             self._send(
                 self.push_sock,
@@ -1421,17 +1473,35 @@ class Gateway:
             in (OrderType.LIMIT, OrderType.FOK, OrderType.ICEBERG, OrderType.IOC)
             and price is None
         ):
+            log.warning(
+                "order rejected gateway_id=%s reason=missing_price order_type=%s",
+                self.gateway_id,
+                order_type.value,
+            )
             console.print("[red]LIMIT / FOK / ICEBERG / IOC require PRICE=[/red]")
             return
         if order_type in (OrderType.STOP, OrderType.STOP_LIMIT) and stop_price is None:
+            log.warning(
+                "order rejected gateway_id=%s reason=missing_stop_price order_type=%s",
+                self.gateway_id,
+                order_type.value,
+            )
             console.print("[red]STOP / STOP_LIMIT require STOP=[/red]")
             return
         if order_type == OrderType.STOP_LIMIT and price is None:
+            log.warning(
+                "order rejected gateway_id=%s reason=missing_price order_type=STOP_LIMIT",
+                self.gateway_id,
+            )
             console.print(
                 "[red]STOP_LIMIT requires PRICE= (limit price after trigger)[/red]"
             )
             return
         if order_type == OrderType.ICEBERG and visible is None:
+            log.warning(
+                "order rejected gateway_id=%s reason=missing_visible_qty order_type=ICEBERG",
+                self.gateway_id,
+            )
             console.print("[red]ICEBERG requires VISIBLE=<peak size>[/red]")
             return
         if (
@@ -1439,11 +1509,21 @@ class Gateway:
             and visible is not None
             and visible >= quantity
         ):
+            log.warning(
+                "order rejected gateway_id=%s reason=visible_not_less_than_qty visible=%s qty=%s",
+                self.gateway_id,
+                visible,
+                quantity,
+            )
             console.print("[red]ICEBERG VISIBLE must be less than total QTY[/red]")
             return
         if order_type == OrderType.TRAILING_STOP:
             trail_offset_raw = kv.get("TRAIL")
             if trail_offset_raw is None:
+                log.warning(
+                    "order rejected gateway_id=%s reason=missing_trail_offset order_type=TRAILING_STOP",
+                    self.gateway_id,
+                )
                 console.print("[red]TRAILING_STOP requires TRAIL=<offset>[/red]")
                 return
 
@@ -1512,9 +1592,21 @@ class Gateway:
             return
 
         if bid_qty <= 0 or ask_qty <= 0:
+            log.warning(
+                "QUOTE rejected gateway_id=%s reason=non_positive_qty bid_qty=%s ask_qty=%s",
+                self.gateway_id,
+                bid_qty,
+                ask_qty,
+            )
             console.print("[red]QUOTE requires positive BID_QTY and ASK_QTY[/red]")
             return
         if bid_price >= ask_price:
+            log.warning(
+                "QUOTE rejected gateway_id=%s reason=bid_not_less_than_ask bid=%s ask=%s",
+                self.gateway_id,
+                bid_price,
+                ask_price,
+            )
             console.print("[red]QUOTE requires BID < ASK[/red]")
             return
 

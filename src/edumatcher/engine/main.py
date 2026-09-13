@@ -1539,6 +1539,14 @@ class Engine:
                 result = validate_collar(order.price, collar, book.last_trade_price)
                 if result.rejected:
                     self._dbg_count("new_order_reject_collar")
+                    log.debug(
+                        "collar reject order_id=%s symbol=%s price=%s last_trade=%s reason=%s",
+                        order.id,
+                        order.symbol,
+                        order.price,
+                        book.last_trade_price,
+                        result.reason,
+                    )
                     self._reject(
                         gateway_id=order.gateway_id,
                         order_id=order.id,
@@ -3024,6 +3032,14 @@ class Engine:
         if triggered_level is None:
             return
 
+        log.debug(
+            "circuit breaker tripped symbol=%s level=%s trigger_price=%s reference_price=%s shift_pct=%s",
+            symbol,
+            triggered_level.name,
+            cb.trigger_price,
+            cb.reference_price,
+            triggered_level.price_shift_pct,
+        )
         cb.activate(now, triggered_level, self._reopening_rng)
         self._halted_symbols[symbol] = True
 
@@ -5867,6 +5883,14 @@ class Engine:
                 result = validate_collar(new_price_ticks, collar, book.last_trade_price)
                 if result.rejected:
                     self._dbg_count("amend_reject_collar")
+                    log.debug(
+                        "collar reject order_id=%s symbol=%s price=%s last_trade=%s reason=%s",
+                        order_id,
+                        symbol,
+                        new_price_ticks,
+                        book.last_trade_price,
+                        result.reason,
+                    )
                     self._reject(
                         gateway_id=gateway_id,
                         order_id=order_id,
@@ -5898,6 +5922,14 @@ class Engine:
             )
             if breach is not None:
                 self._dbg_count("amend_reject_order_limits")
+                log.debug(
+                    "order_limits reject order_id=%s symbol=%s qty=%s price=%s reason=%s",
+                    order_id,
+                    symbol,
+                    amended_qty,
+                    amended_price,
+                    breach[1],
+                )
                 self._reject(
                     gateway_id=gateway_id,
                     order_id=order_id,
