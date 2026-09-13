@@ -114,7 +114,7 @@ messages:
 
   - name: book_snapshot_request
     topic: "book.snapshot_request"
-    transport: [engine_pub]
+    transport: [engine_push]
     doc:
       motivation: "Ask the engine to publish one symbol's book immediately."
       published_by: [stats, gateway]
@@ -123,7 +123,7 @@ messages:
     fields:
       - { name: symbol, type: string, validate: { max_len: 16 } }
     encoding:
-      engine_pub: { frames: [topic, json_payload], include: all }
+      engine_push: { frames: [topic, json_payload], include: all }
 
   - name: depth
     topic: "depth.{symbol}"
@@ -149,6 +149,14 @@ messages:
           When this depth snapshot was produced (AR-0.4). Previously
           depth.{symbol} carried no time field at all. Monotonic per
           edumatcher.models.clock.now_ns().
+      - name: tick_decimals
+        type: int
+        unit: dimensionless
+        validate: { ge: 0, le: 8 }
+        doc: >
+          Decimal scale for the `_ticks` fields below; 1 tick =
+          10^-tick_decimals. Same field, same name and same meaning as
+          `book.tick_decimals`.
       - { name: mid_price_ticks, type: ticks, unit: ticks,
           doc: "The last trade price, in ticks; the band is centred here." }
       - { name: mid_price, type: float, unit: display_price }
@@ -174,5 +182,6 @@ messages:
       # topic, so it must be included rather than treated as topic-only.
       engine_pub:
         frames: [topic, json_payload]
-        include: [symbol, ts_ns, mid_price_ticks, mid_price, tolerance_ticks,
-                  bid_depth, ask_depth, imbalance, microprice, cost_to_move]
+        include: [symbol, tick_decimals, ts_ns, mid_price_ticks, mid_price,
+                  tolerance_ticks, bid_depth, ask_depth, imbalance, microprice,
+                  cost_to_move]

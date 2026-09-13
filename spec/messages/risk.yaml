@@ -33,7 +33,7 @@ version: 1
 messages:
   - name: kill_switch
     topic: "risk.kill_switch"
-    transport: [engine_pub]
+    transport: [engine_pub, engine_push]
     doc:
       motivation: >
         Gateway or admin to engine: cancel a gateway's open risk-bearing
@@ -122,7 +122,7 @@ messages:
 
   - name: kill_switch_gateway
     topic: "risk.kill_switch_gateway"
-    transport: [engine_pub]
+    transport: [engine_pub, engine_push]
     doc:
       motivation: >
         ADMIN to engine: cancel every order and quote belonging to one named
@@ -202,7 +202,7 @@ messages:
 
   - name: kill_switch_global
     topic: "risk.kill_switch_global"
-    transport: [engine_pub]
+    transport: [engine_pub, engine_push]
     doc:
       motivation: >
         ADMIN to engine: cancel every resting order and quote, for every
@@ -298,7 +298,7 @@ messages:
 
   - name: symbol_halt
     topic: "risk.symbol_halt"
-    transport: [engine_pub]
+    transport: [engine_pub, engine_push]
     doc:
       motivation: "ADMIN to engine: halt trading on one instrument."
       published_by: [admin, api_gateway]
@@ -365,7 +365,7 @@ messages:
 
   - name: symbol_resume
     topic: "risk.symbol_resume"
-    transport: [engine_pub]
+    transport: [engine_pub, engine_push]
     doc:
       motivation: "ADMIN to engine: resume trading on one halted instrument."
       published_by: [admin, api_gateway]
@@ -405,7 +405,7 @@ messages:
 
   - name: cancel_symbol
     topic: "risk.cancel_symbol"
-    transport: [engine_pub]
+    transport: [engine_pub, engine_push]
     doc:
       motivation: >
         ADMIN to engine: cancel every resting order for one instrument, across
@@ -475,7 +475,7 @@ messages:
 
   - name: force_uncross
     topic: "risk.force_uncross"
-    transport: [engine_pub]
+    transport: [engine_pub, engine_push]
     doc:
       motivation: >
         ADMIN to engine: force one symbol to uncross now, optionally asserting
@@ -578,7 +578,7 @@ messages:
 
   - name: circuit_breaker_halt_all
     topic: "risk.circuit_breaker_halt_all"
-    transport: [engine_pub]
+    transport: [engine_pub, engine_push]
     doc:
       motivation: "ADMIN to engine: halt trading on every known symbol."
       published_by: [admin]
@@ -635,7 +635,7 @@ messages:
 
   - name: circuit_breaker_resume_all
     topic: "risk.circuit_breaker_resume_all"
-    transport: [engine_pub]
+    transport: [engine_pub, engine_push]
     doc:
       motivation: >
         ADMIN to engine: resume every symbol halted by the market-wide halt.

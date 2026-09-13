@@ -566,7 +566,7 @@ messages:
   # ================================================================ lifecycle
   - name: gateway_connect
     topic: "system.gateway_connect"
-    transport: [engine_pub]
+    transport: [engine_pub, engine_push]
     doc:
       motivation: >
         Gateway to engine: authenticate this participant. Sent over PUSH/PULL
@@ -618,7 +618,7 @@ messages:
 
   - name: gateway_disconnect
     topic: "system.gateway_disconnect"
-    transport: [engine_pub]
+    transport: [engine_pub, engine_push]
     doc:
       motivation: >
         Gateway to engine: I am leaving cleanly. PUSH/PULL, like
@@ -864,7 +864,7 @@ messages:
   # ================================================================== symbols
   - name: symbols_request
     topic: "system.symbols_request"
-    transport: [engine_pub]
+    transport: [engine_push]
     doc:
       motivation: "Caller to engine: which instruments are tradable, and on
                    what terms for me."
@@ -876,7 +876,7 @@ messages:
           doc: "Both the correlation key for the reply topic and the identity
                 the market-maker fields are resolved against." }
     encoding:
-      engine_pub: { frames: [topic, json_payload] }
+      engine_push: { frames: [topic, json_payload] }
 
   - name: symbols
     topic: "system.symbols.{gateway_id}"
@@ -909,7 +909,7 @@ messages:
   # ================================================================ reference
   - name: reference_request
     topic: "system.reference_request"
-    transport: [engine_pub]
+    transport: [engine_push]
     doc:
       motivation: >
         Any caller to engine: the compiled reference-data bundle. Static
@@ -923,7 +923,7 @@ messages:
                 for read-only callers, since the bundle does not vary by
                 caller and this only has to be unique." }
     encoding:
-      engine_pub: { frames: [topic, json_payload] }
+      engine_push: { frames: [topic, json_payload] }
 
   - name: reference
     topic: "system.reference.{gateway_id}"
@@ -984,7 +984,7 @@ messages:
 
   - name: reference_reload
     topic: "system.reference_reload"
-    transport: [engine_pub]
+    transport: [engine_pub, engine_push]
     doc:
       motivation: >
         ADMIN to engine: re-read static reference data from disk. Deliberately
@@ -1034,7 +1034,7 @@ messages:
   # ============================================================ session state
   - name: session_state_request
     topic: "system.session_state_request"
-    transport: [engine_pub]
+    transport: [engine_push]
     doc:
       motivation: >
         Caller to engine: what session are we in, without advancing it. The
@@ -1046,7 +1046,7 @@ messages:
     fields:
       - { name: gateway_id, type: string, validate: { max_len: 32 } }
     encoding:
-      engine_pub: { frames: [topic, json_payload] }
+      engine_push: { frames: [topic, json_payload] }
 
   - name: session_status
     topic: "system.session_status.{gateway_id}"
@@ -1078,7 +1078,7 @@ messages:
   # ========================================================= session schedule
   - name: session_schedule_request
     topic: "system.session_schedule_request"
-    transport: [engine_pub]
+    transport: [engine_push]
     doc:
       motivation: "Operator to engine: the configured session schedule."
       published_by: [admin, api_gateway]
@@ -1087,7 +1087,7 @@ messages:
     fields:
       - { name: gateway_id, type: string, validate: { max_len: 32 } }
     encoding:
-      engine_pub: { frames: [topic, json_payload] }
+      engine_push: { frames: [topic, json_payload] }
 
   - name: session_schedule
     topic: "system.session_schedule.{gateway_id}"
@@ -1121,7 +1121,7 @@ messages:
   # =============================================== live state: halt snapshot
   - name: halt_status_request
     topic: "system.halt_status_request"
-    transport: [engine_pub]
+    transport: [engine_push]
     doc:
       motivation: "Any process to engine: which instruments are halted now."
       published_by: [api_gateway]
@@ -1130,7 +1130,7 @@ messages:
     fields:
       - { name: gateway_id, type: string, validate: { max_len: 32 } }
     encoding:
-      engine_pub: { frames: [topic, json_payload] }
+      engine_push: { frames: [topic, json_payload] }
 
   - name: halt_status
     topic: "system.halt_status.{gateway_id}"
@@ -1158,7 +1158,7 @@ messages:
   # ==================================================== live state: position
   - name: position_request
     topic: "system.position_request"
-    transport: [engine_pub]
+    transport: [engine_push]
     doc:
       motivation: "Gateway to engine: what am I holding."
       published_by: [gateway]
@@ -1173,7 +1173,7 @@ messages:
           gateway can only ask about itself: the handler answers from
           `_gateway_positions[gateway_id]` and nothing else.
     encoding:
-      engine_pub: { frames: [topic, json_payload] }
+      engine_push: { frames: [topic, json_payload] }
 
   - name: position_snapshot
     topic: "system.position_snapshot.{gateway_id}"
@@ -1208,7 +1208,7 @@ messages:
   # ============================================= live state: quote bootstrap
   - name: quote_bootstrap_request
     topic: "system.quote_bootstrap_request"
-    transport: [engine_pub]
+    transport: [engine_push]
     doc:
       motivation: >
         Market maker to engine, on reconnect: what quotes do I already have
@@ -1223,7 +1223,7 @@ messages:
           validate: { max_len: 16 },
           doc: "Narrows the reply to one instrument. \"\" means all." }
     encoding:
-      engine_pub: { frames: [topic, json_payload] }
+      engine_push: { frames: [topic, json_payload] }
 
   - name: quote_bootstrap
     topic: "system.quote_bootstrap.{gateway_id}"
@@ -1243,7 +1243,7 @@ messages:
   # ================================================== live state: quote legs
   - name: quote_legs_request
     topic: "system.quote_legs_request"
-    transport: [engine_pub]
+    transport: [engine_push]
     doc:
       motivation: >
         Operator or market maker to engine: the per-leg detail behind this
@@ -1268,7 +1268,7 @@ messages:
           anything else as `ACTIVE` -- a typo currently answers, quietly, with
           the wrong half.
     encoding:
-      engine_pub: { frames: [topic, json_payload] }
+      engine_push: { frames: [topic, json_payload] }
 
   - name: quote_legs
     topic: "system.quote_legs.{gateway_id}"
@@ -1313,7 +1313,7 @@ messages:
   # ================================================= live state: risk state
   - name: risk_state_request
     topic: "system.risk_state_request"
-    transport: [engine_pub]
+    transport: [engine_push]
     doc:
       motivation: >
         ADMIN to engine: the live collar and circuit-breaker state of every
@@ -1324,7 +1324,7 @@ messages:
     fields:
       - { name: gateway_id, type: string, validate: { max_len: 32 } }
     encoding:
-      engine_pub: { frames: [topic, json_payload] }
+      engine_push: { frames: [topic, json_payload] }
 
   - name: risk_state
     topic: "system.risk_state.{gateway_id}"
@@ -1354,7 +1354,7 @@ messages:
   # =================================================== live state: gateways
   - name: gateways_request
     topic: "system.gateways_request"
-    transport: [engine_pub]
+    transport: [engine_push]
     doc:
       motivation: "Operator to engine: which participants exist, and who is on."
       published_by: [admin, api_gateway]
@@ -1363,7 +1363,7 @@ messages:
     fields:
       - { name: gateway_id, type: string, validate: { max_len: 32 } }
     encoding:
-      engine_pub: { frames: [topic, json_payload] }
+      engine_push: { frames: [topic, json_payload] }
 
   - name: gateways
     topic: "system.gateways.{gateway_id}"
@@ -1387,7 +1387,7 @@ messages:
   # ===================================================== live state: volume
   - name: volume_request
     topic: "system.volume_request"
-    transport: [engine_pub]
+    transport: [engine_push]
     doc:
       motivation: "Operator to engine: how much has traded today."
       published_by: [admin]
@@ -1396,7 +1396,7 @@ messages:
     fields:
       - { name: gateway_id, type: string, validate: { max_len: 32 } }
     encoding:
-      engine_pub: { frames: [topic, json_payload] }
+      engine_push: { frames: [topic, json_payload] }
 
   - name: volume
     topic: "system.volume.{gateway_id}"

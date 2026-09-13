@@ -28,7 +28,7 @@ version: 1
 messages:
   - name: quote_new
     topic: "quote.new"
-    transport: [engine_pub]
+    transport: [engine_pub, engine_push]
     doc:
       motivation: >
         Market maker to engine: submit or replace a two-sided quote on one
@@ -51,9 +51,18 @@ messages:
     fields:
       - { name: gateway_id, type: string, validate: { max_len: 32 } }
       - { name: symbol, type: string, validate: { max_len: 16 } }
-      - { name: bid_price, type: ticks, unit: ticks, validate: { gt: 0 } }
+      - name: tick_decimals
+        type: int
+        unit: dimensionless
+        validate: { ge: 0, le: 8 }
+        doc: >
+          Decimal scale for both `_ticks` prices; 1 tick = 10^-tick_decimals.
+          Carried so a reader can turn a tick price into money from this
+          message alone, rather than recovering the scale from a `book` for
+          the same symbol that may be outside the window being read.
+      - { name: bid_price_ticks, type: ticks, unit: ticks, validate: { gt: 0 } }
       - { name: bid_qty, type: int, unit: shares, validate: { gt: 0 } }
-      - { name: ask_price, type: ticks, unit: ticks, validate: { gt: 0 } }
+      - { name: ask_price_ticks, type: ticks, unit: ticks, validate: { gt: 0 } }
       - { name: ask_qty, type: int, unit: shares, validate: { gt: 0 } }
       - name: tif
         type: enum
@@ -71,7 +80,7 @@ messages:
 
   - name: quote_cancel
     topic: "quote.cancel"
-    transport: [engine_pub]
+    transport: [engine_pub, engine_push]
     doc:
       motivation: "Market maker to engine: pull the active quote on one symbol."
       published_by: [admin, api_gateway, gateway]

@@ -117,7 +117,7 @@ messages:
 
   - name: session_transition
     topic: "session.transition"
-    transport: [engine_pub]
+    transport: [engine_pub, engine_push]
     doc:
       motivation: "Scheduler or operator to engine: request a state change."
       published_by: [scheduler]
