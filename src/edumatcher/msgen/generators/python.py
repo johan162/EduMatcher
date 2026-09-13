@@ -1589,3 +1589,95 @@ def render_family(family: Family, spec_path: str) -> str:
         )
 
     return "\n\n\n".join("\n".join(b) for b in blocks) + "\n"
+
+
+def render_registry(families: list[Family], spec_path: str) -> str:
+    """Return the cross-family topic registry module.
+
+    One public mapping from every bus topic *template* to the family, message
+    name, static prefix, wildcard parameters and field metadata behind it.
+    Each family module already knows all of this about its own messages, but
+    only about its own: a consumer holding a topic string off the wire has no
+    way to find the family it came from without a registry like this one.
+
+    ``spec_path`` is a repo-relative label, for the same reason
+    ``render_family`` needs one: the banner is diffed by ``pm-msgen check``.
+    """
+    with_topics = [f for f in families if any(m.topic for m in f.messages)]
+
+    header: list[str] = [
+        f"# GENERATED FROM {spec_path} - DO NOT EDIT",
+        "#",
+        "# Regenerate with:  poetry run pm-msgen generate",
+    ]
+    header += _docstring(
+        "",
+        "Cross-family registry of every bus topic in the specification.",
+        [
+            "A family module describes its own messages; this module is the "
+            "only place that describes all of them together, keyed by topic. "
+            "It is what lets a consumer resolve a topic read off the wire - "
+            "``order.ack.TRADER01`` - back to the message that defines it, "
+            "and to that message's declared field units.",
+            "Every symbol here is derived from the specification; edit the "
+            "spec, not this file. See docs/developer/06-msgen.md.",
+        ],
+    )
+
+    imports = [
+        "from __future__ import annotations",
+        "",
+        "from typing import Any, Mapping",
+        "",
+    ]
+    imports += [
+        f"from edumatcher.models.generated import {f.family} as _{f.family}"
+        for f in with_topics
+    ]
+
+    # Black keeps a leading comment attached to the statement it introduces,
+    # so the comment and the mapping are one emitted block with a single blank
+    # line after the imports - not the two a separate block would produce.
+    entries: list[str] = [
+        "",
+        "#: Every bus topic in the spec, keyed by its template. A wildcard topic",
+        "#: is keyed by the template itself - ``order.ack.{gateway_id}``, not a",
+        "#: resolved topic - so ``prefix`` and ``params`` are what a consumer",
+        "#: matches a topic read off the wire against.",
+        "TOPIC_REGISTRY: Mapping[str, Mapping[str, Any]] = {",
+    ]
+    for family in with_topics:
+        for message in family.messages:
+            if message.topic is None:
+                continue
+            mod = f"_{family.family}"
+            const = _const_name(message)
+            params = message.topic_params
+            prefix = f"{mod}.PREFIX_{const}" if params else f"{mod}.TOPIC_{const}"
+            entries.append(f"    {mod}.TOPIC_{const}: {{")
+            entries.append(f'        "family": {_pystr(family.family)},')
+            entries.append(f'        "message": {_pystr(message.name)},')
+            entries.append(f'        "prefix": {prefix},')
+            # Which sockets this topic travels on. `engine_push` marks a
+            # client->engine command, which is the difference between a
+            # message the exchange published and one it was asked to act on -
+            # not derivable from the topic string, and load-bearing for any
+            # consumer that fans events out to subscribers.
+            entries.append(
+                '        "transport": '
+                f"{_tuple_literal([_pystr(t) for t in message.transport])},"
+            )
+            entries.append(
+                f'        "params": {_tuple_literal([_pystr(p) for p in params])},'
+                if params
+                else '        "params": (),'
+            )
+            entries.append(f'        "fields": {mod}.describe_{message.name}(),')
+            entries.append("    },")
+    entries.append("}")
+
+    blocks: list[list[str]] = [
+        header + [""] + imports + entries,
+        ["ALL_TOPICS: tuple[str, ...] = tuple(TOPIC_REGISTRY)"],
+    ]
+    return "\n\n\n".join("\n".join(b) for b in blocks) + "\n"

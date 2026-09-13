@@ -68,6 +68,18 @@ def build_artifacts(
                 label=f"{docs_reference.parent.name}/{docs_reference.name}",
             )
         )
+    # One registry across every family, so a consumer holding a topic string
+    # can find the message that defines it. Emitted here rather than per family
+    # because that is exactly the question no single family can answer.
+    artifacts.append(
+        Artifact(
+            path=out_python / "registry.py",
+            content=py_gen.render_registry(
+                families, f"{spec_root.name}/messages/*.yaml"
+            ),
+            label=f"{out_python.name}/registry.py",
+        )
+    )
     for family in families:
         label = _spec_label(spec_root, family.family)
         artifacts.append(
