@@ -431,6 +431,20 @@ class IndexWriter:
                 for anomaly in event.step.anomalies
             )
             self._note_coverage(fact.receipt_raw)
+        # Findings about the episode rather than about one of its facts, so
+        # they have no fact to take a sort key from; the episode's own opening
+        # key stands in, and each anomaly still carries its own receipt_ts.
+        self._anomalies.extend(
+            (
+                anomaly.code,
+                anomaly.severity,
+                episode.episode_id,
+                pack_sort_key(opened),
+                anomaly.receipt_ts,
+                anomaly.detail,
+            )
+            for anomaly in episode.anomalies
+        )
         self._note_actor(episode)
         if len(self._episodes) >= self.batch_size:
             self.flush()

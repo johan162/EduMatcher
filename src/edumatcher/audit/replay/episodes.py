@@ -34,6 +34,7 @@ from datetime import datetime
 from typing import Iterable, Iterator, Mapping, TypeVar
 
 from edumatcher.audit.replay import kinds
+from edumatcher.audit.replay.anomalies import Anomaly
 from edumatcher.audit.replay.facts import Fact
 from edumatcher.audit.replay.links import LinkResolver
 from edumatcher.audit.replay.ordering import (
@@ -142,6 +143,11 @@ class Episode:
     #: belongs to that episode and not to this one.
     closed_ts: datetime | None = None
     closed_sort_key: SortKey | None = None
+    #: Findings about the episode as a whole -- "never acked", "still open" --
+    #: as distinct from the per-fact findings on each event's Step. Filled by
+    #: `detect.detected` as the episode retires, which is the moment they stop
+    #: being "has not arrived yet" and become "did not arrive".
+    anomalies: tuple[Anomaly, ...] = ()
 
     @property
     def opened(self) -> Fact:

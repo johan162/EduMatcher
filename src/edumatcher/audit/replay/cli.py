@@ -49,6 +49,7 @@ from edumatcher.audit.replay import index as episode_index
 from edumatcher.audit.replay import reader
 from edumatcher.audit.replay import render_text
 from edumatcher.audit.replay import stats as stats_report
+from edumatcher.audit.replay.detect import Detector, detected, observed
 from edumatcher.audit.replay.episodes import Episode, assemble
 from edumatcher.audit.replay.pipeline import reconstruct
 from edumatcher.audit.replay.state import StateModel
@@ -506,8 +507,16 @@ def build_index(
     entries = iter_entries(log_files, from_dt=from_dt, to_dt=to_dt)
     max_facts, max_seconds = reorder_bounds(args)
     run, steps = reconstruct(entries, max_facts=max_facts, max_seconds=max_seconds)
-    episodes = assemble(
-        steps, run.state, run.links, max_facts=max_facts, max_seconds=max_seconds
+    detector = Detector(run.state)
+    episodes = detected(
+        assemble(
+            observed(steps, detector),
+            run.state,
+            run.links,
+            max_facts=max_facts,
+            max_seconds=max_seconds,
+        ),
+        detector,
     )
     return episode_index.build(
         Path(args.db), episodes, run.state, log_files, rebuild=rebuild
@@ -637,9 +646,17 @@ def _from_log(
         max_facts=max_facts,
         max_seconds=max_seconds,
     )
+    detector = Detector(run.state)
     episodes = list(
-        assemble(
-            steps, run.state, run.links, max_facts=max_facts, max_seconds=max_seconds
+        detected(
+            assemble(
+                observed(steps, detector),
+                run.state,
+                run.links,
+                max_facts=max_facts,
+                max_seconds=max_seconds,
+            ),
+            detector,
         )
     )
     return episodes, run.state

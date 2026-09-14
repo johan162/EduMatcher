@@ -26,7 +26,7 @@ actor, and resolving that is a spec lookup, not string surgery --
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Mapping
@@ -38,6 +38,8 @@ from edumatcher.audit.query import (
     split_topic,
 )
 from edumatcher.audit.replay.anomalies import (
+    PARSE_FAILURE,
+    SEVERITY_ERROR,
     SEVERITY_WARN,
     TICK_SCALE_UNKNOWN,
     UNKNOWN_TOPIC,
@@ -369,6 +371,41 @@ def to_fact(entry: AuditEntry, ordinal: int) -> Fact:
 
 
 def normalise(entries: Iterable[AuditEntry]) -> Iterator[Fact]:
-    """Normalise a stream of entries, numbering them in read order."""
+    """Normalise a stream of entries, numbering them in read order.
+
+    Also where ``PARSE_FAILURE`` is noticed, because this is the last place
+    read order is still available: ``iter_entries`` drops a line the audit
+    format does not match, and a dropped line leaves a hole in ``line_no``
+    that only consecutive entries reveal. The ordering pass runs next and
+    puts the facts in canonical order, after which two neighbours are no
+    longer two neighbouring lines.
+
+    The finding attaches to the fact *after* the hole -- the first line that
+    was read -- and says how many were not. A blank line in the middle of a
+    log would be reported the same way; ``pm-audit`` does not write one.
+    """
+    previous: tuple[str | None, int] | None = None
     for ordinal, entry in enumerate(entries):
-        yield to_fact(entry, ordinal)
+        fact = to_fact(entry, ordinal)
+        if previous is not None and previous[0] == entry.file:
+            unread = entry.line_no - previous[1] - 1
+            if unread > 0:
+                fact = replace(
+                    fact,
+                    anomalies=fact.anomalies
+                    + (
+                        Anomaly(
+                            code=PARSE_FAILURE,
+                            severity=SEVERITY_ERROR,
+                            detail=(
+                                f"{unread} line(s) before this one did not "
+                                "match the audit line format and were not read"
+                            ),
+                            receipt_ts=entry.timestamp,
+                            file=entry.file,
+                            line_no=entry.line_no,
+                        ),
+                    ),
+                )
+        previous = (entry.file, entry.line_no)
+        yield fact
