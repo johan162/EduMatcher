@@ -187,6 +187,10 @@ const ORDER_STATUSES: ReadonlySet<string> = new Set<OrderStatus>([
  * The engine now declares the enum and sends one value. This is the belt: an
  * unknown status resolves from the quantities, which is the same fold that was
  * already applied to the cache-only `AMENDED` marker.
+ *
+ * *quantity* must be the order's total. A caller that does not have it on the
+ * message should pass what it already knows about the order, because with
+ * `quantity` at 0 every unfilled remainder reads as NEW.
  */
 export function toOrderStatus(
   raw: string | null | undefined,
@@ -195,6 +199,10 @@ export function toOrderStatus(
 ): OrderStatus {
   if (raw && ORDER_STATUSES.has(raw)) return raw as OrderStatus;
   if (raw === undefined || raw === null) return "PENDING";
+  // All three outcomes, not two. `remaining <= 0` is a finished order, and
+  // reading it as NEW — which an earlier version of this did — would have put
+  // a filled order back at the top of the blotter.
+  if (remaining <= 0) return "FILLED";
   return remaining < quantity ? "PARTIAL" : "NEW";
 }
 

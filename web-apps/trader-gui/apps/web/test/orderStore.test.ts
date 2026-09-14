@@ -47,8 +47,15 @@ describe("toOrderStatus", () => {
     // no screen could match and a partially filled order vanished from every
     // group summary.
     expect(toOrderStatus("PARTIAL_FILL", 40, 100)).toBe("PARTIAL");
-    expect(toOrderStatus("PARTIAL_FILL", 0, 100)).toBe("NEW");
     expect(toOrderStatus("SOMETHING_NEW", 40, 100)).toBe("PARTIAL");
+    expect(toOrderStatus("SOMETHING_NEW", 100, 100)).toBe("NEW");
+  });
+
+  it("reads a spent remainder as finished, not as untouched", () => {
+    // All three outcomes, not two. Folding `remaining === 0` to NEW would put
+    // a filled order back at the top of the blotter.
+    expect(toOrderStatus("SOMETHING_NEW", 0, 100)).toBe("FILLED");
+    expect(toOrderStatus("PARTIAL_FILL", 0, 100)).toBe("FILLED");
   });
 
   it("treats an absent status as not yet acked", () => {
