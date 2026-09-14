@@ -1,15 +1,50 @@
 from __future__ import annotations
 
+import os
+import shutil
 import socket
 import sqlite3
+import tempfile
 import time
 from collections.abc import Generator
 from pathlib import Path
 
 import pytest
 
-from edumatcher.models.order import Order, OrderType, Side, TIF
-from edumatcher.models.trade import reset_trade_ids_for_tests, set_run_seq
+#: A data directory of the suite's own, so that what the suite reads and
+#: writes does not depend on what happens to be deployed on the machine
+#: running it. A leftover ``ref_data/engine_config.json`` from an older schema
+#: made 104 tests fail with "compiled config has schema version 3"; tests that
+#: persist GTC orders left ``gtc_orders.json`` behind in ``src/data``. Neither
+#: is a property of the code under test.
+#:
+#: This has to run before the first ``edumatcher`` import below, and cannot be
+#: a fixture: ``config.py`` reads ``EDUMATCHER_DATA_DIR`` once at import time
+#: and freezes ``DATA_DIR`` -- and every path derived from it -- as module
+#: constants. By the time any fixture runs they are already bound.
+_DATA_DIR = tempfile.mkdtemp(prefix="edumatcher-tests-")
+os.environ["EDUMATCHER_DATA_DIR"] = _DATA_DIR
+
+from edumatcher.config import DATA_DIR  # noqa: E402
+from edumatcher.models.order import Order, OrderType, Side, TIF  # noqa: E402
+from edumatcher.models.trade import (  # noqa: E402
+    reset_trade_ids_for_tests,
+    set_run_seq,
+)
+
+# An import added above the block that sets the variable would silently put
+# the suite back on the machine's data directory, which is precisely the
+# failure this is here to prevent -- and its symptom is 104 unrelated tests
+# failing, not an obvious one. Fail at collection instead.
+assert DATA_DIR == Path(_DATA_DIR).resolve(), (
+    f"the test suite resolved DATA_DIR to {DATA_DIR}, not its own "
+    f"{_DATA_DIR} -- something imported edumatcher.config before "
+    f"tests/conftest.py set EDUMATCHER_DATA_DIR"
+)
+
+
+def pytest_sessionfinish() -> None:
+    shutil.rmtree(_DATA_DIR, ignore_errors=True)
 
 
 def free_ports(count: int) -> list[int]:

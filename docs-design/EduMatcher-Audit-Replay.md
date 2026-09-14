@@ -2014,6 +2014,8 @@ same rows, table for table, as a build into an empty one.
 
 ### Phase 4 — Narration (≈ 5 days) — first user-visible output
 
+**COMPLETED**
+
 Two things learned building it, both worth carrying forward.
 
 **A rounding bug had been in the tool since phase 1.** `Price.render` formatted

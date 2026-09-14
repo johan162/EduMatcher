@@ -231,7 +231,14 @@ def load_compiled_config(path: Path | None = None) -> CompiledConfig | None:
     target = COMPILED_CONFIG_FILE if path is None else path
     if not target.exists():
         return None
-    return decode(target.read_text(encoding="utf-8"))
+    try:
+        return decode(target.read_text(encoding="utf-8"))
+    except ArtifactError as exc:
+        # decode() is given text, so it cannot name the file. Where the
+        # artifact lives is exactly what the reader does not know -- it is
+        # derived from DATA_DIR, never passed in -- and without it a stale
+        # deployment sends people hunting for a file they cannot find.
+        raise ArtifactError(f"{target}: {exc}") from exc
 
 
 def staleness(config: CompiledConfig) -> str | None:
@@ -353,7 +360,7 @@ def decode(text: str) -> CompiledConfig:
     if version != SCHEMA_VERSION:
         raise ArtifactError(
             f"compiled config has schema version {version}, but this build "
-            f"reads version {SCHEMA_VERSION} — recompile with pm-config-compile"
+            f"reads version {SCHEMA_VERSION} — redeploy with pm-config-deploy"
         )
 
     result = from_jsonable(CompiledConfig, payload)
