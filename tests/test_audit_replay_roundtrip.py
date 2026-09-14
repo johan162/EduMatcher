@@ -41,7 +41,7 @@ from edumatcher.audit.replay.state import StateModel
 
 FIXTURES = REPLAY_FIXTURES
 LOGS = replay_logs()
-LEVELS = (0, 1, 2)
+LEVELS = (0, 1, 2, 3, 4)
 
 #: How much session to generate. Big enough to be a different kind of input
 #: from the hand-written fixtures -- many symbols, many gateways, orders
@@ -277,7 +277,7 @@ def account_for(log: Path, level: int) -> dict[tuple[str | None, int], str]:
         for event in episode.events:
             where = (event.fact.file, event.fact.line_no)
             assert where not in verdicts, f"{where} landed in two episodes"
-            if suppressed(event.fact.kind, max(level, templates.LEVEL_DEFAULT)):
+            if suppressed(event.fact, max(level, templates.LEVEL_DEFAULT)):
                 verdicts[where] = "withheld"
             elif episode.kind == KIND_ORPHAN:
                 verdicts[where] = "orphan"
@@ -352,8 +352,16 @@ class TestWithheldIsAStatementNotAnAbsence:
         "Not shown at this level" has to be something the tool will say, or a
         reader cannot tell it apart from "not there".
         """
-        assert suppressed("book", 1) is True
-        assert suppressed("book", 3) is False
+        book = next(
+            event.fact
+            for episode, _state in [reconstruct_log(LOGS[0])]
+            for e in episode
+            for event in e.events
+            if event.fact.kind == "book"
+        )
+
+        assert suppressed(book, 1) is True
+        assert suppressed(book, 3) is False
 
     def test_raising_the_level_only_ever_reveals(self) -> None:
         for log in LOGS:
@@ -398,3 +406,53 @@ class TestAnOrphanIsCounted:
             for anomaly in event.step.anomalies
         ]
         assert orphans or "ORPHAN_EVENT" in anomalies
+
+
+class TestTheTopLevelWithholdsNothing:
+    """AR-5.3's checkpoint: at ``-vvv`` the property becomes strict equality.
+
+    Below level 4 the property is "narrated, withheld or orphan". At level 4
+    there is no third state left: market data has arrived, the unclassified
+    events have arrived, and every event in the file produces a line. That is
+    the strongest form the property can take, and it is the one that proves
+    the levels below it are withholding rather than losing.
+    """
+
+    @pytest.mark.parametrize("log", LOGS, ids=lambda p: p.stem[:2])
+    def test_every_event_produces_a_line(self, log: Path) -> None:
+        episodes, state = reconstruct_log(log)
+        renderer = Renderer(episodes, state, Options(level=templates.LEVEL_RAW))
+        lines = [
+            (episode, event, renderer.line(episode, event))
+            for episode in episodes
+            for event in episode.events
+        ]
+        withheld = [
+            f"{e.fact.file}:{e.fact.line_no} [{e.fact.topic}]"
+            for _episode, e, rendered in lines
+            if rendered is None
+        ]
+
+        assert withheld == [], f"{log.name}: withheld at the top level"
+        assert len(lines) == len(audit_events(log))
+
+    def test_it_holds_over_a_whole_session(self, generated_session: Path) -> None:
+        episodes, state = reconstruct_log(generated_session)
+        renderer = Renderer(episodes, state, Options(level=templates.LEVEL_RAW))
+        narrated = sum(
+            1
+            for episode in episodes
+            for event in episode.events
+            if renderer.line(episode, event) is not None
+        )
+
+        assert narrated == len(audit_events(generated_session))
+
+    def test_and_does_not_hold_one_level_down(self) -> None:
+        """Otherwise the test above would prove nothing about the levels it is
+        contrasted with: a tool that narrated everything at every level would
+        pass it."""
+        log = FIXTURES / "01_simple_limit_partial_fill.log"
+        verdicts = account_for(log, templates.LEVEL_DEFAULT)
+
+        assert "withheld" in verdicts.values()

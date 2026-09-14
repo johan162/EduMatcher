@@ -1,0 +1,13 @@
+07:59:58.000  Order dead0001000000000000000000000001 was restored
+07:59:58.001  Order dead0001000000000000000000000002 failed to restore — price off the tick grid
+07:59:58.002  The engine restarted and restored 1 order, 1 failed
+08:00:00.000  The session was asked to move to OPENING
+08:00:00.001  The session is now OPENING, from CLOSED
+08:00:00.100  The session was asked to move to CONTINUOUS
+08:00:00.101  The session is now CONTINUOUS, from OPENING
+08:00:01.000  ADMIN applied a share split to AAPL in EDU100
+08:00:01.004  pm-index accepted the corporate action
+              · engine clock +0.000s from receipt
+08:00:05.000  End of day
+08:00:05.100  The session was asked to move to CLOSED
+08:00:05.101  The session is now CLOSED, from CONTINUOUS

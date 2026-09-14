@@ -1,0 +1,16 @@
+09:31:02.110  TRADER01 connected (Nordic Equities desk)
+09:31:02.111  system.symbols from TRADER01
+09:31:02.112  AAPL book: 74.75 x 500 bid / 74.80 x 150 ask
+              · engine clock +0.000s from receipt
+09:31:02.120  TRADER01 submitted buy limit 200 AAPL @ 75.69 (good for the day) — order 4f2c9a1e6d… — a direct submission
+              · arrival_seq 8814
+              · client clock -0.005s from receipt
+09:31:02.121  Engine accepted 4f2c9a1e6d…
+09:31:02.122  AAPL traded 150 @ 74.80 — TRADER01's buy 4f2c9a1e6d… took from TRADER02's sell 9ab1c47f2e… (trade 000042-000…) — notional 11,220.00
+              · engine clock +0.000s from receipt
+09:31:02.122  4f2c9a1e6d… took 150 @ 74.80 from TRADER02's sell 9ab1c47f2e… — 50 of 200 still working
+09:31:02.122  9ab1c47f2e… was lifted for 150 @ 74.80 by TRADER01's buy 4f2c9a1e6d… — 150 of 150 done
+09:31:02.123  AAPL book: 75.69 x 50 bid / - ask — last 74.80
+              · engine clock +0.000s from receipt
+09:31:02.124  AAPL depth: mid 75.69, 550 bid / 0 ask, imbalance 1 to the bid
+              · engine clock +0.000s from receipt

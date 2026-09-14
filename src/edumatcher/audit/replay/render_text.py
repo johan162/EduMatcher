@@ -25,6 +25,8 @@ outside the requested window.
 
 from __future__ import annotations
 
+import json
+
 from dataclasses import dataclass, replace
 from typing import Any, Iterable, Iterator, Mapping, Sequence
 
@@ -217,7 +219,7 @@ class Renderer:
         level 1.
         """
         for episode in episodes:
-            if suppressed(episode.opened.kind, templates.LEVEL_DEFAULT):
+            if suppressed(episode.opened, templates.LEVEL_DEFAULT):
                 continue
             yield Rendered(
                 receipt=_clock(episode.opened),
@@ -246,7 +248,7 @@ class Renderer:
         explicitly suppressed, or an orphan -- and never simply absent.
         """
         fact = event.fact
-        if suppressed(fact.kind, self.options.level):
+        if suppressed(fact, self.options.level):
             return None
         slots, found = self._slots(episode, fact)
         template = _template_for(fact.kind, self.options.level)
@@ -340,6 +342,16 @@ class Renderer:
             "action": word("action", payload.get("action")),
             "change_type": word("change_type", payload.get("change_type")),
             "index_id": _str(payload, "index_id") or "-",
+            # -- level 3, the market ---------------------------------------
+            "top_bid": _level(payload, "bids", self._scale_for(episode, fact)),
+            "top_ask": _level(payload, "asks", self._scale_for(episode, fact)),
+            "last_clause": _clause(" — last ", _money(fact, "last_price"), ""),
+            "mid_price": _money(fact, "mid_price_ticks", "mid_price"),
+            "bid_depth": _number(payload.get("bid_depth")),
+            "ask_depth": _number(payload.get("ask_depth")),
+            "skew_clause": self._skew(fact),
+            "index_level": _decimal(payload.get("level")),
+            "event_type": word("event_type", payload.get("event_type")),
         }
         return slots, found
 
@@ -527,6 +539,19 @@ class Renderer:
             return ""
         return f", {qty} {word('imbalance_side', side)} unfilled"
 
+    def _skew(self, fact: Fact) -> str:
+        """``depth.imbalance`` as a side, not as a signed float.
+
+        The field is a ratio and reads as one; a reader wants to know which
+        way the book leans, which is what the sign means.
+        """
+        value = fact.payload.get("imbalance")
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            return ""
+        if value == 0:
+            return ", balanced"
+        return f", imbalance {abs(value):g} to the {'bid' if value > 0 else 'ask'}"
+
     def _auth(self, fact: Fact) -> str:
         if fact.payload.get("accepted") is False:
             reason = _str(fact.payload, "reason")
@@ -551,6 +576,27 @@ class Renderer:
                 yield f"· {price.name}: {price.provenance()}"
         if self.options.show_source and fact.source:
             yield f"· {fact.source}"
+        if self.options.level >= templates.LEVEL_MARKET:
+            yield from self._mechanics(fact)
+        if self.options.level >= templates.LEVEL_RAW:
+            yield f"· payload: {json.dumps(fact.payload, sort_keys=True)}"
+
+    def _mechanics(self, fact: Fact) -> Iterator[str]:
+        """Section 8.1's level-3 additions beyond market data.
+
+        ``arrival_seq`` is what the book actually used for priority, and the
+        clock difference is the one number that says whether anything timed
+        across the two clocks can be trusted. Both are on the line at level 3
+        rather than in the anomaly report because at this level the reader is
+        looking at mechanism, not hunting a bug.
+        """
+        arrival = _int(fact.payload, "arrival_seq")
+        if arrival is not None:
+            yield f"· arrival_seq {arrival}"
+        stamped = fact.times.get("ts_ns")
+        if stamped is not None:
+            drift = (stamped.when - fact.receipt_ts).total_seconds()
+            yield f"· {stamped.clock} clock {drift:+.3f}s from receipt"
 
     def _why_rejected(self, event: EpisodeEvent) -> Iterator[str]:
         """The market condition behind a rejection (section 10.3).
@@ -594,14 +640,27 @@ class Renderer:
 # ---------------------------------------------------------------------------
 
 
-def suppressed(kind: str, level: int) -> bool:
-    """Whether *level* withholds this fact kind.
+def suppressed(fact: Fact, level: int) -> bool:
+    """Whether *level* withholds this fact.
 
     The round-trip property needs "withheld" to be a statement the tool can
     make, not an absence a reader has to notice. So this is a function rather
     than an ``if`` inside the renderer, and the test asserts over it.
+
+    Two rules, and section 8.1 puts them at different levels. A kind in
+    :data:`~templates.MIN_LEVEL` is market data or a query reply and arrives
+    at level 3. A fact whose topic is in **no message family** is section
+    8.1's "unclassified event" and arrives only at level 4: the tool cannot
+    say what it is, so it has no business in a narrative of what the exchange
+    did -- and it is not hidden either way, because ``UNKNOWN_TOPIC`` is
+    raised on it at every level and the ``anomalies`` view reports it.
+
+    Level 4 therefore withholds nothing at all, which is what makes the
+    round-trip property strict equality there.
     """
-    return level < templates.MIN_LEVEL.get(kind, templates.LEVEL_DEFAULT)
+    if not fact.known:
+        return level < templates.LEVEL_RAW
+    return level < templates.MIN_LEVEL.get(fact.kind, templates.LEVEL_DEFAULT)
 
 
 # ---------------------------------------------------------------------------
@@ -681,6 +740,35 @@ def _money(fact: Fact, *names: str, scale: int | None = None) -> str:
             return f"{price.display:.{scale}f}"
         return price.render()
     return ""
+
+
+def _level(payload: Mapping[str, Any], side: str, scale: int | None) -> str:
+    """The top of one side of a book snapshot, as ``74.75 x 500``.
+
+    Only the top: a level-3 line runs beside thousands of others and the
+    whole ladder belongs in the raw payload at level 4, where it already is.
+    """
+    levels = payload.get(side)
+    if not isinstance(levels, list) or not levels:
+        return "-"
+    top = levels[0]
+    if not isinstance(top, dict):
+        return "-"
+    price, qty = top.get("price"), top.get("qty")
+    if price is None or qty is None:
+        return "-"
+    # The ladder is a list of plain numbers rather than declared price fields,
+    # so it never passes through Price -- but it is the same instrument, and
+    # printing 74.8 beside a 74.80 elsewhere in the same line reads as two
+    # different prices.
+    shown = f"{price:.{scale}f}" if scale is not None else f"{price:g}"
+    return f"{shown} x {_number(qty) or qty}"
+
+
+def _decimal(value: Any) -> str:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return "-"
+    return f"{value:,.2f}"
 
 
 def _price(fact: Fact, name: str) -> float | None:

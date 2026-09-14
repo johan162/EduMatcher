@@ -52,8 +52,12 @@ LEVEL_ORDER = "order"
 LEVEL_CAUSALITY = "causality"
 LEVEL_EPISODES = "episodes"
 
-#: The prose levels, and the detail level each one renders at.
-PROSE_LEVELS: dict[str, int] = {"q": 0, "v1": 1, "v2": 2}
+#: The prose levels, and the detail level each one renders at. Level 4 is
+#: deliberately absent: it prints the raw payload under every line, so a
+#: golden for it would freeze every byte of every message the fixtures carry
+#: and would change whenever a field was added to any of them. What level 4
+#: adds is covered by tests that assert the addition rather than the bytes.
+PROSE_LEVELS: dict[str, int] = {"q": 0, "v1": 1, "v2": 2, "v3": 3}
 
 
 def fixture_log(name: str) -> Path:

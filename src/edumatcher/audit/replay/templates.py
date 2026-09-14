@@ -25,17 +25,23 @@ from typing import Mapping
 
 from edumatcher.audit.replay import kinds
 
-#: Detail levels this module covers (section 8.1). 3 and 4 add market data and
-#: raw payloads and are not built yet; :data:`MIN_LEVEL` is what suppresses
-#: them, so a fact belonging to a higher level is *withheld*, never dropped --
-#: the distinction the round-trip property of AR-4.5 rests on.
+#: Detail levels this module covers (section 8.1). :data:`MIN_LEVEL` is what
+#: holds a kind back, so a fact belonging to a higher level is *withheld*,
+#: never dropped -- the distinction the round-trip property of AR-4.5 rests
+#: on, and which at :data:`LEVEL_RAW` has nothing left to hold.
 LEVEL_OUTCOMES = 0
 LEVEL_DEFAULT = 1
 LEVEL_DETAIL = 2
+LEVEL_MARKET = 3
+LEVEL_RAW = 4
 
 #: The level at which a fact kind starts being narrated. Anything not listed
 #: is narrated from level 1. Market data is the bulk of a real log and is
 #: context rather than event, so it waits for ``-vv``.
+#:
+#: ``book`` and ``depth`` are spelled as literals here and not as
+#: ``kinds.BOOK``/``kinds.DEPTH``; they are pre-existing and equal in value,
+#: so they are left alone rather than tidied.
 #:
 #: Keyed by :mod:`~edumatcher.audit.replay.kinds`, never by a literal. A topic
 #: spelled out here would keep compiling after a publisher-side rename and
@@ -114,6 +120,28 @@ TEMPLATES: Mapping[str, Mapping[int, str]] = {
     kinds.COMBO_STATUS: {1: "Combo {ref} is {status}{because_clause}"},
     kinds.ORDER_COMBO_CANCEL: {1: "{actor} asked to cancel combo {ref}"},
     # -- the market ---------------------------------------------------------
+    # Level 3 (``-vv``) and above. These are the bulk of a real log by line
+    # count, and until this level they are withheld rather than dropped. The
+    # sentences are deliberately compact: at the level that turns market data
+    # on there are thousands of them, and a paragraph each would bury the
+    # business events they are context for.
+    kinds.BOOK: {
+        LEVEL_MARKET: "{symbol} book: {top_bid} bid / {top_ask} ask{last_clause}"
+    },
+    kinds.DEPTH: {
+        LEVEL_MARKET: "{symbol} depth: mid {mid_price}, {bid_depth} bid / "
+        "{ask_depth} ask{skew_clause}"
+    },
+    kinds.INDEX_UPDATE: {LEVEL_MARKET: "{index_id} is at {index_level}"},
+    kinds.AUCTION_INDICATIVE: {
+        LEVEL_MARKET: "{symbol} would uncross {qty} @ {price}{imbalance_clause}"
+    },
+    kinds.DROP_COPY_EVENT: {
+        LEVEL_MARKET: "Drop copy to {actor}: {event_type} on {ref}"
+    },
+    kinds.DROP_COPY_REPLAY: {
+        LEVEL_MARKET: "Drop copy replayed to {actor}: {event_type} on {ref}"
+    },
     # -- risk and admin commands -------------------------------------------
     kinds.RISK_KILL_SWITCH: {
         1: "{actor} pulled the kill switch{on_clause}{note_clause}"
@@ -171,7 +199,11 @@ TEMPLATES: Mapping[str, Mapping[int, str]] = {
 
 #: The fallback when no template names a kind: the topic, the actor and
 #: nothing invented. Deliberately dull -- it is a prompt to write a real
-#: sentence, and it keeps the round-trip property true in the meantime.
+#: sentence, and it keeps the round-trip property true in the meantime. The
+#: query replies (``system.reference``, ``system.volume``, ``order.orders``
+#: and their siblings) still land here at level 3; section 8.1 names only the
+#: market data and drop copy above, and a sentence written for a reply shape
+#: nobody has looked at would be a guess.
 GENERIC = "{kind}{actor_clause}"
 
 #: Every ``*_ack`` topic the spec declares gets this unless it has its own

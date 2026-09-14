@@ -24,8 +24,9 @@ from tests.conftest import REPLAY_FIXTURES
 from edumatcher.audit.query import AuditEntry, iter_entries
 from edumatcher.audit.replay import episodes as episodes_module
 from edumatcher.audit.replay import templates
+from edumatcher.audit.replay.anomalies import UNKNOWN_TOPIC
 from edumatcher.audit.replay.episodes import Episode, assemble
-from edumatcher.audit.replay.facts import Price, to_fact
+from edumatcher.audit.replay.facts import Fact, Price, to_fact
 from edumatcher.audit.replay.pipeline import Reconstruction, reconstruct
 from edumatcher.audit.replay.render_text import (
     Abbreviator,
@@ -49,6 +50,22 @@ def run(name: str) -> tuple[list[Episode], Reconstruction]:
     return (
         list(assemble(steps, reconstruction.state, reconstruction.links)),
         reconstruction,
+    )
+
+
+def fact_of(name: str, kind: str) -> Fact:
+    """The first fact of *kind* in a fixture.
+
+    ``suppressed`` takes a Fact rather than a kind, because section 8.1's
+    "unclassified event" is a property of the fact -- whether its topic is in
+    any message family at all -- and not of the string it is named by.
+    """
+    episodes, _reconstruction = run(name)
+    return next(
+        event.fact
+        for episode in episodes
+        for event in episode.events
+        if event.fact.kind == kind
     )
 
 
@@ -106,7 +123,7 @@ class TestNoOutcomeForAnOpenEpisode:
         for name in ALL:
             episodes, reconstruction = run(name)
             shown = sorted(
-                (e for e in episodes if not suppressed(e.opened.kind, 1)),
+                (e for e in episodes if not suppressed(e.opened, 1)),
                 key=lambda e: e.opened_sort_key,
             )
             lines = narrate(episodes, reconstruction.state, Options(level=0))
@@ -220,7 +237,7 @@ class TestDetailLevels:
     def test_level_zero_is_one_line_per_episode(self) -> None:
         episodes, reconstruction = run(SIMPLE)
         narrated = narrate(episodes, reconstruction.state, Options(level=0))
-        shown = [e for e in episodes if not suppressed(e.opened.kind, 1)]
+        shown = [e for e in episodes if not suppressed(e.opened, 1)]
         assert len(narrated) == len(shown)
 
     def test_level_one_is_one_line_per_narrated_fact(self) -> None:
@@ -230,14 +247,17 @@ class TestDetailLevels:
             event
             for episode in episodes
             for event in episode.events
-            if not suppressed(event.fact.kind, 1)
+            if not suppressed(event.fact, 1)
         ]
         assert len(narrated) == len(shown)
 
     def test_market_data_waits_for_level_three(self) -> None:
-        assert suppressed("book", 1) and suppressed("depth", 2)
-        assert not suppressed("book", 3)
-        assert not suppressed("order.fill", 1)
+        book = fact_of(SIMPLE, "book")
+        depth = fact_of(SIMPLE, "depth")
+
+        assert suppressed(book, 1) and suppressed(depth, 2)
+        assert not suppressed(book, 3)
+        assert not suppressed(fact_of(SIMPLE, "order.fill"), 1)
 
     def test_level_two_adds_without_removing(self) -> None:
         """Raising the level may say more; it may not say less."""
@@ -289,3 +309,77 @@ class TestNothingCrashes:
         renderer = Renderer(episodes, reconstruction.state, Options(level=1))
         slots, _found = renderer._slots(episodes[0], fact)
         assert slots["symbol"]
+
+
+class TestLevelThree:
+    """Section 8.1: market data, drop copy, clock skew and ``arrival_seq``."""
+
+    def test_market_data_gets_a_sentence_rather_than_its_topic(self) -> None:
+        """Level 3 without templates would reveal the lines and still say
+        nothing -- ``book from -`` is a topic, not market data."""
+        out = text(SIMPLE, level=3)
+
+        assert "AAPL book: 74.75 x 500 bid / 74.80 x 150 ask" in out
+        assert "AAPL depth: mid 75.69, 550 bid / 0 ask" in out
+        assert "book from" not in out
+
+    def test_a_book_price_is_printed_at_the_instrument_s_precision(self) -> None:
+        """74.8 beside a 74.80 elsewhere in the same report reads as two
+        different prices. The ladder is plain numbers rather than declared
+        price fields, so nothing else would have done it."""
+        assert "74.80 x 150" in text(SIMPLE, level=3)
+
+    def test_arrival_seq_is_shown(self) -> None:
+        """What the book actually used for priority -- never the client
+        clock beside it."""
+        assert "· arrival_seq 8814" in text(SIMPLE, level=3)
+
+    def test_the_two_clocks_are_shown_against_receipt(self) -> None:
+        out = text(SIMPLE, level=3)
+
+        assert "· client clock -0.005s from receipt" in out
+        assert "· engine clock +0.000s from receipt" in out
+
+    def test_none_of_it_appears_at_level_two(self) -> None:
+        out = text(SIMPLE, level=2)
+
+        assert "arrival_seq" not in out
+        assert "from receipt" not in out
+        assert "book:" not in out
+
+
+class TestLevelFour:
+    """Section 8.1: every unclassified event, and the raw payload."""
+
+    def test_the_payload_is_shown_under_every_line(self) -> None:
+        episodes, reconstruction = run(SIMPLE)
+        narrated = narrate(episodes, reconstruction.state, Options(level=4))
+        payloads = [line for line in narrated if "· payload: " in line]
+        events = sum(len(episode.events) for episode in episodes)
+
+        assert len(payloads) == events
+
+    def test_it_does_not_appear_at_level_three(self) -> None:
+        assert "· payload: " not in text(SIMPLE, level=3)
+
+    def test_an_unclassified_event_waits_for_level_four(self) -> None:
+        """A topic in no message family is section 8.1's "unclassified
+        event". The tool cannot say what it is, so it stays out of a
+        narrative of what the exchange did -- but it is never hidden:
+        UNKNOWN_TOPIC is raised on it at every level."""
+        stray = to_fact(
+            AuditEntry(
+                "2026-09-08T09:31:02.110+00:00",
+                "not.a.real.family",
+                {"whatever": 1},
+                {},
+                file="audit.log",
+                line_no=1,
+            ),
+            0,
+        )
+
+        assert stray.known is False
+        assert suppressed(stray, 3) is True
+        assert suppressed(stray, 4) is False
+        assert [a.code for a in stray.anomalies] == [UNKNOWN_TOPIC]
