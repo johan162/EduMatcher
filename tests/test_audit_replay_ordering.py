@@ -80,6 +80,7 @@ def make_fact(
         file="audit.log",
         line_no=ordinal + 1,
         known=True,
+        family="order",
     )
 
 

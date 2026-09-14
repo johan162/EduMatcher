@@ -83,6 +83,38 @@ def in_canonical_order(facts: Iterable[Fact]) -> list[Fact]:
     return sorted(facts, key=sort_key)
 
 
+#: Widths that make the packed key sort lexicographically the way the tuple
+#: sorts numerically. 13 digits of epoch milliseconds runs to the year 2286;
+#: 12 of ordinal to a trillion lines in one window.
+_MILLIS_WIDTH = 13
+_ORDINAL_WIDTH = 12
+
+
+def pack_sort_key(fact: Fact) -> str:
+    """The canonical key as one lexicographically sortable string.
+
+    What ``episodes.opened_sort_key`` stores (design section 6.2). A tuple
+    cannot be a SQLite column and four columns cannot be one index, so the
+    ordering has to survive being flattened: each numeric field is
+    zero-padded to a fixed width, and the separator is below every character
+    that can appear in a field so a short value never sorts after a longer one
+    that starts the same way.
+
+    An envelope-less fact packs an empty ``msg_id``, which sorts before every
+    ULID -- exactly as the empty string does in :func:`sort_key`.
+
+    Changing this packing changes what a stored index means, so it is one of
+    the three things section 6.2 says must bump ``rules_version``.
+    """
+    millis, msg_id, receipt, ordinal = sort_key(fact)
+    return (
+        f"{millis:0{_MILLIS_WIDTH}d}"
+        f"\x1f{msg_id}"
+        f"\x1f{receipt.isoformat(timespec='microseconds')}"
+        f"\x1f{ordinal:0{_ORDINAL_WIDTH}d}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # The reorder window (design section 5.2.3)
 # ---------------------------------------------------------------------------

@@ -12,13 +12,14 @@ Layout, per design section 15.2::
       01_simple_limit_partial_fill.log
       01_simple_limit_partial_fill.expected.order.txt
 
-The level suffix names what is frozen. There is no prose yet, so the two
+The level suffix names what is frozen. There is no prose yet, so the three
 levels are structural: ``order``, the canonical sequence of facts, which is
-the thing everything downstream is wrong without; and ``causality``, what the
-resolver made of each fact and how sure it is. Freezing the confidence matters
-more than freezing the links -- a change that silently promoted a guess to a
-certainty is exactly what a reviewer would otherwise wave through. The prose
-levels (``q``, ``v1``, ``v2``) join them when there is prose.
+the thing everything downstream is wrong without; ``causality``, what the
+resolver made of each fact and how sure it is; and ``episodes``, how those
+facts were grouped and what each grouping came to. Freezing the confidence
+matters more than freezing the links -- a change that silently promoted a
+guess to a certainty is exactly what a reviewer would otherwise wave through.
+The prose levels (``q``, ``v1``, ``v2``) join them when there is prose.
 
 Run ``pytest --update-goldens`` to rewrite the expected files from current
 output, then **read the diff** before committing it. A golden accepted without
@@ -34,6 +35,8 @@ from pathlib import Path
 from typing import Iterable
 
 from edumatcher.audit.query import iter_entries
+from edumatcher.audit.replay.derived import derive
+from edumatcher.audit.replay.episodes import Episode, assemble
 from edumatcher.audit.replay.facts import Fact, normalise
 from edumatcher.audit.replay.ordering import ordered
 from edumatcher.audit.replay.pipeline import Step, reconstruct
@@ -42,6 +45,7 @@ FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "replay"
 
 LEVEL_ORDER = "order"
 LEVEL_CAUSALITY = "causality"
+LEVEL_EPISODES = "episodes"
 
 
 def fixture_log(name: str) -> Path:
@@ -106,6 +110,11 @@ def render_causality(steps: Iterable[Step]) -> str:
     nothing caused this" and "nothing was found" are different claims, and a
     golden that rendered both as an empty line would let a regression turn one
     into the other without showing a diff.
+
+    Direction is shown, because not every link points inwards. Most name what
+    caused *this* fact; ``oco.cancelled`` names the order it ended, so the
+    fact is the link's source. Rendering both with the same arrow read as a
+    fact citing itself as its own cause.
     """
     lines = []
     for position, step in enumerate(steps, start=1):
@@ -118,9 +127,12 @@ def render_causality(steps: Iterable[Step]) -> str:
             f"{position:03d}  {step.fact.kind:<28}  {step.fact.actor or '-':<10}  {marker}".rstrip()
         )
         for link in step.resolution.links:
+            outbound = link.source == step.resolution.ref
+            arrow = "->" if outbound else "<-"
+            other = link.target if outbound else link.source
             lines.append(
-                f"     <- {link.relation:<17} {link.confidence.value:<9} "
-                f"{link.source:<28} {link.evidence}"
+                f"     {arrow} {link.relation:<17} {link.confidence.value:<9} "
+                f"{other:<28} {link.evidence}"
             )
         for anomaly in step.anomalies:
             lines.append(
@@ -153,3 +165,47 @@ def assert_golden(name: str, level: str, actual: str, *, update: bool) -> None:
         )
     )
     raise AssertionError(f"Golden output changed for {name} [{level}]:\n{diff}")
+
+
+def load_episodes(name: str) -> list[Episode]:
+    """Assemble a fixture into episodes, in the order they opened.
+
+    Sorted rather than taken as they come: an episode is emitted when it
+    retires, so a long-running order arrives after the trades that happened
+    during it. A golden in retirement order would move every time an
+    unrelated episode's lifetime changed.
+    """
+    run, steps = reconstruct(iter_entries([fixture_log(name)]))
+    return sorted(
+        assemble(steps, run.state, run.links), key=lambda e: e.opened_sort_key
+    )
+
+
+def render_episodes(episodes: Iterable[Episode]) -> str:
+    """What each episode is, what it came to, and what it was made of.
+
+    The derived facts are rendered beside the episode rather than in a level
+    of their own: the arithmetic is only meaningful against the facts it was
+    computed from, and a reviewer comparing a VWAP wants the fills on the
+    same screen.
+    """
+    lines = []
+    for episode in episodes:
+        lines.append(
+            "  ".join(
+                [
+                    f"{episode.kind:<13}",
+                    f"{episode.anchor_key:<34}",
+                    f"{episode.outcome:<9}",
+                    f"sym={episode.symbol or '-':<6}",
+                    f"actor={episode.actor or '-':<9}",
+                    "closed" if episode.closed else "OPEN",
+                ]
+            ).rstrip()
+        )
+        for event in episode.events:
+            lines.append(f"     {event.seq_in_ep}  {event.role:<8} {event.fact.kind}")
+        facts = derive(episode).as_dict()
+        for key in sorted(facts):
+            lines.append(f"     =  {key} = {facts[key]!r}")
+    return "\n".join(lines) + "\n"

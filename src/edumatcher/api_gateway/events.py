@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime, timezone
 from typing import Any
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
@@ -91,17 +90,6 @@ PRIVATE_PREFIXES = (
     PREFIX_QUOTE_LEGS,
     PREFIX_SESSION_STATUS,
 )
-
-
-def new_command_id() -> str:
-    """A correlation id for one asynchronous command.
-
-    Only issued for commands whose ack carries no natural identifier — mass
-    cancel and session transition. Orders correlate on ``order_id``, combos on
-    ``combo_id``, halts on ``symbol``; giving those a second id would invite
-    confusion about which one is authoritative.
-    """
-    return f"cmd-{uuid.uuid4().hex}"
 
 
 def now_iso() -> str:

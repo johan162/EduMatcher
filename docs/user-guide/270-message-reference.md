@@ -1155,6 +1155,7 @@ Operator to pm-index: apply a corporate action.
 | `ratio_denominator` | `int` | omitted when unset | gt 0, unit `dimensionless` | SPLIT. |
 | `dividend_per_share` | `float` | omitted when unset | gt 0, unit `money` | CASH_DIVIDEND. |
 | `new_shares_outstanding` | `int` | omitted when unset | gt 0, unit `shares` | SHARES_ISSUANCE. |
+| `command_id` | `string` | omitted when empty | max_len 64 | Echoed on the ack so a caller can correlate. |
 
 !!! note
 
@@ -1182,6 +1183,7 @@ Operator to pm-index: add or delist a constituent.
 | `gateway_id` | `string` | required | max_len 32 |  |
 | `shares_outstanding` | `int` | omitted when unset | gt 0, unit `shares` | ADD. |
 | `initial_price` | `float` | omitted when unset | gt 0, unit `display_price` | ADD. |
+| `command_id` | `string` | omitted when empty | max_len 64 | Echoed on the ack so a caller can correlate. |
 
 !!! note
 
@@ -1232,6 +1234,7 @@ pm-index to requestor: the corporate action's outcome.
 | `level` | `float` | omitted when unset | unit `dimensionless` |  |
 | `divisor` | `float` | omitted when unset | unit `dimensionless` |  |
 | `old_divisor` | `float` | omitted when unset | unit `dimensionless` | The divisor immediately before this action was applied. Same field name and purpose as HistoryRecord.old_divisor, so a post-mortem does not need pm-index's local JSONL archive to see what changed — the wire event is self-contained. Present only alongside divisor, i.e. on acceptance. |
+| `command_id` | `string` | omitted when empty | max_len 64 |  |
 
 !!! note
 
@@ -1259,6 +1262,7 @@ pm-index to requestor: the constituent change's outcome.
 | `level` | `float` | omitted when unset | unit `dimensionless` |  |
 | `divisor` | `float` | omitted when unset | unit `dimensionless` |  |
 | `old_divisor` | `float` | omitted when unset | unit `dimensionless` | The divisor immediately before this action was applied. Same field name and purpose as HistoryRecord.old_divisor, so a post-mortem does not need pm-index's local JSONL archive to see what changed — the wire event is self-contained. Present only alongside divisor, i.e. on acceptance. |
+| `command_id` | `string` | omitted when empty | max_len 64 |  |
 
 !!! note
 

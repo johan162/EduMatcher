@@ -246,12 +246,32 @@ business meaning and a lifecycle. This is the central abstraction.
 | `quote` | `quote_id` | `quote.new`, `quote.ack`, `quote.status`, the two derived leg orders |
 | `oco` | `oco_id` / `oco_group_id` | `order.oco`, `oco.ack`, both leg orders, `oco.cancelled` |
 | `combo` | `combo_id` / `combo_parent_id` | `order.combo`, `combo.ack`, `combo.status`, leg orders |
-| `command` | `command_id` | any `risk.*` / `admin.action` / `session.transition` / `index.*` request with its ack |
+| `command` | `command_id` | any `risk.*` / `admin.action` request with its ack |
 | `market_phase` | `symbol` + phase span | `circuit_breaker.halt` / `.extend` / `.resume`, `auction.indicative`, `auction.result` |
 | `session` | state span | `session.transition`, `session.state`, `system.eod` |
 | `gateway` | `gateway_id` + connection span | `system.gateway_connect`, `.gateway_auth`, `.gateway_disconnect`, `.gateway_bye` |
 | `index` | `index_id` + action | `index.corp_action`, `.constituent_change`, `.rebalance` and their acks |
-| `recovery` | engine `run_seq` | `system.startup_recovery`, first event of a new run |
+| `recovery` | engine `run_seq` | `system.recovery_item`×n, `system.startup_recovery` |
+| `orphan` | the line itself | any one fact no rule above claims |
+
+**The kinds are disjoint, and one Fact belongs to exactly one episode.** Two
+things in the table above would otherwise be ambiguous, and both were settled
+when the assembler was built:
+
+* The "typical Facts" column says what an episode is *about*, not what it
+  contains. A fill belongs to its **order**; the `trade` episode reaches it
+  through a `links` row. §6.2 renders the chronological stream as a single
+  ordered scan of `episode_events`, so a fact filed under two episodes would
+  be narrated twice, and every count over that table would need a `DISTINCT`.
+* Where two rows could claim one message, **the most specific kind wins**:
+  `session` keeps the session family, `index` keeps the index commands, and
+  `command` is left with `risk.*` and `admin.action`. Each of the eleven kinds
+  then means something a reader would ask for by name — `episodes --kind index`
+  shows corporate actions rather than nothing.
+
+A Fact no rule claims becomes a single-event `orphan` episode (§7.2) rather
+than being dropped. On a log full of market data that is most of the episodes,
+and the count is the coverage finding of §12.5.
 
 Episodes **reference** each other rather than nesting: a `trade` episode
 references two `order` episodes; an `order` episode created by a quote references
@@ -339,8 +359,11 @@ the pass that applies it:
 | `order.oco` | `oco.ack.*` | `oco_id` | CERTAIN | |
 | `oco.ack` | leg orders | `order_id_1`, `order_id_2` | CERTAIN | |
 | `oco.cancelled` | leg order | `cancelled_order_id` | CERTAIN | |
-| `order.combo` | leg orders | `combo_id` = `combo_parent_id` + `leg_index` | CERTAIN | There is no `combo.ack`; the legs name the parent, not the other way round. |
+| `order.combo` | `combo.ack.*` | `combo_id` | CERTAIN | |
+| `combo.ack` | `combo.status.*` | `combo_id` | CERTAIN | Lifecycle transitions after acceptance; `PENDING` is never published. |
+| `order.combo` | leg orders | `combo_id` = `combo_parent_id` + `leg_index` | CERTAIN | The legs name the parent; neither the ack nor the status enumerates them. |
 | `session.transition` | `session.state` | `to_state` = `state`, first later | STRONG | No shared id; constrained by state value and ordering. |
+| `index.corp_action` / `index.constituent_change` / `index.rebalance` | matching `*_ack.*` | `command_id` | CERTAIN | Every index request/ack pair carries it (`spec/messages/index.yaml`). `pm-index` echoes the request's id on both the accept and the reject ack. |
 | `circuit_breaker.halt` | `circuit_breaker.resume` | `symbol`, span-matched | STRONG | Halts for one symbol do not overlap. `halt_source` is `CB` or `ADMIN` — not the topic names an earlier draft assumed. |
 | `order.ack` (rejected) | active market condition | `reject_code` → state model | STRONG | `INSTRUMENT_HALTED` and `CIRCUIT_BREAKER_ACTIVE` are resolved against the reconstructed market state, letting the tool say *why* the state was that way and quote the corridor the original halt published. Like parentage, this is not a *cause* — the submission caused the ack — so it is a separate relation (`rejected_because`) and is resolved on enveloped acks too. `MARKET_CLOSED` and `KILL_SWITCH_ACTIVE` need the session and kill-switch spans, and join when those models do. |
 | any | `drop_copy.event.*` | `order_id` + `seq` | CERTAIN | Drop-copy is a derived stream; narrate only at `-vv`. |
@@ -648,8 +671,8 @@ change. Mixing them would make a lexicon tweak invalidate the event index.
 CREATE TABLE replay_meta (
     key         TEXT PRIMARY KEY,
     value       TEXT NOT NULL
-);   -- schema_version, rules_version, source_files, built_at,
-     -- covered_from, covered_to, last_line_ordinal
+);   -- schema_version, rules_version, source_files, source_fingerprint,
+     -- built_at, covered_from, covered_to
 
 CREATE TABLE episodes (
     episode_id      INTEGER PRIMARY KEY,
@@ -676,6 +699,7 @@ CREATE TABLE episodes (
 CREATE TABLE episode_events (
     episode_id  INTEGER NOT NULL REFERENCES episodes(episode_id),
     seq_in_ep   INTEGER NOT NULL,
+    ref         TEXT    NOT NULL,   -- msg_id, or @ordinal with no envelope
     sort_key    TEXT    NOT NULL,
     receipt_ts  TEXT    NOT NULL,
     topic       TEXT    NOT NULL,
@@ -697,9 +721,26 @@ CREATE TABLE links (
     to_episode    INTEGER NOT NULL REFERENCES episodes(episode_id),
     relation      TEXT NOT NULL,  -- caused | matched_with | leg_of | derived_from |
                                   -- cancelled_by | rejected_because | occurred_during
-    confidence    TEXT NOT NULL,  -- CERTAIN | STRONG | HEURISTIC
+    confidence    TEXT NOT NULL,  -- RECORDED | CERTAIN | STRONG | HEURISTIC
     evidence      TEXT NOT NULL,  -- e.g. "trade_ids", "command_id=8812", "window+reason"
     PRIMARY KEY (from_episode, to_episode, relation)
+);
+
+-- Links exactly as the resolver stated them, addressed by ref. `links` is
+-- this projected onto episode pairs; two kinds of row have no projection and
+-- live only here: a link whose ends are in the SAME episode (an ack and its
+-- submission — a self-loop in `links` would be noise, but `--explain` still
+-- wants its evidence), and a link to a named CONDITION rather than a message
+-- (`condition:KILL_SWITCH`), which has no episode and cannot satisfy the
+-- foreign key. It is also what lets an incremental build attach an effect to
+-- a cause written in an earlier chunk.
+CREATE TABLE stated_links (
+    from_ref    TEXT NOT NULL,
+    to_ref      TEXT NOT NULL,
+    relation    TEXT NOT NULL,
+    confidence  TEXT NOT NULL,
+    evidence    TEXT NOT NULL,
+    PRIMARY KEY (from_ref, to_ref, relation)
 );
 
 CREATE TABLE anomalies (
@@ -727,6 +768,7 @@ CREATE INDEX idx_ep_symbol_ts  ON episodes(symbol, opened_ts);
 CREATE INDEX idx_ep_actor_ts   ON episodes(actor, opened_ts);
 CREATE INDEX idx_ee_sort       ON episode_events(sort_key);
 -- The envelope's two questions, both keyed lookups rather than traversals.
+CREATE INDEX idx_ee_ref        ON episode_events(ref);
 CREATE INDEX idx_ee_msg        ON episode_events(msg_id);
 CREATE INDEX idx_ee_cause      ON episode_events(causation_id);
 CREATE INDEX idx_ee_chain      ON episode_events(correlation_id);
@@ -745,7 +787,34 @@ built to accelerate has largely gone away.
 
 `rules_version` in `replay_meta` is the safety catch: bump it whenever link rules,
 the lexicon, or the sort-key packing change, and the tool refuses a stale index
-with a clear message rather than rendering subtly wrong prose from it.
+with a clear message rather than rendering subtly wrong prose from it. A second
+`schema_version` covers the shape of the tables. Both are checked on every
+read, and an index that declares neither is refused too — an empty file with
+the right tables in it is not a usable index.
+
+**Links are resolved in SQL.** The resolver names a link's two ends by message
+id and this table wants episode ids; holding that mapping in a dict would put
+back the per-line growth §7.1's retirement exists to remove. So every fact's
+ref is a column, and the whole projection is one join over `idx_ee_ref` at the
+end of the build. The two directions of a `matched_with` pair are two rows, not
+one: the trade names the order and the fill names the trade, established
+independently, and collapsing them would discard one of the two reasons the
+tool has for believing the pair.
+
+**`opened_sort_key` is the canonical key flattened.** A tuple cannot be a
+column and four columns cannot be one index, so each numeric field is
+zero-padded to a fixed width and joined with `\x1f`, which is below every
+character that can occur in a field. An envelope-less fact packs an empty
+`msg_id` and sorts before every ULID, exactly as it does in `sort_key`.
+Changing that packing is one of the three things that must bump
+`rules_version`.
+
+**Measured**, on a synthetic 180 000-line (65 MB) log on the dev VM: 28 s to
+build, ≈6 300 lines/s, peak RSS 16 MB above baseline and flat with log length.
+The database is about 5× the log — `episode_events.payload` keeps every
+payload verbatim, which is what makes the index a complete substitute for the
+log, and five indexes on that table are what make the random access worth
+having.
 
 The **chronological stream is a single ordered scan of `episode_events`**, so the
 stream view costs no more than the story view; episodes are the grouping, not a
@@ -778,6 +847,19 @@ the bytes.
 
 The engine maintains four live models while streaming. All are bounded: entries
 retire once their episode closes and falls out of the reorder window.
+
+Retirement is driven from the episode assembler, because that is the only thing
+that knows a story is over, and it frees **everything** held on that episode's
+behalf — the order state, and the link resolver's index of its messages. The
+resolver's `msg_id` index is the one that would otherwise hold an entry per
+line; with retirement the whole reconstruction is flat in memory at any log
+length (measured: ~3.7 MB, unchanged from 75 000 to 225 000 facts).
+
+The bargain is worth stating. A `causation_id` naming a message whose episode
+has already retired no longer resolves, and is reported as `CAUSE_NOT_FOUND`
+rather than linked. A cause further back than the reorder window is a cause the
+tool has stopped holding — the same bargain the ordering pass makes, and the
+reason the window is a documented option rather than a constant.
 
 **Order model.** Per `order_id`: submitted quantity, remaining quantity,
 status, side, symbol, type, tif, owning gateway, origin (`ORDER`/`QUOTE`/`IMPLIED`),
@@ -846,29 +928,71 @@ An episode still open when the replay window ends is narrated as such — *"stil
 working, 50 of 200 remaining at end of window"* — rather than being silently
 truncated, which is the single most misleading thing a replay tool can do.
 
+Closing frees the anchor, so a second halt on one symbol opens a second
+`market_phase` episode rather than reviving the first. One kind is ended by a
+fact it does **not** contain: a `session` span ends when the market enters a
+different state, and the fact announcing that state is what opens the next
+span. Its `closed_ts` is therefore taken from a fact filed elsewhere — the
+alternative being to put one line in two episodes.
+
+An auction held inside a halt is part of that halt's span — it is how a halted
+symbol reopens — so `auction.result` ends a `market_phase` episode only when
+the symbol is not still halted. The market model has already applied the fact,
+so it is the truth at that moment rather than a guess.
+
 ### 7.4 Derived facts
 
 Arithmetic over recorded fields is permitted and is stored in `facts_json`; it is
 tagged `derived` so `--explain` can show the working:
 
 - **Fill progress**: `filled_qty = quantity − remaining_qty`, and its consistency
-  against the sum of `fill_qty`.
+  against the sum of `fill_qty`. Both tallies are stored, not just the
+  reconciled one: §12.2's `QTY_MISMATCH` is the case where they disagree, and a
+  reader who sees that finding needs the two numbers it is about. `quantity` is
+  read under both of its spellings — `order.new.quantity` and the engine
+  events' `qty` — in event order, so an amend that resizes the order moves the
+  figure the fills are reconciled against.
 - **VWAP** of an order's fills, and **notional** (`Σ fill_qty × fill_price`).
   Where a contract multiplier applies, it is taken from reference data or omitted
-  entirely with a note — never assumed to be 1.
+  entirely with a note — never assumed to be 1. **In EduMatcher there is none to
+  assume**: every quantity in the spec is declared `unit: shares`, and no
+  message, no reference-data reply and no symbol config carries a multiplier or
+  an instrument type (checked against the generated registry). `notional` is a
+  share notional, which is what the field means here.
 - **Time to ack**, **time to first fill**, **time to completion** (receipt clock).
 - **Aggressor/resting roles**, from `trade.executed.aggressor_side` cross-checked
   against `order.fill.liquidity_flag`. `aggressor_side = AUCTION` means both sides
   rested; the narration for that case says *"crossed in the uncross"*, never
   *"took"*.
+
+  The two live in different episodes, because one fact belongs to one episode
+  (§4). `liquidity_flag` is MAKER or TAKER — the spec declares no third value —
+  and on an uncross the engine flags **both** sides MAKER, since neither side
+  equals an `aggressor_side` of `AUCTION`. So an order episode's `role` cannot
+  by itself tell "rested and was hit" from "crossed in the uncross"; the trade
+  episode's `crossed_in_uncross` is what separates them, and the `matched_with`
+  link is how the narrator reaches it.
 - **Price improvement**: for a limit order, `limit − fill_price` on the buy side
   (and the reverse on the sell), which is exactly the kind of thing that is
-  invisible in raw JSON and obvious in prose.
+  invisible in raw JSON and obvious in prose. Measured against the VWAP rather
+  than per fill, so a multi-level sweep gets one number. The condition is that a
+  limit price is present, not that the order type is in a list — a market order
+  has none, and a type added to the spec later needs no edit.
 - **Queue position proxy**: `arrival_seq` relative to other resting orders at the
-  same price, when the data is in the window.
+  same price, when the data is in the window. **Not built.** It needs every
+  resting order at a price, which is a book the state model deliberately does
+  not keep, and §7.1's retirement now prunes the orders it would be computed
+  over. Deferred rather than approximated.
 
 Nothing beyond arithmetic. The tool does not model the book to guess what *should*
-have matched — that is `tools/replay_to_engine.py`.
+have matched — that is `tools/replay_to_engine.py`. Nor does it sanity-check the
+arithmetic against what a number "ought" to look like: a limit price far from
+the fill price produces a large price improvement and the tool says so. The
+captured `deployment/docker/data/audit.log` is a live example — it predates
+`e4eade93`, so its `order.ack.price` carries ticks under a field the spec
+declares as display money, and the derived improvement is nonsense as a result.
+The fix for that is to regenerate the log, not to teach the tool to distrust a
+declared unit.
 
 
 
@@ -1087,9 +1211,24 @@ pm-audit-replay anomalies --date 2026-09-08 --severity warn
   --stats                Report episode/link/anomaly counts and coverage
 ```
 
-Incremental by default, keyed on `last_line_ordinal` in `replay_meta`, so a
-running `pm-audit` can be indexed repeatedly through the day. A `rules_version`
-mismatch forces a full rebuild and says so.
+A full build every time — see AR-3.4 for why there is no incremental mode.
+`rebuild=False` upserts on stable keys, so re-indexing a log the index already
+covers is indistinguishable from indexing it once.
+
+**The policy is one function**, `ensure_index`, rather than a rule each
+renderer reimplements — `stream` and `story` must not come to differ about when
+a rebuild is due. `--no-index` opts out entirely; `--rebuild` forces one;
+otherwise the index is rebuilt when it is **absent**, when its
+`schema_version`/`rules_version` differ from this code's, or when the source
+logs have **changed since it was built**, and read as it stands when none of
+those hold.
+
+That last condition is what makes dropping the incremental build safe. The
+index stores a fingerprint of its source logs — path, size and mtime — taken
+after the read rather than before, so a log appended to mid-build fingerprints
+as the longer file and the next run rebuilds. Without it a reader indexing at
+noon would be served the morning's episodes all afternoon with nothing to
+suggest anything was missing.
 
 
 
@@ -1722,6 +1861,8 @@ of an expected file fails the suite.
 
 ### Phase 2 — State models and the link resolver (≈ 5 days)
 
+**COMPLETED**
+
 #### AR-2.1 — `state.py`: order and run models (1 day)
 
 **Do.** Per-order lifecycle state and the status ladder; run tracking.
@@ -1790,7 +1931,9 @@ envelope, which is useful to know before drawing conclusions from it.
 
 ---
 
-### Phase 3 — Episodes and the index (≈ 4 days)
+### Phase 3 — Episodes and the index (≈ 3.5 days)
+
+**COMPLETED**
 
 #### AR-3.1 — `episodes.py`: assembly (1.5 days)
 
@@ -1817,19 +1960,51 @@ contract multiplier available and assert notional is **omitted**, not assumed.
 proportional to concurrently-open episodes, not file size). Assert a stale
 `rules_version` is refused with a readable message rather than rendering.
 
-#### AR-3.4 — Incremental indexing (0.5 day)
+#### AR-3.4 — Incremental indexing — **dropped, not worth building**
 
-**Do.** Resume from `last_line_ordinal`.
+This task proposed resuming a build from `last_line_ordinal`. It is not a
+half-day's work and it does not pay for itself.
 
-**Verify.** Property test: indexing in 3 chunks yields a byte-identical database
-to indexing in one pass.
+**A resume has to restore three things, not a file offset.** The state model,
+the link resolver and the assembler's open episodes all carry context across a
+chunk boundary. Without them an episode spanning the boundary splits into two,
+and a `market_phase` close — which consults whether the symbol is still halted
+— decides on state the second chunk never saw. Only the *links* survive a cold
+resume, because AR-3.3 resolves them by a SQL join over `stated_links` rather
+than from memory.
 
-> ### ✅ CP-3 — the model is materialised
+**Resuming from the oldest still-open episode avoids all that and buys
+nothing.** A `gateway` span opens on connect and closes on disconnect, so it is
+open for the whole session. Measured on this repo's own logs, that resume point
+sits at ordinal 0 or 9 — a 72–100 % re-read. Incremental in name only.
+
+**A rebuild is fast enough that the question does not arise.** Measured at
+≈6 300 lines/s (AR-3.3): 16 s for a 100 000-line session, 2.7 minutes for a
+million-line day. The CLI builds when the index is absent or stale and reads it
+otherwise, so that cost is paid once per log rather than per invocation, and
+`rebuild=False` upserts on stable keys so running a build twice is
+indistinguishable from running it once.
+
+**What survives of the verification.** "Byte-identical" was never achievable —
+`built_at` differs between runs and SQLite's page allocation is not a property
+of this tool. The property that matters is row-identity, and it is asserted
+against the rebuild path instead: a build over an existing index produces the
+same rows, table for table, as a build into an empty one.
+
+> ### ✅ CP-3 — the model is materialised — **passed**
 >
-> 1. Three-chunk and single-pass index builds are identical.
-> 2. 200 MB build inside the §16 budget, memory bounded.
-> 3. Stale `rules_version` refused with a clear message.
-> 4. Window-edge episodes narrate as open.
+> 1. A rebuild over an existing index is row-identical to a fresh build —
+>    asserted over every table, `built_at` excluded
+>    (`TestRebuilding::test_a_rebuild_is_row_identical_to_a_fresh_build`).
+> 2. 205 MiB / 480 000-event build in **87.1 s**, inside §16's 90 s, with peak
+>    RSS 20 MB above baseline and flat with log length.
+> 3. Stale `rules_version` refused by name, and the CLI rebuilds rather than
+>    rendering from it.
+> 4. Window-edge episodes narrate as open: an unfinished order that filled some
+>    is `PARTIAL`, one that filled none is `OPEN`, and neither is `closed`.
+>
+> Every one of the twelve episode kinds is exercised by a fixture, and every
+> line of every fixture validates against the message it claims to be.
 
 ---
 
@@ -2041,16 +2216,45 @@ six months later.
 
 ## 16. Performance Notes
 
-Targets on a 200 MB audit log (~1.2 M events) on developer hardware:
+**The original premise was wrong, and it mattered.** This section assumed
+200 MB is ~1.2 M events, i.e. 175 bytes a line. A real EduMatcher audit line
+averages **402 bytes** (measured over `deployment/docker/data/audit.log` and
+the replay fixtures), so 200 MB is about **520 000 events**, not 1.2 M. Every
+per-event target below is stated against that.
 
-| Operation | Target |
-|---|---|
-| Full index build | < 90 s, single pass, bounded memory |
-| Incremental index update (1 min of new log) | < 1 s |
-| `story --order …` against an index | < 100 ms |
-| `story --chain …` against an index | < 50 ms — one indexed read, no traversal |
-| `stream` over a 5-minute window | < 500 ms |
-| `--no-index stream` over the whole log | I/O bound, ~2 min |
+Measured at CP-3 on a synthetic 205 MiB / 480 000-event log (448 B/line) on the
+dev VM:
+
+| Operation | Target | Measured |
+|---|---|---|
+| Full index build | < 90 s, single pass, bounded memory | **87.1 s**, 5 510 events/s, peak RSS 20 MB above baseline |
+| `story --order …` against an index | < 100 ms | **0.01 ms** — keyed on `idx_ep_kind_key` |
+| `story --chain …` against an index | < 50 ms — one indexed read, no traversal | **0.01 ms** — keyed on `idx_ep_chain` |
+| `stream` over a window | < 500 ms | **3.7 µs/event**, linear — so 500 ms buys ≈150 000 events |
+| `--no-index stream` over the whole log | I/O bound, ~2 min | reconstruction alone runs at ~15 000 events/s |
+
+Two of those want a word.
+
+*The build target is met, but not with much room.* 87.1 s against 90 s, and the
+index write is roughly half of it — reconstruction alone runs about twice as
+fast. If the schema grows another index on `episode_events`, this is the number
+that moves first.
+
+*The `stream` target is better expressed in events than in minutes.* The scan
+is linear at 3.7 µs an event, so what 500 ms covers is a fixed number of
+events, not a fixed span of clock. Five minutes fits comfortably at a typical
+session's rate and does not fit at all at the engine's 10 000 TPS design peak,
+where five minutes is three million events. The row that used to say "5-minute
+window" said something the tool cannot control.
+
+The **incremental index update** row is gone: AR-3.4 records why there is no
+incremental build. A rebuild is the whole story, and the build row is its
+budget.
+
+The index is about **4.4× the log** (909 MiB from 205 MiB). That is mostly
+§6.2's own design — `episode_events.payload` keeps every payload verbatim,
+which is what makes the index a complete substitute for the log, and five
+indexes on that table are what make the keyed reads above 0.01 ms.
 
 Design choices that get there:
 

@@ -1,11 +1,15 @@
-"""pm-audit-replay's global option surface (design section 9.1, task AR-1.1).
+"""pm-audit-replay's option surface and index policy (sections 9.1, 9.7).
 
-There is no subcommand yet, so what these tests pin is the option set itself
-and the two things argparse cannot express: the detail-level axis, and the
-window flags that are mutually exclusive by meaning rather than by syntax.
+Two things argparse cannot express are pinned here -- the detail-level axis,
+and the window flags that are mutually exclusive by meaning rather than by
+syntax -- and, since AR-3.4 was dropped, the rule that decides when the index
+is rebuilt. That rule is the whole of what "incremental" means now, so each of
+its branches gets a test.
 """
 
 from __future__ import annotations
+
+from pathlib import Path
 
 import pytest
 
@@ -18,6 +22,18 @@ from edumatcher.audit.replay.cli import (
     parse_reorder_window,
     validate_args,
 )
+from edumatcher.audit.replay.index import (
+    META_RULES_VERSION,
+    RULES_VERSION,
+    describe,
+    open_index,
+    open_readonly,
+    write_meta,
+)
+
+FIXTURES = Path("tests/fixtures/replay")
+SIMPLE = FIXTURES / "01_simple_limit_partial_fill.log"
+ARCHIVED = FIXTURES / "03_archived_no_envelope.log"
 
 
 class TestParseDuration:
@@ -163,6 +179,120 @@ class TestMain:
             "--no-color",
         ):
             assert flag in text, f"{flag} missing from --help"
+
+
+class TestTheIndexPolicy:
+    """One decision in one place: when is a rebuild due (design section 9.7).
+
+    AR-3.4 was dropped, so "the log grew" is handled by rebuilding rather than
+    by resuming -- which makes *noticing* that it grew load-bearing. Without
+    the fingerprint check a reader would get this morning's episodes all
+    afternoon and have no way to tell.
+    """
+
+    def _args(self, tmp_path: Path, *extra: str) -> list[str]:
+        log = tmp_path / "audit.log"
+        if not log.exists():
+            log.write_bytes(SIMPLE.read_bytes())
+        return [
+            "--log-file",
+            str(log),
+            "--db",
+            str(tmp_path / "replay.db"),
+            *extra,
+            "index",
+        ]
+
+    def _built_at(self, tmp_path: Path) -> str:
+        conn = open_readonly(tmp_path / "replay.db")
+        return describe(conn)["built_at"]
+
+    def test_a_missing_index_is_built(self, tmp_path: Path) -> None:
+        assert main(self._args(tmp_path)) == 0
+        assert (tmp_path / "replay.db").exists()
+
+    def test_a_current_index_is_read_not_rebuilt(self, tmp_path: Path) -> None:
+        main(self._args(tmp_path))
+        _mark(tmp_path / "replay.db")
+        main(self._args(tmp_path))
+        assert self._built_at(tmp_path) == _MARK
+
+    def test_an_appended_log_forces_a_rebuild(self, tmp_path: Path) -> None:
+        main(self._args(tmp_path))
+        before = _episode_count(tmp_path / "replay.db")
+        log = tmp_path / "audit.log"
+        with log.open("ab") as handle:
+            handle.write(ARCHIVED.read_bytes())
+        main(self._args(tmp_path))
+        assert _episode_count(tmp_path / "replay.db") > before
+
+    def test_a_stale_rules_version_forces_a_rebuild(self, tmp_path: Path) -> None:
+        main(self._args(tmp_path))
+        conn = open_index(tmp_path / "replay.db")
+        write_meta(conn, META_RULES_VERSION, "0")
+        conn.commit()
+        conn.close()
+        assert main(self._args(tmp_path)) == 0
+        conn = open_readonly(tmp_path / "replay.db")
+        assert describe(conn)[META_RULES_VERSION] == str(RULES_VERSION)
+
+    def test_rebuild_forces_one_even_when_nothing_changed(self, tmp_path: Path) -> None:
+        main(self._args(tmp_path))
+        _mark(tmp_path / "replay.db")
+        main(self._args(tmp_path, "--rebuild"))
+        assert self._built_at(tmp_path) != _MARK
+
+    def test_no_index_leaves_index_nothing_to_do(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        assert main(self._args(tmp_path, "--no-index")) == 2
+        assert "nothing for index to do" in capsys.readouterr().out
+        assert not (tmp_path / "replay.db").exists()
+
+    def test_stats_reports_what_the_index_holds(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        main(
+            self._args(
+                tmp_path,
+            )
+            + ["--stats"]
+        )
+        text = capsys.readouterr().out
+        assert "episodes by kind" in text
+        assert "rules_version" in text
+
+    def test_a_missing_log_is_an_error_not_an_empty_index(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        code = main(
+            [
+                "--log-file",
+                str(tmp_path / "nope.log"),
+                "--db",
+                str(tmp_path / "replay.db"),
+                "index",
+            ]
+        )
+        assert code == 1
+        assert "no audit log" in capsys.readouterr().err
+
+
+#: ``built_at`` has one-second resolution, so comparing two real stamps cannot
+#: tell a rebuild from a reuse in a test that does both immediately. A sentinel
+#: can: it survives a reuse and is overwritten by a rebuild.
+_MARK = "1970-01-01T00:00:00+00:00"
+
+
+def _mark(db: Path) -> None:
+    conn = open_index(db)
+    write_meta(conn, "built_at", _MARK)
+    conn.commit()
+    conn.close()
+
+
+def _episode_count(db: Path) -> int:
+    return int(open_readonly(db).execute("SELECT COUNT(*) FROM episodes").fetchone()[0])
 
 
 class TestRegisteredInPmHelp:

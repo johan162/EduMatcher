@@ -8,18 +8,30 @@ The global options are the ones design section 9.1 specifies, and they
 deliberately mirror ``pm-audit-cli``'s time-window and filter flags so muscle
 memory carries between the two tools.
 
-One subcommand so far, ``stats`` (task AR-2.5): the confidence distribution
-over a window. It is registered ahead of ``stream``, ``story`` and ``digest``
-because it reports on the *trail* rather than narrating it, so it is useful
-the moment pass 1 works -- and because the distribution is what says whether
-narration can be trusted at all. A subcommand is optional: with none, the
-command validates its options and exits, as it did through phase 1.
+Two subcommands so far. ``stats`` (task AR-2.5) is the confidence distribution
+over a window; it is registered ahead of ``stream``, ``story`` and ``digest``
+because it reports on the *trail* rather than narrating it, so it is useful the
+moment pass 1 works -- and because the distribution is what says whether
+narration can be trusted at all. ``index`` (section 9.7) materialises the
+episode model into SQLite.
+
+A subcommand is optional: with none, the command validates its options and
+exits, as it did through phase 1.
+
+**The index policy lives in :func:`ensure_index`**, one function rather than a
+rule each renderer reimplements. ``--no-index`` opts out entirely; ``--rebuild``
+forces; otherwise the index is built when it is absent, when it was built under
+different rules, or when the logs have changed since -- and read as it stands
+when none of those hold. There is no incremental build (AR-3.4 records why), so
+"the logs have changed" means a full rebuild; at the measured build rate that
+is seconds for a session and minutes for a day.
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -31,7 +43,9 @@ from edumatcher.audit.query import (
     validate_date,
     validate_iso_ts,
 )
+from edumatcher.audit.replay import index as episode_index
 from edumatcher.audit.replay import stats as stats_report
+from edumatcher.audit.replay.episodes import assemble
 from edumatcher.audit.replay.pipeline import reconstruct
 from edumatcher.config import AUDIT_LOG_FILE, AUDIT_REPLAY_DB_FILE
 
@@ -294,6 +308,22 @@ def _add_commands(parser: argparse.ArgumentParser) -> None:
     """
     commands = parser.add_subparsers(dest="command", metavar="COMMAND")
     commands.add_parser(
+        "index",
+        help="Build or refresh the episode index",
+        description=(
+            "Materialise the episode model into SQLite (design section 9.7).\n"
+            "Rebuilds whenever the reconstruction rules or the source logs\n"
+            "have changed; --rebuild forces one regardless. There is no\n"
+            "incremental mode -- see AR-3.4 in the design for why."
+        ),
+        formatter_class=argparse.RawTextHelpFormatter,
+    ).add_argument(
+        "--stats",
+        dest="index_stats",
+        action="store_true",
+        help="Report what the index holds once it is current",
+    )
+    commands.add_parser(
         "stats",
         help="Report link confidence and envelope coverage over the window",
         description=(
@@ -339,6 +369,110 @@ def reorder_bounds(args: argparse.Namespace) -> tuple[int, float]:
     )
 
 
+def _log_files(args: argparse.Namespace) -> list[Path]:
+    return discover_log_files(Path(args.log_file))
+
+
+def build_index(
+    args: argparse.Namespace, log_files: list[Path], *, rebuild: bool
+) -> int:
+    """Run the whole pipeline into the index, returning the episode count."""
+    from_dt, to_dt = window_bounds(args)
+    entries = iter_entries(log_files, from_dt=from_dt, to_dt=to_dt)
+    max_facts, max_seconds = reorder_bounds(args)
+    run, steps = reconstruct(entries, max_facts=max_facts, max_seconds=max_seconds)
+    episodes = assemble(
+        steps, run.state, run.links, max_facts=max_facts, max_seconds=max_seconds
+    )
+    return episode_index.build(
+        Path(args.db), episodes, run.state, log_files, rebuild=rebuild
+    )
+
+
+def ensure_index(
+    args: argparse.Namespace, log_files: list[Path]
+) -> sqlite3.Connection | None:
+    """A readonly connection to a current index, built first if it is not.
+
+    None when ``--no-index``: the caller streams instead. Everything else is
+    one decision made in one place, so ``stream`` and ``story`` cannot come to
+    differ about when a rebuild is due.
+    """
+    if args.no_index:
+        return None
+    db = Path(args.db)
+    if not args.rebuild:
+        try:
+            conn = episode_index.open_readonly(db)
+        except (FileNotFoundError, episode_index.StaleIndexError):
+            conn = None
+        if conn is not None:
+            if episode_index.is_current(conn, log_files):
+                return conn
+            conn.close()
+    build_index(args, log_files, rebuild=True)
+    return episode_index.open_readonly(db)
+
+
+def _run_index(args: argparse.Namespace) -> int:
+    log_files = _log_files(args)
+    if not log_files:
+        print(f"pm-audit-replay: no audit log at {args.log_file}", file=sys.stderr)
+        return 1
+    if args.no_index:
+        print("pm-audit-replay: --no-index leaves nothing for index to do")
+        return 2
+    conn = ensure_index(args, log_files)
+    assert conn is not None  # --no-index is refused above
+    if args.index_stats:
+        print(render_index_stats(conn), end="")
+    else:
+        counts = _index_counts(conn)
+        print(f"{Path(args.db)}: {counts['episodes']} episodes")
+    return 0
+
+
+_COUNTED = (
+    "episodes",
+    "episode_events",
+    "links",
+    "stated_links",
+    "anomalies",
+    "actors",
+)
+
+
+def _index_counts(conn: sqlite3.Connection) -> dict[str, int]:
+    return {
+        table: int(conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
+        for table in _COUNTED
+    }
+
+
+def render_index_stats(conn: sqlite3.Connection) -> str:
+    """What the index holds, for ``index --stats`` (design section 9.7)."""
+    meta = episode_index.describe(conn)
+    lines = ["Episode index", ""]
+    for key in (
+        episode_index.META_SCHEMA_VERSION,
+        episode_index.META_RULES_VERSION,
+        episode_index.META_BUILT_AT,
+        episode_index.META_COVERED_FROM,
+        episode_index.META_COVERED_TO,
+    ):
+        lines.append(f"  {key:<16} {meta.get(key, '-')}")
+    lines.append("")
+    for table, count in _index_counts(conn).items():
+        lines.append(f"  {table:<16} {count}")
+    by_kind = conn.execute(
+        "SELECT kind, COUNT(*) AS n FROM episodes GROUP BY kind ORDER BY n DESC"
+    ).fetchall()
+    if by_kind:
+        lines.extend(["", "  episodes by kind"])
+        lines.extend(f"    {row['kind']:<14} {row['n']}" for row in by_kind)
+    return "\n".join(lines) + "\n"
+
+
 def _run_stats(args: argparse.Namespace) -> int:
     log_files = discover_log_files(Path(args.log_file))
     if not log_files:
@@ -382,6 +516,8 @@ def main(argv: list[str] | None = None) -> int:
     if error:
         print(f"pm-audit-replay: {error}", file=sys.stderr)
         return 2
+    if args.command == "index":
+        return _run_index(args)
     if args.command == "stats":
         return _run_stats(args)
     return 0

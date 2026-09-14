@@ -20,8 +20,8 @@ from edumatcher.api_gateway.events import (
     COMMAND_TOPICS,
     envelope,
     gateway_from_topic,
-    new_command_id,
 )
+from edumatcher.models.ids import new_command_id
 from edumatcher.messaging.bus import make_pusher, make_subscriber
 from edumatcher.models.message import (
     decode,

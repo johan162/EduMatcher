@@ -1,0 +1,98 @@
+gateway        MM01                                OPEN       sym=-       actor=MM01       OPEN
+     0  open     system.gateway_auth
+quote          Q-MM01-AAPL-7                       FILLED     sym=AAPL    actor=MM01       closed
+     0  open     quote.new
+     1  progress quote.ack
+     2  close    quote.status
+order          b17f0000000000000000000000000001    FILLED     sym=AAPL    actor=MM01       closed
+     0  open     order.new
+     1  close    order.fill
+     =  filled_qty = 500
+     =  fills = 1
+     =  fills_total_qty = 500
+     =  limit_price = 75.65
+     =  notional = 37825.0
+     =  price_improvement = 0.0
+     =  quantity = 500
+     =  remaining_qty = 0
+     =  role = 'MAKER'
+     =  time_to_completion = 0.006
+     =  time_to_first_fill = 0.006
+     =  vwap = 75.65
+order          b17f0000000000000000000000000002    OPEN       sym=AAPL    actor=MM01       OPEN
+     0  open     order.new
+     =  filled_qty = 0
+     =  limit_price = 75.71
+     =  quantity = 500
+     =  remaining_qty = 500
+order          c0de0000000000000000000000000001    FILLED     sym=AAPL    actor=TRADER03   closed
+     0  open     order.new
+     1  close    order.fill
+     =  filled_qty = 500
+     =  fills = 1
+     =  fills_total_qty = 500
+     =  notional = 37825.0
+     =  quantity = 500
+     =  remaining_qty = 0
+     =  role = 'TAKER'
+     =  time_to_completion = 0.003
+     =  time_to_first_fill = 0.003
+     =  vwap = 75.65
+trade          000042-000002001                    ACCEPTED   sym=AAPL    actor=-          closed
+     0  open     trade.executed
+     =  aggressor_side = 'SELL'
+     =  crossed_in_uncross = False
+     =  notional = 37825.0
+     =  quantity = 500
+oco            OCO-TRADER03-11                     CANCELLED  sym=MSFT    actor=TRADER03   closed
+     0  open     order.oco
+     1  progress oco.ack
+     2  close    oco.cancelled
+order          0c0a0000000000000000000000000001    FILLED     sym=MSFT    actor=TRADER03   closed
+     0  open     order.new
+     1  close    order.fill
+     =  filled_qty = 200
+     =  fills = 1
+     =  fills_total_qty = 200
+     =  limit_price = 79.2
+     =  notional = 15840.0
+     =  price_improvement = 0.0
+     =  quantity = 200
+     =  remaining_qty = 0
+     =  role = 'MAKER'
+     =  time_to_completion = 0.005
+     =  time_to_first_fill = 0.005
+     =  vwap = 79.2
+order          0c0a0000000000000000000000000002    CANCELLED  sym=MSFT    actor=TRADER03   closed
+     0  open     order.new
+     =  filled_qty = 0
+     =  quantity = 200
+     =  remaining_qty = 200
+     =  time_to_completion = 0.005
+order          a66e0000000000000000000000000001    OPEN       sym=MSFT    actor=TRADER09   OPEN
+     0  open     order.new
+     =  filled_qty = 0
+     =  quantity = 200
+     =  remaining_qty = 200
+trade          000042-000002002                    ACCEPTED   sym=MSFT    actor=-          closed
+     0  open     trade.executed
+     =  aggressor_side = 'BUY'
+     =  crossed_in_uncross = False
+     =  notional = 15840.0
+     =  quantity = 200
+combo          CMB-TRADER03-4                      ACCEPTED   sym=-       actor=TRADER03   closed
+     0  open     order.combo
+     1  progress combo.ack
+     2  close    combo.status
+order          cb0a0000000000000000000000000001    OPEN       sym=AAPL    actor=TRADER03   OPEN
+     0  open     order.new
+     =  filled_qty = 0
+     =  limit_price = 75.7
+     =  quantity = 100
+     =  remaining_qty = 100
+order          cb0a0000000000000000000000000002    OPEN       sym=MSFT    actor=TRADER03   OPEN
+     0  open     order.new
+     =  filled_qty = 0
+     =  limit_price = 78.9
+     =  quantity = 100
+     =  remaining_qty = 100

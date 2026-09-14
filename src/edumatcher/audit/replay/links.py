@@ -497,6 +497,24 @@ class LinkResolver:
                     )
                 )
 
+        if kind == kinds.OCO_CANCELLED:
+            # Section 5.1.1's `oco.cancelled -> leg order` row. Structural
+            # rather than a cause: this names the order it ended, and since
+            # the engine publishes no `order.cancelled` for an OCO sibling it
+            # is the only line in the trail that says so.
+            order_id = _str(payload, "cancelled_order_id")
+            target = self._order_origin.get(order_id) if order_id else None
+            if target:
+                links.append(
+                    _link(
+                        this,
+                        target,
+                        CANCELLED_BY,
+                        Confidence.CERTAIN,
+                        "cancelled_order_id",
+                    )
+                )
+
         if kind == kinds.ORDER_ACK and payload.get("accepted") is False:
             explanation = self._explain_rejection(fact, this)
             if explanation is not None:
@@ -681,6 +699,51 @@ class LinkResolver:
         """
         if fact.kind == kinds.CIRCUIT_BREAKER_RESUME and fact.symbol:
             self._halt_open.pop(fact.symbol, None)
+
+    def forget(self, fact: Fact) -> None:
+        """Drop what this fact put in the indexes, once its episode has retired.
+
+        ``_by_msg`` holds one entry per fact and is the index that would
+        otherwise grow with the whole log; section 7.1's retirement is what
+        bounds it, and only the episode assembler knows when a story is over,
+        so it calls this.
+
+        The consequence is deliberate and worth stating: a ``causation_id``
+        naming a message whose episode has already retired no longer resolves,
+        and is reported as ``CAUSE_NOT_FOUND``. A cause further back than the
+        reorder window is a cause the tool has stopped holding -- the same
+        bargain the ordering pass makes, and the reason the window is a
+        documented option rather than a constant.
+
+        The inverse of :meth:`_register`, entry for entry. Only entries still
+        pointing at *this* fact are removed, so a newer registration under the
+        same key survives -- and the request lists, the open halts and the
+        pending transitions are left alone: resolution already pops those, and
+        what is left in them is what has not happened yet.
+        """
+        this = ref(fact)
+        if fact.msg_id is not None:
+            self._by_msg.pop(fact.msg_id, None)
+            self._chain_of.pop(fact.msg_id, None)
+        payload = fact.payload
+        for index, field_name in (
+            (self._order_origin, "id"),
+            (self._order_origin, "order_id"),
+            (self._trade, "id"),
+            (self._quote, "quote_id"),
+            (self._oco, "oco_id"),
+            (self._combo, "combo_id"),
+        ):
+            key = _str(payload, field_name)
+            if key and index.get(key) == this:
+                del index[key]
+        command_id = _str(payload, "command_id")
+        if command_id and self._command.get(command_id) == this:
+            del self._command[command_id]
+            # Retired with the command that owns them: the ack reconciled
+            # against these a whole window ago, since the ack is what closed
+            # the episode now falling out of scope.
+            self._command_effects.pop(command_id, None)
 
 
 def _transport(fact: Fact) -> tuple[str, ...]:

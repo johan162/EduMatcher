@@ -263,6 +263,9 @@ messages:
       - { name: new_shares_outstanding, type: int, unit: shares,
           required: false, nullable: true, omit_when_none: true,
           validate: { gt: 0 }, doc: "SHARES_ISSUANCE." }
+      - { name: command_id, type: string, required: false,
+          omit_when_empty: true, validate: { max_len: 64 },
+          doc: "Echoed on the ack so a caller can correlate." }
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 
@@ -291,6 +294,9 @@ messages:
       - { name: initial_price, type: float, unit: display_price,
           required: false, nullable: true, omit_when_none: true,
           validate: { gt: 0 }, doc: "ADD." }
+      - { name: command_id, type: string, required: false,
+          omit_when_empty: true, validate: { max_len: 64 },
+          doc: "Echoed on the ack so a caller can correlate." }
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 
@@ -358,6 +364,8 @@ messages:
           post-mortem does not need pm-index's local JSONL archive to see
           what changed — the wire event is self-contained. Present only
           alongside divisor, i.e. on acceptance.
+      - { name: command_id, type: string, required: false,
+          omit_when_empty: true, validate: { max_len: 64 } }
     encoding:
       engine_pub: { frames: [topic, json_payload] }
 
@@ -397,6 +405,8 @@ messages:
           post-mortem does not need pm-index's local JSONL archive to see
           what changed — the wire event is self-contained. Present only
           alongside divisor, i.e. on acceptance.
+      - { name: command_id, type: string, required: false,
+          omit_when_empty: true, validate: { max_len: 64 } }
     encoding:
       engine_pub: { frames: [topic, json_payload] }
 

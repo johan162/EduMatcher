@@ -11,12 +11,12 @@ tool someone reaches for when the exchange is already misbehaving, so a
 malformed line has to come out as a finding, not a traceback. Anything the
 model cannot reconcile is returned as an :class:`Anomaly`; nothing is dropped.
 
-Bounded-ness is deliberately deferred. Section 7.1 retires an entry once its
-episode closes and falls out of the reorder window, and there are no episodes
-until phase 3 -- so for now the order model keeps everything. That is what
-makes ``FILL_AFTER_TERMINAL`` and ``ACK_DUPLICATE`` work at any distance, and
-phase 3's episode close is the retirement trigger section 7.1 actually
-describes.
+Bounded-ness is driven from outside. Section 7.1 retires an entry once its
+episode closes and falls out of the reorder window, and only the episode
+assembler knows when that is -- so it calls :meth:`StateModel.retire_order`
+and the model itself keeps whatever it is given. Left alone it keeps
+everything, which is what makes ``FILL_AFTER_TERMINAL`` and ``ACK_DUPLICATE``
+work at any distance.
 """
 
 from __future__ import annotations
@@ -282,6 +282,17 @@ class StateModel:
             self.gateways[name] = state
         return state
 
+    def retire_order(self, order_id: str) -> None:
+        """Forget one order, once its episode has fallen out of the window.
+
+        Section 7.1's retirement, called by the episode assembler because that
+        is the only thing that knows an order's story is over. Until it runs
+        the model keeps every order it has seen, which is what makes
+        ``FILL_AFTER_TERMINAL`` work at any distance -- and what would make a
+        day-long log unbounded.
+        """
+        self.orders.pop(order_id, None)
+
     # -- the one entry point ------------------------------------------------
 
     def apply(self, fact: Fact) -> tuple[Anomaly, ...]:
@@ -440,6 +451,22 @@ class StateModel:
         order = self._order(order_id, fact)
         order.symbol = fact.payload.get("symbol") or order.symbol
         order.ended_because = _str(fact.payload, "cancel_reason")
+        self._advance(order, STATUS_CANCELLED, fact, found)
+
+    def _on_oco_cancelled(self, fact: Fact, found: list[Anomaly]) -> None:
+        """The only record that an OCO sibling ended.
+
+        When one leg reaches a terminal state the engine cancels the other and
+        publishes ``oco.cancelled`` for it -- and *not* an ``order.cancelled``
+        (``engine/main.py::_check_oco_after_event``). So this is the single
+        fact that ends that order, and a model that ignored it would leave the
+        leg resting for the rest of the window.
+        """
+        order_id = _str(fact.payload, "cancelled_order_id")
+        if order_id is None:
+            return
+        order = self._order(order_id, fact)
+        order.ended_because = _str(fact.payload, "reason") or "OCO_SIBLING_CANCELLED"
         self._advance(order, STATUS_CANCELLED, fact, found)
 
     def _on_order_expired(self, fact: Fact, found: list[Anomaly]) -> None:
@@ -617,6 +644,7 @@ class StateModel:
         kinds.ORDER_ACK: _on_order_ack,
         kinds.ORDER_FILL: _on_order_fill,
         kinds.ORDER_CANCELLED: _on_order_cancelled,
+        kinds.OCO_CANCELLED: _on_oco_cancelled,
         kinds.ORDER_EXPIRED: _on_order_expired,
         kinds.ORDER_AMENDED: _on_order_amended,
         kinds.TRADE_EXECUTED: _on_trade,

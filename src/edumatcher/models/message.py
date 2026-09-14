@@ -1830,6 +1830,7 @@ def make_index_corp_action_msg(
     symbol: str,
     gateway_id: str,
     params: dict[str, Any],
+    command_id: str = "",
 ) -> list[bytes]:
     """Operator → pm-index: apply a corporate action.
 
@@ -1844,6 +1845,7 @@ def make_index_corp_action_msg(
         index_id=index_id,
         symbol=symbol,
         gateway_id=gateway_id,
+        command_id=command_id,
         **params,
     )
 
@@ -1855,6 +1857,7 @@ def make_index_constituent_change_msg(
     gateway_id: str,
     shares_outstanding: int | None = None,
     initial_price: float | None = None,
+    command_id: str = "",
 ) -> list[bytes]:
     """Operator → pm-index: add or delist a constituent."""
     return _gen_index.make_index_constituent_change(
@@ -1864,6 +1867,7 @@ def make_index_constituent_change_msg(
         gateway_id=gateway_id,
         shares_outstanding=shares_outstanding,
         initial_price=initial_price,
+        command_id=command_id,
     )
 
 
@@ -1875,6 +1879,7 @@ def make_index_corp_action_ack_msg(
     level: float | None = None,
     divisor: float | None = None,
     old_divisor: float | None = None,
+    command_id: str = "",
 ) -> list[bytes]:
     """pm-index → requestor: corporate action ack."""
     return _gen_index.make_index_corp_action_ack(
@@ -1886,6 +1891,7 @@ def make_index_corp_action_ack_msg(
         level=level,
         divisor=divisor,
         old_divisor=old_divisor,
+        command_id=command_id,
     )
 
 
@@ -1897,6 +1903,7 @@ def make_index_constituent_change_ack_msg(
     level: float | None = None,
     divisor: float | None = None,
     old_divisor: float | None = None,
+    command_id: str = "",
 ) -> list[bytes]:
     """pm-index → requestor: constituent change ack."""
     return _gen_index.make_index_constituent_change_ack(
@@ -1908,6 +1915,7 @@ def make_index_constituent_change_ack_msg(
         level=level,
         divisor=divisor,
         old_divisor=old_divisor,
+        command_id=command_id,
     )
 
 

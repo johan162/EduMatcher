@@ -838,6 +838,14 @@ _INDEX_CORP_ACTION_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "SHARES_ISSUANCE.",
         "constraints": {"gt": 0},
     },
+    {
+        "name": "command_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Echoed on the ack so a caller can correlate.",
+        "constraints": {"max_len": 64},
+    },
 )
 
 
@@ -860,6 +868,7 @@ class IndexCorpAction:
     ratio_denominator: int | None = None  # unit: dimensionless
     dividend_per_share: float | None = None  # unit: money
     new_shares_outstanding: int | None = None  # unit: shares
+    command_id: str = ""
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -904,6 +913,10 @@ class IndexCorpAction:
                 raise MessageValidationError(
                     f"new_shares_outstanding: {self.new_shares_outstanding!r} must be > 0"
                 )
+        if len(self.command_id) > 64:
+            raise MessageValidationError(
+                f"command_id: length {len(self.command_id)} exceeds max_len 64"
+            )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "IndexCorpAction":
@@ -936,6 +949,7 @@ class IndexCorpAction:
                 if p.get("new_shares_outstanding") is None
                 else int(p["new_shares_outstanding"])
             ),
+            command_id=str(p.get("command_id", "")),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -954,6 +968,8 @@ class IndexCorpAction:
             payload["dividend_per_share"] = self.dividend_per_share
         if self.new_shares_outstanding is not None:
             payload["new_shares_outstanding"] = self.new_shares_outstanding
+        if self.command_id:
+            payload["command_id"] = self.command_id
         return payload
 
 
@@ -987,6 +1003,7 @@ def make_index_corp_action_unchecked(
     ratio_denominator: int | None = None,
     dividend_per_share: float | None = None,
     new_shares_outstanding: int | None = None,
+    command_id: str = "",
 ) -> list[bytes]:
     """Identical frames to ``make_index_corp_action``, without ``validate()``.
 
@@ -1012,6 +1029,8 @@ def make_index_corp_action_unchecked(
         payload["dividend_per_share"] = float(dividend_per_share)
     if new_shares_outstanding is not None:
         payload["new_shares_outstanding"] = int(new_shares_outstanding)
+    if command_id:
+        payload["command_id"] = str(command_id)
     return [
         _TOPIC_INDEX_CORP_ACTION_BYTES,
         _msg.dumps(payload),
@@ -1090,6 +1109,14 @@ _INDEX_CONSTITUENT_CHANGE_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "ADD.",
         "constraints": {"gt": 0},
     },
+    {
+        "name": "command_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Echoed on the ack so a caller can correlate.",
+        "constraints": {"max_len": 64},
+    },
 )
 
 
@@ -1108,6 +1135,7 @@ class IndexConstituentChange:
     gateway_id: str
     shares_outstanding: int | None = None  # unit: shares
     initial_price: float | None = None  # unit: display_price
+    command_id: str = ""
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -1142,6 +1170,10 @@ class IndexConstituentChange:
                 raise MessageValidationError(
                     f"initial_price: {self.initial_price!r} must be > 0"
                 )
+        if len(self.command_id) > 64:
+            raise MessageValidationError(
+                f"command_id: length {len(self.command_id)} exceeds max_len 64"
+            )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "IndexConstituentChange":
@@ -1164,6 +1196,7 @@ class IndexConstituentChange:
             initial_price=(
                 None if p.get("initial_price") is None else float(p["initial_price"])
             ),
+            command_id=str(p.get("command_id", "")),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -1178,6 +1211,8 @@ class IndexConstituentChange:
             payload["shares_outstanding"] = self.shares_outstanding
         if self.initial_price is not None:
             payload["initial_price"] = self.initial_price
+        if self.command_id:
+            payload["command_id"] = self.command_id
         return payload
 
 
@@ -1209,6 +1244,7 @@ def make_index_constituent_change_unchecked(
     gateway_id: str,
     shares_outstanding: int | None = None,
     initial_price: float | None = None,
+    command_id: str = "",
 ) -> list[bytes]:
     """Identical frames to ``make_index_constituent_change``, without ``validate()``.
 
@@ -1230,6 +1266,8 @@ def make_index_constituent_change_unchecked(
         payload["shares_outstanding"] = int(shares_outstanding)
     if initial_price is not None:
         payload["initial_price"] = float(initial_price)
+    if command_id:
+        payload["command_id"] = str(command_id)
     return [
         _TOPIC_INDEX_CONSTITUENT_CHANGE_BYTES,
         _msg.dumps(payload),
@@ -1462,6 +1500,14 @@ _INDEX_CORP_ACTION_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "required": False,
         "doc": "The divisor immediately before this action was applied. Same field name and purpose as HistoryRecord.old_divisor, so a post-mortem does not need pm-index's local JSONL archive to see what changed — the wire event is self-contained. Present only alongside divisor, i.e. on acceptance.",
     },
+    {
+        "name": "command_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "",
+        "constraints": {"max_len": 64},
+    },
 )
 
 
@@ -1483,6 +1529,7 @@ class IndexCorpActionAck:
     level: float | None = None  # unit: dimensionless
     divisor: float | None = None  # unit: dimensionless
     old_divisor: float | None = None  # unit: dimensionless
+    command_id: str = ""
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -1502,6 +1549,10 @@ class IndexCorpActionAck:
         if len(self.index_id) > 32:
             raise MessageValidationError(
                 f"index_id: length {len(self.index_id)} exceeds max_len 32"
+            )
+        if len(self.command_id) > 64:
+            raise MessageValidationError(
+                f"command_id: length {len(self.command_id)} exceeds max_len 64"
             )
 
     @classmethod
@@ -1523,6 +1574,7 @@ class IndexCorpActionAck:
             old_divisor=(
                 None if p.get("old_divisor") is None else float(p["old_divisor"])
             ),
+            command_id=str(p.get("command_id", "")),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -1540,6 +1592,8 @@ class IndexCorpActionAck:
             payload["divisor"] = self.divisor
         if self.old_divisor is not None:
             payload["old_divisor"] = self.old_divisor
+        if self.command_id:
+            payload["command_id"] = self.command_id
         return payload
 
 
@@ -1579,6 +1633,7 @@ def make_index_corp_action_ack_unchecked(
     level: float | None = None,
     divisor: float | None = None,
     old_divisor: float | None = None,
+    command_id: str = "",
 ) -> list[bytes]:
     """Identical frames to ``make_index_corp_action_ack``, without ``validate()``.
 
@@ -1603,6 +1658,8 @@ def make_index_corp_action_ack_unchecked(
         payload["divisor"] = float(divisor)
     if old_divisor is not None:
         payload["old_divisor"] = float(old_divisor)
+    if command_id:
+        payload["command_id"] = str(command_id)
     return [
         topic_index_corp_action_ack(gateway_id).encode(),
         _msg.dumps(payload),
@@ -1699,6 +1756,14 @@ _INDEX_CONSTITUENT_CHANGE_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "required": False,
         "doc": "The divisor immediately before this action was applied. Same field name and purpose as HistoryRecord.old_divisor, so a post-mortem does not need pm-index's local JSONL archive to see what changed — the wire event is self-contained. Present only alongside divisor, i.e. on acceptance.",
     },
+    {
+        "name": "command_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "",
+        "constraints": {"max_len": 64},
+    },
 )
 
 
@@ -1719,6 +1784,7 @@ class IndexConstituentChangeAck:
     level: float | None = None  # unit: dimensionless
     divisor: float | None = None  # unit: dimensionless
     old_divisor: float | None = None  # unit: dimensionless
+    command_id: str = ""
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -1738,6 +1804,10 @@ class IndexConstituentChangeAck:
         if len(self.index_id) > 32:
             raise MessageValidationError(
                 f"index_id: length {len(self.index_id)} exceeds max_len 32"
+            )
+        if len(self.command_id) > 64:
+            raise MessageValidationError(
+                f"command_id: length {len(self.command_id)} exceeds max_len 64"
             )
 
     @classmethod
@@ -1759,6 +1829,7 @@ class IndexConstituentChangeAck:
             old_divisor=(
                 None if p.get("old_divisor") is None else float(p["old_divisor"])
             ),
+            command_id=str(p.get("command_id", "")),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -1776,6 +1847,8 @@ class IndexConstituentChangeAck:
             payload["divisor"] = self.divisor
         if self.old_divisor is not None:
             payload["old_divisor"] = self.old_divisor
+        if self.command_id:
+            payload["command_id"] = self.command_id
         return payload
 
 
@@ -1817,6 +1890,7 @@ def make_index_constituent_change_ack_unchecked(
     level: float | None = None,
     divisor: float | None = None,
     old_divisor: float | None = None,
+    command_id: str = "",
 ) -> list[bytes]:
     """Identical frames to ``make_index_constituent_change_ack``, without
     ``validate()``.
@@ -1842,6 +1916,8 @@ def make_index_constituent_change_ack_unchecked(
         payload["divisor"] = float(divisor)
     if old_divisor is not None:
         payload["old_divisor"] = float(old_divisor)
+    if command_id:
+        payload["command_id"] = str(command_id)
     return [
         topic_index_constituent_change_ack(gateway_id).encode(),
         _msg.dumps(payload),

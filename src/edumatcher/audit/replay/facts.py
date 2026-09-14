@@ -150,6 +150,11 @@ class Fact:
     line_no: int
     #: False when the topic has no entry in the generated registry.
     known: bool
+    #: The spec family the topic was declared in -- ``risk``, ``index``,
+    #: ``circuit_breaker``. Read off the registry rather than sliced off the
+    #: kind, and carried here so a consumer grouping by family does not repeat
+    #: the lookup on every fact. None exactly when ``known`` is False.
+    family: str | None
     #: True when this fact arrived after its reorder window had closed and was
     #: therefore emitted where it landed rather than where it belongs. Set by
     #: the ordering pass; never true on a healthy log, so it is itself a
@@ -348,6 +353,7 @@ def to_fact(entry: AuditEntry, ordinal: int) -> Fact:
         file=entry.file,
         line_no=entry.line_no,
         known=spec is not None,
+        family=str(spec["family"]) if spec is not None else None,
         anomalies=tuple(found),
     )
 
