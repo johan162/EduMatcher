@@ -86,19 +86,6 @@ _LEGAL_TRANSITIONS: Mapping[str, frozenset[str]] = {
     STATUS_EXPIRED: frozenset({STATUS_EXPIRED}),
 }
 
-#: The wire spells one of these states two ways. ``order.new.status`` and
-#: ``order.orders[].status`` are enums declaring ``PARTIAL``; ``order.fill``'s
-#: is `{type: string, max_len: 16}` and the engine publishes ``PARTIAL_FILL``
-#: into it (`engine/main.py:1757`, `:6094`), which the ALF text protocol and
-#: the drop-copy docs then carry onward. Both mean ``remaining_qty > 0``.
-#:
-#: The ladder works in one vocabulary and this maps the other onto it -- the
-#: normalisation of section 5.3, applied to a state name rather than a unit.
-#: Reconciling the wire itself is a separate decision with a much wider blast
-#: radius, since `PARTIAL_FILL` is a documented value of a student-facing
-#: protocol.
-_WIRE_STATUS: Mapping[str, str] = {"PARTIAL_FILL": STATUS_PARTIAL}
-
 #: ``circuit_breaker.halt.halt_source``. The spec's two values, not the two the
 #: design text guessed at: a halt is either the breaker's own or an admin's,
 #: and a resume names the same source so the two can be paired.
@@ -324,7 +311,6 @@ class StateModel:
         reader is better served by a model that matches the bytes plus a
         finding saying the bytes are wrong.
         """
-        to_status = _WIRE_STATUS.get(to_status, to_status)
         allowed = _LEGAL_TRANSITIONS.get(order.status)
         if allowed is not None and to_status not in allowed:
             found.append(

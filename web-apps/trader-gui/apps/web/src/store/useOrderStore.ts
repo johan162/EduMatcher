@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { normalizeOrder } from "@/types/index.js";
+import { normalizeOrder, toOrderStatus } from "@/types/index.js";
 import type {
   Order,
   OrderStatus,
@@ -152,7 +152,7 @@ export const useOrderStore = create<OrderStore>((set) => {
         if (!d.order_id) return state;
         const patch = detailPatch(d);
         patch.remaining_qty = d.remaining_qty;
-        patch.status = (d.status as OrderStatus) ?? "PARTIAL";
+        patch.status = toOrderStatus(d.status, d.remaining_qty, d.qty ?? 0);
         // A fill's `qty` is the order's *original* total; if we already know a
         // quantity (e.g. an amend reduced it), the fill must not resurrect the
         // stale total — it only moves remaining/status.

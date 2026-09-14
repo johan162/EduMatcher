@@ -1890,7 +1890,7 @@ Private fill notification for one order, addressed to the gateway that owns it. 
 | `fill_qty` | `int` | required | unit `shares` |  |
 | `fill_price` | `float` | required | unit `display_price` |  |
 | `remaining_qty` | `int` | required | unit `shares` |  |
-| `status` | `string` | required | max_len 16 |  |
+| `status` | enum: `PARTIAL`, `FILLED` | required | — | Whether this fill completed the order. The same two values BALF's execution_report uses, and the same vocabulary as order.new.status - there is one name for an order state across the system. This was the only status field the spec left as an unconstrained string, and it drifted: six publish sites derived the value from OrderStatus and sent PARTIAL while the continuous-matching hot path and _publish_amend_rematch sent PARTIAL_FILL, so a fill on a quote leg reported a different status from a fill on an ordinary order. Nothing in the system ever branched on PARTIAL_FILL - every consumer passed it through - so the two outliers were corrected rather than the six. BREAKING for anything matching the string: the ALF FILL line, the REST order cache and a bot written against docs-design/EduMatcher-AI-trading-bot-v2.md all carried PARTIAL_FILL verbatim. Nothing reads the old spelling any more, pm-audit-replay included - a log containing it does not describe a wire this build speaks. |
 | `symbol` | `string` | omitted when unset | max_len 16 |  |
 | `side` | `string` | omitted when unset | max_len 8 |  |
 | `order_type` | `string` | omitted when unset | max_len 16 |  |

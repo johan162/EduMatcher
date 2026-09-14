@@ -625,7 +625,7 @@ O(k) total iteration cost, identical either way for a bounded k=30.
 {
   "legs": [
     {"quote_id": "Q1", "order_id": "...", "symbol": "AAPL", "leg_side": "BUY",
-     "qty": 500, "remaining": 400, "filled": 100, "status": "PARTIAL_FILL",
+     "qty": 500, "remaining": 400, "filled": 100, "status": "PARTIAL",
      "quote_status": "ACTIVE"}
   ],
   "recent": [

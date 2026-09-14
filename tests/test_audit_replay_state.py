@@ -276,45 +276,24 @@ class TestTheStatusLadder:
         assert model.orders[ORDER].status == STATUS_EXPIRED
 
 
-class TestTheWireVocabulary:
-    """One state, two spellings on the wire.
-
-    ``order.new.status`` is an enum declaring PARTIAL; ``order.fill.status`` is
-    an unconstrained string and the engine publishes PARTIAL_FILL into it. Both
-    mean remaining_qty > 0. The ladder works in one vocabulary; the model maps
-    the other onto it.
-    """
-
-    def test_partial_fill_is_the_same_state_as_partial(self) -> None:
-        model = StateModel()
-        model.apply(fact("order.new", submitted()))
-        found = model.apply(fact("order.fill.TRADER01", filled(status="PARTIAL_FILL")))
-        assert ILLEGAL_STATUS_TRANSITION not in codes(found)
-        assert model.orders[ORDER].status == STATUS_PARTIAL
-
-    def test_a_second_partial_fill_is_still_legal(self) -> None:
-        model = StateModel()
-        model.apply(fact("order.new", submitted()))
-        model.apply(
-            fact(
-                "order.fill.TRADER01",
-                filled(fill_qty=100, remaining_qty=100, status="PARTIAL_FILL"),
-            )
-        )
-        found = model.apply(
-            fact(
-                "order.fill.TRADER01",
-                filled(fill_qty=50, remaining_qty=50, status="PARTIAL_FILL"),
-            )
-        )
-        assert ILLEGAL_STATUS_TRANSITION not in codes(found)
-
-    def test_a_status_in_neither_vocabulary_is_still_reported(self) -> None:
-        """Normalising a known divergence must not become tolerating anything."""
+class TestAStatusOffTheLadder:
+    def test_a_status_the_ladder_does_not_know_is_reported(self) -> None:
+        """``order.fill.status`` is ``enum [PARTIAL, FILLED]``, so anything
+        else is a spec violation rather than a dialect to absorb. The tool
+        says so instead of quietly mapping it onto something legal."""
         model = StateModel()
         model.apply(fact("order.new", submitted()))
         model.apply(fact("order.fill.TRADER01", filled()))
         found = model.apply(fact("order.fill.TRADER01", filled(status="HALF_DONE")))
+        assert ILLEGAL_STATUS_TRANSITION in codes(found)
+
+    def test_the_superseded_spelling_gets_no_special_treatment(self) -> None:
+        """PARTIAL_FILL was one of two spellings this field carried before it
+        was declared an enum. It is not translated: a log containing it does
+        not describe a wire this build speaks."""
+        model = StateModel()
+        model.apply(fact("order.new", submitted()))
+        found = model.apply(fact("order.fill.TRADER01", filled(status="PARTIAL_FILL")))
         assert ILLEGAL_STATUS_TRANSITION in codes(found)
 
 

@@ -576,16 +576,21 @@ The same treatment covers the 25 `reject_code` values, `liquidity_flag`,
 `aggressor_side` (including `AUCTION`, which means *no* aggressor and must not be
 narrated as one), `tif`, `origin`, `halt_source` and the session states.
 
-**One state is spelled two ways on the wire, and the tool normalises it before
-the ladder ever sees it.** `order.new.status` and `order.orders[].status` are
-enums declaring `PARTIAL`; `order.fill.status` is `{type: string, max_len: 16}`
-and the engine publishes **`PARTIAL_FILL`** into it, which the ALF text
-protocol and the drop-copy documentation then carry onward. Both mean
-`remaining_qty > 0`. The one field left unconstrained is the one whose value
-diverged, which is an argument for the `enum` declarations rather than against
-them. The reconstruction maps `PARTIAL_FILL` onto `PARTIAL` in the state model
-— reconciling the *wire* is a separate decision with a much wider blast radius,
-since `PARTIAL_FILL` is a documented value of a student-facing protocol.
+**One state was spelled two ways on the wire, and the fix was to the wire.**
+`order.fill.status` was the one status field the spec left as an unconstrained
+string, and it drifted: six engine publish sites derived the value from
+`OrderStatus` and sent `PARTIAL`, while the continuous-matching hot path and
+`_publish_amend_rematch` sent `PARTIAL_FILL`. So a fill on a quote leg reported
+a different status from a fill on an ordinary order, on one field of one
+message, and nothing could catch it.
+
+The field is `enum [PARTIAL, FILLED]` now and the two outliers were corrected.
+The reconstruction translates nothing: a status off the ladder is an
+`ILLEGAL_STATUS_TRANSITION`, including `PARTIAL_FILL`. A log recorded before
+that change does not describe a wire this build speaks, and the tool says so
+rather than quietly reading it as though it did. That is the same rule the
+lexicon applies to an unknown enum value below, and the same rule the rest of
+EduMatcher applies to superseded formats.
 
 **Rule:** an enum value with no lexicon entry is printed verbatim in backticks and
 recorded as a coverage gap — the tool must never fail silently when the message

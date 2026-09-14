@@ -109,6 +109,7 @@ from edumatcher.models.message import (
     make_combo_status_msg,
     make_eod_msg,
     make_expired_msg,
+    fill_status,
     make_fill_msg,
     make_gateway_auth_msg,
     make_gateway_bye_msg,
@@ -1032,7 +1033,7 @@ class Engine:
                                             ),
                                         ),
                                         remaining_qty=evt.remaining_qty,
-                                        status=evt.status.value,
+                                        status=fill_status(evt.remaining_qty),
                                         order=evt.to_dict(),
                                         trade_ids=self._order_trade_ids(trades).get(
                                             evt.id, []
@@ -1753,9 +1754,7 @@ class Engine:
                                 "fill_qty": _filled_qty,
                                 "fill_price": _order_fill_px.get(evt.id, _fill_px),
                                 "remaining_qty": evt.remaining_qty,
-                                "status": (
-                                    "PARTIAL_FILL" if evt.remaining_qty else "FILLED"
-                                ),
+                                "status": fill_status(evt.remaining_qty),
                                 "trade_ids": _order_trade_ids_map.get(evt.id, []),
                                 **(
                                     {
@@ -3620,7 +3619,7 @@ class Engine:
                                     ),
                                 ),
                                 remaining_qty=evt.remaining_qty,
-                                status=evt.status.value,
+                                status=fill_status(evt.remaining_qty),
                                 order=evt.to_dict(),
                                 trade_ids=self._order_trade_ids(trades).get(evt.id, []),
                                 liquidity_flag=self._order_liquidity_flags(trades).get(
@@ -4781,7 +4780,7 @@ class Engine:
                                     ),
                                 ),
                                 remaining_qty=evt.remaining_qty,
-                                status=evt.status.value,
+                                status=fill_status(evt.remaining_qty),
                                 order=evt.to_dict(),
                                 trade_ids=self._order_trade_ids(trades).get(evt.id, []),
                                 liquidity_flag=self._order_liquidity_flags(trades).get(
@@ -5254,7 +5253,7 @@ class Engine:
                                     fill_qty=evt.quantity - evt.remaining_qty,
                                     fill_price=from_ticks(fill_px, symbol),
                                     remaining_qty=evt.remaining_qty,
-                                    status=evt.status.value,
+                                    status=fill_status(evt.remaining_qty),
                                     order=evt.to_dict(),
                                     trade_ids=self._order_trade_ids(trades).get(
                                         evt.id, []
@@ -5297,7 +5296,7 @@ class Engine:
                                             else 0.0
                                         ),
                                         remaining_qty=sub_evt.remaining_qty,
-                                        status=sub_evt.status.value,
+                                        status=fill_status(sub_evt.remaining_qty),
                                         order=sub_evt.to_dict(),
                                         trade_ids=self._order_trade_ids(sub_trades).get(
                                             sub_evt.id, []
@@ -5583,7 +5582,7 @@ class Engine:
                                     ),
                                 ),
                                 remaining_qty=evt.remaining_qty,
-                                status=evt.status.value,
+                                status=fill_status(evt.remaining_qty),
                                 order=evt.to_dict(),
                                 trade_ids=self._order_trade_ids(trades).get(evt.id, []),
                                 liquidity_flag=self._order_liquidity_flags(trades).get(
@@ -6091,7 +6090,7 @@ class Engine:
                         fill_qty=filled,
                         fill_price=order_fill_px.get(evt.id, fill_px),
                         remaining_qty=evt.remaining_qty,
-                        status=("PARTIAL_FILL" if evt.remaining_qty else "FILLED"),
+                        status=fill_status(evt.remaining_qty),
                         order=evt.to_dict(),
                         trade_ids=self._order_trade_ids(trades).get(evt.id, []),
                         liquidity_flag=self._order_liquidity_flags(trades).get(evt.id),

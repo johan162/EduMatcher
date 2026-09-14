@@ -1505,6 +1505,8 @@ def describe_order_ack() -> tuple[dict[str, Any], ...]:
 TOPIC_ORDER_FILL = "order.fill.{gateway_id}"
 PREFIX_ORDER_FILL = "order.fill."
 _ORDER_FILL_RE = re.compile("order\\.fill\\.(?P<gateway_id>[^.]+)")
+_ORDER_FILL_STATUS_VALUES = ("PARTIAL", "FILLED")
+OrderFillStatus = Literal["PARTIAL", "FILLED"]
 _ORDER_FILL_LIQUIDITY_FLAG_VALUES = ("MAKER", "TAKER")
 OrderFillLiquidityFlag = Literal["MAKER", "TAKER"]
 
@@ -1549,11 +1551,11 @@ _ORDER_FILL_FIELDS: tuple[dict[str, Any], ...] = (
     },
     {
         "name": "status",
-        "type": "string",
+        "type": "enum",
         "unit": None,
         "required": True,
-        "doc": "",
-        "constraints": {"max_len": 16},
+        "doc": "Whether this fill completed the order. The same two values BALF's execution_report uses, and the same vocabulary as order.new.status - there is one name for an order state across the system. This was the only status field the spec left as an unconstrained string, and it drifted: six publish sites derived the value from OrderStatus and sent PARTIAL while the continuous-matching hot path and _publish_amend_rematch sent PARTIAL_FILL, so a fill on a quote leg reported a different status from a fill on an ordinary order. Nothing in the system ever branched on PARTIAL_FILL - every consumer passed it through - so the two outliers were corrected rather than the six. BREAKING for anything matching the string: the ALF FILL line, the REST order cache and a bot written against docs-design/EduMatcher-AI-trading-bot-v2.md all carried PARTIAL_FILL verbatim. Nothing reads the old spelling any more, pm-audit-replay included - a log containing it does not describe a wire this build speaks.",
+        "values": _ORDER_FILL_STATUS_VALUES,
     },
     {
         "name": "symbol",
@@ -1676,7 +1678,7 @@ class OrderFill:
     fill_qty: int  # unit: shares
     fill_price: float  # unit: display_price
     remaining_qty: int  # unit: shares
-    status: str
+    status: OrderFillStatus
     symbol: str | None = None
     side: str | None = None
     order_type: str | None = None
@@ -1707,9 +1709,9 @@ class OrderFill:
             raise MessageValidationError(
                 f"order_id: length {len(self.order_id)} exceeds max_len 64"
             )
-        if len(self.status) > 16:
+        if self.status not in _ORDER_FILL_STATUS_VALUES:
             raise MessageValidationError(
-                f"status: length {len(self.status)} exceeds max_len 16"
+                f"status: {self.status!r} is not one of {_ORDER_FILL_STATUS_VALUES!r}"
             )
         if self.symbol is not None:
             if len(self.symbol) > 16:
@@ -1771,7 +1773,7 @@ class OrderFill:
             fill_qty=int(p["fill_qty"]),
             fill_price=float(p["fill_price"]),
             remaining_qty=int(p["remaining_qty"]),
-            status=str(p["status"]),
+            status=cast(OrderFillStatus, str(p["status"])),
             symbol=None if p.get("symbol") is None else str(p["symbol"]),
             side=None if p.get("side") is None else str(p["side"]),
             order_type=None if p.get("order_type") is None else str(p["order_type"]),
@@ -1867,7 +1869,7 @@ def make_order_fill_unchecked(
     fill_qty: int,
     fill_price: float,
     remaining_qty: int,
-    status: str,
+    status: OrderFillStatus,
     symbol: str | None = None,
     side: str | None = None,
     order_type: str | None = None,
