@@ -68,12 +68,20 @@ order          0c0a0000000000000000000000000002    CANCELLED  sym=MSFT    actor=
      =  filled_qty = 0
      =  quantity = 200
      =  remaining_qty = 200
-     =  time_to_completion = 0.005
-order          a66e0000000000000000000000000001    OPEN       sym=MSFT    actor=TRADER09   OPEN
+     =  time_to_completion = 0.006
+order          a66e0000000000000000000000000001    FILLED     sym=MSFT    actor=TRADER09   closed
      0  open     order.new
-     =  filled_qty = 0
+     1  close    order.fill
+     =  filled_qty = 200
+     =  fills = 1
+     =  fills_total_qty = 200
+     =  notional = 15840.0
      =  quantity = 200
-     =  remaining_qty = 200
+     =  remaining_qty = 0
+     =  role = 'TAKER'
+     =  time_to_completion = 0.003
+     =  time_to_first_fill = 0.003
+     =  vwap = 79.2
 trade          000042-000002002                    ACCEPTED   sym=MSFT    actor=-          closed
      0  open     trade.executed
      =  aggressor_side = 'BUY'

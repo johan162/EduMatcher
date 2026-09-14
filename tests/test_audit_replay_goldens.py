@@ -63,11 +63,13 @@ from tests.replay_goldens import (
     assert_golden,
     fixture_log,
     golden_path,
+    PROSE_LEVELS,
     load_episodes,
     load_facts,
     load_steps,
     render_causality,
     render_episodes,
+    render_prose,
     render_order,
 )
 
@@ -241,6 +243,23 @@ class TestEveryScenario:
             scenario,
             LEVEL_EPISODES,
             render_episodes(load_episodes(scenario)),
+            update=update_goldens,
+        )
+
+    @pytest.mark.parametrize("suffix,level", sorted(PROSE_LEVELS.items()))
+    def test_the_prose_matches_the_golden(
+        self, scenario: str, suffix: str, level: int, update_goldens: bool
+    ) -> None:
+        """The goldens a reviewer should actually read.
+
+        Wording is cheap to change now and expensive once section 11's NDJSON
+        contract freezes the ``text`` field, which is why CP-4 asks for these
+        to be shown to someone who did not write them.
+        """
+        assert_golden(
+            scenario,
+            suffix,
+            render_prose(scenario, level),
             update=update_goldens,
         )
 

@@ -34,6 +34,7 @@ import sys
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any, Sequence
 
 from edumatcher.audit.query import (
     date_to_range,
@@ -43,10 +44,14 @@ from edumatcher.audit.query import (
     validate_date,
     validate_iso_ts,
 )
+from edumatcher.audit.replay import episodes as episodes_mod
 from edumatcher.audit.replay import index as episode_index
+from edumatcher.audit.replay import reader
+from edumatcher.audit.replay import render_text
 from edumatcher.audit.replay import stats as stats_report
-from edumatcher.audit.replay.episodes import assemble
+from edumatcher.audit.replay.episodes import Episode, assemble
 from edumatcher.audit.replay.pipeline import reconstruct
+from edumatcher.audit.replay.state import StateModel
 from edumatcher.config import AUDIT_LOG_FILE, AUDIT_REPLAY_DB_FILE
 
 _FORMATS = ("text", "ndjson", "json", "markdown")
@@ -135,26 +140,27 @@ def _date(value: str) -> str:
     return value
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """The global option surface of design section 9.1."""
-    parser = argparse.ArgumentParser(
-        prog="pm-audit-replay",
-        description=(
-            "Reconstruct the causal structure of an EduMatcher audit trail and\n"
-            "narrate it. Reads the same JSONL files as pm-audit-cli, read-only."
-        ),
-        formatter_class=argparse.RawTextHelpFormatter,
-    )
+def _option_groups(
+    parser: argparse.ArgumentParser, *, suppress: bool
+) -> argparse.ArgumentParser:
+    """Add the section 9.1 options to *parser*.
 
-    from edumatcher.cli_version import add_version_argument
+    Called twice: once for the top-level parser with real defaults, and once
+    for a parent the subcommands inherit, where every default is ``SUPPRESS``.
+    That is what lets a global be written on either side of the subcommand --
+    ``stream --symbol AAPL`` and ``--symbol AAPL stream`` both work -- without
+    the subparser's own defaults quietly overwriting what was parsed before
+    it, which is the standard argparse trap here.
+    """
 
-    add_version_argument(parser, "pm-audit-replay")
+    def default(value: Any) -> Any:
+        return argparse.SUPPRESS if suppress else value
 
     source = parser.add_argument_group("source")
     source.add_argument(
         "--log-file",
-        default=str(AUDIT_LOG_FILE),
         metavar="PATH",
+        default=default(str(AUDIT_LOG_FILE)),
         help=(
             f"Audit log to read (default: {AUDIT_LOG_FILE}).\n"
             "Rotated .1, .2.gz ... siblings are discovered automatically."
@@ -162,18 +168,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     source.add_argument(
         "--db",
-        default=str(AUDIT_REPLAY_DB_FILE),
         metavar="PATH",
+        default=default(str(AUDIT_REPLAY_DB_FILE)),
         help=f"Episode index (default: {AUDIT_REPLAY_DB_FILE})",
     )
     source.add_argument(
         "--no-index",
         action="store_true",
+        default=default(False),
         help="Stream without building or reading an index",
     )
     source.add_argument(
         "--rebuild",
         action="store_true",
+        default=default(False),
         help="Rebuild the episode index before rendering",
     )
 
@@ -183,6 +191,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest="from_ts",
         type=_timestamp,
         metavar="ISO_TS",
+        default=default(None),
         help="Start of window (ISO-8601 or YYYY-MM-DD)",
     )
     window.add_argument(
@@ -190,40 +199,44 @@ def build_parser() -> argparse.ArgumentParser:
         dest="to_ts",
         type=_timestamp,
         metavar="ISO_TS",
+        default=default(None),
         help="End of window",
     )
     window.add_argument(
         "--date",
         type=_date,
         metavar="YYYY-MM-DD",
+        default=default(None),
         help="Shorthand for a whole UTC day",
     )
     window.add_argument(
         "--last",
         type=parse_duration,
         metavar="DURATION",
+        default=default(None),
         help="Relative window, e.g. 15m, 2h, 1d",
     )
-
-    _add_commands(parser)
 
     narrow = parser.add_argument_group("filters")
     narrow.add_argument(
         "--symbol",
         action="append",
         metavar="SYMBOL",
+        default=default(None),
         help="Restrict to one or more symbols (repeatable)",
     )
     narrow.add_argument(
         "--gateway",
         action="append",
         metavar="GW_ID",
+        default=default(None),
         help="Restrict to one or more gateways (repeatable)",
     )
     narrow.add_argument(
         "--kind",
         action="append",
         metavar="KIND",
+        default=default(None),
         help="Restrict to episode kinds (repeatable)",
     )
 
@@ -232,59 +245,64 @@ def build_parser() -> argparse.ArgumentParser:
         "-q",
         dest="quiet",
         action="store_true",
+        default=default(False),
         help="Detail level 0: episode outcomes only",
     )
     out.add_argument(
         "-v",
         dest="verbose",
         action="count",
-        default=0,
+        default=default(0),
         help="Raise detail level: -v, -vv, -vvv (see design section 8.1)",
     )
     out.add_argument(
         "--format",
-        default="text",
         choices=_FORMATS,
+        default=default("text"),
         help="Output format (default: text)",
     )
     out.add_argument(
         "--show-source",
         action="store_true",
+        default=default(False),
         help="Append audit.log:LINE to every narrated line",
     )
     out.add_argument(
         "--show-units",
         action="store_true",
+        default=default(False),
         help="Append unit provenance to every price",
     )
     out.add_argument(
         "--explain",
         action="store_true",
+        default=default(False),
         help="Show link evidence and confidence inline",
     )
     out.add_argument(
         "--id-len",
         type=parse_id_len,
-        default=6,
         metavar="N|full",
+        default=default(6),
         help="Order-id abbreviation (default: 6)",
     )
     out.add_argument(
         "--actor-style",
-        default="id",
         choices=_ACTOR_STYLES,
+        default=default("id"),
         help="Actor naming: id (default) or descriptive",
     )
     out.add_argument(
         "--tz",
-        default="UTC",
         metavar="TZ",
+        default=default("UTC"),
         help="Render timestamps in this zone (default: UTC)",
     )
     out.add_argument(
         "--reorder-window",
         type=parse_reorder_window,
         metavar="SPEC",
+        default=default(None),
         help=(
             f"Reorder buffer, e.g. {DEFAULT_REORDER_FACTS} or "
             f"{DEFAULT_REORDER_SECONDS:g}s\n"
@@ -294,12 +312,39 @@ def build_parser() -> argparse.ArgumentParser:
     out.add_argument(
         "--no-color",
         action="store_true",
+        default=default(False),
         help="Disable ANSI colour",
     )
     return parser
 
 
-def _add_commands(parser: argparse.ArgumentParser) -> None:
+def build_parser() -> argparse.ArgumentParser:
+    """The global option surface of design section 9.1."""
+    parser = argparse.ArgumentParser(
+        prog="pm-audit-replay",
+        description=(
+            "Reconstruct the causal structure of an EduMatcher audit trail and\n"
+            "narrate it. Reads the same JSONL files as pm-audit-cli, read-only."
+        ),
+    )
+
+    from edumatcher.cli_version import add_version_argument
+
+    add_version_argument(parser, "pm-audit-replay")
+    _option_groups(parser, suppress=False)
+    _add_commands(parser, _inherited())
+    return parser
+
+
+def _inherited() -> argparse.ArgumentParser:
+    """A parent carrying every global option with no defaults of its own."""
+    parent = argparse.ArgumentParser(add_help=False)
+    return _option_groups(parent, suppress=True)
+
+
+def _add_commands(
+    parser: argparse.ArgumentParser, inherited: argparse.ArgumentParser
+) -> None:
     """Register the subcommands.
 
     ``required=False`` on purpose: every option above is global, and
@@ -308,7 +353,47 @@ def _add_commands(parser: argparse.ArgumentParser) -> None:
     """
     commands = parser.add_subparsers(dest="command", metavar="COMMAND")
     commands.add_parser(
+        "stream",
+        parents=[inherited],
+        formatter_class=argparse.RawTextHelpFormatter,
+        help="Narrate a window chronologically (the default view)",
+        description=(
+            "Everything the exchange did, in causal order (section 9.2).\n"
+            "Detail is one axis: -q for outcomes only, -v and -vv for more."
+        ),
+    )
+
+    story = commands.add_parser(
+        "story",
+        parents=[inherited],
+        formatter_class=argparse.RawTextHelpFormatter,
+        help="Narrate one entity and what it is connected to",
+        description=(
+            "One episode and everything causally connected to it (section\n"
+            "9.3). Exactly one selector; --chain is the complete descent and\n"
+            "needs no --depth."
+        ),
+    )
+    selector = story.add_mutually_exclusive_group(required=True)
+    for flag, dest, metavar, helptext in _STORY_SELECTORS:
+        selector.add_argument(flag, dest=dest, metavar=metavar, help=helptext)
+    story.add_argument(
+        "--depth",
+        type=int,
+        default=DEFAULT_STORY_DEPTH,
+        metavar="N",
+        help=f"Link-following depth (default: {DEFAULT_STORY_DEPTH})",
+    )
+    story.add_argument(
+        "--strict-causality",
+        action="store_true",
+        help="Follow only RECORDED links, never an inferred one",
+    )
+
+    commands.add_parser(
         "index",
+        parents=[inherited],
+        formatter_class=argparse.RawTextHelpFormatter,
         help="Build or refresh the episode index",
         description=(
             "Materialise the episode model into SQLite (design section 9.7).\n"
@@ -316,7 +401,6 @@ def _add_commands(parser: argparse.ArgumentParser) -> None:
             "have changed; --rebuild forces one regardless. There is no\n"
             "incremental mode -- see AR-3.4 in the design for why."
         ),
-        formatter_class=argparse.RawTextHelpFormatter,
     ).add_argument(
         "--stats",
         dest="index_stats",
@@ -325,6 +409,8 @@ def _add_commands(parser: argparse.ArgumentParser) -> None:
     )
     commands.add_parser(
         "stats",
+        parents=[inherited],
+        formatter_class=argparse.RawTextHelpFormatter,
         help="Report link confidence and envelope coverage over the window",
         description=(
             "How the tool arrived at what it knows. On a log recorded since\n"
@@ -332,7 +418,6 @@ def _add_commands(parser: argparse.ArgumentParser) -> None:
             "share anywhere else means a publisher is bypassing\n"
             "CausalPublisher, or that the window reaches back before it."
         ),
-        formatter_class=argparse.RawTextHelpFormatter,
     )
 
 
@@ -367,6 +452,46 @@ def reorder_bounds(args: argparse.Namespace) -> tuple[int, float]:
         DEFAULT_REORDER_FACTS if facts is None else facts,
         DEFAULT_REORDER_SECONDS if seconds is None else seconds,
     )
+
+
+#: ``story``'s selectors (section 9.3): ``(flag, dest, metavar, help)``.
+#:
+#: The dest is spelled out because one of them has to be. ``--command`` would
+#: otherwise land on ``args.command``, which is where the subparsers action
+#: records *which subcommand was chosen* -- and argparse copies the
+#: subparser's namespace over the parent's afterwards, so choosing ``story``
+#: was silently overwritten with None. The failure was total and silent, and
+#: it hit the one selector the plan names in its acceptance criteria.
+_STORY_SELECTORS: tuple[tuple[str, str, str, str], ...] = (
+    ("--order", "order", "ORDER_ID", "Follow an order (an unambiguous prefix will do)"),
+    ("--trade", "trade", "TRADE_ID", "Follow a trade and both its legs"),
+    ("--quote", "quote", "QUOTE_ID", "Follow a quote and its derived leg orders"),
+    ("--oco", "oco", "OCO_ID", "Follow an OCO pair"),
+    ("--combo", "combo", "COMBO_ID", "Follow a combo and its legs"),
+    (
+        "--command",
+        "command_id",
+        "COMMAND_ID",
+        "Follow a risk/admin command and its effects",
+    ),
+    ("--client-tag", "client_tag", "TAG", "Follow by the client's own tag"),
+    ("--chain", "chain", "ULID", "Follow a whole causal chain (the complete descent)"),
+    ("--msg", "msg", "ULID", "Follow one message and what it caused"),
+)
+
+#: Which episode kind each selector looks in, by its dest.
+_SELECTOR_KINDS: dict[str, str] = {
+    "order": episodes_mod.KIND_ORDER,
+    "trade": episodes_mod.KIND_TRADE,
+    "quote": episodes_mod.KIND_QUOTE,
+    "oco": episodes_mod.KIND_OCO,
+    "combo": episodes_mod.KIND_COMBO,
+    "command_id": episodes_mod.KIND_COMMAND,
+}
+
+#: Section 9.3's default. Two hops reaches an order's trades and their
+#: counterparty orders, which is what "what happened to this order" means.
+DEFAULT_STORY_DEPTH = 2
 
 
 def _log_files(args: argparse.Namespace) -> list[Path]:
@@ -473,6 +598,146 @@ def render_index_stats(conn: sqlite3.Connection) -> str:
     return "\n".join(lines) + "\n"
 
 
+def render_options(args: argparse.Namespace) -> render_text.Options:
+    """The section 8 switches, off one namespace."""
+    return render_text.Options(
+        level=detail_level(args),
+        id_len=args.id_len,
+        descriptive_actors=args.actor_style == "descriptive",
+        show_source=args.show_source,
+        show_units=args.show_units,
+        explain=args.explain,
+    )
+
+
+def _narrate(
+    episodes: Sequence[Episode], state: StateModel | None, args: argparse.Namespace
+) -> int:
+    if not episodes:
+        print("pm-audit-replay: nothing to narrate in this window", file=sys.stderr)
+        return 1
+    for line in render_text.narrate(episodes, state, render_options(args)):
+        print(line)
+    return 0
+
+
+def _from_log(
+    args: argparse.Namespace, log_files: list[Path]
+) -> tuple[list[Episode], StateModel]:
+    """Reconstruct without the index -- what ``--no-index`` asks for."""
+    from_dt, to_dt = window_bounds(args)
+    max_facts, max_seconds = reorder_bounds(args)
+    run, steps = reconstruct(
+        iter_entries(log_files, from_dt=from_dt, to_dt=to_dt),
+        max_facts=max_facts,
+        max_seconds=max_seconds,
+    )
+    episodes = list(
+        assemble(
+            steps, run.state, run.links, max_facts=max_facts, max_seconds=max_seconds
+        )
+    )
+    return episodes, run.state
+
+
+def _run_stream(args: argparse.Namespace) -> int:
+    log_files = _log_files(args)
+    if not log_files:
+        print(f"pm-audit-replay: no audit log at {args.log_file}", file=sys.stderr)
+        return 1
+    conn = ensure_index(args, log_files)
+    if conn is None:
+        episodes, state = _from_log(args, log_files)
+        return _narrate(_filtered(episodes, args), state, args)
+    from_dt, to_dt = window_bounds(args)
+    episodes = reader.episodes_in_window(
+        conn,
+        from_ts=from_dt.isoformat() if from_dt else None,
+        to_ts=to_dt.isoformat() if to_dt else None,
+        symbols=args.symbol,
+        gateways=args.gateway,
+        kinds=args.kind,
+    )
+    return _narrate(episodes, reader.actors(conn), args)
+
+
+def _filtered(episodes: Sequence[Episode], args: argparse.Namespace) -> list[Episode]:
+    """The ``--symbol``/``--gateway``/``--kind`` filters, off the index.
+
+    The same predicates the index applies in SQL, so ``--no-index`` answers
+    the same question rather than a broader one.
+    """
+    return [
+        episode
+        for episode in episodes
+        if (not args.symbol or episode.symbol in args.symbol)
+        and (not args.gateway or episode.actor in args.gateway)
+        and (not args.kind or episode.kind in args.kind)
+    ]
+
+
+def _run_story(args: argparse.Namespace) -> int:
+    log_files = _log_files(args)
+    if not log_files:
+        print(f"pm-audit-replay: no audit log at {args.log_file}", file=sys.stderr)
+        return 1
+    if args.no_index:
+        print(
+            "pm-audit-replay: story needs the index; drop --no-index",
+            file=sys.stderr,
+        )
+        return 2
+    conn = ensure_index(args, log_files)
+    assert conn is not None  # --no-index is refused above
+    if args.chain:
+        episodes = reader.episodes_in_chain(conn, args.chain)
+        if not episodes:
+            return _not_found(args, "chain", args.chain)
+        return _narrate(episodes, reader.actors(conn), args)
+    seed, label, value = _seed(conn, args)
+    if seed is None:
+        return _not_found(args, label, value)
+    episodes = reader.walk(
+        conn, seed, depth=args.depth, recorded_only=args.strict_causality
+    )
+    return _narrate(episodes, reader.actors(conn), args)
+
+
+def _seed(
+    conn: sqlite3.Connection, args: argparse.Namespace
+) -> tuple[Episode | None, str, str]:
+    for dest, kind in _SELECTOR_KINDS.items():
+        value = getattr(args, dest, None)
+        if value:
+            return reader.episode_by_anchor(conn, kind, value), kind, value
+    if args.client_tag:
+        return (
+            reader.episode_by_client_tag(conn, args.client_tag),
+            "tag",
+            args.client_tag,
+        )
+    return reader.episode_containing(conn, args.msg), "msg", args.msg
+
+
+def _not_found(args: argparse.Namespace, label: str, value: str) -> int:
+    """Say where to look next, rather than only that nothing was found.
+
+    Section 8.3's rule applied to the command line: most misses are a window
+    that starts too late, and saying so saves the same wasted hour.
+    """
+    window = (
+        "this window"
+        if (args.from_ts or args.to_ts or args.date or args.last)
+        else "the index"
+    )
+    print(
+        f"pm-audit-replay: no {label} matching {value!r} in {window}"
+        + (" (try a wider --from/--to)" if window != "the index" else ""),
+        file=sys.stderr,
+    )
+    return 1
+
+
 def _run_stats(args: argparse.Namespace) -> int:
     log_files = discover_log_files(Path(args.log_file))
     if not log_files:
@@ -516,6 +781,10 @@ def main(argv: list[str] | None = None) -> int:
     if error:
         print(f"pm-audit-replay: {error}", file=sys.stderr)
         return 2
+    if args.command == "stream":
+        return _run_stream(args)
+    if args.command == "story":
+        return _run_story(args)
     if args.command == "index":
         return _run_index(args)
     if args.command == "stats":

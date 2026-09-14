@@ -12,14 +12,18 @@ Layout, per design section 15.2::
       01_simple_limit_partial_fill.log
       01_simple_limit_partial_fill.expected.order.txt
 
-The level suffix names what is frozen. There is no prose yet, so the three
-levels are structural: ``order``, the canonical sequence of facts, which is
-the thing everything downstream is wrong without; ``causality``, what the
-resolver made of each fact and how sure it is; and ``episodes``, how those
-facts were grouped and what each grouping came to. Freezing the confidence
-matters more than freezing the links -- a change that silently promoted a
-guess to a certainty is exactly what a reviewer would otherwise wave through.
-The prose levels (``q``, ``v1``, ``v2``) join them when there is prose.
+The level suffix names what is frozen. Three are structural: ``order``, the
+canonical sequence of facts, which is the thing everything downstream is wrong
+without; ``causality``, what the resolver made of each fact and how sure it is;
+and ``episodes``, how those facts were grouped and what each grouping came to.
+Freezing the confidence matters more than freezing the links -- a change that
+silently promoted a guess to a certainty is exactly what a reviewer would
+otherwise wave through.
+
+Three are prose, one per detail level of section 8.1: ``q`` (level 0,
+outcomes), ``v1`` (the default) and ``v2`` (``-v``). These are the goldens a
+reviewer should actually read, because wording is cheap to change now and
+expensive once section 11's NDJSON contract freezes the ``text`` field.
 
 Run ``pytest --update-goldens`` to rewrite the expected files from current
 output, then **read the diff** before committing it. A golden accepted without
@@ -37,15 +41,19 @@ from typing import Iterable
 from edumatcher.audit.query import iter_entries
 from edumatcher.audit.replay.derived import derive
 from edumatcher.audit.replay.episodes import Episode, assemble
+from edumatcher.audit.replay.render_text import Options, narrate
 from edumatcher.audit.replay.facts import Fact, normalise
 from edumatcher.audit.replay.ordering import ordered
-from edumatcher.audit.replay.pipeline import Step, reconstruct
+from edumatcher.audit.replay.pipeline import Reconstruction, Step, reconstruct
 
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "replay"
 
 LEVEL_ORDER = "order"
 LEVEL_CAUSALITY = "causality"
 LEVEL_EPISODES = "episodes"
+
+#: The prose levels, and the detail level each one renders at.
+PROSE_LEVELS: dict[str, int] = {"q": 0, "v1": 1, "v2": 2}
 
 
 def fixture_log(name: str) -> Path:
@@ -208,4 +216,22 @@ def render_episodes(episodes: Iterable[Episode]) -> str:
         facts = derive(episode).as_dict()
         for key in sorted(facts):
             lines.append(f"     =  {key} = {facts[key]!r}")
+    return "\n".join(lines) + "\n"
+
+
+def load_run(name: str) -> tuple[list[Episode], "Reconstruction"]:
+    """Episodes *and* the state model, which the narrator reads names from."""
+    run, steps = reconstruct(iter_entries([fixture_log(name)]))
+    return list(assemble(steps, run.state, run.links)), run
+
+
+def render_prose(name: str, level: int) -> str:
+    """One fixture, narrated at one detail level.
+
+    The switches are left off: ``--explain`` and ``--show-source`` annotate
+    every line and would bury the sentences, which are what these goldens
+    exist for. They have tests of their own.
+    """
+    episodes, run = load_run(name)
+    lines = narrate(episodes, run.state, Options(level=level))
     return "\n".join(lines) + "\n"

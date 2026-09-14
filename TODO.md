@@ -25,8 +25,8 @@ the steps that lead up to a certain market condition
 - ~~Phase 0 — Foudational work, extending message covering~~
 - ~~Phase 1 - The tool fundamentals, scaffolding~~
 - ~~Phase 2 — State models and the link resolver~~ 
-- Phase 3 — Episodes and the index
-- Phase 4 — Narration, first user-visible output
+- ~~Phase 3 — Episodes and the index~~
+- ~~Phase 4 — Narration, first user-visible output~~
 - Phase 5 — Anomalies and the remaining views
 
 ## 2. Completion of the System-Testing Framework

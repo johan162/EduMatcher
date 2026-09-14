@@ -1,0 +1,5 @@
+07:59:58.000  engine restart current ran to completion
+08:00:00.000  the OPENING session ran to completion
+08:00:00.100  the CONTINUOUS session ran to completion
+08:00:01.000  index command cmd-split-9 ran to completion
+08:00:05.100  the CLOSED session was still open at the end of the window

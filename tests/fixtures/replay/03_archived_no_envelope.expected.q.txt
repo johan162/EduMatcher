@@ -1,0 +1,2 @@
+14:02:11.100  order cccc00… was cancelled — 100 of 300 filled
+14:02:11.140  trade 000017… — MSFT 100 @ 415.50

@@ -28,6 +28,11 @@ UNKNOWN_TOPIC = "UNKNOWN_TOPIC"
 #: Section 5.3.1, rung 5.
 TICK_SCALE_UNKNOWN = "TICK_SCALE_UNKNOWN"
 
+#: An enum value with no lexicon entry: the message spec has grown a value and
+#: the vocabulary has not. The value prints verbatim in backticks rather than
+#: being guessed at or dropped. Section 12.5.
+UNKNOWN_ENUM = "UNKNOWN_ENUM"
+
 #: A gap in a topic's per-topic ``seq``: messages are missing from the audit
 #: trail for that topic. Dense by construction, so this is a proof of loss
 #: rather than a suspicion. Section 12.3.

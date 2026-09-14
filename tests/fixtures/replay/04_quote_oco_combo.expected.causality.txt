@@ -38,17 +38,20 @@
 017  order.fill                    TRADER03
      <- caused            RECORDED  01M208735S00000000000000P4   causation_id
      <- matched_with      CERTAIN   01M208735T00000000000000P5   trade_ids contains 000042-000002002
-018  oco.cancelled                 TRADER03
+018  order.fill                    TRADER09
+     <- caused            RECORDED  01M208735S00000000000000P4   causation_id
+     <- matched_with      CERTAIN   01M208735T00000000000000P5   trade_ids contains 000042-000002002
+019  oco.cancelled                 TRADER03
      <- caused            RECORDED  01M208735S00000000000000P4   causation_id
      -> cancelled_by      CERTAIN   01M208735Q00000000000000P4   cancelled_order_id
-019  order.combo                   -           origin
-020  combo.ack                     TRADER03
+020  order.combo                   -           origin
+021  combo.ack                     TRADER03
      <- caused            RECORDED  01M208736300000000000000C1   causation_id
-021  order.new                     -
-     <- caused            RECORDED  01M208736300000000000000C1   causation_id
-     <- leg_of            CERTAIN   01M208736300000000000000C1   combo_parent_id
 022  order.new                     -
      <- caused            RECORDED  01M208736300000000000000C1   causation_id
      <- leg_of            CERTAIN   01M208736300000000000000C1   combo_parent_id
-023  combo.status                  TRADER03
+023  order.new                     -
+     <- caused            RECORDED  01M208736300000000000000C1   causation_id
+     <- leg_of            CERTAIN   01M208736300000000000000C1   combo_parent_id
+024  combo.status                  TRADER03
      <- caused            RECORDED  01M208736300000000000000C1   causation_id

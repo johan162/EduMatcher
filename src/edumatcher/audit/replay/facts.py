@@ -87,10 +87,20 @@ class Price:
         return self.display is not None
 
     def render(self) -> str:
-        """The value as it may be printed, never scaled without a source."""
+        """The value as it may be printed, never scaled without a source.
+
+        The scale fixes the number of decimals only when there *is* one.
+        ``or 0`` here used to mean a price whose message declares no
+        ``tick_decimals`` -- ``order.fill.fill_price`` is display money and its
+        message declares none -- printed with zero decimals, so 74.80 came out
+        as "75". Rounding is not formatting: it changes the number, which is
+        the one thing section 5.3.1 exists to stop.
+        """
         if self.display is None:
             return f"{self.raw:g} ticks"
-        return f"{self.display:.{self.tick_decimals or 0}f}"
+        if self.tick_decimals is None:
+            return f"{self.display:g}"
+        return f"{self.display:.{self.tick_decimals}f}"
 
     def provenance(self) -> str:
         """The ``--show-units`` annotation: how this number came to be."""

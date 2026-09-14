@@ -1,0 +1,14 @@
+10:15:00.000  MM01's connection was still open at the end of the window
+10:15:00.002  quote Q-MM01-AAPL-7 on AAPL filled
+10:15:00.004  order b17f0000000000000000000000000001 filled — 500 of 500 filled
+10:15:00.005  order b17f0000000000000000000000000002 was still open at the end of the window
+10:15:00.008  order c0de0000000000000000000000000001 filled — 500 of 500 filled
+10:15:00.009  trade 000042-000002001 — AAPL 500 @ 75.65
+10:15:00.020  OCO OCO-TRADER03-11 was cancelled
+10:15:00.022  order 0c0a0000000000000000000000000001 filled — 200 of 200 filled
+10:15:00.023  order 0c0a0000000000000000000000000002 was cancelled
+10:15:00.025  order a66e0000000000000000000000000001 filled — 200 of 200 filled
+10:15:00.026  trade 000042-000002002 — MSFT 200 @ 79.20
+10:15:00.035  combo CMB-TRADER03-4 ran to completion
+10:15:00.037  order cb0a0000000000000000000000000001 was still open at the end of the window
+10:15:00.038  order cb0a0000000000000000000000000002 was still open at the end of the window

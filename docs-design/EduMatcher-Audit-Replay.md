@@ -1147,10 +1147,14 @@ to this order?"*.
   --msg ULID             Follow one message and what it caused
   --depth N              Link-following depth (default 2). Ignored with --chain,
                          which is already the complete descent
-  --context DURATION     Also show market context ±DURATION around the episode
   --strict-causality     Follow only RECORDED links; report inferred ones as
                          unfollowed rather than traversing them
 ```
+
+`--context DURATION` is **not built**. Every other selector is one indexed
+lookup; that one is a second time-bounded read around an episode, which is a
+different mechanism for a convenience nothing in the acceptance criteria
+needs. It is absent from the CLI rather than present and inert.
 
 ```bash
 pm-audit-replay story --order 4f2c9a -v --explain
@@ -2010,6 +2014,25 @@ same rows, table for table, as a build into an empty one.
 
 ### Phase 4 — Narration (≈ 5 days) — first user-visible output
 
+Two things learned building it, both worth carrying forward.
+
+**A rounding bug had been in the tool since phase 1.** `Price.render` formatted
+to `tick_decimals or 0` decimals, and `order.fill.fill_price` is display money
+whose message declares no `tick_decimals` — so every fill price the tool would
+ever have printed was rounded to the nearest whole unit, 74.80 as "75".
+Nothing caught it for three phases because nothing printed a price until now.
+Rounding is not formatting: it changes the number, which is the one thing
+§5.3.1 exists to prevent. A price whose scale is unknown is now printed as it
+is, and the renderer supplies the *instrument's* scale for formatting, which
+cannot change a value.
+
+**`--command` silently disabled its own subcommand.** `story --command 8812`
+parsed, ran, and printed nothing, because argparse records the chosen
+subcommand in `args.command` and then copies the subparser's namespace over
+the parent's — so the selector's own dest overwrote it with None. The failure
+was total and silent and it hit the one invocation AR-4.4 names in its
+acceptance criteria. Selector dests are now spelled out.
+
 #### AR-4.1 — `lexicon.py` (0.5 day)
 
 **Do.** Enum → business English for every enum in `spec/messages/`.
@@ -2043,12 +2066,24 @@ drops events is worse than no narrative, because it will be believed.
 
 > ### ✅ CP-4 — the tool is usable, and worth showing people
 >
-> 1. Round-trip property passes over a full session.
-> 2. Goldens committed for fixtures 01–05 at three levels.
-> 3. Lexicon covers every enum in the spec.
-> 4. **Demo it.** Show the output to someone who did not write it and have them
->    read a bug from it. Wording problems are cheap now and expensive after
->    §11's NDJSON contract freezes the `text` field.
+> 1. Round-trip property passes over all five fixtures **and** the captured
+>    session in `deployment/docker/data/`, at every detail level. Every event
+>    is narrated, withheld by a declared level rule, or reported as an orphan;
+>    the test is asserted per event, because a count can balance while two
+>    events swap places.
+> 2. Goldens committed for fixtures 01–05 at `-q`, default and `-v`.
+> 3. Lexicon covers all 125 `(field, value)` pairs the spec declares, proved by
+>    enumerating the generated registry rather than the lexicon.
+> 4. **Demo it — still outstanding, and it is not a developer's to tick.** Show
+>    the output to someone who did not write it and have them read a bug from
+>    it. Wording problems are cheap now and expensive after §11's NDJSON
+>    contract freezes the `text` field.
+>
+> One further property is asserted that the plan did not ask for: an episode
+> read back out of the index narrates **identically** to the same episode
+> reconstructed from the log, at every level, for every fixture. Without it the
+> index is a second tool wearing the same name, and which one a reader gets
+> depends on whether a file happens to exist.
 
 ---
 
