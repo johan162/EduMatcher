@@ -33,9 +33,10 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Generator, Iterable, Mapping
 
 from edumatcher.audit.replay.derived import derive
 from edumatcher.audit.replay.episodes import Episode
@@ -241,6 +242,33 @@ class StaleIndexError(RuntimeError):
 # ---------------------------------------------------------------------------
 # Connections
 # ---------------------------------------------------------------------------
+
+
+@contextmanager
+def reading(db_path: Path) -> Generator[sqlite3.Connection, None, None]:
+    """Open the index for queries and close it again.
+
+    ``sqlite3.Connection`` is itself a context manager, but its ``__exit__``
+    commits or rolls back a transaction -- it does **not** close. Relying on
+    it is the mistake that leaves the handle open, and since Python 3.14 an
+    unclosed connection says so with a ``ResourceWarning`` pointing at
+    whatever line the collector happened to run on.
+    """
+    conn = open_readonly(db_path)
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
+@contextmanager
+def writing(db_path: Path) -> Generator[sqlite3.Connection, None, None]:
+    """Open the index for writing and close it again."""
+    conn = open_index(db_path)
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 
 def open_index(db_path: Path) -> sqlite3.Connection:

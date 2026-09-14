@@ -534,6 +534,8 @@ def ensure_index(
         if conn is not None:
             if episode_index.is_current(conn, log_files):
                 return conn
+            # Stale content rather than stale rules: close the handle before
+            # rebuilding, or it outlives the database it was opened on.
             conn.close()
     build_index(args, log_files, rebuild=True)
     return episode_index.open_readonly(db)
@@ -549,12 +551,15 @@ def _run_index(args: argparse.Namespace) -> int:
         return 2
     conn = ensure_index(args, log_files)
     assert conn is not None  # --no-index is refused above
-    if args.index_stats:
-        print(render_index_stats(conn), end="")
-    else:
-        counts = _index_counts(conn)
-        print(f"{Path(args.db)}: {counts['episodes']} episodes")
-    return 0
+    try:
+        if args.index_stats:
+            print(render_index_stats(conn), end="")
+        else:
+            counts = _index_counts(conn)
+            print(f"{Path(args.db)}: {counts['episodes']} episodes")
+        return 0
+    finally:
+        conn.close()
 
 
 _COUNTED = (
@@ -649,16 +654,19 @@ def _run_stream(args: argparse.Namespace) -> int:
     if conn is None:
         episodes, state = _from_log(args, log_files)
         return _narrate(_filtered(episodes, args), state, args)
-    from_dt, to_dt = window_bounds(args)
-    episodes = reader.episodes_in_window(
-        conn,
-        from_ts=from_dt.isoformat() if from_dt else None,
-        to_ts=to_dt.isoformat() if to_dt else None,
-        symbols=args.symbol,
-        gateways=args.gateway,
-        kinds=args.kind,
-    )
-    return _narrate(episodes, reader.actors(conn), args)
+    try:
+        from_dt, to_dt = window_bounds(args)
+        episodes = reader.episodes_in_window(
+            conn,
+            from_ts=from_dt.isoformat() if from_dt else None,
+            to_ts=to_dt.isoformat() if to_dt else None,
+            symbols=args.symbol,
+            gateways=args.gateway,
+            kinds=args.kind,
+        )
+        return _narrate(episodes, reader.actors(conn), args)
+    finally:
+        conn.close()
 
 
 def _filtered(episodes: Sequence[Episode], args: argparse.Namespace) -> list[Episode]:
@@ -689,18 +697,21 @@ def _run_story(args: argparse.Namespace) -> int:
         return 2
     conn = ensure_index(args, log_files)
     assert conn is not None  # --no-index is refused above
-    if args.chain:
-        episodes = reader.episodes_in_chain(conn, args.chain)
-        if not episodes:
-            return _not_found(args, "chain", args.chain)
+    try:
+        if args.chain:
+            episodes = reader.episodes_in_chain(conn, args.chain)
+            if not episodes:
+                return _not_found(args, "chain", args.chain)
+            return _narrate(episodes, reader.actors(conn), args)
+        seed, label, value = _seed(conn, args)
+        if seed is None:
+            return _not_found(args, label, value)
+        episodes = reader.walk(
+            conn, seed, depth=args.depth, recorded_only=args.strict_causality
+        )
         return _narrate(episodes, reader.actors(conn), args)
-    seed, label, value = _seed(conn, args)
-    if seed is None:
-        return _not_found(args, label, value)
-    episodes = reader.walk(
-        conn, seed, depth=args.depth, recorded_only=args.strict_causality
-    )
-    return _narrate(episodes, reader.actors(conn), args)
+    finally:
+        conn.close()
 
 
 def _seed(

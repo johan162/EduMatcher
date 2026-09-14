@@ -12,6 +12,7 @@ from edumatcher.models.message import dumps
 from edumatcher.ralf_gateway.config import RalfGatewayConfig
 from edumatcher.ralf_gateway.gateway import RalfGateway
 from edumatcher.ralf_gateway.protocol import parse_line
+from tests.conftest import free_ports
 
 # Generous upper bounds for CI/parallel test runs under CPU contention. These
 # are deadlines for polling loops, not blind sleeps, so fast machines finish
@@ -19,12 +20,6 @@ from edumatcher.ralf_gateway.protocol import parse_line
 # fixed 0.1-0.15s sleeps this file used to rely on.
 _DEFAULT_TIMEOUT = 5.0
 _POLL_INTERVAL = 0.02
-
-
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return int(s.getsockname()[1])
 
 
 def _recv_line(sock: socket.socket, timeout: float = _DEFAULT_TIMEOUT) -> str:
@@ -69,9 +64,7 @@ def _recv_all_lines(
     ]
 
 
-def _wait_for_listener(
-    host: str, port: int, deadline: float = _DEFAULT_TIMEOUT
-) -> None:
+def wait_for_listener(host: str, port: int, deadline: float = _DEFAULT_TIMEOUT) -> None:
     """Poll until the gateway's TCP listener accepts connections.
 
     Replaces a blind post-thread-start sleep: on a fast/idle machine this
@@ -142,8 +135,7 @@ def _wait_for_seq_advance(
 def running_gateway() -> (
     Generator[tuple[RalfGateway, zmq.Socket[bytes], int], None, None]
 ):
-    engine_port = _free_port()
-    gateway_port = _free_port()
+    engine_port, gateway_port = free_ports(2)
 
     engine_addr = f"tcp://127.0.0.1:{engine_port}"
     cfg = RalfGatewayConfig(
@@ -163,7 +155,7 @@ def running_gateway() -> (
 
     # Wait for the gateway's TCP listener to actually be accepting
     # connections rather than assuming a fixed startup delay.
-    _wait_for_listener(cfg.bind_address, gateway_port)
+    wait_for_listener(cfg.bind_address, gateway_port)
 
     ctx: zmq.Context[zmq.Socket[bytes]] = zmq.Context.instance()
     pub = ctx.socket(zmq.PUB)

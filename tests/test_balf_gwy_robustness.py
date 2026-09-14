@@ -51,6 +51,7 @@ from edumatcher.balf_gwy.codec import (
 from edumatcher.balf_gwy.config import BalfGatewayConfig
 from edumatcher.balf_gwy.gateway import BalfGateway
 from edumatcher.models.message import decode, encode
+from tests.conftest import wait_for_listener, free_ports
 
 # ---------------------------------------------------------------------------
 # Wire-level helpers
@@ -154,12 +155,6 @@ class _BalfClient:
 # ---------------------------------------------------------------------------
 
 
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return int(s.getsockname()[1])
-
-
 def _drain_until(
     pull: "zmq.Socket[bytes]",
     prefix: str,
@@ -221,9 +216,7 @@ def balf_gw_factory() -> Generator[FactoryFn, None, None]:
     ] = []
 
     def _make(**cfg_overrides: Any) -> GatewayFixture:
-        pull_port = _free_port()
-        pub_port = _free_port()
-        gw_port = _free_port()
+        pull_port, pub_port, gw_port = free_ports(3)
 
         ctx: zmq.Context[zmq.Socket[bytes]] = zmq.Context.instance()
         pull_sock: zmq.Socket[bytes] = ctx.socket(zmq.PULL)
@@ -253,7 +246,8 @@ def balf_gw_factory() -> Generator[FactoryFn, None, None]:
         t = threading.Thread(target=gw.run, daemon=True)
         t.start()
         instances.append((gw, t, pull_sock, pub_sock))
-        time.sleep(0.2)  # allow listener bind + ZMQ subscriptions
+        wait_for_listener(cfg.bind_address, gw_port)
+        time.sleep(0.1)  # ZMQ subscriptions have no readiness signal
         return gw, pull_sock, pub_sock, gw_port
 
     yield _make

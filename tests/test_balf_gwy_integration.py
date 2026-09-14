@@ -48,6 +48,7 @@ from edumatcher.balf_gwy.config import BalfGatewayConfig
 from edumatcher.balf_gwy.gateway import BalfGateway
 from edumatcher.balf_gwy.protocol import RC_INVALID_FIELD
 from edumatcher.models.message import encode
+from tests.conftest import wait_for_listener, free_ports
 
 # ---------------------------------------------------------------------------
 # Wire-level helpers — build client-direction frames
@@ -199,12 +200,6 @@ class _BalfClient:
 # ---------------------------------------------------------------------------
 
 
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return int(s.getsockname()[1])
-
-
 def _drain_pull_until(
     pull: "zmq.Socket[bytes]",
     topic_prefix: str,
@@ -271,9 +266,7 @@ def running_gateway() -> Generator[GatewayFixture, None, None]:
 
     Yields (gateway, engine_pull, engine_pub, tcp_port).
     """
-    engine_pull_port = _free_port()
-    engine_pub_port = _free_port()
-    gateway_port = _free_port()
+    engine_pull_port, engine_pub_port, gateway_port = free_ports(3)
 
     engine_pull_addr = f"tcp://127.0.0.1:{engine_pull_port}"
     engine_pub_addr = f"tcp://127.0.0.1:{engine_pub_port}"
@@ -305,8 +298,9 @@ def running_gateway() -> Generator[GatewayFixture, None, None]:
     t = threading.Thread(target=gw.run, daemon=True)
     t.start()
 
-    # Allow TCP listener to bind and PUB/SUB subscriptions to settle.
-    time.sleep(0.15)
+    # The listener is waited for; the short sleep that remains is only for
+    # ZMQ subscriptions, which have no equivalent readiness signal.
+    wait_for_listener(cfg.bind_address, gateway_port)
     time.sleep(0.1)
 
     try:

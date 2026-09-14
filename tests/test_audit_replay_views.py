@@ -17,6 +17,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.conftest import opened
+
 from edumatcher.audit.query import iter_entries
 from edumatcher.audit.replay import reader
 from edumatcher.audit.replay.cli import main
@@ -97,7 +99,7 @@ def _reconstruct(log: Path) -> tuple[list[Episode], StateModel]:
 def _via_index(log: Path, db: Path) -> tuple[list[Episode], StateModel]:
     run_, steps = reconstruct(iter_entries([log]))
     build(db, assemble(steps, run_.state, run_.links), run_.state, [log])
-    conn = open_readonly(db)
+    conn = opened(open_readonly(db))
     return reader.episodes_in_window(conn), reader.actors(conn)
 
 

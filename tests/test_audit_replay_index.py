@@ -23,6 +23,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.conftest import opened
+
 from edumatcher.audit.query import iter_entries
 from edumatcher.audit.replay.episodes import assemble
 from edumatcher.audit.replay.index import (
@@ -34,6 +36,7 @@ from edumatcher.audit.replay.index import (
     build,
     describe,
     open_index,
+    reading,
     open_readonly,
     write_meta,
 )
@@ -73,13 +76,14 @@ def db(tmp_path: Path) -> Path:
 class TestTheVersionGuard:
     def test_a_fresh_index_stamps_both_versions(self, db: Path) -> None:
         build_from(SIMPLE, db)
-        meta = describe(open_readonly(db))
+        with reading(db) as conn:
+            meta = describe(conn)
         assert meta[META_SCHEMA_VERSION] == str(SCHEMA_VERSION)
         assert meta[META_RULES_VERSION] == str(RULES_VERSION)
 
     def test_an_index_built_under_other_rules_is_refused(self, db: Path) -> None:
         build_from(SIMPLE, db)
-        conn = open_index(db)
+        conn = opened(open_index(db))
         write_meta(conn, META_RULES_VERSION, "0")
         conn.commit()
         conn.close()
@@ -88,7 +92,7 @@ class TestTheVersionGuard:
 
     def test_an_index_built_under_another_schema_is_refused(self, db: Path) -> None:
         build_from(SIMPLE, db)
-        conn = open_index(db)
+        conn = opened(open_index(db))
         write_meta(conn, META_SCHEMA_VERSION, "0")
         conn.commit()
         conn.close()
@@ -115,7 +119,7 @@ class TestCoverage:
     def test_every_line_of_the_log_is_one_event_row(self, db: Path) -> None:
         for log in (SIMPLE, KILL_SWITCH, ARCHIVED):
             build_from(log, db, rebuild=True)
-            conn = open_readonly(db)
+            conn = opened(open_readonly(db))
             rows = conn.execute("SELECT file, line_no FROM episode_events").fetchall()
             lines = [
                 line
@@ -127,7 +131,7 @@ class TestCoverage:
 
     def test_every_event_belongs_to_an_episode_that_exists(self, db: Path) -> None:
         build_from(KILL_SWITCH, db)
-        conn = open_readonly(db)
+        conn = opened(open_readonly(db))
         orphaned = conn.execute(
             "SELECT COUNT(*) FROM episode_events e "
             "WHERE NOT EXISTS (SELECT 1 FROM episodes p "
@@ -138,7 +142,8 @@ class TestCoverage:
     def test_the_covered_window_spans_the_whole_log(self, db: Path) -> None:
         """Episodes retire out of order, so the bounds are over facts."""
         build_from(SIMPLE, db)
-        meta = describe(open_readonly(db))
+        with reading(db) as conn:
+            meta = describe(conn)
         raw = [
             line[1 : line.index("]")]
             for line in SIMPLE.read_text(encoding="utf-8").splitlines()
@@ -153,7 +158,7 @@ class TestTheSortKey:
         self, db: Path
     ) -> None:
         build_from(SIMPLE, db)
-        conn = open_readonly(db)
+        conn = opened(open_readonly(db))
         by_key = [
             r["line_no"]
             for r in conn.execute(
@@ -180,7 +185,7 @@ class TestTheSortKey:
 class TestLinks:
     def test_a_cross_episode_cause_becomes_a_link_row(self, db: Path) -> None:
         build_from(SIMPLE, db)
-        conn = open_readonly(db)
+        conn = opened(open_readonly(db))
         rows = conn.execute(
             "SELECT src.kind, dst.kind, l.relation, l.confidence "
             "FROM links l "
@@ -192,7 +197,7 @@ class TestLinks:
     def test_a_link_inside_one_episode_is_not_a_self_loop(self, db: Path) -> None:
         """An ack and its submission are one episode; the row would be noise."""
         build_from(SIMPLE, db)
-        conn = open_readonly(db)
+        conn = opened(open_readonly(db))
         assert (
             conn.execute(
                 "SELECT COUNT(*) FROM links WHERE from_episode = to_episode"
@@ -206,7 +211,7 @@ class TestLinks:
         self, db: Path
     ) -> None:
         build_from(KILL_SWITCH, db)
-        conn = open_readonly(db)
+        conn = opened(open_readonly(db))
         reasons = {
             r["from_ref"]
             for r in conn.execute(
@@ -218,7 +223,7 @@ class TestLinks:
     def test_links_survive_an_envelope_less_log(self, db: Path) -> None:
         """The fallback tiers state refs as @ordinal; the join reads those too."""
         build_from(ARCHIVED, db)
-        conn = open_readonly(db)
+        conn = opened(open_readonly(db))
         rows = {
             (r["a"], r["b"], r["relation"], r["evidence"])
             for r in conn.execute(
@@ -239,7 +244,7 @@ class TestLinks:
         the tool has for believing the pair.
         """
         build_from(ARCHIVED, db)
-        conn = open_readonly(db)
+        conn = opened(open_readonly(db))
         pairs = [
             (r["from_episode"], r["to_episode"], r["evidence"])
             for r in conn.execute(
@@ -262,7 +267,7 @@ class TestRows:
         import json
 
         build_from(SIMPLE, db)
-        conn = open_readonly(db)
+        conn = opened(open_readonly(db))
         row = conn.execute(
             "SELECT facts_json FROM episodes WHERE kind = 'trade'"
         ).fetchone()
@@ -272,7 +277,7 @@ class TestRows:
         self, db: Path
     ) -> None:
         build_from(KILL_SWITCH, db)
-        conn = open_readonly(db)
+        conn = opened(open_readonly(db))
         row = conn.execute(
             "SELECT a.code, e.kind FROM anomalies a "
             "JOIN episodes e ON e.episode_id = a.episode_id"
@@ -282,7 +287,7 @@ class TestRows:
     def test_a_symbol_wildcard_is_not_an_actor(self, db: Path) -> None:
         """`book.AAPL` is parameterised by symbol; AAPL is not a gateway."""
         build_from(SIMPLE, db)
-        conn = open_readonly(db)
+        conn = opened(open_readonly(db))
         actors = {
             r["gateway_id"] for r in conn.execute("SELECT gateway_id FROM actors")
         }
@@ -291,7 +296,7 @@ class TestRows:
 
     def test_an_actor_carries_the_description_that_names_it(self, db: Path) -> None:
         build_from(SIMPLE, db)
-        conn = open_readonly(db)
+        conn = opened(open_readonly(db))
         row = conn.execute(
             "SELECT description, orders FROM actors WHERE gateway_id = 'TRADER01'"
         ).fetchone()
@@ -363,7 +368,7 @@ def _rows(db: Path) -> dict[str, list[tuple[object, ...]]]:
     log raise the same anomalies, and numbering them from a different starting
     point is not a difference in what the index says.
     """
-    conn = open_readonly(db)
+    conn = opened(open_readonly(db))
     snapshot: dict[str, list[tuple[object, ...]]] = {}
     for table in _TABLES:
         rows = [tuple(r) for r in conn.execute(f"SELECT * FROM {table}")]

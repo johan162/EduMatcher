@@ -5,7 +5,6 @@ path connecting a real RalfSpyClient to a real RalfGateway over TCP.
 from __future__ import annotations
 
 import json
-import socket
 import threading
 import time
 from collections.abc import Generator
@@ -22,13 +21,7 @@ from edumatcher.ralf_spy.client import (
     RalfSpyOptions,
 )
 from edumatcher.ralf_spy.formatters import format_human, format_json
-
-
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return int(s.getsockname()[1])
-
+from tests.conftest import wait_for_listener, free_port, free_ports
 
 # ---------------------------------------------------------------------------
 # Formatter unit tests (no network involved)
@@ -195,10 +188,11 @@ def test_resolve_channels_explicit_list_ignores_role() -> None:
 
 @pytest.fixture()
 def running_gateway() -> Generator[RalfGateway, None, None]:
+    gateway_port, engine_pub_port = free_ports(2)
     cfg = RalfGatewayConfig(
         bind_address="127.0.0.1",
-        port=_free_port(),
-        engine_pub_addr=f"tcp://127.0.0.1:{_free_port()}",
+        port=gateway_port,
+        engine_pub_addr=f"tcp://127.0.0.1:{engine_pub_port}",
         heartbeat_interval_sec=60,  # keep heartbeats out of the way of assertions
         idle_timeout_sec=30,
         replay_retention_sec=3600,
@@ -206,9 +200,7 @@ def running_gateway() -> Generator[RalfGateway, None, None]:
     gw = RalfGateway(cfg)
     thread = threading.Thread(target=gw.run, daemon=True)
     thread.start()
-    deadline = time.monotonic() + 2.0
-    while gw._server is None and time.monotonic() < deadline:
-        time.sleep(0.01)
+    wait_for_listener(cfg.bind_address, cfg.port)
     try:
         yield gw
     finally:
@@ -237,10 +229,11 @@ def test_handshake_receives_welcome_with_role(running_gateway: RalfGateway) -> N
 def test_handshake_rejects_disallowed_role() -> None:
     # Construct a gateway with a restricted allowed_roles set so a client
     # requesting a role outside it gets ENTITLEMENT_DENIED at HELLO time.
+    gateway_port, engine_pub_port = free_ports(2)
     restricted_cfg = RalfGatewayConfig(
         bind_address="127.0.0.1",
-        port=_free_port(),
-        engine_pub_addr=f"tcp://127.0.0.1:{_free_port()}",
+        port=gateway_port,
+        engine_pub_addr=f"tcp://127.0.0.1:{engine_pub_port}",
         heartbeat_interval_sec=60,
         allowed_roles=("CLEARING",),
     )
@@ -368,7 +361,7 @@ def test_live_exec_event_flows_to_client(running_gateway: RalfGateway) -> None:
 
 
 def test_connect_refused_raises_connection_error() -> None:
-    options = RalfSpyOptions(host="127.0.0.1", port=_free_port())
+    options = RalfSpyOptions(host="127.0.0.1", port=free_port())
     client = RalfSpyClient(options)
     with pytest.raises(RalfSpyConnectionError):
         client.connect()

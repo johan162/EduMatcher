@@ -14,7 +14,6 @@ These tests exercise that exact race using real PUSH/PULL sockets.
 
 from __future__ import annotations
 
-import socket
 import threading
 import time
 
@@ -24,12 +23,7 @@ import zmq
 from edumatcher.messaging.bus import get_context
 from edumatcher.models.message import decode
 from edumatcher.viewer import main as viewer_main
-
-
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return int(s.getsockname()[1])
+from tests.conftest import free_port
 
 
 def test_request_snapshot_retries_past_slow_bind(
@@ -37,7 +31,7 @@ def test_request_snapshot_retries_past_slow_bind(
 ) -> None:
     """If the PULL side binds *after* the first send attempt, the retry loop
     should keep trying instead of raising zmq.Again out of the thread."""
-    port = _free_port()
+    port = free_port()
     addr = f"tcp://127.0.0.1:{port}"
     monkeypatch.setattr(viewer_main, "ENGINE_PULL_ADDR", addr)
 
@@ -79,7 +73,7 @@ def test_request_snapshot_gives_up_quietly_when_engine_absent(
 ) -> None:
     """If nothing ever binds the PULL address, the helper should time out
     and log a warning rather than raising."""
-    port = _free_port()
+    port = free_port()
     addr = f"tcp://127.0.0.1:{port}"
     monkeypatch.setattr(viewer_main, "ENGINE_PULL_ADDR", addr)
 
@@ -100,7 +94,7 @@ def test_request_snapshot_succeeds_immediately_when_engine_already_up(
 ) -> None:
     """The common case: engine's PULL socket is already bound, so the first
     send should succeed without needing any retries."""
-    port = _free_port()
+    port = free_port()
     addr = f"tcp://127.0.0.1:{port}"
     monkeypatch.setattr(viewer_main, "ENGINE_PULL_ADDR", addr)
 

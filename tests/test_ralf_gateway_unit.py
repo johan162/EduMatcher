@@ -9,20 +9,16 @@ import pytest
 from edumatcher.ralf_gateway.config import RalfGatewayConfig
 from edumatcher.ralf_gateway.gateway import ClientSession, JournalEvent, RalfGateway
 from edumatcher.ralf_gateway.protocol import parse_line
-
-
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return int(s.getsockname()[1])
+from tests.conftest import free_ports
 
 
 @pytest.fixture()
 def unit_gateway() -> Generator[RalfGateway, None, None]:
+    gateway_port, engine_pub_port = free_ports(2)
     cfg = RalfGatewayConfig(
         bind_address="127.0.0.1",
-        port=_free_port(),
-        engine_pub_addr=f"tcp://127.0.0.1:{_free_port()}",
+        port=gateway_port,
+        engine_pub_addr=f"tcp://127.0.0.1:{engine_pub_port}",
         heartbeat_interval_sec=1,
         idle_timeout_sec=1,
         replay_retention_sec=5,

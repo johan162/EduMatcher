@@ -16,15 +16,10 @@ from edumatcher.dc_gateway.config import DcGatewayConfig
 from edumatcher.dc_gateway.gateway import DcGateway
 from edumatcher.dc_gateway.protocol import parse_line
 from edumatcher.engine.drop_copy import DropCopyPublisher
+from tests.conftest import free_ports
 
 _DEFAULT_TIMEOUT = 5.0
 _POLL_INTERVAL = 0.02
-
-
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return int(s.getsockname()[1])
 
 
 def _recv_line(sock: socket.socket, timeout: float = _DEFAULT_TIMEOUT) -> str:
@@ -40,9 +35,7 @@ def _recv_line(sock: socket.socket, timeout: float = _DEFAULT_TIMEOUT) -> str:
             return line.decode("utf-8", errors="replace")
 
 
-def _wait_for_listener(
-    host: str, port: int, deadline: float = _DEFAULT_TIMEOUT
-) -> None:
+def wait_for_listener(host: str, port: int, deadline: float = _DEFAULT_TIMEOUT) -> None:
     last_exc: OSError | None = None
     end_time = time.monotonic() + deadline
     while time.monotonic() < end_time:
@@ -72,8 +65,7 @@ def _settle_subscription(delay: float = 0.2) -> None:
 def running_gateway() -> (
     Generator[tuple[DcGateway, DropCopyPublisher, int], None, None]
 ):
-    dc_pub_port = _free_port()
-    gateway_port = _free_port()
+    dc_pub_port, gateway_port = free_ports(2)
 
     dc_pub_addr = f"tcp://127.0.0.1:{dc_pub_port}"
     ctx: zmq.Context[zmq.Socket[bytes]] = zmq.Context.instance()
@@ -93,7 +85,7 @@ def running_gateway() -> (
     t = threading.Thread(target=gw.run, daemon=True)
     t.start()
 
-    _wait_for_listener(cfg.bind_address, gateway_port)
+    wait_for_listener(cfg.bind_address, gateway_port)
 
     try:
         yield gw, pub, gateway_port
@@ -120,8 +112,7 @@ def test_hello_welcome_handshake(
 
 
 def test_hello_missing_id_rejected() -> None:
-    dc_pub_port = _free_port()
-    gateway_port = _free_port()
+    dc_pub_port, gateway_port = free_ports(2)
     dc_pub_addr = f"tcp://127.0.0.1:{dc_pub_port}"
     ctx: zmq.Context[zmq.Socket[bytes]] = zmq.Context.instance()
     pub = DropCopyPublisher(ctx, addr=dc_pub_addr)
@@ -134,7 +125,7 @@ def test_hello_missing_id_rejected() -> None:
     gw = DcGateway(cfg)
     t = threading.Thread(target=gw.run, daemon=True)
     t.start()
-    _wait_for_listener(cfg.bind_address, gateway_port)
+    wait_for_listener(cfg.bind_address, gateway_port)
 
     try:
         with socket.create_connection(

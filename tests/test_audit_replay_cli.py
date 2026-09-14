@@ -13,6 +13,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.conftest import opened
+
 from edumatcher.audit.replay.cli import (
     build_parser,
     detail_level,
@@ -27,6 +29,7 @@ from edumatcher.audit.replay.index import (
     RULES_VERSION,
     describe,
     open_index,
+    reading,
     open_readonly,
     write_meta,
 )
@@ -204,7 +207,7 @@ class TestTheIndexPolicy:
         ]
 
     def _built_at(self, tmp_path: Path) -> str:
-        conn = open_readonly(tmp_path / "replay.db")
+        conn = opened(open_readonly(tmp_path / "replay.db"))
         return describe(conn)["built_at"]
 
     def test_a_missing_index_is_built(self, tmp_path: Path) -> None:
@@ -228,12 +231,12 @@ class TestTheIndexPolicy:
 
     def test_a_stale_rules_version_forces_a_rebuild(self, tmp_path: Path) -> None:
         main(self._args(tmp_path))
-        conn = open_index(tmp_path / "replay.db")
+        conn = opened(open_index(tmp_path / "replay.db"))
         write_meta(conn, META_RULES_VERSION, "0")
         conn.commit()
         conn.close()
         assert main(self._args(tmp_path)) == 0
-        conn = open_readonly(tmp_path / "replay.db")
+        conn = opened(open_readonly(tmp_path / "replay.db"))
         assert describe(conn)[META_RULES_VERSION] == str(RULES_VERSION)
 
     def test_rebuild_forces_one_even_when_nothing_changed(self, tmp_path: Path) -> None:
@@ -285,14 +288,15 @@ _MARK = "1970-01-01T00:00:00+00:00"
 
 
 def _mark(db: Path) -> None:
-    conn = open_index(db)
+    conn = opened(open_index(db))
     write_meta(conn, "built_at", _MARK)
     conn.commit()
     conn.close()
 
 
 def _episode_count(db: Path) -> int:
-    return int(open_readonly(db).execute("SELECT COUNT(*) FROM episodes").fetchone()[0])
+    with reading(db) as conn:
+        return int(conn.execute("SELECT COUNT(*) FROM episodes").fetchone()[0])
 
 
 class TestRegisteredInPmHelp:
