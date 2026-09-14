@@ -54,6 +54,10 @@ RULES_VERSION = 1
 
 META_SCHEMA_VERSION = "schema_version"
 META_RULES_VERSION = "rules_version"
+#: The detection settings the index was built under. Not a version: the
+#: rules did not change, the options given to them did, and an index built
+#: without --strict simply does not contain the findings --strict asks for.
+META_DETECTION = "detection"
 META_SOURCE_FILES = "source_files"
 META_SOURCE_FINGERPRINT = "source_fingerprint"
 META_BUILT_AT = "built_at"
@@ -593,6 +597,7 @@ def build(
     *,
     rebuild: bool = False,
     batch_size: int = DEFAULT_BATCH,
+    detection: str = "",
 ) -> int:
     """Write *episodes* into the index at *db_path*, returning how many.
 
@@ -610,6 +615,8 @@ def build(
         for episode in episodes:
             writer.write(episode)
         writer.finish(source_files)
+        write_meta(conn, META_DETECTION, detection)
+        conn.commit()
         return writer.episodes
     finally:
         conn.close()

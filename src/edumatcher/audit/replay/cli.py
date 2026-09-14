@@ -34,7 +34,7 @@ import sys
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 from edumatcher.audit.query import (
     date_to_range,
@@ -49,13 +49,20 @@ from edumatcher.audit.replay import index as episode_index
 from edumatcher.audit.replay import reader
 from edumatcher.audit.replay import render_text
 from edumatcher.audit.replay import stats as stats_report
-from edumatcher.audit.replay.detect import Detector, detected, observed
+from edumatcher.audit.replay import views
+from edumatcher.audit.replay.anomalies import SEVERITY_INFO
+from edumatcher.audit.replay.detect import (
+    DEFAULT_CLOCK_SKEW_WARN,
+    Detector,
+    detected,
+    observed,
+)
 from edumatcher.audit.replay.episodes import Episode, assemble
 from edumatcher.audit.replay.pipeline import reconstruct
 from edumatcher.audit.replay.state import StateModel
 from edumatcher.config import AUDIT_LOG_FILE, AUDIT_REPLAY_DB_FILE
 
-_FORMATS = ("text", "ndjson", "json", "markdown")
+_FORMATS = ("text", "ndjson", "json", "markdown", "csv")
 _ACTOR_STYLES = ("id", "descriptive")
 
 #: Detail levels, design section 8.1. ``-q`` is 0 and the default is 1.
@@ -316,6 +323,29 @@ def _option_groups(
         default=default(False),
         help="Disable ANSI colour",
     )
+
+    # Pass-one knobs, like --reorder-window above: they change what is
+    # *detected*, not how it is printed, so an index built under one value
+    # does not hold the answers the other asks for. Both are part of the
+    # index's recorded detection settings and a change to either forces a
+    # rebuild.
+    detection = parser.add_argument_group("detection")
+    detection.add_argument(
+        "--strict",
+        action="store_true",
+        default=default(False),
+        help="Report findings that are expected at a window edge (ARRIVAL_SEQ_GAP)",
+    )
+    detection.add_argument(
+        "--clock-skew-warn",
+        type=float,
+        metavar="SECONDS",
+        default=default(DEFAULT_CLOCK_SKEW_WARN),
+        help=(
+            "Engine/receipt clock difference worth reporting\n"
+            f"(default: {DEFAULT_CLOCK_SKEW_WARN:g}s)"
+        ),
+    )
     return parser
 
 
@@ -408,6 +438,71 @@ def _add_commands(
         action="store_true",
         help="Report what the index holds once it is current",
     )
+    digest = commands.add_parser(
+        "digest",
+        parents=[inherited],
+        formatter_class=argparse.RawTextHelpFormatter,
+        help="One paragraph per episode, most significant first",
+        description=(
+            "A whole session or a whole day, collapsed (design section 9.4).\n"
+            'Answers "what kind of day was it?" rather than "what happened\n'
+            'at 09:31?". Ranked, not chronological -- --significance has a\n'
+            "default, so the ordering it implies applies with or without --top."
+        ),
+    )
+    digest.add_argument(
+        "--top",
+        type=int,
+        metavar="N",
+        default=None,
+        help="Show only the N most significant episodes",
+    )
+    digest.add_argument(
+        "--significance",
+        choices=views.SIGNIFICANCE_RULES,
+        default=views.SIGNIFICANCE_ANOMALIES,
+        help=(
+            "What makes an episode significant\n"
+            f"(default: {views.SIGNIFICANCE_ANOMALIES}, then notional)"
+        ),
+    )
+
+    listing = commands.add_parser(
+        "episodes",
+        parents=[inherited],
+        formatter_class=argparse.RawTextHelpFormatter,
+        help="The index as a table, one row per episode",
+        description=(
+            "A structured listing (design section 9.5): kind, anchor, actor,\n"
+            "symbol, span, outcome and a finding count. How you locate the\n"
+            "episode you then want a story for. --format csv for export."
+        ),
+    )
+    listing.add_argument(
+        "--outcome",
+        action="append",
+        metavar="OUTCOME",
+        default=None,
+        help="Restrict to episode outcomes, e.g. REJECTED (repeatable)",
+    )
+
+    commands.add_parser(
+        "anomalies",
+        parents=[inherited],
+        formatter_class=argparse.RawTextHelpFormatter,
+        help="Every finding, worst first, with the story command to run next",
+        description=(
+            "The bug-hunting view (design section 9.6). Every finding from\n"
+            "section 12, ordered by severity then time, each with the episode\n"
+            "it belongs to. --severity is a floor, not a filter on one level."
+        ),
+    ).add_argument(
+        "--severity",
+        choices=views.SEVERITY_ORDER,
+        default=SEVERITY_INFO,
+        help="Report findings at this severity or worse (default: info)",
+    )
+
     commands.add_parser(
         "stats",
         parents=[inherited],
@@ -499,6 +594,19 @@ def _log_files(args: argparse.Namespace) -> list[Path]:
     return discover_log_files(Path(args.log_file))
 
 
+def detection_key(args: argparse.Namespace) -> str:
+    """The detection settings, canonically, for the index to record.
+
+    Compared as a string rather than field by field so that adding an option
+    is one edit here and nothing anywhere else.
+    """
+    return f"strict={int(args.strict)} clock_skew={args.clock_skew_warn:g}"
+
+
+def _detector(state: StateModel, args: argparse.Namespace) -> Detector:
+    return Detector(state, strict=args.strict, clock_skew_warn=args.clock_skew_warn)
+
+
 def build_index(
     args: argparse.Namespace, log_files: list[Path], *, rebuild: bool
 ) -> int:
@@ -507,7 +615,7 @@ def build_index(
     entries = iter_entries(log_files, from_dt=from_dt, to_dt=to_dt)
     max_facts, max_seconds = reorder_bounds(args)
     run, steps = reconstruct(entries, max_facts=max_facts, max_seconds=max_seconds)
-    detector = Detector(run.state)
+    detector = _detector(run.state, args)
     episodes = detected(
         assemble(
             observed(steps, detector),
@@ -519,7 +627,12 @@ def build_index(
         detector,
     )
     return episode_index.build(
-        Path(args.db), episodes, run.state, log_files, rebuild=rebuild
+        Path(args.db),
+        episodes,
+        run.state,
+        log_files,
+        rebuild=rebuild,
+        detection=detection_key(args),
     )
 
 
@@ -541,7 +654,10 @@ def ensure_index(
         except (FileNotFoundError, episode_index.StaleIndexError):
             conn = None
         if conn is not None:
-            if episode_index.is_current(conn, log_files):
+            if episode_index.is_current(conn, log_files) and (
+                episode_index.read_meta(conn, episode_index.META_DETECTION)
+                == detection_key(args)
+            ):
                 return conn
             # Stale content rather than stale rules: close the handle before
             # rebuilding, or it outlives the database it was opened on.
@@ -598,6 +714,7 @@ def render_index_stats(conn: sqlite3.Connection) -> str:
         episode_index.META_BUILT_AT,
         episode_index.META_COVERED_FROM,
         episode_index.META_COVERED_TO,
+        episode_index.META_DETECTION,
     ):
         lines.append(f"  {key:<16} {meta.get(key, '-')}")
     lines.append("")
@@ -646,7 +763,7 @@ def _from_log(
         max_facts=max_facts,
         max_seconds=max_seconds,
     )
-    detector = Detector(run.state)
+    detector = _detector(run.state, args)
     episodes = list(
         detected(
             assemble(
@@ -699,6 +816,84 @@ def _filtered(episodes: Sequence[Episode], args: argparse.Namespace) -> list[Epi
         and (not args.gateway or episode.actor in args.gateway)
         and (not args.kind or episode.kind in args.kind)
     ]
+
+
+def _selected(
+    args: argparse.Namespace,
+    conn: sqlite3.Connection | None,
+    log_files: list[Path],
+) -> list[Episode]:
+    """The window's episodes, however the caller is allowed to get them.
+
+    The index applies the filters in SQL and the log path applies the same
+    predicates in Python, so ``--no-index`` answers the same question rather
+    than a broader one.
+    """
+    if conn is None:
+        episodes, _state = _from_log(args, log_files)
+        return _filtered(episodes, args)
+    from_dt, to_dt = window_bounds(args)
+    return reader.episodes_in_window(
+        conn,
+        from_ts=from_dt.isoformat() if from_dt else None,
+        to_ts=to_dt.isoformat() if to_dt else None,
+        symbols=args.symbol,
+        gateways=args.gateway,
+        kinds=args.kind,
+    )
+
+
+def _run_view(
+    args: argparse.Namespace, render: Callable[[Sequence[Episode]], str]
+) -> int:
+    """Load the window and print one of section 9.4-9.6's reports."""
+    log_files = _log_files(args)
+    if not log_files:
+        print(f"pm-audit-replay: no audit log at {args.log_file}", file=sys.stderr)
+        return 1
+    conn = ensure_index(args, log_files)
+    try:
+        print(render(_selected(args, conn, log_files)), end="")
+        return 0
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+def _run_digest(args: argparse.Namespace) -> int:
+    return _run_view(
+        args,
+        lambda episodes: views.render_digest(
+            episodes,
+            significance=args.significance,
+            top=args.top,
+            id_len=args.id_len,
+        ),
+    )
+
+
+def _run_episodes(args: argparse.Namespace) -> int:
+    return _run_view(
+        args,
+        lambda episodes: views.render_episodes(
+            [
+                episode
+                for episode in episodes
+                if not args.outcome or episode.outcome in args.outcome
+            ],
+            as_csv=args.format == "csv",
+            id_len=args.id_len,
+        ),
+    )
+
+
+def _run_anomalies(args: argparse.Namespace) -> int:
+    return _run_view(
+        args,
+        lambda episodes: views.render_anomalies(
+            episodes, severity=args.severity, id_len=args.id_len
+        ),
+    )
 
 
 def _run_story(args: argparse.Namespace) -> int:
@@ -796,6 +991,8 @@ def validate_args(args: argparse.Namespace) -> str | None:
         return "--from must not be later than --to"
     if args.quiet and args.verbose:
         return "-q cannot be combined with -v"
+    if args.format == "csv" and args.command != "episodes":
+        return "--format csv is only available for `episodes`"
     return None
 
 
@@ -813,6 +1010,12 @@ def main(argv: list[str] | None = None) -> int:
         return _run_stream(args)
     if args.command == "story":
         return _run_story(args)
+    if args.command == "digest":
+        return _run_digest(args)
+    if args.command == "episodes":
+        return _run_episodes(args)
+    if args.command == "anomalies":
+        return _run_anomalies(args)
     if args.command == "index":
         return _run_index(args)
     if args.command == "stats":
