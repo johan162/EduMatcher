@@ -108,7 +108,7 @@ ASSETS_DIR := $(DOCS_DIR)/assets
 
 # NUM_CHAPTERS and NUM_GLOSSARY are used when creating book covers
 NUM_FILES := $(shell ls src/* | wc -l)
-NUM_CHAPTERS := $(shell bc -e '$(NUM_FILES) - 19') # Subtract 19 for files in 'ls' that are not chapters
+NUM_CHAPTERS := $(shell echo "$(NUM_FILES) - 19" | bc) # Subtract 19 for files in 'ls' that are not chapters
 NUM_GLOSSARY := $(shell $(LOCAL_SCRIPTS_DIR)/count_gloss.sh)
 
 # Debugging output for variable values
