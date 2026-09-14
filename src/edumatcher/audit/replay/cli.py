@@ -8,19 +8,31 @@ The global options are the ones design section 9.1 specifies, and they
 deliberately mirror ``pm-audit-cli``'s time-window and filter flags so muscle
 memory carries between the two tools.
 
-No subcommand is registered yet: the reconstruction pipeline this command
-renders from is still being built (design section 14, phase 1), and a
-``stream`` that printed nothing would be worse than one that does not exist.
-``--help`` is therefore the whole of the current surface, and is enough to
-review the option set against the design before anything depends on it.
+One subcommand so far, ``stats`` (task AR-2.5): the confidence distribution
+over a window. It is registered ahead of ``stream``, ``story`` and ``digest``
+because it reports on the *trail* rather than narrating it, so it is useful
+the moment pass 1 works -- and because the distribution is what says whether
+narration can be trusted at all. A subcommand is optional: with none, the
+command validates its options and exits, as it did through phase 1.
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
-from edumatcher.audit.query import parse_ts, validate_date, validate_iso_ts
+from edumatcher.audit.query import (
+    date_to_range,
+    discover_log_files,
+    iter_entries,
+    parse_ts,
+    validate_date,
+    validate_iso_ts,
+)
+from edumatcher.audit.replay import stats as stats_report
+from edumatcher.audit.replay.pipeline import reconstruct
 from edumatcher.config import AUDIT_LOG_FILE, AUDIT_REPLAY_DB_FILE
 
 _FORMATS = ("text", "ndjson", "json", "markdown")
@@ -179,6 +191,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Relative window, e.g. 15m, 2h, 1d",
     )
 
+    _add_commands(parser)
+
     narrow = parser.add_argument_group("filters")
     narrow.add_argument(
         "--symbol",
@@ -271,6 +285,73 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _add_commands(parser: argparse.ArgumentParser) -> None:
+    """Register the subcommands.
+
+    ``required=False`` on purpose: every option above is global, and
+    ``pm-audit-replay --help`` has to keep working as the review surface for
+    the option set while the renderers are still being built.
+    """
+    commands = parser.add_subparsers(dest="command", metavar="COMMAND")
+    commands.add_parser(
+        "stats",
+        help="Report link confidence and envelope coverage over the window",
+        description=(
+            "How the tool arrived at what it knows. On a log recorded since\n"
+            "the causal envelope landed, RECORDED should dominate; a large\n"
+            "share anywhere else means a publisher is bypassing\n"
+            "CausalPublisher, or that the window reaches back before it."
+        ),
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+
+
+def window_bounds(args: argparse.Namespace) -> tuple[datetime | None, datetime | None]:
+    """The window as two datetimes, whichever flag spelled it.
+
+    ``validate_args`` has already rejected every combination of these, so the
+    branches here are exclusive by the time this runs.
+    """
+    if args.date:
+        return date_to_range(args.date)
+    if args.last is not None:
+        now = datetime.now(timezone.utc)
+        return now - timedelta(seconds=args.last), now
+    from_dt = parse_ts(args.from_ts) if args.from_ts else None
+    to_dt = parse_ts(args.to_ts) if args.to_ts else None
+    return from_dt, to_dt
+
+
+def reorder_bounds(args: argparse.Namespace) -> tuple[int, float]:
+    """The reorder window as its two bounds, with defaults filled in.
+
+    ``--reorder-window`` names one bound and the other keeps its default,
+    which is what stops ``--reorder-window 5s`` from silently removing the
+    fact-count bound.
+    """
+    spec = getattr(args, "reorder_window", None)
+    if not spec:
+        return DEFAULT_REORDER_FACTS, DEFAULT_REORDER_SECONDS
+    facts, seconds = spec
+    return (
+        DEFAULT_REORDER_FACTS if facts is None else facts,
+        DEFAULT_REORDER_SECONDS if seconds is None else seconds,
+    )
+
+
+def _run_stats(args: argparse.Namespace) -> int:
+    log_files = discover_log_files(Path(args.log_file))
+    if not log_files:
+        print(f"pm-audit-replay: no audit log at {args.log_file}", file=sys.stderr)
+        return 1
+    from_dt, to_dt = window_bounds(args)
+    entries = iter_entries(log_files, from_dt=from_dt, to_dt=to_dt)
+    max_facts, max_seconds = reorder_bounds(args)
+    _run, steps = reconstruct(entries, max_facts=max_facts, max_seconds=max_seconds)
+    print(stats_report.render(stats_report.collect(steps)), end="")
+    return 0
+
+
 def detail_level(args: argparse.Namespace) -> int:
     """Collapse ``-q`` and repeated ``-v`` onto the one axis of section 8.1."""
     if args.quiet:
@@ -301,6 +382,8 @@ def main(argv: list[str] | None = None) -> int:
     if error:
         print(f"pm-audit-replay: {error}", file=sys.stderr)
         return 2
+    if args.command == "stats":
+        return _run_stats(args)
     return 0
 
 

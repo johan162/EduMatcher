@@ -1,0 +1,22 @@
+001  order.new                     -           orphan
+     !  INFO  ENVELOPE_MISSING: order.new was published by the engine with no envelope
+     !  INFO  ORPHAN_EVENT: order.new carries no envelope and nothing attached to it
+002  order.ack                     TRADER03
+     <- caused            CERTAIN   @0                           order_id
+     !  INFO  ENVELOPE_MISSING: order.ack was published by the engine with no envelope
+003  trade.executed                -
+     <- matched_with      CERTAIN   @0                           sell_order_id
+     !  INFO  ENVELOPE_MISSING: trade.executed was published by the engine with no envelope
+004  order.fill                    TRADER03
+     <- caused            CERTAIN   @0                           order_id
+     <- matched_with      CERTAIN   @2                           trade_ids contains 000017-000000441
+     !  INFO  ENVELOPE_MISSING: order.fill was published by the engine with no envelope
+005  order.cancel                  -           orphan
+     !  INFO  ENVELOPE_MISSING: order.cancel was published by the engine with no envelope
+     !  INFO  ORPHAN_EVENT: order.cancel carries no envelope and nothing attached to it
+006  order.cancel                  -           orphan
+     !  INFO  ENVELOPE_MISSING: order.cancel was published by the engine with no envelope
+     !  INFO  ORPHAN_EVENT: order.cancel carries no envelope and nothing attached to it
+007  order.cancelled               TRADER03
+     <- caused            HEURISTIC @4                           2 order.cancel in flight for one order, earliest chosen
+     !  INFO  ENVELOPE_MISSING: order.cancelled was published by the engine with no envelope

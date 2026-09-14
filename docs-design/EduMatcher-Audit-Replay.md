@@ -101,25 +101,35 @@ Here is a real, minimal case: `TRADER01` sends a buy limit for 200 AAPL at 75.69
 which partially matches a resting sell from `TRADER02`. Trimmed for width, this is
 what lands in `data/audit.log`:
 
+The metadata section — `[seq=… msg=… cause=… chain=…]` — is the causal
+envelope of §13. The submission carries no `cause`: the gateway minted it as a
+chain root, and the engine re-published it verbatim, which is why it is in a
+trail fed only by the engine's PUB socket.
+
 ```text
-[2026-09-08T09:31:02.118+00:00] [order.new] {"id":"4f2c9a…","symbol":"AAPL","side":"BUY",
-  "order_type":"LIMIT","tif":"DAY","quantity":200,"remaining_qty":200,
-  "gateway_id":"TRADER01","timestamp":1757323862118000000,"status":"NEW",
-  "price":7569,"arrival_seq":0,"client_tag":"blotter-88"}
-[2026-09-08T09:31:02.121+00:00] [order.ack.TRADER01] {"gateway_id":"TRADER01",
+[2026-09-08T09:31:02.120+00:00] [order.new] [seq=1 msg=01M205PK33…001 chain=01M205PK33…001]
+  {"id":"4f2c9a…","symbol":"AAPL","side":"BUY","order_type":"LIMIT","tif":"DAY",
+   "quantity":200,"remaining_qty":200,"gateway_id":"TRADER01","tick_decimals":2,
+   "price_ticks":7569,"ts_ns":1788859862115000000,"status":"NEW","arrival_seq":8814,
+   "origin":"ORDER","client_tag":"blotter-88"}
+[2026-09-08T09:31:02.121+00:00] [order.ack.TRADER01] [seq=1 msg=01M205PK39…00Y
+  cause=01M205PK33…001 chain=01M205PK33…001] {"gateway_id":"TRADER01",
   "order_id":"4f2c9a…","accepted":true,"symbol":"AAPL","side":"BUY","qty":200,"price":75.69,…}
-[2026-09-08T09:31:02.122+00:00] [trade.executed] {"id":"000042-000001873","run_seq":42,
+[2026-09-08T09:31:02.122+00:00] [trade.executed] [seq=1 msg=01M205PK3A…018
+  cause=01M205PK33…001 chain=01M205PK33…001] {"id":"000042-000001873","run_seq":42,
   "symbol":"AAPL","buy_order_id":"4f2c9a…","sell_order_id":"9ab1c4…",
   "buy_gateway_id":"TRADER01","sell_gateway_id":"TRADER02","price":74.80,"quantity":150,
-  "aggressor_side":"BUY","ts_ns":1757323862122334567,"tick_decimals":2}
-[2026-09-08T09:31:02.122+00:00] [order.fill.TRADER01] {"order_id":"4f2c9a…","fill_qty":150,
+  "aggressor_side":"BUY","ts_ns":1788859862122334567,"tick_decimals":2}
+[2026-09-08T09:31:02.122+00:00] [order.fill.TRADER01] [seq=1 msg=01M205PK3A…019
+  cause=01M205PK33…001 chain=01M205PK33…001] {"order_id":"4f2c9a…","fill_qty":150,
   "fill_price":74.80,"remaining_qty":50,"status":"PARTIAL","liquidity_flag":"TAKER",
   "trade_ids":["000042-000001873"],…}
-[2026-09-08T09:31:02.122+00:00] [order.fill.TRADER02] {"order_id":"9ab1c4…","fill_qty":150,
+[2026-09-08T09:31:02.122+00:00] [order.fill.TRADER02] [seq=1 msg=01M205PK3A…01A
+  cause=01M205PK33…001 chain=01M205PK33…001] {"order_id":"9ab1c4…","fill_qty":150,
   "fill_price":74.80,"remaining_qty":0,"status":"FILLED","liquidity_flag":"MAKER",
   "trade_ids":["000042-000001873"],…}
-[2026-09-08T09:31:02.123+00:00] [book.AAPL] {…40 lines of depth…}
-[2026-09-08T09:31:02.124+00:00] [depth.AAPL] {…}
+[2026-09-08T09:31:02.123+00:00] [book.AAPL] [seq=2 msg=…] {…40 lines of depth…}
+[2026-09-08T09:31:02.124+00:00] [depth.AAPL] [seq=1 msg=…] {…}
 [2026-09-08T09:31:02.131+00:00] [index.update] {…}
 [2026-09-08T09:31:02.133+00:00] [drop_copy.event.TRADER01] {…}
 ```
@@ -141,13 +151,14 @@ processes and roughly forty lines.
    in §5.1 survives as the fallback for archived logs and for the handful of
    publishers that stamp nothing.
 2. **Three clocks, two price units.** The bracketed timestamp is `pm-audit`'s
-   own receipt clock. `order.new.timestamp` is *client-supplied* epoch nanoseconds
+   own receipt clock. `order.new.ts_ns` is *client-supplied* epoch nanoseconds
    and is explicitly documented as **not** what the book uses for priority.
    `trade.executed.ts_ns` is the engine's own epoch nanoseconds. And
-   `order.new.price` is in **ticks** while `order.ack.price` and
-   `order.fill.fill_price` are in **display money**. Reading the raw log invites
-   exactly the class of unit error the `unit:` declarations exist to make
-   reviewable.
+   `order.new.price_ticks` is in **ticks** while `order.ack.price` and
+   `order.fill.fill_price` are in **display money**. The field names now say
+   which is which, and every message carrying a tick price carries the
+   `tick_decimals` those ticks are at — but the two units still sit side by
+   side in one file, which is what the Fact layer exists to normalise.
 3. **Publisher interleaving.** `pm-audit` is a single subscriber, so file order is
    a faithful record of *receipt* order — but receipt order across several
    publishers on a PUB/SUB bus is not causal order. An `order.ack` can land after
@@ -262,14 +273,22 @@ This is the "sophistication" the tool needs. Everything else is plumbing.
 ### 5.1 Correlation: read it first, infer it second
 
 Since §13, messages carry `causation_id` and `correlation_id`, so most links are
-simply **read**. Two things keep the inference machinery below alive rather than
-deleting it:
+simply **read**. Since the engine began echoing inbound commands onto its own
+PUB socket, the causes those ids name are in the trail too — an earlier draft
+of this section assumed they were not, and the fallback ladder was sized for
+that assumption. Two things keep the inference machinery below alive rather
+than deleting it:
 
 - **Archived logs.** Lines recorded before the envelope existed have none, and
   the tool must read a mixed archive without a flag.
 - **Publishers outside the engine.** `pm-index`, `pm-stats` and the gateways'
   own emissions are not behind a `CausalPublisher`, so their messages carry no
   envelope and their causality is still inferred.
+
+On a log recorded since both landed, the ladder below should therefore be
+nearly unused. `pm-audit-replay stats` is what says whether it is: a large
+share of anything other than RECORDED on a current log means a publisher is
+bypassing `CausalPublisher`.
 
 So the resolver reads the envelope when it is there and falls back when it is
 not. Either way it attaches an explicit **confidence** to every link, and the
@@ -304,26 +323,26 @@ the pass that applies it:
 
 | From | To | Key | Confidence | Notes |
 |---|---|---|---|---|
-| `order.new` | `order.ack.*` | `id` = `order_id` | CERTAIN | Both carry the engine order id. |
+| `order.new` | `order.ack.*` | `id` = `order_id` | CERTAIN | Both carry the engine order id — spelled `id` on the submission and `order_id` on every effect. |
 | `order.new` | `order.fill.*` | `id` = `order_id` | CERTAIN | |
 | `trade.executed` | `order.fill.*` | `id ∈ fill.trade_ids` | CERTAIN | `trade_ids` is an explicit back-reference; this is the strongest link in the system. |
 | `trade.executed` | two `order` episodes | `buy_order_id`, `sell_order_id` | CERTAIN | |
 | `order.cancel` | `order.cancelled.*` | `request_tag` | CERTAIN | When `request_tag` is present on both. |
 | `order.cancel` | `order.cancelled.*` | `order_id` + earliest later cancel | STRONG | Fallback when `request_tag` is absent. Degrades to HEURISTIC if two cancels for one order are in flight. |
 | `order.amend` | `order.amended.*` | `request_tag`, else `order_id` | CERTAIN / STRONG | Same ladder as cancel. |
-| `risk.*` / `admin.action` | matching `*_ack.*` | `command_id` | CERTAIN | `command_id` is carried by every risk and admin request/ack pair. |
+| `risk.*` / `admin.action` | matching `*_ack.*` | `command_id` | CERTAIN | Carried by every risk request/ack pair **except** `risk.circuit_breaker_halt_all` and `risk.circuit_breaker_resume_all`, which deliberately carry neither a `note` nor a `command_id` on either side (`spec/messages/risk.yaml`). That is no longer a gap: `causation_id` links those two to their acks like anything else, so the exception costs nothing on a current log and leaves them unlinked only in a pre-envelope archive. |
 | `risk.*` / `admin.action` | `order.cancelled.*` | `command_id` | CERTAIN | The engine stamps the causing command on every cancel it initiates — see §5.1.2. The ack's count is a completeness cross-check, not the link. |
-| `order.cancelled` (no `command_id`) | causing condition | `cancel_reason` enum | CERTAIN | The reason names the cause directly: `SELF_MATCH_PREVENTED`, `INSUFFICIENT_LIQUIDITY`, `QUOTE_REPLACED`, `QUOTE_LEG_FILLED`. No search required. |
+| `order.cancelled` | causing condition | `cancel_reason` enum | CERTAIN | The reason names the cause directly, and the condition is **not a message**, so the envelope never covers it and this rule runs on every cancellation rather than only on envelope-less ones. Eight values: `SELF_MATCH_PREVENTED`, `INSUFFICIENT_LIQUIDITY`, `KILL_SWITCH`, `CIRCUIT_BREAKER_HALT`, `GATEWAY_DISCONNECT`, `ADMIN_CANCEL_SYMBOL`, `QUOTE_REPLACED`, `QUOTE_LEG_FILLED`. No search required. A cancel carrying both a `command_id` and a reason gets both links: one says which message ordered it, the other which condition it was. |
 | `quote.new` | `quote.ack.*` | `quote_id` | CERTAIN | |
 | `quote.ack` | leg orders | `bid_order_id`, `ask_order_id` | CERTAIN | The ack names the two derived orders explicitly. |
 | `order.new` (origin=QUOTE) | `quote` episode | `quote_id` | CERTAIN | |
 | `order.oco` | `oco.ack.*` | `oco_id` | CERTAIN | |
 | `oco.ack` | leg orders | `order_id_1`, `order_id_2` | CERTAIN | |
 | `oco.cancelled` | leg order | `cancelled_order_id` | CERTAIN | |
-| `order.combo` | leg orders | `combo_id` = `combo_parent_id` + `leg_index` | CERTAIN | |
+| `order.combo` | leg orders | `combo_id` = `combo_parent_id` + `leg_index` | CERTAIN | There is no `combo.ack`; the legs name the parent, not the other way round. |
 | `session.transition` | `session.state` | `to_state` = `state`, first later | STRONG | No shared id; constrained by state value and ordering. |
-| `circuit_breaker.halt` | `circuit_breaker.resume` | `symbol`, span-matched | STRONG | Halts for one symbol do not overlap. |
-| `order.ack` (rejected) | active market condition | `reject_code` → state model | STRONG | `INSTRUMENT_HALTED` / `CIRCUIT_BREAKER_ACTIVE` / `MARKET_CLOSED` / `KILL_SWITCH_ACTIVE` are resolved against the reconstructed market state, letting the tool say *why* the state was that way. |
+| `circuit_breaker.halt` | `circuit_breaker.resume` | `symbol`, span-matched | STRONG | Halts for one symbol do not overlap. `halt_source` is `CB` or `ADMIN` — not the topic names an earlier draft assumed. |
+| `order.ack` (rejected) | active market condition | `reject_code` → state model | STRONG | `INSTRUMENT_HALTED` and `CIRCUIT_BREAKER_ACTIVE` are resolved against the reconstructed market state, letting the tool say *why* the state was that way and quote the corridor the original halt published. Like parentage, this is not a *cause* — the submission caused the ack — so it is a separate relation (`rejected_because`) and is resolved on enveloped acks too. `MARKET_CLOSED` and `KILL_SWITCH_ACTIVE` need the session and kill-switch spans, and join when those models do. |
 | any | `drop_copy.event.*` | `order_id` + `seq` | CERTAIN | Drop-copy is a derived stream; narrate only at `-vv`. |
 
 #### 5.1.2 Counted effects, and what is actually certain
@@ -347,10 +366,14 @@ cancel and for engine-initiated cancels with no originating command
 its sibling filled) — and in those cases `cancel_reason` names the cause
 directly, which is also exact.
 
-What the acks add is a **cross-check**, not the link. `cancelled_orders` on the
-ack is a count; the tool compares it against the number of `command_id`-joined
-cancellations it actually observed. Agreement is a completeness proof for that
-command; disagreement is a dropped message, and an anomaly:
+What the acks add is a **cross-check**, not the link — and since AR-0.5 it is a
+sharper one than this section originally described. The acks no longer carry
+only counts: `cancelled_order_ids`, `cancelled_quote_order_ids`,
+`halted_symbol_ids`, `resumed_symbol_ids` and `affected_gateway_ids` name the
+entities the counts count. So the tool compares *sets*, not numbers, and a
+disagreement names which cancellation is missing rather than only that one is.
+Agreement is a completeness proof for that command; disagreement is a dropped
+message, and an anomaly:
 
 ```text
 09:44:10.002  RISKDESK fired the kill switch for TRADER07 (command 8812) — "fat finger"
@@ -359,14 +382,18 @@ command; disagreement is a dropped message, and an anomaly:
 ```
 
 ```text
-              ⤷ ack says 14, only 11 carry command 8812  ⚠ EFFECT_COUNT_MISMATCH
+              ⤷ ack names 14, 11 carry command 8812 — 3 not observed:
+                7d10bb…, 91ac02…, e4471f…  ⚠ EFFECT_COUNT_MISMATCH
 ```
 
-The genuine count-only blind spot is elsewhere: **`system.startup_recovery`**
-reports `restored_orders`, `discarded_stale_day_orders`, `failed_orders`,
-`quote_remnants_restored`, `rebuilt_quotes` and `restored_combos` as bare
-integers, with no per-entity event anywhere. *"Which order failed to restore?"*
-is unanswerable from the audit trail today. Phase 0 (AR-0.5) closes that.
+The code keeps its name for continuity, but it no longer reports a count
+mismatch: it reports a set difference, and prints the difference.
+
+The count-only blind spot this section used to name — **`system.startup_recovery`**
+reporting `restored_orders`, `failed_orders` and the rest as bare integers with
+no per-entity event — is closed. AR-0.5 added `system.recovery_item`
+(`entity_id`, `kind`, `outcome`, `symbol`, `detail`), so *"which order failed
+to restore?"* is now a filter rather than an unanswerable question.
 
 #### 5.1.3 Identity is per engine run
 
@@ -482,9 +509,15 @@ publisher stalls visible.
 
 #### 5.3.1 Ticks versus display money
 
-FIXED: 2026-09-14 by including tick size 
+**Closed, 2026-09-14.** Every message carrying a tick price now carries the
+`tick_decimals` those ticks are at, and every tick field is named `_ticks`, so
+the conversion is a dict lookup off the message itself. The five-rung
+resolution ladder below, the pre-pass that fed it and the refusal that ended it
+are all gone; what remains is the first rung. The table is kept because it
+records what the trap *was*, and because an archived line still has the old
+shape.
 
-This is a real, live trap in the current schema:
+This was a real, live trap in the schema:
 
 | Field | Unit |
 |---|---|
@@ -499,16 +532,11 @@ This is a real, live trap in the current schema:
 A narrator that prints `order.new.price` verbatim will happily report a buy limit
 at **7 569.00** for a stock trading at 75.69, and the reader will believe it.
 
-The Fact layer therefore converts everything to display money at normalisation
-time, using this resolution ladder:
-
-1. `tick_decimals` carried on the event itself (`trade.executed`, `book.*`).
-2. The most recent `tick_decimals` seen for that symbol in the replay window.
-3. `system.reference` / `system.symbols` reference data if present in the log.
-4. The live reference data via `edumatcher.models.price.from_ticks` if
-   `--use-reference` is passed and configuration is available.
-5. Otherwise: print the raw value with an explicit `ticks` suffix and record an
-   anomaly. **Never guess a scale.**
+The Fact layer converts everything to display money at normalisation time,
+using the `tick_decimals` carried on the event itself. A message that declares
+a tick price without one is a spec violation rather than a gap to paper over:
+the value is left in ticks, labelled as ticks, and reported as
+`TICK_SCALE_UNKNOWN`. **Never guess a scale.**
 
 Rendered prices carry the resolved decimals; `--show-units` appends the
 provenance (`75.69 [ticks→display, tick_decimals=2 from book.AAPL]`) for anyone
@@ -547,6 +575,17 @@ CANCEL_REASON = {
 The same treatment covers the 25 `reject_code` values, `liquidity_flag`,
 `aggressor_side` (including `AUCTION`, which means *no* aggressor and must not be
 narrated as one), `tif`, `origin`, `halt_source` and the session states.
+
+**One state is spelled two ways on the wire, and the tool normalises it before
+the ladder ever sees it.** `order.new.status` and `order.orders[].status` are
+enums declaring `PARTIAL`; `order.fill.status` is `{type: string, max_len: 16}`
+and the engine publishes **`PARTIAL_FILL`** into it, which the ALF text
+protocol and the drop-copy documentation then carry onward. Both mean
+`remaining_qty > 0`. The one field left unconstrained is the one whose value
+diverged, which is an argument for the `enum` declarations rather than against
+them. The reconstruction maps `PARTIAL_FILL` onto `PARTIAL` in the state model
+— reconciling the *wire* is a separate decision with a much wider blast radius,
+since `PARTIAL_FILL` is a documented value of a student-facing protocol.
 
 **Rule:** an enum value with no lexicon entry is printed verbatim in backticks and
 recorded as a coverage gap — the tool must never fail silently when the message
@@ -1250,7 +1289,7 @@ matters.
 | `RUN_SEQ_CHANGE` | info | Engine restart observed mid-window |
 | `SEQ_GAP` | error | A gap in a topic's `seq`: messages are missing from the audit trail for that topic |
 | `ENVELOPE_MISSING` | info | An engine-published message with no envelope. Expected on archived lines; on a current log it means a publisher is bypassing `CausalPublisher` |
-| `CAUSE_NOT_FOUND` | warn | A `causation_id` naming a `msg_id` that is nowhere in the window. Usually the window starts too late; occasionally a dropped message |
+| `CAUSE_NOT_FOUND` | warn | A `causation_id` naming a `msg_id` that is nowhere in the window. Usually the window starts too late; occasionally a dropped message. Before the engine echoed inbound commands this fired on *every* order, because the submission every effect named was never recorded — which is what made the echo worth its two microseconds |
 | `CHAIN_BROKEN` | error | An effect whose `correlation_id` differs from its cause's — the chain was not propagated, which breaks `story --chain` |
 | `MSG_ID_DUPLICATE` | error | Two messages with the same `msg_id`. Should be impossible; would mean the ULID generator was shared unsafely across threads |
 | `TRADE_COUNTER_GAP` | error | A gap in the per-run trade counter: trades specifically are missing. Redundant with `SEQ_GAP`, but kept — it localises the loss to the trade stream |
@@ -1271,7 +1310,7 @@ failing loudly if it reappears.
 
 | Code | Severity | Condition |
 |---|---|---|
-| `EFFECT_COUNT_MISMATCH` | warn | An ack's `cancelled_orders`/`cancelled_quotes`/`halted_symbols` count disagrees with observed effects |
+| `EFFECT_COUNT_MISMATCH` | warn | An ack's `cancelled_order_ids`/`cancelled_quote_order_ids`/`halted_symbol_ids` name entities the window does not contain. A set difference since AR-0.5, so the finding names them (§5.1.2) |
 | `COMMAND_UNACKED` | warn | A risk/admin command with no ack carrying its `command_id` |
 | `ACK_WITHOUT_COMMAND` | warn | An ack whose `command_id` matches no request in the window |
 | `HALT_UNRESUMED` | info | A halt with no resume by window end |
@@ -1282,6 +1321,7 @@ failing loudly if it reappears.
 | Code | Severity | Condition |
 |---|---|---|
 | `UNKNOWN_TOPIC` | warn | A topic with no Fact mapping — the message spec has grown and the tool has not |
+| `TICK_SCALE_UNKNOWN` | warn | A message declaring a tick price but no `tick_decimals` for it. The price is left in ticks and labelled as ticks (§5.3.1) |
 | `UNKNOWN_ENUM` | warn | An enum value with no lexicon entry |
 | `ORPHAN_EVENT` | info | An event the link resolver could not attach to any episode |
 | `PARSE_FAILURE` | error | A line that does not match the audit line format |

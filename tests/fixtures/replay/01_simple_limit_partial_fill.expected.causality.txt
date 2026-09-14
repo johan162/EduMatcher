@@ -1,0 +1,17 @@
+001  system.gateway_auth           TRADER01    origin
+002  system.symbols                TRADER01    origin
+003  book                          AAPL        origin
+004  order.new                     -           origin
+005  order.ack                     TRADER01
+     <- caused            RECORDED  01M205PK330000000000000001   causation_id
+006  trade.executed                -
+     <- caused            RECORDED  01M205PK330000000000000001   causation_id
+     <- matched_with      CERTAIN   01M205PK330000000000000001   buy_order_id
+007  order.fill                    TRADER01
+     <- caused            RECORDED  01M205PK330000000000000001   causation_id
+     <- matched_with      CERTAIN   01M205PK3A0000000000000018   trade_ids contains 000042-000001873
+008  order.fill                    TRADER02
+     <- caused            RECORDED  01M205PK330000000000000001   causation_id
+     <- matched_with      CERTAIN   01M205PK3A0000000000000018   trade_ids contains 000042-000001873
+009  book                          AAPL        origin
+010  depth                         AAPL        origin

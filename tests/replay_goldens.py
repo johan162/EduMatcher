@@ -12,10 +12,13 @@ Layout, per design section 15.2::
       01_simple_limit_partial_fill.log
       01_simple_limit_partial_fill.expected.order.txt
 
-The level suffix names what is frozen. Phase 1 renders no prose, so the only
-level is ``order``: the canonical sequence of facts, which is the thing
-everything downstream is wrong without. The prose levels (``q``, ``v1``,
-``v2``) join it when there is prose.
+The level suffix names what is frozen. There is no prose yet, so the two
+levels are structural: ``order``, the canonical sequence of facts, which is
+the thing everything downstream is wrong without; and ``causality``, what the
+resolver made of each fact and how sure it is. Freezing the confidence matters
+more than freezing the links -- a change that silently promoted a guess to a
+certainty is exactly what a reviewer would otherwise wave through. The prose
+levels (``q``, ``v1``, ``v2``) join them when there is prose.
 
 Run ``pytest --update-goldens`` to rewrite the expected files from current
 output, then **read the diff** before committing it. A golden accepted without
@@ -33,10 +36,12 @@ from typing import Iterable
 from edumatcher.audit.query import iter_entries
 from edumatcher.audit.replay.facts import Fact, normalise
 from edumatcher.audit.replay.ordering import ordered
+from edumatcher.audit.replay.pipeline import Step, reconstruct
 
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "replay"
 
 LEVEL_ORDER = "order"
+LEVEL_CAUSALITY = "causality"
 
 
 def fixture_log(name: str) -> Path:
@@ -85,6 +90,42 @@ def render_order(facts: Iterable[Fact]) -> str:
                 ]
             ).rstrip()
         )
+    return "\n".join(lines) + "\n"
+
+
+def load_steps(name: str) -> list[Step]:
+    """Run the whole of pass 1 over a fixture: normalise, order, reconstruct."""
+    _run, steps = reconstruct(iter_entries([fixture_log(name)]))
+    return list(steps)
+
+
+def render_causality(steps: Iterable[Step]) -> str:
+    """What the resolver made of each fact, confidence included.
+
+    Origins are spelled out rather than left blank. "The publisher said
+    nothing caused this" and "nothing was found" are different claims, and a
+    golden that rendered both as an empty line would let a regression turn one
+    into the other without showing a diff.
+    """
+    lines = []
+    for position, step in enumerate(steps, start=1):
+        marker = (
+            "origin"
+            if step.resolution.origin
+            else ("orphan" if step.resolution.orphan else "")
+        )
+        lines.append(
+            f"{position:03d}  {step.fact.kind:<28}  {step.fact.actor or '-':<10}  {marker}".rstrip()
+        )
+        for link in step.resolution.links:
+            lines.append(
+                f"     <- {link.relation:<17} {link.confidence.value:<9} "
+                f"{link.source:<28} {link.evidence}"
+            )
+        for anomaly in step.anomalies:
+            lines.append(
+                f"     !  {anomaly.severity.upper():<5} {anomaly.code}: {anomaly.detail}"
+            )
     return "\n".join(lines) + "\n"
 
 
