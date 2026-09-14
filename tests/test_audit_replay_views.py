@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.conftest import opened
+from tests.conftest import REPLAY_FIXTURES, opened
 
 from edumatcher.audit.query import iter_entries
 from edumatcher.audit.replay import reader
@@ -28,7 +28,7 @@ from edumatcher.audit.replay.pipeline import reconstruct
 from edumatcher.audit.replay.render_text import Options, narrate
 from edumatcher.audit.replay.state import StateModel
 
-FIXTURES = Path("tests/fixtures/replay")
+FIXTURES = REPLAY_FIXTURES
 SIMPLE = FIXTURES / "01_simple_limit_partial_fill.log"
 KILL_SWITCH = FIXTURES / "02_halted_reject_and_kill_switch.log"
 ARCHIVE = FIXTURES / "03_archived_no_envelope.log"

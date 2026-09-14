@@ -4,6 +4,7 @@ import socket
 import sqlite3
 import time
 from collections.abc import Generator
+from pathlib import Path
 
 import pytest
 
@@ -47,6 +48,26 @@ def free_ports(count: int) -> list[int]:
 def free_port() -> int:
     """One free TCP port. Safe on its own; use :func:`free_ports` for several."""
     return free_ports(1)[0]
+
+
+#: The replay fixtures, anchored to this file rather than to the working
+#: directory. A ``Path("tests/fixtures/replay")`` resolves against the cwd, so
+#: running pytest from anywhere but the repo root made every glob over it
+#: return nothing -- and a parametrize over an empty list is zero test cases,
+#: which pytest reports as success. Sixteen tests silently ceased to exist.
+REPLAY_FIXTURES = Path(__file__).resolve().parent / "fixtures" / "replay"
+
+
+def replay_logs() -> list[Path]:
+    """Every replay fixture log, and never an empty list.
+
+    The assertion is the point. Returning nothing is the failure mode that
+    hides itself, so it is turned into a loud one here rather than left to be
+    noticed by whoever wonders why the suite got faster.
+    """
+    logs = sorted(REPLAY_FIXTURES.glob("*.log"))
+    assert logs, f"no replay fixtures under {REPLAY_FIXTURES}"
+    return logs
 
 
 def wait_for_listener(host: str, port: int, timeout: float = 5.0) -> None:

@@ -23,7 +23,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.conftest import opened
+from tests.conftest import REPLAY_FIXTURES, opened
 
 from edumatcher.audit.query import iter_entries
 from edumatcher.audit.replay.episodes import assemble
@@ -43,7 +43,7 @@ from edumatcher.audit.replay.index import (
 from edumatcher.audit.replay.ordering import in_canonical_order, pack_sort_key
 from edumatcher.audit.replay.pipeline import reconstruct
 
-FIXTURES = Path("tests/fixtures/replay")
+FIXTURES = REPLAY_FIXTURES
 SIMPLE = FIXTURES / "01_simple_limit_partial_fill.log"
 KILL_SWITCH = FIXTURES / "02_halted_reject_and_kill_switch.log"
 ARCHIVED = FIXTURES / "03_archived_no_envelope.log"

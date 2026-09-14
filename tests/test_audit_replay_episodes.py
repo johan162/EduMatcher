@@ -48,6 +48,8 @@ from edumatcher.audit.replay.links import LinkResolver
 from edumatcher.audit.replay.pipeline import Step
 from edumatcher.audit.replay.state import StateModel
 
+from tests.conftest import replay_logs
+
 ORDER = "4f2c9a1e6d8b47c3a5f09e21b7d4c6a8"
 OTHER = "9ab1c47f2e5d48a1b3c6f9078e2d15b4"
 
@@ -378,12 +380,10 @@ class TestRetirement:
 
 class TestTheWholeLog:
     def test_every_fact_lands_in_exactly_one_episode(self) -> None:
-        from pathlib import Path
-
         from edumatcher.audit.query import iter_entries
         from edumatcher.audit.replay.pipeline import reconstruct
 
-        for log in sorted(Path("tests/fixtures/replay").glob("*.log")):
+        for log in replay_logs():
             run, steps = reconstruct(iter_entries([log]))
             episodes = list(assemble(steps, run.state))
             placed = [

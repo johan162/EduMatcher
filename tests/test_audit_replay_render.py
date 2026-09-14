@@ -15,10 +15,11 @@ intention.
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 import pytest
+
+from tests.conftest import REPLAY_FIXTURES
 
 from edumatcher.audit.query import AuditEntry, iter_entries
 from edumatcher.audit.replay import episodes as episodes_module
@@ -34,7 +35,7 @@ from edumatcher.audit.replay.render_text import (
     suppressed,
 )
 
-FIXTURES = Path("tests/fixtures/replay")
+FIXTURES = REPLAY_FIXTURES
 SIMPLE = "01_simple_limit_partial_fill"
 HALTED = "02_halted_reject_and_kill_switch"
 ARCHIVE = "03_archived_no_envelope"

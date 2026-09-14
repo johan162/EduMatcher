@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.conftest import opened
+from tests.conftest import REPLAY_FIXTURES, opened
 
 from edumatcher.audit.replay.cli import (
     build_parser,
@@ -34,7 +34,7 @@ from edumatcher.audit.replay.index import (
     write_meta,
 )
 
-FIXTURES = Path("tests/fixtures/replay")
+FIXTURES = REPLAY_FIXTURES
 SIMPLE = FIXTURES / "01_simple_limit_partial_fill.log"
 ARCHIVED = FIXTURES / "03_archived_no_envelope.log"
 
