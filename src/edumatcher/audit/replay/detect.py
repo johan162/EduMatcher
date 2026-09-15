@@ -112,6 +112,12 @@ def _display(fact: Fact, name: str) -> float | None:
     return price.display if price is not None else None
 
 
+def _trade_ids(fact: Fact) -> list[str]:
+    """``order.fill.trade_ids``: the trades this one fill event covers."""
+    raw = fact.payload.get("trade_ids")
+    return [t for t in raw if isinstance(t, str)] if isinstance(raw, list) else []
+
+
 def _trade_counter(trade_id: str) -> tuple[int, int] | None:
     """``000042-000000117`` -> ``(42, 117)``, or None if it is not one.
 
@@ -127,11 +133,18 @@ def _trade_counter(trade_id: str) -> tuple[int, int] | None:
 
 @dataclass(slots=True)
 class _Leg:
-    """One ``order.fill`` as its trade's leg."""
+    """One ``order.fill`` as its trade's leg.
+
+    ``coalesced`` marks a fill that named more than one trade -- an
+    aggressor's sweep, reported once at a VWAP. Its quantity and price
+    describe the sweep rather than this trade, so nothing may be compared
+    against it.
+    """
 
     order_id: str
     qty: int | None
     price: float | None
+    coalesced: bool = False
 
 
 class Detector:
@@ -165,6 +178,10 @@ class Detector:
         #: fill whose trade is missing rather than merely not read yet -- the
         #: engine publishes the trade before either fill.
         self._trades: set[str] = set()
+        #: Trade ids some fill has named and no ``trade.executed`` has yet
+        #: accounted for. Emptied as each trade is read, so on a healthy log
+        #: this holds nothing; what is left in it is what went missing.
+        self._awaiting: set[str] = set()
         self._last_trade_seq: dict[int, int] = {}
         self._last_arrival: int | None = None
         self._arrival_run: int | None = None
@@ -181,6 +198,8 @@ class Detector:
             self._acked.add(_str(fact.payload, "order_id") or "")
         elif fact.kind == kinds.ORDER_FILL:
             self._on_order_fill(fact, found)
+        elif fact.kind == kinds.ORDER_AMENDED:
+            self._on_order_amended(fact)
         elif fact.kind == kinds.TRADE_EXECUTED:
             self._on_trade(fact, found)
         return tuple(found)
@@ -228,6 +247,23 @@ class Detector:
         if side is not None and limit is not None:
             self._limits[order_id] = (side, limit)
         self._arrival(fact, found)
+
+    def _on_order_amended(self, fact: Fact) -> None:
+        """Move the limit an amendment moved.
+
+        Without this the limit stays at whatever ``order.new`` said, and every
+        fill after a repricing is measured against a price the order no longer
+        has -- which reported sixty-three fills as trading through a limit
+        they were comfortably inside. ``order.amended.price`` is display
+        money, like ``order.amend``'s and unlike ``order.new``'s ticks.
+        """
+        order_id = _str(fact.payload, "order_id")
+        limit = self._limits.get(order_id or "")
+        if order_id is None or limit is None:
+            return
+        price = fact.payload.get("price")
+        if isinstance(price, (int, float)) and not isinstance(price, bool):
+            self._limits[order_id] = (limit[0], float(price))
 
     def _arrival(self, fact: Fact, found: list[Anomaly]) -> None:
         seq = _int(fact.payload, "arrival_seq")
@@ -292,34 +328,69 @@ class Detector:
             )
 
     def _legs_of(self, fact: Fact, order_id: str, found: list[Anomaly]) -> None:
-        raw = fact.payload.get("trade_ids")
-        trade_ids = (
-            [t for t in raw if isinstance(t, str)] if isinstance(raw, list) else []
-        )
-        missing = [t for t in trade_ids if t not in self._trades]
-        if missing:
-            found.append(
-                _anomaly(
-                    FILL_WITHOUT_TRADE,
-                    SEVERITY_ERROR,
-                    f"fill on order {order_id} names trade(s) "
-                    f"{', '.join(missing)} that this window does not contain",
-                    fact,
-                )
-            )
+        """Record this fill as a leg of every trade it names, and defer the
+        check that those trades exist.
+
+        A fill does not map one-to-one onto a trade. When an aggressor sweeps
+        several resting orders the engine coalesces the whole sweep into a
+        *single* fill carrying a VWAP price and citing every trade it touched
+        (``order.fill.trade_ids`` says so, H5/H6) -- on a real run 316 of 603
+        fills cited more than one. A coalesced leg's quantity and price are
+        the sweep's, not any one trade's, so :meth:`_legs_agree` leaves them
+        alone.
+
+        ``FILL_WITHOUT_TRADE`` cannot be answered here: the engine publishes
+        the fills *before* the trade that produced them -- the real order on
+        the wire is ``order.fill, order.fill, trade.executed`` -- so at this
+        moment the trade legitimately has not been read. It is answered a few
+        hundred facts later, by :meth:`_resolve_named_trades`.
+        """
+        trade_ids = _trade_ids(fact)
         leg = _Leg(
             order_id=order_id,
             qty=_int(fact.payload, "fill_qty"),
             price=_display(fact, "fill_price"),
+            coalesced=len(trade_ids) > 1,
         )
         for trade_id in trade_ids:
             self._legs.setdefault(trade_id, []).append(leg)
+            if trade_id not in self._trades:
+                self._awaiting.add(trade_id)
+
+    def _fills_name_their_trades(self, episode: Episode, found: list[Anomaly]) -> None:
+        """Report this order's fills whose trades never arrived.
+
+        Asked when the order's episode retires rather than when the fill is
+        read, because the engine publishes a fill *before* the trade that
+        produced it -- the real order on the wire is ``order.fill,
+        order.fill, trade.executed``. Asking on arrival reported every fill in
+        the log as missing its trade.
+
+        The waiting set is emptied as each trade is read, so this is a lookup
+        rather than a search, and a healthy log leaves nothing in it.
+        """
+        for event in episode.events:
+            fact = event.fact
+            if fact.kind != kinds.ORDER_FILL:
+                continue
+            missing = [t for t in _trade_ids(fact) if t in self._awaiting]
+            if missing:
+                found.append(
+                    _anomaly(
+                        FILL_WITHOUT_TRADE,
+                        SEVERITY_ERROR,
+                        f"fill on order {episode.anchor_key} names trade(s) "
+                        f"{', '.join(missing)} that this window does not contain",
+                        fact,
+                    )
+                )
 
     def _on_trade(self, fact: Fact, found: list[Anomaly]) -> None:
         trade_id = _str(fact.payload, "id")
         if trade_id is None:
             return
         self._trades.add(trade_id)
+        self._awaiting.discard(trade_id)
         self._counter(fact, trade_id, found)
         self._corridor(fact, found)
 
@@ -433,6 +504,8 @@ class Detector:
                 )
             )
 
+        self._fills_name_their_trades(episode, found)
+
         self._submitted.discard(episode.anchor_key)
         self._acked.discard(episode.anchor_key)
         self._limits.pop(episode.anchor_key, None)
@@ -466,15 +539,24 @@ class Detector:
         trade: Fact,
         found: list[Anomaly],
     ) -> None:
-        quantities = {leg.qty for leg in legs}
-        prices = {leg.price for leg in legs}
+        """Compare the two sides of a trade, where they are comparable.
+
+        Only legs that name this trade and nothing else. A coalesced leg
+        reports a whole sweep, so it and a single-trade leg *should* differ,
+        and saying so is noise -- it was nine hundred findings of noise.
+        """
+        comparable = [leg for leg in legs if not leg.coalesced]
+        if len(comparable) < 2:
+            return
+        quantities = {leg.qty for leg in comparable}
+        prices = {leg.price for leg in comparable}
         if len(quantities) > 1:
             found.append(
                 _anomaly(
                     LEG_QTY_DISAGREE,
                     SEVERITY_ERROR,
                     f"trade {trade_id} legs report "
-                    + ", ".join(f"{leg.order_id}={leg.qty}" for leg in legs),
+                    + ", ".join(f"{leg.order_id}={leg.qty}" for leg in comparable),
                     trade,
                 )
             )
@@ -484,7 +566,7 @@ class Detector:
                     LEG_PRICE_DISAGREE,
                     SEVERITY_ERROR,
                     f"trade {trade_id} legs report "
-                    + ", ".join(f"{leg.order_id}={leg.price:g}" for leg in legs),
+                    + ", ".join(f"{leg.order_id}={leg.price:g}" for leg in comparable),
                     trade,
                 )
             )

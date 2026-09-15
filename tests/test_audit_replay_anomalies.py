@@ -22,6 +22,7 @@ import pytest
 
 from edumatcher.audit.query import AuditEntry, iter_entries
 from edumatcher.audit.replay.anomalies import (
+    ACK_DUPLICATE,
     ACK_MISSING,
     ARRIVAL_SEQ_GAP,
     CANCEL_UNMATCHED,
@@ -534,6 +535,127 @@ class TestParseFailure:
         assert found[0].severity == SEVERITY_ERROR
         assert "2 line(s)" in found[0].detail
         assert found[0].line_no == 4
+
+
+# ---------------------------------------------------------------------------
+# What a real engine run does that the fixtures never did
+# ---------------------------------------------------------------------------
+
+
+class TestTheEngineSPublicationShape:
+    """Five checks that fired on a healthy trail and should not have.
+
+    AR-5.1 was verified against five hand-written fixtures and every check had
+    a firing case paired with one that must not fire. All of it passed, and the
+    detector was still wrong about how the engine publishes: the first real
+    ``pm-audit`` trail produced 2450 findings, of which ~2100 were these.
+
+    Each test below is one of those, reduced to the smallest log that shows it.
+    """
+
+    def test_a_fill_may_be_read_before_the_trade_that_produced_it(self) -> None:
+        """The engine publishes ``order.fill, order.fill, trade.executed``.
+
+        The check used to be made when the fill was read, on the assumption
+        that a trade is published before its fills. Every fill in the log was
+        reported as missing its trade -- 603 out of 603.
+        """
+        log = Log().line("order.new", _submitted()).line("order.ack." + GATEWAY, _ack())
+        log.line("order.fill." + GATEWAY, _fill())
+        log.line("order.fill.TRADER09", _fill(order_id=OTHER, side="SELL"))
+        log.line("trade.executed", _trade())
+
+        assert FILL_WITHOUT_TRADE not in log.codes()
+
+    def test_one_fill_may_cover_several_trades(self) -> None:
+        """An aggressor sweeping two resting orders is reported *once*, at a
+        VWAP, citing both trades (``order.fill.trade_ids``, H5/H6). On a real
+        run 316 of 603 fills did this.
+
+        Its quantity is the sweep's, so comparing it against either passive
+        leg is comparing different things -- which reported 635 quantity
+        disagreements and 277 price disagreements that were not.
+        """
+        other_trade = "000042-000001874"
+        log = Log().line("trade.executed", _trade())
+        log.line("trade.executed", _trade(id=other_trade, price=75.5))
+        log.line(
+            "order.fill." + GATEWAY,
+            _fill(fill_qty=300, fill_price=75.25, trade_ids=[TRADE, other_trade]),
+        )
+        log.line("order.fill.TRADER09", _fill(order_id=OTHER, fill_qty=100))
+        log.line(
+            "order.fill.TRADER10",
+            _fill(
+                order_id="c" * 32,
+                fill_qty=200,
+                fill_price=75.5,
+                trade_ids=[other_trade],
+            ),
+        )
+
+        codes = log.codes()
+
+        assert LEG_QTY_DISAGREE not in codes
+        assert LEG_PRICE_DISAGREE not in codes
+
+    def test_two_plain_legs_are_still_compared(self) -> None:
+        """The exemption is for coalesced legs only. A trade whose two legs
+        each name it and nothing else still has to agree."""
+        log = Log().line("trade.executed", _trade())
+        log.line("order.fill." + GATEWAY, _fill(fill_qty=200))
+        log.line("order.fill.TRADER09", _fill(order_id=OTHER, fill_qty=150))
+
+        assert LEG_QTY_DISAGREE in log.codes()
+
+    def test_an_amended_limit_is_the_limit(self) -> None:
+        """``order.amended`` moves the price the fills are measured against.
+
+        Holding the price from ``order.new`` reported 63 fills as trading
+        through a limit the order no longer had.
+        """
+        log = Log().line("order.new", _submitted(price_ticks=7500))
+        log.line("order.ack." + GATEWAY, _ack())
+        log.line(
+            "order.amended." + GATEWAY,
+            {"gateway_id": GATEWAY, "order_id": ORDER, "price": 76.0, "qty": 200},
+        )
+        log.line("trade.executed", _trade(price=76.0))
+        log.line("order.fill." + GATEWAY, _fill(fill_price=76.0))
+
+        assert PRICE_THROUGH_LIMIT not in log.codes()
+
+    def test_the_limit_still_binds_after_an_amendment(self) -> None:
+        """Following the amendment must not mean ignoring the limit."""
+        log = Log().line("order.new", _submitted(price_ticks=7500))
+        log.line("order.ack." + GATEWAY, _ack())
+        log.line(
+            "order.amended." + GATEWAY,
+            {"gateway_id": GATEWAY, "order_id": ORDER, "price": 76.0, "qty": 200},
+        )
+        log.line("trade.executed", _trade(price=77.0))
+        log.line("order.fill." + GATEWAY, _fill(fill_price=77.0))
+
+        assert PRICE_THROUGH_LIMIT in log.codes()
+
+    def test_an_acceptance_then_a_refusal_is_not_a_duplicate(self) -> None:
+        """The engine acks a FOK and then rejects it when the book cannot fill
+        it whole; a triggered stop is acked again when it converts. Both are
+        two acks for one order and neither is a duplicate acceptance."""
+        log = Log().line("order.new", _submitted(order_type="FOK"))
+        log.line("order.ack." + GATEWAY, _ack())
+        log.line(
+            "order.ack." + GATEWAY, _ack(accepted=False, reject_code="NO_LIQUIDITY")
+        )
+
+        assert ACK_DUPLICATE not in log.codes()
+
+    def test_two_acceptances_still_are(self) -> None:
+        log = Log().line("order.new", _submitted())
+        log.line("order.ack." + GATEWAY, _ack())
+        log.line("order.ack." + GATEWAY, _ack())
+
+        assert ACK_DUPLICATE in log.codes()
 
 
 # ---------------------------------------------------------------------------

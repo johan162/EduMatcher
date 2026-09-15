@@ -50,7 +50,11 @@ SCHEMA_VERSION = 1
 #: What the rows *mean*: the link rules of section 5.1, the episode claim
 #: rules of section 4, and :func:`~edumatcher.audit.replay.ordering.pack_sort_key`.
 #: An index built under a different value is refused, not read.
-RULES_VERSION = 1
+#: Bumped to 2 when the canonical sort key dropped ``msg_id``: a ULID's
+#: random tail was ordering same-millisecond facts from different
+#: publishers at random. Every stored ``sort_key`` from version 1 means
+#: something different, so an old index has to be rebuilt.
+RULES_VERSION = 2
 
 META_SCHEMA_VERSION = "schema_version"
 META_RULES_VERSION = "rules_version"
@@ -554,15 +558,13 @@ def _pack_closed(episode: Episode) -> str:
     span is closed by a fact that belongs to the *next* episode (section 7.3)
     and this one never held it.
     """
-    millis, msg_id, receipt, ordinal = episode.closed_sort_key or (
+    millis, receipt, ordinal = episode.closed_sort_key or (
         0,
-        "",
         episode.opened_ts,
         0,
     )
     return (
         f"{millis:013d}"
-        f"\x1f{msg_id}"
         f"\x1f{receipt.isoformat(timespec='microseconds')}"
         f"\x1f{ordinal:012d}"
     )

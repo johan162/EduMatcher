@@ -365,16 +365,22 @@ class StateModel:
         if order_id is None:
             return
         order = self._order(order_id, fact)
-        if order.acked:
+        accepted = fact.payload.get("accepted") is not False
+        # Two *acceptances* are a duplicate. An acceptance followed by a
+        # refusal is not: the engine acks a FOK and then rejects it when the
+        # book cannot fill it whole, and a triggered stop is acked again when
+        # it converts. Both are the engine doing its job, and reporting them
+        # as errors was thirty-six findings on a healthy log.
+        if order.acked and accepted:
             found.append(
                 _anomaly(
                     ACK_DUPLICATE,
                     SEVERITY_ERROR,
-                    f"order {order_id} was acked twice",
+                    f"order {order_id} was accepted twice",
                     fact,
                 )
             )
-        order.acked = True
+        order.acked = order.acked or accepted
         order.symbol = fact.payload.get("symbol") or order.symbol
         order.side = _str(fact.payload, "side") or order.side
         order.order_type = _str(fact.payload, "order_type") or order.order_type

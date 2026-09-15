@@ -110,11 +110,39 @@ class TestSortKey:
             "order.fill",
         ]
 
-    def test_ids_minted_in_one_millisecond_keep_their_counter_order(self) -> None:
+    def test_one_millisecond_falls_back_to_read_order(self) -> None:
+        """A ULID's counter orders its own publisher's ids and nothing else.
+
+        This used to assert the opposite -- that the counter wins inside a
+        millisecond -- and the assertion held only because every fact in it
+        came from one imaginary publisher. On a real trail the submitting
+        gateway mints an order's envelope and the engine mints the ack, in the
+        same millisecond, and their random tails decided the order: the ack
+        sorted ahead of the order it acknowledges.
+
+        ``pm-audit`` receives on one socket in one thread, so read order is
+        the order the exchange published in. That is the tiebreak.
+        """
         base = int(_EPOCH.timestamp() * 1000)
-        second = make_fact(kind="b", ordinal=0, minted_ms=base, counter=2)
-        first = make_fact(kind="a", ordinal=1, minted_ms=base, counter=1)
-        assert [f.kind for f in in_canonical_order([second, first])] == ["a", "b"]
+        # Read first, but with the *higher* counter -- as a second publisher's
+        # id in the same millisecond may well be.
+        read_first = make_fact(kind="a", ordinal=0, minted_ms=base, counter=9)
+        read_second = make_fact(kind="b", ordinal=1, minted_ms=base, counter=1)
+
+        order = in_canonical_order([read_second, read_first])
+
+        assert [f.kind for f in order] == ["a", "b"]
+
+    def test_a_later_millisecond_still_wins_over_read_order(self) -> None:
+        """The millisecond is still the signal; only the tail was noise."""
+        base = int(_EPOCH.timestamp() * 1000)
+        late = make_fact(kind="late", ordinal=0, minted_ms=base + 5)
+        early = make_fact(kind="early", ordinal=1, minted_ms=base)
+
+        assert [f.kind for f in in_canonical_order([late, early])] == [
+            "early",
+            "late",
+        ]
 
     def test_an_engine_restart_needs_no_run_partitioning(self) -> None:
         """A ULID's timestamp prefix carries ordering straight across a restart,
