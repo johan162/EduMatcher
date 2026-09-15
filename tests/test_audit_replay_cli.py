@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import json
+
 import pytest
 
 from tests.conftest import REPLAY_FIXTURES, opened
@@ -297,6 +299,105 @@ def _mark(db: Path) -> None:
 def _episode_count(db: Path) -> int:
     with reading(db) as conn:
         return int(conn.execute("SELECT COUNT(*) FROM episodes").fetchone()[0])
+
+
+class TestTheFormatSwitch:
+    """``--format`` chooses a rendering, never a subset of the content.
+
+    Every one of these was accepted and silently ignored before AR-6.1: the
+    tool printed a table and exited 0 for `--format json`, which a script
+    finds out about only by failing to parse it.
+    """
+
+    def _stream(self, tmp_path: Path, *extra: str) -> list[str]:
+        return [
+            "--log-file",
+            str(SIMPLE),
+            "--no-index",
+            "stream",
+            *extra,
+        ]
+
+    def test_ndjson_is_one_object_per_line(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        assert main(self._stream(tmp_path, "--format", "ndjson")) == 0
+        lines = capsys.readouterr().out.splitlines()
+        assert lines
+        assert all(json.loads(line)["type"] for line in lines)
+
+    def test_json_wraps_them_with_a_header(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        assert main(self._stream(tmp_path, "--format", "json")) == 0
+        doc = json.loads(capsys.readouterr().out)
+        assert doc["rules_version"] == RULES_VERSION
+        assert doc["source_files"] == [str(SIMPLE)]
+        assert doc["counts"]["beat"] == len(
+            [o for o in doc["objects"] if o["type"] == "beat"]
+        )
+
+    def test_a_format_a_command_cannot_produce_is_refused(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        assert (
+            main(
+                ["--log-file", str(SIMPLE), "--no-index", "digest", "--format", "json"]
+            )
+            == 2
+        )
+        assert "only available for" in capsys.readouterr().err
+
+    def test_markdown_is_refused_where_there_is_no_narrative(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        assert (
+            main(
+                [
+                    "--log-file",
+                    str(SIMPLE),
+                    "--no-index",
+                    "anomalies",
+                    "--format",
+                    "markdown",
+                ]
+            )
+            == 2
+        )
+        assert "only available for" in capsys.readouterr().err
+
+    def test_csv_is_still_only_for_episodes(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        assert main(self._stream(Path("."), "--format", "csv")) == 2
+        assert "only available for `episodes`" in capsys.readouterr().err
+
+
+class TestTheIndexChangesNothingButSpeed:
+    """CP-6's third gate. The index is a cache of the reconstruction, so a
+    narrative built from it must be the same narrative, character for
+    character -- in the machine-readable shapes most of all, where a
+    difference no human is reading would go unnoticed for a long time.
+    """
+
+    @pytest.mark.parametrize(
+        "log", sorted(FIXTURES.glob("*.log")), ids=lambda p: p.stem
+    )
+    @pytest.mark.parametrize("fmt", ("text", "ndjson", "markdown"))
+    def test_a_run_off_the_index_narrates_identically(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        log: Path,
+        fmt: str,
+    ) -> None:
+        args = ["--log-file", str(log), "stream", "-vv", "--format", fmt]
+        assert main(["--no-index", *args]) == 0
+        without = capsys.readouterr().out
+        assert main(["--db", str(tmp_path / "replay.db"), "--rebuild", *args]) == 0
+        withindex = capsys.readouterr().out
+
+        assert withindex == without
 
 
 class TestRegisteredInPmHelp:

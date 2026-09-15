@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from datetime import datetime
 from typing import Any, Iterable, Iterator, Mapping, Sequence
 
 from edumatcher.audit.query import AuditEntry
@@ -232,9 +233,20 @@ def _episode(
         ],
         outcome=str(row["outcome"] or ""),
         closed=row["closed_ts"] is not None,
-        closed_ts=None,
+        closed_ts=_ts(row["closed_ts"]),
         closed_sort_key=None,
     )
+
+
+def _ts(value: Any) -> datetime | None:
+    """``episodes.closed_ts`` back as the datetime that was written.
+
+    Dropping it left an episode read from the index looking as if it had never
+    ended, which the section 11 object reports as ``"closed": null`` and
+    ``derive`` reports by omitting ``time_to_completion`` -- so ``--no-index``
+    and an indexed run said different things about the same episode.
+    """
+    return datetime.fromisoformat(str(value)) if value else None
 
 
 def _event(

@@ -47,6 +47,7 @@ from edumatcher.audit.query import (
 from edumatcher.audit.replay import episodes as episodes_mod
 from edumatcher.audit.replay import index as episode_index
 from edumatcher.audit.replay import reader
+from edumatcher.audit.replay import render_json
 from edumatcher.audit.replay import render_text
 from edumatcher.audit.replay import stats as stats_report
 from edumatcher.audit.replay import views
@@ -63,6 +64,17 @@ from edumatcher.audit.replay.state import StateModel
 from edumatcher.config import AUDIT_LOG_FILE, AUDIT_REPLAY_DB_FILE
 
 _FORMATS = ("text", "ndjson", "json", "markdown", "csv")
+
+#: The section 11 shapes, and the commands that can produce them. A format a
+#: command does not implement is refused rather than silently ignored: a tool
+#: that accepts `--format json` and prints a table has told the caller
+#: something untrue, and a script will only find out by parsing the table.
+_FORMAT_COMMANDS = {
+    "csv": ("episodes",),
+    "ndjson": ("stream", "story", "anomalies"),
+    "json": ("stream", "story", "anomalies"),
+    "markdown": ("stream", "story"),
+}
 _ACTOR_STYLES = ("id", "descriptive")
 
 #: Detail levels, design section 8.1. ``-q`` is 0 and the default is 1.
@@ -744,10 +756,44 @@ def render_options(args: argparse.Namespace) -> render_text.Options:
 def _narrate(
     episodes: Sequence[Episode], state: StateModel | None, args: argparse.Namespace
 ) -> int:
+    """The window, in whichever of section 11's shapes was asked for.
+
+    One choke point for both narrating commands, and all four formats read
+    the same episodes at the same options -- which is what `--format` is for:
+    a choice of rendering, never a choice of content.
+    """
     if not episodes:
         print("pm-audit-replay: nothing to narrate in this window", file=sys.stderr)
         return 1
-    for line in render_text.narrate(episodes, state, render_options(args)):
+    options = render_options(args)
+    if args.format == "ndjson":
+        lines: Sequence[str] = render_json.ndjson(episodes, state, options)
+    elif args.format == "json":
+        from_dt, to_dt = window_bounds(args)
+        return _print(
+            [
+                render_json.document(
+                    episodes,
+                    state,
+                    options,
+                    window={
+                        "from": from_dt.isoformat() if from_dt else None,
+                        "to": to_dt.isoformat() if to_dt else None,
+                    },
+                    source_files=[str(path) for path in _log_files(args)],
+                    rules_version=episode_index.RULES_VERSION,
+                )
+            ]
+        )
+    elif args.format == "markdown":
+        lines = render_json.markdown(episodes, state, options)
+    else:
+        lines = render_text.narrate(episodes, state, options)
+    return _print(lines)
+
+
+def _print(lines: Sequence[str]) -> int:
+    for line in lines:
         print(line)
     return 0
 
@@ -888,12 +934,17 @@ def _run_episodes(args: argparse.Namespace) -> int:
 
 
 def _run_anomalies(args: argparse.Namespace) -> int:
-    return _run_view(
-        args,
-        lambda episodes: views.render_anomalies(
+    def render(episodes: Sequence[Episode]) -> str:
+        found = render_json.anomalies(episodes, severity=args.severity)
+        if args.format == "ndjson":
+            return "".join(f"{render_json.dumps(obj)}\n" for obj in found)
+        if args.format == "json":
+            return render_json.dumps(list(found)) + "\n"
+        return views.render_anomalies(
             episodes, severity=args.severity, id_len=args.id_len
-        ),
-    )
+        )
+
+    return _run_view(args, render)
 
 
 def _run_story(args: argparse.Namespace) -> int:
@@ -991,8 +1042,11 @@ def validate_args(args: argparse.Namespace) -> str | None:
         return "--from must not be later than --to"
     if args.quiet and args.verbose:
         return "-q cannot be combined with -v"
-    if args.format == "csv" and args.command != "episodes":
-        return "--format csv is only available for `episodes`"
+    allowed = _FORMAT_COMMANDS.get(args.format)
+    if allowed is not None and args.command not in allowed:
+        return f"--format {args.format} is only available for " + ", ".join(
+            f"`{name}`" for name in allowed
+        )
     return None
 
 

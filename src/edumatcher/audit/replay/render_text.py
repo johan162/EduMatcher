@@ -221,15 +221,19 @@ class Renderer:
         for episode in episodes:
             if suppressed(episode.opened, templates.LEVEL_DEFAULT):
                 continue
-            yield Rendered(
-                receipt=_clock(episode.opened),
-                text=_fill(
-                    templates.SUMMARIES.get(
-                        episode.kind, templates.SUMMARIES["orphan"]
-                    ),
-                    self._summary_slots(episode),
-                ),
-            )
+            yield Rendered(receipt=_clock(episode.opened), text=self.summary(episode))
+
+    def summary(self, episode: Episode) -> str:
+        """The level-0 sentence for one episode.
+
+        Public because section 11's ``episode`` object carries the same
+        string: two renderers working it out separately is precisely the
+        drift the machine-readable format exists to make impossible.
+        """
+        return _fill(
+            templates.SUMMARIES.get(episode.kind, templates.SUMMARIES["orphan"]),
+            self._summary_slots(episode),
+        )
 
     def stream(
         self, events: Iterable[tuple[Episode, EpisodeEvent]]
