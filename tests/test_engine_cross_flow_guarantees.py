@@ -370,3 +370,64 @@ def test_g5_no_flow_matches_during_pre_open(monkeypatch, tmp_path, flow_name) ->
         f"no continuous matching may occur outside CONTINUOUS, whichever "
         f"flow carried the order"
     )
+
+
+# ---------------------------------------------------------------------------
+# G6 — fill_qty is this event's increment, so summing it reconstructs the
+# execution.
+# ---------------------------------------------------------------------------
+#
+# Not parametrized over FLOWS: every flow above produces exactly one trade,
+# and on an order's FIRST fill the increment and the running total are the
+# same number.  The bug only shows on the second one, so the setup has to be
+# built here.
+
+
+def _fills_for(pub, gateway_id: str, order_id: str) -> list[dict[str, Any]]:
+    return [
+        m for m in msgs(pub, f"order.fill.{gateway_id}") if m["order_id"] == order_id
+    ]
+
+
+def test_g6_a_resting_order_reports_each_fill_not_the_running_total(
+    monkeypatch, tmp_path
+) -> None:
+    """``order.fill.fill_qty`` is "quantity matched in this event, not
+    cumulatively" (spec/messages/order.yaml).
+
+    The engine published ``evt.quantity - evt.remaining_qty``, which is the
+    running total — right on the first fill and wrong on every one after it.
+    A resting 100 hit for 40 and then for 60 reported 40 and then 100, so
+    every consumer that sums fill_qty (the position caches, the replay tool's
+    tally) over-counted by the whole history.
+    """
+    engine, pub = make_engine(monkeypatch, tmp_path)
+    connect(engine)
+    resting = _rest_gw02_ask(engine)
+
+    for qty in (40, 60):
+        engine._handle_new_order(
+            order_payload(Side.BUY, OrderType.LIMIT, qty, "GW01", price=PRICE)
+        )
+
+    fills = _fills_for(pub, "GW02", resting["id"])
+    assert [f["fill_qty"] for f in fills] == [40, 60]
+    assert [f["remaining_qty"] for f in fills] == [60, 0]
+
+
+def test_g6_a_coalesced_sweep_still_reports_the_whole_sweep(
+    monkeypatch, tmp_path
+) -> None:
+    """The counterpart: an aggressor crossing two levels is published once
+    (H5), and that one message carries everything it matched here — the
+    increment is per *event*, not per trade."""
+    engine, pub = make_engine(monkeypatch, tmp_path)
+    connect(engine)
+    _rest_gw02_ask(engine, price=PRICE, qty=40)
+    _rest_gw02_ask(engine, price=PRICE + 0.5, qty=60)
+
+    aggressor = order_payload(Side.BUY, OrderType.LIMIT, QTY, "GW01", price=PRICE + 0.5)
+    engine._handle_new_order(aggressor)
+
+    fills = _fills_for(pub, "GW01", aggressor["id"])
+    assert [f["fill_qty"] for f in fills] == [QTY]
