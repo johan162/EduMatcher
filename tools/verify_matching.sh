@@ -77,10 +77,17 @@ fi
 # ── Step 2: Start a clean engine ────────────────────────────────────────────
 header "STEP 2 — Start matching engine"
 
-# Remove stale GTC persistence so each run starts from a clean state
-rm -f "$REPO_ROOT/data/gtc_orders.json" \
-      "$REPO_ROOT/data/gtc_combos.json" \
-      "$REPO_ROOT/data/book_stats.json"
+# Remove stale GTC persistence so each run starts from a clean state.
+# Ask config.py where that is rather than assuming: DATA_DIR is src/data in a
+# source checkout, ~/.local/share/edumatcher when installed, and whatever
+# EDUMATCHER_DATA_DIR says if it is set. This used to delete $REPO_ROOT/data,
+# which in a source checkout is not the engine's data directory at all -- so
+# the run it promises is clean inherited the previous run's resting orders.
+DATA_DIR="$(poetry run python -c 'from edumatcher.config import DATA_DIR; print(DATA_DIR)')"
+echo "[VERIFY] Engine data directory: $DATA_DIR"
+rm -f "$DATA_DIR/gtc_orders.json" \
+      "$DATA_DIR/gtc_combos.json" \
+      "$DATA_DIR/book_stats.json"
 
 echo "[VERIFY] Deploying verify_engine_config.yaml …"
 cd "$REPO_ROOT"

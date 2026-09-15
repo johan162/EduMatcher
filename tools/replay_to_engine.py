@@ -44,6 +44,7 @@ from edumatcher.models.message import (
     make_book_snapshot_request_msg,
 )
 from edumatcher.models.order import Order, OrderType, Side, SmpAction, TIF
+from edumatcher.models.price import to_ticks_or_none
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -105,10 +106,13 @@ def _parse_fix_line(line: str) -> Order | None:
         quantity=quantity,
         gateway_id=GATEWAY_ID,
         tif=tif_val,
-        price=price,
-        stop_price=stop_price,
+        # The FIX line carries display money and the engine takes ticks.
+        # Converting is the submitting gateway's job, and these tools are
+        # standing in for one.
+        price_ticks=to_ticks_or_none(price, symbol),
+        stop_price_ticks=to_ticks_or_none(stop_price, symbol),
         visible_qty=visible,
-        trail_offset=trail,
+        trail_offset_ticks=to_ticks_or_none(trail, symbol),
         smp_action=SmpAction.NONE,
     )
 
