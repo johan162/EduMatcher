@@ -135,6 +135,7 @@ find one order without re-reading the log.
 | Property | Behaviour |
 |---|---|
 | Built | Automatically, when a command needs it and it is absent or stale |
+| Covers | The whole log, always — never the window of the query that built it |
 | Stale when | The source logs changed, the reconstruction rules changed, or the detection settings changed |
 | Incremental | **No.** A rebuild is the whole story — see AR-3.4 in the design |
 | Size | Roughly 4.4× the log (it keeps every payload, which is what makes it a complete substitute) |
@@ -143,6 +144,18 @@ find one order without re-reading the log.
 
 `story` requires the index. Everything else works with or without it, and is
 required to produce identical output either way.
+
+!!! tip "Why the index ignores the window"
+    A cache may not depend on the question that populated it. Narrowing the
+    build by `--from`/`--to` produced an index whose currency check — a
+    source-file fingerprint — could not see the window it was built to, so a
+    later, wider query was answered from a truncated model and said nothing
+    about it. Putting the window into that check would be worse: `--last` is
+    relative, so it moves, and almost every call would rebuild.
+
+    The cost is that a narrow question against a large log pays for a full
+    build once. `--no-index` is the way to avoid paying it at all on a one-off
+    trail.
 
 
 
@@ -192,7 +205,8 @@ contains nothing the tool inferred.
 
 ## Global options
 
-Every option below is accepted by every subcommand.
+Every option below is accepted by every subcommand, as are `-h`/`--help`.
+`--version` is accepted by the top-level command.
 
 ### Source
 
@@ -221,7 +235,11 @@ Every option below is accepted by every subcommand.
 | `--last DURATION` | Relative window: `15m`, `2h`, `1d` |
 
 `--date` cannot be combined with `--from`/`--to`, and `--last` cannot be
-combined with either.
+combined with either. All four are UTC, which is what the trail records.
+
+The window narrows the **query**, never the index: an index always covers the
+whole log, so the same one answers a wide question and a narrow one. Passing a
+window to the `index` subcommand is refused rather than ignored.
 
 ### Filters
 
@@ -248,10 +266,16 @@ Outcomes are `FILLED`, `PARTIAL`, `CANCELLED`, `REJECTED`, `EXPIRED`,
 | `--show-units` | off | Append unit provenance to every price |
 | `--explain` | off | Show link evidence and confidence inline |
 | `--id-len N\|full` | `6` | Order-id abbreviation. Lengthened automatically if two ids would collide |
-| `--actor-style {id,descriptive}` | `id` | `TRADER01` or `the Nordic Equities desk` |
-| `--tz TZ` | `UTC` | Timezone for rendered timestamps |
+| `--actor-style {id,descriptive}` | `id` | `TRADER01`, or `TRADER01 (Nordic Equities desk)` |
 | `--reorder-window SPEC` | `2000/5s` | Reorder buffer, as a fact count or a duration |
-| `--no-color` | off | Disable ANSI colour |
+| `--tz TZ` | `UTC` | **Not yet implemented** — parsed and ignored; timestamps always render in UTC |
+| `--no-color` | off | **Not yet implemented** — parsed and ignored; the output carries no ANSI colour to disable |
+
+!!! warning "Two options do nothing yet"
+    `--tz` and `--no-color` are accepted by the parser and read by nothing.
+    They are task AR-6.2 of the implementation plan, which has not been done.
+    They are listed here because the parser accepts them and `--help` shows
+    them, not because they work.
 
 ### Detection
 
@@ -342,7 +366,7 @@ reader should look at, **info** is something expected at a window edge.
 |---|---|---|
 | `EFFECT_COUNT_MISMATCH` | warn | An ack's list of affected entities disagrees with what was observed. The finding names which are missing |
 | `COMMAND_UNACKED` | warn | A risk or admin command with no ack carrying its `command_id` |
-| `ACK_WITHOUT_COMMAND` | warn | An ack whose `command_id` matches no request in the window |
+| `ACK_WITHOUT_COMMAND` | warn | An ack whose `command_id` matches no request in the window. **Not currently raised** — the code exists and nothing produces it |
 | `RESUME_WITHOUT_HALT` | warn | A resume for a symbol with no halt on record |
 | `HALT_UNRESUMED` | info | A halt with no resume by the time its episode retired |
 
@@ -353,8 +377,22 @@ reader should look at, **info** is something expected at a window edge.
 | `PARSE_FAILURE` | error | A line the audit format does not match, detected by the hole it leaves |
 | `UNKNOWN_TOPIC` | warn | A topic with no entry in the generated registry: the message spec has grown and the tool has not |
 | `TICK_SCALE_UNKNOWN` | warn | A tick-scaled price with no `tick_decimals` for its symbol anywhere in the window. The price is reported **in ticks and labelled as ticks** rather than guessed |
-| `UNKNOWN_ENUM` | warn | An enum value with no lexicon entry. Printed verbatim in backticks rather than guessed at or dropped |
+| `UNKNOWN_ENUM` | warn | An enum value with no lexicon entry. The value is printed verbatim in backticks rather than guessed at or dropped — but the finding itself is **not currently reported** by any view |
 | `ORPHAN_EVENT` | info | A fact the resolver could not attach to anything |
+
+### What it does not check yet
+
+A clean run is only as strong as the catalogue behind it, so the gaps are worth knowing. As of v0.39.0 the following checks are not yet implemented
+
+| Gap | Consequence |
+|---|---|
+| Trade legs are compared **to each other**, never to the `trade.executed` they name | Both fills and the public tape can disagree by any amount in silence, as long as the two legs agree |
+| Legs are counted, never **identified** against the trade's `buy_order_id`/`sell_order_id` | A fill attributed to the wrong order passes, and so does a third leg |
+| `order.fill.status` is not checked against `remaining_qty` | `FILLED` with 50 left is silent — `QTY_MISMATCH` cannot see it, because the arithmetic is self-consistent |
+| `liquidity_flag` is never checked against the trade's `aggressor_side` | A billing invariant — maker/taker fees invert on it — with no check at all |
+| The **drop-copy feed is entirely unchecked**: no state handler, no detector branch | Its documented monotone `seq` is never read, and a drop copy disagreeing with its `order.fill` is silent. This is the feed clearing reconciles on |
+| `ARRIVAL_SEQ_GAP` sees only forward gaps | A repeated or decreasing `arrival_seq` — two orders claiming one queue position — is silent |
+| `CLOCK_SKEW` keys on the literal field `ts_ns` | `order.fill` has no timestamp field at all, and drop copy names its `timestamp`, so both are exempt |
 
 !!! tip "A clean run is a claim, not a hope"
     `tools/verify_audit_trail.sh` records a full `verify_matching.sh` run with
@@ -651,8 +689,9 @@ window does not contain is printed *in ticks and labelled as ticks*, with a
 `TICK_SCALE_UNKNOWN` finding — never silently rescaled. `--show-units` shows
 where each scale came from.
 
-**`--tz` is for reading, never for filtering.** `--from`/`--to`/`--date` are
-UTC, which is what the trail records.
+**Everything is UTC.** `--from`/`--to`/`--date` are UTC because that is what
+the trail records, and rendered timestamps are UTC because `--tz` is not
+implemented yet.
 
 !!! warning "Give a scratch trail its own directory"
     `--log-file` pulls in rotated siblings, and the index lands next to the
