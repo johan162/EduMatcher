@@ -4305,6 +4305,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../820-audit-replay/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit Replay (pm-audit-replay)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../890-known-limitations-bugs/" class="md-nav__link">
         
   
@@ -9262,6 +9290,13 @@ wire-format specification in the
 <td>gt 0, unit <code>shares</code></td>
 <td>SHARES_ISSUANCE.</td>
 </tr>
+<tr>
+<td><code>command_id</code></td>
+<td><code>string</code></td>
+<td>omitted when empty</td>
+<td>max_len 64</td>
+<td>Echoed on the ack so a caller can correlate.</td>
+</tr>
 </tbody>
 </table>
 <div class="admonition note">
@@ -9327,6 +9362,13 @@ wire-format specification in the
 <td>omitted when unset</td>
 <td>gt 0, unit <code>display_price</code></td>
 <td>ADD.</td>
+</tr>
+<tr>
+<td><code>command_id</code></td>
+<td><code>string</code></td>
+<td>omitted when empty</td>
+<td>max_len 64</td>
+<td>Echoed on the ack so a caller can correlate.</td>
 </tr>
 </tbody>
 </table>
@@ -9458,6 +9500,13 @@ wire-format specification in the
 <td>unit <code>dimensionless</code></td>
 <td>The divisor immediately before this action was applied. Same field name and purpose as HistoryRecord.old_divisor, so a post-mortem does not need pm-index's local JSONL archive to see what changed — the wire event is self-contained. Present only alongside divisor, i.e. on acceptance.</td>
 </tr>
+<tr>
+<td><code>command_id</code></td>
+<td><code>string</code></td>
+<td>omitted when empty</td>
+<td>max_len 64</td>
+<td></td>
+</tr>
 </tbody>
 </table>
 <div class="admonition note">
@@ -9536,6 +9585,13 @@ wire-format specification in the
 <td>omitted when unset</td>
 <td>unit <code>dimensionless</code></td>
 <td>The divisor immediately before this action was applied. Same field name and purpose as HistoryRecord.old_divisor, so a post-mortem does not need pm-index's local JSONL archive to see what changed — the wire event is self-contained. Present only alongside divisor, i.e. on acceptance.</td>
+</tr>
+<tr>
+<td><code>command_id</code></td>
+<td><code>string</code></td>
+<td>omitted when empty</td>
+<td>max_len 64</td>
+<td></td>
 </tr>
 </tbody>
 </table>
@@ -11713,10 +11769,10 @@ wire-format specification in the
 </tr>
 <tr>
 <td><code>status</code></td>
-<td><code>string</code></td>
+<td>enum: <code>PARTIAL</code>, <code>FILLED</code></td>
 <td>required</td>
-<td>max_len 16</td>
-<td></td>
+<td>—</td>
+<td>Whether this fill completed the order. The same two values BALF's execution_report uses, and the same vocabulary as order.new.status - there is one name for an order state across the system. This was the only status field the spec left as an unconstrained string, and it drifted: six publish sites derived the value from OrderStatus and sent PARTIAL while the continuous-matching hot path and _publish_amend_rematch sent PARTIAL_FILL, so a fill on a quote leg reported a different status from a fill on an ordinary order. Nothing in the system ever branched on PARTIAL_FILL - every consumer passed it through - so the two outliers were corrected rather than the six. BREAKING for anything matching the string: the ALF FILL line, the REST order cache and a bot written against docs-design/EduMatcher-AI-trading-bot-v2.md all carried PARTIAL_FILL verbatim. Nothing reads the old spelling any more, pm-audit-replay included - a log containing it does not describe a wire this build speaks.</td>
 </tr>
 <tr>
 <td><code>symbol</code></td>

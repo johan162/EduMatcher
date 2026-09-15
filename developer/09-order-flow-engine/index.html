@@ -1994,6 +1994,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/820-audit-replay/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit Replay (pm-audit-replay)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/890-known-limitations-bugs/" class="md-nav__link">
         
   
@@ -4706,7 +4734,7 @@ seen-set fixes it:</p>
 <a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a>                <span class="s2">"fill_qty"</span><span class="p">:</span> <span class="n">filled_qty</span><span class="p">,</span>
 <a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a>                <span class="s2">"fill_price"</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
 <a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a>                <span class="s2">"remaining_qty"</span><span class="p">:</span> <span class="n">evt</span><span class="o">.</span><span class="n">remaining_qty</span><span class="p">,</span>
-<a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a>                <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"PARTIAL_FILL"</span> <span class="k">if</span> <span class="n">evt</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="k">else</span> <span class="s2">"FILLED"</span><span class="p">,</span>
+<a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a>                <span class="s2">"status"</span><span class="p">:</span> <span class="n">fill_status</span><span class="p">(</span><span class="n">evt</span><span class="o">.</span><span class="n">remaining_qty</span><span class="p">),</span>  <span class="c1"># PARTIAL | FILLED</span>
 <a id="__codelineno-19-15" name="__codelineno-19-15" href="#__codelineno-19-15"></a>                <span class="o">...</span>
 <a id="__codelineno-19-16" name="__codelineno-19-16" href="#__codelineno-19-16"></a>            <span class="p">}),</span>
 <a id="__codelineno-19-17" name="__codelineno-19-17" href="#__codelineno-19-17"></a>        <span class="p">])</span>
