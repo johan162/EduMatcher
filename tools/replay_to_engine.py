@@ -40,6 +40,8 @@ from edumatcher.models.message import (
     decode,
     encode,
     make_gateway_connect_msg,
+    make_order_amend_msg,
+    make_order_cancel_msg,
     make_order_new_msg,
     make_book_snapshot_request_msg,
 )
@@ -70,20 +72,26 @@ DRAIN_PAUSE_S = 0.5  # seconds to pause after last order before snapshots
 # ---------------------------------------------------------------------------
 
 
-def _parse_fix_line(line: str) -> Order | None:
-    """Parse a FIX-like NEW order line into an Order object."""
+def _fields(line: str) -> tuple[str, dict[str, str]] | None:
+    """``(verb, fields)`` for a dataset line, or None for a blank or comment."""
     line = line.strip()
     if not line or line.startswith("#"):
         return None
     parts = line.split("|")
-    if not parts or parts[0].upper() != "NEW":
-        return None
-
     kv: dict[str, str] = {}
     for p in parts[1:]:
         if "=" in p:
             k, v = p.split("=", 1)
             kv[k.upper()] = v
+    return parts[0].upper(), kv
+
+
+def _parse_fix_line(line: str) -> Order | None:
+    """Parse a FIX-like NEW order line into an Order object."""
+    parsed = _fields(line)
+    if parsed is None or parsed[0] != "NEW":
+        return None
+    _verb, kv = parsed
 
     try:
         symbol = kv["SYM"].upper()
@@ -99,7 +107,7 @@ def _parse_fix_line(line: str) -> Order | None:
         print(f"[REPLAY] Parse error '{line}': {exc}", file=sys.stderr)
         return None
 
-    return Order.create(
+    order = Order.create(
         symbol=symbol,
         side=side,
         order_type=order_type,
@@ -115,6 +123,12 @@ def _parse_fix_line(line: str) -> Order | None:
         trail_offset_ticks=to_ticks_or_none(trail, symbol),
         smp_action=SmpAction.NONE,
     )
+    # The dataset names the id so a later AMEND can refer to it, and so that
+    # the engine and the paper trader mean the same order by it. The engine
+    # adopts whatever the submitting gateway sends (Order.from_dict).
+    if "ID" in kv:
+        order.id = kv["ID"]
+    return order
 
 
 # ---------------------------------------------------------------------------
@@ -132,6 +146,7 @@ class ReplayClient:
             f"order.ack.{GATEWAY_ID}",
             f"order.fill.{GATEWAY_ID}",
             f"order.cancelled.{GATEWAY_ID}",
+            f"order.amended.{GATEWAY_ID}",
             f"system.gateway_auth.{GATEWAY_ID}",
             "book.AAPL",
             "book.AMAZ",
@@ -193,6 +208,54 @@ class ReplayClient:
             # Fills / cancels — consume silently
         print(
             f"[REPLAY] WARN: no ACK for {order.id[:8]} within {ACK_TIMEOUT_MS} ms",
+            file=sys.stderr,
+        )
+        return False
+
+    def send_amend_and_wait(self, order_id: str, kv: dict[str, str]) -> bool:
+        """Send one AMEND and block until the engine confirms or refuses it.
+
+        ``PRICE`` goes on the wire as display money: ``order.amend`` is the
+        one engine-inbound message that does not carry ticks, because a
+        gateway cannot convert without knowing the resting order's symbol.
+        """
+        self.push_sock.send_multipart(
+            make_order_amend_msg(
+                order_id,
+                GATEWAY_ID,
+                price=float(kv["PRICE"]) if "PRICE" in kv else None,
+                qty=int(kv["QTY"]) if "QTY" in kv else None,
+            )
+        )
+        return self._wait_for(order_id, f"order.amended.{GATEWAY_ID}")
+
+    def send_cancel_and_wait(self, order_id: str) -> bool:
+        self.push_sock.send_multipart(make_order_cancel_msg(order_id, GATEWAY_ID))
+        return self._wait_for(order_id, f"order.cancelled.{GATEWAY_ID}")
+
+    def _wait_for(self, order_id: str, confirm_topic: str) -> bool:
+        """Block until *order_id* is confirmed on *confirm_topic*, or refused.
+
+        Refusals all arrive as ``order.ack`` with ``accepted=False``, whatever
+        was asked for, so both topics have to be watched. Waiting at all is
+        what keeps the engine's processing order the same as the paper
+        trader's -- fire-and-forget would let a later line overtake the one it
+        amends.
+        """
+        deadline = time.monotonic() + ACK_TIMEOUT_MS / 1000
+        while time.monotonic() < deadline:
+            msg = self._recv(200)
+            if msg is None:
+                continue
+            topic, payload = msg
+            if payload.get("order_id") != order_id:
+                continue
+            if confirm_topic in topic:
+                return True
+            if f"order.ack.{GATEWAY_ID}" in topic:
+                return bool(payload.get("accepted", False))
+        print(
+            f"[REPLAY] WARN: no reply for {order_id[:8]} within {ACK_TIMEOUT_MS} ms",
             file=sys.stderr,
         )
         return False
@@ -263,22 +326,35 @@ def run_replay(pull_addr: str, pub_addr: str) -> None:
     t_start = time.monotonic()
 
     for raw in all_lines:
-        order = _parse_fix_line(raw)
-        if order is None:
+        parsed = _fields(raw)
+        if parsed is None:
             parse_errs += 1
             continue
-        ok = client.send_order_and_wait_ack(order)
+        verb, kv = parsed
+        if verb == "NEW":
+            order = _parse_fix_line(raw)
+            if order is None:
+                parse_errs += 1
+                continue
+            ok = client.send_order_and_wait_ack(order)
+        elif verb == "AMEND":
+            ok = client.send_amend_and_wait(kv["ID"], kv)
+        elif verb == "CANCEL":
+            ok = client.send_cancel_and_wait(kv["ID"])
+        else:
+            parse_errs += 1
+            continue
         total += 1
         if ok:
             accepted += 1
         else:
             rejected += 1
-        if total % 100 == 0:
-            print(f"[REPLAY] … {total} orders sent ({accepted} acc, {rejected} rej)")
+        if total % 500 == 0:
+            print(f"[REPLAY] … {total} lines sent ({accepted} acc, {rejected} rej)")
 
     elapsed = time.monotonic() - t_start
     print(
-        f"[REPLAY] Sent {total} orders in {elapsed:.2f}s  "
+        f"[REPLAY] Sent {total} lines in {elapsed:.2f}s  "
         f"({accepted} accepted, {rejected} rejected, {parse_errs} parse errors)"
     )
 

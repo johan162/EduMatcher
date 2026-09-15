@@ -11,9 +11,9 @@
 #
 # Usage
 # -----
-#   ./verify_matching.sh                     # 1 000 orders, seed 42
+#   ./verify_matching.sh                     # 10 000 lines, seed 42
 #   ./verify_matching.sh --seed 7            # different random seed
-#   ./verify_matching.sh --count 500         # fewer test orders
+#   ./verify_matching.sh --count 500         # fewer test lines
 #   ./verify_matching.sh --tolerance 0.01    # allow 1% qty rounding in compare
 #   ./verify_matching.sh --skip-gen          # reuse existing .fix files
 #
@@ -26,7 +26,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 VERIFY_DIR="$REPO_ROOT/data/verify"
 
 SEED=42
-COUNT=1000
+COUNT=10000
 TOLERANCE=0
 SKIP_GEN=false
 ENGINE_PULL="tcp://localhost:5555"
