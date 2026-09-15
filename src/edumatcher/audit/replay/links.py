@@ -222,7 +222,21 @@ class LinkResolver:
 
         self._register(fact, this, found)
         cause = self._resolve_cause(fact, this, found)
-        if cause is not None:
+        # A message is never its own cause. `_register` runs first so that the
+        # two halves need not be ordered at every call site, which means an
+        # envelope-less ack or fill has already registered ITSELF as its
+        # order's anchor by the time tier 1 looks the anchor up -- and got
+        # back its own ref, asserted at CERTAIN. On a window opening after the
+        # `order.new` that read "the ack was caused by the ack"; with two
+        # envelope-less fills it read "the first fill caused the second".
+        # Both also suppressed the `ORPHAN_EVENT` that should have been
+        # reported, because any incoming link counts as an explanation.
+        #
+        # Refused here rather than at each tier: this is a property of a
+        # cause, not of any one rule. A *structural* self-reference is a
+        # different thing and stays allowed -- `cancelled_by` legitimately
+        # names this fact as the source.
+        if cause is not None and cause.source != this:
             links.append(cause)
         links.extend(self._structural(fact, this, found))
         self._retire(fact)
@@ -634,12 +648,20 @@ class LinkResolver:
             order_id = _str(payload, "id")
             if order_id:
                 self._order_origin.setdefault(order_id, this)
-        elif kind in (kinds.ORDER_ACK, kinds.ORDER_FILL):
+        elif kind == kinds.ORDER_ACK:
             order_id = _str(payload, "order_id")
             if order_id:
                 # An archived log may have no order.new; the ack is then the
                 # earliest thing that names the order, and is a better anchor
                 # than nothing.
+                #
+                # A *fill* is not. It used to seed this too, so on a log with
+                # no submission and no ack the first fill became the anchor
+                # and every later fill of the order was reported as "caused
+                # by" it, at the tier reserved for exact evidence. One fill
+                # does not cause another; with nothing in the window that
+                # could have, the honest answer is no cause at all, and the
+                # fill is then counted as the orphan it is.
                 self._order_origin.setdefault(order_id, this)
         elif kind == kinds.TRADE_EXECUTED:
             trade_id = _str(payload, "id")

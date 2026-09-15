@@ -229,12 +229,24 @@ def detect_seq_gaps(facts: Iterable[Fact]) -> Iterator[Fact]:
             yield fact
             continue
         previous = last.get(fact.topic)
-        last[fact.topic] = seq
         if previous is None or seq <= previous or fact.late:
             # A late fact's sequence is behind by construction; it has already
             # been reported as LATE_ARRIVAL and is not evidence of loss.
+            #
+            # Its sequence must not become the high-water mark either. Writing
+            # it back unconditionally let the counter *regress*, so the next
+            # healthy fact was measured against a number already emitted and
+            # reported as loss: seqs 1,3,4,2(late),5 produced a SEQ_GAP for
+            # "2 -> 4" one line after 2 had gone past. SEQ_GAP is the tool's
+            # only proof of loss, so a false one is expensive.
+            #
+            # A decrease that is NOT late still resets, which is the deliberate
+            # restart rule documented above.
+            if previous is None or (seq < previous and not fact.late):
+                last[fact.topic] = seq
             yield fact
             continue
+        last[fact.topic] = seq
         missing = seq - previous - 1
         if missing <= 0:
             yield fact

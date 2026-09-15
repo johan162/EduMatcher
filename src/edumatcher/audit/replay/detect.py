@@ -84,6 +84,7 @@ _PRICE_EPSILON = 1e-6
 _ACK_SUFFIX = "_ack"
 
 _SIDE_BUY = "BUY"
+_SIDE_SELL = "SELL"
 
 
 def _anomaly(code: str, severity: str, detail: str, fact: Fact) -> Anomaly:
@@ -311,11 +312,18 @@ class Detector:
         if limit is None or price is None:
             return
         side, bound = limit
-        through = (
-            price > bound + _PRICE_EPSILON
-            if side == _SIDE_BUY
-            else price < bound - _PRICE_EPSILON
-        )
+        if side == _SIDE_BUY:
+            through = price > bound + _PRICE_EPSILON
+        elif side == _SIDE_SELL:
+            through = price < bound - _PRICE_EPSILON
+        else:
+            # Neither, so there is no limit to be through. Falling into the
+            # sell branch for anything that is not "BUY" turned a corrupt or
+            # renamed side value into a fabricated error-severity finding:
+            # a `BUYY` order filling below its own buy limit was reported as
+            # having traded through it. `UNKNOWN_ENUM` is where an unmapped
+            # value belongs; this check has nothing to say about it.
+            return
         if through:
             found.append(
                 _anomaly(
@@ -491,8 +499,19 @@ class Detector:
                         cancelled,
                     )
                 )
-        if kinds.ORDER_CANCEL in present and not (
-            present & {kinds.ORDER_CANCELLED, kinds.ORDER_EXPIRED}
+        # A refusal answers the request as surely as a cancellation does --
+        # section 12.1 says "no resulting order.cancelled *or rejection*", and
+        # leaving the rejection out reported every properly-refused cancel
+        # (ORDER_NOT_FOUND, say) as one the engine had ignored.
+        refused = any(
+            event.fact.kind == kinds.ORDER_ACK
+            and event.fact.payload.get("accepted") is False
+            for event in episode.events
+        )
+        if (
+            kinds.ORDER_CANCEL in present
+            and not refused
+            and not (present & {kinds.ORDER_CANCELLED, kinds.ORDER_EXPIRED})
         ):
             found.append(
                 _anomaly(

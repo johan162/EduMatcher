@@ -38,6 +38,7 @@ from edumatcher.audit.replay.anomalies import (
     PARSE_FAILURE,
     PRICE_OUTSIDE_CORRIDOR,
     PRICE_THROUGH_LIMIT,
+    QTY_MISMATCH,
     SEVERITY_ERROR,
     TERMINAL_MISSING,
     TRADE_COUNTER_GAP,
@@ -689,3 +690,77 @@ class TestAHealthyLogIsSilent:
         ]
 
         assert found == []
+
+
+# ---------------------------------------------------------------------------
+# Findings that were not findings (holistic review, 2026-09-15)
+# ---------------------------------------------------------------------------
+
+
+class TestTheDetectorDoesNotInventFindings:
+    """Four checks that fired on healthy input.
+
+    A false positive costs more than a missed one here: the tool's whole claim
+    is that a clean run means something, and a reader who has learned to
+    ignore a code has lost the code.
+    """
+
+    def test_a_window_opening_mid_order_is_not_a_quantity_mismatch(self) -> None:
+        """``filled_qty`` is a tally that starts at zero, so without the
+        submission it is short by everything before the window while
+        ``quantity - remaining_qty`` is not. ``--from``/``--last`` is the
+        normal way this tool is used, and every later fill reported an error.
+        """
+        log = Log()
+        log.line("order.fill." + GATEWAY, _fill(fill_qty=100, remaining_qty=100))
+        log.line("order.fill." + GATEWAY, _fill(fill_qty=100, remaining_qty=0))
+
+        assert QTY_MISMATCH not in log.codes()
+
+    def test_a_tally_that_really_disagrees_still_is(self) -> None:
+        log = Log().line("order.new", _submitted())
+        log.line("order.ack." + GATEWAY, _ack())
+        log.line("order.fill." + GATEWAY, _fill(fill_qty=50, remaining_qty=100))
+
+        assert QTY_MISMATCH in log.codes()
+
+    def test_an_unrecognised_side_does_not_trade_through_its_limit(self) -> None:
+        """The comparison was a two-way branch, so anything that was not
+        ``BUY`` was measured as a sell: a corrupt side turned a fill *below* a
+        buy limit into an error-severity finding about trading through it."""
+        log = Log().line("order.new", _submitted(side="BUYY"))
+        log.line("order.ack." + GATEWAY, _ack())
+        log.line("trade.executed", _trade(price=74.0))
+        log.line("order.fill." + GATEWAY, _fill(fill_price=74.0, side="BUYY"))
+
+        assert PRICE_THROUGH_LIMIT not in log.codes()
+
+    def test_a_real_limit_breach_still_is(self) -> None:
+        log = Log().line("order.new", _submitted())
+        log.line("order.ack." + GATEWAY, _ack())
+        log.line("trade.executed", _trade(price=76.0))
+        log.line("order.fill." + GATEWAY, _fill(fill_price=76.0))
+
+        assert PRICE_THROUGH_LIMIT in log.codes()
+
+    def test_a_refused_cancel_is_answered(self) -> None:
+        """Section 12.1 is "no resulting order.cancelled *or rejection*". The
+        rejection was left out, so a properly refused cancel — ORDER_NOT_FOUND
+        on an order that had already filled — read as one the engine ignored.
+        """
+        log = Log().line("order.new", _submitted())
+        log.line("order.ack." + GATEWAY, _ack())
+        log.line("order.cancel", {"order_id": ORDER, "gateway_id": GATEWAY})
+        log.line(
+            "order.ack." + GATEWAY,
+            _ack(accepted=False, reject_code="ORDER_NOT_FOUND"),
+        )
+
+        assert CANCEL_UNMATCHED not in log.codes()
+
+    def test_a_cancel_that_vanished_still_is(self) -> None:
+        log = Log().line("order.new", _submitted())
+        log.line("order.ack." + GATEWAY, _ack())
+        log.line("order.cancel", {"order_id": ORDER, "gateway_id": GATEWAY})
+
+        assert CANCEL_UNMATCHED in log.codes()

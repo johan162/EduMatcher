@@ -339,3 +339,81 @@ class TestTheJsonPayload:
         driver = Driver()
         driver.feed("system.gateway_connect", {"gateway_id": "TRADER01"})
         assert derive(driver.one("gateway")).as_dict() == {}
+
+
+class TestTheMoneyIsOverOneSetOfFills:
+    """Every field on ``Derived`` is optional so that an unknown can stay
+    unknown. Summing notional over the fills that state a price and dividing
+    by the quantity of *all* fills mixed two sets, and turned an unknown into
+    a confident wrong number: one unpriced fill made a 75.60 execution read
+    as a VWAP of 30.24 and a 0.09 improvement read as 45.45.
+    """
+
+    def test_an_unpriced_fill_does_not_deflate_the_vwap(self) -> None:
+        driver = Driver()
+        buy_100_at_75_69(driver)
+        driver.feed("order.fill.TRADER01", fill(40, 75.60, 60))
+        priced_out = fill(60, 0.0, 0)
+        del priced_out["fill_price"]
+        driver.feed("order.fill.TRADER01", priced_out)
+
+        result = derive(driver.one("order"))
+
+        assert result.vwap == pytest.approx(75.60)
+        assert result.notional == pytest.approx(3024.0)
+        assert result.price_improvement == pytest.approx(0.09)
+        assert result.fills_total_qty == 100
+
+    def test_no_priced_fill_at_all_is_unknown_not_zero(self) -> None:
+        driver = Driver()
+        buy_100_at_75_69(driver)
+        unpriced = fill(100, 0.0, 0)
+        del unpriced["fill_price"]
+        driver.feed("order.fill.TRADER01", unpriced)
+
+        result = derive(driver.one("order"))
+
+        assert result.vwap is None
+        assert result.notional is None
+        assert result.price_improvement is None
+        # The quantity tally is a separate question and is still answerable.
+        assert result.fills_total_qty == 100
+
+
+class TestTheLimitIsTheOneInForce:
+    """``quantity`` is read as the *latest* statement because an amend
+    restates it. The limit is restated the same way, and reading the earliest
+    measured every fill against a price the order no longer had -- overstating
+    price improvement eightfold on an order amended down before it filled.
+    """
+
+    def test_an_amendment_moves_the_limit(self) -> None:
+        driver = Driver()
+        buy_100_at_75_69(driver)
+        driver.feed(
+            "order.amended.TRADER01",
+            {
+                "gateway_id": "TRADER01",
+                "order_id": ORDER,
+                "symbol": "AAPL",
+                "price": 75.00,
+                "qty": 100,
+                "remaining_qty": 100,
+            },
+        )
+        driver.feed("order.fill.TRADER01", fill(100, 74.90, 0))
+
+        result = derive(driver.one("order"))
+
+        assert result.limit_price == pytest.approx(75.00)
+        assert result.price_improvement == pytest.approx(0.10)
+
+    def test_without_an_amendment_it_is_the_submitted_limit(self) -> None:
+        driver = Driver()
+        buy_100_at_75_69(driver)
+        driver.feed("order.fill.TRADER01", fill(100, 74.90, 0))
+
+        result = derive(driver.one("order"))
+
+        assert result.limit_price == pytest.approx(75.69)
+        assert result.price_improvement == pytest.approx(0.79)

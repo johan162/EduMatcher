@@ -364,3 +364,38 @@ class TestShuffleProperty:
             shuffled = original[:]
             rng.shuffle(shuffled)
             assert [f.kind for f in in_canonical_order(shuffled)] == expected
+
+
+class TestALateFactIsNotEvidenceOfLoss:
+    """``SEQ_GAP`` is the tool's only proof that the trail lost something, so
+    a false one is expensive.
+
+    Writing a late fact's sequence back as the high-water mark let the counter
+    *regress*, and the next healthy fact was then measured against a number
+    that had already gone past -- reporting loss one line after the very
+    sequence it claimed was missing had been emitted.
+    """
+
+    def _codes(self, spec: list[tuple[int, bool]]) -> list[tuple[int | None, str]]:
+        stream = [
+            replace(make_fact(ordinal=i, topic_seq=seq), late=late)
+            for i, (seq, late) in enumerate(spec)
+        ]
+        return [
+            (fact.topic_seq, anomaly.code)
+            for fact in detect_seq_gaps(stream)
+            for anomaly in fact.anomalies
+        ]
+
+    def test_a_late_fact_does_not_manufacture_a_gap_behind_it(self) -> None:
+        found = self._codes([(1, False), (3, False), (4, False), (2, True), (5, False)])
+
+        assert found == [(3, SEQ_GAP)]
+
+    def test_a_dense_run_interrupted_by_a_late_fact_stays_clean(self) -> None:
+        assert self._codes([(1, False), (2, False), (1, True), (3, False)]) == []
+
+    def test_a_publisher_restart_still_resets(self) -> None:
+        """A decrease that is not late is a restart, which must still reset --
+        otherwise every message after it looks like a gap."""
+        assert self._codes([(7, False), (1, False), (2, False)]) == []

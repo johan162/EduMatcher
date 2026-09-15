@@ -132,6 +132,13 @@ class OrderState:
     remaining_qty: int | None = None
     filled_qty: int = 0
     fills: int = 0
+    #: Whether the window contains the order's own submission. ``filled_qty``
+    #: is a tally that starts at zero, so without the submission it is short
+    #: by everything that happened before the window opened -- while
+    #: ``quantity - remaining_qty`` is not. Reconciling the two anyway
+    #: reported a healthy order as ``QTY_MISMATCH`` on every fill, and
+    #: ``--from``/``--last``/``--date`` is the normal way this tool is used.
+    submitted: bool = False
     #: Parentage, all optional: an order may be a quote leg, an OCO leg or a
     #: combo leg, and the narration reads very differently in each case.
     quote_id: str | None = None
@@ -356,6 +363,7 @@ class StateModel:
         order.leg_index = _int(fact.payload, "leg_index")
         order.client_tag = _str(fact.payload, "client_tag")
         order.arrival_seq = _int(fact.payload, "arrival_seq")
+        order.submitted = True
         if order.gateway_id:
             gateway = self.gateway(order.gateway_id)
             gateway.orders += 1
@@ -436,8 +444,16 @@ class StateModel:
         if status:
             self._advance(order, status, fact, found)
         # Checked after the status move so a terminal fill is reconciled too:
-        # the sum of what was filled must equal what left the book.
-        if order.quantity is not None and order.remaining_qty is not None:
+        # the sum of what was filled must equal what left the book -- but only
+        # when the tally started where the order did. A window that opens
+        # mid-order has a tally missing the fills before it and a
+        # `quantity - remaining_qty` that counts them, and the difference is
+        # the window, not the engine.
+        if (
+            order.submitted
+            and order.quantity is not None
+            and order.remaining_qty is not None
+        ):
             expected = order.quantity - order.remaining_qty
             if expected != order.filled_qty:
                 found.append(

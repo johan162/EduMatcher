@@ -42,6 +42,7 @@ FIXTURES = REPLAY_FIXTURES
 SIMPLE = FIXTURES / "01_simple_limit_partial_fill.log"
 ARCHIVED = FIXTURES / "03_archived_no_envelope.log"
 HALTED = FIXTURES / "02_halted_reject_and_kill_switch.log"
+COMBO = FIXTURES / "04_quote_oco_combo.log"
 
 
 class TestParseDuration:
@@ -487,6 +488,67 @@ class TestTheIndexChangesNothingButSpeed:
         withindex = capsys.readouterr().out
 
         assert withindex == without
+
+
+class TestTheIndexCoversTheWholeLog:
+    """A cache may not depend on the question that populated it.
+
+    `build_index` used to narrow the build by `--from`/`--to`/`--date`/
+    `--last`, while the currency check is a source-file fingerprint that
+    cannot see a window. A narrow build followed by a wider query therefore
+    answered from a truncated model and said nothing about it -- reporting an
+    OCO as OPEN where the trail plainly said CANCELLED, exit 0.
+    """
+
+    def test_a_window_is_refused_on_the_index_command(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Refused rather than ignored: silently indexing more than was asked
+        for is the same class of untruth as the bug it replaces."""
+        assert (
+            main(
+                [
+                    "--log-file",
+                    str(COMBO),
+                    "--db",
+                    "/tmp/unused.db",
+                    "--date",
+                    "2026-09-08",
+                    "index",
+                ]
+            )
+            == 2
+        )
+        assert "covers the whole log" in capsys.readouterr().err
+
+    def test_a_narrow_query_does_not_narrow_the_index(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        db = str(tmp_path / "replay.db")
+        # Populate the index through a narrow query...
+        assert (
+            main(
+                [
+                    "--log-file",
+                    str(COMBO),
+                    "--db",
+                    db,
+                    "--to",
+                    "2026-09-08T10:15:00.020+00:00",
+                    "episodes",
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        # ...then ask a wider one of the same index.
+        assert main(["--log-file", str(COMBO), "--db", db, "episodes"]) == 0
+        indexed = capsys.readouterr().out
+        assert main(["--log-file", str(COMBO), "--no-index", "episodes"]) == 0
+        direct = capsys.readouterr().out
+
+        assert indexed == direct
+        assert "CANCELLED" in indexed
 
 
 class TestRegisteredInPmHelp:

@@ -811,3 +811,59 @@ class TestHonesty:
     def test_a_fact_with_no_msg_id_gets_a_reference_that_cannot_collide(self) -> None:
         entry = AuditEntry(_TS, "book.AAPL", {"symbol": "AAPL"}, {})
         assert ref(to_fact(entry, 41)) == "@41"
+
+
+class TestAMessageIsNeverItsOwnCause:
+    """``_register`` runs before ``_resolve_cause`` so the two halves need not
+    be ordered at every call site — which means an envelope-less ack or fill
+    has already registered *itself* as its order's anchor by the time the
+    direct-key tier looks that anchor up.
+
+    It got its own ref back, at CERTAIN. On a window opening after the
+    ``order.new`` that read "the ack was caused by the ack"; with two
+    envelope-less fills, "the first fill caused the second". Both also
+    suppressed the ``ORPHAN_EVENT`` that should have been reported, because
+    any incoming link counts as having explained a fact.
+    """
+
+    def test_an_ack_that_is_its_own_anchor_has_no_cause(self) -> None:
+        feeder = Feeder()
+        resolution = feeder.feed(
+            "order.ack.TRADER01", {"order_id": ORDER, "accepted": True}
+        )
+
+        assert [link for link in resolution.links if link.relation == CAUSED] == []
+
+    def test_and_is_then_reported_as_the_orphan_it_is(self) -> None:
+        feeder = Feeder()
+        resolution = feeder.feed(
+            "order.ack.TRADER01", {"order_id": ORDER, "accepted": True}
+        )
+
+        assert resolution.orphan
+
+    def test_one_fill_does_not_cause_the_next(self) -> None:
+        feeder = Feeder()
+        feeder.feed(
+            "order.fill.TRADER01",
+            {"order_id": ORDER, "fill_qty": 50, "remaining_qty": 50},
+        )
+        second = feeder.feed(
+            "order.fill.TRADER01",
+            {"order_id": ORDER, "fill_qty": 50, "remaining_qty": 0},
+        )
+
+        assert [link for link in second.links if link.relation == CAUSED] == []
+        assert second.orphan
+
+    def test_a_real_anchor_still_causes_its_ack(self) -> None:
+        """The tier is not disabled — only the self-reference is refused."""
+        feeder = Feeder()
+        feeder.feed("order.new", {"id": ORDER, "symbol": "AAPL", "quantity": 100})
+        resolution = feeder.feed(
+            "order.ack.TRADER01", {"order_id": ORDER, "accepted": True}
+        )
+
+        link = only(resolution.links, CAUSED)
+        assert link.confidence is Confidence.CERTAIN
+        assert not resolution.orphan

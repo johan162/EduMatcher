@@ -123,14 +123,24 @@ def _order(episode: Episode) -> Derived:
     quantity = _last(facts, "quantity", "qty")
     remaining = _last(facts, "remaining_qty")
     total_qty = sum(q for f in fills if (q := _int(f.payload, "fill_qty")) is not None)
-    notional = sum(
-        q * p
+
+    # The money is summed over the fills that carry BOTH a quantity and a
+    # resolvable price, and divided by the quantity of those same fills.
+    # Dividing this notional by `total_qty` mixed two sets: one fill without a
+    # price made the VWAP of a 75.60 execution read 30.24, and turned a 0.09
+    # price improvement into 45.45. Every field is optional here precisely so
+    # that an unknown can stay unknown -- so when no fill states a price,
+    # these are None rather than a zero pretending to be an answer.
+    priced = [
+        (q, p)
         for f in fills
         if (q := _int(f.payload, "fill_qty")) is not None
         and (p := _price(f, "fill_price")) is not None
-    )
+    ]
+    priced_qty = sum(q for q, _ in priced)
+    notional = sum(q * p for q, p in priced) if priced else None
 
-    limit = _first_price(facts)
+    limit = _limit_in_force(facts)
     side = _first_str(facts, "side")
     return Derived(
         quantity=quantity,
@@ -142,10 +152,14 @@ def _order(episode: Episode) -> Derived:
         ),
         fills_total_qty=total_qty if fills else None,
         fills=len(fills) if fills else None,
-        vwap=notional / total_qty if total_qty else None,
-        notional=notional if fills else None,
+        vwap=notional / priced_qty if notional is not None and priced_qty else None,
+        notional=notional,
         limit_price=limit,
-        price_improvement=_improvement(limit, side, notional, total_qty),
+        price_improvement=(
+            _improvement(limit, side, notional, priced_qty)
+            if notional is not None
+            else None
+        ),
         role=_first_str(fills, "liquidity_flag"),
         time_to_ack=_elapsed(episode, _find(facts, kinds.ORDER_ACK)),
         time_to_first_fill=_elapsed(episode, fills[0] if fills else None),
@@ -200,19 +214,26 @@ def _find(facts: list[Fact], kind: str) -> Fact | None:
     return next((f for f in facts if f.kind == kind), None)
 
 
-def _first_price(facts: list[Fact]) -> float | None:
-    """The order's limit price, from the earliest fact that states one.
+def _limit_in_force(facts: list[Fact]) -> float | None:
+    """The limit the fills were actually measured against.
 
     ``order.new`` carries it as ``price_ticks`` and the engine's own events
     restate it as ``price`` in display money; the Fact layer has already put
-    both on the same scale, so this only has to take whichever arrived first.
+    both on the same scale.
+
+    The *latest* statement, not the earliest, for the reason ``quantity`` is
+    read the same way: an amendment restates the limit, and measuring a fill
+    against a price the order no longer had overstated price improvement
+    eightfold on an order amended down before it filled.
     """
+    limit: float | None = None
     for fact in facts:
         for name in ("price_ticks", "price"):
             value = _price(fact, name)
             if value is not None:
-                return value
-    return None
+                limit = value
+                break
+    return limit
 
 
 def _first_str(facts: list[Fact], name: str) -> str | None:

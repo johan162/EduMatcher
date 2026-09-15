@@ -622,9 +622,24 @@ def _detector(state: StateModel, args: argparse.Namespace) -> Detector:
 def build_index(
     args: argparse.Namespace, log_files: list[Path], *, rebuild: bool
 ) -> int:
-    """Run the whole pipeline into the index, returning the episode count."""
-    from_dt, to_dt = window_bounds(args)
-    entries = iter_entries(log_files, from_dt=from_dt, to_dt=to_dt)
+    """Run the whole pipeline into the index, returning the episode count.
+
+    The whole log, never the query's window. The index is a cache of the
+    reconstruction and a cache may not depend on the question that happened
+    to populate it: narrowing the build by ``--from``/``--to``/``--date``/
+    ``--last`` produced an index that answered a later, wider query with a
+    truncated window and said nothing about it -- an OCO reported ``OPEN``
+    when the trail plainly said ``CANCELLED``, exit 0. Its currency check is
+    the source fingerprint, which cannot see a window, and adding the window
+    to that check would instead rebuild on almost every ``--last`` call,
+    since a relative window moves.
+
+    So the window is a property of the *query* only. `reader` applies it in
+    SQL, `_from_log` applies it to the read, and both narrow the same
+    complete model. `--no-index` remains the way to avoid paying for a full
+    build on a one-off log.
+    """
+    entries = iter_entries(log_files)
     max_facts, max_seconds = reorder_bounds(args)
     run, steps = reconstruct(entries, max_facts=max_facts, max_seconds=max_seconds)
     detector = _detector(run.state, args)
@@ -1042,6 +1057,13 @@ def validate_args(args: argparse.Namespace) -> str | None:
         return "--from must not be later than --to"
     if args.quiet and args.verbose:
         return "-q cannot be combined with -v"
+    if args.command == "index" and (
+        args.from_ts or args.to_ts or args.date or args.last is not None
+    ):
+        return (
+            "the index always covers the whole log, so it takes no window; "
+            "narrow the query instead"
+        )
     allowed = _FORMAT_COMMANDS.get(args.format)
     if allowed is not None and args.command not in allowed:
         return f"--format {args.format} is only available for " + ", ".join(
