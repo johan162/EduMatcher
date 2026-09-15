@@ -21,16 +21,11 @@ from edumatcher.alf_gwy.config import AlfGatewayConfig
 from edumatcher.alf_gwy.gateway import AlfGateway
 from edumatcher.alf_gwy.protocol import parse_alf_line
 from edumatcher.models.message import encode
+from tests.conftest import wait_for_listener, free_ports
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return int(s.getsockname()[1])
 
 
 class _LineBuffer:
@@ -148,9 +143,7 @@ def running_gateway() -> Generator[
     engine_pull receives everything the gateway pushes to the engine.
     engine_pub can inject events that the gateway will route to clients.
     """
-    engine_pull_port = _free_port()
-    engine_pub_port = _free_port()
-    gateway_port = _free_port()
+    engine_pull_port, engine_pub_port, gateway_port = free_ports(3)
 
     engine_pull_addr = f"tcp://127.0.0.1:{engine_pull_port}"
     engine_pub_addr = f"tcp://127.0.0.1:{engine_pub_port}"
@@ -183,8 +176,10 @@ def running_gateway() -> Generator[
     t = threading.Thread(target=gw.run, daemon=True)
     t.start()
 
-    # Allow gateway to bind TCP listener and ZMQ sockets to settle.
-    time.sleep(0.15)
+    # Wait for the real signal -- the port accepting -- not a guess at how
+    # long a thread takes to schedule. ZMQ's own connect is lazy, so the
+    # short settle below is for subscriptions, not for the listener.
+    wait_for_listener(cfg.bind_address, gateway_port)
 
     # PUB/SUB subscription handshake window for the global subscriptions
     # (session.state, trade.executed, circuit_breaker.*).

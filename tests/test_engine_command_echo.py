@@ -226,6 +226,17 @@ class TestEchoOrdersBeforeItsEffects:
         assert echo_env.msg_id < ack_env.msg_id
 
 
+def _real_publisher(engine: Any) -> FakeSock:
+    """Swap in the publisher that actually stamps envelopes.
+
+    The harness's socket double has a no-op ``set_cause`` and stamps nothing,
+    which is exactly the frame these tests read.
+    """
+    sock = FakeSock()
+    engine.pub_sock = CausalPublisher(SequencedPublisher(sock))
+    return sock
+
+
 class TestTheReceiveLoopCallsIt:
     """The method above is tested; this is about its one call site.
 
@@ -312,6 +323,49 @@ class TestTheReceiveLoopCallsIt:
         self._drive(engine, submission(b"order.new"), monkeypatch)
 
         assert "order.new" in [decode(f)[0] for f in pub.sent]
+
+    def test_a_reply_to_a_query_cites_nothing(
+        self, engine_and_sock: Any, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """If you do not echo the cause, you may not cite it.
+
+        A query is left out of the echo on purpose (the GUIs poll them), so
+        its id is in no trail. Attributing the reply to it anyway made the
+        snapshot an orphan citing a message that was never published, which
+        ``pm-audit-replay`` can only report as ``CAUSE_NOT_FOUND`` -- it
+        cannot tell a cause the engine withheld from one that was dropped.
+        """
+        import orjson
+
+        engine, _ = engine_and_sock
+        sock = _real_publisher(engine)
+        engine._book("AAPL")
+        frames = submission(b"book.snapshot_request", orjson.dumps({"symbol": "AAPL"}))
+
+        self._drive(engine, frames, monkeypatch)
+
+        books = [f for f in sock.sent if decode(f)[0] == "book.AAPL"]
+        assert books, "precondition: the request produced a snapshot"
+        env = decode_envelope(books[-1])
+        assert env is not None and env.causation_id is None
+
+    def test_a_reply_to_a_command_still_cites_it(
+        self, engine_and_sock: Any, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The exemption is for reads only."""
+        import orjson
+
+        engine, _ = engine_and_sock
+        sock = _real_publisher(engine)
+        payload = order_payload(Side.BUY, OrderType.LIMIT, 100, "GW01", price=100.0)
+        frames = submission(b"order.new", orjson.dumps(payload))
+
+        self._drive(engine, frames, monkeypatch)
+
+        envs = {decode(f)[0]: decode_envelope(f) for f in sock.sent}
+        ack, new = envs["order.ack.GW01"], envs["order.new"]
+        assert ack is not None and new is not None
+        assert ack.causation_id == new.msg_id
 
 
 @pytest.mark.perf

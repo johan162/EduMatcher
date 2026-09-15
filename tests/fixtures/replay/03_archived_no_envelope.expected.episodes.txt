@@ -1,0 +1,26 @@
+order          cccc0001000000000000000000000001    CANCELLED  sym=MSFT    actor=TRADER03   closed
+     0  open     order.new
+     1  progress order.ack
+     2  progress order.fill
+     3  progress order.cancel
+     4  progress order.cancel
+     5  close    order.cancelled
+     =  filled_qty = 100
+     =  fills = 1
+     =  fills_total_qty = 100
+     =  limit_price = 415.5
+     =  notional = 41550.0
+     =  price_improvement = 0.0
+     =  quantity = 300
+     =  remaining_qty = 200
+     =  role = 'MAKER'
+     =  time_to_ack = 0.001
+     =  time_to_completion = 0.11
+     =  time_to_first_fill = 0.041
+     =  vwap = 415.5
+trade          000017-000000441                    ACCEPTED   sym=MSFT    actor=-          closed
+     0  open     trade.executed
+     =  aggressor_side = 'BUY'
+     =  crossed_in_uncross = False
+     =  notional = 41550.0
+     =  quantity = 100

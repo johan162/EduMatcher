@@ -1,0 +1,19 @@
+001  system.gateway_auth           TRADER07    origin
+002  circuit_breaker.halt          AAPL        origin
+003  order.new                     -           origin
+004  order.ack                     TRADER07
+     <- caused            RECORDED  01M206EMGM0000000000000001   causation_id
+     <- rejected_because  STRONG    01M206EMGH000000000000000H   halted by the circuit breaker, since 09:44:10.001, at level L1, corridor 71.25-78.75
+005  risk.kill_switch              -           origin
+006  order.cancelled               TRADER07
+     <- caused            RECORDED  01M206EMGT000000000000000K   causation_id
+     <- cancelled_by      CERTAIN   condition:KILL_SWITCH        cancel_reason
+007  order.cancelled               TRADER07
+     <- caused            RECORDED  01M206EMGT000000000000000K   causation_id
+     <- cancelled_by      CERTAIN   condition:KILL_SWITCH        cancel_reason
+008  risk.kill_switch_ack          RISKDESK
+     <- caused            RECORDED  01M206EMGT000000000000000K   causation_id
+     !  WARN  EFFECT_COUNT_MISMATCH: risk.kill_switch_ack for command 8812 names 3 cancelled order(s); 1 were not observed: aaaa0001000000000000000000000003
+009  order.cancelled               MM01        origin
+     <- cancelled_by      CERTAIN   condition:QUOTE_LEG_FILLED   cancel_reason
+010  circuit_breaker.resume        AAPL        origin

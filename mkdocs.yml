@@ -129,6 +129,7 @@ nav:
     - "GUI: Trading platform": user-guide/300-trader-gui.md
     - Examples: user-guide/800-examples.md
     - Example Engine Configs: user-guide/810-example-configs.md
+    - Audit Replay (pm-audit-replay): user-guide/820-audit-replay.md
     - Known Limitations & Bugs: user-guide/890-known-limitations-bugs.md
     - "Appendix: ALF Protocol": user-guide/900-app-alf-protocol.md
     - "Appendix: BALF Protocol": user-guide/910-app-balf-protocol.md

@@ -12,7 +12,7 @@ import dataclasses
 import enum
 import hashlib
 import json
-from pathlib import PurePath
+from pathlib import Path, PurePath
 from typing import Any, get_args, get_origin, get_type_hints
 
 import pytest
@@ -32,6 +32,7 @@ from edumatcher.config_artifact import (
     decode,
     encode,
     from_jsonable,
+    load_compiled_config,
     source_digest,
     to_jsonable,
 )
@@ -230,7 +231,7 @@ class TestSchemaVersion:
     def test_names_the_command_that_fixes_it(self) -> None:
         text = encode(_config(meta=_meta(schema_version=99)))
 
-        with pytest.raises(ArtifactError, match="pm-config-compile"):
+        with pytest.raises(ArtifactError, match="pm-config-deploy"):
             decode(text)
 
     def test_rejects_an_artifact_with_no_meta(self) -> None:
@@ -521,3 +522,21 @@ class TestContentDigest:
         # test or an older compiler is not rejected outright — only a digest
         # that is present and wrong means tampering.
         assert decode(encode(_config())) == _config()
+
+
+class TestLoadNamesTheFile:
+    def test_a_rejected_artifact_reports_where_it_lives(self, tmp_path: Path) -> None:
+        # The path is derived from DATA_DIR and never passed in, so a reader
+        # facing "schema version 3" has no way to know which file to fix.
+        target = tmp_path / "engine_config.json"
+        target.write_text(
+            encode(_config(meta=_meta(schema_version=99))), encoding="utf-8"
+        )
+
+        with pytest.raises(ArtifactError, match="schema version") as excinfo:
+            load_compiled_config(target)
+
+        assert str(target) in str(excinfo.value)
+
+    def test_absence_is_still_not_an_error(self, tmp_path: Path) -> None:
+        assert load_compiled_config(tmp_path / "absent.json") is None

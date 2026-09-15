@@ -80,6 +80,7 @@ def make_fact(
         file="audit.log",
         line_no=ordinal + 1,
         known=True,
+        family="order",
     )
 
 
@@ -109,11 +110,39 @@ class TestSortKey:
             "order.fill",
         ]
 
-    def test_ids_minted_in_one_millisecond_keep_their_counter_order(self) -> None:
+    def test_one_millisecond_falls_back_to_read_order(self) -> None:
+        """A ULID's counter orders its own publisher's ids and nothing else.
+
+        This used to assert the opposite -- that the counter wins inside a
+        millisecond -- and the assertion held only because every fact in it
+        came from one imaginary publisher. On a real trail the submitting
+        gateway mints an order's envelope and the engine mints the ack, in the
+        same millisecond, and their random tails decided the order: the ack
+        sorted ahead of the order it acknowledges.
+
+        ``pm-audit`` receives on one socket in one thread, so read order is
+        the order the exchange published in. That is the tiebreak.
+        """
         base = int(_EPOCH.timestamp() * 1000)
-        second = make_fact(kind="b", ordinal=0, minted_ms=base, counter=2)
-        first = make_fact(kind="a", ordinal=1, minted_ms=base, counter=1)
-        assert [f.kind for f in in_canonical_order([second, first])] == ["a", "b"]
+        # Read first, but with the *higher* counter -- as a second publisher's
+        # id in the same millisecond may well be.
+        read_first = make_fact(kind="a", ordinal=0, minted_ms=base, counter=9)
+        read_second = make_fact(kind="b", ordinal=1, minted_ms=base, counter=1)
+
+        order = in_canonical_order([read_second, read_first])
+
+        assert [f.kind for f in order] == ["a", "b"]
+
+    def test_a_later_millisecond_still_wins_over_read_order(self) -> None:
+        """The millisecond is still the signal; only the tail was noise."""
+        base = int(_EPOCH.timestamp() * 1000)
+        late = make_fact(kind="late", ordinal=0, minted_ms=base + 5)
+        early = make_fact(kind="early", ordinal=1, minted_ms=base)
+
+        assert [f.kind for f in in_canonical_order([late, early])] == [
+            "early",
+            "late",
+        ]
 
     def test_an_engine_restart_needs_no_run_partitioning(self) -> None:
         """A ULID's timestamp prefix carries ordering straight across a restart,
@@ -335,3 +364,38 @@ class TestShuffleProperty:
             shuffled = original[:]
             rng.shuffle(shuffled)
             assert [f.kind for f in in_canonical_order(shuffled)] == expected
+
+
+class TestALateFactIsNotEvidenceOfLoss:
+    """``SEQ_GAP`` is the tool's only proof that the trail lost something, so
+    a false one is expensive.
+
+    Writing a late fact's sequence back as the high-water mark let the counter
+    *regress*, and the next healthy fact was then measured against a number
+    that had already gone past -- reporting loss one line after the very
+    sequence it claimed was missing had been emitted.
+    """
+
+    def _codes(self, spec: list[tuple[int, bool]]) -> list[tuple[int | None, str]]:
+        stream = [
+            replace(make_fact(ordinal=i, topic_seq=seq), late=late)
+            for i, (seq, late) in enumerate(spec)
+        ]
+        return [
+            (fact.topic_seq, anomaly.code)
+            for fact in detect_seq_gaps(stream)
+            for anomaly in fact.anomalies
+        ]
+
+    def test_a_late_fact_does_not_manufacture_a_gap_behind_it(self) -> None:
+        found = self._codes([(1, False), (3, False), (4, False), (2, True), (5, False)])
+
+        assert found == [(3, SEQ_GAP)]
+
+    def test_a_dense_run_interrupted_by_a_late_fact_stays_clean(self) -> None:
+        assert self._codes([(1, False), (2, False), (1, True), (3, False)]) == []
+
+    def test_a_publisher_restart_still_resets(self) -> None:
+        """A decrease that is not late is a restart, which must still reset --
+        otherwise every message after it looks like a gap."""
+        assert self._codes([(7, False), (1, False), (2, False)]) == []

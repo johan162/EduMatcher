@@ -226,6 +226,31 @@ class OrderBook:
         events  : list of Order objects whose status changed (fills, rejects)
                   — caller publishes these as order.fill / order.ack messages
         """
+        # An iceberg's displayed slice is what a sweep is allowed to take from
+        # it, so a slice larger than what is left over-fills the order to a
+        # negative remaining_qty -- after which the slice is zero, every
+        # further pass of the sweep fills nothing, neither side moves, and
+        # `while aggressor.remaining_qty > 0 and opposite_heap` never ends.
+        # The engine hangs rather than mis-fills.
+        #
+        # The ALF path cannot produce one (engine/main.py's M7 rejects
+        # visible_qty > quantity before the order gets here) and no internal
+        # path builds an iceberg with a visible slice at all, so this guards
+        # the callers that reach a book *without* passing M7: startup restore
+        # from a persisted gtc_orders.json, and anything constructing an Order
+        # directly. Cheap to state, and the alternative failure is a stopped
+        # exchange.
+        if (
+            order.order_type == OrderType.ICEBERG
+            and order.displayed_qty is not None
+            and not 0 < order.displayed_qty <= order.remaining_qty
+        ):
+            raise ValueError(
+                f"ICEBERG {order.id} has a displayed slice of "
+                f"{order.displayed_qty} against {order.remaining_qty} "
+                f"remaining; it must be positive and no larger"
+            )
+
         trades: list[Trade] = []
         events: list[Order] = []
 

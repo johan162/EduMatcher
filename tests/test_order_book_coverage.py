@@ -965,3 +965,94 @@ class TestOrdersByGatewayIndexStops:
         book.process(stop_gw2, match=False)
         assert [o.id for o in book.orders_for_gateway("GW01")] == [stop_gw1.id]
         assert [o.id for o in book.orders_for_gateway("GW02")] == [stop_gw2.id]
+
+
+# ---------------------------------------------------------------------------
+# The displayed slice an iceberg enters the book with
+# ---------------------------------------------------------------------------
+
+
+class TestIcebergDisplayedSliceIsValidated:
+    """A slice larger than what is left hangs the sweep, so it is refused.
+
+    ``_sweep`` takes ``displayed_qty`` from a passive iceberg, so a slice
+    bigger than ``remaining_qty`` over-fills the order to a negative
+    remaining, leaves the slice at zero, and then fills nothing on every
+    subsequent pass -- while the aggressor still has quantity and the order is
+    still PARTIAL and still on the heap. The loop makes no progress and the
+    engine stops rather than mis-filling.
+
+    The ALF path cannot get here (M7 rejects ``visible_qty > quantity`` at the
+    engine boundary), which is exactly why this is worth asserting at the
+    book: what reaches a book without passing M7 is startup restore from a
+    persisted file, and anything that builds an Order directly.
+    """
+
+    def test_a_slice_larger_than_the_order_is_refused(self) -> None:
+        book = OrderBook("TEST")
+        iceberg = _make(Side.BUY, OrderType.ICEBERG, 150, price=100, visible_qty=200)
+
+        with pytest.raises(ValueError, match="displayed slice"):
+            book.process(iceberg)
+
+    def test_the_refusal_happens_before_it_rests(self) -> None:
+        """Refusing after it rested would leave the book holding the order
+        that hangs the next sweep -- which is the whole failure."""
+        book = OrderBook("TEST")
+        iceberg = _make(Side.BUY, OrderType.ICEBERG, 150, price=100, visible_qty=200)
+
+        with pytest.raises(ValueError):
+            book.process(iceberg)
+
+        assert book.snapshot()["bids"] == []
+
+    def test_an_empty_slice_is_refused(self) -> None:
+        """Zero is the state the sweep actually spins on: it fills nothing and
+        neither side moves."""
+        book = OrderBook("TEST")
+        iceberg = _make(Side.SELL, OrderType.ICEBERG, 200, price=100, visible_qty=50)
+        iceberg.displayed_qty = 0
+
+        with pytest.raises(ValueError, match="displayed slice"):
+            book.process(iceberg)
+
+    def test_a_partly_filled_iceberg_still_restores(self) -> None:
+        """The false positive to avoid.
+
+        A restored iceberg carries the ``visible_qty`` it was submitted with
+        and the ``displayed_qty`` it had when the engine last touched it, so
+        ``visible_qty`` legitimately exceeds ``remaining_qty`` once most of it
+        has traded. It is ``displayed_qty`` that has to be sane, not
+        ``visible_qty``.
+        """
+        book = OrderBook("TEST")
+        iceberg = _make(Side.SELL, OrderType.ICEBERG, 500, price=100, visible_qty=200)
+        iceberg.remaining_qty = 150
+        iceberg.displayed_qty = 150
+
+        book.process(iceberg, match=False)
+
+        assert book.snapshot()["asks"][0]["qty"] == 150
+
+    def test_a_well_formed_iceberg_is_untouched(self) -> None:
+        book = OrderBook("TEST")
+        iceberg = _make(Side.SELL, OrderType.ICEBERG, 200, price=100, visible_qty=50)
+        book.process(iceberg, match=False)
+
+        trades, _events = book.process(
+            _make(Side.BUY, OrderType.LIMIT, 50, price=100), match=True
+        )
+
+        assert [t.quantity for t in trades] == [50]
+        assert iceberg.remaining_qty == 150
+        assert iceberg.displayed_qty == 50
+
+    def test_a_slice_equal_to_the_order_is_allowed(self) -> None:
+        """The boundary: an iceberg showing all of itself is legal, and an
+        off-by-one here would refuse every fully-displayed one."""
+        book = OrderBook("TEST")
+        iceberg = _make(Side.SELL, OrderType.ICEBERG, 50, price=100, visible_qty=50)
+
+        book.process(iceberg, match=False)
+
+        assert book.snapshot()["asks"][0]["qty"] == 50

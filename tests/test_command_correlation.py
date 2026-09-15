@@ -17,7 +17,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from edumatcher.api_gateway.engine_client import EngineClient
-from edumatcher.api_gateway.events import new_command_id
+from edumatcher.models.ids import new_command_id
 from edumatcher.models.message import (
     decode,
     make_kill_switch_ack_msg,

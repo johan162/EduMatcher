@@ -26,7 +26,7 @@ actor, and resolving that is a spec lookup, not string surgery --
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Mapping
@@ -38,6 +38,8 @@ from edumatcher.audit.query import (
     split_topic,
 )
 from edumatcher.audit.replay.anomalies import (
+    PARSE_FAILURE,
+    SEVERITY_ERROR,
     SEVERITY_WARN,
     TICK_SCALE_UNKNOWN,
     UNKNOWN_TOPIC,
@@ -87,10 +89,20 @@ class Price:
         return self.display is not None
 
     def render(self) -> str:
-        """The value as it may be printed, never scaled without a source."""
+        """The value as it may be printed, never scaled without a source.
+
+        The scale fixes the number of decimals only when there *is* one.
+        ``or 0`` here used to mean a price whose message declares no
+        ``tick_decimals`` -- ``order.fill.fill_price`` is display money and its
+        message declares none -- printed with zero decimals, so 74.80 came out
+        as "75". Rounding is not formatting: it changes the number, which is
+        the one thing section 5.3.1 exists to stop.
+        """
         if self.display is None:
             return f"{self.raw:g} ticks"
-        return f"{self.display:.{self.tick_decimals or 0}f}"
+        if self.tick_decimals is None:
+            return f"{self.display:g}"
+        return f"{self.display:.{self.tick_decimals}f}"
 
     def provenance(self) -> str:
         """The ``--show-units`` annotation: how this number came to be."""
@@ -150,6 +162,11 @@ class Fact:
     line_no: int
     #: False when the topic has no entry in the generated registry.
     known: bool
+    #: The spec family the topic was declared in -- ``risk``, ``index``,
+    #: ``circuit_breaker``. Read off the registry rather than sliced off the
+    #: kind, and carried here so a consumer grouping by family does not repeat
+    #: the lookup on every fact. None exactly when ``known`` is False.
+    family: str | None
     #: True when this fact arrived after its reorder window had closed and was
     #: therefore emitted where it landed rather than where it belongs. Set by
     #: the ordering pass; never true on a healthy log, so it is itself a
@@ -348,11 +365,47 @@ def to_fact(entry: AuditEntry, ordinal: int) -> Fact:
         file=entry.file,
         line_no=entry.line_no,
         known=spec is not None,
+        family=str(spec["family"]) if spec is not None else None,
         anomalies=tuple(found),
     )
 
 
 def normalise(entries: Iterable[AuditEntry]) -> Iterator[Fact]:
-    """Normalise a stream of entries, numbering them in read order."""
+    """Normalise a stream of entries, numbering them in read order.
+
+    Also where ``PARSE_FAILURE`` is noticed, because this is the last place
+    read order is still available: ``iter_entries`` drops a line the audit
+    format does not match, and a dropped line leaves a hole in ``line_no``
+    that only consecutive entries reveal. The ordering pass runs next and
+    puts the facts in canonical order, after which two neighbours are no
+    longer two neighbouring lines.
+
+    The finding attaches to the fact *after* the hole -- the first line that
+    was read -- and says how many were not. A blank line in the middle of a
+    log would be reported the same way; ``pm-audit`` does not write one.
+    """
+    previous: tuple[str | None, int] | None = None
     for ordinal, entry in enumerate(entries):
-        yield to_fact(entry, ordinal)
+        fact = to_fact(entry, ordinal)
+        if previous is not None and previous[0] == entry.file:
+            unread = entry.line_no - previous[1] - 1
+            if unread > 0:
+                fact = replace(
+                    fact,
+                    anomalies=fact.anomalies
+                    + (
+                        Anomaly(
+                            code=PARSE_FAILURE,
+                            severity=SEVERITY_ERROR,
+                            detail=(
+                                f"{unread} line(s) before this one did not "
+                                "match the audit line format and were not read"
+                            ),
+                            receipt_ts=entry.timestamp,
+                            file=entry.file,
+                            line_no=entry.line_no,
+                        ),
+                    ),
+                )
+        previous = (entry.file, entry.line_no)
+        yield fact

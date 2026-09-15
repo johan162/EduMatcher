@@ -15,6 +15,7 @@ from edumatcher.md_gateway.client_session import ClientSession
 from edumatcher.md_gateway.config import MarketDataGatewayConfig
 from edumatcher.md_gateway.gateway import MarketDataGateway, _extract_ts
 from edumatcher.md_gateway.protocol import parse_line
+from tests.conftest import free_port, free_ports
 
 
 class _FakeSubscriber:
@@ -36,18 +37,13 @@ class _FakeSubscriber:
         return False
 
 
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return int(s.getsockname()[1])
-
-
 @pytest.fixture()
 def unit_gateway() -> Generator[MarketDataGateway, None, None]:
+    gateway_port, engine_pub_port = free_ports(2)
     cfg = MarketDataGatewayConfig(
         bind_address="127.0.0.1",
-        port=_free_port(),
-        engine_pub_addr=f"tcp://127.0.0.1:{_free_port()}",
+        port=gateway_port,
+        engine_pub_addr=f"tcp://127.0.0.1:{engine_pub_port}",
         heartbeat_interval_sec=1,
         idle_timeout_sec=1,
         replay_window_sec=5,
@@ -93,7 +89,7 @@ def test_run_single_iteration_main_thread(
 def test_accept_new_clients(unit_gateway: MarketDataGateway) -> None:
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.bind(("127.0.0.1", _free_port()))
+    server.bind(("127.0.0.1", free_port()))
     server.listen(5)
     server.setblocking(False)
     unit_gateway._server = server
@@ -113,7 +109,7 @@ def test_accept_new_clients_respects_max_connections(
 ) -> None:
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.bind(("127.0.0.1", _free_port()))
+    server.bind(("127.0.0.1", free_port()))
     server.listen(5)
     server.setblocking(False)
     unit_gateway._server = server

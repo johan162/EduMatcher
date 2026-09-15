@@ -22,6 +22,7 @@ import zmq
 from edumatcher.models.message import dumps
 from edumatcher.ralf_gateway.config import RalfGatewayConfig
 from edumatcher.ralf_gateway.gateway import RalfGateway
+from tests.conftest import wait_for_listener, free_ports
 
 EXAMPLE_DIR = Path("docs/examples/ralf")
 
@@ -37,23 +38,6 @@ class _RalfMessage(Protocol):
 
 class _ParserModule(Protocol):
     def parse_ralf_line(self, line: str) -> _RalfMessage: ...
-
-
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind(("127.0.0.1", 0))
-        return int(sock.getsockname()[1])
-
-
-def _wait_for_listener(host: str, port: int, timeout: float = 5.0) -> None:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        try:
-            with socket.create_connection((host, port), timeout=0.2):
-                return
-        except OSError:
-            time.sleep(0.05)
-    raise AssertionError(f"gateway did not start listening on {host}:{port}")
 
 
 def _load_module(name: str, path: Path) -> ModuleType:
@@ -138,8 +122,7 @@ def _send_trade_executed(pub: zmq.Socket[bytes], exec_id: str) -> None:
 
 @pytest.fixture()
 def running_gateway() -> Generator[tuple[zmq.Socket[bytes], int], None, None]:
-    engine_port = _free_port()
-    gateway_port = _free_port()
+    engine_port, gateway_port = free_ports(2)
     engine_addr = f"tcp://127.0.0.1:{engine_port}"
 
     cfg = RalfGatewayConfig(
@@ -156,7 +139,7 @@ def running_gateway() -> Generator[tuple[zmq.Socket[bytes], int], None, None]:
     gateway = RalfGateway(cfg)
     thread = threading.Thread(target=gateway.run, daemon=True)
     thread.start()
-    _wait_for_listener("127.0.0.1", gateway_port)
+    wait_for_listener("127.0.0.1", gateway_port)
 
     ctx: zmq.Context[zmq.Socket[bytes]] = zmq.Context.instance()
     pub = ctx.socket(zmq.PUB)

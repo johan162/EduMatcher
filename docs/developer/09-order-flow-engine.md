@@ -598,7 +598,7 @@ for evt in events:
                 "fill_qty": filled_qty,
                 "fill_price": ...,
                 "remaining_qty": evt.remaining_qty,
-                "status": "PARTIAL_FILL" if evt.remaining_qty else "FILLED",
+                "status": fill_status(evt.remaining_qty),  # PARTIAL | FILLED
                 ...
             }),
         ])

@@ -1,0 +1,46 @@
+gateway        TRADER01                            OPEN       sym=-       actor=TRADER01   OPEN
+     0  open     system.gateway_auth
+orphan         01M205PK2Z000000000000000B          UNKNOWN    sym=-       actor=TRADER01   closed
+     0  open     system.symbols
+orphan         01M205PK30000000000000000M          UNKNOWN    sym=AAPL    actor=-          closed
+     0  open     book
+order          4f2c9a1e6d8b47c3a5f09e21b7d4c6a8    PARTIAL    sym=AAPL    actor=TRADER01   OPEN
+     0  open     order.new
+     1  progress order.ack
+     2  progress order.fill
+     =  filled_qty = 150
+     =  fills = 1
+     =  fills_total_qty = 150
+     =  limit_price = 75.69
+     =  notional = 11220.0
+     =  price_improvement = 0.8900000000000006
+     =  quantity = 200
+     =  remaining_qty = 50
+     =  role = 'TAKER'
+     =  time_to_ack = 0.001
+     =  time_to_first_fill = 0.002
+     =  vwap = 74.8
+trade          000042-000001873                    ACCEPTED   sym=AAPL    actor=-          closed
+     0  open     trade.executed
+     =  aggressor_side = 'BUY'
+     =  crossed_in_uncross = False
+     =  notional = 11220.0
+     =  quantity = 150
+order          9ab1c47f2e5d48a1b3c6f9078e2d15b4    FILLED     sym=AAPL    actor=TRADER02   closed
+     0  open     order.fill
+     =  filled_qty = 150
+     =  fills = 1
+     =  fills_total_qty = 150
+     =  limit_price = 74.8
+     =  notional = 11220.0
+     =  price_improvement = 0.0
+     =  quantity = 150
+     =  remaining_qty = 0
+     =  role = 'MAKER'
+     =  time_to_completion = 0.0
+     =  time_to_first_fill = 0.0
+     =  vwap = 74.8
+orphan         01M205PK3B000000000000000N          UNKNOWN    sym=AAPL    actor=-          closed
+     0  open     book
+orphan         01M205PK3C000000000000000P          UNKNOWN    sym=AAPL    actor=-          closed
+     0  open     depth

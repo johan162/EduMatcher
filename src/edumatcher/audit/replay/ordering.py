@@ -45,8 +45,8 @@ from edumatcher.models.envelope import ulid_millis
 DEFAULT_MAX_FACTS = 2000
 DEFAULT_MAX_SECONDS = 5.0
 
-#: ``(mint_ms, msg_id, receipt_ts, ordinal)``.
-SortKey = tuple[int, str, datetime, int]
+#: ``(mint_ms, receipt_ts, ordinal)``.
+SortKey = tuple[int, datetime, int]
 
 
 def mint_millis(fact: Fact) -> int:
@@ -69,18 +69,62 @@ def mint_millis(fact: Fact) -> int:
 def sort_key(fact: Fact) -> SortKey:
     """The canonical key of section 5.2.2.
 
-    ``msg_id`` second rather than first so an enveloped and an envelope-less
-    fact can be compared at all: they share the millisecond scale, not the id
-    space. Within one millisecond, ULIDs order by their monotonic counter,
-    which is mint order. ``ordinal`` last makes the sort total and stable --
-    ``line_no`` cannot, because it restarts at every rotated file.
+    The ULID's **millisecond** is the ordering signal and its remaining 80
+    bits are not. This key used to sort on the whole ``msg_id`` second, on the
+    reasoning that "within one millisecond, ULIDs order by their monotonic
+    counter, which is mint order". That is true only within one *process*: a
+    publisher's own ids do advance by one, but two processes minting in the
+    same millisecond produce tails that sort at random relative to each other
+    -- and an order's envelope is minted by the submitting gateway while its
+    ack is minted by the engine.
+
+    The effect was not subtle. On a real run the ack sorted *before* the
+    ``order.new`` it cites, which split the order across two episodes, made
+    the ack's ``causation_id`` point at a message the resolver had not read
+    yet, and reported both as findings. Every hand-written fixture was
+    authored with ascending ids, so none of it showed.
+
+    So: millisecond, then receipt, then read order. ``ordinal`` is the
+    position ``pm-audit`` wrote the line at, and ``pm-audit`` receives on one
+    socket in one thread -- so within a millisecond it *is* the order the
+    exchange published in, which is the strongest signal available and the one
+    the ULID tail was standing in for. ``line_no`` cannot serve, because it
+    restarts at every rotated file.
     """
-    return (mint_millis(fact), fact.msg_id or "", fact.receipt_ts, fact.ordinal)
+    return (mint_millis(fact), fact.receipt_ts, fact.ordinal)
 
 
 def in_canonical_order(facts: Iterable[Fact]) -> list[Fact]:
     """Sort a materialised stream. The reference the streaming path must match."""
     return sorted(facts, key=sort_key)
+
+
+#: Widths that make the packed key sort lexicographically the way the tuple
+#: sorts numerically. 13 digits of epoch milliseconds runs to the year 2286;
+#: 12 of ordinal to a trillion lines in one window.
+_MILLIS_WIDTH = 13
+_ORDINAL_WIDTH = 12
+
+
+def pack_sort_key(fact: Fact) -> str:
+    """The canonical key as one lexicographically sortable string.
+
+    What ``episodes.opened_sort_key`` stores (design section 6.2). A tuple
+    cannot be a SQLite column and three columns cannot be one index, so the
+    ordering has to survive being flattened: each numeric field is
+    zero-padded to a fixed width, and the separator is below every character
+    that can appear in a field so a short value never sorts after a longer one
+    that starts the same way.
+
+    Changing this packing changes what a stored index means, so it is one of
+    the three things section 6.2 says must bump ``rules_version``.
+    """
+    millis, receipt, ordinal = sort_key(fact)
+    return (
+        f"{millis:0{_MILLIS_WIDTH}d}"
+        f"\x1f{receipt.isoformat(timespec='microseconds')}"
+        f"\x1f{ordinal:0{_ORDINAL_WIDTH}d}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -185,12 +229,24 @@ def detect_seq_gaps(facts: Iterable[Fact]) -> Iterator[Fact]:
             yield fact
             continue
         previous = last.get(fact.topic)
-        last[fact.topic] = seq
         if previous is None or seq <= previous or fact.late:
             # A late fact's sequence is behind by construction; it has already
             # been reported as LATE_ARRIVAL and is not evidence of loss.
+            #
+            # Its sequence must not become the high-water mark either. Writing
+            # it back unconditionally let the counter *regress*, so the next
+            # healthy fact was measured against a number already emitted and
+            # reported as loss: seqs 1,3,4,2(late),5 produced a SEQ_GAP for
+            # "2 -> 4" one line after 2 had gone past. SEQ_GAP is the tool's
+            # only proof of loss, so a false one is expensive.
+            #
+            # A decrease that is NOT late still resets, which is the deliberate
+            # restart rule documented above.
+            if previous is None or (seq < previous and not fact.late):
+                last[fact.topic] = seq
             yield fact
             continue
+        last[fact.topic] = seq
         missing = seq - previous - 1
         if missing <= 0:
             yield fact

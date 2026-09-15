@@ -1,0 +1,12 @@
+001  07:59:58.000  system.recovery_item          -           01M22JWJ1G00000000000000R1  seq=1
+002  07:59:58.001  system.recovery_item          -           01M22JWJ1H00000000000000R2  seq=2
+003  07:59:58.002  system.startup_recovery       -           01M22JWJ1J00000000000000R3  seq=1
+004  08:00:00.000  session.transition            -           01M22JWM0000000000000000S1  seq=1
+005  08:00:00.001  session.state                 -           01M22JWM0100000000000000S2  seq=1
+006  08:00:00.100  session.transition            -           01M22JWM3400000000000000S3  seq=2
+007  08:00:00.101  session.state                 -           01M22JWM3500000000000000S4  seq=2
+008  08:00:01.000  index.corp_action             -           01M22JWMZ800000000000000J1  seq=1
+009  08:00:01.004  index.corp_action_ack         ADMIN       01M22JWMZC00000000000000J2  seq=1
+010  08:00:05.000  system.eod                    -           01M22JWRW800000000000000E1  seq=1
+011  08:00:05.100  session.transition            -           01M22JWRZC00000000000000S5  seq=3
+012  08:00:05.101  session.state                 -           01M22JWRZD00000000000000S6  seq=3

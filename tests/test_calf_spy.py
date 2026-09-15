@@ -5,7 +5,6 @@ path connecting a real CalfSpyClient to a real MarketDataGateway over TCP.
 from __future__ import annotations
 
 import json
-import socket
 import threading
 import time
 from collections.abc import Generator
@@ -23,13 +22,7 @@ from edumatcher.calf_spy.formatters import format_human, format_json
 from edumatcher.md_gateway.config import MarketDataGatewayConfig
 from edumatcher.md_gateway.gateway import MarketDataGateway
 from edumatcher.md_gateway.protocol import CalfFrame, parse_line
-
-
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return int(s.getsockname()[1])
-
+from tests.conftest import wait_for_listener, free_port, free_ports
 
 # ---------------------------------------------------------------------------
 # Formatter unit tests (no network involved)
@@ -193,11 +186,12 @@ def test_resolve_channels_explicit_list_ignores_welcome() -> None:
 
 @pytest.fixture()
 def running_gateway() -> Generator[MarketDataGateway, None, None]:
+    gateway_port, engine_pub_port, index_pub_port = free_ports(3)
     cfg = MarketDataGatewayConfig(
         bind_address="127.0.0.1",
-        port=_free_port(),
-        engine_pub_addr=f"tcp://127.0.0.1:{_free_port()}",
-        index_pub_addr=f"tcp://127.0.0.1:{_free_port()}",
+        port=gateway_port,
+        engine_pub_addr=f"tcp://127.0.0.1:{engine_pub_port}",
+        index_pub_addr=f"tcp://127.0.0.1:{index_pub_port}",
         heartbeat_interval_sec=60,  # keep heartbeats out of the way of assertions
         idle_timeout_sec=30,
         replay_window_sec=10,
@@ -206,9 +200,7 @@ def running_gateway() -> Generator[MarketDataGateway, None, None]:
     thread = threading.Thread(target=gw.run, daemon=True)
     thread.start()
     # Give the listener a moment to bind before tests try to connect.
-    deadline = time.monotonic() + 2.0
-    while gw._server is None and time.monotonic() < deadline:
-        time.sleep(0.01)
+    wait_for_listener(cfg.bind_address, cfg.port)
     try:
         yield gw
     finally:
@@ -310,7 +302,7 @@ def test_live_trade_event_flows_to_client(running_gateway: MarketDataGateway) ->
 
 
 def test_connect_refused_raises_connection_error() -> None:
-    options = CalfSpyOptions(host="127.0.0.1", port=_free_port())
+    options = CalfSpyOptions(host="127.0.0.1", port=free_port())
     client = CalfSpyClient(options)
     with pytest.raises(CalfSpyConnectionError):
         client.connect()

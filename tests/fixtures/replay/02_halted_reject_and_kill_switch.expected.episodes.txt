@@ -1,0 +1,26 @@
+gateway        TRADER07                            OPEN       sym=-       actor=TRADER07   OPEN
+     0  open     system.gateway_auth
+market_phase   AAPL                                ACCEPTED   sym=AAPL    actor=-          closed
+     0  open     circuit_breaker.halt
+     1  close    circuit_breaker.resume
+order          aaaa0001000000000000000000000009    REJECTED   sym=AAPL    actor=TRADER07   closed
+     0  open     order.new
+     1  close    order.ack
+     =  filled_qty = 0
+     =  limit_price = 76.0
+     =  quantity = 100
+     =  remaining_qty = 100
+     =  time_to_ack = 0.001
+     =  time_to_completion = 0.001
+command        8812                                ACCEPTED   sym=-       actor=TRADER07   closed
+     0  open     risk.kill_switch
+     1  close    risk.kill_switch_ack
+order          aaaa0001000000000000000000000001    CANCELLED  sym=AAPL    actor=TRADER07   closed
+     0  open     order.cancelled
+     =  time_to_completion = 0.0
+order          aaaa0001000000000000000000000002    CANCELLED  sym=MSFT    actor=TRADER07   closed
+     0  open     order.cancelled
+     =  time_to_completion = 0.0
+order          bbbb0001000000000000000000000001    CANCELLED  sym=AAPL    actor=MM01       closed
+     0  open     order.cancelled
+     =  time_to_completion = 0.0

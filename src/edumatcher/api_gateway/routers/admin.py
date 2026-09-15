@@ -17,7 +17,7 @@ from edumatcher.audit.indexer import (
     open_readonly_index,
     query_index_events,
 )
-from edumatcher.api_gateway.events import new_command_id
+from edumatcher.models.ids import new_command_id
 from edumatcher.api_gateway.routers.reference import fetch_reference_bundle
 from edumatcher.api_gateway.schemas import (
     CircuitBreakerResumeRequest,

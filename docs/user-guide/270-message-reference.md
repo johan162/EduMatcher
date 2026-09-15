@@ -1155,6 +1155,7 @@ Operator to pm-index: apply a corporate action.
 | `ratio_denominator` | `int` | omitted when unset | gt 0, unit `dimensionless` | SPLIT. |
 | `dividend_per_share` | `float` | omitted when unset | gt 0, unit `money` | CASH_DIVIDEND. |
 | `new_shares_outstanding` | `int` | omitted when unset | gt 0, unit `shares` | SHARES_ISSUANCE. |
+| `command_id` | `string` | omitted when empty | max_len 64 | Echoed on the ack so a caller can correlate. |
 
 !!! note
 
@@ -1182,6 +1183,7 @@ Operator to pm-index: add or delist a constituent.
 | `gateway_id` | `string` | required | max_len 32 |  |
 | `shares_outstanding` | `int` | omitted when unset | gt 0, unit `shares` | ADD. |
 | `initial_price` | `float` | omitted when unset | gt 0, unit `display_price` | ADD. |
+| `command_id` | `string` | omitted when empty | max_len 64 | Echoed on the ack so a caller can correlate. |
 
 !!! note
 
@@ -1232,6 +1234,7 @@ pm-index to requestor: the corporate action's outcome.
 | `level` | `float` | omitted when unset | unit `dimensionless` |  |
 | `divisor` | `float` | omitted when unset | unit `dimensionless` |  |
 | `old_divisor` | `float` | omitted when unset | unit `dimensionless` | The divisor immediately before this action was applied. Same field name and purpose as HistoryRecord.old_divisor, so a post-mortem does not need pm-index's local JSONL archive to see what changed — the wire event is self-contained. Present only alongside divisor, i.e. on acceptance. |
+| `command_id` | `string` | omitted when empty | max_len 64 |  |
 
 !!! note
 
@@ -1259,6 +1262,7 @@ pm-index to requestor: the constituent change's outcome.
 | `level` | `float` | omitted when unset | unit `dimensionless` |  |
 | `divisor` | `float` | omitted when unset | unit `dimensionless` |  |
 | `old_divisor` | `float` | omitted when unset | unit `dimensionless` | The divisor immediately before this action was applied. Same field name and purpose as HistoryRecord.old_divisor, so a post-mortem does not need pm-index's local JSONL archive to see what changed — the wire event is self-contained. Present only alongside divisor, i.e. on acceptance. |
+| `command_id` | `string` | omitted when empty | max_len 64 |  |
 
 !!! note
 
@@ -1890,7 +1894,7 @@ Private fill notification for one order, addressed to the gateway that owns it. 
 | `fill_qty` | `int` | required | unit `shares` |  |
 | `fill_price` | `float` | required | unit `display_price` |  |
 | `remaining_qty` | `int` | required | unit `shares` |  |
-| `status` | `string` | required | max_len 16 |  |
+| `status` | enum: `PARTIAL`, `FILLED` | required | — | Whether this fill completed the order. The same two values BALF's execution_report uses, and the same vocabulary as order.new.status - there is one name for an order state across the system. This was the only status field the spec left as an unconstrained string, and it drifted: six publish sites derived the value from OrderStatus and sent PARTIAL while the continuous-matching hot path and _publish_amend_rematch sent PARTIAL_FILL, so a fill on a quote leg reported a different status from a fill on an ordinary order. Nothing in the system ever branched on PARTIAL_FILL - every consumer passed it through - so the two outliers were corrected rather than the six. BREAKING for anything matching the string: the ALF FILL line, the REST order cache and a bot written against docs-design/EduMatcher-AI-trading-bot-v2.md all carried PARTIAL_FILL verbatim. Nothing reads the old spelling any more, pm-audit-replay included - a log containing it does not describe a wire this build speaks. |
 | `symbol` | `string` | omitted when unset | max_len 16 |  |
 | `side` | `string` | omitted when unset | max_len 8 |  |
 | `order_type` | `string` | omitted when unset | max_len 16 |  |

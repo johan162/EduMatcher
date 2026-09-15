@@ -1,0 +1,10 @@
+001  09:44:10.000  system.gateway_auth           TRADER07    01M206EMGG000000000000000A  seq=1
+002  09:44:10.001  circuit_breaker.halt          AAPL        01M206EMGH000000000000000H  seq=1
+003  09:44:10.004  order.new                     -           01M206EMGM0000000000000001  seq=2
+004  09:44:10.005  order.ack                     TRADER07    01M206EMGN000000000000000Y  seq=1
+005  09:44:10.010  risk.kill_switch              -           01M206EMGT000000000000000K  seq=1
+006  09:44:10.012  order.cancelled               TRADER07    01M206EMGW00000000000000C1  seq=1
+007  09:44:10.013  order.cancelled               TRADER07    01M206EMGX00000000000000C2  seq=2
+008  09:44:10.019  risk.kill_switch_ack          RISKDESK    01M206EMH300000000000000K1  seq=1
+009  09:44:10.021  order.cancelled               MM01        01M206EMH500000000000000C3  seq=1
+010  09:44:10.030  circuit_breaker.resume        AAPL        01M206EMHE000000000000000R  seq=1

@@ -1,0 +1,57 @@
+001  system.gateway_auth           MM01        origin
+002  quote.new                     -           origin
+003  quote.ack                     MM01
+     <- caused            RECORDED  01M208735200000000000000Q1   causation_id
+004  order.new                     -
+     <- caused            RECORDED  01M208735200000000000000Q1   causation_id
+     <- leg_of            CERTAIN   01M208735200000000000000Q1   quote_id
+005  order.new                     -
+     <- caused            RECORDED  01M208735200000000000000Q1   causation_id
+     <- leg_of            CERTAIN   01M208735200000000000000Q1   quote_id
+006  order.new                     -           origin
+007  trade.executed                -
+     <- caused            RECORDED  01M208735800000000000000T1   causation_id
+     <- matched_with      CERTAIN   01M208735400000000000000Q3   buy_order_id
+     <- matched_with      CERTAIN   01M208735800000000000000T1   sell_order_id
+008  order.fill                    MM01
+     <- caused            RECORDED  01M208735800000000000000T1   causation_id
+     <- matched_with      CERTAIN   01M208735900000000000000T2   trade_ids contains 000042-000002001
+009  order.fill                    TRADER03
+     <- caused            RECORDED  01M208735800000000000000T1   causation_id
+     <- matched_with      CERTAIN   01M208735900000000000000T2   trade_ids contains 000042-000002001
+010  quote.status                  MM01
+     <- caused            RECORDED  01M208735800000000000000T1   causation_id
+011  order.oco                     -           origin
+012  oco.ack                       TRADER03
+     <- caused            RECORDED  01M208735M00000000000000P1   causation_id
+013  order.new                     -
+     <- caused            RECORDED  01M208735M00000000000000P1   causation_id
+     <- leg_of            CERTAIN   01M208735M00000000000000P1   oco_group_id
+014  order.new                     -
+     <- caused            RECORDED  01M208735M00000000000000P1   causation_id
+     <- leg_of            CERTAIN   01M208735M00000000000000P1   oco_group_id
+015  order.new                     -           origin
+016  trade.executed                -
+     <- caused            RECORDED  01M208735S00000000000000P4   causation_id
+     <- matched_with      CERTAIN   01M208735S00000000000000P4   buy_order_id
+     <- matched_with      CERTAIN   01M208735P00000000000000P3   sell_order_id
+017  order.fill                    TRADER03
+     <- caused            RECORDED  01M208735S00000000000000P4   causation_id
+     <- matched_with      CERTAIN   01M208735T00000000000000P5   trade_ids contains 000042-000002002
+018  order.fill                    TRADER09
+     <- caused            RECORDED  01M208735S00000000000000P4   causation_id
+     <- matched_with      CERTAIN   01M208735T00000000000000P5   trade_ids contains 000042-000002002
+019  oco.cancelled                 TRADER03
+     <- caused            RECORDED  01M208735S00000000000000P4   causation_id
+     -> cancelled_by      CERTAIN   01M208735Q00000000000000P4   cancelled_order_id
+020  order.combo                   -           origin
+021  combo.ack                     TRADER03
+     <- caused            RECORDED  01M208736300000000000000C1   causation_id
+022  order.new                     -
+     <- caused            RECORDED  01M208736300000000000000C1   causation_id
+     <- leg_of            CERTAIN   01M208736300000000000000C1   combo_parent_id
+023  order.new                     -
+     <- caused            RECORDED  01M208736300000000000000C1   causation_id
+     <- leg_of            CERTAIN   01M208736300000000000000C1   combo_parent_id
+024  combo.status                  TRADER03
+     <- caused            RECORDED  01M208736300000000000000C1   causation_id

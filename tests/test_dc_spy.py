@@ -5,7 +5,6 @@ connecting a real DcSpyClient to a real DropCopyPublisher over ZMQ.
 from __future__ import annotations
 
 import json
-import socket
 import threading
 import time
 from collections.abc import Generator
@@ -21,13 +20,7 @@ from edumatcher.dc_spy.client import (
 )
 from edumatcher.dc_spy.formatters import format_human, format_json, is_replay
 from edumatcher.engine.drop_copy import DropCopyPublisher
-
-
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return int(s.getsockname()[1])
-
+from tests.conftest import free_port
 
 # ---------------------------------------------------------------------------
 # Formatter unit tests (no network involved)
@@ -172,7 +165,7 @@ def test_cli_connect_error_bad_endpoint() -> None:
 @pytest.fixture()
 def publisher() -> Generator[tuple[DropCopyPublisher, int], None, None]:
     ctx: zmq.Context[zmq.Socket[bytes]] = zmq.Context.instance()
-    port = _free_port()
+    port = free_port()
     pub = DropCopyPublisher(ctx, addr=f"tcp://127.0.0.1:{port}")
     # Give the PUB socket a brief moment to finish binding before any
     # subscriber connects (avoids the classic PUB/SUB slow-joiner race).

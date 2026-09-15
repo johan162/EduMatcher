@@ -20,17 +20,12 @@ from edumatcher.alf_gwy.config import AlfGatewayConfig
 from edumatcher.alf_gwy.gateway import AlfGateway
 from edumatcher.alf_gwy.protocol import parse_alf_line
 from edumatcher.models.message import encode
+from tests.conftest import wait_for_listener, free_ports
 
 # ---------------------------------------------------------------------------
 # Helpers (duplicated from test_alf_gwy_integration.py to keep this file
 # independently runnable / reviewable)
 # ---------------------------------------------------------------------------
-
-
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return int(s.getsockname()[1])
 
 
 class _LineBuffer:
@@ -129,10 +124,10 @@ def running_gateway() -> Generator[
 
     Yields (gateway, engine_pull, engine_pub, drop_copy_pub, tcp_port).
     """
-    engine_pull_port = _free_port()
-    engine_pub_port = _free_port()
-    drop_copy_port = _free_port()
-    gateway_port = _free_port()
+    # All four at once: allocating them one at a time cannot promise four
+    # distinct ports, and a collision here hands ZMQ and the gateway the same
+    # one (see conftest.free_ports).
+    engine_pull_port, engine_pub_port, drop_copy_port, gateway_port = free_ports(4)
 
     engine_pull_addr = f"tcp://127.0.0.1:{engine_pull_port}"
     engine_pub_addr = f"tcp://127.0.0.1:{engine_pub_port}"
@@ -169,8 +164,7 @@ def running_gateway() -> Generator[
     t = threading.Thread(target=gw.run, daemon=True)
     t.start()
 
-    time.sleep(0.15)
-    time.sleep(0.1)
+    wait_for_listener(cfg.bind_address, gateway_port)
 
     try:
         yield gw, engine_pull, engine_pub, drop_copy_pub, gateway_port

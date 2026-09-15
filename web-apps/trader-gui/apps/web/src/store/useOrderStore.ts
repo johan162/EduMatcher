@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { normalizeOrder } from "@/types/index.js";
+import { normalizeOrder, toOrderStatus } from "@/types/index.js";
 import type {
   Order,
   OrderStatus,
@@ -152,11 +152,14 @@ export const useOrderStore = create<OrderStore>((set) => {
         if (!d.order_id) return state;
         const patch = detailPatch(d);
         patch.remaining_qty = d.remaining_qty;
-        patch.status = (d.status as OrderStatus) ?? "PARTIAL";
         // A fill's `qty` is the order's *original* total; if we already know a
         // quantity (e.g. an amend reduced it), the fill must not resurrect the
         // stale total — it only moves remaining/status.
         const prev = state.orders[d.order_id];
+        // `qty` is optional on a fill, and the status fallback cannot tell a
+        // working order from an untouched one without a total, so prefer the
+        // one already on the row.
+        patch.status = toOrderStatus(d.status, d.remaining_qty, prev?.quantity || d.qty || 0);
         if (prev && prev.quantity > 0) delete patch.quantity;
         return { orders: pruneTerminal(upsert(state, d.order_id, patch)) };
       }),

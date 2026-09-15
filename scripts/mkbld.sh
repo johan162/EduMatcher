@@ -427,10 +427,37 @@ else
     PYTEST_QUIET=""
 fi
 
-# Step 3.1: Run tests with coverage
+
+# Step 3.05: Re-deploy the config file to ensure the latest settings are applied
+if [ -f "src/data/ref_data/engine_config.yaml" ]; then
+    run_command "poetry run pm-config-deploy src/data/ref_data/engine_config.yaml" "Re-deploying config file"
+else
+    print_warning "Engine config file not found. Deploying 'three-basic'"
+    run_command "poetry run pm-config-deploy --example three-basic" "Deploying 'three-basic' example config"
+fi
+
+print_sub_step "Running npm tests for web applications"
+# Step 3.1 run all npm tests for the web applications under web-apps
+if [ -d "web-apps" ]; then
+    for app_dir in web-apps/*; do
+        if [ -d "$app_dir" ]; then
+            print_sub_step "Running npm tests for $app_dir"
+            (cd "$app_dir" && npm install && npm run typecheck && npm run lint && npm test)
+            if [ $? -ne 0 ]; then
+                print_warning "npm tests failed for $app_dir"
+                exit 1;
+            fi
+        fi
+    done
+else
+    print_warning "web-apps directory not found; skipping npm tests for web applications"
+fi
+
+print_sub_step "Running pytest with coverage"
+# Step 3.2: Run tests with coverage
 run_command "poetry run pytest -n auto tests/ ${PYTEST_QUIET} --cov-fail-under=${COVERAGE}" "Running tests with coverage"
 
-# Step 3.2: Update coverage badge in README
+# Step 3.3: Update coverage badge in README
 if [ "$CI_MODE" = false ] && [ "$DRY_RUN" = false ]; then
     current_coverage_checksum=""
     if [ -f "coverage.xml" ]; then

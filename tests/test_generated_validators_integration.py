@@ -1184,10 +1184,12 @@ class TestOrderFillValidation:
         obj = dataclasses.replace(self._valid(), order_id="X" * 65)
         _assert_rejects(obj, "order_id")
 
-    def test_status_too_long(self) -> None:
+    def test_status_off_the_enum(self) -> None:
+        """PARTIAL_FILL is the value this field used to carry from two of its
+        eight publish sites, and the reason it is an enum now."""
         import dataclasses
 
-        obj = dataclasses.replace(self._valid(), status="X" * 17)
+        obj = dataclasses.replace(self._valid(), status="PARTIAL_FILL")  # type: ignore[arg-type]
         _assert_rejects(obj, "status")
 
     def test_symbol_too_long(self) -> None:

@@ -31,23 +31,16 @@ from edumatcher.models.message import (
     make_log_unsubscribe_msg,
 )
 from edumatcher.models.generated.log import TOPIC_LOG_SUBSCRIBE
+from tests.conftest import free_ports
 
 _HOST = "127.0.0.1"
-
-
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind((_HOST, 0))
-        return int(s.getsockname()[1])
 
 
 class _PubSubHarness:
     """A running LogServer plus one LALF producer and one LALF-PS subscriber."""
 
     def __init__(self, tmp_path: Path, **overrides: Any) -> None:
-        self.port = _free_port()
-        self.pub_port = _free_port()
-        self.pull_port = _free_port()
+        self.port, self.pub_port, self.pull_port = free_ports(3)
         config_kwargs: dict[str, Any] = {
             "bind_address": _HOST,
             "port": self.port,

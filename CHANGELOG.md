@@ -1,3 +1,33 @@
+## [v0.39.0] - 2026-09-16
+
+Release Type: major
+
+### 📋 Summary
+This release completes the main phases of `pm-audit-replay`, adding deterministic audit analysis, anomaly detection, and machine-readable reporting. It also adds audit verification tooling and tightens matching-engine correctness around fills and malformed orders.
+
+### ⚠️ Breaking Changes
+- Order fill status values are now represented by a defined enum instead of free-form strings; clients consuming fill messages must use the supported enum values
+
+### ✨ Additions
+- Added audit replay 
+- Added verification tools (under `tools/`) and datasets for recording runs and validating that audit trails read cleanly
+
+### 🚀 Improvements
+- Improved web build integration and local-storage handling for web-apps
+
+### 🐛 Bug Fixes
+- Fixed fill events to publish the incremental fill quantity instead of the running total
+- Fixed malformed iceberg orders hanging the matching engine
+
+### 📚 Documentation
+- Added the `pm-audit-replay` user guide chapter
+
+### 🛠 Internal
+- Fixed replay tests so fixtures are anchored to the repository instead of the current working directory
+- Fixed slow-machine test races and stale matching verification coverage
+- Included web applications unit tests in the standard build script and enabled required npm install scripts
+- Updated introduction build script to handle different `bc` versions on Linux and macOS
+
 ## [v0.38.1] - 2026-09-13
 
 Release Type: major

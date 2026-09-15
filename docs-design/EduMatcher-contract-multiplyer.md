@@ -1141,7 +1141,7 @@ Consider adding a `(MULT != 1)` header note when non-1 multipliers are present.
 | `docs/user-guide/10-processes.md` | Note multiplier in pm-clearing-cli section |
 | `docs/user-guide/07-pnl-clearing.md` | Update formulas; explain multiplier effect on P&L |
 | `docs/user-guide/16-statistics-and-reporting.md` | Note VWAP invariance; note trade_log records price not notional |
-| `docs-design/EduMatcher-Cleaaring.md` | Update schema tables and SQL blueprints |
+| `docs-design/EduMatcher-Clearing.md` | Update schema tables and SQL blueprints |
 | `docs-design/EduMatcher-contract-multiplyer.md` | This document — v1.2 update on completion |
 | RALF/CALF protocol appendices | Add `MULT` to translated trade/execution message examples |
 

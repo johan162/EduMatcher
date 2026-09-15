@@ -108,7 +108,7 @@ ASSETS_DIR := $(DOCS_DIR)/assets
 
 # NUM_CHAPTERS and NUM_GLOSSARY are used when creating book covers
 NUM_FILES := $(shell ls src/* | wc -l)
-NUM_CHAPTERS := $(shell bc -e '$(NUM_FILES) - 19') # Subtract 19 for files in 'ls' that are not chapters
+NUM_CHAPTERS := $(shell echo "$(NUM_FILES) - 19" | bc) # Subtract 19 for files in 'ls' that are not chapters
 NUM_GLOSSARY := $(shell $(LOCAL_SCRIPTS_DIR)/count_gloss.sh)
 
 # Debugging output for variable values
@@ -361,7 +361,7 @@ $$($1_PDF): $$(EXCHANGE_INTRO_MD_SOURCES) $$(EXCHANGE_INTRO_PDF_DEPS) $$($1_TEMP
 	MERMAID_FILTER_WIDTH="$(MERMAID_FILTER_WIDTH)" \
 	MERMAID_FILTER_LOC="$$($1_EXPANDED_DIR)/.mermaid-img" \
 	pandoc \
-		--math-method=mathml --from=markdown --to=latex \
+		--mathml --from=markdown --to=latex \
 		--top-level-division=chapter --syntax-highlighting=none \
 		--filter "$(MERMAID_FILTER)"  $$(EXCHANGE_INTRO_LUA_FILTER_FLAGS) \
 		$$($1_CONCAT_MD) -o $$($1_BODY_TEX)
@@ -457,7 +457,7 @@ $(EXCHANGE_INTRO_EPUB): $(EXCHANGE_INTRO_MD_SOURCES) $(EPUB_DEPS) $(EPUB_CSS) | 
 	MERMAID_FILTER_WIDTH="$(MERMAID_FILTER_WIDTH)" \
 	MERMAID_FILTER_LOC="$(EPUB_EXPANDED_DIR)/.mermaid-img" \
 	pandoc --from=markdown-raw_html --to=epub3 \
-		--math-method=mathml --syntax-highlighting=none \
+		--mathml --syntax-highlighting=none \
 		--toc --toc-depth=2 \
 		--css $(EPUB_CSS) \
 		--epub-cover-image=$(EPUB_COVER) \

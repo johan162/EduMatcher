@@ -1,16 +1,27 @@
 /**
  * Guarantee a working `localStorage` under the jsdom environment.
  *
- * Node 22.4+ ships its own experimental `globalThis.localStorage`, which is
- * inert unless the process was started with `--localstorage-file`. When that
- * global is present it shadows the one jsdom installs, so `localStorage` reads
- * back as `undefined` and every test that touches it fails — but only on Node
- * builds new enough to define it. The suite passed or failed depending on the
- * developer's Node version, which is the worst kind of test failure.
+ * `usePrefsStore` persists through zustand's `persist` middleware, which
+ * resolves `window.localStorage` when the store module is first imported — so
+ * something has to be there before any test file loads, and the persistence
+ * tests ("survives a reload") need it to be a genuine round trip rather than
+ * a no-op.
  *
- * This repairs the global before any test runs, preferring jsdom's real
- * implementation and falling back to an in-memory shim so the persistence
- * tests (`survives a reload`) still exercise a genuine round trip.
+ * jsdom's own implementation cannot be relied on. Recent Node ships an
+ * experimental `globalThis.localStorage`, and vitest's jsdom environment skips
+ * copying any jsdom global whose name already exists on `globalThis` and is
+ * not on its own list — `localStorage` is not on it. So on a Node that defines
+ * the global, jsdom's implementation never reaches `globalThis` at all and the
+ * bare `localStorage` resolves to Node's, which is inert without
+ * `--localstorage-file`. Whether a test saw jsdom's storage or Node's depended
+ * on the developer's Node version, which is the worst kind of test failure.
+ *
+ * So this installs the in-memory shim unconditionally. That is the point: one
+ * implementation on every Node, chosen without asking which one is in play.
+ * Asking was the expensive part — *reading* `globalThis.localStorage` to probe
+ * it is what invokes Node's getter, and that emits an ExperimentalWarning once
+ * per worker. The probe cost five lines of noise per run to pick between two
+ * storages that both simply have to work.
  */
 
 function memoryStorage(): Storage {
@@ -27,34 +38,15 @@ function memoryStorage(): Storage {
   } as Storage;
 }
 
-function usable(candidate: unknown): candidate is Storage {
-  if (!candidate) return false;
-  try {
-    const probe = "__edumatcher_probe__";
-    (candidate as Storage).setItem(probe, "1");
-    (candidate as Storage).removeItem(probe);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 // Node-environment suites (the protocol and bridge majority) have no window
 // and no business with storage, so leave them entirely alone.
 if (typeof window !== "undefined") {
-  if (!usable(globalThis.localStorage)) {
-    const replacement = usable(window.localStorage) ? window.localStorage : memoryStorage();
-    Object.defineProperty(globalThis, "localStorage", {
-      value: replacement,
-      configurable: true,
-      writable: true,
-    });
-    // Keep the two views of the same global in step — application code reads
-    // the bare `localStorage`, test helpers sometimes reach through `window`.
-    Object.defineProperty(window, "localStorage", {
-      value: replacement,
-      configurable: true,
-      writable: true,
-    });
-  }
+  const storage = memoryStorage();
+  // `configurable` matters: setup files run once per test file and a worker
+  // handles several, so this has to be redefinable.
+  const descriptor = { value: storage, configurable: true, writable: true };
+  Object.defineProperty(globalThis, "localStorage", descriptor);
+  // Keep the two views of the same global in step — application code reads
+  // the bare `localStorage`, test helpers sometimes reach through `window`.
+  Object.defineProperty(window, "localStorage", descriptor);
 }

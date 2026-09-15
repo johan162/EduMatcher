@@ -1215,7 +1215,7 @@ def test_active_leg_line_carries_the_leg_price(gateway: AlfGateway) -> None:
                     "qty": 500,
                     "remaining": 400,
                     "filled": 100,
-                    "status": "PARTIAL_FILL",
+                    "status": "PARTIAL",
                     "quote_status": "ACTIVE",
                 },
                 {

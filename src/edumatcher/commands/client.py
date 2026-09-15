@@ -28,6 +28,7 @@ from typing import Any
 import zmq
 
 from edumatcher.messaging.bus import make_pusher
+from edumatcher.models.ids import new_command_id
 from edumatcher.config import (
     ENGINE_PUB_ADDR,
     ENGINE_PULL_ADDR,
@@ -572,6 +573,7 @@ class ExchangeCommandClient:
                 symbol=symbol.upper(),
                 gateway_id=self._gw_id,
                 params=params,
+                command_id=new_command_id(),
             )
         )
         return self._recv(
@@ -594,6 +596,7 @@ class ExchangeCommandClient:
                 index_id=index_id.upper(),
                 symbol=symbol.upper(),
                 gateway_id=self._gw_id,
+                command_id=new_command_id(),
             )
         )
         return self._recv(
@@ -624,6 +627,7 @@ class ExchangeCommandClient:
                 gateway_id=self._gw_id,
                 shares_outstanding=shares_outstanding,
                 initial_price=initial_price,
+                command_id=new_command_id(),
             )
         )
         return self._recv(

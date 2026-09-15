@@ -11,14 +11,9 @@ import pytest
 
 from edumatcher.log_srv.config import LogServerConfig
 from edumatcher.log_srv.server import LogServer
+from tests.conftest import free_port
 
 _HOST = "127.0.0.1"
-
-
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind((_HOST, 0))
-        return s.getsockname()[1]
 
 
 class _RunningServer:
@@ -27,12 +22,12 @@ class _RunningServer:
     # `object` makes the **splat below uncheckable; `Any` is the honest type
     # for arbitrary per-test overrides and lets mypy verify the call.
     def __init__(self, tmp_path: Path, **config_overrides: Any) -> None:
-        self.port = _free_port()
+        self.port = free_port()
         # LALF-PS binds two more sockets. Ephemeral ports keep concurrent test
         # workers (and any pm-log-srv the developer happens to have running on
         # the default 5601/5602) from colliding.
-        self.pub_port = _free_port()
-        self.pull_port = _free_port()
+        self.pub_port = free_port()
+        self.pull_port = free_port()
         self.db_path = tmp_path / "log.db"
         self.config = LogServerConfig(
             bind_address=_HOST,

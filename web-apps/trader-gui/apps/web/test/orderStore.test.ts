@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { useOrderStore, isTerminal } from "@/store/useOrderStore";
-import { normalizeOrder } from "@/types/index";
+import { normalizeOrder, toOrderStatus } from "@/types/index";
 import type { OrderAckData, Fill, OrderAmendedData, OrderTerminalData } from "@/types/index";
 
 const ack = (o: Partial<OrderAckData> & { order_id: string; accepted: boolean }): OrderAckData => ({
@@ -34,6 +34,36 @@ describe("normalizeOrder (phase-7 additions)", () => {
   });
 });
 
+describe("toOrderStatus", () => {
+  it("passes a status this union contains straight through", () => {
+    expect(toOrderStatus("FILLED", 0, 100)).toBe("FILLED");
+    expect(toOrderStatus("PARTIAL", 40, 100)).toBe("PARTIAL");
+  });
+
+  it("resolves a status it does not know from the quantities", () => {
+    // PARTIAL_FILL is what order.fill.status carried from two of the engine's
+    // eight publish sites while the field was an unconstrained string. It used
+    // to be cast into this union unchecked, so it reached the store as a value
+    // no screen could match and a partially filled order vanished from every
+    // group summary.
+    expect(toOrderStatus("PARTIAL_FILL", 40, 100)).toBe("PARTIAL");
+    expect(toOrderStatus("SOMETHING_NEW", 40, 100)).toBe("PARTIAL");
+    expect(toOrderStatus("SOMETHING_NEW", 100, 100)).toBe("NEW");
+  });
+
+  it("reads a spent remainder as finished, not as untouched", () => {
+    // All three outcomes, not two. Folding `remaining === 0` to NEW would put
+    // a filled order back at the top of the blotter.
+    expect(toOrderStatus("SOMETHING_NEW", 0, 100)).toBe("FILLED");
+    expect(toOrderStatus("PARTIAL_FILL", 0, 100)).toBe("FILLED");
+  });
+
+  it("treats an absent status as not yet acked", () => {
+    expect(toOrderStatus(undefined, 100, 100)).toBe("PENDING");
+    expect(toOrderStatus(null, 100, 100)).toBe("PENDING");
+  });
+});
+
 describe("useOrderStore reducers", () => {
   it("seed replaces the working set", () => {
     useOrderStore.getState().seed([{ order_id: "a", symbol: "AAPL", status: "NEW" }]);
@@ -55,6 +85,16 @@ describe("useOrderStore reducers", () => {
 
     useOrderStore.getState().applyAck(ack({ order_id: "o2", accepted: false, reason: "collar breach" }));
     expect(useOrderStore.getState().orders["o2"]!.status).toBe("REJECTED");
+  });
+
+  it("keeps a fill whose status is not in the union out of the store", () => {
+    useOrderStore.getState().applyAck(ack({ order_id: "o9", accepted: true, qty: 100 }));
+    useOrderStore
+      .getState()
+      .applyFill(
+        fill({ order_id: "o9", fill_qty: 40, fill_price: 150, remaining_qty: 60, qty: 100, status: "PARTIAL_FILL" as never }),
+      );
+    expect(useOrderStore.getState().orders["o9"]!.status).toBe("PARTIAL");
   });
 
   it("fill updates remaining and status (PARTIAL then FILLED)", () => {

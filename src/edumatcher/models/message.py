@@ -379,13 +379,31 @@ def make_ack_msg(
     )
 
 
+def fill_status(remaining_qty: int) -> _gen_order.OrderFillStatus:
+    """``order.fill.status`` for an order with *remaining_qty* left.
+
+    A function rather than eight copies of a ternary, because eight copies is
+    how this field came to carry two different values at once. Six publish
+    sites read it off ``OrderStatus`` and sent PARTIAL; the continuous-matching
+    hot path and ``_publish_amend_rematch`` sent PARTIAL_FILL. A fill on a
+    quote leg therefore reported a different status from a fill on an ordinary
+    order, on one field of one message, and the spec could not catch it because
+    this was the only status field left as an unconstrained string.
+
+    Deriving it from ``remaining_qty`` rather than from ``OrderStatus`` keeps
+    the wire's vocabulary its own: a change to the internal enum should not
+    silently become a wire change.
+    """
+    return "PARTIAL" if remaining_qty else "FILLED"
+
+
 def make_fill_msg(
     gateway_id: str,
     order_id: str,
     fill_qty: int,
     fill_price: float,
     remaining_qty: int,
-    status: str,
+    status: _gen_order.OrderFillStatus,
     order: dict[str, Any] | None = None,
     trade_ids: list[str] | None = None,
     *,
@@ -1812,6 +1830,7 @@ def make_index_corp_action_msg(
     symbol: str,
     gateway_id: str,
     params: dict[str, Any],
+    command_id: str = "",
 ) -> list[bytes]:
     """Operator → pm-index: apply a corporate action.
 
@@ -1826,6 +1845,7 @@ def make_index_corp_action_msg(
         index_id=index_id,
         symbol=symbol,
         gateway_id=gateway_id,
+        command_id=command_id,
         **params,
     )
 
@@ -1837,6 +1857,7 @@ def make_index_constituent_change_msg(
     gateway_id: str,
     shares_outstanding: int | None = None,
     initial_price: float | None = None,
+    command_id: str = "",
 ) -> list[bytes]:
     """Operator → pm-index: add or delist a constituent."""
     return _gen_index.make_index_constituent_change(
@@ -1846,6 +1867,7 @@ def make_index_constituent_change_msg(
         gateway_id=gateway_id,
         shares_outstanding=shares_outstanding,
         initial_price=initial_price,
+        command_id=command_id,
     )
 
 
@@ -1857,6 +1879,7 @@ def make_index_corp_action_ack_msg(
     level: float | None = None,
     divisor: float | None = None,
     old_divisor: float | None = None,
+    command_id: str = "",
 ) -> list[bytes]:
     """pm-index → requestor: corporate action ack."""
     return _gen_index.make_index_corp_action_ack(
@@ -1868,6 +1891,7 @@ def make_index_corp_action_ack_msg(
         level=level,
         divisor=divisor,
         old_divisor=old_divisor,
+        command_id=command_id,
     )
 
 
@@ -1879,6 +1903,7 @@ def make_index_constituent_change_ack_msg(
     level: float | None = None,
     divisor: float | None = None,
     old_divisor: float | None = None,
+    command_id: str = "",
 ) -> list[bytes]:
     """pm-index → requestor: constituent change ack."""
     return _gen_index.make_index_constituent_change_ack(
@@ -1890,6 +1915,7 @@ def make_index_constituent_change_ack_msg(
         level=level,
         divisor=divisor,
         old_divisor=old_divisor,
+        command_id=command_id,
     )
 
 

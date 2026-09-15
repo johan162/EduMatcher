@@ -290,6 +290,65 @@ def test_constituent_change_add_and_delist(
     assert payload_delist["accepted"] is True
 
 
+def test_index_command_acks_echo_command_id(
+    proc_with_fakes: tuple[index_main.IndexProcess, _FakeSocket],
+) -> None:
+    """Both ack paths of both handlers echo the request's command_id.
+
+    Without the echo a replay has to guess which corp action an ack closes
+    from timing alone; with it the join is recorded rather than inferred.
+    """
+    proc, fake_pub = proc_with_fakes
+
+    proc._handle_corp_action(
+        {
+            "gateway_id": "GW1",
+            "index_id": "EDU100",
+            "command_id": "cmd-ca-ok",
+            "action": "SPLIT",
+            "symbol": "AAPL",
+            "ratio_numerator": 2,
+            "ratio_denominator": 1,
+        }
+    )
+    assert decode(fake_pub.sent[-1])[1]["command_id"] == "cmd-ca-ok"
+
+    proc._handle_corp_action(
+        {
+            "gateway_id": "GW1",
+            "index_id": "EDU100",
+            "command_id": "cmd-ca-bad",
+            "action": "BAD",
+            "symbol": "AAPL",
+        }
+    )
+    assert decode(fake_pub.sent[-1])[1]["command_id"] == "cmd-ca-bad"
+
+    proc._handle_constituent_change(
+        {
+            "gateway_id": "GW1",
+            "index_id": "EDU100",
+            "command_id": "cmd-cc-ok",
+            "change_type": "ADD",
+            "symbol": "AMZN",
+            "shares_outstanding": 100,
+            "initial_price": 200.0,
+        }
+    )
+    assert decode(fake_pub.sent[-1])[1]["command_id"] == "cmd-cc-ok"
+
+    proc._handle_constituent_change(
+        {
+            "gateway_id": "GW1",
+            "index_id": "EDU100",
+            "command_id": "cmd-cc-bad",
+            "change_type": "NONSENSE",
+            "symbol": "AMZN",
+        }
+    )
+    assert decode(fake_pub.sent[-1])[1]["command_id"] == "cmd-cc-bad"
+
+
 def test_session_state_closed_finalizes_eod(
     proc_with_fakes: tuple[index_main.IndexProcess, _FakeSocket],
 ) -> None:

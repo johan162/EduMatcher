@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import shutil
-import socket
 import subprocess
 import sys
 import threading
@@ -17,32 +16,14 @@ import zmq
 from edumatcher.alf_gwy.config import AlfGatewayConfig
 from edumatcher.alf_gwy.gateway import AlfGateway
 from edumatcher.models.message import decode, encode
+from tests.conftest import wait_for_listener, free_ports
 
 EXAMPLE_DIR = Path("docs/examples/alf")
 
 
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind(("127.0.0.1", 0))
-        return int(sock.getsockname()[1])
-
-
-def _wait_for_listener(host: str, port: int, timeout: float = 5.0) -> None:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        try:
-            with socket.create_connection((host, port), timeout=0.2):
-                return
-        except OSError:
-            time.sleep(0.05)
-    raise AssertionError(f"gateway did not start listening on {host}:{port}")
-
-
 @pytest.fixture()
 def running_alf_gateway() -> Generator[tuple[int, zmq.Socket[bytes]], None, None]:
-    engine_pull_port = _free_port()
-    engine_pub_port = _free_port()
-    gateway_port = _free_port()
+    engine_pull_port, engine_pub_port, gateway_port = free_ports(3)
 
     engine_pull_addr = f"tcp://127.0.0.1:{engine_pull_port}"
     engine_pub_addr = f"tcp://127.0.0.1:{engine_pub_port}"
@@ -67,7 +48,7 @@ def running_alf_gateway() -> Generator[tuple[int, zmq.Socket[bytes]], None, None
     gateway = AlfGateway(cfg)
     thread = threading.Thread(target=gateway.run, daemon=True)
     thread.start()
-    _wait_for_listener("127.0.0.1", gateway_port)
+    wait_for_listener("127.0.0.1", gateway_port)
 
     running = True
 

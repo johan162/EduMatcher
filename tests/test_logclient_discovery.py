@@ -11,7 +11,6 @@ prints a stderr message and falls back to stdout.
 from __future__ import annotations
 
 import logging
-import socket
 import threading
 import time
 from pathlib import Path
@@ -22,23 +21,16 @@ from edumatcher.log_srv.config import LogServerConfig
 from edumatcher.log_srv.server import LogServer
 from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.logclient.handler import TcpLogHandler
+from tests.conftest import free_port, free_ports
 
 _HOST = "127.0.0.1"
-
-
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind((_HOST, 0))
-        return s.getsockname()[1]
 
 
 class _RunningServer:
     """Starts a real ``LogServer`` on a background thread for a test."""
 
     def __init__(self, tmp_path: Path) -> None:
-        self.port = _free_port()
-        self.pub_port = _free_port()
-        self.pull_port = _free_port()
+        self.port, self.pub_port, self.pull_port = free_ports(3)
         self.db_path = tmp_path / "log.db"
         self.config = LogServerConfig(
             bind_address=_HOST,
@@ -76,7 +68,7 @@ def test_explicit_stdout_skips_detection(tmp_path: Path) -> None:
         client_name="pm-test",
         instance=None,
         host=_HOST,
-        port=_free_port(),  # nothing listening here — must not matter
+        port=free_port(),  # nothing listening here — must not matter
         connect_timeout_sec=0.1,
         failover_timeout_sec=1.0,
         failover_dir=tmp_path,
@@ -94,7 +86,7 @@ def test_explicit_file_skips_detection(tmp_path: Path) -> None:
         client_name="pm-test",
         instance=None,
         host=_HOST,
-        port=_free_port(),
+        port=free_port(),
         connect_timeout_sec=0.1,
         failover_timeout_sec=1.0,
         failover_dir=tmp_path,
@@ -114,7 +106,7 @@ def test_explicit_file_without_path_raises(tmp_path: Path) -> None:
             client_name="pm-test",
             instance=None,
             host=_HOST,
-            port=_free_port(),
+            port=free_port(),
             connect_timeout_sec=0.1,
             failover_timeout_sec=1.0,
             failover_dir=tmp_path,
@@ -152,7 +144,7 @@ def test_server_absent_default_falls_back_silently(
         client_name="pm-test",
         instance=None,
         host=_HOST,
-        port=_free_port(),  # nothing listening
+        port=free_port(),  # nothing listening
         connect_timeout_sec=0.1,
         failover_timeout_sec=1.0,
         failover_dir=tmp_path,
@@ -167,7 +159,7 @@ def test_server_absent_explicit_target_warns_and_falls_back(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """§8.3 step 5: no server + explicit --log-target server -> stderr message + fallback."""
-    port = _free_port()
+    port = free_port()
     handler = resolve_handler(
         log_target="server",
         log_file=None,

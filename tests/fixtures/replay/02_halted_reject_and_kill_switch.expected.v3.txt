@@ -1,0 +1,13 @@
+09:44:10.000  TRADER07 connected (Prop desk 7)
+09:44:10.001  AAPL was halted by the circuit breaker, corridor 71.25-78.75, triggered at 78.9 against 75 (+5.2%)
+09:44:10.004  TRADER07 submitted buy limit 100 AAPL @ 76.00 (good for the day) — order aaaa0001000000000000000000000009 — a direct submission
+              · arrival_seq 9001
+              · client clock -1200.000s from receipt
+09:44:10.005  Engine rejected aaaa0001000000000000000000000009 — an active circuit breaker
+              ⤷ halted by the circuit breaker, since 09:44:10.001, at level L1, corridor 71.25-78.75
+09:44:10.010  TRADER07 pulled the kill switch — fat finger
+09:44:10.012  aaaa0001000000000000000000000001 was cancelled — a kill switch
+09:44:10.013  aaaa0001000000000000000000000002 was cancelled — a kill switch
+09:44:10.019  Engine accepted the kill switch
+09:44:10.021  bbbb0001000000000000000000000001 was cancelled — the other leg of its quote filling
+09:44:10.030  AAPL resumed trading — corridor expired

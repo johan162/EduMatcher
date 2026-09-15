@@ -160,6 +160,52 @@ export interface RawOrder {
   updated_at?: string | null;
 }
 
+/** Every value {@link OrderStatus} admits, for narrowing an arbitrary string. */
+const ORDER_STATUSES: ReadonlySet<string> = new Set<OrderStatus>([
+  "NEW",
+  "PARTIAL",
+  "FILLED",
+  "CANCELLED",
+  "REJECTED",
+  "EXPIRED",
+  "PENDING",
+]);
+
+/**
+ * Narrow a status from the wire, falling back to what the quantities say.
+ *
+ * A cast is not enough here, and that is not hypothetical. `order.fill.status`
+ * was the one status field the message spec left as an unconstrained string,
+ * and it drifted: six engine publish sites sent `PARTIAL` while the
+ * continuous-matching path sent `PARTIAL_FILL`. `applyFill` cast the value
+ * straight into this union, so the odd one landed in the store as something
+ * the union does not contain — `isTerminal` returned false (right by accident)
+ * and `orderGroups`' `STATUS_ORDER` never matched it, so a partially filled
+ * order dropped out of every group summary. The tests all fed `PARTIAL` and
+ * stayed green.
+ *
+ * The engine now declares the enum and sends one value. This is the belt: an
+ * unknown status resolves from the quantities, which is the same fold that was
+ * already applied to the cache-only `AMENDED` marker.
+ *
+ * *quantity* must be the order's total. A caller that does not have it on the
+ * message should pass what it already knows about the order, because with
+ * `quantity` at 0 every unfilled remainder reads as NEW.
+ */
+export function toOrderStatus(
+  raw: string | null | undefined,
+  remaining: number,
+  quantity: number,
+): OrderStatus {
+  if (raw && ORDER_STATUSES.has(raw)) return raw as OrderStatus;
+  if (raw === undefined || raw === null) return "PENDING";
+  // All three outcomes, not two. `remaining <= 0` is a finished order, and
+  // reading it as NEW — which an earlier version of this did — would have put
+  // a filled order back at the top of the blotter.
+  if (remaining <= 0) return "FILLED";
+  return remaining < quantity ? "PARTIAL" : "NEW";
+}
+
 /**
  * Fold either `/orders` shape into the canonical {@link Order}. The engine
  * `OrderDisplay` uses `id`/`timestamp`/`client_tag`; the reply-timeout cache
@@ -171,13 +217,9 @@ export function normalizeOrder(raw: RawOrder): Order {
   const quantity = raw.quantity ?? raw.qty ?? 0;
   const remaining = raw.remaining_qty ?? quantity;
   // "AMENDED" is a cache-only marker; an amended order is still working, so
-  // resolve it to PARTIAL (some already filled) or NEW from the quantities.
-  const status: OrderStatus =
-    raw.status === "AMENDED"
-      ? remaining < quantity
-        ? "PARTIAL"
-        : "NEW"
-      : (raw.status ?? "PENDING");
+  // it resolves to PARTIAL (some already filled) or NEW from the quantities —
+  // as does any other status this union does not contain.
+  const status = toOrderStatus(raw.status, remaining, quantity);
   return {
     order_id: raw.id ?? raw.order_id ?? "",
     client_tag: raw.client_tag ?? null,

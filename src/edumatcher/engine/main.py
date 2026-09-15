@@ -109,6 +109,7 @@ from edumatcher.models.message import (
     make_combo_status_msg,
     make_eod_msg,
     make_expired_msg,
+    fill_status,
     make_fill_msg,
     make_gateway_auth_msg,
     make_gateway_bye_msg,
@@ -1009,6 +1010,7 @@ class Engine:
                     # k times in `events` with the final cumulative qty.
                     # H6: report each order's own VWAP execution price.
                     _seed_fill_px = self._order_fill_prices(trades)
+                    _seed_matched = self._order_matched_qty(trades)
                     _seed_fill_ids: set[str] = set()
                     _seed_cancel_ids: set[str] = set()
                     for evt in events:
@@ -1020,7 +1022,7 @@ class Engine:
                                     make_fill_msg(
                                         evt.gateway_id,
                                         evt.id,
-                                        fill_qty=evt.quantity - evt.remaining_qty,
+                                        fill_qty=_seed_matched.get(evt.id, 0),
                                         fill_price=_seed_fill_px.get(
                                             evt.id,
                                             (
@@ -1032,7 +1034,7 @@ class Engine:
                                             ),
                                         ),
                                         remaining_qty=evt.remaining_qty,
-                                        status=evt.status.value,
+                                        status=fill_status(evt.remaining_qty),
                                         order=evt.to_dict(),
                                         trade_ids=self._order_trade_ids(trades).get(
                                             evt.id, []
@@ -1696,6 +1698,7 @@ class Engine:
         # last trade price.  Fall back to last_trade_price only if an order is
         # somehow missing from the trade map.
         _order_fill_px = self._order_fill_prices(trades)
+        _order_matched_map = self._order_matched_qty(trades)
         _order_trade_ids_map = self._order_trade_ids(trades)
         _order_liquidity_flags_map = self._order_liquidity_flags(trades)
         _fill_px = (
@@ -1721,16 +1724,17 @@ class Engine:
             # ----------------------------------------------------------------
             # Fill notification (finding #5)
             # ----------------------------------------------------------------
-            # Publish a fill whenever the order EXECUTED any quantity, keyed off
-            # cumulative filled qty — NOT off the order's final status.  `events`
-            # holds repeated references to the same live Order, and an
-            # IOC/MARKET/SMP-cancelled aggressor fills and is then mutated to
-            # CANCELLED on that same object.  Branching on the final status alone
-            # (the old `if evt.status in _FILL_STATUSES`) dropped the fill entirely
-            # while still emitting a cancel — the owner saw order.cancelled and no
-            # order.fill despite a real execution having printed.
-            _filled_qty = evt.quantity - evt.remaining_qty
-            if _filled_qty > 0 and evt.id not in _published_fill_ids:
+            # Publish a fill whenever the order EXECUTED any quantity here,
+            # keyed off what this dispatch matched — NOT off the order's final
+            # status.  `events` holds repeated references to the same live
+            # Order, and an IOC/MARKET/SMP-cancelled aggressor fills and is then
+            # mutated to CANCELLED on that same object.  Branching on the final
+            # status alone (the old `if evt.status in _FILL_STATUSES`) dropped
+            # the fill entirely while still emitting a cancel — the owner saw
+            # order.cancelled and no order.fill despite a real execution having
+            # printed.
+            _matched_qty = _order_matched_map.get(evt.id, 0)
+            if _matched_qty > 0 and evt.id not in _published_fill_ids:
                 _published_fill_ids.add(evt.id)
                 self._fills_published += 1
                 # Hot path: fill payload built inline with pre-cached topic
@@ -1750,12 +1754,10 @@ class Engine:
                         dumps(
                             {
                                 "order_id": evt.id,
-                                "fill_qty": _filled_qty,
+                                "fill_qty": _matched_qty,
                                 "fill_price": _order_fill_px.get(evt.id, _fill_px),
                                 "remaining_qty": evt.remaining_qty,
-                                "status": (
-                                    "PARTIAL_FILL" if evt.remaining_qty else "FILLED"
-                                ),
+                                "status": fill_status(evt.remaining_qty),
                                 "trade_ids": _order_trade_ids_map.get(evt.id, []),
                                 **(
                                     {
@@ -3001,6 +3003,26 @@ class Engine:
         return {oid: (n / q if q else 0.0) for oid, (q, n) in agg.items()}
 
     @staticmethod
+    def _order_matched_qty(trades: list[Any]) -> dict[str, int]:
+        """Per-order quantity matched in THIS dispatch, from *trades*.
+
+        ``order.fill.fill_qty`` is specified as "quantity matched in this
+        event, not cumulatively" (spec/messages/order.yaml). The obvious
+        ``evt.quantity - evt.remaining_qty`` is the order's running total,
+        which is the same number only on its first fill: a resting order hit
+        a second time reported the total again, so a consumer summing
+        fill_qty double-counted everything but the first event.
+
+        The increment is the trades of this dispatch that touched the order,
+        which is what "matched in this event" means; it needs no before-state.
+        """
+        matched: dict[str, int] = {}
+        for t in trades:
+            for oid in (t.buy_order_id, t.sell_order_id):
+                matched[oid] = matched.get(oid, 0) + t.quantity
+        return matched
+
+    @staticmethod
     def _order_trade_ids(trades: list[Any]) -> dict[str, list[str]]:
         """Per-order list of the public trade ids that composed its fill.
 
@@ -3599,6 +3621,7 @@ class Engine:
             # k would overcount for consumers summing fill_qty.
             # H6: report each order's own VWAP execution price.
             _q_fill_px = self._order_fill_prices(trades)
+            _q_matched = self._order_matched_qty(trades)
             _pub_fill_ids: set[str] = set()
             _pub_cancel_ids: set[str] = set()
             for evt in events:
@@ -3610,7 +3633,7 @@ class Engine:
                             make_fill_msg(
                                 evt.gateway_id,
                                 evt.id,
-                                fill_qty=evt.quantity - evt.remaining_qty,
+                                fill_qty=_q_matched.get(evt.id, 0),
                                 fill_price=_q_fill_px.get(
                                     evt.id,
                                     (
@@ -3620,7 +3643,7 @@ class Engine:
                                     ),
                                 ),
                                 remaining_qty=evt.remaining_qty,
-                                status=evt.status.value,
+                                status=fill_status(evt.remaining_qty),
                                 order=evt.to_dict(),
                                 trade_ids=self._order_trade_ids(trades).get(evt.id, []),
                                 liquidity_flag=self._order_liquidity_flags(trades).get(
@@ -4760,6 +4783,7 @@ class Engine:
             # times in `events` with the final cumulative qty on every copy.
             # H6: report each order's own VWAP execution price.
             _c_fill_px = self._order_fill_prices(trades)
+            _c_matched = self._order_matched_qty(trades)
             _pub_fill_ids: set[str] = set()
             _pub_terminal_ids: set[str] = set()
             for evt in events:
@@ -4771,7 +4795,7 @@ class Engine:
                             make_fill_msg(
                                 evt.gateway_id,
                                 evt.id,
-                                fill_qty=evt.quantity - evt.remaining_qty,
+                                fill_qty=_c_matched.get(evt.id, 0),
                                 fill_price=_c_fill_px.get(
                                     evt.id,
                                     (
@@ -4781,7 +4805,7 @@ class Engine:
                                     ),
                                 ),
                                 remaining_qty=evt.remaining_qty,
-                                status=evt.status.value,
+                                status=fill_status(evt.remaining_qty),
                                 order=evt.to_dict(),
                                 trade_ids=self._order_trade_ids(trades).get(evt.id, []),
                                 liquidity_flag=self._order_liquidity_flags(trades).get(
@@ -5241,6 +5265,7 @@ class Engine:
                 # H5: dedup fills — an order that crosses multiple counterparties
                 # in the uncross appears once per fill in `events`, each with the
                 # final cumulative qty.
+                _uncross_matched = self._order_matched_qty(trades)
                 _pub_fill_ids: set[str] = set()
                 for evt in events:
                     if evt.status in (OrderStatus.PARTIAL, OrderStatus.FILLED):
@@ -5251,10 +5276,10 @@ class Engine:
                                 make_fill_msg(
                                     evt.gateway_id,
                                     evt.id,
-                                    fill_qty=evt.quantity - evt.remaining_qty,
+                                    fill_qty=_uncross_matched.get(evt.id, 0),
                                     fill_price=from_ticks(fill_px, symbol),
                                     remaining_qty=evt.remaining_qty,
-                                    status=evt.status.value,
+                                    status=fill_status(evt.remaining_qty),
                                     order=evt.to_dict(),
                                     trade_ids=self._order_trade_ids(trades).get(
                                         evt.id, []
@@ -5279,6 +5304,7 @@ class Engine:
                 triggered = book.trigger_stops(now_stop)
                 for stop_order in triggered:
                     sub_trades, sub_events = book.process(stop_order, now=now_stop)
+                    _stop_matched = self._order_matched_qty(sub_trades)
                     published_stop_ids: set[str] = set()
                     for sub_evt in sub_events:
                         if sub_evt.status in (OrderStatus.PARTIAL, OrderStatus.FILLED):
@@ -5289,15 +5315,14 @@ class Engine:
                                     make_fill_msg(
                                         sub_evt.gateway_id,
                                         sub_evt.id,
-                                        fill_qty=sub_evt.quantity
-                                        - sub_evt.remaining_qty,
+                                        fill_qty=_stop_matched.get(sub_evt.id, 0),
                                         fill_price=(
                                             from_ticks(book.last_trade_price, symbol)
                                             if book.last_trade_price is not None
                                             else 0.0
                                         ),
                                         remaining_qty=sub_evt.remaining_qty,
-                                        status=sub_evt.status.value,
+                                        status=fill_status(sub_evt.remaining_qty),
                                         order=sub_evt.to_dict(),
                                         trade_ids=self._order_trade_ids(sub_trades).get(
                                             sub_evt.id, []
@@ -5562,6 +5587,7 @@ class Engine:
             # times in `events` with the final cumulative qty on every copy.
             # H6: report each order's own VWAP execution price.
             _o_fill_px = self._order_fill_prices(trades)
+            _o_matched = self._order_matched_qty(trades)
             _pub_fill_ids: set[str] = set()
             _pub_terminal_ids: set[str] = set()
             for evt in events:
@@ -5573,7 +5599,7 @@ class Engine:
                             make_fill_msg(
                                 evt.gateway_id,
                                 evt.id,
-                                fill_qty=evt.quantity - evt.remaining_qty,
+                                fill_qty=_o_matched.get(evt.id, 0),
                                 fill_price=_o_fill_px.get(
                                     evt.id,
                                     (
@@ -5583,7 +5609,7 @@ class Engine:
                                     ),
                                 ),
                                 remaining_qty=evt.remaining_qty,
-                                status=evt.status.value,
+                                status=fill_status(evt.remaining_qty),
                                 order=evt.to_dict(),
                                 trade_ids=self._order_trade_ids(trades).get(evt.id, []),
                                 liquidity_flag=self._order_liquidity_flags(trades).get(
@@ -6072,6 +6098,7 @@ class Engine:
         """
         # H6: report each order's own VWAP execution price, not the sweep's last.
         order_fill_px = self._order_fill_prices(trades)
+        order_matched = self._order_matched_qty(trades)
         fill_px = (
             from_ticks(book.last_trade_price, aggressor.symbol)
             if book.last_trade_price is not None
@@ -6080,18 +6107,18 @@ class Engine:
         published_fill_ids: set[str] = set()
         published_terminal_ids: set[str] = set()
         for evt in events:
-            filled = evt.quantity - evt.remaining_qty
-            if filled > 0 and evt.id not in published_fill_ids:
+            matched = order_matched.get(evt.id, 0)
+            if matched > 0 and evt.id not in published_fill_ids:
                 published_fill_ids.add(evt.id)
                 self._fills_published += 1
                 self.pub_sock.send_multipart(
                     make_fill_msg(
                         evt.gateway_id,
                         evt.id,
-                        fill_qty=filled,
+                        fill_qty=matched,
                         fill_price=order_fill_px.get(evt.id, fill_px),
                         remaining_qty=evt.remaining_qty,
-                        status=("PARTIAL_FILL" if evt.remaining_qty else "FILLED"),
+                        status=fill_status(evt.remaining_qty),
                         order=evt.to_dict(),
                         trade_ids=self._order_trade_ids(trades).get(evt.id, []),
                         liquidity_flag=self._order_liquidity_flags(trades).get(evt.id),
@@ -6246,8 +6273,11 @@ class Engine:
     #: recorded automatically and a new query is not.
     _QUERY_SUFFIX = "_request"
 
-    def _echo_command(self, topic: str, frames: list[bytes]) -> None:
+    def _echo_command(self, topic: str, frames: list[bytes]) -> bool:
         """Re-publish an inbound command so the audit trail contains it.
+
+        Returns whether the message is now in the trail, because nothing the
+        engine publishes next may cite an id no reader can find.
 
         `pm-audit` subscribes to this PUB socket and nothing else, and ZMQ
         PUSH/PULL cannot be tapped — so without this, no command the exchange
@@ -6286,12 +6316,14 @@ class Engine:
             # its own PUSH socket instead of going through `make_pusher`.
             # There is no id to preserve, and minting one would invent a
             # causal root that nothing cites.
-            return
+            return False
         try:
             self.pub_sock.send_with_envelope(frames[:2], frames[2])
         except Exception as exc:  # pragma: no cover - transport failure
             self._dbg_count("command_echo_failures")
             log.warning("Command echo failed for %s: %s", topic, exc)
+            return False
+        return True
 
     def _dispatch_pull_message(self, topic: str, payload: dict[str, Any]) -> None:
         """Route one decoded PULL-socket message to its handler.
@@ -6632,8 +6664,13 @@ class Engine:
                     # after its own ack, which is a trap for everyone reading
                     # the file with grep. The ~2 us buys causal order in the
                     # bytes, and a record that survives a crash mid-dispatch.
-                    self._echo_command(topic, frames)
-                    self.pub_sock.set_cause(cause)
+                    recorded = self._echo_command(topic, frames)
+                    # Attribute the effects to it only if it IS in the trail.
+                    # A query is deliberately not echoed, so a reply citing it
+                    # names a message the engine chose never to publish —
+                    # indistinguishable, to any reader, from one that was
+                    # dropped. A read's answer starts its own chain instead.
+                    self.pub_sock.set_cause(cause if recorded else None)
                     try:
                         self._dispatch_pull_message(topic, payload)
                     finally:

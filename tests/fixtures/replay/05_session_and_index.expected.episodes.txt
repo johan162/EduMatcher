@@ -1,0 +1,17 @@
+recovery       current                             ACCEPTED   sym=AAPL    actor=-          closed
+     0  open     system.recovery_item
+     1  progress system.recovery_item
+     2  close    system.startup_recovery
+session        OPENING                             ACCEPTED   sym=-       actor=-          closed
+     0  open     session.transition
+     1  progress session.state
+session        CONTINUOUS                          ACCEPTED   sym=-       actor=-          closed
+     0  open     session.transition
+     1  progress session.state
+     2  progress system.eod
+index          cmd-split-9                         ACCEPTED   sym=AAPL    actor=ADMIN      closed
+     0  open     index.corp_action
+     1  close    index.corp_action_ack
+session        CLOSED                              OPEN       sym=-       actor=-          OPEN
+     0  open     session.transition
+     1  progress session.state

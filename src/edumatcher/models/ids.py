@@ -1,4 +1,4 @@
-"""Identifier minting for orders and combos.
+"""Identifier minting for orders, combos and commands.
 
 One helper, one reason: ``uuid.uuid4()`` costs 2 584 ns and 2 111 ns of that
 buys nothing this system needs.
@@ -40,3 +40,15 @@ def new_order_id() -> str:
     data because neither is parsed.
     """
     return os.urandom(_ID_BYTES).hex()
+
+
+def new_command_id() -> str:
+    """A correlation id for one asynchronous command.
+
+    Issued for commands whose ack carries no natural identifier — mass
+    cancel, session transition, and the pm-index admin commands. Orders
+    correlate on ``order_id``, combos on ``combo_id``, halts on ``symbol``;
+    giving those a second id would invite confusion about which one is
+    authoritative.
+    """
+    return f"cmd-{os.urandom(_ID_BYTES).hex()}"

@@ -1,0 +1,16 @@
+001  system.recovery_item          -           origin
+002  system.recovery_item          -           origin
+003  system.startup_recovery       -           origin
+004  session.transition            -           origin
+005  session.state                 -
+     <- caused            RECORDED  01M22JWM0000000000000000S1   causation_id
+006  session.transition            -           origin
+007  session.state                 -
+     <- caused            RECORDED  01M22JWM3400000000000000S3   causation_id
+008  index.corp_action             -           origin
+009  index.corp_action_ack         ADMIN
+     <- caused            RECORDED  01M22JWMZ800000000000000J1   causation_id
+010  system.eod                    -           origin
+011  session.transition            -           origin
+012  session.state                 -
+     <- caused            RECORDED  01M22JWRZC00000000000000S5   causation_id

@@ -454,6 +454,7 @@ class IndexProcess:
     def _handle_corp_action(self, payload: dict[str, Any]) -> None:
         gateway_id = _clamp_id(payload.get("gateway_id", ""))
         index_id = _clamp_id(payload.get("index_id", ""))
+        command_id = str(payload.get("command_id", ""))[:64]
         action = _clamp_id(payload.get("action", ""))
         symbol = _clamp_id(payload.get("symbol", ""))
         log.info(
@@ -504,6 +505,7 @@ class IndexProcess:
                     accepted=False,
                     reason=str(exc),
                     index_id=index_id,
+                    command_id=command_id,
                 )
             )
             return
@@ -535,12 +537,14 @@ class IndexProcess:
                 level=level,
                 divisor=idx.calc.divisor,
                 old_divisor=old_divisor,
+                command_id=command_id,
             )
         )
 
     def _handle_constituent_change(self, payload: dict[str, Any]) -> None:
         gateway_id = _clamp_id(payload.get("gateway_id", ""))
         index_id = _clamp_id(payload.get("index_id", ""))
+        command_id = str(payload.get("command_id", ""))[:64]
         change_type = _clamp_id(payload.get("change_type", ""))
         symbol = _clamp_id(payload.get("symbol", ""))
         log.info(
@@ -592,6 +596,7 @@ class IndexProcess:
                     accepted=False,
                     reason=str(exc),
                     index_id=index_id,
+                    command_id=command_id,
                 )
             )
             return
@@ -619,6 +624,7 @@ class IndexProcess:
                 level=level,
                 divisor=idx.calc.divisor,
                 old_divisor=old_divisor,
+                command_id=command_id,
             )
         )
 
