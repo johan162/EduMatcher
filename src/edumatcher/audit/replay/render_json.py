@@ -29,6 +29,13 @@ make ``--no-index`` and an indexed run emit the same edges in different
 places. Deduplicated on ``(from, to, relation)``, which is the primary key
 the index's own ``links`` table uses.
 
+``--tz`` and ``--no-color`` reach none of the objects below. The timestamps
+here are the ones the trail recorded, because a display switch that moved
+them would make the two formats disagree about when something happened --
+which is the one thing this module exists to prevent. Colour never reaches
+them either: the beats carry the sentence, and the painting happens where a
+line is assembled for a terminal.
+
 Three places where this departs from section 11's sketch, each because the
 implementation settled the question differently and one vocabulary is worth
 more than a matching example:
@@ -59,7 +66,7 @@ from __future__ import annotations
 import json
 from typing import Any, Iterable, Iterator, Mapping, Sequence
 
-from edumatcher.audit.replay import templates, views
+from edumatcher.audit.replay import templates, terminal, views
 from edumatcher.audit.replay.anomalies import SEVERITY_INFO, Anomaly
 from edumatcher.audit.replay.derived import derive
 from edumatcher.audit.replay.episodes import Episode, EpisodeEvent
@@ -155,6 +162,7 @@ def markdown(
     The sentences are the beats' own ``text``, so this cannot say anything the
     other two formats do not.
     """
+    options = options or Options()
     beats: dict[int, list[dict[str, Any]]] = {}
     headings: dict[int, dict[str, Any]] = {}
     for obj in objects(episodes, state, options):
@@ -168,7 +176,11 @@ def markdown(
         lines.append(f"## {head['summary']}")
         lines.append("")
         for beat in beats.get(episode_id, ()):
-            lines.append(f"- `{beat['receipt_ts']}` {beat['text']}")
+            # Markdown is prose for a human to paste somewhere, so it follows
+            # `--tz` like the prose does. It carries no colour: it is a file
+            # format, and escape codes in a bug report are noise.
+            when = terminal.moment(str(beat["receipt_ts"]), options.tz)
+            lines.append(f"- `{when}` {beat['text']}")
         lines.append("")
     return lines
 

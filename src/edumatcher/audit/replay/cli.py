@@ -50,6 +50,7 @@ from edumatcher.audit.replay import reader
 from edumatcher.audit.replay import render_json
 from edumatcher.audit.replay import render_text
 from edumatcher.audit.replay import stats as stats_report
+from edumatcher.audit.replay import terminal
 from edumatcher.audit.replay import views
 from edumatcher.audit.replay.anomalies import SEVERITY_INFO
 from edumatcher.audit.replay.detect import (
@@ -315,7 +316,8 @@ def _option_groups(
     out.add_argument(
         "--tz",
         metavar="TZ",
-        default=default("UTC"),
+        type=terminal.parse_tz,
+        default=default(terminal.parse_tz("UTC")),
         help="Render timestamps in this zone (default: UTC)",
     )
     out.add_argument(
@@ -333,7 +335,16 @@ def _option_groups(
         "--no-color",
         action="store_true",
         default=default(False),
-        help="Disable ANSI colour",
+        help="Never emit ANSI colour, even to a terminal",
+    )
+    out.add_argument(
+        "--force-color",
+        action="store_true",
+        default=default(False),
+        help=(
+            "Emit ANSI colour even when stdout is not a terminal,\n"
+            "for a pager that renders it: `... --force-color | less -R`"
+        ),
     )
 
     # Pass-one knobs, like --reorder-window above: they change what is
@@ -765,7 +776,19 @@ def render_options(args: argparse.Namespace) -> render_text.Options:
         show_source=args.show_source,
         show_units=args.show_units,
         explain=args.explain,
+        tz=args.tz,
+        palette=_palette(args),
     )
+
+
+def _palette(args: argparse.Namespace) -> terminal.Palette:
+    """Colour for a terminal, plain for anything else.
+
+    Read once per invocation rather than per line, and from the real
+    ``sys.stdout`` so that a redirect, a pipe or a capturing test all reach
+    the same answer without being asked.
+    """
+    return terminal.palette_for(args.no_color, force=args.force_color)
 
 
 def _narrate(
@@ -929,6 +952,8 @@ def _run_digest(args: argparse.Namespace) -> int:
             significance=args.significance,
             top=args.top,
             id_len=args.id_len,
+            tz=args.tz,
+            palette=_palette(args),
         ),
     )
 
@@ -944,6 +969,8 @@ def _run_episodes(args: argparse.Namespace) -> int:
             ],
             as_csv=args.format == "csv",
             id_len=args.id_len,
+            tz=args.tz,
+            palette=_palette(args),
         ),
     )
 
@@ -956,7 +983,11 @@ def _run_anomalies(args: argparse.Namespace) -> int:
         if args.format == "json":
             return render_json.dumps(list(found)) + "\n"
         return views.render_anomalies(
-            episodes, severity=args.severity, id_len=args.id_len
+            episodes,
+            severity=args.severity,
+            id_len=args.id_len,
+            tz=args.tz,
+            palette=_palette(args),
         )
 
     return _run_view(args, render)
@@ -1036,7 +1067,7 @@ def _run_stats(args: argparse.Namespace) -> int:
     entries = iter_entries(log_files, from_dt=from_dt, to_dt=to_dt)
     max_facts, max_seconds = reorder_bounds(args)
     _run, steps = reconstruct(entries, max_facts=max_facts, max_seconds=max_seconds)
-    print(stats_report.render(stats_report.collect(steps)), end="")
+    print(stats_report.render(stats_report.collect(steps), _palette(args)), end="")
     return 0
 
 
@@ -1057,6 +1088,8 @@ def validate_args(args: argparse.Namespace) -> str | None:
         return "--from must not be later than --to"
     if args.quiet and args.verbose:
         return "-q cannot be combined with -v"
+    if args.no_color and args.force_color:
+        return "--no-color cannot be combined with --force-color"
     if args.command == "index" and (
         args.from_ts or args.to_ts or args.date or args.last is not None
     ):

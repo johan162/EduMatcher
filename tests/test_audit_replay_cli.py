@@ -551,6 +551,101 @@ class TestTheIndexCoversTheWholeLog:
         assert "CANCELLED" in indexed
 
 
+class TestTheDisplaySwitchesReachTheCli:
+    """The wiring, as distinct from the rendering the other file covers.
+
+    A switch that works in the renderer and is not read by `render_options`
+    is exactly the state `--tz` and `--no-color` were in before AR-6.2:
+    accepted by the parser, shown by `--help`, and doing nothing.
+    """
+
+    def test_tz_moves_the_clock_in_the_narration(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        args = ["--log-file", str(SIMPLE), "--no-index", "stream"]
+        assert main(args) == 0
+        utc = capsys.readouterr().out
+        assert main([*args[:3], "--tz", "Europe/Stockholm", "stream"]) == 0
+        local = capsys.readouterr().out
+
+        assert utc.splitlines()[0].startswith("09:31:02.110")
+        assert local.splitlines()[0].startswith("11:31:02.110")
+
+    def test_tz_reaches_the_views_too(self, capsys: pytest.CaptureFixture[str]) -> None:
+        assert (
+            main(
+                [
+                    "--log-file",
+                    str(SIMPLE),
+                    "--no-index",
+                    "--tz",
+                    "Europe/Stockholm",
+                    "episodes",
+                ]
+            )
+            == 0
+        )
+        assert "11:31:02" in capsys.readouterr().out
+
+    def test_an_unknown_zone_is_an_argument_error(self) -> None:
+        with pytest.raises(SystemExit) as exc:
+            main(
+                [
+                    "--log-file",
+                    str(SIMPLE),
+                    "--no-index",
+                    "--tz",
+                    "Mars/Olympus",
+                    "stream",
+                ]
+            )
+        assert exc.value.code == 2
+
+    def test_force_color_survives_a_pipe(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """pytest's capture is not a terminal, which is exactly the situation
+        `... | less -R` is in."""
+        assert (
+            main(["--log-file", str(SIMPLE), "--no-index", "--force-color", "episodes"])
+            == 0
+        )
+
+        assert "\033[" in capsys.readouterr().out
+
+    def test_the_two_colour_flags_are_refused_together(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Checked in validate_args rather than by an argparse mutually
+        exclusive group, because the options are added to the top-level parser
+        AND to every subparser -- a group would catch `stream --no-color
+        --force-color` and miss `--no-color stream --force-color`."""
+        assert (
+            main(
+                [
+                    "--log-file",
+                    str(SIMPLE),
+                    "--no-index",
+                    "--no-color",
+                    "episodes",
+                    "--force-color",
+                ]
+            )
+            == 2
+        )
+        assert "cannot be combined" in capsys.readouterr().err
+
+    def test_captured_output_is_never_coloured(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """pytest's capture is not a terminal, which is the same answer a
+        pipe and a redirect give — and the reason every other test in the
+        suite kept passing when colour landed."""
+        assert main(["--log-file", str(SIMPLE), "--no-index", "episodes"]) == 0
+
+        assert "\033[" not in capsys.readouterr().out
+
+
 class TestRegisteredInPmHelp:
     def test_pm_help_knows_the_command(self) -> None:
         from edumatcher.pm_help.registry import ALL_COMMANDS

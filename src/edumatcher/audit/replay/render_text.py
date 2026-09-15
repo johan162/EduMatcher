@@ -25,6 +25,8 @@ outside the requested window.
 
 from __future__ import annotations
 
+from datetime import tzinfo
+
 import json
 
 from dataclasses import dataclass, replace
@@ -37,6 +39,8 @@ from edumatcher.audit.replay.anomalies import (
     Anomaly,
 )
 from edumatcher.audit.replay.derived import derive
+from edumatcher.audit.replay import terminal
+from edumatcher.audit.replay.terminal import Palette
 from edumatcher.audit.replay.episodes import (
     KIND_ORDER,
     KIND_ORPHAN,
@@ -86,7 +90,12 @@ _ELLIPSIS = "…"
 
 @dataclass(frozen=True, slots=True)
 class Options:
-    """The rendering switches of sections 8.1 and 8.4."""
+    """The rendering switches of sections 8.1 and 8.4.
+
+    ``tz`` and ``palette`` are display only: they change how a line looks and
+    never which lines there are, which is why the machine-readable renderer
+    takes the same Options and is unaffected by both.
+    """
 
     level: int = templates.LEVEL_DEFAULT
     id_len: int | None = DEFAULT_ID_LEN
@@ -94,6 +103,8 @@ class Options:
     show_source: bool = False
     show_units: bool = False
     explain: bool = False
+    tz: tzinfo | None = None
+    palette: Palette = terminal.PLAIN
 
 
 @dataclass(frozen=True, slots=True)
@@ -221,7 +232,10 @@ class Renderer:
         for episode in episodes:
             if suppressed(episode.opened, templates.LEVEL_DEFAULT):
                 continue
-            yield Rendered(receipt=_clock(episode.opened), text=self.summary(episode))
+            yield Rendered(
+                receipt=_clock(episode.opened, self.options),
+                text=self.summary(episode),
+            )
 
     def summary(self, episode: Episode) -> str:
         """The level-0 sentence for one episode.
@@ -257,7 +271,7 @@ class Renderer:
         slots, found = self._slots(episode, fact)
         template = _template_for(fact.kind, self.options.level)
         return Rendered(
-            receipt=_clock(fact),
+            receipt=_clock(fact, self.options),
             text=_fill(template, slots),
             continuations=tuple(self._annotations(episode, event)),
             anomalies=tuple(found),
@@ -570,6 +584,19 @@ class Renderer:
     # -- the switches -------------------------------------------------------
 
     def _annotations(self, episode: Episode, event: EpisodeEvent) -> Iterator[str]:
+        """The lines beneath a sentence, dimmed as a group.
+
+        They are supporting evidence -- a link's confidence, a unit's
+        provenance, the raw payload -- and reading a page of them at the same
+        weight as the narrative is what makes ``-vvv`` unreadable on a
+        terminal.
+        """
+        for line in self._plain_annotations(episode, event):
+            yield self.options.palette.dim(line)
+
+    def _plain_annotations(
+        self, episode: Episode, event: EpisodeEvent
+    ) -> Iterator[str]:
         fact = event.fact
         if self.options.level >= templates.LEVEL_DETAIL:
             yield from self._why_rejected(event)
@@ -711,8 +738,14 @@ def _clause(prefix: str, body: str | None, suffix: str) -> str:
     return f"{prefix}{body}{suffix}" if body else ""
 
 
-def _clock(fact: Fact) -> str:
-    return fact.receipt_ts.strftime("%H:%M:%S.%f")[:-3]
+def _clock(fact: Fact, options: Options) -> str:
+    """The time of day, in the asked-for zone and dimmed.
+
+    Dimmed because it is the one part of every line the reader is *not*
+    reading: it wants to be findable when scanned for and out of the way when
+    not, which is what a lower-contrast column does.
+    """
+    return options.palette.dim(terminal.clock(fact.receipt_ts, options.tz))
 
 
 def _plural(count: int | None, noun: str) -> str:

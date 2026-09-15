@@ -235,7 +235,8 @@ Every option below is accepted by every subcommand, as are `-h`/`--help`.
 | `--last DURATION` | Relative window: `15m`, `2h`, `1d` |
 
 `--date` cannot be combined with `--from`/`--to`, and `--last` cannot be
-combined with either. All four are UTC, which is what the trail records.
+combined with either. All four are UTC, which is what the trail records —
+`--tz` changes what is displayed, never what is selected.
 
 The window narrows the **query**, never the index: an index always covers the
 whole log, so the same one answers a wide question and a narrow one. Passing a
@@ -268,14 +269,71 @@ Outcomes are `FILLED`, `PARTIAL`, `CANCELLED`, `REJECTED`, `EXPIRED`,
 | `--id-len N\|full` | `6` | Order-id abbreviation. Lengthened automatically if two ids would collide |
 | `--actor-style {id,descriptive}` | `id` | `TRADER01`, or `TRADER01 (Nordic Equities desk)` |
 | `--reorder-window SPEC` | `2000/5s` | Reorder buffer, as a fact count or a duration |
-| `--tz TZ` | `UTC` | **Not yet implemented** — parsed and ignored; timestamps always render in UTC |
-| `--no-color` | off | **Not yet implemented** — parsed and ignored; the output carries no ANSI colour to disable |
+| `--tz TZ` | `UTC` | Render timestamps in this zone. An unknown zone is an argument error |
+| `--no-color` | off | Never emit ANSI colour, even to a terminal |
+| `--force-color` | off | Always emit it, even when stdout is not a terminal |
 
-!!! warning "Two options do nothing yet"
-    `--tz` and `--no-color` are accepted by the parser and read by nothing.
-    They are task AR-6.2 of the implementation plan, which has not been done.
-    They are listed here because the parser accepts them and `--help` shows
-    them, not because they work.
+### Colour
+
+Colour is on when stdout is a terminal and off otherwise, so a redirect or a
+pipe gets plain text without anyone asking:
+
+```bash
+pm-audit-replay anomalies --severity warn            # coloured
+pm-audit-replay anomalies --severity warn > run.txt  # plain, automatically
+pm-audit-replay stream | wc -l                       # plain, automatically
+```
+
+Three ways to end up plain, and two of them need no flag:
+
+| | |
+|---|---|
+| `--no-color` | The caller asked |
+| `NO_COLOR` set in the environment | The convention the rest of the tree follows |
+| stdout is not a terminal | A redirect, a pipe, a CI job, a captured test |
+
+#### Paging
+
+That last rule is a guess at what is on the other end of the pipe, and there
+is one common case where it guesses wrong: a pager. `less` ends at a terminal
+the tool cannot see, so the colour is switched off exactly when it would have
+been most useful — a long `stream` is the output most worth paging.
+
+`--force-color` overrides the guess. `less` needs `-R` to render the escapes
+rather than print them:
+
+```bash
+pm-audit-replay stream -vv --force-color | less -R
+pm-audit-replay anomalies --severity warn --force-color | less -R
+```
+
+Set `LESS=-R` in your shell profile and the `-R` becomes unnecessary.
+
+`--force-color` beats `NO_COLOR` in the environment — a flag you typed is a
+more specific instruction than a default you may not remember setting. It
+cannot be combined with `--no-color`; asking for both is an argument error
+rather than a silent winner.
+
+What gets a hue is what a reader scans for, and nothing else — a report where
+every column is coloured is one where no column stands out:
+
+| Where | What |
+|---|---|
+| Every narrated line | The clock is dimmed: findable when scanned for, out of the way when not |
+| `-v` and above | The annotation lines beneath a sentence are dimmed as a group — they are supporting evidence, and reading a page of them at full weight is what makes `-vvv` unreadable |
+| `anomalies` | `ERROR` red, `WARN` yellow, `INFO` cyan; the code in bold; the `->` story suggestion dimmed |
+| `episodes` | The outcome column — `REJECTED`/`DENIED` red, `CANCELLED`/`EXPIRED` yellow, `FILLED` green, `OPEN`/`UNKNOWN` dim |
+| `digest` | The anchor in bold, the derived numbers dimmed, a finding line red or yellow by its worst severity |
+| `stats` | Section headings in bold |
+
+`ndjson`, `json`, `markdown` and `csv` are never coloured, whatever stdout is.
+They are formats something else reads.
+
+!!! tip "Colour is applied after the layout, never before"
+    `episodes` pads each cell to a column width and paints afterwards. The
+    other order pads to the wrong width, because an escape code is characters
+    the terminal never shows — the table would look ragged by exactly the
+    length of the codes.
 
 ### Detection
 
@@ -689,15 +747,22 @@ window does not contain is printed *in ticks and labelled as ticks*, with a
 `TICK_SCALE_UNKNOWN` finding — never silently rescaled. `--show-units` shows
 where each scale came from.
 
-**Everything is UTC.** `--from`/`--to`/`--date` are UTC because that is what
-the trail records, and rendered timestamps are UTC because `--tz` is not
-implemented yet.
+**`--tz` is for reading, never for filtering.** `--from`/`--to`/`--date` are
+UTC, because that is what the trail records. `--tz` moves only what is
+*shown*, and only in the human-readable formats: `ndjson` and `json` keep the
+recorded timestamps, because a display switch that moved them would make the
+two formats disagree about when something happened.
 
 !!! warning "Give a scratch trail its own directory"
     `--log-file` pulls in rotated siblings, and the index lands next to the
     log by default. For a one-off capture, point `EDUMATCHER_DATA_DIR` at a
     scratch directory, or pass `--log-file` and `--db` explicitly, so the
     findings are about the run you meant.
+
+**Page a long narrative with `--force-color | less -R`.** Piping switches
+colour off, because a pipe is not a terminal — and a pager is the one pipe
+that is. Without the `-R`, `less` prints the escape codes instead of acting
+on them.
 
 **An index is a cache, and is allowed to be deleted.** It is derived entirely
 from the log. If anything looks stale, `--rebuild` or `rm` it; there is no

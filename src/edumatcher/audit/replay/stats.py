@@ -17,6 +17,9 @@ reports envelope coverage and the anomaly mix beside the link mix.
 
 from __future__ import annotations
 
+from edumatcher.audit.replay import terminal
+from edumatcher.audit.replay.terminal import Palette
+
 from collections import Counter
 from dataclasses import dataclass, field
 from typing import Iterable
@@ -73,7 +76,7 @@ def _bar(share: float, width: int = 24) -> str:
     return "#" * filled + "." * (width - filled)
 
 
-def render(stats: Stats) -> str:
+def render(stats: Stats, palette: Palette = terminal.PLAIN) -> str:
     """A plain-text report. Shares as well as counts, because the question is
     always *what proportion*, and a reader made to divide two numbers to reach
     it will eventually divide the wrong pair."""
@@ -83,13 +86,13 @@ def render(stats: Stats) -> str:
     lines = [
         f"{stats.facts} fact(s) reconstructed.",
         "",
-        "Envelope coverage",
+        palette.bold("Envelope coverage"),
         f"  with envelope   {stats.with_envelope:>8}  "
         f"{stats.envelope_share():6.1%}  {_bar(stats.envelope_share())}",
         f"  declared origin {stats.origins:>8}",
         f"  orphan          {stats.orphans:>8}",
         "",
-        "Link confidence",
+        palette.bold("Link confidence"),
     ]
     total = stats.total_links
     if total == 0:
@@ -100,12 +103,12 @@ def render(stats: Stats) -> str:
             share = count / total
             lines.append(f"  {level.value:<9} {count:>8}  {share:6.1%}  {_bar(share)}")
     if stats.relations:
-        lines += ["", "Relations"]
+        lines += ["", palette.bold("Relations")]
         for relation, count in sorted(
             stats.relations.items(), key=lambda kv: (-kv[1], kv[0])
         ):
             lines.append(f"  {relation:<16} {count:>8}")
-    lines += ["", "Anomalies"]
+    lines += ["", palette.bold("Anomalies")]
     if not stats.anomalies:
         lines.append("  (none)")
     else:

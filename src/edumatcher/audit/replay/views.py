@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import csv
 import io
-from datetime import datetime
+from datetime import datetime, tzinfo
 from typing import Callable, Mapping, Sequence
 
 from edumatcher.audit.replay.anomalies import (
@@ -33,9 +33,18 @@ from edumatcher.audit.replay.episodes import (
     KIND_ORDER,
     KIND_QUOTE,
     KIND_TRADE,
+    OUTCOME_CANCELLED,
+    OUTCOME_DENIED,
+    OUTCOME_EXPIRED,
+    OUTCOME_FILLED,
+    OUTCOME_OPEN,
+    OUTCOME_REJECTED,
+    OUTCOME_UNKNOWN,
     Episode,
 )
+from edumatcher.audit.replay import terminal
 from edumatcher.audit.replay.render_text import Abbreviator
+from edumatcher.audit.replay.terminal import Palette
 
 #: Most severe first, which is the order section 9.6 asks for and the order a
 #: reader wants: the errors are why they ran the command.
@@ -98,8 +107,11 @@ def at_least(severity: str) -> int:
     return _RANK.get(severity, len(SEVERITY_ORDER))
 
 
-def _clock(when: datetime) -> str:
-    return when.strftime("%H:%M:%S.%f")[:-3]
+def _clock(when: datetime, tz: tzinfo | None = None) -> str:
+    """Unpainted on purpose: :func:`_table` pads its cells to a width, and a
+    cell padded after it has been wrapped in escape codes is padded to the
+    wrong one. Colour goes on after the layout, never before it."""
+    return terminal.clock(when, tz)
 
 
 def _span(episode: Episode) -> float:
@@ -145,6 +157,8 @@ def render_anomalies(
     *,
     severity: str = SEVERITY_INFO,
     id_len: int | None = 6,
+    tz: tzinfo | None = None,
+    palette: Palette = terminal.PLAIN,
 ) -> str:
     """Every finding at or above *severity*, worst first, then by time."""
     short = _anchors(episodes, id_len)
@@ -159,28 +173,45 @@ def render_anomalies(
 
     lines: list[str] = []
     for episode, anomaly in rows:
+        # Painted after padding, for the reason `_clock` gives.
         lines.append(
-            f"{anomaly.severity.upper():<6} {_time(anomaly)}  "
-            f"{anomaly.code:<22} {episode.kind} {short(episode)}"
+            f"{_severity(anomaly.severity, palette)} {_time(anomaly, tz)}  "
+            f"{palette.bold(f'{anomaly.code:<22}')} {episode.kind} {short(episode)}"
         )
         lines.append(f"       {anomaly.detail}")
         suggestion = story_command(episode)
         if suggestion:
-            lines.append(f"       -> {suggestion}")
+            lines.append(palette.dim(f"       -> {suggestion}"))
         lines.append("")
-    lines.append(_tally(rows, len(episodes)))
+    lines.append(palette.bold(_tally(rows, len(episodes))))
     return "\n".join(lines) + "\n"
 
 
-def _time(anomaly: Anomaly) -> str:
+#: Severity is the one thing a reader scans this report for, so it is the one
+#: thing that gets a hue rather than a weight.
+_SEVERITY_INK = {
+    SEVERITY_ERROR: "red",
+    SEVERITY_WARN: "yellow",
+    SEVERITY_INFO: "cyan",
+}
+
+
+def _severity(severity: str, palette: Palette) -> str:
+    ink = getattr(palette, _SEVERITY_INK.get(severity, ""), None)
+    label = f"{severity.upper():<6}"
+    return ink(label) if ink else label
+
+
+def _time(anomaly: Anomaly, tz: tzinfo | None = None) -> str:
     """The clock part of a recorded timestamp, or a placeholder.
 
     ``receipt_ts`` is the raw string the log carried, so it is sliced rather
     than parsed -- the view has no business re-deciding what a timestamp
     means.
     """
-    if "T" in anomaly.receipt_ts:
-        return anomaly.receipt_ts.split("T", 1)[1][:12]
+    moved = terminal.moment(anomaly.receipt_ts, tz)
+    if "T" in moved:
+        return moved.split("T", 1)[1][:12]
     return "-" * 12
 
 
@@ -216,7 +247,12 @@ def _tally(rows: Sequence[tuple[Episode, Anomaly]], episodes: int) -> str:
 
 
 def render_episodes(
-    episodes: Sequence[Episode], *, as_csv: bool = False, id_len: int | None = 6
+    episodes: Sequence[Episode],
+    *,
+    as_csv: bool = False,
+    id_len: int | None = 6,
+    tz: tzinfo | None = None,
+    palette: Palette = terminal.PLAIN,
 ) -> str:
     """One row per episode: the index as a table.
 
@@ -228,7 +264,7 @@ def render_episodes(
     ordered = sorted(episodes, key=lambda e: e.opened_sort_key)
     rows = [
         (
-            _clock(episode.opened_ts),
+            _clock(episode.opened_ts, tz),
             f"{_span(episode):.3f}s",
             episode.kind,
             short(episode) if not as_csv else episode.anchor_key,
@@ -239,7 +275,9 @@ def render_episodes(
         )
         for episode in ordered
     ]
-    return _csv(rows) if as_csv else _table(rows)
+    # CSV is data and never painted; the table is painted cell by cell, after
+    # the widths are settled.
+    return _csv(rows) if as_csv else _table(rows, palette)
 
 
 def _csv(rows: Sequence[Sequence[str]]) -> str:
@@ -250,15 +288,42 @@ def _csv(rows: Sequence[Sequence[str]]) -> str:
     return out.getvalue()
 
 
-def _table(rows: Sequence[Sequence[str]]) -> str:
+#: Outcome is what a reader scans a hundred rows for, so it is the column
+#: that gets a hue. Plain for the rest: a table where every column is
+#: coloured is a table where none of them stands out.
+_OUTCOME_INK = {
+    OUTCOME_REJECTED: "red",
+    OUTCOME_CANCELLED: "yellow",
+    OUTCOME_EXPIRED: "yellow",
+    OUTCOME_DENIED: "red",
+    OUTCOME_FILLED: "green",
+    OUTCOME_OPEN: "dim",
+    OUTCOME_UNKNOWN: "dim",
+}
+_OUTCOME_COLUMN = EPISODE_COLUMNS.index("outcome")
+
+
+def _table(rows: Sequence[Sequence[str]], palette: Palette = terminal.PLAIN) -> str:
     widths = [
         max(len(column), *(len(row[index]) for row in rows)) if rows else len(column)
         for index, column in enumerate(EPISODE_COLUMNS)
     ]
-    lines = ["  ".join(c.ljust(w) for c, w in zip(EPISODE_COLUMNS, widths)).rstrip()]
-    lines.append("  ".join("-" * w for w in widths))
+
+    def cell(index: int, value: str, width: int) -> str:
+        """Pad, then paint. The other order pads to the wrong width, because
+        an escape code is characters the terminal does not show."""
+        padded = value.ljust(width)
+        if index != _OUTCOME_COLUMN:
+            return padded
+        ink = getattr(palette, _OUTCOME_INK.get(value, ""), None)
+        return ink(padded) if ink else padded
+
+    header = "  ".join(c.ljust(w) for c, w in zip(EPISODE_COLUMNS, widths)).rstrip()
+    lines = [palette.bold(header), "  ".join("-" * w for w in widths)]
     lines.extend(
-        "  ".join(cell.ljust(w) for cell, w in zip(row, widths)).rstrip()
+        "  ".join(
+            cell(i, value, w) for i, (value, w) in enumerate(zip(row, widths))
+        ).rstrip()
         for row in rows
     )
     return "\n".join(lines) + "\n"
@@ -275,6 +340,8 @@ def render_digest(
     significance: str = SIGNIFICANCE_ANOMALIES,
     top: int | None = None,
     id_len: int | None = 6,
+    tz: tzinfo | None = None,
+    palette: Palette = terminal.PLAIN,
 ) -> str:
     """One paragraph per episode, most significant first.
 
@@ -290,7 +357,7 @@ def render_digest(
     )
     shown = ranked if top is None else ranked[:top]
 
-    blocks = [_paragraph(episode, short) for episode in shown]
+    blocks = [_paragraph(episode, short, tz, palette) for episode in shown]
     omitted = len(ranked) - len(shown)
     if omitted:
         blocks.append(
@@ -325,19 +392,27 @@ def _notional(episode: Episode) -> float:
     return derive(episode).notional or 0.0
 
 
-def _paragraph(episode: Episode, short: Callable[[Episode], str]) -> str:
+def _paragraph(
+    episode: Episode,
+    short: Callable[[Episode], str],
+    tz: tzinfo | None = None,
+    palette: Palette = terminal.PLAIN,
+) -> str:
+    """Nothing is padded here, so it can be painted as it is built."""
     lines = [
-        f"{_clock(episode.opened_ts)}  {episode.kind} "
-        f"{short(episode)}  {episode.actor or '-'}  "
+        f"{palette.dim(_clock(episode.opened_ts, tz))}  {episode.kind} "
+        f"{palette.bold(short(episode))}  {episode.actor or '-'}  "
         f"{episode.symbol or '-'}  {episode.outcome}"
     ]
     numbers = _numbers(derive(episode), episode)
     if numbers:
-        lines.append(f"       {numbers}")
+        lines.append(palette.dim(f"       {numbers}"))
     found = findings(episode)
     if found:
         codes = ", ".join(sorted({anomaly.code for anomaly in found}))
-        lines.append(f"       ! {len(found)} finding(s): {codes}")
+        worst = min(at_least(anomaly.severity) for anomaly in found)
+        ink = palette.red if worst == at_least(SEVERITY_ERROR) else palette.yellow
+        lines.append(ink(f"       ! {len(found)} finding(s): {codes}"))
     return "\n".join(lines)
 
 
