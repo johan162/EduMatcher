@@ -14,7 +14,7 @@ All referenced desig documents live under `docs-design/`
 
 ## 1. Complete the `pm-audit-replay-cli` command
 
-Target completion date: Q4 2026
+Target completion date: Sep 2026
 
 Design: `EduMatcher-Audit-Replay.md` 
 
@@ -27,11 +27,12 @@ the steps that lead up to a certain market condition
 - ~~Phase 2 — State models and the link resolver~~ 
 - ~~Phase 3 — Episodes and the index~~
 - ~~Phase 4 — Narration, first user-visible output~~
-- Phase 5 — Anomalies and the remaining views
+- ~~Phase 5 — Anomalies and the remaining views~~~
+- ~~Phase 6 - Verification~~
 
 ## 2. Completion of the System-Testing Framework
 
-Target completion: Q1 2027
+Target completion: Jan 2027
 
 Design: `EduMatcher-System-Trading-Verification.md` 
 
