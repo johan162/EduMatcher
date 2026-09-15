@@ -45,7 +45,12 @@ from edumatcher.audit.replay.ordering import pack_sort_key
 from edumatcher.audit.replay.state import StateModel
 
 #: The shape of the tables below. Bumped when a column is added or retyped.
-SCHEMA_VERSION = 1
+#: Bumped to 2 when ``anomalies`` gained ``file`` and ``line_no``: a finding
+#: read back out of an index built before that has no source location, and a
+#: column that is populated on one path and empty on the other is worse than
+#: no column. There is no migration -- :func:`check_versions` refuses the old
+#: index and ``ensure_index`` rebuilds it, which is the whole of the policy.
+SCHEMA_VERSION = 2
 
 #: What the rows *mean*: the link rules of section 5.1, the episode claim
 #: rules of section 4, and :func:`~edumatcher.audit.replay.ordering.pack_sort_key`.
@@ -148,6 +153,10 @@ CREATE TABLE IF NOT EXISTS stated_links (
     PRIMARY KEY (from_ref, to_ref, relation)
 );
 
+-- `file`/`line_no` for the reason `Anomaly` carries them: a finding a reader
+-- cannot go and look at is a finding they cannot act on. The path is stored
+-- as it was given, exactly as `episode_events.file` stores it; shortening it
+-- for display is `Fact.source`'s job.
 CREATE TABLE IF NOT EXISTS anomalies (
     anomaly_id  INTEGER PRIMARY KEY,
     code        TEXT NOT NULL,
@@ -155,7 +164,9 @@ CREATE TABLE IF NOT EXISTS anomalies (
     episode_id  INTEGER REFERENCES episodes(episode_id),
     sort_key    TEXT NOT NULL,
     receipt_ts  TEXT NOT NULL,
-    detail      TEXT NOT NULL
+    detail      TEXT NOT NULL,
+    file        TEXT,
+    line_no     INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS actors (
@@ -200,7 +211,7 @@ _STATED_SQL = (
 )
 _ANOMALY_SQL = (
     "INSERT INTO anomalies (code, severity, episode_id, sort_key, receipt_ts, "
-    "detail) VALUES (?, ?, ?, ?, ?, ?)"
+    "detail, file, line_no) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
 )
 
 #: One join, over ``idx_ee_ref``. A link whose source is outside the index
@@ -280,8 +291,21 @@ def writing(db_path: Path) -> Generator[sqlite3.Connection, None, None]:
 
 
 def open_index(db_path: Path) -> sqlite3.Connection:
-    """Open (creating if needed) the episode index, in WAL."""
+    """Open (creating if needed) the episode index, in WAL.
+
+    A file written under a different :data:`SCHEMA_VERSION` is **deleted**
+    rather than opened. Nothing else would do it: ``CREATE TABLE IF NOT
+    EXISTS`` leaves a table that already exists in the wrong shape exactly as
+    it found it, and :func:`clear` empties rows without touching columns -- so
+    the first insert naming a new column fails on an old file and the version
+    bump is a number nobody acts on.
+
+    There is no migration, by design. The index is derived from the log and is
+    cheaper to rebuild than to reason about.
+    """
     db_path.parent.mkdir(parents=True, exist_ok=True)
+    if db_path.exists() and _schema_version_of(db_path) != SCHEMA_VERSION:
+        _discard(db_path)
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
@@ -289,6 +313,31 @@ def open_index(db_path: Path) -> sqlite3.Connection:
     conn.executescript(_SCHEMA)
     conn.commit()
     return conn
+
+
+def _schema_version_of(db_path: Path) -> int | None:
+    """What an existing file says it was built under, or None if it cannot say.
+
+    None covers a file that is not one of ours and a half-written one from an
+    interrupted build; both answer the only question being asked -- "is this
+    the shape this code writes?" -- with no.
+    """
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    try:
+        row = conn.execute(
+            "SELECT value FROM replay_meta WHERE key = ?", (META_SCHEMA_VERSION,)
+        ).fetchone()
+    except sqlite3.DatabaseError:
+        return None
+    finally:
+        conn.close()
+    return int(row[0]) if row else None
+
+
+def _discard(db_path: Path) -> None:
+    """Remove an index of the wrong shape, WAL siblings and all."""
+    for path in (db_path, Path(f"{db_path}-wal"), Path(f"{db_path}-shm")):
+        path.unlink(missing_ok=True)
 
 
 def open_readonly(db_path: Path) -> sqlite3.Connection:
@@ -435,6 +484,8 @@ class IndexWriter:
                     key,
                     anomaly.receipt_ts,
                     anomaly.detail,
+                    anomaly.file,
+                    anomaly.line_no,
                 )
                 for anomaly in event.step.anomalies
             )
@@ -450,6 +501,8 @@ class IndexWriter:
                 pack_sort_key(opened),
                 anomaly.receipt_ts,
                 anomaly.detail,
+                anomaly.file,
+                anomaly.line_no,
             )
             for anomaly in episode.anomalies
         )

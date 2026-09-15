@@ -331,6 +331,8 @@ def _anomalies_for(
                 severity=str(row["severity"]),
                 detail=str(row["detail"]),
                 receipt_ts=str(row["receipt_ts"]),
+                file=str(row["file"]) if row["file"] else None,
+                line_no=int(row["line_no"]),
             )
         )
     return found

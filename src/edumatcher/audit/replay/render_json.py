@@ -47,13 +47,11 @@ more than a matching example:
   fact that produced it, so anchoring to the beat would make ``--no-index``
   and indexed runs disagree about where a finding sits.
 
-An anomaly also carries no ``source``, unlike a beat, and section 11 does not
-give it one. ``Anomaly`` holds a file and line -- "a finding a reader cannot go
-and look at is a finding they cannot act on" -- but the index's ``anomalies``
-table has no column for either, so a finding read back from an index has lost
-them. Publishing a field that is populated on one path and empty on the other
-would be worse than not publishing it; persisting them is a schema change and
-belongs with the index, not here.
+An anomaly carries a ``source`` that section 11 does not give it, for the
+reason ``Anomaly`` carries a file and line at all: a finding a reader cannot
+go and look at is a finding they cannot act on. The index's ``anomalies``
+table had no column for either until schema version 2, which is why it is
+here rather than in the sketch.
 """
 
 from __future__ import annotations
@@ -294,6 +292,7 @@ def _anomaly(anomaly: Anomaly, episode_id: int) -> dict[str, Any]:
         "episode": episode_id,
         "receipt_ts": anomaly.receipt_ts,
         "detail": anomaly.detail,
+        "source": {"file": anomaly.file, "line": anomaly.line_no},
     }
 
 

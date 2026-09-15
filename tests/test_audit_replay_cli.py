@@ -28,7 +28,9 @@ from edumatcher.audit.replay.cli import (
 )
 from edumatcher.audit.replay.index import (
     META_RULES_VERSION,
+    META_SCHEMA_VERSION,
     RULES_VERSION,
+    SCHEMA_VERSION,
     describe,
     open_index,
     reading,
@@ -39,6 +41,7 @@ from edumatcher.audit.replay.index import (
 FIXTURES = REPLAY_FIXTURES
 SIMPLE = FIXTURES / "01_simple_limit_partial_fill.log"
 ARCHIVED = FIXTURES / "03_archived_no_envelope.log"
+HALTED = FIXTURES / "02_halted_reject_and_kill_switch.log"
 
 
 class TestParseDuration:
@@ -241,6 +244,50 @@ class TestTheIndexPolicy:
         conn = opened(open_readonly(tmp_path / "replay.db"))
         assert describe(conn)[META_RULES_VERSION] == str(RULES_VERSION)
 
+    def test_a_stale_schema_version_forces_a_rebuild(self, tmp_path: Path) -> None:
+        """The sibling of the rules check, and until schema 2 it had never
+        fired: an index whose *tables* are the wrong shape is refused for the
+        same reason one whose rows mean something else is, and there is no
+        migration path by design."""
+        main(self._args(tmp_path))
+        conn = opened(open_index(tmp_path / "replay.db"))
+        write_meta(conn, META_SCHEMA_VERSION, "0")
+        conn.commit()
+        conn.close()
+        assert main(self._args(tmp_path)) == 0
+        conn = opened(open_readonly(tmp_path / "replay.db"))
+        assert describe(conn)[META_SCHEMA_VERSION] == str(SCHEMA_VERSION)
+
+    def test_an_index_of_the_wrong_shape_is_discarded_not_reused(
+        self, tmp_path: Path
+    ) -> None:
+        """The bump has to do something, and nothing else would do it.
+
+        `CREATE TABLE IF NOT EXISTS` leaves a table that already exists in the
+        wrong shape alone, and `clear()` empties rows without touching
+        columns -- so a real pre-bump file is not repaired by rebuilding it.
+        It failed on the first insert naming a column that was not there.
+
+        Ages a file properly rather than only its metadata: the columns go
+        too, which is what a database written by the older code actually
+        looks like.
+        """
+        main(self._args(tmp_path))
+        db = tmp_path / "replay.db"
+        conn = opened(open_index(db))
+        write_meta(conn, META_SCHEMA_VERSION, str(SCHEMA_VERSION - 1))
+        conn.execute("ALTER TABLE anomalies DROP COLUMN file")
+        conn.execute("ALTER TABLE anomalies DROP COLUMN line_no")
+        conn.commit()
+        conn.close()
+
+        assert main(self._args(tmp_path)) == 0
+
+        conn = opened(open_readonly(db))
+        assert describe(conn)[META_SCHEMA_VERSION] == str(SCHEMA_VERSION)
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(anomalies)")}
+        assert {"file", "line_no"} <= columns
+
     def test_rebuild_forces_one_even_when_nothing_changed(self, tmp_path: Path) -> None:
         main(self._args(tmp_path))
         _mark(tmp_path / "replay.db")
@@ -371,6 +418,48 @@ class TestTheFormatSwitch:
     ) -> None:
         assert main(self._stream(Path("."), "--format", "csv")) == 2
         assert "only available for `episodes`" in capsys.readouterr().err
+
+
+class TestAFindingKeepsItsSourceLine:
+    """``Anomaly`` carries a file and line because a finding a reader cannot
+    go and look at is a finding they cannot act on -- and the index dropped
+    both until schema 2, so a finding read back had lost the one thing that
+    makes it actionable."""
+
+    def _anomalies(self, args: list[str]) -> list[dict[str, object]]:
+        assert main(args) == 0
+        out = self._capsys.readouterr().out
+        return [json.loads(line) for line in out.splitlines()]
+
+    @pytest.fixture(autouse=True)
+    def _capture(self, capsys: pytest.CaptureFixture[str]) -> None:
+        self._capsys = capsys
+
+    def test_the_index_round_trips_the_full_path_and_the_line(
+        self, tmp_path: Path
+    ) -> None:
+        args = [
+            "--log-file",
+            str(HALTED),
+            "anomalies",
+            "--severity",
+            "info",
+            "--format",
+            "ndjson",
+        ]
+        direct = self._anomalies(["--no-index", *args])
+        indexed = self._anomalies(
+            ["--db", str(tmp_path / "replay.db"), "--rebuild", *args]
+        )
+
+        assert direct and direct == indexed
+        for finding in indexed:
+            source = finding["source"]
+            assert isinstance(source, dict)
+            # The path as it was given, not shortened: `episode_events.file`
+            # stores it the same way and `Fact.source` is what abbreviates.
+            assert source["file"] == str(HALTED)
+            assert isinstance(source["line"], int) and source["line"] > 0
 
 
 class TestTheIndexChangesNothingButSpeed:
