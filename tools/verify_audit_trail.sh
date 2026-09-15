@@ -56,7 +56,17 @@ header "STEP A — Start the audit recorder"
 mkdir -p "$DATA_DIR"
 # Start from an empty trail, or the findings below would be about whatever
 # some previous run left behind.
-: > "$AUDIT_LOG"
+#
+# The ROTATED segments have to go too. pm-audit writes through a
+# RotatingFileHandler (10 MiB, 5 backups) and a 10 000-order run is about
+# 28 MB, so one run leaves audit.log plus audit.log.1 and audit.log.2 — while
+# pm-audit-replay reads the whole rotated set, not just the active file
+# (`discover_log_files`). Truncating audit.log alone therefore left the
+# previous run's first 22 000 lines in place to be replayed alongside this
+# one's. The dataset is seeded, so both runs carry the SAME order ids: every
+# one of them looked accepted twice and its fills looked doubled. 1073
+# findings, none of them real.
+rm -f "$AUDIT_LOG" "$AUDIT_LOG".*
 echo "[AUDIT] Trail: $AUDIT_LOG"
 poetry run pm-audit --audit-log-file "$AUDIT_LOG" &
 AUDIT_PID=$!
@@ -74,7 +84,10 @@ header "STEP C — Stop the recorder and flush"
 kill -INT "$AUDIT_PID" 2>/dev/null || true
 wait "$AUDIT_PID" 2>/dev/null || true
 AUDIT_PID=""
-LINES="$(wc -l < "$AUDIT_LOG" | tr -d ' ')"
+# Across every segment, for the same reason STEP A deletes them all: this is
+# what STEP D is about to read, and counting only the active file under-reports
+# a rotated run by several times.
+LINES="$(cat "$AUDIT_LOG" "$AUDIT_LOG".* 2>/dev/null | wc -l | tr -d ' ')"
 echo "[AUDIT] Recorded $LINES line(s)."
 if [[ "$LINES" -eq 0 ]]; then
   echo "[AUDIT] ERROR: the trail is empty — pm-audit recorded nothing."
