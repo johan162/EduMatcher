@@ -35,16 +35,24 @@ from edumatcher.audit.replay import kinds
 from edumatcher.audit.replay.anomalies import (
     ACK_MISSING,
     ARRIVAL_SEQ_GAP,
+    ARRIVAL_SEQ_REUSED,
     CANCEL_UNMATCHED,
     CANCEL_UNSOLICITED,
     CLIENT_CLOCK_ABSURD,
     CLOCK_SKEW,
     COMMAND_UNACKED,
+    DROP_COPY_DISAGREE,
+    DROP_COPY_MISSING,
+    DROP_COPY_SEQ_GAP,
     FILL_BEFORE_ACK,
+    FILL_STATUS_DISAGREE,
     FILL_WITHOUT_TRADE,
     HALT_UNRESUMED,
     LEG_PRICE_DISAGREE,
     LEG_QTY_DISAGREE,
+    LIQUIDITY_FLAG_DISAGREE,
+    PRINT_PRICE_DISAGREE,
+    PRINT_QTY_DISAGREE,
     PRICE_OUTSIDE_CORRIDOR,
     PRICE_THROUGH_LIMIT,
     SEVERITY_ERROR,
@@ -53,6 +61,7 @@ from edumatcher.audit.replay.anomalies import (
     TERMINAL_MISSING,
     TRADE_COUNTER_GAP,
     TRADE_LEG_MISSING,
+    TRADE_LEG_UNKNOWN,
     Anomaly,
 )
 from edumatcher.audit.replay.episodes import (
@@ -65,7 +74,7 @@ from edumatcher.audit.replay.episodes import (
 )
 from edumatcher.audit.replay.facts import CLOCK_CLIENT, CLOCK_ENGINE, Fact
 from edumatcher.audit.replay.pipeline import Step
-from edumatcher.audit.replay.state import StateModel
+from edumatcher.audit.replay.state import STATUS_FILLED, StateModel
 
 #: How far the engine's clock and ``pm-audit``'s receipt clock may differ
 #: before it is worth saying so. A tenth of a second is generous for two
@@ -85,6 +94,13 @@ _ACK_SUFFIX = "_ack"
 
 _SIDE_BUY = "BUY"
 _SIDE_SELL = "SELL"
+
+_MAKER = "MAKER"
+_TAKER = "TAKER"
+#: An uncross has no aggressor, and the engine flags both of its sides MAKER.
+_AGGRESSOR_AUCTION = "AUCTION"
+#: Which of the trade's two order ids the aggressor is, by side.
+_AGGRESSOR_FIELD = {_SIDE_BUY: "buy_order_id", _SIDE_SELL: "sell_order_id"}
 
 
 def _anomaly(code: str, severity: str, detail: str, fact: Fact) -> Anomaly:
@@ -146,6 +162,8 @@ class _Leg:
     qty: int | None
     price: float | None
     coalesced: bool = False
+    liquidity: str | None = None
+    symbol: str | None = None
 
 
 class Detector:
@@ -183,6 +201,20 @@ class Detector:
         #: accounted for. Emptied as each trade is read, so on a healthy log
         #: this holds nothing; what is left in it is what went missing.
         self._awaiting: set[str] = set()
+        #: trade_id -> the orders whose drop copies named it. A set rather
+        #: than a count so that two copies of one side do not pass as the two
+        #: sides, and so the finding can say which side arrived.
+        self._copies: dict[str, set[str]] = {}
+        #: Whether this window contains a drop-copy feed at all. Without it a
+        #: log from an engine with no drop-copy publisher configured would
+        #: report every trade as missing both of its copies.
+        self._drop_copy_seen = False
+        #: The payload ``seq`` of the last drop copy read, and the run it
+        #: belonged to. One counter, not one per gateway:
+        #: ``engine/drop_copy.py`` counts on a module-level ``itertools.count``
+        #: shared by every gateway's feed.
+        self._last_drop_copy: int | None = None
+        self._drop_copy_run: int | None = None
         self._last_trade_seq: dict[int, int] = {}
         self._last_arrival: int | None = None
         self._arrival_run: int | None = None
@@ -203,17 +235,27 @@ class Detector:
             self._on_order_amended(fact)
         elif fact.kind == kinds.TRADE_EXECUTED:
             self._on_trade(fact, found)
+        elif fact.kind == kinds.DROP_COPY_EVENT:
+            self._on_drop_copy(fact, found)
         return tuple(found)
 
     def _clocks(self, fact: Fact, found: list[Anomaly]) -> None:
         """The engine's and the client's clock against ``pm-audit``'s.
 
-        Only ``ts_ns`` -- the field that says *when this happened*. The spec
-        has other epoch fields (``resume_at_ns`` is a future time,
-        ``from_ts_ns`` a query bound) and comparing those to receipt would
-        report every halt as skewed by however long it was due to last.
+        Only the field that says *when this message happened*, which the Fact
+        layer names: the spec has other epoch fields (``resume_at_ns`` is a
+        future time, ``from_ts_ns`` a query bound) and comparing those to
+        receipt would report every halt as skewed by however long it was due
+        to last.
+
+        Asked as a question about the clock rather than about a field name.
+        Keying on the literal ``ts_ns`` exempted two whole streams without
+        anyone noticing: ``order.fill`` declares no timestamp at all, and
+        ``drop_copy`` calls its clock ``timestamp``.
         """
-        stamped = fact.times.get("ts_ns")
+        stamped = next(
+            (time for time in fact.times.values() if time.is_publication), None
+        )
         if stamped is None:
             return
         drift = abs((stamped.when - fact.receipt_ts).total_seconds())
@@ -268,7 +310,12 @@ class Detector:
 
     def _arrival(self, fact: Fact, found: list[Anomaly]) -> None:
         seq = _int(fact.payload, "arrival_seq")
-        if seq is None:
+        if not seq:
+            # ``order.yaml``: "0 = unassigned". The sequence is stamped when
+            # the book accepts the order, and ``order.new`` is the command as
+            # the engine received it -- so on a real ``pm-audit`` trail the
+            # field is 0 on every order. Comparing those reported 2854 of them
+            # as claiming one queue position.
             return
         run = self.state.run.run_seq
         if run != self._arrival_run:
@@ -277,7 +324,28 @@ class Detector:
             self._arrival_run, self._last_arrival = run, seq
             return
         previous, self._last_arrival = self._last_arrival, seq
-        if self.strict and previous is not None and seq > previous + 1:
+        if previous is None:
+            return
+        if seq <= previous:
+            # Not under --strict, and an error rather than info: the counter
+            # is specified as monotonic and time priority is keyed on it, so
+            # two orders claiming one queue position is a priority bug. A
+            # *gap* is expected whenever the window omits another gateway's
+            # orders; a reuse is expected never.
+            found.append(
+                _anomaly(
+                    ARRIVAL_SEQ_REUSED,
+                    SEVERITY_ERROR,
+                    f"arrival_seq {previous}->{seq}: "
+                    + (
+                        "two orders claim one queue position"
+                        if seq == previous
+                        else "the counter went backwards"
+                    ),
+                    fact,
+                )
+            )
+        elif self.strict and seq > previous + 1:
             found.append(
                 _anomaly(
                     ARRIVAL_SEQ_GAP,
@@ -303,8 +371,36 @@ class Detector:
                     fact,
                 )
             )
+        self._status_check(fact, order_id, found)
         self._limit_check(fact, order_id, found)
         self._legs_of(fact, order_id, found)
+
+    def _status_check(self, fact: Fact, order_id: str, found: list[Anomaly]) -> None:
+        """``status`` and ``remaining_qty`` say the same thing or the fill is
+        wrong about one of them.
+
+        ``order.yaml``: "remaining_qty reaching zero is what marks the order
+        done; status FILLED says the same thing and the two must agree."
+        ``QTY_MISMATCH`` cannot notice a breach, because the tally reconciles
+        against ``quantity - remaining_qty`` whatever the status claims --
+        the arithmetic stays self-consistent while the status does not.
+        """
+        status = _str(fact.payload, "status")
+        remaining = _int(fact.payload, "remaining_qty")
+        if status is None or remaining is None:
+            return
+        done = status == STATUS_FILLED
+        if done == (remaining == 0):
+            return
+        found.append(
+            _anomaly(
+                FILL_STATUS_DISAGREE,
+                SEVERITY_ERROR,
+                f"order {order_id} fill says {status} with {remaining} "
+                "remaining" + ("" if done else " and nothing left to fill"),
+                fact,
+            )
+        )
 
     def _limit_check(self, fact: Fact, order_id: str, found: list[Anomaly]) -> None:
         limit = self._limits.get(order_id)
@@ -359,6 +455,8 @@ class Detector:
             qty=_int(fact.payload, "fill_qty"),
             price=_display(fact, "fill_price"),
             coalesced=len(trade_ids) > 1,
+            liquidity=_str(fact.payload, "liquidity_flag"),
+            symbol=_str(fact.payload, "symbol"),
         )
         for trade_id in trade_ids:
             self._legs.setdefault(trade_id, []).append(leg)
@@ -439,6 +537,105 @@ class Detector:
                 fact,
             )
         )
+
+    def _on_drop_copy(self, fact: Fact, found: list[Anomaly]) -> None:
+        """The clearing feed, which nothing else in the tool reads.
+
+        ``drop_copy.event`` is a *derived copy* of ``order.fill`` on a socket
+        the trading gateway does not subscribe to, and it is what clearing,
+        prime brokers and in-house risk reconcile on. The spec allows the two
+        to differ in sequencing, buffering and the liquidity flag -- not in
+        what was traded.
+        """
+        self._drop_copy_seen = True
+        self._drop_copy_seq(fact, found)
+        order_id = _str(fact.payload, "order_id")
+        if order_id is None:
+            return
+        for trade_id in _trade_ids(fact):
+            self._copies.setdefault(trade_id, set()).add(order_id)
+            self._copy_agrees(fact, trade_id, order_id, found)
+
+    def _drop_copy_seq(self, fact: Fact, found: list[Anomaly]) -> None:
+        """The feed's own counter, which is why the feed is sequenced.
+
+        ``SEQ_GAP`` does not cover it: that reads the audit metadata's
+        per-topic sequence, and this is the payload's -- one process-wide
+        counter across every gateway's topic, so it is followed as one stream.
+        A repeat counts as much as a gap, because a recipient "detects loss
+        from a gap and a duplicate from a repeat" is the whole reason
+        ``drop_copy.yaml`` gives for having it.
+        """
+        seq = _int(fact.payload, "seq")
+        if seq is None:
+            return
+        run = self.state.run.run_seq
+        if run != self._drop_copy_run:
+            # The counter lives and dies with the engine process, so nothing
+            # may be compared across a restart -- the same boundary
+            # :meth:`_arrival` respects.
+            self._drop_copy_run, self._last_drop_copy = run, seq
+            return
+        previous, self._last_drop_copy = self._last_drop_copy, seq
+        if previous is None or seq == previous + 1:
+            return
+        if seq > previous:
+            detail = f"{seq - previous - 1} event(s) missing from the feed"
+        elif seq == previous:
+            detail = "the feed repeated an event"
+        else:
+            detail = "the feed went backwards"
+        found.append(
+            _anomaly(
+                DROP_COPY_SEQ_GAP,
+                SEVERITY_ERROR,
+                f"drop copy seq {previous}->{seq}: {detail}",
+                fact,
+            )
+        )
+
+    def _copy_agrees(
+        self, fact: Fact, trade_id: str, order_id: str, found: list[Anomaly]
+    ) -> None:
+        """One drop copy against the private fill it copies.
+
+        Paired by ``order_id`` within the trade both name, which is the pair
+        the spec describes. A coalesced fill is exempt for the reason it is
+        exempt in :meth:`_legs_match_the_print`: it reports a whole sweep at a
+        VWAP while a drop copy reports this one execution, so the two *should*
+        differ (H5/H6). A fill outside this window leaves nothing to compare,
+        and saying nothing is the honest answer.
+        """
+        leg = next(
+            (leg for leg in self._legs.get(trade_id, ()) if leg.order_id == order_id),
+            None,
+        )
+        if leg is None or leg.coalesced:
+            return
+        qty = _int(fact.payload, "fill_qty")
+        price = _display(fact, "fill_price")
+        symbol = _str(fact.payload, "symbol")
+        differs: list[str] = []
+        if qty is not None and leg.qty is not None and qty != leg.qty:
+            differs.append(f"fill_qty {qty} against {leg.qty}")
+        if (
+            price is not None
+            and leg.price is not None
+            and abs(price - leg.price) > _PRICE_EPSILON
+        ):
+            differs.append(f"fill_price {price:g} against {leg.price:g}")
+        if symbol is not None and leg.symbol is not None and symbol != leg.symbol:
+            differs.append(f"symbol {symbol} against {leg.symbol}")
+        if differs:
+            found.append(
+                _anomaly(
+                    DROP_COPY_DISAGREE,
+                    SEVERITY_ERROR,
+                    f"drop copy for order {order_id} on trade {trade_id} "
+                    f"reports {', '.join(differs)} in the fill",
+                    fact,
+                )
+            )
 
     # -- pass one, continued: one episode at a time -------------------------
 
@@ -547,9 +744,163 @@ class Detector:
             )
         else:
             self._legs_agree(trade_id, legs, trade, found)
+        self._legs_are_its_own(trade_id, legs, trade, found)
+        self._legs_match_the_print(trade_id, legs, trade, found)
+        self._copies_are_two(trade_id, trade, found)
 
         self._trades.discard(trade_id)
         return tuple(found)
+
+    def _copies_are_two(self, trade_id: str, trade: Fact, found: list[Anomaly]) -> None:
+        """Every trade produces two drop copies, one per counterparty.
+
+        ``drop_copy.yaml`` says so outright, and the engine publishes them
+        from the single trade path, so a trade with one is a clearing feed
+        that told one side of a match about it. Warn rather than error for the
+        reason ``TERMINAL_MISSING`` is info: a window edge cuts one off.
+
+        Silent when the window holds no drop copies at all -- an engine
+        configured without the publisher would otherwise report every trade it
+        ever printed.
+        """
+        copies = self._copies.pop(trade_id, set())
+        if not self._drop_copy_seen or len(copies) == 2:
+            return
+        found.append(
+            _anomaly(
+                DROP_COPY_MISSING,
+                SEVERITY_WARN,
+                f"trade {trade_id} produced {len(copies)} drop copy(ies), not 2"
+                + (f": {', '.join(sorted(copies))}" if copies else ""),
+                trade,
+            )
+        )
+
+    def _legs_are_its_own(
+        self,
+        trade_id: str,
+        legs: Sequence[_Leg],
+        trade: Fact,
+        found: list[Anomaly],
+    ) -> None:
+        """The legs are the two orders the trade names, and no others.
+
+        ``TRADE_LEG_MISSING`` counts legs. Counting cannot tell a fill on the
+        right order from one on an order this trade never touched, and two of
+        the wrong legs count as two -- so a fill on the wrong participant's
+        blotter passes, and so does a third leg on a trade that had two.
+
+        ``buy_order_id`` and ``sell_order_id`` are both ``required: true``, so
+        the comparison is always available. Run outside the ``len(legs) < 2``
+        branch on purpose: a trade with one leg still wants to know that the
+        one it has is not its own.
+        """
+        sides = {
+            side
+            for name in ("buy_order_id", "sell_order_id")
+            if (side := _str(trade.payload, name)) is not None
+        }
+        if not sides:
+            return
+        strangers = sorted({leg.order_id for leg in legs} - sides)
+        if strangers:
+            found.append(
+                _anomaly(
+                    TRADE_LEG_UNKNOWN,
+                    SEVERITY_ERROR,
+                    f"trade {trade_id} was filled by {', '.join(strangers)}, "
+                    f"which it does not name as either side",
+                    trade,
+                )
+            )
+
+    def _legs_match_the_print(
+        self,
+        trade_id: str,
+        legs: Sequence[_Leg],
+        trade: Fact,
+        found: list[Anomaly],
+    ) -> None:
+        """Each leg against the trade, which is the third party.
+
+        :meth:`_legs_agree` compares the legs to each other, and two equally
+        wrong legs agree: a trade printing 200 whose fills both report 150 is
+        a public tape and a pair of private reports telling a reader two
+        different things, in silence. The print is the only account of the
+        match that neither fill can argue with.
+
+        Coalesced legs are exempt for the reason they are exempt there: a
+        sweep reported once at a VWAP is not any one trade's quantity or
+        price (H5/H6).
+        """
+        printed_qty = _int(trade.payload, "quantity")
+        printed_price = _display(trade, "price")
+        for leg in legs:
+            if leg.coalesced:
+                continue
+            if printed_qty is not None and leg.qty is not None:
+                if leg.qty != printed_qty:
+                    found.append(
+                        _anomaly(
+                            PRINT_QTY_DISAGREE,
+                            SEVERITY_ERROR,
+                            f"trade {trade_id} printed {printed_qty} but "
+                            f"{leg.order_id}'s fill reports {leg.qty}",
+                            trade,
+                        )
+                    )
+            if printed_price is not None and leg.price is not None:
+                if abs(leg.price - printed_price) > _PRICE_EPSILON:
+                    found.append(
+                        _anomaly(
+                            PRINT_PRICE_DISAGREE,
+                            SEVERITY_ERROR,
+                            f"trade {trade_id} printed {printed_price:g} but "
+                            f"{leg.order_id}'s fill reports {leg.price:g}",
+                            trade,
+                        )
+                    )
+            self._liquidity_check(trade_id, leg, trade, found)
+
+    def _liquidity_check(
+        self,
+        trade_id: str,
+        leg: _Leg,
+        trade: Fact,
+        found: list[Anomaly],
+    ) -> None:
+        """MAKER and TAKER against the trade's ``aggressor_side``.
+
+        Both specs derive the flag the same way -- the aggressing side is the
+        TAKER, the resting side the MAKER, and exactly one of a trade's two
+        events is TAKER. An auction print has no aggressor and the engine
+        flags both sides MAKER, which is the case ``lexicon.fill_verb``
+        already reasons about.
+
+        A billing invariant: maker and taker fees invert on it, so a wrong
+        flag is not a display problem.
+        """
+        if leg.liquidity is None:
+            return
+        aggressor = _str(trade.payload, "aggressor_side")
+        if aggressor == _AGGRESSOR_AUCTION:
+            expected = _MAKER
+        elif aggressor in (_SIDE_BUY, _SIDE_SELL):
+            aggressing = _str(trade.payload, _AGGRESSOR_FIELD[aggressor])
+            expected = _TAKER if leg.order_id == aggressing else _MAKER
+        else:
+            return
+        if leg.liquidity != expected:
+            found.append(
+                _anomaly(
+                    LIQUIDITY_FLAG_DISAGREE,
+                    SEVERITY_ERROR,
+                    f"trade {trade_id} was aggressed {aggressor.lower()}, so "
+                    f"{leg.order_id} is the {expected.lower()}; its fill says "
+                    f"{leg.liquidity}",
+                    trade,
+                )
+            )
 
     def _legs_agree(
         self,

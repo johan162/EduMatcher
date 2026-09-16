@@ -59,7 +59,10 @@ SCHEMA_VERSION = 2
 #: random tail was ordering same-millisecond facts from different
 #: publishers at random. Every stored ``sort_key`` from version 1 means
 #: something different, so an old index has to be rebuilt.
-RULES_VERSION = 2
+#: Bumped to 3 for phase 8's nine new codes: an index built under 2 is
+#: missing findings its rows do not say are missing, which is the one way a
+#: stale index can be worse than no index.
+RULES_VERSION = 3
 
 META_SCHEMA_VERSION = "schema_version"
 META_RULES_VERSION = "rules_version"

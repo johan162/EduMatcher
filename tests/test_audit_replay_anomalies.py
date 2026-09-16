@@ -28,21 +28,30 @@ from edumatcher.audit.replay.anomalies import (
     CANCEL_UNMATCHED,
     CANCEL_UNSOLICITED,
     CLIENT_CLOCK_ABSURD,
+    ARRIVAL_SEQ_REUSED,
     CLOCK_SKEW,
     COMMAND_UNACKED,
+    DROP_COPY_DISAGREE,
+    DROP_COPY_MISSING,
+    DROP_COPY_SEQ_GAP,
     FILL_BEFORE_ACK,
+    FILL_STATUS_DISAGREE,
     FILL_WITHOUT_TRADE,
     HALT_UNRESUMED,
     LEG_PRICE_DISAGREE,
     LEG_QTY_DISAGREE,
+    LIQUIDITY_FLAG_DISAGREE,
     PARSE_FAILURE,
     PRICE_OUTSIDE_CORRIDOR,
     PRICE_THROUGH_LIMIT,
+    PRINT_PRICE_DISAGREE,
+    PRINT_QTY_DISAGREE,
     QTY_MISMATCH,
     SEVERITY_ERROR,
     TERMINAL_MISSING,
     TRADE_COUNTER_GAP,
     TRADE_LEG_MISSING,
+    TRADE_LEG_UNKNOWN,
     Anomaly,
 )
 from edumatcher.audit.replay.detect import Detector, detected, observed
@@ -169,6 +178,23 @@ def _trade(**over: Any) -> dict[str, Any]:
         "price": 75.0,
         "quantity": 200,
         "tick_decimals": 2,
+    }
+    payload.update(over)
+    return payload
+
+
+def _copy(**over: Any) -> dict[str, Any]:
+    """One ``drop_copy.event``: the clearing feed's account of a fill."""
+    payload: dict[str, Any] = {
+        "seq": 1,
+        "gateway_id": GATEWAY,
+        "event_type": "order.fill",
+        "order_id": ORDER,
+        "trade_ids": [TRADE],
+        "symbol": "AAPL",
+        "fill_qty": 200,
+        "fill_price": 75.0,
+        "liquidity_flag": "TAKER",
     }
     payload.update(over)
     return payload
@@ -407,6 +433,55 @@ class TestClocksAndSequence:
         log.line("order.new", _submitted(id=OTHER, arrival_seq=14))
 
         assert ARRIVAL_SEQ_GAP not in log.codes()
+
+    def test_a_reused_arrival_seq_is_reported(self) -> None:
+        """Two orders claiming one queue position. Time priority is keyed on
+        this counter, so a repeat is a priority bug rather than a window
+        edge -- which is why it fires without ``--strict``."""
+        log = Log().line("order.new", _submitted(arrival_seq=8814))
+        log.line("order.new", _submitted(id=OTHER, arrival_seq=8814))
+
+        assert ARRIVAL_SEQ_REUSED in log.codes()
+        assert "two orders claim one queue position" in log.detail(ARRIVAL_SEQ_REUSED)
+
+    def test_a_decreasing_arrival_seq_is_too(self) -> None:
+        log = Log().line("order.new", _submitted(arrival_seq=8814))
+        log.line("order.new", _submitted(id=OTHER, arrival_seq=8810))
+
+        assert ARRIVAL_SEQ_REUSED in log.codes()
+        assert "the counter went backwards" in log.detail(ARRIVAL_SEQ_REUSED)
+
+    def test_an_unassigned_arrival_seq_is_not_a_reuse(self) -> None:
+        """``order.yaml``: "0 = unassigned". ``order.new`` is the command as
+        the engine received it and the sequence is stamped when the book
+        accepts it, so on a real trail every order carries 0 -- which read as
+        2854 orders claiming one queue position."""
+        log = Log().line("order.new", _submitted(arrival_seq=0))
+        log.line("order.new", _submitted(id=OTHER, arrival_seq=0))
+
+        assert ARRIVAL_SEQ_REUSED not in log.codes()
+
+    def test_a_restart_restarts_the_counter(self) -> None:
+        """The counter lives with the engine process. Reporting the restart as
+        a reuse is the publisher-restart false positive ``SEQ_GAP`` already
+        learned to avoid."""
+        log = Log().line("trade.executed", _trade(run_seq=42))
+        log.line("order.new", _submitted(arrival_seq=8814))
+        log.line("trade.executed", _trade(id="000043-000000001", run_seq=43))
+        log.line("order.new", _submitted(id=OTHER, arrival_seq=1))
+
+        assert ARRIVAL_SEQ_REUSED not in log.codes()
+
+    def test_the_engine_clock_is_found_under_its_other_name(self) -> None:
+        """``drop_copy`` calls its publication clock ``timestamp``. Keying the
+        check on the literal ``ts_ns`` exempted the whole clearing feed from
+        it, in silence (AR-8.6)."""
+        log = Log().line(
+            "drop_copy.event." + GATEWAY,
+            _copy(timestamp=_nanos(BASE + timedelta(seconds=2))),
+        )
+
+        assert CLOCK_SKEW in log.codes()
 
     def test_a_gap_in_the_trade_counter_is_reported(self) -> None:
         log = Log().line("trade.executed", _trade(id="000042-000000001"))
@@ -764,3 +839,279 @@ class TestTheDetectorDoesNotInventFindings:
         log.line("order.cancel", {"order_id": ORDER, "gateway_id": GATEWAY})
 
         assert CANCEL_UNMATCHED in log.codes()
+
+
+# ---------------------------------------------------------------------------
+# Phase 8 — the invariants the tool used to take on trust
+# ---------------------------------------------------------------------------
+
+
+class TestThePrintIsTheThirdParty:
+    """AR-8.1. ``_legs_agree`` compares the legs to each other, and two
+    equally wrong legs agree: a trade printing 200 whose fills both report 150
+    was a public tape and a pair of private reports saying different things,
+    in silence."""
+
+    def test_legs_that_agree_with_each_other_and_not_with_the_print(self) -> None:
+        log = Log().line("trade.executed", _trade(quantity=200))
+        log.line("order.fill." + GATEWAY, _fill(fill_qty=150))
+        log.line("order.fill.TRADER09", _fill(order_id=OTHER, fill_qty=150))
+
+        codes = log.codes()
+
+        assert PRINT_QTY_DISAGREE in codes
+        # The two checks answer different questions and neither covers the
+        # other: the legs really do agree.
+        assert LEG_QTY_DISAGREE not in codes
+
+    def test_the_same_for_the_price(self) -> None:
+        log = Log().line("trade.executed", _trade(price=75.0))
+        log.line("order.fill." + GATEWAY, _fill(fill_price=80.0))
+        log.line("order.fill.TRADER09", _fill(order_id=OTHER, fill_price=80.0))
+
+        codes = log.codes()
+
+        assert PRINT_PRICE_DISAGREE in codes
+        assert LEG_PRICE_DISAGREE not in codes
+
+    def test_legs_that_match_the_print_are_silent(self) -> None:
+        log = Log().line("trade.executed", _trade())
+        log.line("order.fill." + GATEWAY, _fill())
+        log.line("order.fill.TRADER09", _fill(order_id=OTHER))
+
+        codes = log.codes()
+
+        assert PRINT_QTY_DISAGREE not in codes
+        assert PRINT_PRICE_DISAGREE not in codes
+
+    def test_a_coalesced_leg_is_exempt(self) -> None:
+        """A sweep is reported once at a VWAP, so it is not any one trade's
+        quantity or price (H5/H6) -- the exemption ``LEG_QTY_DISAGREE``
+        already makes."""
+        other_trade = "000042-000001874"
+        log = Log().line("trade.executed", _trade())
+        log.line("trade.executed", _trade(id=other_trade, price=75.5))
+        log.line(
+            "order.fill." + GATEWAY,
+            _fill(fill_qty=300, fill_price=75.25, trade_ids=[TRADE, other_trade]),
+        )
+        log.line("order.fill.TRADER09", _fill(order_id=OTHER, fill_qty=200))
+        log.line(
+            "order.fill.TRADER10",
+            _fill(
+                order_id="c" * 32,
+                fill_qty=200,
+                fill_price=75.5,
+                trade_ids=[other_trade],
+            ),
+        )
+
+        codes = log.codes()
+
+        assert PRINT_QTY_DISAGREE not in codes
+        assert PRINT_PRICE_DISAGREE not in codes
+
+    def test_a_leg_on_an_order_the_trade_does_not_name(self) -> None:
+        """Counting legs cannot tell a fill on the right order from one on an
+        order this trade never touched, and two of the wrong legs count as
+        two."""
+        stranger = "c" * 32
+        log = Log().line("trade.executed", _trade())
+        log.line("order.fill." + GATEWAY, _fill())
+        log.line("order.fill.TRADER10", _fill(order_id=stranger))
+
+        assert TRADE_LEG_UNKNOWN in log.codes()
+        assert stranger in log.detail(TRADE_LEG_UNKNOWN)
+
+    def test_a_single_leg_is_still_identified(self) -> None:
+        """``TRADE_LEG_MISSING`` says one leg is missing; it does not say the
+        one that arrived belongs to this trade."""
+        log = Log().line("trade.executed", _trade())
+        log.line("order.fill.TRADER10", _fill(order_id="c" * 32))
+
+        codes = log.codes()
+
+        assert TRADE_LEG_MISSING in codes
+        assert TRADE_LEG_UNKNOWN in codes
+
+
+class TestAMessageMayNotContradictItself:
+    """AR-8.2. ``order.yaml``: "remaining_qty reaching zero is what marks the
+    order done; status FILLED says the same thing and the two must agree"."""
+
+    def test_filled_with_quantity_remaining(self) -> None:
+        log = Log().line("order.new", _submitted())
+        log.line("order.ack." + GATEWAY, _ack())
+        log.line("order.fill." + GATEWAY, _fill(fill_qty=150, remaining_qty=50))
+
+        assert FILL_STATUS_DISAGREE in log.codes()
+
+    def test_partial_with_nothing_left(self) -> None:
+        """The direction that costs a reader most: a blotter line closed while
+        the order is still resting."""
+        log = Log().line("order.new", _submitted())
+        log.line("order.ack." + GATEWAY, _ack())
+        log.line("order.fill." + GATEWAY, _fill(status="PARTIAL", remaining_qty=0))
+
+        assert FILL_STATUS_DISAGREE in log.codes()
+        assert "nothing left to fill" in log.detail(FILL_STATUS_DISAGREE)
+
+    def test_a_fill_that_agrees_with_itself_is_silent(self) -> None:
+        log = Log().line("order.new", _submitted())
+        log.line("order.ack." + GATEWAY, _ack())
+        log.line(
+            "order.fill." + GATEWAY,
+            _fill(fill_qty=150, remaining_qty=50, status="PARTIAL"),
+        )
+
+        assert FILL_STATUS_DISAGREE not in log.codes()
+
+
+class TestLiquidityAttribution:
+    """AR-8.3. Maker and taker fees invert on this flag, so a wrong one is not
+    a display problem."""
+
+    def test_both_sides_flagged_taker(self) -> None:
+        log = Log().line("trade.executed", _trade(aggressor_side="BUY"))
+        log.line("order.fill." + GATEWAY, _fill(liquidity_flag="TAKER"))
+        log.line("order.fill.TRADER09", _fill(order_id=OTHER, liquidity_flag="TAKER"))
+
+        assert LIQUIDITY_FLAG_DISAGREE in log.codes()
+        assert OTHER in log.detail(LIQUIDITY_FLAG_DISAGREE)
+
+    def test_the_aggressor_is_the_taker(self) -> None:
+        log = Log().line("trade.executed", _trade(aggressor_side="BUY"))
+        log.line("order.fill." + GATEWAY, _fill(liquidity_flag="TAKER"))
+        log.line("order.fill.TRADER09", _fill(order_id=OTHER, liquidity_flag="MAKER"))
+
+        assert LIQUIDITY_FLAG_DISAGREE not in log.codes()
+
+    def test_an_uncross_print_has_two_makers(self) -> None:
+        """Both sides rested, so there is no aggressor and the engine flags
+        both MAKER."""
+        log = Log().line("trade.executed", _trade(aggressor_side="AUCTION"))
+        log.line("order.fill." + GATEWAY, _fill(liquidity_flag="MAKER"))
+        log.line("order.fill.TRADER09", _fill(order_id=OTHER, liquidity_flag="MAKER"))
+
+        assert LIQUIDITY_FLAG_DISAGREE not in log.codes()
+
+    def test_an_uncross_print_with_a_taker_is_not(self) -> None:
+        log = Log().line("trade.executed", _trade(aggressor_side="AUCTION"))
+        log.line("order.fill." + GATEWAY, _fill(liquidity_flag="TAKER"))
+        log.line("order.fill.TRADER09", _fill(order_id=OTHER, liquidity_flag="MAKER"))
+
+        assert LIQUIDITY_FLAG_DISAGREE in log.codes()
+
+
+class TestTheDropCopyFeed:
+    """AR-8.4. The feed clearing and prime brokers reconcile on, about which
+    the tool had no opinion at all: no state handler, no branch in
+    ``Detector.observe``, and a documented sequence counter nothing read."""
+
+    def _matched(self) -> Log:
+        """One execution, completely reported: the print, both private fills
+        and both drop copies."""
+        log = Log().line("trade.executed", _trade(aggressor_side="BUY"))
+        log.line("order.fill." + GATEWAY, _fill(liquidity_flag="TAKER"))
+        log.line("order.fill.TRADER09", _fill(order_id=OTHER, liquidity_flag="MAKER"))
+        log.line("drop_copy.event." + GATEWAY, _copy())
+        log.line(
+            "drop_copy.event.TRADER09",
+            _copy(seq=2, gateway_id="TRADER09", order_id=OTHER, liquidity_flag="MAKER"),
+        )
+        return log
+
+    def test_a_complete_execution_is_silent(self) -> None:
+        assert self._matched().codes() == []
+
+    def test_a_gap_in_the_feed_counter(self) -> None:
+        log = Log().line("drop_copy.event." + GATEWAY, _copy(seq=1))
+        log.line("drop_copy.event.TRADER09", _copy(seq=9, gateway_id="TRADER09"))
+
+        assert DROP_COPY_SEQ_GAP in log.codes()
+        assert "7 event(s) missing" in log.detail(DROP_COPY_SEQ_GAP)
+
+    def test_a_repeat_in_the_feed_counter(self) -> None:
+        """``drop_copy.yaml``: a recipient "detects loss from a gap and a
+        duplicate from a repeat", which is the whole reason it is sequenced --
+        so a repeat counts, unlike ``SEQ_GAP``."""
+        log = Log().line("drop_copy.event." + GATEWAY, _copy(seq=4))
+        log.line("drop_copy.event.TRADER09", _copy(seq=4, gateway_id="TRADER09"))
+
+        assert DROP_COPY_SEQ_GAP in log.codes()
+        assert "repeated an event" in log.detail(DROP_COPY_SEQ_GAP)
+
+    def test_the_counter_is_one_stream_across_the_gateways(self) -> None:
+        """``engine/drop_copy.py`` counts on a module-level
+        ``itertools.count``, so consecutive events on two gateways' topics are
+        consecutive numbers -- reading it per gateway would report every
+        second event as a gap."""
+        log = Log().line("drop_copy.event." + GATEWAY, _copy(seq=1))
+        log.line("drop_copy.event.TRADER09", _copy(seq=2, gateway_id="TRADER09"))
+        log.line("drop_copy.event." + GATEWAY, _copy(seq=3))
+
+        assert DROP_COPY_SEQ_GAP not in log.codes()
+
+    def test_a_restart_restarts_the_counter(self) -> None:
+        log = Log().line("trade.executed", _trade(run_seq=42))
+        log.line("drop_copy.event." + GATEWAY, _copy(seq=880))
+        log.line("trade.executed", _trade(id="000043-000000001", run_seq=43))
+        log.line("drop_copy.event." + GATEWAY, _copy(seq=1))
+
+        assert DROP_COPY_SEQ_GAP not in log.codes()
+
+    def test_a_copy_that_disagrees_with_the_fill_it_copies(self) -> None:
+        log = Log().line("trade.executed", _trade(aggressor_side="BUY"))
+        log.line("order.fill." + GATEWAY, _fill(liquidity_flag="TAKER"))
+        log.line("order.fill.TRADER09", _fill(order_id=OTHER, liquidity_flag="MAKER"))
+        log.line("drop_copy.event." + GATEWAY, _copy(fill_qty=999))
+        log.line(
+            "drop_copy.event.TRADER09",
+            _copy(seq=2, gateway_id="TRADER09", order_id=OTHER, liquidity_flag="MAKER"),
+        )
+
+        assert DROP_COPY_DISAGREE in log.codes()
+        assert "fill_qty 999 against 200" in log.detail(DROP_COPY_DISAGREE)
+
+    def test_a_copy_of_a_coalesced_fill_is_exempt(self) -> None:
+        """The drop copy reports one execution and the coalesced fill reports
+        the whole sweep at a VWAP, so the two *should* differ."""
+        other_trade = "000042-000001874"
+        log = Log().line("trade.executed", _trade())
+        log.line("trade.executed", _trade(id=other_trade, price=75.5))
+        log.line(
+            "order.fill." + GATEWAY,
+            _fill(fill_qty=300, fill_price=75.25, trade_ids=[TRADE, other_trade]),
+        )
+        log.line("drop_copy.event." + GATEWAY, _copy(fill_qty=200, fill_price=75.0))
+
+        assert DROP_COPY_DISAGREE not in log.codes()
+
+    def test_a_trade_that_produced_one_copy(self) -> None:
+        log = Log().line("trade.executed", _trade(aggressor_side="BUY"))
+        log.line("order.fill." + GATEWAY, _fill(liquidity_flag="TAKER"))
+        log.line("order.fill.TRADER09", _fill(order_id=OTHER, liquidity_flag="MAKER"))
+        log.line("drop_copy.event." + GATEWAY, _copy())
+
+        assert DROP_COPY_MISSING in log.codes()
+        assert "1 drop copy(ies), not 2" in log.detail(DROP_COPY_MISSING)
+
+    def test_two_copies_of_one_side_are_not_two_copies(self) -> None:
+        """A count would pass this: the buyer's clearing broker was told
+        twice and the seller's not at all."""
+        log = Log().line("trade.executed", _trade(aggressor_side="BUY"))
+        log.line("order.fill." + GATEWAY, _fill(liquidity_flag="TAKER"))
+        log.line("order.fill.TRADER09", _fill(order_id=OTHER, liquidity_flag="MAKER"))
+        log.line("drop_copy.event." + GATEWAY, _copy())
+        log.line("drop_copy.event." + GATEWAY, _copy(seq=2))
+
+        assert DROP_COPY_MISSING in log.codes()
+
+    def test_a_log_with_no_drop_copy_feed_at_all_is_silent(self) -> None:
+        """An engine configured without the publisher would otherwise have
+        every trade it ever printed reported as missing both copies."""
+        log = Log().line("trade.executed", _trade())
+        log.line("order.fill." + GATEWAY, _fill())
+        log.line("order.fill.TRADER09", _fill(order_id=OTHER))
+
+        assert DROP_COPY_MISSING not in log.codes()

@@ -172,6 +172,58 @@ CLOCK_SKEW = "CLOCK_SKEW"
 #: comparing submission times would be misled, so it is worth saying.
 CLIENT_CLOCK_ABSURD = "CLIENT_CLOCK_ABSURD"
 
+#: A non-coalesced leg whose ``fill_qty`` is not the ``quantity`` of the
+#: ``trade.executed`` it names. ``LEG_QTY_DISAGREE`` compares the two legs to
+#: each other, which two equally wrong legs pass; the print is the third
+#: party neither of them can argue with. Section 12.2.
+PRINT_QTY_DISAGREE = "PRINT_QTY_DISAGREE"
+
+#: The same for ``fill_price`` against the trade's ``price``. Section 12.2.
+PRINT_PRICE_DISAGREE = "PRINT_PRICE_DISAGREE"
+
+#: A leg whose ``order_id`` is neither the trade's ``buy_order_id`` nor its
+#: ``sell_order_id``. ``TRADE_LEG_MISSING`` counts legs; this identifies them,
+#: which is what catches a fill on the wrong participant's blotter and a third
+#: leg naming a trade that had two. Section 12.2.
+TRADE_LEG_UNKNOWN = "TRADE_LEG_UNKNOWN"
+
+#: An ``order.fill`` whose ``status`` and ``remaining_qty`` contradict each
+#: other. ``order.yaml`` states the rule outright -- "remaining_qty reaching
+#: zero is what marks the order done; status FILLED says the same thing and
+#: the two must agree" -- and ``QTY_MISMATCH`` cannot see a breach of it,
+#: because the arithmetic stays self-consistent while the status does not.
+#: Section 12.1.
+FILL_STATUS_DISAGREE = "FILL_STATUS_DISAGREE"
+
+#: A ``liquidity_flag`` that contradicts its trade's ``aggressor_side``. The
+#: aggressing side is the TAKER and the resting side the MAKER; an auction
+#: print has no aggressor and both sides are MAKER. A billing invariant --
+#: maker and taker fees invert on it. Section 12.2.
+LIQUIDITY_FLAG_DISAGREE = "LIQUIDITY_FLAG_DISAGREE"
+
+#: A gap or a repeat in ``drop_copy.seq``. Not covered by ``SEQ_GAP``, which
+#: keys on the audit metadata's per-topic sequence rather than on the feed's
+#: own counter; and repeats count, because the spec names duplicate detection
+#: as half the reason that counter exists. Section 12.3.
+DROP_COPY_SEQ_GAP = "DROP_COPY_SEQ_GAP"
+
+#: A drop copy whose ``fill_qty``, ``fill_price`` or ``symbol`` differs from
+#: the ``order.fill`` it shadows. This is the feed clearing reconciles on, so
+#: a disagreement is a reconciliation break rather than a display problem.
+#: Section 12.2.
+DROP_COPY_DISAGREE = "DROP_COPY_DISAGREE"
+
+#: A trade that did not produce two drop copies, one per counterparty, as the
+#: spec says every trade does. Warn rather than error for the reason
+#: ``TERMINAL_MISSING`` is info: a window edge cuts one off. Section 12.2.
+DROP_COPY_MISSING = "DROP_COPY_MISSING"
+
+#: A repeated or decreasing ``arrival_seq`` within one engine run: two orders
+#: claiming one queue position. Always reported, unlike ``ARRIVAL_SEQ_GAP`` --
+#: a gap is expected whenever the window omits another gateway's orders, a
+#: reuse is expected never. Section 12.3.
+ARRIVAL_SEQ_REUSED = "ARRIVAL_SEQ_REUSED"
+
 #: A gap in ``arrival_seq`` within one engine run. Expected whenever the
 #: window omits another gateway's orders, so it is reported only under
 #: ``--strict``.

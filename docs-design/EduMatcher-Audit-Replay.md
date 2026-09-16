@@ -1408,6 +1408,7 @@ of these invariants.
 | `TERMINAL_MISSING` | info | An order still open when the window ends (expected at window edges; informational only) |
 | `CANCEL_UNSOLICITED` | warn | `order.cancelled` with neither a matching request nor a `cancel_reason` naming a cause |
 | `CANCEL_UNMATCHED` | warn | `order.cancel` with no resulting `order.cancelled` or rejection |
+| `FILL_STATUS_DISAGREE` | error | An `order.fill` whose `status` and `remaining_qty` contradict each other: `FILLED` if and only if `remaining_qty == 0`, which `order.yaml` states outright. Invisible to `QTY_MISMATCH`, because the arithmetic is self-consistent while the status is not (AR-8.2) |
 
 ### 12.2 Quantity and price conservation
 
@@ -1421,6 +1422,12 @@ of these invariants.
 | `LEG_PRICE_DISAGREE` | error | The two legs report different `fill_price` |
 | `PRICE_THROUGH_LIMIT` | error | A fill outside the order's limit price (buy above, sell below) |
 | `PRICE_OUTSIDE_CORRIDOR` | warn | A print outside the active circuit-breaker corridor without a `clamped` flag |
+| `PRINT_QTY_DISAGREE` | error | A non-coalesced leg whose `fill_qty` is not the `quantity` of the `trade.executed` it names. `LEG_QTY_DISAGREE` compares the two legs to each other, which two wrong legs pass (AR-8.1) |
+| `PRINT_PRICE_DISAGREE` | error | The same for `fill_price` against the trade's `price` (AR-8.1) |
+| `TRADE_LEG_UNKNOWN` | error | A leg whose `order_id` is neither the trade's `buy_order_id` nor its `sell_order_id` — a fill on the wrong participant's blotter, or a third leg, both of which `TRADE_LEG_MISSING`'s count cannot see (AR-8.1) |
+| `LIQUIDITY_FLAG_DISAGREE` | error | A `liquidity_flag` that contradicts the trade's `aggressor_side`: the aggressing side is TAKER and the resting side MAKER, and exactly one of a trade's two events is TAKER unless it crossed in an uncross. A billing invariant — fees invert on it (AR-8.3) |
+| `DROP_COPY_DISAGREE` | error | A `drop_copy` whose `fill_qty`, `fill_price` or `symbol` differs from the `order.fill` sharing its `order_id` and `trade_ids` (AR-8.4) |
+| `DROP_COPY_MISSING` | warn | A trade that did not produce two drop copies, one per counterparty. Warn rather than error for the reason `TERMINAL_MISSING` is info: a window edge cuts one off (AR-8.4) |
 
 `FILL_WITHOUT_TRADE` and `TRADE_LEG_MISSING` are the two that catch dropped
 messages — which, on a PUB/SUB bus, is the failure mode nobody sees until it
@@ -1441,6 +1448,8 @@ matters.
 | `CHAIN_BROKEN` | error | An effect whose `correlation_id` differs from its cause's — the chain was not propagated, which breaks `story --chain` |
 | `MSG_ID_DUPLICATE` | error | Two messages with the same `msg_id`. Should be impossible; would mean the ULID generator was shared unsafely across threads |
 | `TRADE_COUNTER_GAP` | error | A gap in the per-run trade counter: trades specifically are missing. Redundant with `SEQ_GAP`, but kept — it localises the loss to the trade stream |
+| `ARRIVAL_SEQ_REUSED` | error | A repeated or decreasing `arrival_seq` within one run: two orders claiming one queue position. Always reported, unlike `ARRIVAL_SEQ_GAP` — a *gap* is expected whenever the window omits another gateway's orders, a *reuse* is expected never (AR-8.5) |
+| `DROP_COPY_SEQ_GAP` | error | A gap or a repeat in `drop_copy.seq`, the feed's own counter — one process-wide stream across every gateway's topic, not one per gateway. Not covered by `SEQ_GAP`, which keys on the audit metadata's per-topic sequence; and repeats count, because the spec names duplicate detection as half the reason the counter exists (AR-8.4) |
 
 `SEQ_GAP` deserves emphasis. Because each topic's `seq` is dense, the tool can
 **prove** that messages are missing from the audit trail rather than merely
@@ -2132,6 +2141,220 @@ event narrated, nothing suppressed.
 
 ---
 
+### Phase 8 — Closing the detection gaps (≈ 4.5 days)
+
+Phases 1–6 shipped a tool that reconstructs the trail and reports what it
+cannot reconcile. The gaps below are the invariants it does **not** check —
+found by reviewing the catalogue against `spec/messages/*.yaml` on 2026-09-15,
+each one reproduced against the real pipeline before being written down.
+
+They share a shape worth naming. Every one of them is a place where the tool
+checks a thing against *itself* and calls that agreement: two legs against each
+other rather than against the trade they name, a fill's arithmetic against its
+own fields rather than against its status, a sequence against its predecessor
+rather than against every value already seen. Self-consistency is the weakest
+form of consistency, and it is exactly the form a bug preserves.
+
+Until this phase lands, `docs/user-guide/820-audit-replay.md` carries a "What
+it does not check yet" table naming all seven, so the guide does not overstate
+the tool. Deleting that table is part of CP-8.
+
+#### AR-8.1 — The print is the third leg (1 day)
+
+**The gap.** `Detector._legs_agree` compares a trade's two legs to each other
+and never to the `trade.executed` that anchors them, and `_legs_of` counts
+legs without identifying them. So both fills and the public tape can disagree
+by any amount in silence, as long as the two fills agree; and a fill naming a
+trade it was not part of is indistinguishable from one that was.
+
+Reproduced: a trade printing `quantity: 200` whose two legs both report
+`fill_qty: 150` produces **no finding**. Nor does one printing 75.00 whose
+legs both report 80.00. Nor does a third leg naming the same trade, because
+the guard is `len(legs) < 2`.
+
+**Do.** Two codes in §12.2:
+
+- `PRINT_QTY_DISAGREE` (error) — a non-coalesced leg whose `fill_qty` is not
+  the trade's `quantity`.
+- `PRINT_PRICE_DISAGREE` (error) — the same for `fill_price` against the
+  trade's `price`, in display money and within `_PRICE_EPSILON`.
+- `TRADE_LEG_UNKNOWN` (error) — a leg whose `order_id` is neither the trade's
+  `buy_order_id` nor its `sell_order_id`. Both fields are `required: true`, so
+  the comparison is always available.
+
+Coalesced legs are exempt from the first two for the reason they are already
+exempt from `LEG_QTY_DISAGREE`: a sweep reported once at a VWAP is not any one
+trade's quantity or price (H5/H6). They are **not** exempt from
+`TRADE_LEG_UNKNOWN` — a coalesced fill still names only trades it was part of.
+
+**Verify.** The pair that matters is a leg set that agrees with itself and
+disagrees with the print. `LEG_QTY_DISAGREE` must stay silent on it, and the
+new code must fire: the two checks answer different questions and neither
+covers the other.
+
+#### AR-8.2 — A message may not contradict itself (0.5 day)
+
+**The gap.** `order.yaml` states it outright — *"`remaining_qty` reaching zero
+is what marks the order done; status FILLED says the same thing and the two
+must agree"* — and nothing checks it. `QTY_MISMATCH` cannot: an `order.fill`
+carrying `status: FILLED` with `remaining_qty: 50` is arithmetically
+self-consistent, so the tally reconciles and the status is still a lie.
+
+Reproduced: a 200-lot order, fills totalling 150, `remaining_qty: 50`,
+`status: FILLED` — **no finding**.
+
+**Do.** `FILL_STATUS_DISAGREE` (error) in §12.1: on `order.fill`,
+`status == FILLED` if and only if `remaining_qty == 0`.
+
+**Verify.** Both directions. The one that costs a reader most is the other
+one — `PARTIAL` with nothing left, which closes a blotter line that is still
+resting.
+
+#### AR-8.3 — Liquidity attribution (0.5 day)
+
+**The gap.** `order.fill.liquidity_flag` and `drop_copy.liquidity_flag` are
+both specified as derived from `trade.aggressor_side` — the aggressor is the
+TAKER and the resting side the MAKER, and drop copy adds that *exactly one* of
+a trade's two events is TAKER. Neither is checked against the trade.
+
+This is a **billing** invariant: maker and taker fees invert on it, so a wrong
+flag is not a display problem.
+
+Reproduced: both legs of an `aggressor_side: BUY` trade flagged `TAKER` —
+**no finding**.
+
+**Do.** `LIQUIDITY_FLAG_DISAGREE` (error) in §12.2. For `aggressor_side` in
+{BUY, SELL}: the leg on the aggressing order id is TAKER and the other MAKER.
+For an auction print there is no aggressor and the engine flags both sides
+MAKER, which is the case `lexicon.fill_verb` already reasons about — so the
+check reads `aggressor_side: AUCTION`, which is the value `trade.yaml`
+declares for it, rather than assuming.
+
+#### AR-8.4 — The drop-copy feed (1.5 days)
+
+**The gap.** `drop_copy` is a known kind in `kinds.py` and has **no handler in
+`state._HANDLERS` and no branch in `Detector.observe`**. The tool has no
+opinion about the feed clearing and prime brokers reconcile on.
+
+`drop_copy.seq` is documented as a *"process-wide monotone counter … a
+recipient detects loss from a gap and a duplicate from a repeat, which is the
+whole reason the feed is sequenced"* — and nothing reads it. `SEQ_GAP` does
+not cover it: that keys on the audit metadata's per-topic `seq`, not the
+payload's.
+
+Reproduced: payload `seq` 1 → 9 with a `fill_qty` of 999 beside an
+`order.fill` reporting 200 for the same order and trade — **no finding**.
+
+**Do.** Three codes in §12.2 and §12.3, all three in `Detector`: they are
+cross-message checks, which is what that class is for, and a `StateModel`
+handler would keep a counter nothing else in the model reads.
+
+- `DROP_COPY_SEQ_GAP` (error, §12.3) — a gap or a repeat in the payload `seq`.
+  Followed as **one stream**, not one per gateway: `engine/drop_copy.py`
+  counts on a module-level `itertools.count`, so consecutive events on two
+  gateways' topics carry consecutive numbers and a per-gateway reading would
+  report every second event as a gap. Repeats count, unlike `SEQ_GAP`: the
+  spec names duplicate detection as half the reason the counter exists.
+- `DROP_COPY_DISAGREE` (error, §12.2) — a drop copy whose `fill_qty`,
+  `fill_price` or `symbol` differs from the `order.fill` sharing its
+  `order_id` and `trade_ids`.
+- `DROP_COPY_MISSING` (warn, §12.2) — a trade that did not produce two of
+  them, one per counterparty, as the spec says every trade does. Warn rather
+  than error because a window edge cuts one off, the same reasoning that makes
+  `TERMINAL_MISSING` info.
+
+**Verify.** Not by the clean-run gate, as this task first assumed: a
+`pm-audit` trail contains **no drop copies at all**. `pm-audit` subscribes to
+`ENGINE_PUB_ADDR` (`:5556`) and `DropCopyPublisher` binds its own socket
+(`:5557`), so the feed clearing reconciles on is recorded nowhere — 0 lines of
+14 682 in the CP-8 run. The three checks are therefore dormant until the
+recorder subscribes to that socket too, which is a change to `pm-audit`'s
+contract and out of scope here. §18 can decide it.
+
+Two consequences this task does carry. `DROP_COPY_MISSING` is silent unless
+the window holds at least one drop copy, or every trade in every trail would
+be reported as missing both of its copies; and the user guide says plainly
+which checks cannot fire on a trail as recorded today, in place of the "what
+it does not check yet" table CP-8 deletes.
+
+#### AR-8.5 — `arrival_seq` is monotone, not merely increasing (0.5 day)
+
+**The gap.** `ARRIVAL_SEQ_GAP` tests `seq > previous + 1`, so it sees a
+forward gap and nothing else. `order.new.arrival_seq` is specified as the
+engine-assigned *monotonic* arrival sequence on which time priority is keyed,
+so a repeat or a decrease is two orders claiming one queue position — a
+priority bug, and a worse one than a gap.
+
+Reproduced under `--strict`: `8814 → 8810`, and `8814 → 8814`, both **silent**.
+
+**Do.** `ARRIVAL_SEQ_REUSED` (error, §12.3), distinct from the existing code
+and *not* under `--strict`: a gap is expected whenever the window omits another
+gateway's orders, which is why `ARRIVAL_SEQ_GAP` is opt-in, but a repeat or a
+decrease within one run is expected never.
+
+**Verify.** Two resets, both found by running the check over a real trail.
+
+A `RUN_SEQ_CHANGE` resets the comparison: the counter restarts with the
+engine, and reporting the restart as a reuse would be the publisher-restart
+false positive that `SEQ_GAP` already learned to avoid.
+
+And `arrival_seq: 0` is **not a sequence**. `order.yaml` says "0 =
+unassigned", and `order.new` is the command as the engine received it — the
+sequence is stamped when the book accepts the order, so every one of the
+2 856 `order.new` lines in the CP-8 trail carries 0. Comparing them reported
+2 854 orders as claiming one queue position, on a trail that is otherwise
+silent. The check skips 0, which leaves both arrival codes dormant on a
+trail as recorded today; the user guide says so.
+
+#### AR-8.6 — The engine clock, wherever it is spelled (0.5 day)
+
+**The gap.** `Detector._clock_check` reads `fact.times.get("ts_ns")`, keyed on
+the literal field name. Two consequences: `order.fill` declares **no timestamp
+field at all**, so the private fill stream is exempt; and `drop_copy` names
+its clock `timestamp`, so the whole clearing feed is exempt.
+
+Reproduced: an identical five-second skew fires `CLOCK_SKEW` on
+`trade.executed` (field `ts_ns`) and is **silent** on `drop_copy.event` (field
+`timestamp`).
+
+**Do.** Key on *meaning* rather than on spelling. The Fact layer already
+distinguishes a clock reading from a query bound or a future time — §5.3.2 is
+the reasoning — so the check should ask `times` for the fact's own publication
+clock and let the Fact layer say which field that is. `order.fill` gaining a
+timestamp is a spec change and is **out of scope**: this task makes the check
+find the clocks that exist, and §18 can decide whether the fill should carry
+one.
+
+**Verify.** `CLOCK_SKEW` fires on `drop_copy.event` at the same skew that
+fires it on `trade.executed`, and still does not fire on `order.new`'s
+`ts_ns`, which is the *client's* clock and is `CLIENT_CLOCK_ABSURD`'s business
+(§5.3.2 keeps the two apart for good reason).
+
+> ### ✅ CP-8 — the catalogue means what it says
+>
+> 1. Every code added here has a firing fixture **and** does not fire on a
+>    clean log. CP-5's rule, and the one that matters most for a phase whose
+>    whole content is new checks: a check that fires on healthy data is worse
+>    than no check, because it teaches the reader to skip the report.
+> 2. `anomalies --severity warn` is **still empty** on a `verify_matching.sh`
+>    run, via `tools/verify_audit_trail.sh`. CP-5.2's gate, re-run: the new
+>    checks have to survive contact with a real engine, not just fixtures.
+> 3. `RULES_VERSION` is bumped, and an index built under the old value is
+>    refused rather than read. New detection rules change what a stored
+>    `anomalies` row means.
+> 4. `--no-index` and indexed runs are still identical, including the new
+>    findings.
+> 5. The "What it does not check yet" table is **deleted** from
+>    `docs/user-guide/820-audit-replay.md`, and every code added here appears
+>    in that chapter's catalogue with its severity. In its place, one short
+>    section naming the checks that cannot fire on a trail as recorded today
+>    and why — the drop-copy feed is on a socket `pm-audit` does not subscribe
+>    to, and `arrival_seq` is unassigned in an `order.new`. The table said what
+>    the tool does not check; this says what a clean run does not prove, which
+>    is the question the table was really answering.
+
+---
+
 ### Phase 7 — Envelope causation IDs — **done, ahead of the rest**
 
 §13, implemented 2026-09-11 rather than deferred, so the tool is built against
@@ -2142,6 +2365,7 @@ the engine `seq` of AR-0.1 solves *ordering* and *completeness*. They are
 complementary and neither replaces the other — a message can be correctly
 attributed and still arrive out of order, and a dense sequence proves nothing
 about why a message was sent. AR-0.1 is still worth doing.
+
 
 ---
 
@@ -2156,9 +2380,13 @@ about why a message was sent. AR-0.1 is still worth doing.
 | 4 — Narration | 5 | CP-4 |
 | 5 — Anomalies and views | 4 | CP-5 |
 | 6 — Machine output and polish | 3 | CP-6 |
-| **Total** | **30.5** | |
+| 8 — Closing the detection gaps | 4.5 | CP-8 |
+| **Total** | **35** | |
 
 Phases 1–6 are strictly sequential: each consumes the previous phase's output.
+Phase 8 follows 6 and has no internal ordering — its six tasks touch different
+checks and can be taken in any order, or in parallel, except that AR-8.4's
+state handler must land before its own three codes.
 Phase 0 has no internal ordering at all now that AR-0.1 is dropped — AR-0.2
 through AR-0.6 are independent and can be parallelised or reordered freely,
 which also means Phase 0 has no critical path to protect.

@@ -7,7 +7,7 @@
     - The four-layer model — Event, Fact, Episode, Narrative — and what each adds
     - Why this is a tool for debugging **the exchange**, not for trading on it
     - Every subcommand and option, and which combinations are refused
-    - The thirty-seven anomaly codes and what each one proves
+    - The forty-six anomaly codes and what each one proves
     - The four output formats and why the text and NDJSON always agree
     - A cookbook of investigations, from "what happened to this order" to
       "is this build's trail clean?"
@@ -381,6 +381,7 @@ reader should look at, **info** is something expected at a window edge.
 | `TERMINAL_MISSING` | info | An order still open when the window ends |
 | `CANCEL_UNSOLICITED` | warn | `order.cancelled` with neither a request in its episode nor a `cancel_reason` naming a cause |
 | `CANCEL_UNMATCHED` | warn | `order.cancel` with nothing coming back |
+| `FILL_STATUS_DISAGREE` | error | An `order.fill` whose `status` and `remaining_qty` contradict each other — `FILLED` with quantity left, or `PARTIAL` with none |
 
 ### Quantity and price conservation
 
@@ -392,6 +393,12 @@ reader should look at, **info** is something expected at a window edge.
 | `FILL_WITHOUT_TRADE` | error | An `order.fill` whose `trade_ids` name no `trade.executed` in the window |
 | `LEG_QTY_DISAGREE` | error | The two legs of one trade report different `fill_qty` |
 | `LEG_PRICE_DISAGREE` | error | The two legs report different `fill_price` |
+| `PRINT_QTY_DISAGREE` | error | A non-coalesced leg whose `fill_qty` is not the trade's printed `quantity`. Two equally wrong legs agree with each other; neither can argue with the tape |
+| `PRINT_PRICE_DISAGREE` | error | The same for `fill_price` against the trade's `price` |
+| `TRADE_LEG_UNKNOWN` | error | A leg whose `order_id` is neither the trade's `buy_order_id` nor its `sell_order_id` |
+| `LIQUIDITY_FLAG_DISAGREE` | error | A `liquidity_flag` that contradicts the trade's `aggressor_side`. A billing invariant — maker and taker fees invert on it |
+| `DROP_COPY_DISAGREE` | error | A drop copy whose `fill_qty`, `fill_price` or `symbol` differs from the `order.fill` it copies |
+| `DROP_COPY_MISSING` | warn | A trade that did not produce two drop copies, one per counterparty. Silent when the window holds no drop-copy feed at all |
 | `PRICE_THROUGH_LIMIT` | error | A fill outside its order's limit — a buy above it or a sell below it |
 | `PRICE_OUTSIDE_CORRIDOR` | warn | A print outside the circuit-breaker corridor in force for its symbol |
 
@@ -414,6 +421,8 @@ reader should look at, **info** is something expected at a window edge.
 | `CLOCK_SKEW` | warn | The engine's own clock and `pm-audit`'s receipt clock differ by more than `--clock-skew-warn` |
 | `LATE_ARRIVAL` | info | A fact arrived after its reorder window had closed |
 | `CLIENT_CLOCK_ABSURD` | info | An `order.new` client clock more than an hour from receipt. Harmless — priority is `arrival_seq` — but worth knowing |
+| `DROP_COPY_SEQ_GAP` | error | A gap **or a repeat** in the drop-copy feed's own payload `seq` — one process-wide counter across every gateway's topic. Not covered by `SEQ_GAP`, which reads the audit metadata's per-topic sequence |
+| `ARRIVAL_SEQ_REUSED` | error | A repeated or decreasing `arrival_seq` within one run: two orders claiming one queue position. Always reported, unlike the gap below |
 | `ARRIVAL_SEQ_GAP` | info | A gap in `arrival_seq` within one run. Expected whenever the window omits another gateway's orders, so `--strict` only |
 | `RUN_SEQ_CHANGE` | info | An engine restart observed mid-window. Not a fault, but nothing may be compared across it |
 | `ENVELOPE_MISSING` | info | An engine-published message with no envelope. Expected on archived lines; on a current log, a publisher is bypassing `CausalPublisher` |
@@ -438,19 +447,20 @@ reader should look at, **info** is something expected at a window edge.
 | `UNKNOWN_ENUM` | warn | An enum value with no lexicon entry. The value is printed verbatim in backticks rather than guessed at or dropped — but the finding itself is **not currently reported** by any view |
 | `ORPHAN_EVENT` | info | A fact the resolver could not attach to anything |
 
-### What it does not check yet
+### What a clean run does not prove
 
-A clean run is only as strong as the catalogue behind it, so the gaps are worth knowing. As of v0.39.0 the following checks are not yet implemented
+The catalogue above is checked against every message the trail contains. Two
+families of check are in it and cannot fire on a trail `pm-audit` recorded,
+because the trail does not carry what they read:
 
-| Gap | Consequence |
+| Check | Why it is dormant |
 |---|---|
-| Trade legs are compared **to each other**, never to the `trade.executed` they name | Both fills and the public tape can disagree by any amount in silence, as long as the two legs agree |
-| Legs are counted, never **identified** against the trade's `buy_order_id`/`sell_order_id` | A fill attributed to the wrong order passes, and so does a third leg |
-| `order.fill.status` is not checked against `remaining_qty` | `FILLED` with 50 left is silent — `QTY_MISMATCH` cannot see it, because the arithmetic is self-consistent |
-| `liquidity_flag` is never checked against the trade's `aggressor_side` | A billing invariant — maker/taker fees invert on it — with no check at all |
-| The **drop-copy feed is entirely unchecked**: no state handler, no detector branch | Its documented monotone `seq` is never read, and a drop copy disagreeing with its `order.fill` is silent. This is the feed clearing reconciles on |
-| `ARRIVAL_SEQ_GAP` sees only forward gaps | A repeated or decreasing `arrival_seq` — two orders claiming one queue position — is silent |
-| `CLOCK_SKEW` keys on the literal field `ts_ns` | `order.fill` has no timestamp field at all, and drop copy names its `timestamp`, so both are exempt |
+| `DROP_COPY_SEQ_GAP`, `DROP_COPY_DISAGREE`, `DROP_COPY_MISSING` | The drop-copy feed is published on its own socket (`:5557`) and `pm-audit` subscribes to the engine's market-data socket (`:5556`) only. No drop copy reaches the trail, so the clearing feed is recorded nowhere and reconciled against nothing |
+| `ARRIVAL_SEQ_REUSED`, `ARRIVAL_SEQ_GAP` | `order.new` is the command as the engine received it and `arrival_seq` is stamped when the book accepts the order, so the recorded field is `0` — "unassigned" — on every order |
+
+Both are properties of what is recorded rather than of the checks. They fire
+the moment a trail carries the fields, which is why they are implemented
+rather than deferred.
 
 !!! tip "A clean run is a claim, not a hope"
     `tools/verify_audit_trail.sh` records a full `verify_matching.sh` run with
