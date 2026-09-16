@@ -2143,6 +2143,8 @@ event narrated, nothing suppressed.
 
 ### Phase 8 — Closing the detection gaps (≈ 4.5 days)
 
+**COMPLETED**
+
 Phases 1–6 shipped a tool that reconstructs the trail and reports what it
 cannot reconcile. The gaps below are the invariants it does **not** check —
 found by reviewing the catalogue against `spec/messages/*.yaml` on 2026-09-15,
