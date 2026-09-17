@@ -11,32 +11,9 @@ Fully implemeted features are removed from this file.
 
 All referenced desig documents live under `docs-design/`
 
-## 1. Completion of the System-Testing Framework
+## Fix remaining known bugs in Trading Station GUI
 
-Target completion: Jan 2027
-
-Design: `EduMatcher-System-Trading-Verification.md` 
-
-That suite proves *components* behave. It does not prove the *exchange*
-behaves. Every unit test constructs its own fake sockets, its own config, its
-own in-process `Engine`, and asserts on a return value. Nothing today answers
-the question an exchange operator actually asks:
-
-> If a trader submits a LIMIT order through the ALF console, and another
-> trader submits an aggressing MARKET order through the REST API, does the
-> resulting trade, the market-data tick, the drop-copy, the post-trade
-> dissemination, the audit journal, the stats database and the clearing
-> ledger *all agree with each other and with the rulebook*?
-
-This framework aims to use *sensors* on all observable output from the SIT and correltate them to secure 
-internal consistency. 
-
-- ~~Phase 0 — Prerequisites, complete observability gaps~~
-- Phase 1 — Framework skeleton + first scenario
-- Phase 3 — Time and the trading week
-- Phase 4 — Extension
-
-## 2. Fix remaining known bugs in Trading Station GUI
+Target: Oct 2026
 
 ### Critical defects
 #### C1 — A rejected cancel or amend marks a live order `REJECTED` (GUI and gateway cache)
@@ -61,7 +38,9 @@ internal consistency.
 #### M7 — The ticket's session and tick rules have no single source
 #### M8 — Gateway
 
-## 3. Fix remaining bugs in Trader Info Terminal GUI
+## Fix remaining bugs in Trader Info Terminal GUI
+
+Target: Dec 2026
 
 ### High defects
 #### H1. Production sign-off still lacks a live-stack failure-mode soak
@@ -79,11 +58,9 @@ internal consistency.
 #### M7. Chart windows do not roll over at UTC midnight on an unattended display
 #### M8. "Fade off" preference comes back after a reload as a control that shows "fade 1 min"
 
+## Implement a model CCP
 
-
-## 4. Implement a model CCP
-
-Target completion: Q1 2027
+Target: Mar 2027
 
 Design: `EduMatcher-Clearing.md` (related: `EduMatcher-contract-multiplyer.md`)
 
@@ -103,3 +80,29 @@ We need a durable clearing subsystem that:
 - supports high-frequency trade bursts without writing each event individually
 - ~~exposes user-friendly, no-SQL query tooling (`pm-clearing-cli`)~~
 - ~~follows EduMatcher CLI conventions, including `--help` and `--version`~~
+
+
+## Completion of the System-Testing Framework
+
+Target: Maj 2027
+
+Design: `EduMatcher-System-Trading-Verification.md` 
+
+That suite proves *components* behave. It does not prove the *exchange*
+behaves. Every unit test constructs its own fake sockets, its own config, its
+own in-process `Engine`, and asserts on a return value. Nothing today answers
+the question an exchange operator actually asks:
+
+> If a trader submits a LIMIT order through the ALF console, and another
+> trader submits an aggressing MARKET order through the REST API, does the
+> resulting trade, the market-data tick, the drop-copy, the post-trade
+> dissemination, the audit journal, the stats database and the clearing
+> ledger *all agree with each other and with the rulebook*?
+
+This framework aims to use *sensors* on all observable output from the SIT and correltate them to secure 
+internal consistency. 
+
+- ~~Phase 0 — Prerequisites, complete observability gaps~~
+- Phase 1 — Framework skeleton + first scenario
+- Phase 3 — Time and the trading week
+- Phase 4 — Extension
