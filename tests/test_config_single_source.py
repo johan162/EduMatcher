@@ -38,7 +38,7 @@ RUNTIME_MODULES = [
 
 def _parser(module_name: str) -> argparse.ArgumentParser:
     module = importlib.import_module(module_name)
-    return module._build_parser()
+    return module.build_parser()
 
 
 @pytest.mark.parametrize("module_name", RUNTIME_MODULES)

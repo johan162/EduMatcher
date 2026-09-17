@@ -9,7 +9,7 @@ import pytest
 from edumatcher.ralf_gateway.config import RalfGatewayConfig
 from edumatcher.ralf_gateway import main as ralf_main
 from edumatcher.ralf_gateway.main import (
-    _build_parser,
+    build_parser,
     _configure_logging,
     _resolve_config,
 )
@@ -40,7 +40,7 @@ def test_resolve_config_overrides(
 
 
 def test_build_parser_defaults() -> None:
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args([])
     assert args.bind is None
     assert args.port is None
@@ -51,7 +51,7 @@ def test_build_parser_defaults() -> None:
 
 
 def test_build_parser_logging_flags() -> None:
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args(["-vv", "--quiet", "--log-level", "ERROR"])
     assert args.verbose == 2
     assert args.quiet is True

@@ -590,7 +590,7 @@ class TickerProcess:
 
 
 def main() -> None:
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-ticker with log level %s", logging.getLevelName(log_level))
@@ -606,7 +606,7 @@ def main() -> None:
     ).run()
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="EduMatcher scrolling market ticker")
     from edumatcher.cli_version import add_version_argument
 

@@ -96,7 +96,7 @@ class TestArgumentParser:
     def test_help_lists_all_subcommands(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        parser = admin_cli._build_parser()
+        parser = admin_cli.build_parser()
         with pytest.raises(SystemExit):
             parser.parse_args(["--help"])
         out = capsys.readouterr().out
@@ -104,19 +104,19 @@ class TestArgumentParser:
             assert cmd in out
 
     def test_id_is_required(self) -> None:
-        parser = admin_cli._build_parser()
+        parser = admin_cli.build_parser()
         with pytest.raises(SystemExit):
             parser.parse_args(
                 ["split", "--index", "TECH10", "--sym", "AAPL", "--ratio", "4:1"]
             )
 
     def test_command_is_required(self) -> None:
-        parser = admin_cli._build_parser()
+        parser = admin_cli.build_parser()
         with pytest.raises(SystemExit):
             parser.parse_args(["--id", "OPS01"])
 
     def test_split_parses_flags(self) -> None:
-        parser = admin_cli._build_parser()
+        parser = admin_cli.build_parser()
         args = parser.parse_args(
             [
                 "--id",
@@ -136,7 +136,7 @@ class TestArgumentParser:
         assert args.ratio == "4:1"
 
     def test_shares_new_shares_and_delta_are_mutually_exclusive(self) -> None:
-        parser = admin_cli._build_parser()
+        parser = admin_cli.build_parser()
         with pytest.raises(SystemExit):
             parser.parse_args(
                 [
@@ -155,21 +155,21 @@ class TestArgumentParser:
             )
 
     def test_shares_requires_one_of_new_shares_or_delta(self) -> None:
-        parser = admin_cli._build_parser()
+        parser = admin_cli.build_parser()
         with pytest.raises(SystemExit):
             parser.parse_args(
                 ["--id", "OPS01", "shares", "--index", "TECH10", "--sym", "AAPL"]
             )
 
     def test_default_format_is_table(self) -> None:
-        parser = admin_cli._build_parser()
+        parser = admin_cli.build_parser()
         args = parser.parse_args(
             ["--id", "OPS01", "delist", "--index", "TECH10", "--sym", "XYZ"]
         )
         assert args.format == "table"
 
     def test_format_json_accepted(self) -> None:
-        parser = admin_cli._build_parser()
+        parser = admin_cli.build_parser()
         args = parser.parse_args(
             [
                 "--id",
@@ -186,7 +186,7 @@ class TestArgumentParser:
         assert args.format == "json"
 
     def test_invalid_format_rejected(self) -> None:
-        parser = admin_cli._build_parser()
+        parser = admin_cli.build_parser()
         with pytest.raises(SystemExit):
             parser.parse_args(
                 [

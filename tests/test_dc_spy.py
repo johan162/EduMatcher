@@ -125,7 +125,7 @@ def test_options_addr() -> None:
 
 
 def test_cli_parser_defaults() -> None:
-    parser = dc_spy_cli._build_parser()
+    parser = dc_spy_cli.build_parser()
     args = parser.parse_args([])
     assert args.host == "127.0.0.1"
     assert args.port == 5557
@@ -136,13 +136,13 @@ def test_cli_parser_defaults() -> None:
 
 
 def test_cli_parser_gateway_override() -> None:
-    parser = dc_spy_cli._build_parser()
+    parser = dc_spy_cli.build_parser()
     args = parser.parse_args(["--gateway", "trader01"])
     assert args.gateway == "trader01"
 
 
 def test_cli_parser_version(capsys: pytest.CaptureFixture[str]) -> None:
-    parser = dc_spy_cli._build_parser()
+    parser = dc_spy_cli.build_parser()
     with pytest.raises(SystemExit):
         parser.parse_args(["--version"])
     out = capsys.readouterr().out

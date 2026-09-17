@@ -228,7 +228,7 @@ def _report(findings: list[CheckResult]) -> None:
             print(f"      {finding.suggestion}", file=sys.stderr)
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pm-config-deploy",
         description=(
@@ -265,6 +265,11 @@ def main() -> None:
         action="store_true",
         help="Print the deployed configuration paths and exit",
     )
+    return parser
+
+
+def main() -> None:
+    parser = build_parser()
     args = parser.parse_args()
 
     if args.show:

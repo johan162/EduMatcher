@@ -24,7 +24,7 @@ _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 log = logging.getLogger(__name__)
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="EduMatcher CALF market data gateway",
     )
@@ -201,7 +201,7 @@ def _resolve_config(
 def main() -> None:
     from edumatcher.config_artifact import report_deployment
 
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-md-gwy with log level %s", logging.getLevelName(log_level))
@@ -238,4 +238,4 @@ def main() -> None:
         gateway.close()
 
 
-__all__ = ["main", "_build_parser", "_resolve_config", "_configure_logging"]
+__all__ = ["main", "build_parser", "_resolve_config", "_configure_logging"]

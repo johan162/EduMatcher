@@ -1,3 +1,12 @@
+## [Unreleased]
+
+### ✨ Added
+- Added tab completion in bash and zsh for every `pm-*` command -- subcommands, options, and `choices=` values -- generated from the real `argparse` parsers via `shtab` and served with `pm-help --completion bash|zsh`. The container image builds it in at image-build time; a Poetry checkout, pipx, or `pip` install add one line to their shell profile (see [Installation → Shell completion](docs/user-guide/005-installation.md#shell-completion))
+
+### 🛠 Internal
+- Every `[tool.poetry.scripts]` entry point now exposes a module-level `build_parser() -> argparse.ArgumentParser` (32 modules renamed from `_build_parser`; 6 modules refactored out of inline parser construction in `main()`/`_parse_args()`), enforced by `tests/test_shell_completion.py`
+- Added `tools/gen_completion.py` and `make completion` to regenerate the committed `src/edumatcher/completion/pm-completion.{bash,zsh}`; a test fails if either drifts from the current parsers
+
 ## [v0.39.0] - 2026-09-16
 
 Release Type: major

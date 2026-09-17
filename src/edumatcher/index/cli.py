@@ -320,7 +320,7 @@ def _render(
 # ---------------------------------------------------------------------------
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pm-index-cli",
         description=(
@@ -542,7 +542,7 @@ def _cmd_indices(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args()
 
     if getattr(args, "limit", 1) <= 0:

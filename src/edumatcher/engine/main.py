@@ -6681,7 +6681,7 @@ class Engine:
         self._shutdown()
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="EduMatcher matching engine")
     add_version_argument(parser, "pm-engine")
     parser.add_argument(
@@ -6772,7 +6772,7 @@ def _configure_logging(args: argparse.Namespace) -> int:
 def main() -> None:
     from edumatcher.config_artifact import report_deployment
 
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-engine with log level %s", logging.getLevelName(log_level))

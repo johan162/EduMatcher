@@ -891,7 +891,7 @@ def _enable_sql_trace_logging() -> None:
     sql_logger.addHandler(handler)
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     from edumatcher.cli_version import add_version_argument
 
     parser = argparse.ArgumentParser(
@@ -1042,7 +1042,7 @@ def _configure_logging(args: argparse.Namespace) -> int:
 def main() -> None:
     from edumatcher.config import DATA_DIR, ENGINE_PUB_ADDR, resolve_data_path
 
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args()
 
     level = _configure_logging(args)

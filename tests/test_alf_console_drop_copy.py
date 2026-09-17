@@ -50,17 +50,17 @@ def _make_gateway(gw_id: str = "GW01", drop_copy: bool = False):
 
 
 def test_build_parser_drop_copy_default_off() -> None:
-    from edumatcher.alf_console.main import _build_parser
+    from edumatcher.alf_console.main import build_parser
 
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args(["--id", "GW01"])
     assert args.drop_copy is False
 
 
 def test_build_parser_drop_copy_flag() -> None:
-    from edumatcher.alf_console.main import _build_parser
+    from edumatcher.alf_console.main import build_parser
 
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args(["--id", "GW01", "--drop-copy"])
     assert args.drop_copy is True
 

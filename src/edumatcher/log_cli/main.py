@@ -102,7 +102,7 @@ def _rewrite_before_shorthand(argv: list[str]) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pm-log-cli",
         description="Query and troubleshoot EduMatcher's centralized log.db.",
@@ -390,7 +390,7 @@ def _handle_diagnose(args: argparse.Namespace, conn: Any) -> list[Finding]:
 
 
 def main() -> None:
-    parser = _build_parser()
+    parser = build_parser()
     argv = _rewrite_before_shorthand(sys.argv[1:])
     args = parser.parse_args(argv)
     fmt = _resolve_format(args)

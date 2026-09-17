@@ -123,7 +123,7 @@ def _setup_logger(log_path: Path, to_terminal: bool) -> logging.Logger:
     return logger
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="EduMatcher audit logger")
     from edumatcher.cli_version import add_version_argument
 
@@ -411,7 +411,7 @@ class AuditProcess:
 
 
 def main() -> None:
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-audit with log level %s", logging.getLevelName(log_level))

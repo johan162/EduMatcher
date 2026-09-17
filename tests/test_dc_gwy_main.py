@@ -9,7 +9,7 @@ import pytest
 from edumatcher.dc_gateway.config import DcGatewayConfig
 from edumatcher.dc_gateway import main as dc_main
 from edumatcher.dc_gateway.main import (
-    _build_parser,
+    build_parser,
     _configure_logging,
     _resolve_config,
 )
@@ -38,7 +38,7 @@ def test_resolve_config_overrides(
 
 
 def test_build_parser_defaults() -> None:
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args([])
     assert args.bind is None
     assert args.port is None
@@ -49,7 +49,7 @@ def test_build_parser_defaults() -> None:
 
 
 def test_build_parser_logging_flags() -> None:
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args(["-vv", "--quiet", "--log-level", "ERROR"])
     assert args.verbose == 2
     assert args.quiet is True
@@ -57,7 +57,7 @@ def test_build_parser_logging_flags() -> None:
 
 
 def test_build_parser_version(capsys: pytest.CaptureFixture[str]) -> None:
-    parser = _build_parser()
+    parser = build_parser()
     with pytest.raises(SystemExit):
         parser.parse_args(["--version"])
     out = capsys.readouterr().out

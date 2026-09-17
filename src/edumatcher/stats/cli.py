@@ -179,7 +179,7 @@ class _HealthReport(TypedDict):
     database: _HealthDatabaseReport
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pm-stats-cli",
         description="Query EduMatcher statistics DB without writing SQL",
@@ -611,7 +611,7 @@ def _run_query(
 
 
 def main() -> None:
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args()
 
     try:

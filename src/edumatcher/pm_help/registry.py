@@ -2089,6 +2089,7 @@ _HELP: tuple[CommandInfo, ...] = (
         synopsis=(
             "pm-help [--format table|text] [-v]",
             "pm-help [--format table|text] [-v] <pm-command>",
+            "pm-help --completion bash|zsh",
         ),
         description=(
             "With no argument, prints the version, data directories, and a table "
@@ -2107,6 +2108,11 @@ _HELP: tuple[CommandInfo, ...] = (
                 "-v, --verbose",
                 "off",
                 "Show extra detail (and an example, where one exists) for each command",
+            ),
+            Option(
+                "--completion bash|zsh",
+                "",
+                "Print the tab-completion script for every pm-* command and exit",
             ),
         ),
         aliases=("pm-man",),

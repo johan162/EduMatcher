@@ -181,7 +181,7 @@ _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 log = logging.getLogger(__name__)
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="EduMatcher gateway")
     add_version_argument(parser, "pm-alf-console")
     parser.add_argument(
@@ -1923,7 +1923,7 @@ class Gateway:
 
 
 def main() -> None:
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info(

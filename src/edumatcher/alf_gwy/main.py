@@ -23,7 +23,7 @@ _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 log = logging.getLogger(__name__)
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="EduMatcher ALF TCP gateway")
     from edumatcher.cli_version import add_version_argument
 
@@ -159,7 +159,7 @@ def _resolve_config(args: argparse.Namespace) -> AlfGatewayConfig:
 def main() -> None:
     from edumatcher.config_artifact import report_deployment
 
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-alf-gwy with log level %s", logging.getLevelName(log_level))
@@ -195,7 +195,7 @@ def main() -> None:
 
 __all__ = [
     "main",
-    "_build_parser",
+    "build_parser",
     "_configure_logging",
     "_resolve_config",
     "load_default_alf_gateway_config",

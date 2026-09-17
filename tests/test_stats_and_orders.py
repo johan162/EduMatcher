@@ -1130,7 +1130,7 @@ class TestStatsRun:
 
 class TestStatsMain:
     def test_build_parser_logging_flags(self) -> None:
-        parser = stats_main_mod._build_parser()
+        parser = stats_main_mod.build_parser()
         args = parser.parse_args(
             ["-vv", "--quiet", "--log-level", "ERROR", "--sql-trace"]
         )

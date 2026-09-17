@@ -164,7 +164,7 @@ through everything it caused:
 
 ```bash
 # find the submission
-poetry run pm-audit-cli events --topic order.new --limit 1 --format json
+poetry run pm-audit-cli --format json events --topic order.new --limit 1 
 
 # then everything in its causal chain, in order
 grep 'chain=01ARZ3NDEKTSV4RRFFQ69G5FAV' data/audit.log

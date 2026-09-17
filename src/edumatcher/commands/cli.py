@@ -25,7 +25,7 @@ from edumatcher.commands.console import execute_command
 from edumatcher.config import ENGINE_PUB_ADDR, ENGINE_PULL_ADDR
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pm-admin-cli",
         description="EduMatcher ADMIN CLI — send a single exchange command and exit.",
@@ -295,7 +295,7 @@ def _args_to_fields(args: Any) -> dict[str, str]:
 
 
 def main() -> None:
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args()
 
     client = ExchangeCommandClient(

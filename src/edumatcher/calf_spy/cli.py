@@ -54,7 +54,7 @@ _BASELINE_CHANNELS = ("TOP", "TRADE", "STATE")
 _WILDCARD_ELIGIBLE = frozenset({"STATE", "TOP", "TRADE", "AUCTION"})
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pm-calf-spy",
         description=(
@@ -343,7 +343,7 @@ class _SpySession:
 
 
 def main() -> None:
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args()
     _configure_logging(args)
 

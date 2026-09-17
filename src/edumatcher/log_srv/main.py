@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="EduMatcher centralized LALF log server",
     )
@@ -210,7 +210,7 @@ def _resolve_config(args: argparse.Namespace) -> LogServerConfig:
 def main() -> None:
     from edumatcher.config_artifact import report_deployment
 
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-log-srv with log level %s", logging.getLevelName(log_level))
@@ -255,4 +255,4 @@ if __name__ == "__main__":
     main()
 
 
-__all__ = ["main", "_build_parser", "_resolve_config", "_configure_logging"]
+__all__ = ["main", "build_parser", "_resolve_config", "_configure_logging"]

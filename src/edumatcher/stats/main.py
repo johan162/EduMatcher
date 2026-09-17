@@ -1963,7 +1963,7 @@ def _event_type_from_topic(topic: str, payload: dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="EduMatcher statistics recorder")
     from edumatcher.cli_version import add_version_argument
 
@@ -2102,7 +2102,7 @@ def _enable_sql_trace_logging() -> None:
 
 
 def main() -> None:
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args()
     log_level = _configure_logging(args)
     if args.sql_trace:

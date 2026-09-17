@@ -970,9 +970,9 @@ class TestAuditProcess:
         assert proc._running is False
 
     def test_build_parser_logging_flags(self) -> None:
-        from edumatcher.audit.main import _build_parser
+        from edumatcher.audit.main import build_parser
 
-        parser = _build_parser()
+        parser = build_parser()
         args = parser.parse_args(["-vv", "--quiet", "--log-level", "ERROR"])
         assert args.verbose == 2
         assert args.quiet is True
@@ -981,9 +981,9 @@ class TestAuditProcess:
 
 class TestAlfConsoleMain:
     def test_build_parser_logging_flags(self) -> None:
-        from edumatcher.alf_console.main import _build_parser
+        from edumatcher.alf_console.main import build_parser
 
-        parser = _build_parser()
+        parser = build_parser()
         args = parser.parse_args(
             ["--id", "GW01", "-vv", "--quiet", "--log-level", "ERROR"]
         )

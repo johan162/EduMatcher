@@ -1089,28 +1089,28 @@ class TestEngineEventTranslations:
 
 class TestMain:
     def test_parser_has_bind_and_port(self):
-        from edumatcher.balf_gwy.main import _build_parser
+        from edumatcher.balf_gwy.main import build_parser
 
-        args = _build_parser().parse_args(["--bind", "127.0.0.1", "--port", "9999"])
+        args = build_parser().parse_args(["--bind", "127.0.0.1", "--port", "9999"])
         assert args.bind == "127.0.0.1"
         assert args.port == 9999
 
     def test_parser_has_engine_host(self):
-        from edumatcher.balf_gwy.main import _build_parser
+        from edumatcher.balf_gwy.main import build_parser
 
-        args = _build_parser().parse_args(["--engine-host", "10.0.0.1"])
+        args = build_parser().parse_args(["--engine-host", "10.0.0.1"])
         assert args.engine_host == "10.0.0.1"
 
     def test_parser_has_log_level(self):
-        from edumatcher.balf_gwy.main import _build_parser
+        from edumatcher.balf_gwy.main import build_parser
 
-        args = _build_parser().parse_args(["--log-level", "DEBUG"])
+        args = build_parser().parse_args(["--log-level", "DEBUG"])
         assert args.log_level == "DEBUG"
 
     def test_parser_has_verbose_and_quiet(self):
-        from edumatcher.balf_gwy.main import _build_parser
+        from edumatcher.balf_gwy.main import build_parser
 
-        args = _build_parser().parse_args(["-vv", "--quiet"])
+        args = build_parser().parse_args(["-vv", "--quiet"])
         assert args.verbose == 2
         assert args.quiet is True
 
