@@ -1,11 +1,23 @@
-## [Unreleased]
+## [v0.40.0] - 2026-09-17
 
-### ✨ Added
-- Added tab completion in bash and zsh for every `pm-*` command -- subcommands, options, and `choices=` values -- generated from the real `argparse` parsers via `shtab` and served with `pm-help --completion bash|zsh`. The container image builds it in at image-build time; a Poetry checkout, pipx, or `pip` install add one line to their shell profile (see [Installation → Shell completion](docs/user-guide/005-installation.md#shell-completion))
+Release Type: minor
+
+### 📋 Summary
+This minor release adds CLI shell command completion for all options and subcommands for all `pm-` CLI
+
+### ✨ Additions
+- Added tab completion in bash and zsh for every `pm-*` command -- subcommands, options, and `choices=` values -- generated from the real `argparse` parsers via `shtab` and served with `pm-help --completion bash|zsh`. The container image builds it in at image-build time; a Poetry checkout, pipx, or `pip` install add one line to their shell profile 
+
+### 📚 Documentation
+- Added installation description for command completion (see [Installation → Shell completion](docs/user-guide/005-installation.md#shell-completion)
+- Updated performace figues in main README.md
+- Updated TODO, design, and audit-replay documentation to reflect the completed work
 
 ### 🛠 Internal
-- Every `[tool.poetry.scripts]` entry point now exposes a module-level `build_parser() -> argparse.ArgumentParser` (32 modules renamed from `_build_parser`; 6 modules refactored out of inline parser construction in `main()`/`_parse_args()`), enforced by `tests/test_shell_completion.py`
-- Added `tools/gen_completion.py` and `make completion` to regenerate the committed `src/edumatcher/completion/pm-completion.{bash,zsh}`; a test fails if either drifts from the current parsers
+- Every `[tool.poetry.scripts]` entry point now exposes a module-level `build_parser() -> argparse.ArgumentParser` (32 modules renamed from `_build_parser`
+- Added `tools/gen_completion.py` and `make completion` to regenerate the committed `src/edumatcher/completion/pm-completion.{bash,zsh}`
+- Added parser builders and drift tests to keep committed shell completion synchronized with the real `argparse` parsers
+
 
 ## [v0.39.0] - 2026-09-16
 
