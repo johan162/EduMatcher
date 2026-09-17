@@ -4662,7 +4662,7 @@ correctly, so a mixed archive needs no flag.</p>
 <p>This is what makes a post-mortem tractable. To follow one order submission
 through everything it caused:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># find the submission</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>order.new<span class="w"> </span>--limit<span class="w"> </span><span class="m">1</span><span class="w"> </span>--format<span class="w"> </span>json
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>order.new<span class="w"> </span>--limit<span class="w"> </span><span class="m">1</span><span class="w"> </span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># then everything in its causal chain, in order</span>
 <a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>grep<span class="w"> </span><span class="s1">'chain=01ARZ3NDEKTSV4RRFFQ69G5FAV'</span><span class="w"> </span>data/audit.log

@@ -4905,6 +4905,17 @@ them.</p>
 <li><code>make test</code> enforces <strong>85%</strong></li>
 <li><code>scripts/mkbld.sh</code> currently enforces <strong>80%</strong> (release automation threshold)</li>
 <li><strong>Docs build</strong>: <code>mkdocs build</code> should pass after doc changes</li>
+<li><strong>Shell completion</strong>: every <code>[tool.poetry.scripts]</code> entry point must expose a
+  module-level <code>build_parser() -&gt; argparse.ArgumentParser</code> with no
+  parameters and no side effects -- <code>main()</code> calls it too, so there is
+  exactly one place each parser is defined. <code>tools/gen_completion.py</code> reads
+  those factories to render <code>src/edumatcher/completion/pm-completion.{bash,zsh}</code>
+  (shipped as package data, served by <code>pm-help --completion bash|zsh</code>);
+  <code>tests/test_shell_completion.py</code> fails both if a command lacks the
+  contract and if the committed scripts drift from what the factories
+  currently produce. After adding a command or changing a flag, subcommand,
+  <code>choices=</code> list or help text, run <code>make completion</code> and commit the
+  result -- see <a href="../../user-guide/005-installation/#shell-completion">Installation → Shell completion</a>.</li>
 </ul>
 <h3 id="what-to-preserve">What to preserve<a class="headerlink" href="#what-to-preserve" title="Permanent link">&para;</a></h3>
 <p>This repository values:</p>
@@ -5292,6 +5303,11 @@ authoritative. In general:</p>
 <td><code>tools/launch_all.sh</code></td>
 <td>macOS demo/process launcher</td>
 <td>Good for manual demos, not for production orchestration</td>
+</tr>
+<tr>
+<td><code>tools/gen_completion.py</code></td>
+<td>Regenerate bash/zsh shell completion for every <code>pm-*</code> command</td>
+<td>Dev-only (imports <code>shtab</code>); run via <code>make completion</code> after changing a command's flags</td>
 </tr>
 </tbody>
 </table>

@@ -2346,10 +2346,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#what-it-does-not-check-yet" class="md-nav__link">
+  <a href="#what-a-clean-run-does-not-prove" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What it does not check yet
+        What a clean run does not prove
       
     </span>
   </a>
@@ -4579,7 +4579,7 @@
 <li>The four-layer model — Event, Fact, Episode, Narrative — and what each adds</li>
 <li>Why this is a tool for debugging <strong>the exchange</strong>, not for trading on it</li>
 <li>Every subcommand and option, and which combinations are refused</li>
-<li>The thirty-seven anomaly codes and what each one proves</li>
+<li>The forty-six anomaly codes and what each one proves</li>
 <li>The four output formats and why the text and NDJSON always agree</li>
 <li>A cookbook of investigations, from "what happened to this order" to
   "is this build's trail clean?"</li>
@@ -5285,6 +5285,11 @@ reader should look at, <strong>info</strong> is something expected at a window e
 <td>warn</td>
 <td><code>order.cancel</code> with nothing coming back</td>
 </tr>
+<tr>
+<td><code>FILL_STATUS_DISAGREE</code></td>
+<td>error</td>
+<td>An <code>order.fill</code> whose <code>status</code> and <code>remaining_qty</code> contradict each other — <code>FILLED</code> with quantity left, or <code>PARTIAL</code> with none</td>
+</tr>
 </tbody>
 </table>
 <h3 id="quantity-and-price-conservation">Quantity and price conservation<a class="headerlink" href="#quantity-and-price-conservation" title="Permanent link">&para;</a></h3>
@@ -5326,6 +5331,36 @@ reader should look at, <strong>info</strong> is something expected at a window e
 <td><code>LEG_PRICE_DISAGREE</code></td>
 <td>error</td>
 <td>The two legs report different <code>fill_price</code></td>
+</tr>
+<tr>
+<td><code>PRINT_QTY_DISAGREE</code></td>
+<td>error</td>
+<td>A non-coalesced leg whose <code>fill_qty</code> is not the trade's printed <code>quantity</code>. Two equally wrong legs agree with each other; neither can argue with the tape</td>
+</tr>
+<tr>
+<td><code>PRINT_PRICE_DISAGREE</code></td>
+<td>error</td>
+<td>The same for <code>fill_price</code> against the trade's <code>price</code></td>
+</tr>
+<tr>
+<td><code>TRADE_LEG_UNKNOWN</code></td>
+<td>error</td>
+<td>A leg whose <code>order_id</code> is neither the trade's <code>buy_order_id</code> nor its <code>sell_order_id</code></td>
+</tr>
+<tr>
+<td><code>LIQUIDITY_FLAG_DISAGREE</code></td>
+<td>error</td>
+<td>A <code>liquidity_flag</code> that contradicts the trade's <code>aggressor_side</code>. A billing invariant — maker and taker fees invert on it</td>
+</tr>
+<tr>
+<td><code>DROP_COPY_DISAGREE</code></td>
+<td>error</td>
+<td>A drop copy whose <code>fill_qty</code>, <code>fill_price</code> or <code>symbol</code> differs from the <code>order.fill</code> it copies</td>
+</tr>
+<tr>
+<td><code>DROP_COPY_MISSING</code></td>
+<td>warn</td>
+<td>A trade that did not produce two drop copies, one per counterparty. Silent when the window holds no drop-copy feed at all</td>
 </tr>
 <tr>
 <td><code>PRICE_THROUGH_LIMIT</code></td>
@@ -5396,6 +5431,16 @@ was over-counting.</p>
 <td><code>CLIENT_CLOCK_ABSURD</code></td>
 <td>info</td>
 <td>An <code>order.new</code> client clock more than an hour from receipt. Harmless — priority is <code>arrival_seq</code> — but worth knowing</td>
+</tr>
+<tr>
+<td><code>DROP_COPY_SEQ_GAP</code></td>
+<td>error</td>
+<td>A gap <strong>or a repeat</strong> in the drop-copy feed's own payload <code>seq</code> — one process-wide counter across every gateway's topic. Not covered by <code>SEQ_GAP</code>, which reads the audit metadata's per-topic sequence</td>
+</tr>
+<tr>
+<td><code>ARRIVAL_SEQ_REUSED</code></td>
+<td>error</td>
+<td>A repeated or decreasing <code>arrival_seq</code> within one run: two orders claiming one queue position. Always reported, unlike the gap below</td>
 </tr>
 <tr>
 <td><code>ARRIVAL_SEQ_GAP</code></td>
@@ -5488,46 +5533,31 @@ was over-counting.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="what-it-does-not-check-yet">What it does not check yet<a class="headerlink" href="#what-it-does-not-check-yet" title="Permanent link">&para;</a></h3>
-<p>A clean run is only as strong as the catalogue behind it, so the gaps are worth knowing. As of v0.39.0 the following checks are not yet implemented</p>
+<h3 id="what-a-clean-run-does-not-prove">What a clean run does not prove<a class="headerlink" href="#what-a-clean-run-does-not-prove" title="Permanent link">&para;</a></h3>
+<p>The catalogue above is checked against every message the trail contains. Two
+families of check are in it and cannot fire on a trail <code>pm-audit</code> recorded,
+because the trail does not carry what they read:</p>
 <table>
 <thead>
 <tr>
-<th>Gap</th>
-<th>Consequence</th>
+<th>Check</th>
+<th>Why it is dormant</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Trade legs are compared <strong>to each other</strong>, never to the <code>trade.executed</code> they name</td>
-<td>Both fills and the public tape can disagree by any amount in silence, as long as the two legs agree</td>
+<td><code>DROP_COPY_SEQ_GAP</code>, <code>DROP_COPY_DISAGREE</code>, <code>DROP_COPY_MISSING</code></td>
+<td>The drop-copy feed is published on its own socket (<code>:5557</code>) and <code>pm-audit</code> subscribes to the engine's market-data socket (<code>:5556</code>) only. No drop copy reaches the trail, so the clearing feed is recorded nowhere and reconciled against nothing</td>
 </tr>
 <tr>
-<td>Legs are counted, never <strong>identified</strong> against the trade's <code>buy_order_id</code>/<code>sell_order_id</code></td>
-<td>A fill attributed to the wrong order passes, and so does a third leg</td>
-</tr>
-<tr>
-<td><code>order.fill.status</code> is not checked against <code>remaining_qty</code></td>
-<td><code>FILLED</code> with 50 left is silent — <code>QTY_MISMATCH</code> cannot see it, because the arithmetic is self-consistent</td>
-</tr>
-<tr>
-<td><code>liquidity_flag</code> is never checked against the trade's <code>aggressor_side</code></td>
-<td>A billing invariant — maker/taker fees invert on it — with no check at all</td>
-</tr>
-<tr>
-<td>The <strong>drop-copy feed is entirely unchecked</strong>: no state handler, no detector branch</td>
-<td>Its documented monotone <code>seq</code> is never read, and a drop copy disagreeing with its <code>order.fill</code> is silent. This is the feed clearing reconciles on</td>
-</tr>
-<tr>
-<td><code>ARRIVAL_SEQ_GAP</code> sees only forward gaps</td>
-<td>A repeated or decreasing <code>arrival_seq</code> — two orders claiming one queue position — is silent</td>
-</tr>
-<tr>
-<td><code>CLOCK_SKEW</code> keys on the literal field <code>ts_ns</code></td>
-<td><code>order.fill</code> has no timestamp field at all, and drop copy names its <code>timestamp</code>, so both are exempt</td>
+<td><code>ARRIVAL_SEQ_REUSED</code>, <code>ARRIVAL_SEQ_GAP</code></td>
+<td><code>order.new</code> is the command as the engine received it and <code>arrival_seq</code> is stamped when the book accepts the order, so the recorded field is <code>0</code> — "unassigned" — on every order</td>
 </tr>
 </tbody>
 </table>
+<p>Both are properties of what is recorded rather than of the checks. They fire
+the moment a trail carries the fields, which is why they are implemented
+rather than deferred.</p>
 <div class="admonition tip">
 <p class="admonition-title">A clean run is a claim, not a hope</p>
 <p><code>tools/verify_audit_trail.sh</code> records a full <code>verify_matching.sh</code> run with

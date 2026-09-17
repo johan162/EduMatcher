@@ -1264,6 +1264,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#shell-completion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shell completion
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#how-a-release-is-produced" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4651,7 +4662,7 @@ describe different systems.</p>
 </table>
 <p>Because the script is read from a pipe, options need <code>bash -s --</code> so that the
 shell hands them to the script rather than consuming them itself:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>.../install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--config<span class="w"> </span>ten-nominal<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.39.0
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>.../install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--config<span class="w"> </span>ten-nominal<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.40.0
 </code></pre></div>
 <p>Two environment variables are also honoured: <code>REPO_OWNER</code> (which GitHub
 account and GHCR namespace to use) and <code>REPO_REF</code> (fetch the support files
@@ -5444,7 +5455,7 @@ VM. This mode installs the backend only — the web GUIs are part of the
 container deployment. Provisioning runs <code>pm-setup</code>, so the VM comes up with a
 deployed configuration and <code>pm-opctl-cli</code> ready to start the stack.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.39.0<span class="w"> </span>--snapshot
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.40.0<span class="w"> </span>--snapshot
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
 <a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>multipass<span class="w"> </span>shell<span class="w"> </span>ems
 <a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="nb">cd</span><span class="w"> </span>/home/ubuntu/session
@@ -5504,7 +5515,7 @@ deployed configuration and <code>pm-opctl-cli</code> ready to start the stack.</
 <p>To read the script before running it:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span>-o<span class="w"> </span>curl_setup_vm.sh
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>less<span class="w"> </span>curl_setup_vm.sh
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.39.0<span class="w"> </span>--snapshot
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.40.0<span class="w"> </span>--snapshot
 </code></pre></div>
 <h2 id="pipx-commands-on-your-own-machine">pipx — commands on your own machine<a class="headerlink" href="#pipx-commands-on-your-own-machine" title="Permanent link">&para;</a></h2>
 <p>Use this when you want to run the processes yourself, one per terminal, which
@@ -5565,6 +5576,48 @@ new terminal afterwards so every <code>pm-*</code> command sees the same data di
 <p>Developer mode uses the repository-local data directory. When exact behaviour
 matters, use the same deployed-configuration flow as installed mode: author
 YAML, run <code>poetry run pm-config-deploy ...</code>, then restart the processes.</p>
+<h2 id="shell-completion">Shell completion<a class="headerlink" href="#shell-completion" title="Permanent link">&para;</a></h2>
+<p>Every <code>pm-*</code> command completes its subcommands, options and <code>choices=</code>
+values in bash and zsh — <code>pm-audit-cli ev&lt;Tab&gt;</code> completes to <code>events</code>,
+<code>pm-engine --log-level &lt;Tab&gt;</code> lists <code>CRITICAL ERROR WARNING INFO DEBUG</code>, and
+so on. <code>pm-help --completion bash|zsh</code> prints the script; nothing needs to be
+generated by hand.</p>
+<p><strong>Container</strong>: nothing to do — the backend image builds completion in at
+image-build time and every interactive <code>make shell</code> / <code>make ssh</code> session
+already has it.</p>
+<p><strong>pipx or <code>pip install</code> into a venv</strong>: add one line to your shell profile —</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="c1"># ~/.bashrc</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="nb">command</span><span class="w"> </span>-v<span class="w"> </span>pm-help<span class="w"> </span>&gt;/dev/null<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span>pm-help<span class="w"> </span>--completion<span class="w"> </span>bash<span class="k">)</span><span class="s2">"</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="c1"># ~/.zshrc, after compinit</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="o">((</span><span class="w"> </span>$+commands<span class="o">[</span>pm-help<span class="o">]</span><span class="w"> </span><span class="o">))</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span><span class="nv">$commands</span><span class="o">[</span>pm-help<span class="o">]</span><span class="w"> </span>--completion<span class="w"> </span>zsh<span class="k">)</span><span class="s2">"</span>
+</code></pre></div>
+<p><strong>Poetry checkout</strong>: the venv is usually not active when your shell profile
+runs, so point at it by its absolute path —</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="c1"># ~/.bashrc</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="nv">EM</span><span class="o">=</span>/path/to/EduMatcher/.venv/bin/pm-help
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="o">[</span><span class="w"> </span>-x<span class="w"> </span><span class="s2">"</span><span class="nv">$EM</span><span class="s2">"</span><span class="w"> </span><span class="o">]</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span><span class="s2">"</span><span class="nv">$EM</span><span class="s2">"</span><span class="w"> </span>--completion<span class="w"> </span>bash<span class="k">)</span><span class="s2">"</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="c1"># ~/.zshrc, after compinit</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="nv">EM</span><span class="o">=</span>/path/to/EduMatcher/.venv/bin/pm-help
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="o">[[</span><span class="w"> </span>-x<span class="w"> </span><span class="nv">$EM</span><span class="w"> </span><span class="o">]]</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span><span class="nv">$EM</span><span class="w"> </span>--completion<span class="w"> </span>zsh<span class="k">)</span><span class="s2">"</span>
+</code></pre></div>
+<p>An editable install (<code>poetry install</code>) reads the completion scripts straight
+from the checkout, so they follow whichever branch is checked out. Calling
+<code>pm-help</code> at every shell start (rather than sourcing a saved copy) keeps
+completion matched to the installed version, at the cost of <code>pm-help</code>'s
+own ~0.2s start-up per new shell. To avoid that, cache it once per upgrade
+instead:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pm-help<span class="w"> </span>--completion<span class="w"> </span>bash<span class="w"> </span>&gt;<span class="w"> </span>~/.local/share/edumatcher/pm-completion.bash
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="c1"># ~/.bashrc:  source ~/.local/share/edumatcher/pm-completion.bash</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>pm-help<span class="w"> </span>--completion<span class="w"> </span>zsh<span class="w"> </span>&gt;<span class="w"> </span>~/.local/share/edumatcher/pm-completion.zsh
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="c1"># ~/.zshrc:   eval "$(&lt;~/.local/share/edumatcher/pm-completion.zsh)"</span>
+</code></pre></div>
+<p>zsh's own completion system (<code>compinit</code>) must already be initialised — the
+snippets above assume the usual <code>autoload -Uz compinit &amp;&amp; compinit</code> earlier
+in <code>~/.zshrc</code>. Loading the file with <code>source</code> instead of <code>eval</code> silently
+registers nothing; always use <code>eval</code> for the zsh script.</p>
 <h2 id="how-a-release-is-produced">How a release is produced<a class="headerlink" href="#how-a-release-is-produced" title="Permanent link">&para;</a></h2>
 <p>Two scripts and two GitHub workflows. One tag produces the Python package and
 the container images together, all carrying the same version, which is what
@@ -5599,11 +5652,11 @@ lets the installer pin a whole system with a single number.</p>
 then the two are joined into one manifest list. A user on Intel and a user on
 Apple Silicon pull the same tag and each gets the right binary.</p>
 <p>The five published images are:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>ghcr.io/johan162/edumatcher                 the exchange, all pm-* processes
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>ghcr.io/johan162/edumatcher-terminal-gui    the trading terminal
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>ghcr.io/johan162/edumatcher-log-gui         the log viewer
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>ghcr.io/johan162/edumatcher-config-gui      the configuration builder
-<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>ghcr.io/johan162/edumatcher-trader-gui      the trader GUI
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>ghcr.io/johan162/edumatcher                 the exchange, all pm-* processes
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>ghcr.io/johan162/edumatcher-terminal-gui    the trading terminal
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>ghcr.io/johan162/edumatcher-log-gui         the log viewer
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>ghcr.io/johan162/edumatcher-config-gui      the configuration builder
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>ghcr.io/johan162/edumatcher-trader-gui      the trader GUI
 </code></pre></div>
 <p><code>latest</code> is only moved for an exact <code>vMAJOR.MINOR.PATCH</code> tag, so a pre-release
 never becomes what a new user gets by default — the same rule the PyPI workflow
@@ -5611,9 +5664,9 @@ uses to choose between PyPI and TestPyPI.</p>
 <h3 id="publishing-by-hand">Publishing by hand<a class="headerlink" href="#publishing-by-hand" title="Permanent link">&para;</a></h3>
 <p><code>make ghcr-push</code> in <code>deployment/docker/</code> builds all five images from your
 checkout and pushes them, for when the workflow cannot run:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">GITHUB_USER</span><span class="o">=</span>&lt;you&gt;<span class="w"> </span><span class="nv">GHCR_TOKEN</span><span class="o">=</span>&lt;token<span class="w"> </span>with<span class="w"> </span>write:packages&gt;
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>make<span class="w"> </span>ghcr-push<span class="w">                              </span><span class="c1"># all five, tagged :dev</span>
-<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>make<span class="w"> </span>ghcr-push<span class="w"> </span><span class="nv">TAG</span><span class="o">=</span><span class="m">0</span>.20.6<span class="w"> </span><span class="nv">FORCE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">LATEST</span><span class="o">=</span><span class="m">1</span><span class="w">  </span><span class="c1"># as a release tag</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">GITHUB_USER</span><span class="o">=</span>&lt;you&gt;<span class="w"> </span><span class="nv">GHCR_TOKEN</span><span class="o">=</span>&lt;token<span class="w"> </span>with<span class="w"> </span>write:packages&gt;
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>make<span class="w"> </span>ghcr-push<span class="w">                              </span><span class="c1"># all five, tagged :dev</span>
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>make<span class="w"> </span>ghcr-push<span class="w"> </span><span class="nv">TAG</span><span class="o">=</span><span class="m">0</span>.20.6<span class="w"> </span><span class="nv">FORCE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">LATEST</span><span class="o">=</span><span class="m">1</span><span class="w">  </span><span class="c1"># as a release tag</span>
 </code></pre></div>
 <p>It builds only for the architecture you are on. Pushing a single-architecture
 image over a release tag replaces the manifest list, and users on the other
@@ -5628,8 +5681,8 @@ somebody who is not you.</p>
 <ol>
 <li>
 <p><strong>Working tree is clean and tests pass.</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>make<span class="w"> </span>-C<span class="w"> </span>web-apps/terminal-gui<span class="w"> </span>typecheck<span class="w"> </span><span class="nb">test</span>
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>make<span class="w"> </span>-C<span class="w"> </span>web-apps/terminal-gui<span class="w"> </span>typecheck<span class="w"> </span><span class="nb">test</span>
 </code></pre></div>
    Repeat the last line for <code>log-gui</code>, <code>trader-gui</code> and <code>config-gui</code>.</p>
 </li>
@@ -5640,8 +5693,8 @@ somebody who is not you.</p>
 <li>
 <p><strong>The container stack starts from a clean state.</strong> This is the test that
    catches a stale deployed configuration or a broken image:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>make<span class="w"> </span>build<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>down-all<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>clean-data<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>up-all
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>make<span class="w"> </span>build<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>down-all<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>clean-data<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>up-all
 </code></pre></div>
    Confirm the build printed <code>Installing local wheel: ...</code>, not a PyPI
    download, then check each application answers: 8090, 8091, 8093, and
@@ -5651,7 +5704,7 @@ somebody who is not you.</p>
 <p><strong>The trading terminal shows a live book <em>and</em> history.</strong> This exercises the
    whole chain — the private network, the gateway bind hosts and the
    per-configuration API key — in one look:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>localhost:8090/api/bridge/status
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>localhost:8090/api/bridge/status
 </code></pre></div>
    Expect <code>"calf":"ACTIVE"</code> with a non-zero <code>symbols</code> count.</p>
 </li>
@@ -5699,8 +5752,8 @@ somebody who is not you.</p>
 </table>
 <p>If the image workflow fails, the GitHub release still exists — only the
    images are missing. Re-run just that part:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>gh<span class="w"> </span>run<span class="w"> </span>view<span class="w"> </span>&lt;run-id&gt;<span class="w"> </span>--log-failed
-<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>gh<span class="w"> </span>workflow<span class="w"> </span>run<span class="w"> </span>publish-images.yml<span class="w"> </span>-f<span class="w"> </span><span class="nv">tag</span><span class="o">=</span>vX.Y.Z
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>gh<span class="w"> </span>run<span class="w"> </span>view<span class="w"> </span>&lt;run-id&gt;<span class="w"> </span>--log-failed
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>gh<span class="w"> </span>workflow<span class="w"> </span>run<span class="w"> </span>publish-images.yml<span class="w"> </span>-f<span class="w"> </span><span class="nv">tag</span><span class="o">=</span>vX.Y.Z
 </code></pre></div></p>
 <h3 id="after-the-release">After the release<a class="headerlink" href="#after-the-release" title="Permanent link">&para;</a></h3>
 <ol>
@@ -5728,17 +5781,17 @@ somebody who is not you.</p>
    running stack silently attaches to it and verifies nothing:</p>
 </li>
 </ol>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>make<span class="w"> </span>-C<span class="w"> </span>deployment/docker<span class="w"> </span>down-all
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>make<span class="w"> </span>-C<span class="w"> </span>deployment/docker<span class="w"> </span>down-all
 </code></pre></div>
 <p>Then install into a throwaway directory so your own instance is untouched:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/vX.Y.Z/deployment/curl/install.sh<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="w">    </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--dir<span class="w"> </span>/tmp/em-release-test
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/vX.Y.Z/deployment/curl/install.sh<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a><span class="w">    </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--dir<span class="w"> </span>/tmp/em-release-test
 </code></pre></div>
    Then open <a href="http://localhost:8090">http://localhost:8090</a>, and clean up with
    <code>cd /tmp/em-release-test &amp;&amp; ./edumatcher.sh uninstall --data</code>.</p>
 <ol>
 <li><strong>Verify the PyPI install</strong> in a fresh environment:
-    <div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>pipx<span class="w"> </span>install<span class="w"> </span><span class="nv">edumatcher</span><span class="o">==</span>X.Y.Z
+    <div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>pipx<span class="w"> </span>install<span class="w"> </span><span class="nv">edumatcher</span><span class="o">==</span>X.Y.Z
 </code></pre></div></li>
 </ol>
 <div class="admonition tip">
@@ -5754,11 +5807,11 @@ catches that.</p>
 <p>Normally the push is handled by the workflow but it can be manually overridden.
 The target <code>ghcr-push</code> in <code>deployment/docker/Makefile</code> builds all five images from. 
 In will login with ghe existing GITHUB_USER/GHCR_TOKEN, then tags and pushes each one.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>export GITHUB_USER=&lt;user with admin priv&gt; GHCR_TOKEN=&lt;token with write:packages&gt;
-<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>
-<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>make ghcr-push                              # all five, tagged :dev
-<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>make ghcr-push TAG=0.20.6 FORCE=1           # ...as a release tag
-<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>make ghcr-push TAG=0.20.6 FORCE=1 LATEST=1  # ...and move :latest
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>export GITHUB_USER=&lt;user with admin priv&gt; GHCR_TOKEN=&lt;token with write:packages&gt;
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>make ghcr-push                              # all five, tagged :dev
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>make ghcr-push TAG=0.20.6 FORCE=1           # ...as a release tag
+<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>make ghcr-push TAG=0.20.6 FORCE=1 LATEST=1  # ...and move :latest
 </code></pre></div>
 <h2 id="where-to-go-next">Where to go next<a class="headerlink" href="#where-to-go-next" title="Permanent link">&para;</a></h2>
 <ul>
