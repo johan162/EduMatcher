@@ -11,30 +11,7 @@ Fully implemeted features are removed from this file.
 
 All referenced desig documents live under `docs-design/`
 
-
-## 1. Complete the `pm-audit-replay-cli` command
-
-Target completion date: Sep 2026
-
-STATUS: DONE
-
-Design: `EduMatcher-Audit-Replay.md` 
-
-This command is intended both as a verification tool during development that secures the internal
-consistency of the exchange from an holistic POV but also as a post-mortem tool to fullly understand
-the steps that lead up to a certain market condition
-
-- ~~Phase 0 — Foudational work, extending message covering~~
-- ~~Phase 1 - The tool fundamentals, scaffolding~~
-- ~~Phase 2 — State models and the link resolver~~ 
-- ~~Phase 3 — Episodes and the index~~
-- ~~Phase 4 — Narration, first user-visible output~~
-- ~~Phase 5 — Anomalies and the remaining views~~~
-- ~~Phase 6 — Machine-readable output and polish~~
-- ~~Phase 7 — Envelope causation IDs~~ 
-- ~~Phase 8 — Closing the detection gaps~~
-
-## 2. Completion of the System-Testing Framework
+## 1. Completion of the System-Testing Framework
 
 Target completion: Jan 2027
 
@@ -59,7 +36,7 @@ internal consistency.
 - Phase 3 — Time and the trading week
 - Phase 4 — Extension
 
-## 3. Fix remaining known bugs in Trading Station GUI
+## 2. Fix remaining known bugs in Trading Station GUI
 
 ### Critical defects
 #### C1 — A rejected cancel or amend marks a live order `REJECTED` (GUI and gateway cache)
@@ -84,7 +61,7 @@ internal consistency.
 #### M7 — The ticket's session and tick rules have no single source
 #### M8 — Gateway
 
-## 4. Fix remaining bugs in Trader Info Terminal GUI
+## 3. Fix remaining bugs in Trader Info Terminal GUI
 
 ### High defects
 #### H1. Production sign-off still lacks a live-stack failure-mode soak
@@ -104,7 +81,7 @@ internal consistency.
 
 
 
-## 5. Implement a model CCP
+## 4. Implement a model CCP
 
 Target completion: Q1 2027
 
