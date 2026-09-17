@@ -16,6 +16,8 @@ All referenced desig documents live under `docs-design/`
 
 Target completion date: Sep 2026
 
+STATUS: DONE
+
 Design: `EduMatcher-Audit-Replay.md` 
 
 This command is intended both as a verification tool during development that secures the internal
@@ -28,7 +30,9 @@ the steps that lead up to a certain market condition
 - ~~Phase 3 — Episodes and the index~~
 - ~~Phase 4 — Narration, first user-visible output~~
 - ~~Phase 5 — Anomalies and the remaining views~~~
-- ~~Phase 6 - Verification~~
+- ~~Phase 6 — Machine-readable output and polish~~
+- ~~Phase 7 — Envelope causation IDs~~ 
+- ~~Phase 8 — Closing the detection gaps~~
 
 ## 2. Completion of the System-Testing Framework
 
@@ -55,8 +59,52 @@ internal consistency.
 - Phase 3 — Time and the trading week
 - Phase 4 — Extension
 
+## 3. Fix remaining known bugs in Trading Station GUI
 
-## 3. Implement a model CCP
+### Critical defects
+#### C1 — A rejected cancel or amend marks a live order `REJECTED` (GUI and gateway cache)
+#### C2 — Cancel-replace defaults to the original total quantity → over-trading on partial fills
+#### C3 — Live order rows lack `stop_price` / `visible_qty` / `trail_offset` / `smp_action`, so Replace and Undo break
+
+### High defects
+#### H1 — OCO legs are never grouped; "Cancel group" is unreachable
+#### H2 — Trade prints are not de-duplicated; replay inflates volume and can crash the chart handler
+#### H3 — Gap repair for `trade.executed` can never succeed
+#### H4 — Halts are invisible to TRADER/MARKET_MAKER unless they begin after login
+#### H5 — Session phase defaults to CLOSED and is never re-synced after a reconnect
+#### H6 — The private stream has no gap detection, and Refresh cannot reconcile
+
+### Medium defects
+#### M1 — Order-type gating is narrower than the engine
+#### M2 — "Accepted" is misleading for FOK, MARKET and IOC
+#### M3 — Bulk cancel and Flatten All lose per-order feedback
+#### M4 — Flatten semantics
+#### M5 — The combo form forces
+#### M6 — The Amend and Replace dialogs work on a snapshot of the order
+#### M7 — The ticket's session and tick rules have no single source
+#### M8 — Gateway
+
+## 4. Fix remaining bugs in Trader Info Terminal GUI
+
+### High defects
+#### H1. Production sign-off still lacks a live-stack failure-mode soak
+#### H2. AUCTION gaps are broadcast but not displayed anywhere
+#### H3. History failures in Symbol Detail can be rendered as "no history"
+#### H4. No liveness check on the browser↔bridge WebSocke
+
+### Medium defects
+#### M1. Index View lacks the same explicit history-outage handling
+#### M2. Default Index View hides Open/High/Low on intraday timeframes
+#### M3. Live-feed silence is visible but not forceful
+#### M4. Previous-close age is defined but not surfaced
+#### M5. Halt countdown and "halted for" timers freeze between frames
+#### M6. Symbol Detail session statistics ignore history failure and age
+#### M7. Chart windows do not roll over at UTC midnight on an unattended display
+#### M8. "Fade off" preference comes back after a reload as a control that shows "fade 1 min"
+
+
+
+## 5. Implement a model CCP
 
 Target completion: Q1 2027
 
