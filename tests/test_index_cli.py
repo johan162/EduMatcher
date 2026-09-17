@@ -18,7 +18,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from edumatcher.index.cli import (
-    _build_parser,
+    build_parser,
     _cmd_events,
     _cmd_indices,
     _project_event,
@@ -471,30 +471,30 @@ class TestResolveHistoryFiles:
 
 
 # ---------------------------------------------------------------------------
-# _build_parser
+# build_parser
 # ---------------------------------------------------------------------------
 
 
 class TestBuildParser:
     def test_events_subcommand_with_type(self) -> None:
-        parser = _build_parser()
+        parser = build_parser()
         args = parser.parse_args(["events", "--index", "IDX", "--type", "INIT"])
         assert args.command == "events"
         assert args.event_types == ["INIT"]
 
     def test_indices_subcommand(self) -> None:
-        parser = _build_parser()
+        parser = build_parser()
         args = parser.parse_args(["indices"])
         assert args.command == "indices"
 
     def test_format_choices(self) -> None:
-        parser = _build_parser()
+        parser = build_parser()
         for fmt in ("table", "json", "csv"):
             args = parser.parse_args(["--format", fmt, "events", "--index", "X"])
             assert args.format == fmt
 
     def test_no_header_flag(self) -> None:
-        parser = _build_parser()
+        parser = build_parser()
         args = parser.parse_args(["--no-header", "events", "--index", "X"])
         assert args.no_header is True
 
@@ -502,7 +502,7 @@ class TestBuildParser:
         """Design intent: level/EOD queries were removed from pm-index-cli
         entirely, not just hidden — they now live in pm-stats-cli.
         """
-        parser = _build_parser()
+        parser = build_parser()
         for removed_cmd in ("level", "eod"):
             with pytest.raises(SystemExit) as exc:
                 parser.parse_args([removed_cmd, "--index", "X"])

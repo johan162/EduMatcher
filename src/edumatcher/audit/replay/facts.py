@@ -59,6 +59,19 @@ CLOCK_CLIENT = "client"
 #: priority -- ``arrival_seq`` is.
 _CLIENT_CLOCK_FIELDS = frozenset({(TOPIC_ORDER_NEW, "ts_ns")})
 
+#: The epoch fields that say *when this message happened*, as opposed to a
+#: time the message merely mentions. Named here, once, because the alternative
+#: is every consumer hard-coding a field name -- which is what let the whole
+#: private-fill and drop-copy streams go unchecked for clock skew: the check
+#: asked for ``ts_ns`` and drop copy calls its clock ``timestamp``.
+#:
+#: Listed positively rather than by exclusion. ``resume_at_ns`` is a *future*
+#: time and ``from_ts_ns``/``to_ts_ns`` are query bounds; comparing any of
+#: them against receipt would report every halt as skewed by however long it
+#: was due to last. A new epoch field is therefore not a publication clock
+#: until someone says so here, which is the safe direction to be wrong in.
+_PUBLICATION_CLOCK_FIELDS = frozenset({"ts_ns", "timestamp", "timestamp_ns"})
+
 _NANOS = "epoch_nanos"
 _SECONDS = "epoch_seconds"
 _TICKS = "ticks"
@@ -126,6 +139,17 @@ class FactTime:
     name: str
     clock: str
     when: datetime
+
+    @property
+    def is_publication(self) -> bool:
+        """Whether this is the message's own clock reading.
+
+        What a skew check wants, and the question it should be asking. Asking
+        for a field *name* instead is how ``order.fill`` (which declares no
+        timestamp at all) and ``drop_copy`` (which calls its clock
+        ``timestamp``) both ended up exempt.
+        """
+        return self.name in _PUBLICATION_CLOCK_FIELDS
 
 
 @dataclass(frozen=True, slots=True)

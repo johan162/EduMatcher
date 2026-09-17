@@ -18,7 +18,7 @@ from edumatcher.ai_trader.swarm import (
 
 
 def _fake_parser(namespace: argparse.Namespace) -> argparse.ArgumentParser:
-    """A stand-in for _build_parser() whose parse_args() ignores argv."""
+    """A stand-in for build_parser() whose parse_args() ignores argv."""
     parser = argparse.ArgumentParser()
     parser.parse_args = lambda *a, **kw: namespace
     return parser
@@ -97,7 +97,7 @@ class TestSwarmMain:
                 "ERROR",
             ],
         )
-        args = swarm_main._build_parser().parse_args()
+        args = swarm_main.build_parser().parse_args()
         assert args.count == 1
         assert args.verbose == 2
         assert args.quiet is True
@@ -128,7 +128,7 @@ class TestSwarmMain:
 
         monkeypatch.setattr(
             swarm_main,
-            "_build_parser",
+            "build_parser",
             lambda: _fake_parser(
                 argparse.Namespace(
                     count=1,
@@ -169,7 +169,7 @@ class TestSwarmMain:
     def test_main_count_must_be_positive(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
             swarm_main,
-            "_build_parser",
+            "build_parser",
             lambda: _fake_parser(
                 argparse.Namespace(count=0, log_level=None, verbose=0, quiet=False)
             ),
@@ -180,7 +180,7 @@ class TestSwarmMain:
     def test_main_no_symbols(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
             swarm_main,
-            "_build_parser",
+            "build_parser",
             lambda: _fake_parser(
                 argparse.Namespace(
                     count=1,
@@ -227,7 +227,7 @@ class TestSwarmMain:
 
         monkeypatch.setattr(
             swarm_main,
-            "_build_parser",
+            "build_parser",
             lambda: _fake_parser(
                 argparse.Namespace(
                     count=2,
@@ -284,7 +284,7 @@ class TestSwarmMain:
 
         monkeypatch.setattr(
             swarm_main,
-            "_build_parser",
+            "build_parser",
             lambda: _fake_parser(
                 argparse.Namespace(
                     count=1,

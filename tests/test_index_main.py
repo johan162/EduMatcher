@@ -565,7 +565,7 @@ def test_constituent_change_error_paths(
 
 
 def test_build_parser_and_main(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    parser = index_main._build_parser()
+    parser = index_main.build_parser()
     args = parser.parse_args(["--reset"])
     assert args.reset is True
     assert args.log_level is None
@@ -606,7 +606,7 @@ def test_build_parser_and_main(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
 
 
 def test_build_parser_logging_flags() -> None:
-    parser = index_main._build_parser()
+    parser = index_main.build_parser()
     args = parser.parse_args(["-vv", "--quiet", "--log-level", "ERROR"])
     assert args.verbose == 2
     assert args.quiet is True

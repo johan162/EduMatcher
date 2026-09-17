@@ -112,7 +112,7 @@ def test_format_json_non_integer_seq_kept_as_string() -> None:
 
 
 def test_cli_parser_defaults() -> None:
-    parser = calf_spy_cli._build_parser()
+    parser = calf_spy_cli.build_parser()
     args = parser.parse_args([])
     assert args.host == "127.0.0.1"
     assert args.port == 5570
@@ -124,13 +124,13 @@ def test_cli_parser_defaults() -> None:
 
 
 def test_cli_parser_ping_interval_override() -> None:
-    parser = calf_spy_cli._build_parser()
+    parser = calf_spy_cli.build_parser()
     args = parser.parse_args(["--ping-interval", "5"])
     assert args.ping_interval == 5.0
 
 
 def test_cli_parser_version(capsys: pytest.CaptureFixture[str]) -> None:
-    parser = calf_spy_cli._build_parser()
+    parser = calf_spy_cli.build_parser()
     with pytest.raises(SystemExit):
         parser.parse_args(["--version"])
     out = capsys.readouterr().out

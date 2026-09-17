@@ -24,7 +24,7 @@ from edumatcher.cverifier import risk_summary as risk_summary_mod
 from edumatcher.cverifier.cli import (
     _compute_exit_code,
     _compute_verdict,
-    _parse_args,
+    build_parser,
     main,
     run,
 )
@@ -2192,7 +2192,7 @@ class TestCLIMain:
         assert exc.value.code == 2
 
     def test_parse_args_defaults(self) -> None:
-        args = _parse_args(["myconfig.yaml"])
+        args = build_parser().parse_args(["myconfig.yaml"])
         assert args.config_file == "myconfig.yaml"
         assert args.output_format == "text"
         assert args.level == "info"
@@ -2200,7 +2200,7 @@ class TestCLIMain:
         assert args.strict is False
 
     def test_parse_args_all_flags(self) -> None:
-        args = _parse_args(
+        args = build_parser().parse_args(
             [
                 "cfg.yaml",
                 "--format",

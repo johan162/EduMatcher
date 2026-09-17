@@ -32,7 +32,7 @@ _EXIT_WARN = 1
 _EXIT_ERROR = 2
 
 
-def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pm-cverifier",
         description="Read-only engine_config.yaml verification tool.",
@@ -68,7 +68,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=False,
         help="Treat warnings as errors for CI exit-code purposes",
     )
-    return parser.parse_args(argv)
+    return parser
 
 
 def _compute_verdict(results: list[CheckResult], strict: bool) -> str:
@@ -136,7 +136,7 @@ def run(config_path: Path) -> tuple[list[CheckResult], dict[str, Any] | None]:
 
 
 def main(argv: list[str] | None = None) -> None:
-    args = _parse_args(argv)
+    args = build_parser().parse_args(argv)
     config_path = Path(args.config_file)
     color = (
         not args.no_color and sys.stdout.isatty()

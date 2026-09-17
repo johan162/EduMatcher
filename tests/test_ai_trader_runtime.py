@@ -9,7 +9,7 @@ import edumatcher.ai_trader.main as bot_main
 
 
 def _fake_parser(namespace: argparse.Namespace) -> argparse.ArgumentParser:
-    """A stand-in for _build_parser() whose parse_args() ignores argv."""
+    """A stand-in for build_parser() whose parse_args() ignores argv."""
     parser = argparse.ArgumentParser()
     parser.parse_args = lambda *a, **kw: namespace
     return parser
@@ -211,7 +211,7 @@ class TestAITraderRuntime:
 
 class TestMainEntryPoint:
     def test_parse_args_logging_flags(self) -> None:
-        args = bot_main._build_parser().parse_args(
+        args = bot_main.build_parser().parse_args(
             [
                 "--id",
                 "AI01",
@@ -240,7 +240,7 @@ class TestMainEntryPoint:
         monkeypatch.setattr(bot_main, "AITraderBot", _FakeBot)
         monkeypatch.setattr(
             bot_main,
-            "_build_parser",
+            "build_parser",
             lambda: _fake_parser(
                 argparse.Namespace(
                     id="AI01",
@@ -277,7 +277,7 @@ class TestMainEntryPoint:
 
         monkeypatch.setattr(
             bot_main,
-            "_build_parser",
+            "build_parser",
             lambda: _fake_parser(
                 argparse.Namespace(
                     id="AI01",
@@ -307,7 +307,7 @@ class TestMainEntryPoint:
 
         monkeypatch.setattr(
             bot_main,
-            "_build_parser",
+            "build_parser",
             lambda: _fake_parser(
                 argparse.Namespace(
                     id="AI01",
@@ -337,7 +337,7 @@ class TestMainEntryPoint:
 
         monkeypatch.setattr(
             bot_main,
-            "_build_parser",
+            "build_parser",
             lambda: _fake_parser(
                 argparse.Namespace(
                     id="AI01",

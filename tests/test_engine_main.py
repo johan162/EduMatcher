@@ -1,6 +1,6 @@
 """Tests for pm-engine's CLI entrypoint: argument parsing and logging setup.
 
-Mirrors the _build_parser/_configure_logging conventions established in
+Mirrors the build_parser/_configure_logging conventions established in
 ralf_gateway/main.py, alf_gwy/main.py, and dc_gateway/main.py — the engine
 now uses the same -v/-vv/--log-level/-q flags and
 "%(asctime)s %(levelname)s %(name)s - %(message)s" format as every other
@@ -16,14 +16,14 @@ import logging
 import pytest
 
 from edumatcher.engine.main import (
-    _build_parser,
+    build_parser,
     _configure_logging,
     _country_wire_code,
 )
 
 
 def test_build_parser_defaults() -> None:
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args([])
     assert args.log_level is None
     assert args.verbose == 0
@@ -31,7 +31,7 @@ def test_build_parser_defaults() -> None:
 
 
 def test_build_parser_logging_flags() -> None:
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args(["-vv", "--quiet", "--log-level", "ERROR"])
     assert args.verbose == 2
     assert args.quiet is True
@@ -39,7 +39,7 @@ def test_build_parser_logging_flags() -> None:
 
 
 def test_build_parser_version(capsys: pytest.CaptureFixture[str]) -> None:
-    parser = _build_parser()
+    parser = build_parser()
     with pytest.raises(SystemExit):
         parser.parse_args(["--version"])
     out = capsys.readouterr().out

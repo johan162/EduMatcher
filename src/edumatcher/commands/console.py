@@ -1205,7 +1205,7 @@ class AdminConsole:
 # ---------------------------------------------------------------------------
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="EduMatcher ADMIN operator console",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -1311,7 +1311,7 @@ def _configure_logging(args: argparse.Namespace) -> int:
 
 
 def main() -> None:
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-admin with log level %s", logging.getLevelName(log_level))

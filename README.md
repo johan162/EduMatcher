@@ -104,16 +104,16 @@ with risk checks enabled (price collar and circuit-breaker).
 
 | Order type | min (µs) | median (µs) | P80 (µs) | P90 (µs) | max (µs) |
 | ---------- | -------: | ----------: | -------: | -------: | -------: |
-| Limit      |     13.1 |        15.0 |     15.4 |     15.7 |    155.7 |
-| Market     |     12.1 |        13.9 |     15.2 |     15.7 |     73.6 |
+| Limit      | 47.785   |      49.702 |    50.748|   53.206 |   84.664 |
+| Market     | 47.209   |      49.428 |    50.571|   54.191 |   89.989 |
 
 
 ### Throughput
 
 | Metric        | Value                                               |
 |---------------|-----------------------------------------------------|
-| **Max TPS**   | ~81,000 orders/second                               |
-| **µs / order (mean)** | 12.4 µs                                     |
+| **Max TPS**   | ~29,122 orders/second                               |
+| **µs / order (mean)** | 34.3 µs                                     |
 | **Order mix** | 20% Market, 30% aggressive Limit, 50% passive Limit |
 
 *Performance note:* price-collar and circuit-breaker checks run in the hot path
@@ -123,7 +123,7 @@ for every match. They are required for realistic risk control and add measurable
 ## Key Functional and Infrastructure Limitations
 
 - Very limited authentication & authorization
-- No spread-order books
+- No combo-order books (combo orders are supported with coupled order books)
 - No implied (synthetic) orders
 - No primary-secondary automatic site failover
 - No load balancing
@@ -154,7 +154,7 @@ If you use this tool in teaching or courses, please cite:
   author = {Johan Persson},
   year = {2026},
   url = {https://github.com/johan162/EduMatcher},
-  version = {0.39.0}
+  version = {0.40.0}
 }
 ```
 

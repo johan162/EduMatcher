@@ -2601,7 +2601,7 @@ instead of launching each process by hand in its own terminal — see
 [Running the Exchange → Starting the stack with pm-opctl-cli](040-running-the-exchange.md#starting-the-stack-with-pm-opctl-cli).
 
 ```bash
-pm-opctl-cli start [PROFILE] [-d | --debug]
+pm-opctl-cli start [PROFILE] [-d | --log-level DEBUG]
 pm-opctl-cli list [-y | --no-restart]
 pm-opctl-cli health [-q]
 pm-opctl-cli stop
@@ -2691,6 +2691,7 @@ use whichever name is more familiar.
 ```bash
 pm-help [--format table|text] [-v]
 pm-help [--format table|text] [-v] <pm-command>
+pm-help --completion bash|zsh
 pm-man <pm-command>
 ```
 
@@ -2712,6 +2713,7 @@ without its `pm-` prefix, so `pm-help viewer` finds `pm-viewer`.
 | `--format table\|json` | `table` | `table` uses UTF-8 box-drawing characters; `text` is plain aligned columns with no box-drawing -- friendly to `grep`, redirects, and non-UTF-8 terminals |
 | `-v`, `--verbose` | off | In the command-index view, show extra detail (and a worked example, where one exists) under each command |
 | `--no-color` | off | Disable ANSI colour |
+| `--completion bash\|zsh` | — | Print the tab-completion script for every `pm-*` command and exit -- see [Shell completion](005-installation.md#shell-completion) |
 | `--version` | — | Print version and exit |
 
 **Expected runtime input arguments:**
@@ -2730,6 +2732,7 @@ pm-help                    # version, data dirs, and the full command table
 pm-help --format text -v   # plain-text table with per-command examples
 pm-help pm-viewer          # full man page for pm-viewer
 pm-man pm-alf-console      # pm-man is an alias for pm-help
+pm-help --completion bash  # print the bash tab-completion script and exit
 ```
 
 

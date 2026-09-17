@@ -205,7 +205,7 @@ _NORMALIZE_FIELDS: dict[str, tuple[str, ...]] = {
 # ---------------------------------------------------------------------------
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pm-clearing-cli",
         description="Query EduMatcher clearing DB without writing SQL",
@@ -665,7 +665,7 @@ def main() -> None:
 
     from edumatcher.config import DATA_DIR, resolve_data_path
 
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args()
 
     try:

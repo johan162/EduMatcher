@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from importlib.resources import files
 from pathlib import Path
 
 from edumatcher.cli_version import add_version_argument, package_version
@@ -46,7 +47,8 @@ def _prog_name() -> str:
     return name if name in ("pm-help", "pm-man") else "pm-help"
 
 
-def _parse_args(argv: list[str] | None, prog: str) -> argparse.Namespace:
+def build_parser() -> argparse.ArgumentParser:
+    prog = _prog_name()
     parser = argparse.ArgumentParser(
         prog=prog,
         description=(
@@ -78,7 +80,14 @@ def _parse_args(argv: list[str] | None, prog: str) -> argparse.Namespace:
     parser.add_argument(
         "--no-color", action="store_true", default=False, help="disable ANSI colour"
     )
-    return parser.parse_args(argv)
+    parser.add_argument(
+        "--completion",
+        choices=["bash", "zsh"],
+        metavar="SHELL",
+        default=None,
+        help="print the tab-completion script for every pm-* command and exit",
+    )
+    return parser
 
 
 def _print_version_and_paths(prog: str) -> None:
@@ -92,7 +101,15 @@ def _print_version_and_paths(prog: str) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     prog = _prog_name()
-    args = _parse_args(argv, prog)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    if args.completion is not None:
+        if args.command is not None:
+            parser.error("--completion takes no COMMAND")
+        name = f"pm-completion.{args.completion}"
+        sys.stdout.write((files("edumatcher") / "completion" / name).read_text("utf-8"))
+        return _EXIT_OK
 
     piped = not sys.stdout.isatty()
     no_color = args.no_color or bool(os.environ.get("NO_COLOR")) or piped

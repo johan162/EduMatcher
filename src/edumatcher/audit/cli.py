@@ -114,7 +114,7 @@ _TIMELINE_COLS = ["timestamp", "topic", "gateway", "symbol", "payload"]
 # ---------------------------------------------------------------------------
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pm-audit-cli",
         description=(
@@ -718,7 +718,7 @@ def _handle_index(
 
 
 def main() -> None:
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args()
 
     try:

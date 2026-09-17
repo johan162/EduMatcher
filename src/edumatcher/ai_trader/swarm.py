@@ -149,7 +149,7 @@ def _configure_logging(args: argparse.Namespace) -> int:
     return int(level)
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="EduMatcher AI trader swarm launcher")
     from edumatcher.cli_version import add_version_argument
 
@@ -224,7 +224,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args()
     resolved_level = _configure_logging(args)
     log.info(

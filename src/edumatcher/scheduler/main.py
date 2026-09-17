@@ -708,7 +708,7 @@ def _run_now(
         log.info("Done.")
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="EduMatcher session scheduler")
     from edumatcher.cli_version import add_version_argument
 
@@ -823,7 +823,7 @@ def _configure_logging(args: argparse.Namespace) -> int:
 
 
 def main() -> None:
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args()
 
     log_level = _configure_logging(args)

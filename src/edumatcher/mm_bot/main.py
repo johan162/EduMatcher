@@ -21,7 +21,7 @@ _CLIENT_NAME = "pm-mm-bot"
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="EduMatcher autonomous market-maker bot"
     )
@@ -255,7 +255,7 @@ def _configure_logging(args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> None:
     """Main entry point for pm-mm-bot."""
     cli_args = argv if argv is not None else sys.argv[1:]
-    parser = _build_parser()
+    parser = build_parser()
 
     # First pass: only to find --config, before applying its values as
     # parser defaults below. A bare parse (no config-file defaults in play

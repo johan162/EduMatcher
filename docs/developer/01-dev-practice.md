@@ -179,6 +179,17 @@ make build
   - `make test` enforces **85%**
   - `scripts/mkbld.sh` currently enforces **80%** (release automation threshold)
 - **Docs build**: `mkdocs build` should pass after doc changes
+- **Shell completion**: every `[tool.poetry.scripts]` entry point must expose a
+  module-level `build_parser() -> argparse.ArgumentParser` with no
+  parameters and no side effects -- `main()` calls it too, so there is
+  exactly one place each parser is defined. `tools/gen_completion.py` reads
+  those factories to render `src/edumatcher/completion/pm-completion.{bash,zsh}`
+  (shipped as package data, served by `pm-help --completion bash|zsh`);
+  `tests/test_shell_completion.py` fails both if a command lacks the
+  contract and if the committed scripts drift from what the factories
+  currently produce. After adding a command or changing a flag, subcommand,
+  `choices=` list or help text, run `make completion` and commit the
+  result -- see [Installation → Shell completion](../user-guide/005-installation.md#shell-completion).
 
 ### What to preserve
 
@@ -520,6 +531,7 @@ authoritative. In general:
 | `scripts/docs-contctl.sh` | Run docs in a Podman container | Useful when validating the containerised docs image |
 | `tools/verify_matching.sh` | Deterministic engine verification | Strong confidence check for engine changes |
 | `tools/launch_all.sh` | macOS demo/process launcher | Good for manual demos, not for production orchestration |
+| `tools/gen_completion.py` | Regenerate bash/zsh shell completion for every `pm-*` command | Dev-only (imports `shtab`); run via `make completion` after changing a command's flags |
 
 ### A practical rule of thumb
 

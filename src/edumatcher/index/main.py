@@ -815,7 +815,7 @@ class IndexProcess:
         self._pub_sock.close()
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="EduMatcher index process")
     from edumatcher.cli_version import add_version_argument
 
@@ -913,7 +913,7 @@ def _configure_logging(args: argparse.Namespace) -> int:
 def main() -> None:
     from edumatcher.config_artifact import report_deployment
 
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-index with log level %s", logging.getLevelName(log_level))

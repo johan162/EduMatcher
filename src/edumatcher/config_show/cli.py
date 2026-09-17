@@ -28,7 +28,7 @@ _EXIT_BAD_YAML = 3
 _PIPE_WIDTH = 100
 
 
-def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pm-config-show",
         description="Show engine_config.yaml as a terminal dashboard or a PDF. "
@@ -84,7 +84,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--height", type=int, help="force render height (testing / piping)"
     )
-    return parser.parse_args(argv)
+    return parser
 
 
 def _wants_ascii(explicit: bool) -> bool:
@@ -95,7 +95,7 @@ def _wants_ascii(explicit: bool) -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = _parse_args(argv)
+    args = build_parser().parse_args(argv)
 
     source = resolve_source(args.file, ENGINE_CONFIG_FILE)
     if not source.exists:

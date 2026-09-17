@@ -72,7 +72,7 @@ def _extract_example_config(dest: Path, force: bool, config_name: str) -> bool:
     return True
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pm-setup",
         description=(
@@ -115,6 +115,11 @@ def main() -> None:
         action="store_true",
         help="Only create the data directory; do not deploy an example config",
     )
+    return parser
+
+
+def main() -> None:
+    parser = build_parser()
     args = parser.parse_args()
 
     if not args.no_config:

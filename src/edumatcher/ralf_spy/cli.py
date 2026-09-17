@@ -46,7 +46,7 @@ _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 _ALLOWED_CHANNELS = ("CLEARING", "DROP_COPY", "AUDIT")
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pm-ralf-spy",
         description=(
@@ -306,7 +306,7 @@ class _SpySession:
 
 
 def main() -> None:
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args()
     _configure_logging(args)
 

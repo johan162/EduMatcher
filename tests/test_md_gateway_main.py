@@ -9,7 +9,7 @@ import pytest
 from edumatcher.config_deploy import deploy
 from edumatcher.md_gateway import main as md_main
 from edumatcher.md_gateway.main import (
-    _build_parser,
+    build_parser,
     _configure_logging,
     _resolve_config,
 )
@@ -32,7 +32,7 @@ def _deploy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, body: str) -> None:
 
 
 def test_build_parser_defaults() -> None:
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args([])
     assert args.bind is None
     assert args.port is None
@@ -42,7 +42,7 @@ def test_build_parser_defaults() -> None:
 
 
 def test_build_parser_logging_flags() -> None:
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args(["-vv", "--quiet", "--log-level", "ERROR"])
     assert args.verbose == 2
     assert args.quiet is True

@@ -8,11 +8,11 @@ import pytest
 
 from edumatcher.alf_gwy.config import AlfGatewayConfig
 from edumatcher.alf_gwy import main as alf_main
-from edumatcher.alf_gwy.main import _build_parser, _configure_logging, _resolve_config
+from edumatcher.alf_gwy.main import build_parser, _configure_logging, _resolve_config
 
 
 def test_build_parser_defaults() -> None:
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args([])
     assert args.bind is None
     assert args.port is None
@@ -23,7 +23,7 @@ def test_build_parser_defaults() -> None:
 
 
 def test_build_parser_logging_flags() -> None:
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args(["-vv", "--quiet", "--log-level", "ERROR"])
     assert args.verbose == 2
     assert args.quiet is True

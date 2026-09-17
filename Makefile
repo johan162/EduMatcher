@@ -5,7 +5,7 @@
 .PHONY: help install reinstall clean-venv test test-short test-html verify \
 check _check lint format typecheck pre-commit \
 build clean maintainer-clean docs docs-serve run pull-all \
-black flake8 mypy msgen-check msgen
+black flake8 mypy msgen-check msgen completion
 
 # Makefile itself as a dependency to ensure re-evaluation when changed.
 # NOTE: Requires GNU Make 4.3+. macOS ships with 3.81 (brew install make to upgrade).
@@ -296,6 +296,9 @@ msgen: ## Regenerate message bindings from spec/ (run after editing a spec file)
 	@poetry run pm-msgen generate
 	@touch $(MSGEN_STAMP)
 	@echo -e "$(GREEN)✓ Generated message bindings are up to date$(NC)"
+
+completion: ## Regenerate bash/zsh completion scripts for every pm-* command
+	@poetry run python tools/gen_completion.py
 
 pre-commit: $(INSTALL_STAMP) ## Run all quality checks + short test (pre-commit gate)
 	@echo -e "$(DARKYELLOW)Running pre-commit checks...$(NC)"

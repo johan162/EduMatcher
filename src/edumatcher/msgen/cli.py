@@ -57,7 +57,7 @@ def _add_common(parser: argparse.ArgumentParser, *, with_out: bool) -> None:
         )
 
 
-def _parse_args(argv: list[str] | None) -> argparse.Namespace:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pm-msgen",
         description="Generate message bindings from the canonical specification.",
@@ -86,11 +86,11 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         metavar="DIR",
         help=f"Source tree to scan (default: {_DEFAULT_SRC})",
     )
-    return parser.parse_args(argv)
+    return parser
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = _parse_args(argv)
+    args = build_parser().parse_args(argv)
 
     try:
         if args.command == "grep-literals":

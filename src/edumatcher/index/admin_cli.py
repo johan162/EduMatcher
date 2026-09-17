@@ -136,7 +136,7 @@ def _confirm(prompt: str, assume_yes: bool) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pm-index-admin-cli",
         description=(
@@ -653,7 +653,7 @@ _HANDLERS = {
 
 
 def main() -> None:
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args()
 
     client = ExchangeCommandClient(

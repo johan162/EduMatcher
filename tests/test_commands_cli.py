@@ -36,7 +36,7 @@ class _FakeClient:
 
 
 def test_build_parser_parses_session_status_and_defaults() -> None:
-    parser = cli_mod._build_parser()
+    parser = cli_mod.build_parser()
     args = parser.parse_args(["--id", "GW_ADMIN", "session-status"])
     assert args.id == "GW_ADMIN"
     assert args.command == "session-status"
@@ -44,7 +44,7 @@ def test_build_parser_parses_session_status_and_defaults() -> None:
 
 
 def test_build_parser_enforces_required_fields_and_state_upper() -> None:
-    parser = cli_mod._build_parser()
+    parser = cli_mod.build_parser()
 
     args = parser.parse_args(["--id", "GW_ADMIN", "kill", "--gw", "TRADER01"])
     assert args.gw == "TRADER01"
@@ -64,7 +64,7 @@ def test_build_parser_enforces_required_fields_and_state_upper() -> None:
 
 
 def test_build_parser_format_defaults_to_text_and_accepts_json() -> None:
-    parser = cli_mod._build_parser()
+    parser = cli_mod.build_parser()
 
     args = parser.parse_args(["--id", "GW_ADMIN", "symbols"])
     assert args.format == "text"
@@ -77,7 +77,7 @@ def test_build_parser_format_defaults_to_text_and_accepts_json() -> None:
 
 
 def test_build_parser_position_requires_gw_and_accepts_sym() -> None:
-    parser = cli_mod._build_parser()
+    parser = cli_mod.build_parser()
 
     args = parser.parse_args(["--id", "GW_ADMIN", "position", "--gw", "MM_AAPL_01"])
     assert args.gw == "MM_AAPL_01"
@@ -120,7 +120,7 @@ def test_args_to_fields_maps_only_present_keys() -> None:
 
 
 def test_build_parser_reopen_parses_sym_price_dry_run_note() -> None:
-    parser = cli_mod._build_parser()
+    parser = cli_mod.build_parser()
 
     args = parser.parse_args(["--id", "GW_ADMIN", "reopen", "--sym", "AAPL"])
     assert args.command == "reopen"

@@ -295,7 +295,7 @@ def _config_with_overrides(args: argparse.Namespace) -> ApiGatewayConfig:
     )
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="EduMatcher REST API gateway")
     from edumatcher.cli_version import add_version_argument
 
@@ -423,7 +423,7 @@ def _route_uvicorn_logging(level: str) -> None:
 
 
 def main() -> None:
-    parser = _build_parser()
+    parser = build_parser()
     args = parser.parse_args()
     _configure_logging(args)
     try:

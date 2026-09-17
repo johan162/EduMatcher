@@ -75,6 +75,14 @@ RUN printf '%s\n' \
         > /etc/profile.d/edumatcher.sh && \
     cat /etc/profile.d/edumatcher.sh >> /root/.bashrc
 
+# Tab completion for every pm-* command in interactive bash (make shell, ssh).
+# Written once at build time since the image is immutable; not via
+# /etc/profile.d/ (also read by sh login shells, where `complete` doesn't
+# exist), and not via the bash-completion package (would add an apt
+# dependency for no benefit -- plain `complete -F` needs nothing from it).
+RUN pm-help --completion bash > /etc/edumatcher-completion.bash && \
+    echo 'source /etc/edumatcher-completion.bash' >> /root/.bashrc
+
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
