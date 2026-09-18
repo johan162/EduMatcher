@@ -162,7 +162,7 @@ $(TYPECHECK_STAMP): $(SRC_FILES) $(TEST_FILES)
 
 $(TEST_STAMP): $(SRC_FILES) $(TEST_FILES)
 	@echo -e "$(DARKYELLOW)- Running tests with coverage check (≥$(COVERAGE)%)...$(NC)"
-	@if poetry run pytest tests/ -n auto -m "not perf" \
+	@if poetry run pytest -n auto tests -m "not perf" \
 		--cov=$(SRC_DIR)/$(PROJECT) \
 		--cov-report=term-missing \
 		--cov-report=xml \
@@ -333,7 +333,7 @@ mp-dev: ## Install the current dev snapshot into the multipass VM (requires mult
 # ============================================================================================
 # Documentation
 # ============================================================================================
-docs: ## Build the MkDocs documentation site into site/
+docs-site: ## Build the MkDocs documentation site into site/
 	@echo -e "$(DARKYELLOW)- Building documentation...$(NC)"
 	@poetry run mkdocs build
 	@echo -e "$(GREEN)✓ Documentation built in site/$(NC)"
