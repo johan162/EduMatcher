@@ -957,6 +957,10 @@ export interface OrderAckData {
   tif?: Tif;
   qty?: number;
   price?: number;
+  stop_price?: number;
+  visible_qty?: number;
+  trail_offset?: number;
+  smp_action?: SmpAction;
   client_tag?: string;
   oco_group_id?: string;
   combo_parent_id?: string;

@@ -88,6 +88,23 @@ function detailPatch(d: OrderAckData | Fill): Partial<Order> {
   if (d.client_tag != null) p.client_tag = d.client_tag;
   if (d.oco_group_id != null) p.oco_group_id = d.oco_group_id;
   if (d.combo_parent_id != null) p.combo_parent_id = d.combo_parent_id;
+  // C3 (docs-design/reviews/EduMatcher-Trader-GUI-Review.md): only order.ack
+  // carries these -- a fill never does -- so narrow with `in` rather than
+  // adding unused fields to Fill.
+  if ("stop_price" in d && d.stop_price != null) p.stop_price = d.stop_price;
+  if ("visible_qty" in d && d.visible_qty != null) p.visible_qty = d.visible_qty;
+  if ("trail_offset" in d && d.trail_offset != null) p.trail_offset = d.trail_offset;
+  if ("smp_action" in d && d.smp_action != null) p.smp_action = d.smp_action;
+  return p;
+}
+
+// H1 (docs-design/reviews/EduMatcher-Trader-GUI-Review.md): a cancel/expire
+// must fold group ids like detailPatch does, or the row an OCO/combo leg
+// went terminal on loses the id computeOrderGroups keys the Groups panel on.
+function terminalPatch(status: Order["status"], d: OrderTerminalData): Partial<Order> {
+  const p: Partial<Order> = { status };
+  if (d.oco_group_id != null) p.oco_group_id = d.oco_group_id;
+  if (d.combo_parent_id != null) p.combo_parent_id = d.combo_parent_id;
   return p;
 }
 
@@ -189,14 +206,14 @@ export const useOrderStore = create<OrderStore>((set) => {
     applyCancelled: (d) =>
       set((state) =>
         d.order_id
-          ? { orders: pruneTerminal(upsert(state, d.order_id, { status: "CANCELLED" })) }
+          ? { orders: pruneTerminal(upsert(state, d.order_id, terminalPatch("CANCELLED", d))) }
           : state,
       ),
 
     applyExpired: (d) =>
       set((state) =>
         d.order_id
-          ? { orders: pruneTerminal(upsert(state, d.order_id, { status: "EXPIRED" })) }
+          ? { orders: pruneTerminal(upsert(state, d.order_id, terminalPatch("EXPIRED", d))) }
           : state,
       ),
 

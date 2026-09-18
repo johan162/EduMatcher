@@ -51,7 +51,9 @@ Each fix below removes the ambiguity at the source rather than patching one symp
 
 ## 2. Critical findings
 
-### C1 — A rejected cancel or amend marks a live order `REJECTED` (GUI and gateway cache)
+### ~~C1 — A rejected cancel or amend marks a live order `REJECTED` (GUI and gateway cache)~~
+
+**FIXED**
 
 **Where:** `store/useOrderStore.ts:137` (`applyAck`) · `api_gateway/caches.py:48` · engine `_handle_cancel` (main.py:5735) / `_handle_amend` (main.py:5808) → `_reject` (main.py:694)
 
@@ -81,7 +83,9 @@ Confirmed by probes P1a and P1b.
 
 ---
 
-### C2 — Cancel-replace defaults to the original total quantity → over-trading on partial fills
+### ~~C2 — Cancel-replace defaults to the original total quantity → over-trading on partial fills~~
+
+**FIXED**
 
 **Where:** `components/orders/ReplaceDialog.tsx:30`
 
@@ -93,7 +97,9 @@ Example: BUY 100 @ 10.00 with 60 filled. The trader opens Replace and changes on
 
 ---
 
-### C3 — Live order rows lack `stop_price` / `visible_qty` / `trail_offset` / `smp_action`, so Replace and Undo break
+### ~~C3 — Live order rows lack `stop_price` / `visible_qty` / `trail_offset` / `smp_action`, so Replace and Undo break~~
+
+**FIXED**
 
 **Where:** engine new-order hot-path ack (main.py, ack payload carries only `symbol, side, order_type, tif, qty, price, client_tag`) · `store/useOrderStore.ts` `detailPatch` · `ReplaceDialog.tsx:47` · `lib/resubmit.ts`
 
@@ -114,7 +120,9 @@ The Order Detail drawer also shows no stop or iceberg attributes. Confirmed by p
 
 ## 3. High findings
 
-### H1 — OCO legs are never grouped; "Cancel group" is unreachable
+### ~~H1 — OCO legs are never grouped; "Cancel group" is unreachable~~
+
+**FIXED**
 
 **Where:** engine `_handle_oco_order` (main.py:5563: leg ack `order={symbol, side, order_type, tif, quantity, price}`, no `oco_group_id`) · `hooks/useOrderEventNotifications.ts` (ignores accepted `oco.ack`) · `useOrderStore.applyCancelled` (patches status only)
 
@@ -183,7 +191,9 @@ Confirmed by probes P6a and P7.
 
 **Fix:** fetch `/session` (the existing `useSessionQuery`) on every market-data authentication and whenever bootstrap reports `session` incomplete. Model "unknown" explicitly rather than defaulting to `CLOSED`.
 
-### H6 — The private stream has no gap detection, and Refresh cannot reconcile
+### ~~H6 — The private stream has no gap detection, and Refresh cannot reconcile~~
+
+**FIXED**
 
 **Where:** `WebSocketManager.handlePrivateMessage` (ignores `stream_seq`) · gateway `routers/ws.py:173` (queue `maxsize=256`, `_record_drop` on overflow) · `useOrderStore.hydrate` · `types/index.ts:216`
 

@@ -87,6 +87,28 @@ describe("useOrderStore reducers", () => {
     expect(useOrderStore.getState().orders["o2"]!.status).toBe("REJECTED");
   });
 
+  // C3, docs-design/reviews/EduMatcher-Trader-GUI-Review.md: these four
+  // fields used to be missing from order_ack entirely, so a live STOP_LIMIT
+  // /ICEBERG/TRAILING_STOP order's row never had what Replace or Undo need.
+  it("ack folds stop_price/visible_qty/trail_offset/smp_action onto the row (C3)", () => {
+    useOrderStore.getState().applyAck(
+      ack({
+        order_id: "o1",
+        accepted: true,
+        qty: 100,
+        stop_price: 148,
+        visible_qty: 20,
+        trail_offset: 1.5,
+        smp_action: "CANCEL_RESTING",
+      }),
+    );
+    const o1 = useOrderStore.getState().orders["o1"]!;
+    expect(o1.stop_price).toBe(148);
+    expect(o1.visible_qty).toBe(20);
+    expect(o1.trail_offset).toBe(1.5);
+    expect(o1.smp_action).toBe("CANCEL_RESTING");
+  });
+
   describe("C1 — a rejected cancel/amend must not mark a live order REJECTED", () => {
     // order.ack accepted=false is shared by three requests: a rejected NEW
     // order, and a rejected cancel or amend against an order that is still
@@ -204,6 +226,19 @@ describe("useOrderStore reducers", () => {
     useOrderStore.getState().applyAck(ack({ order_id: "o2", accepted: true, qty: 100 }));
     useOrderStore.getState().applyExpired(terminal("o2"));
     expect(useOrderStore.getState().orders["o2"]!.status).toBe("EXPIRED");
+  });
+
+  // H1, docs-design/reviews/EduMatcher-Trader-GUI-Review.md: computeOrderGroups
+  // keys the Groups panel on oco_group_id/combo_parent_id — a leg going
+  // terminal must not lose the id that ties it to its group.
+  it("cancelled / expired fold oco_group_id / combo_parent_id onto the row (H1)", () => {
+    useOrderStore.getState().applyAck(ack({ order_id: "o1", accepted: true, qty: 100 }));
+    useOrderStore.getState().applyCancelled({ ...terminal("o1"), oco_group_id: "OCO1" });
+    expect(useOrderStore.getState().orders["o1"]!.oco_group_id).toBe("OCO1");
+
+    useOrderStore.getState().applyAck(ack({ order_id: "o2", accepted: true, qty: 100 }));
+    useOrderStore.getState().applyExpired({ ...terminal("o2"), combo_parent_id: "COMBO1" });
+    expect(useOrderStore.getState().orders["o2"]!.combo_parent_id).toBe("COMBO1");
   });
 
   it("hydrate never resurrects a locally-terminal order", () => {
