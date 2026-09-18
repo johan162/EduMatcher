@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { toast } from "sonner";
 import type { ReactNode } from "react";
 
 vi.mock("sonner", () => ({
@@ -67,12 +68,19 @@ function callFor(pathPart: string) {
 beforeEach(() => {
   cleanup();
   apiFetchMock.mockClear();
+  vi.mocked(toast).mockClear();
   useOrderStore.getState().clear();
 });
 
+// AmendDialog and ReplaceDialog now read the order live from useOrderStore by
+// id (M6, docs-design/reviews/EduMatcher-Trader-GUI-Review.md) instead of a
+// snapshot prop, so every test seeds the store with the order under test
+// before rendering.
+
 describe("AmendDialog (§13.2)", () => {
   it("PATCHes only the changed quantity", async () => {
-    wrap(<AmendDialog order={ORDER} onClose={vi.fn()} />);
+    useOrderStore.getState().seed([ORDER]);
+    wrap(<AmendDialog orderId={ORDER.order_id} onClose={vi.fn()} />);
     fireEvent.change(screen.getByLabelText("Amend quantity"), { target: { value: "50" } });
     fireEvent.click(screen.getByRole("button", { name: "Amend order" }));
     await waitFor(() => expect(callFor("/api/v1/orders/o1")).toBeTruthy());
@@ -91,7 +99,8 @@ describe("AmendDialog (§13.2)", () => {
 
   it("rejects a quantity below the already-filled amount", () => {
     const partial = normalizeOrder({ ...ORDER, remaining_qty: 30 }); // 70 filled
-    wrap(<AmendDialog order={partial} onClose={vi.fn()} />);
+    useOrderStore.getState().seed([partial]);
+    wrap(<AmendDialog orderId={partial.order_id} onClose={vi.fn()} />);
     fireEvent.change(screen.getByLabelText("Amend quantity"), { target: { value: "10" } });
     fireEvent.click(screen.getByRole("button", { name: "Amend order" }));
     expect(screen.getByText(/must exceed the 70 already filled/)).toBeTruthy();
@@ -103,17 +112,64 @@ describe("AmendDialog (§13.2)", () => {
   // an amend down to exactly the filled amount rather than let it round-trip.
   it("rejects a quantity equal to the already-filled amount", () => {
     const partial = normalizeOrder({ ...ORDER, remaining_qty: 30 }); // 70 filled
-    wrap(<AmendDialog order={partial} onClose={vi.fn()} />);
+    useOrderStore.getState().seed([partial]);
+    wrap(<AmendDialog orderId={partial.order_id} onClose={vi.fn()} />);
     fireEvent.change(screen.getByLabelText("Amend quantity"), { target: { value: "70" } });
     fireEvent.click(screen.getByRole("button", { name: "Amend order" }));
     expect(screen.getByText(/must exceed the 70 already filled/)).toBeTruthy();
     expect(callFor("/api/v1/orders/o1")).toBeUndefined();
   });
+
+  // M6: the dialog reads the order live, so a fill landing while it's open
+  // updates Filled and is what validateAmend checks against -- not the
+  // filled amount at the moment the dialog was opened.
+  it("validates against the live filled amount, not a stale snapshot (M6)", () => {
+    const partial = normalizeOrder({ ...ORDER, remaining_qty: 60 }); // 40 filled
+    useOrderStore.getState().seed([partial]);
+    wrap(<AmendDialog orderId={partial.order_id} onClose={vi.fn()} />);
+    expect(screen.getByText("40")).toBeTruthy(); // Filled, before the extra fill
+
+    act(() => {
+      useOrderStore.getState().applyFill({
+        gateway_id: "GW1",
+        order_id: partial.order_id,
+        fill_qty: 50,
+        fill_price: 150,
+        remaining_qty: 10,
+        status: "PARTIAL",
+        trade_ids: [],
+      });
+    });
+    expect(screen.getByText("90")).toBeTruthy(); // Filled, live after the fill
+
+    // 70 would have been valid against the stale 40-filled snapshot, but not
+    // against the live 90 filled.
+    fireEvent.change(screen.getByLabelText("Amend quantity"), { target: { value: "70" } });
+    fireEvent.click(screen.getByRole("button", { name: "Amend order" }));
+    expect(screen.getByText(/must exceed the 90 already filled/)).toBeTruthy();
+    expect(callFor("/api/v1/orders/o1")).toBeUndefined();
+  });
+
+  // M6: no snapshot to go stale against once the order is gone.
+  it("closes itself with a notice when the order goes terminal while open (M6)", () => {
+    useOrderStore.getState().seed([ORDER]);
+    const onClose = vi.fn();
+    wrap(<AmendDialog orderId={ORDER.order_id} onClose={onClose} />);
+
+    act(() => {
+      useOrderStore.getState().applyCancelled({ gateway_id: "GW1", order_id: ORDER.order_id });
+    });
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(toast).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toast).mock.calls[0]![0]).toContain("no longer open");
+  });
 });
 
 describe("ReplaceDialog (§13.2)", () => {
   it("POSTs a full replacement order with the edited price", async () => {
-    wrap(<ReplaceDialog order={ORDER} onClose={vi.fn()} />);
+    useOrderStore.getState().seed([ORDER]);
+    wrap(<ReplaceDialog orderId={ORDER.order_id} onClose={vi.fn()} />);
     fireEvent.change(screen.getByLabelText("Replace price"), { target: { value: "151" } });
     fireEvent.click(screen.getByRole("button", { name: "Replace order" }));
     await waitFor(() => expect(callFor("/replace")).toBeTruthy());
@@ -129,6 +185,46 @@ describe("ReplaceDialog (§13.2)", () => {
       tif: "DAY",
       price: 151,
     });
+  });
+
+  // C2: defaulting to the original total would silently re-establish size
+  // already filled -- the replacement must default to what's still resting.
+  it("defaults the replacement quantity to what's still resting, not the original total (C2)", async () => {
+    const partial = normalizeOrder({ ...ORDER, remaining_qty: 40 }); // 60 filled
+    useOrderStore.getState().seed([partial]);
+    wrap(<ReplaceDialog orderId={partial.order_id} onClose={vi.fn()} />);
+
+    const qtyInput = screen.getByLabelText("Replace quantity") as HTMLInputElement;
+    expect(qtyInput.value).toBe("40");
+
+    fireEvent.click(screen.getByRole("button", { name: "Replace order" }));
+    await waitFor(() => expect(callFor("/replace")).toBeTruthy());
+    const [, init] = callFor("/replace")!;
+    const body = JSON.parse(init.body!);
+    expect(body.quantity).toBe(40);
+  });
+
+  // C2: filled-so-far is shown read-only alongside the editable quantity.
+  it("shows filled-so-far read-only", () => {
+    const partial = normalizeOrder({ ...ORDER, remaining_qty: 40 }); // 60 filled
+    useOrderStore.getState().seed([partial]);
+    wrap(<ReplaceDialog orderId={partial.order_id} onClose={vi.fn()} />);
+    expect(screen.getByText("Filled")).toBeTruthy();
+    expect(screen.getByText("60")).toBeTruthy();
+  });
+
+  it("closes itself with a notice when the order goes terminal while open (M6)", () => {
+    useOrderStore.getState().seed([ORDER]);
+    const onClose = vi.fn();
+    wrap(<ReplaceDialog orderId={ORDER.order_id} onClose={onClose} />);
+
+    act(() => {
+      useOrderStore.getState().applyCancelled({ gateway_id: "GW1", order_id: ORDER.order_id });
+    });
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(toast).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toast).mock.calls[0]![0]).toContain("no longer open");
   });
 });
 
