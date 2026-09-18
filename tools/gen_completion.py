@@ -34,29 +34,75 @@ def entry_points() -> dict[str, str]:
     return scripts
 
 
+def _scrub_help_text(
+    parser: argparse.ArgumentParser, needle: str, replacement: str
+) -> None:
+    """Replace *needle* with *replacement* in this parser's -- and every
+    subparser's, recursively -- action help text, in place.
+
+    Must run before shtab ever sees the parser: shtab escapes each shell's
+    own special characters (zsh backslash-escapes every "/" and ":") into
+    the rendered output, so a plain substring replace on shtab's output
+    can't find the un-escaped path it's looking for. Substituting on the
+    action objects' own .help strings, which are still plain text, sidesteps
+    that entirely.
+    """
+    for action in parser._actions:  # noqa: SLF001 -- no public equivalent
+        if action.help and needle in action.help:
+            action.help = action.help.replace(needle, replacement)
+        if isinstance(
+            action, argparse._SubParsersAction  # pyright: ignore[reportPrivateUsage]
+        ):
+            for sub_parser in action.choices.values():
+                _scrub_help_text(sub_parser, needle, replacement)
+
+
 def build_parser_for(name: str, target: str) -> argparse.ArgumentParser:
     module = importlib.import_module(target.split(":")[0])
     factory: Callable[[], argparse.ArgumentParser] = getattr(module, "build_parser")
     saved = sys.argv[0]
     sys.argv[0] = name  # parsers without prog= take it from argv[0]
     try:
-        return factory()
+        parser = factory()
     finally:
         sys.argv[0] = saved
+    _scrub_help_text(parser, str(_resolved_data_dir()), _DATA_DIR_PLACEHOLDER)
+    return parser
+
+
+def _resolved_data_dir() -> Path:
+    """The absolute path _CANONICAL_DATA_DIR resolves to once pinned.
+
+    edumatcher.config computes this the same way (.expanduser().resolve())
+    the moment EDUMATCHER_DATA_DIR is set to _CANONICAL_DATA_DIR, so this is
+    exactly the substring that shows up in a few parsers' --help text (e.g.
+    pm-viewer's --db default) -- and exactly what needs scrubbing out.
+    """
+    return Path(_CANONICAL_DATA_DIR).expanduser().resolve()
 
 
 #: A few pm-* parsers embed the resolved data directory (or a path derived
 #: from it, e.g. pm-viewer's --db default) in their --help text, and
 #: edumatcher.config resolves that from EDUMATCHER_DATA_DIR once, at each
 #: module's first import -- with a cwd-relative fallback if the directory
-#: doesn't exist. Pinning it here, before any entry-point module is
-#: imported, and ensuring it exists (below) makes that resolution
-#: deterministic: independent of the caller's shell environment and of the
-#: directory `make completion` happens to be run from. It is still the
-#: project's own "installed default" path (see edumatcher.config), so it
-#: still varies by home directory between machines, same as running any
-#: pm-* command with --help on a fresh install would show.
+#: doesn't exist, and a call to .resolve() that also normalises symlinks
+#: (e.g. macOS's /tmp -> /private/tmp) in whatever we pin it to. So no
+#: fixed value is byte-identical across machines: only the string
+#: substitution below is. Pinning it here, before any entry-point module
+#: is imported, and ensuring it exists (below) at least makes each
+#: individual render() call deterministic -- independent of the caller's
+#: shell environment and of the directory `make completion` happens to be
+#: run from -- and gives render() one known absolute path to substitute
+#: out afterwards.
 _CANONICAL_DATA_DIR = "~/.local/share/edumatcher"
+
+#: What every resolved occurrence of _CANONICAL_DATA_DIR is replaced with
+#: in the rendered text, so the committed files are identical on every
+#: machine regardless of $HOME -- otherwise whoever last ran
+#: `make completion` would bake their own home directory into a script
+#: shipped to everyone else, and tests/test_shell_completion.py's drift
+#: check would fail on any other machine even right after regenerating.
+_DATA_DIR_PLACEHOLDER = "<EDUMATCHER_DATA_DIR>"
 
 
 def render(shell: str) -> str:
@@ -64,7 +110,7 @@ def render(shell: str) -> str:
     # edumatcher.config falls back to a cwd-relative directory when the
     # pinned one does not exist, which would reintroduce the same
     # nondeterminism this is meant to remove -- so make sure it exists.
-    Path(_CANONICAL_DATA_DIR).expanduser().mkdir(parents=True, exist_ok=True)
+    _resolved_data_dir().mkdir(parents=True, exist_ok=True)
     blocks = [
         shtab.complete(build_parser_for(name, target), shell)
         for name, target in sorted(entry_points().items())

@@ -713,7 +713,7 @@ _shtab_pm_audit_commands() {
 _shtab_pm_audit_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "(- : *)--version[show program\'s version number and exit]"
-  "--audit-log-file[Audit-trail log file path (default\: \/Users\/ljp\/.local\/share\/edumatcher\/audit.log)]:PATH:"
+  "--audit-log-file[Audit-trail log file path (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log)]:PATH:"
   {--terminal,-t}"[Also print each audit entry to stdout]"
   "--buffer-size[Number of messages to buffer before writing to disk (default\: 100)]:N:"
   "--flush-interval[Maximum seconds to wait before flushing buffer (default\: 10.0)]:SECONDS:"
@@ -791,7 +791,7 @@ _shtab_pm_audit_cli_commands() {
 _shtab_pm_audit_cli_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "(- : *)--version[show program\'s version number and exit]"
-  "--log-file[Primary audit log file (default\: \/Users\/ljp\/.local\/share\/edumatcher\/audit.log)]:PATH:"
+  "--log-file[Primary audit log file (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log)]:PATH:"
   "--log-dir[Directory containing rotated log backups.]:PATH:"
   "--format[Output format\: table (default), json, or csv]:format:(table json csv)"
   "--no-header[Suppress header row for csv output]"
@@ -979,8 +979,8 @@ _shtab_pm_audit_replay_commands() {
 _shtab_pm_audit_replay_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "(- : *)--version[show program\'s version number and exit]"
-  "--log-file[Audit log to read (default\: \/Users\/ljp\/.local\/share\/edumatcher\/audit.log). Rotated .1, .2.gz ... siblings are discovered automatically.]:PATH:"
-  "--db[Episode index (default\: \/Users\/ljp\/.local\/share\/edumatcher\/audit_replay.db)]:PATH:"
+  "--log-file[Audit log to read (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log). Rotated .1, .2.gz ... siblings are discovered automatically.]:PATH:"
+  "--db[Episode index (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)]:PATH:"
   "--no-index[Stream without building or reading an index]"
   "--rebuild[Rebuild the episode index before rendering]"
   "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
@@ -1011,8 +1011,8 @@ _shtab_pm_audit_replay_defaults_added=0
 
 _shtab_pm_audit_replay_anomalies_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
-  "--log-file[Audit log to read (default\: \/Users\/ljp\/.local\/share\/edumatcher\/audit.log).]:PATH:"
-  "--db[Episode index (default\: \/Users\/ljp\/.local\/share\/edumatcher\/audit_replay.db)]:PATH:"
+  "--log-file[Audit log to read (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log).]:PATH:"
+  "--db[Episode index (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)]:PATH:"
   "--no-index[Stream without building or reading an index]"
   "--rebuild[Rebuild the episode index before rendering]"
   "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
@@ -1044,8 +1044,8 @@ _shtab_pm_audit_replay_anomalies_defaults_added=0
 
 _shtab_pm_audit_replay_digest_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
-  "--log-file[Audit log to read (default\: \/Users\/ljp\/.local\/share\/edumatcher\/audit.log).]:PATH:"
-  "--db[Episode index (default\: \/Users\/ljp\/.local\/share\/edumatcher\/audit_replay.db)]:PATH:"
+  "--log-file[Audit log to read (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log).]:PATH:"
+  "--db[Episode index (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)]:PATH:"
   "--no-index[Stream without building or reading an index]"
   "--rebuild[Rebuild the episode index before rendering]"
   "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
@@ -1078,8 +1078,8 @@ _shtab_pm_audit_replay_digest_defaults_added=0
 
 _shtab_pm_audit_replay_episodes_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
-  "--log-file[Audit log to read (default\: \/Users\/ljp\/.local\/share\/edumatcher\/audit.log).]:PATH:"
-  "--db[Episode index (default\: \/Users\/ljp\/.local\/share\/edumatcher\/audit_replay.db)]:PATH:"
+  "--log-file[Audit log to read (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log).]:PATH:"
+  "--db[Episode index (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)]:PATH:"
   "--no-index[Stream without building or reading an index]"
   "--rebuild[Rebuild the episode index before rendering]"
   "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
@@ -1111,8 +1111,8 @@ _shtab_pm_audit_replay_episodes_defaults_added=0
 
 _shtab_pm_audit_replay_index_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
-  "--log-file[Audit log to read (default\: \/Users\/ljp\/.local\/share\/edumatcher\/audit.log).]:PATH:"
-  "--db[Episode index (default\: \/Users\/ljp\/.local\/share\/edumatcher\/audit_replay.db)]:PATH:"
+  "--log-file[Audit log to read (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log).]:PATH:"
+  "--db[Episode index (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)]:PATH:"
   "--no-index[Stream without building or reading an index]"
   "--rebuild[Rebuild the episode index before rendering]"
   "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
@@ -1144,8 +1144,8 @@ _shtab_pm_audit_replay_index_defaults_added=0
 
 _shtab_pm_audit_replay_stats_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
-  "--log-file[Audit log to read (default\: \/Users\/ljp\/.local\/share\/edumatcher\/audit.log).]:PATH:"
-  "--db[Episode index (default\: \/Users\/ljp\/.local\/share\/edumatcher\/audit_replay.db)]:PATH:"
+  "--log-file[Audit log to read (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log).]:PATH:"
+  "--db[Episode index (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)]:PATH:"
   "--no-index[Stream without building or reading an index]"
   "--rebuild[Rebuild the episode index before rendering]"
   "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
@@ -1176,8 +1176,8 @@ _shtab_pm_audit_replay_stats_defaults_added=0
 
 _shtab_pm_audit_replay_story_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
-  "--log-file[Audit log to read (default\: \/Users\/ljp\/.local\/share\/edumatcher\/audit.log).]:PATH:"
-  "--db[Episode index (default\: \/Users\/ljp\/.local\/share\/edumatcher\/audit_replay.db)]:PATH:"
+  "--log-file[Audit log to read (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log).]:PATH:"
+  "--db[Episode index (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)]:PATH:"
   "--no-index[Stream without building or reading an index]"
   "--rebuild[Rebuild the episode index before rendering]"
   "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
@@ -1219,8 +1219,8 @@ _shtab_pm_audit_replay_story_defaults_added=0
 
 _shtab_pm_audit_replay_stream_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
-  "--log-file[Audit log to read (default\: \/Users\/ljp\/.local\/share\/edumatcher\/audit.log).]:PATH:"
-  "--db[Episode index (default\: \/Users\/ljp\/.local\/share\/edumatcher\/audit_replay.db)]:PATH:"
+  "--log-file[Audit log to read (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log).]:PATH:"
+  "--db[Episode index (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)]:PATH:"
   "--no-index[Stream without building or reading an index]"
   "--rebuild[Rebuild the episode index before rendering]"
   "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
@@ -2108,7 +2108,7 @@ _shtab_pm_config_show_commands() {
 _shtab_pm_config_show_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "(- : *)--version[show program\'s version number and exit]"
-  {-f,--file}"[config file to read (default\: \/Users\/ljp\/.local\/share\/edumatcher\/ref_data\/engine_config.yaml)]:YAML:"
+  {-f,--file}"[config file to read (default\: \<EDUMATCHER_DATA_DIR\>\/ref_data\/engine_config.yaml)]:YAML:"
   {-m,--density}"[pack more information in\; bare -m means 1]:{1,2}:(1 2)"
   {-a,--all}"[show everything, including unmasked API keys]"
   "--format[output format (default\: terminal)]:output_format:(terminal pdf)"
@@ -2823,7 +2823,7 @@ _shtab_pm_log_cli_commands() {
 _shtab_pm_log_cli_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "(- : *)--version[show program\'s version number and exit]"
-  "--db[SQLite database path (default\: \/Users\/ljp\/.local\/share\/edumatcher\/log.db)]:PATH:"
+  "--db[SQLite database path (default\: \<EDUMATCHER_DATA_DIR\>\/log.db)]:PATH:"
   "--format[Output format\: human (default) or json]:format:(human json)"
 )
 
@@ -3870,7 +3870,7 @@ _shtab_pm_stats_commands() {
 _shtab_pm_stats_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "(- : *)--version[show program\'s version number and exit]"
-  "--db[SQLite database path (default\: \/Users\/ljp\/.local\/share\/edumatcher\/stats.db)]:PATH:"
+  "--db[SQLite database path (default\: \<EDUMATCHER_DATA_DIR\>\/stats.db)]:PATH:"
   "--snapshot-interval[Seconds between price_snapshots rows per symbol (default\: 900 \= 15 min). Use a smaller value for higher-resolution intraday history, e.g. 60 for one-minute snapshots.]:SEC:"
   "--timezone[Exchange session timezone that defines the trading date used by the date columns of daily_stats and index_daily_stats (IANA name, e.g. Europe\/Stockholm\; default\: UTC). Must match pm-clearing\'s --timezone or the two daily rollups will not reconcile.]:TZ:"
   "--sql-trace[Log executed SQLite statements from the stats writer connection]"
@@ -3953,7 +3953,7 @@ _shtab_pm_stats_cli_commands() {
 _shtab_pm_stats_cli_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "(- : *)--version[show program\'s version number and exit]"
-  "--db[Statistics SQLite DB path (default\: \/Users\/ljp\/.local\/share\/edumatcher\/stats.db)]:PATH:"
+  "--db[Statistics SQLite DB path (default\: \<EDUMATCHER_DATA_DIR\>\/stats.db)]:PATH:"
   "--format[Output format (table, json, csv)]:format:(table json csv)"
   "--no-header[Suppress header row for table and csv output]"
   "--timezone[Override the session timezone that --date resolves in. By default the timezone the database was recorded with is used, so this is rarely needed\; overriding with a different value warns, because --date will then select a different trading day than pm-stats used]:TZ:"
@@ -4172,7 +4172,7 @@ _shtab_pm_ticker_commands() {
 _shtab_pm_ticker_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "(- : *)--version[show program\'s version number and exit]"
-  "--db[Statistics SQLite database (default\: \/Users\/ljp\/.local\/share\/edumatcher\/stats.db)]:PATH:"
+  "--db[Statistics SQLite database (default\: \<EDUMATCHER_DATA_DIR\>\/stats.db)]:PATH:"
   "--db-interval[Seconds between daily_stats DB re-queries (default\: 900)]:SEC:"
   "--timezone[Override the session timezone used to resolve today\'s trading date. By default the timezone the statistics database was recorded with is used, which is almost always what you want]:TZ:"
   "--log-level[Logging level override (default\: WARNING)]:log_level:(CRITICAL ERROR WARNING INFO DEBUG)"
@@ -4244,7 +4244,7 @@ _shtab_pm_viewer_options=(
   "(- : *)--version[show program\'s version number and exit]"
   {--symbol,-s}"[Symbol to watch, e.g. AAPL]:SYMBOL:"
   {--depth,-d}"[Max price levels to display (default\: fit to terminal height)]:depth:"
-  "--db[Statistics SQLite DB for seed OHLC (default\: \/Users\/ljp\/.local\/share\/edumatcher\/stats.db)]:PATH:"
+  "--db[Statistics SQLite DB for seed OHLC (default\: \<EDUMATCHER_DATA_DIR\>\/stats.db)]:PATH:"
   "--text-color[Body text color for the order book tables \— a \#rrggbb hex code or a Rich color name (default\: white)]:COLOR:"
   "--zebra-lines[Shade every second row of the BIDS\/ASKS\/TRADES tables with a background tint for readability (default\: off)]"
   "--zebra-lines-color[Background tint used by --zebra-lines \— a \#rrggbb hex code or a Rich color name (default\: grey19, a dark grey). Has no effect unless --zebra-lines is given.]:COLOR:"
