@@ -6509,7 +6509,11 @@ class Engine:
                     if payload.get("client_tag") is not None
                     else None
                 ),
-                request_tag=None,
+                request_tag=(
+                    str(payload["request_tag"])
+                    if payload.get("request_tag") is not None
+                    else None
+                ),
             )
         except Exception as send_exc:
             # The reject is best-effort: raising here would escape run() and

@@ -63,6 +63,28 @@ class FakeEngine:
             "order_id": match.get("order_id", "") if match else "",
         }
 
+    async def await_cancel_or_amend_outcome(
+        self,
+        *,
+        success_topic: str,
+        gateway_id: str,
+        order_id: str,
+        request_tag: str,
+        timeout: float,
+    ) -> dict[str, Any]:
+        self.calls.append(
+            (
+                "await_cancel_or_amend_outcome",
+                (success_topic, gateway_id, order_id, request_tag, timeout),
+            )
+        )
+        return {
+            "accepted": True,
+            "topic": success_topic,
+            "order_id": order_id,
+            "request_tag": request_tag,
+        }
+
     def get_caches(self, gateway_id: str) -> SessionCaches:
         self.calls.append(("get_caches", gateway_id))
         return self.cache
@@ -152,6 +174,18 @@ class TimeoutEngine(FakeEngine):
         _ = (topic, match, timeout)
         raise TimeoutError("no reply")
 
+    async def await_cancel_or_amend_outcome(
+        self,
+        *,
+        success_topic: str,
+        gateway_id: str,
+        order_id: str,
+        request_tag: str,
+        timeout: float,
+    ) -> dict[str, Any]:
+        _ = (success_topic, gateway_id, order_id, request_tag, timeout)
+        raise TimeoutError("no reply")
+
 
 class RejectedAckEngine(FakeEngine):
     async def await_event(
@@ -164,6 +198,34 @@ class RejectedAckEngine(FakeEngine):
             "reason": "collar breach",
             "reject_code": "COLLAR_BREACH",
             "client_tag": "REST-ORDER-001",
+        }
+
+
+class RejectedCancelOrAmendEngine(FakeEngine):
+    """C1: a rejected cancel/amend races order.ack, not the success topic."""
+
+    async def await_cancel_or_amend_outcome(
+        self,
+        *,
+        success_topic: str,
+        gateway_id: str,
+        order_id: str,
+        request_tag: str,
+        timeout: float,
+    ) -> dict[str, Any]:
+        self.calls.append(
+            (
+                "await_cancel_or_amend_outcome",
+                (success_topic, gateway_id, order_id, request_tag, timeout),
+            )
+        )
+        return {
+            "gateway_id": gateway_id,
+            "order_id": order_id,
+            "accepted": False,
+            "reason": "collar breach",
+            "reject_code": "COLLAR_BREACH",
+            "request_tag": request_tag,
         }
 
 
@@ -321,19 +383,27 @@ async def test_cancel_and_amend_route_request_tags_are_forwarded() -> None:
     assert amend["request_tag"] == "RT-AMD-001"
     assert ("send_cancel", ("ORD1", "GW01", "RT-CXL-001")) in engine.calls
     assert ("send_amend", ("ORD1", "GW01", 151.0, None, "RT-AMD-001")) in engine.calls
+    # A request_tag is present, so C1's fix races the reject topic
+    # (await_cancel_or_amend_outcome) rather than only awaiting the success
+    # topic — see test_rejected_cancel_is_reported_not_timed_out below for
+    # what that buys when the engine actually rejects.
     assert (
-        "await_event",
+        "await_cancel_or_amend_outcome",
         (
             topic_order_cancelled("GW01"),
-            {"order_id": "ORD1", "request_tag": "RT-CXL-001"},
+            "GW01",
+            "ORD1",
+            "RT-CXL-001",
             request.app.state.config.timeouts.wait_ack_sec,
         ),
     ) in engine.calls
     assert (
-        "await_event",
+        "await_cancel_or_amend_outcome",
         (
             topic_order_amended("GW01"),
-            {"order_id": "ORD1", "request_tag": "RT-AMD-001"},
+            "GW01",
+            "ORD1",
+            "RT-AMD-001",
             request.app.state.config.timeouts.wait_ack_sec,
         ),
     ) in engine.calls
@@ -497,3 +567,140 @@ async def test_healthz_reports_unhealthy_when_not_running() -> None:
     )
     result = await reference.healthz(request)  # type: ignore[arg-type]  # test double
     assert result["ok"] is False
+
+
+# ---------------------------------------------------------------------------
+# C1 — a rejected cancel/amend must not be reported as a timeout, and the
+# route response must say REJECTED rather than the misleading PENDING_*/ACKED
+# it used to return regardless of what the engine actually decided.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_rejected_cancel_is_reported_not_timed_out() -> None:
+    engine = RejectedCancelOrAmendEngine()
+    request = fake_request(engine)
+    session = trading_session()
+
+    cancelled = await orders.cancel_order(
+        "ORD1", request, session, wait="ack", request_tag="RT-CXL-001"
+    )
+
+    assert cancelled.status == "REJECTED"
+    assert cancelled.accepted is False
+    assert cancelled.reject_code == "COLLAR_BREACH"
+    assert cancelled.event is not None
+    assert cancelled.event["accepted"] is False
+    assert (
+        "await_cancel_or_amend_outcome",
+        (
+            topic_order_cancelled("GW01"),
+            "GW01",
+            "ORD1",
+            "RT-CXL-001",
+            request.app.state.config.timeouts.wait_ack_sec,
+        ),
+    ) in engine.calls
+
+
+@pytest.mark.anyio
+async def test_rejected_amend_is_reported_not_timed_out() -> None:
+    engine = RejectedCancelOrAmendEngine()
+    request = fake_request(engine)
+    session = trading_session()
+
+    amended = await orders.amend_order(
+        "ORD1",
+        AmendRequest(price=151.0, request_tag="RT-AMD-001"),
+        request,
+        session,
+        wait="ack",
+    )
+
+    assert amended["status"] == "REJECTED"
+    assert amended["accepted"] is False
+    assert amended["reject_code"] == "COLLAR_BREACH"
+    assert amended["event"]["accepted"] is False
+
+
+@pytest.mark.anyio
+async def test_accepted_cancel_still_reports_acked() -> None:
+    engine = FakeEngine()
+    request = fake_request(engine)
+    session = trading_session()
+
+    cancelled = await orders.cancel_order(
+        "ORD1", request, session, wait="ack", request_tag="RT-CXL-002"
+    )
+
+    assert cancelled.status == "ACKED"
+    assert cancelled.accepted is True
+    assert cancelled.reject_code is None
+
+
+@pytest.mark.anyio
+async def test_accepted_amend_still_reports_acked() -> None:
+    engine = FakeEngine()
+    request = fake_request(engine)
+    session = trading_session()
+
+    amended = await orders.amend_order(
+        "ORD1",
+        AmendRequest(price=151.0, request_tag="RT-AMD-002"),
+        request,
+        session,
+        wait="ack",
+    )
+
+    assert amended["status"] == "ACKED"
+    assert amended["accepted"] is True
+    assert amended["reject_code"] is None
+
+
+@pytest.mark.anyio
+async def test_cancel_wait_ack_without_request_tag_falls_back_to_single_topic() -> None:
+    """No request_tag means nothing safe to race the reject topic on — this
+    keeps the pre-C1-fix behaviour (single-topic wait) rather than guessing."""
+    engine = FakeEngine()
+    request = fake_request(engine)
+    session = trading_session()
+
+    cancelled = await orders.cancel_order("ORD1", request, session, wait="ack")
+
+    assert cancelled.status == "ACKED"
+    assert (
+        "await_event",
+        (
+            topic_order_cancelled("GW01"),
+            {"order_id": "ORD1"},
+            request.app.state.config.timeouts.wait_ack_sec,
+        ),
+    ) in engine.calls
+    assert not any(call[0] == "await_cancel_or_amend_outcome" for call in engine.calls)
+
+
+@pytest.mark.anyio
+async def test_cancel_wait_ack_timeout_still_surfaces_503_with_request_tag() -> None:
+    engine = TimeoutEngine()
+    request = fake_request(engine)
+    session = trading_session()
+
+    with pytest.raises(Exception):
+        await orders.cancel_order(
+            "ORD1", request, session, wait="ack", request_tag="RT-CXL-003"
+        )
+
+
+@pytest.mark.anyio
+async def test_cancel_without_wait_does_not_call_the_racing_wait() -> None:
+    engine = FakeEngine()
+    request = fake_request(engine)
+    session = trading_session()
+
+    cancelled = await orders.cancel_order(
+        "ORD1", request, session, request_tag="RT-CXL-004"
+    )
+
+    assert cancelled.event is None
+    assert cancelled.status == "PENDING_CANCEL"
+    assert not any(call[0] == "await_cancel_or_amend_outcome" for call in engine.calls)

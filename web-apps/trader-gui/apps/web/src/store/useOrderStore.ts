@@ -137,6 +137,15 @@ export const useOrderStore = create<OrderStore>((set) => {
     applyAck: (d) =>
       set((state) => {
         if (!d.order_id) return state;
+        // order.ack accepted=false is shared by three different requests: a
+        // rejected NEW order, and a rejected cancel or amend against an
+        // order that is still resting (C1). The engine's own new-order
+        // reject paths always publish request_tag=null (order.new carries no
+        // such field); only a cancel or amend request carries one. A
+        // cancel/amend reject must not touch the order's status — the order
+        // it targets never stopped resting.
+        const isCancelOrAmendReject = !d.accepted && d.request_tag != null;
+        if (isCancelOrAmendReject) return state;
         const patch = detailPatch(d);
         patch.status = d.accepted ? "NEW" : "REJECTED";
         // An accepted new order rests with its full quantity remaining.

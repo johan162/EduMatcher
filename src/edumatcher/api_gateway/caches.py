@@ -42,11 +42,25 @@ class SessionCaches:
             if order_id:
                 current = self.orders.setdefault(order_id, {"order_id": order_id})
                 current.update(payload)
-                self._set_status(
-                    order_id,
-                    current,
-                    "NEW" if payload.get("accepted") else "REJECTED",
+                # order.ack accepted=false is shared by three different
+                # requests: a rejected NEW order, and a rejected cancel or
+                # amend against an order that is still resting (C1). The
+                # engine's own new-order reject paths always publish
+                # request_tag=None (order.new carries no such field); only
+                # _handle_cancel/_handle_amend forward the client's
+                # request_tag. A cancel/amend reject must not touch the
+                # order's status — the order it targets never stopped
+                # resting, so overwriting it with REJECTED here is the bug.
+                is_cancel_or_amend_reject = (
+                    not payload.get("accepted")
+                    and payload.get("request_tag") is not None
                 )
+                if not is_cancel_or_amend_reject:
+                    self._set_status(
+                        order_id,
+                        current,
+                        "NEW" if payload.get("accepted") else "REJECTED",
+                    )
         elif topic.startswith(ORDER_FILL_PREFIX):
             order_id = str(payload.get("order_id", ""))
             if order_id:

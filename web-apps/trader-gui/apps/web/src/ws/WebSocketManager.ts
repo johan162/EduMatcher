@@ -479,6 +479,7 @@ export function __setMarketDataSocketForTest(socket: ManagedSocket | null): void
 }
 
 export const __marketDataMessageForTest = handleMarketDataMessage;
+export const __privateMessageForTest = handlePrivateMessage;
 
 // ── React hook ────────────────────────────────────────────────────────────────
 /**

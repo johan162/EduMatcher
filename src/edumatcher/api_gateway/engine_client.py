@@ -56,6 +56,7 @@ from edumatcher.models.message import (
     make_symbol_resume_msg,
     make_symbols_request_msg,
 )
+from edumatcher.models.generated.order import topic_order_ack
 from edumatcher.models.order import Order
 from edumatcher.models.price import register_tick_decimals
 from edumatcher.models.generated.risk import topic_kill_switch_ack
@@ -630,6 +631,56 @@ class EngineClient:
                 request_tag=request_tag,
             )
         )
+
+    async def await_cancel_or_amend_outcome(
+        self,
+        *,
+        success_topic: str,
+        gateway_id: str,
+        order_id: str,
+        request_tag: str,
+        timeout: float,
+    ) -> dict[str, Any]:
+        """Wait for a cancel or amend to resolve, racing success against reject.
+
+        `order.cancelled`/`order.amended` is the success outcome. A rejected
+        cancel or amend instead publishes `order.ack accepted=false` (C1) —
+        the same ack a rejected *new* order publishes, told apart here only
+        by carrying this request's `request_tag`, which a new-order reject
+        never does (order.new has no such field; only order.cancel/order.amend
+        do). A caller that only awaited *success_topic*, as this used to,
+        would time out on every rejected cancel/amend instead of reporting it.
+        Mirrors IndexClient.request_history's two-topic race.
+        """
+        reject_topic = topic_order_ack(gateway_id)
+        success_future = self._register_future(
+            success_topic, match={"order_id": order_id, "request_tag": request_tag}
+        )
+        reject_future = self._register_future(
+            reject_topic,
+            match={
+                "order_id": order_id,
+                "request_tag": request_tag,
+                "accepted": "False",
+            },
+        )
+        try:
+            done, pending = await asyncio.wait(
+                {success_future, reject_future},
+                timeout=timeout,
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+        finally:
+            # Always drop both waiters once one resolves (or on timeout) so a
+            # slow/duplicate reply never resolves a future we've already
+            # abandoned or lands in _pending indefinitely.
+            self._drop_pending(success_topic, success_future)
+            self._drop_pending(reject_topic, reject_future)
+        for future in pending:
+            future.cancel()
+        if not done:
+            raise TimeoutError(f"Timed out waiting for {success_topic}")
+        return done.pop().result()
 
     def send_combo(self, payload: dict[str, Any]) -> None:
         self._send(make_combo_order_msg(payload))

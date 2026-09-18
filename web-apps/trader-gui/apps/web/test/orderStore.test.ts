@@ -87,6 +87,69 @@ describe("useOrderStore reducers", () => {
     expect(useOrderStore.getState().orders["o2"]!.status).toBe("REJECTED");
   });
 
+  describe("C1 — a rejected cancel/amend must not mark a live order REJECTED", () => {
+    // order.ack accepted=false is shared by three requests: a rejected NEW
+    // order, and a rejected cancel or amend against an order that is still
+    // resting. The engine's new-order reject paths always publish
+    // request_tag=null (order.new carries no such field); only a cancel or
+    // amend request carries one — that is what applyAck now keys on.
+    it("a rejected cancel (request_tag set) leaves a resting order's status untouched", () => {
+      useOrderStore.getState().applyAck(ack({ order_id: "o1", accepted: true, qty: 100 }));
+      expect(useOrderStore.getState().orders["o1"]!.status).toBe("NEW");
+
+      useOrderStore.getState().applyAck(
+        ack({ order_id: "o1", accepted: false, reason: "Order not found", reject_code: "ORDER_NOT_FOUND", request_tag: "cancel-abc" }),
+      );
+      const o1 = useOrderStore.getState().orders["o1"]!;
+      expect(o1.status).toBe("NEW");
+      expect(o1.quantity).toBe(100);
+    });
+
+    it("a rejected amend (request_tag set) leaves a resting order's status untouched", () => {
+      useOrderStore.getState().applyAck(ack({ order_id: "o1", accepted: true, qty: 100, price: 150 }));
+
+      useOrderStore.getState().applyAck(
+        ack({ order_id: "o1", accepted: false, reason: "collar breach", reject_code: "COLLAR_BREACH", request_tag: "amend-def" }),
+      );
+      const o1 = useOrderStore.getState().orders["o1"]!;
+      expect(o1.status).toBe("NEW");
+      expect(o1.price).toBe(150);
+    });
+
+    it("a rejected cancel on a PARTIAL order does not roll it back to REJECTED", () => {
+      useOrderStore.getState().applyAck(ack({ order_id: "o1", accepted: true, qty: 100 }));
+      useOrderStore.getState().applyFill(
+        fill({ order_id: "o1", fill_qty: 40, fill_price: 150, remaining_qty: 60, status: "PARTIAL" }),
+      );
+      expect(useOrderStore.getState().orders["o1"]!.status).toBe("PARTIAL");
+
+      useOrderStore.getState().applyAck(
+        ack({ order_id: "o1", accepted: false, reason: "collar breach", request_tag: "amend-ghi" }),
+      );
+      expect(useOrderStore.getState().orders["o1"]!.status).toBe("PARTIAL");
+    });
+
+    it("P1b: a FILLED order is not relabelled REJECTED by a cancel that lost the race", () => {
+      useOrderStore.getState().applyAck(ack({ order_id: "o1", accepted: true, qty: 100 }));
+      useOrderStore.getState().applyFill(
+        fill({ order_id: "o1", fill_qty: 100, fill_price: 150, remaining_qty: 0, status: "FILLED" }),
+      );
+      expect(useOrderStore.getState().orders["o1"]!.status).toBe("FILLED");
+
+      useOrderStore.getState().applyAck(
+        ack({ order_id: "o1", accepted: false, reason: "Order not found", reject_code: "ORDER_NOT_FOUND", request_tag: "cancel-jkl" }),
+      );
+      expect(useOrderStore.getState().orders["o1"]!.status).toBe("FILLED");
+    });
+
+    it("a genuine new-order reject (no request_tag) still marks REJECTED even if the id happens to already exist", () => {
+      // Defends the discriminator itself: request_tag absent is what keeps
+      // this branch behaving like a plain new-order reject.
+      useOrderStore.getState().applyAck(ack({ order_id: "o9", accepted: false, reason: "collar breach" }));
+      expect(useOrderStore.getState().orders["o9"]!.status).toBe("REJECTED");
+    });
+  });
+
   it("keeps a fill whose status is not in the union out of the store", () => {
     useOrderStore.getState().applyAck(ack({ order_id: "o9", accepted: true, qty: 100 }));
     useOrderStore
