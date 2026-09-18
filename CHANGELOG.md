@@ -1,3 +1,15 @@
+## [v0.40.1] - 2026-09-18
+
+Release Type: patch
+
+### 📋 Summary
+Fixes a path issue with the new shell completion which made `make competion` work on either MacOS or Linux, but not
+both with re-making the completion.
+
+### 🐛 Bug Fixes
+- The completion generator now scrubs the HOME path out of each parser's help text
+
+
 ## [v0.40.0] - 2026-09-17
 
 Release Type: minor
