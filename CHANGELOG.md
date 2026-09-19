@@ -1,3 +1,19 @@
+## [v0.40.2] - 2026-09-19
+
+Release Type: patch
+
+### 📋 Summary
+This patch release fixes Trader GUI state handling around private-stream gaps, hydration, and cancel/replace edge cases. It also strengthens venue resync and trade deduplication across the web app stack.
+
+### 🐛 Bug Fixes
+- Fixed private-stream gaps and stale hydration in the Trader GUI by making hydration authoritative and reading `ts_ns` from the stream
+- Fixed cancel/replace over-trades, stale order snapshots, and rejected cancel/amend handling in the Trader GUI
+- Fixed halt and session resync issues, together with order-type gating in the web apps
+- Fixed trade deduplication and venue-wide trade resume issues in the bus and web app layers
+
+### 🛠 Internal
+- Tightened validation around gap detection and trade-resume behavior in the GUI and web layers
+
 ## [v0.40.1] - 2026-09-18
 
 Release Type: patch
