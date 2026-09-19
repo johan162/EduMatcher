@@ -4254,15 +4254,24 @@ operations often require deterministic automation:</p>
 </code></pre></div>
 <p>Observe startup logs for:</p>
 <ul>
-<li>QBOOT bootstrap resolution.</li>
-<li>QLEGS reconciliation status.</li>
-<li>Session readiness before first quote.</li>
+<li>Bootstrap reference resolution (existing quote adopted, or a random-range
+  price).</li>
+<li>Session readiness before the first quote.</li>
+<li>QLEGS reconciliation, which is silent while everything agrees and only
+  logs when it finds a mismatch.</li>
 </ul>
-<p>Representative startup sequence:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[INFO] QBOOT reply: active_quote=None bootstrap_prices={...}
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>[INFO] QLEGS reconcile: symbol=AAPL state=clean
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>[INFO] Session state CONTINUOUS; issuing initial quote
+<p>Every bot log line is prefixed with the bot's gateway ID (<code>[&lt;gateway_id&gt;]</code>),
+and per-symbol lines add a <code>[&lt;symbol&gt;]</code> tag. Representative startup lines
+(after the usual timestamp/level/logger prefix):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[MM_AAPL_01] starting: symbols=AAPL strategy=... gap=0.1 qty=500 ...
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>[MM_AAPL_01] [AAPL] bootstrap from random range: 100.37
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>[MM_AAPL_01] running symbols=['AAPL'] session=CONTINUOUS
 </code></pre></div>
+<p>The <code>bootstrap from random range</code> line only appears when the price came from
+<code>--initial_min</code>/<code>--initial_max</code> (Exercise 5); with a live book the reference
+comes from the book and <code>-v</code> shows it as <code>[&lt;symbol&gt;] reference from book/trade: &lt;price&gt;</code>. There is no
+per-quote <code>INFO</code> line — use <code>QLEGS|SYM=AAPL</code> on the MM gateway to confirm the
+quote is live.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can identify and tune the timeout knobs that control startup behavior.</p>
 <div class="admonition note">
 <p class="admonition-title">These knobs apply per symbol on a --symbols bot</p>

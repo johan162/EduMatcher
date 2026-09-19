@@ -2577,10 +2577,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-4-verify-liquidity-from-the-trader-gateway" class="md-nav__link">
+  <a href="#exercise-4-verify-liquidity-from-the-operator-console" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 4: Verify Liquidity from the Trader Gateway
+        Exercise 4: Verify Liquidity from the Operator Console
       
     </span>
   </a>
@@ -4324,8 +4324,8 @@ the deploy succeeds, and the engine logs show 6 gateways loaded.</p>
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>[MM_TSLA_01]&gt; QUOTE|SYM=TSLA|BID=249.75|ASK=250.25|BID_QTY=200|ASK_QTY=200|TIF=DAY|QUOTE_ID=TSLA-MM-001
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> all three market makers report active quotes.</p>
-<h2 id="exercise-4-verify-liquidity-from-the-trader-gateway">Exercise 4: Verify Liquidity from the Trader Gateway<a class="headerlink" href="#exercise-4-verify-liquidity-from-the-trader-gateway" title="Permanent link">&para;</a></h2>
-<p>From <code>TRADER01</code>:</p>
+<h2 id="exercise-4-verify-liquidity-from-the-operator-console">Exercise 4: Verify Liquidity from the Operator Console<a class="headerlink" href="#exercise-4-verify-liquidity-from-the-operator-console" title="Permanent link">&para;</a></h2>
+<p>From the <strong>operator console</strong> (<code>pm-admin</code>) — a trader cannot inspect the whole book:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[GW_ADMIN|ADMIN]&gt; BOOK|SYM=AAPL
 </code></pre></div>
 <p>You should see a two-sided book with the MM's bid and ask. Repeat for MSFT and TSLA.</p>

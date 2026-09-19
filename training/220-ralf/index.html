@@ -4344,13 +4344,14 @@ new trades.</p>
 <li>UNSUB updates delivery set</li>
 </ul>
 <div class="admonition note">
-<p class="admonition-title"><code>EXIT</code> is gateway-initiated, not client-sent</p>
-<p>Per the <a href="../../user-guide/930-app-ralf-protocol/#5-message-catalog">RALF Protocol Reference</a>,
-<code>EXIT</code> flows <strong>gateway → client</strong> only (e.g. on idle timeout,
-<code>EXIT|REASON=idle_timeout|TS=...</code>) — there is no client-sent <code>EXIT</code>
-command in the wire protocol, and the gateway has no handler for one.
-To end your own session, simply close the TCP connection (<code>Ctrl+D</code> /
-<code>Ctrl+C</code> in <code>nc</code>) rather than sending an <code>EXIT</code> line.</p>
+<p class="admonition-title"><code>EXIT</code> is documented as gateway-initiated</p>
+<p>The <a href="../../user-guide/930-app-ralf-protocol/#5-message-catalog">RALF Protocol Reference</a>
+lists <code>EXIT</code> as <strong>gateway → client</strong> only (e.g. on idle timeout,
+<code>EXIT|REASON=idle_timeout|TS=...</code>). The current gateway implementation
+additionally accepts a client-sent <code>EXIT</code> and simply closes the session
+after flushing pending output; this is not part of the documented wire
+protocol, so portable clients should end a session by closing the TCP
+connection (<code>Ctrl+D</code> / <code>Ctrl+C</code> in <code>nc</code>) rather than relying on it.</p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can manually drive and verify protocol control flow, and you can explain who is allowed to send <code>EXIT</code>.</p>
 <h2 id="support-libraries-and-example-clients">Support Libraries and Example Clients<a class="headerlink" href="#support-libraries-and-example-clients" title="Permanent link">&para;</a></h2>

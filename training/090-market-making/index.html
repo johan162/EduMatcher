@@ -4551,9 +4551,9 @@ symbol — use <code>KILL</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>[MM_MANUAL_01]&gt; KILL
 </code></pre></div>
 <p>Expected:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>KILL ACK  cancelled_orders=&lt;n&gt; cancelled_quotes=&lt;n&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>[&lt;time&gt;] KILL ACK  orders=&lt;n&gt; quote_legs=&lt;n&gt;
 </code></pre></div>
-<p><code>cancelled_quotes</code> counts individual legs, not quote records, so a single
+<p><code>quote_legs</code> counts individual legs, not quote records, so a single
 two-sided quote contributes up to 2 to that count. Scope it to one symbol
 with <code>KILL|SYM=&lt;symbol&gt;</code> instead of clearing every symbol at once.</p>
 <div class="admonition note">

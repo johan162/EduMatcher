@@ -4204,11 +4204,14 @@ tool lets you query this data without writing SQL.</p>
 <h2 id="exercise-1-start-the-statistics-service">Exercise 1: Start the Statistics Service<a class="headerlink" href="#exercise-1-start-the-statistics-service" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-stats
 </code></pre></div>
-<p>Expected (the exact path shown reflects your <code>EDUMATCHER_DATA_DIR</code>):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>[INFO] Stats service connected — recording to &lt;EDUMATCHER_DATA_DIR&gt;/stats.db
+<p><code>pm-stats</code> logs at <code>WARNING</code> by default, so it starts silently. To see its
+startup messages, run it with <code>-v</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-stats<span class="w"> </span>-v
 </code></pre></div>
-<p>To confirm the active path with a stable command rather than trusting the
-log line, run:</p>
+<p>The last startup line reads <code>recording market statistics (Ctrl-C to stop)</code>,
+preceded by an <code>opened stats DB connection path=...</code> line showing the
+database path (which reflects your <code>EDUMATCHER_DATA_DIR</code>).</p>
+<p>To confirm the active path with a stable command instead, run:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pm-stats<span class="w"> </span>--help
 </code></pre></div>
 <p>and check the default shown for <code>--db</code>, or simply verify the file exists

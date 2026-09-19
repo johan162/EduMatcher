@@ -4232,8 +4232,9 @@ resting order state across gateways.</p>
 way to observe the event stream without writing a custom ZMQ subscriber.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> audit output shows the trade/order lifecycle events.</p>
 <h2 id="exercise-4-confirm-the-drop-copy-feed-is-bound">Exercise 4: Confirm the Drop-Copy Feed Is Bound<a class="headerlink" href="#exercise-4-confirm-the-drop-copy-feed-is-bound" title="Permanent link">&para;</a></h2>
-<p>Restart <code>pm-engine --verbose</code> and look for this startup line:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[ENGINE] Drop copy PUB bound on port 5557
+<p>Restart <code>pm-engine --verbose</code> and look for this startup line in the engine
+output (preceded by the usual timestamp, level and logger name):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>Drop copy PUB bound on port 5557
 </code></pre></div>
 <p>That confirms the drop-copy publisher is active. It is intended for external
 risk/compliance subscribers and publishes topics such as
@@ -4337,8 +4338,10 @@ risk or clearing consumer correlate its private execution with <code>trade.execu
 <p>Start the multi-symbol dashboard:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pm-board<span class="w"> </span>--rows<span class="w"> </span><span class="m">8</span><span class="w"> </span>--interval<span class="w"> </span><span class="m">10</span>
 </code></pre></div>
-<p>If <code>pm-stats</code> is running, <code>pm-board</code> combines live book state with recent OHLCV
-context from <code>stats.db</code>.</p>
+<p><code>pm-board</code> is a pure market-data subscriber: it builds its table from the live
+<code>book.*</code> and <code>trade.executed</code> topics only and does not read <code>stats.db</code>. It
+auto-rotates pages every <code>--interval</code> seconds; Enter, PgUp and PgDn page
+manually.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> board shows AAPL, MSFT, and TSLA in one view.</p>
 <h2 id="key-architecture">Key Architecture<a class="headerlink" href="#key-architecture" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>flowchart LR

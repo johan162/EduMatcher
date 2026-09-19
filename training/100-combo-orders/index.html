@@ -4284,10 +4284,14 @@ is automatically cancelled:</p>
 </code></pre></div>
 <p>When the first order fills (price drops to 149.50), the second order at 148.00
 is automatically cancelled.</p>
+<p>To pull an OCO pair yourself before either leg fills, cancel it by its
+<code>OCO_ID</code> rather than cancelling each leg individually:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[TRADER01]&gt; CANCEL|OCO_ID=OCO-AAPL-ENTRY
+</code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> filling one OCO leg cancels the other.</p>
 <h2 id="exercise-6-oco-with-different-sides">Exercise 6: OCO with Different Sides<a class="headerlink" href="#exercise-6-oco-with-different-sides" title="Permanent link">&para;</a></h2>
 <p>A common pattern — bracket order (take-profit + stop-loss):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[TRADER01]&gt; NEW|TYPE=OCO|OCO_ID=BRACKET-AAPL-001|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=SELL|LEG1_TYPE=LIMIT|LEG1_PRICE=151.00|LEG2_SIDE=SELL|LEG2_TYPE=STOP|LEG2_STOP=149.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[TRADER01]&gt; NEW|TYPE=OCO|OCO_ID=BRACKET-AAPL-001|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=SELL|LEG1_TYPE=LIMIT|LEG1_PRICE=151.00|LEG2_SIDE=SELL|LEG2_TYPE=STOP|LEG2_STOP=149.00
 </code></pre></div>
 <p>If price rises to 151.00 (take-profit fills), the stop is cancelled.
 If price drops to 149.00 (stop triggers and fills), the limit sell is cancelled.</p>

@@ -4179,9 +4179,12 @@ that maximises the quantity traded.</p>
 You want to be sitting in <code>OPENING_AUCTION</code> — <strong>not</strong> <code>PRE_OPEN</code> — before
 sending the <code>TIF=ATO</code> orders below: the engine only accepts <code>ATO</code> orders
 while the session state is exactly <code>OPENING_AUCTION</code> and rejects them during
-<code>PRE_OPEN</code> even though <code>PRE_OPEN</code> accepts orders generally. From
-<code>PRE_OPEN</code>, transition directly:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=OPENING_AUCTION
+<code>PRE_OPEN</code> even though <code>PRE_OPEN</code> accepts orders generally. With no
+scheduler running, a freshly started engine sits in <code>CLOSED</code>, and <code>CLOSED</code>'s
+only legal move is to <code>PRE_OPEN</code> — so get there first, then go on to
+<code>OPENING_AUCTION</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=PRE_OPEN
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=OPENING_AUCTION
 </code></pre></div>
 <p>From two gateways, enter orders while in <code>OPENING_AUCTION</code>:</p>
 <p><strong>TRADER01:</strong>

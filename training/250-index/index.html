@@ -4849,24 +4849,28 @@ Without it <code>pm-index</code> will refuse to start.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-index
 </code></pre></div>
 <p>Expected startup output:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[INFO] pm-index starting — 1 index configured
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>[INFO] EDU100: No state file found — initialising from config
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>[INFO] EDU100: divisor=7007100000.000 level=1000.00 (base_value)  constituents=AAPL,MSFT,TSLA
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>[INFO] pm-index ready — subscribing to pm-engine on tcp://127.0.0.1:5556
+<p><code>pm-index</code> logs at <code>WARNING</code> by default, so it starts silently. Run it with
+<code>-v</code> to see the startup messages:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-index<span class="w"> </span>-v
 </code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>starting pm-index with log level INFO
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>loaded 1 index runtime config(s)
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>index ready index_id=EDU100 constituents=3 level=1000.0
+</code></pre></div>
+<p>(Each line is preceded by the usual timestamp, level and logger name.)</p>
 <p>The <code>INIT</code> record has been written to <code>data/indexes/EDU100_history.jsonl</code>.
 Verify:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>cat<span class="w"> </span>data/indexes/EDU100_history.jsonl
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>cat<span class="w"> </span>data/indexes/EDU100_history.jsonl
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"INIT"</span><span class="p">,</span><span class="w"> </span><span class="nt">"timestamp"</span><span class="p">:</span><span class="w"> </span><span class="err">...</span><span class="p">,</span><span class="w"> </span><span class="nt">"index_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"EDU100"</span><span class="p">,</span><span class="w"> </span><span class="nt">"base_value"</span><span class="p">:</span><span class="w"> </span><span class="mf">1000.0</span><span class="p">,</span><span class="w"> </span><span class="nt">"divisor"</span><span class="p">:</span><span class="w"> </span><span class="mf">7007100000.0</span><span class="p">,</span><span class="w"> </span><span class="nt">"constituents"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"AAPL"</span><span class="p">,</span><span class="w"> </span><span class="s2">"MSFT"</span><span class="p">,</span><span class="w"> </span><span class="s2">"TSLA"</span><span class="p">],</span><span class="w"> </span><span class="nt">"level"</span><span class="p">:</span><span class="w"> </span><span class="mf">1000.0</span><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">{</span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"INIT"</span><span class="p">,</span><span class="w"> </span><span class="nt">"ts_ns"</span><span class="p">:</span><span class="w"> </span><span class="err">...</span><span class="p">,</span><span class="w"> </span><span class="nt">"index_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"EDU100"</span><span class="p">,</span><span class="w"> </span><span class="nt">"base_value"</span><span class="p">:</span><span class="w"> </span><span class="mf">1000.0</span><span class="p">,</span><span class="w"> </span><span class="nt">"divisor"</span><span class="p">:</span><span class="w"> </span><span class="mf">7007100000.0</span><span class="p">,</span><span class="w"> </span><span class="nt">"constituents"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"AAPL"</span><span class="p">,</span><span class="w"> </span><span class="s2">"MSFT"</span><span class="p">,</span><span class="w"> </span><span class="s2">"TSLA"</span><span class="p">],</span><span class="w"> </span><span class="nt">"level"</span><span class="p">:</span><span class="w"> </span><span class="mf">1000.0</span><span class="p">}</span>
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-index</code> running, INIT record visible in history file.</p>
 <h2 id="exercise-3-query-the-live-index-level">Exercise 3: Query the Live Index Level<a class="headerlink" href="#exercise-3-query-the-live-index-level" title="Permanent link">&para;</a></h2>
 <p>Connect your TRADER01 gateway and run the <code>INDEX</code> command:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[TRADER01]&gt; INDEX
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[TRADER01]&gt; INDEX
 </code></pre></div>
 <p>Expected response (level will depend on seeded prices):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[10:00:01.042] EDU100  1000.00  +0.00  +0.00%  O=-- H=-- L=--  PRE_OPEN
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[10:00:01.042] EDU100  1000.00  +0.00  +0.00%  O=-- H=-- L=--  PRE_OPEN
 </code></pre></div>
 <p>Fields shown:</p>
 <table>
@@ -4908,13 +4912,13 @@ Verify:</p>
 <h2 id="exercise-4-watch-the-index-move">Exercise 4: Watch the Index Move<a class="headerlink" href="#exercise-4-watch-the-index-move" title="Permanent link">&para;</a></h2>
 <p>Move the session into <code>CONTINUOUS</code> (if the scheduler hasn't already done so)
 and execute a few trades:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[OPS01|ADMIN]&gt; SESSION|STATE=CONTINUOUS
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=500
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=MARKET|QTY=300
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>[TRADER01]&gt; NEW|SYM=TSLA|SIDE=SELL|TYPE=MARKET|QTY=200
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[OPS01|ADMIN]&gt; SESSION|STATE=CONTINUOUS
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=500
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=MARKET|QTY=300
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>[TRADER01]&gt; NEW|SYM=TSLA|SIDE=SELL|TYPE=MARKET|QTY=200
 </code></pre></div>
 <p>After each fill, query the index again:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[TRADER01]&gt; INDEX
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[TRADER01]&gt; INDEX
 </code></pre></div>
 <p>Observe the level changing as trades update the constituent prices. The index is
 recalculated on every trade but published at most once per second (the
@@ -4940,8 +4944,8 @@ talks directly to <code>pm-index</code>'s PULL socket (port 5559). See
 <a href="../../user-guide/150-market-index/#applying-corporate-actions">Market Index → Applying corporate actions</a>.</p>
 </div>
 <p>Apply the split:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>split<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--sym<span class="w"> </span>AAPL<span class="w"> </span>--ratio<span class="w"> </span><span class="m">2</span>:1
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>split<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--sym<span class="w"> </span>AAPL<span class="w"> </span>--ratio<span class="w"> </span><span class="m">2</span>:1
 </code></pre></div>
 <p>You'll be shown a confirmation prompt before the command is sent (add <code>-y</code> to
 skip it, or <code>--dry-run</code> to preview the payload without sending). The command
@@ -4949,11 +4953,11 @@ blocks for the <code>index.corp_action_ack.OPS01</code> response and prints the 
 <code>pm-index</code> applies the action in-process, publishes an updated index value
 live, and writes a <code>CORP_ACTION</code> record to the structural/audit history file.</p>
 <p>Query the index immediately after, from any gateway terminal:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[TRADER01]&gt; INDEX
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>[TRADER01]&gt; INDEX
 </code></pre></div>
 <p>The level should be <strong>unchanged</strong> (or differ by only rounding). Now check that
 the divisor was adjusted in the history file:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>grep<span class="w"> </span>CORP_ACTION<span class="w"> </span>data/indexes/EDU100_history.jsonl<span class="w"> </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>json.tool
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>grep<span class="w"> </span>CORP_ACTION<span class="w"> </span>data/indexes/EDU100_history.jsonl<span class="w"> </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>json.tool
 </code></pre></div>
 <p>You should see <code>old_divisor</code> and <code>new_divisor</code> in the record, and the two
 values should be <strong>approximately equal</strong> (differing only by integer-rounding
@@ -4975,12 +4979,12 @@ absolute difference should be at most a few cents (rounding only), never a
 <h2 id="exercise-6-apply-a-cash-dividend">Exercise 6: Apply a Cash Dividend<a class="headerlink" href="#exercise-6-apply-a-cash-dividend" title="Permanent link">&para;</a></h2>
 <p>Apply a $2.50 cash dividend for MSFT — same <code>pm-index-admin-cli</code> mechanism
 as Exercise 5, no gateway command:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>[TRADER01]&gt; INDEX        (before)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>[TRADER01]&gt; INDEX        (before)
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>dividend<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--sym<span class="w"> </span>MSFT<span class="w"> </span>--amount<span class="w"> </span><span class="m">2</span>.50
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>dividend<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--sym<span class="w"> </span>MSFT<span class="w"> </span>--amount<span class="w"> </span><span class="m">2</span>.50
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>[TRADER01]&gt; INDEX        (after)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>[TRADER01]&gt; INDEX        (after)
 </code></pre></div>
 <p>A cash dividend reduces the effective price by the dividend amount. The divisor
 is adjusted to compensate so the index level is preserved.</p>
@@ -5011,16 +5015,16 @@ the engine socket `pm-admin-cli` talks to.
 <h3 id="add-amzn-to-the-index">Add AMZN to the index<a class="headerlink" href="#add-amzn-to-the-index" title="Permanent link">&para;</a></h3>
 <p>Adding a constituent adjusts the divisor so the level does not jump at the
 moment of addition. You must supply the new shares and a reference price:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>add<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="w">  </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--sym<span class="w"> </span>AMZN<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="w">  </span>--shares<span class="w"> </span><span class="m">10500000000</span><span class="w"> </span>--price<span class="w"> </span><span class="m">195</span>.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>add<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="w">  </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--sym<span class="w"> </span>AMZN<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="w">  </span>--shares<span class="w"> </span><span class="m">10500000000</span><span class="w"> </span>--price<span class="w"> </span><span class="m">195</span>.00
 </code></pre></div>
 <p>Check that AMZN now appears when you run <code>INDEX</code>. It may take a few trades before
 AMZN's price updates from the seeded reference.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>[TRADER01]&gt; INDEX
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>[TRADER01]&gt; INDEX
 </code></pre></div>
 <h3 id="remove-tsla-from-the-index">Remove TSLA from the index<a class="headerlink" href="#remove-tsla-from-the-index" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>delist<span class="w"> </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--sym<span class="w"> </span>TSLA
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>delist<span class="w"> </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--sym<span class="w"> </span>TSLA
 </code></pre></div>
 <p>Run <code>INDEX</code> again and confirm TSLA no longer appears in the constituent listing.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> AMZN added and TSLA removed without visible discontinuity in the index level.</p>
@@ -5040,96 +5044,96 @@ recording every <code>EDU100</code> tick since. If you skipped that step, go sta
 now — <code>pm-stats-cli</code> will simply return no rows for anything that happened
 before it was running.</p>
 <h3 id="list-configured-indices">List configured indices<a class="headerlink" href="#list-configured-indices" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>indices
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>indices
 </code></pre></div>
 <h3 id="view-recent-intraday-level-snapshots">View recent intraday level snapshots<a class="headerlink" href="#view-recent-intraday-level-snapshots" title="Permanent link">&para;</a></h3>
 <p>Every recorded tick (throttled to <code>publish_interval_sec</code>, same as the live
 <code>INDEX</code> command) is available via <code>pm-stats-cli index-snapshots</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>pm-stats-cli<span class="w"> </span>index-snapshots<span class="w"> </span>--index-id<span class="w"> </span>EDU100<span class="w"> </span>--limit<span class="w"> </span><span class="m">50</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>pm-stats-cli<span class="w"> </span>index-snapshots<span class="w"> </span>--index-id<span class="w"> </span>EDU100<span class="w"> </span>--limit<span class="w"> </span><span class="m">50</span>
 </code></pre></div>
 <p>Sample table output:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>ts                  | index_id | level   | aggregate_cap       | divisor      | session_state | day_open | day_high | day_low
-<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>--------------------+----------+---------+---------------------+--------------+----------------+----------+----------+---------
-<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>2026-06-25T10:00:01 | EDU100   | 1000.00 | 7007100000000.00    | 7007100000.0 | PRE_OPEN       |          |          |
-<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>2026-06-25T10:01:23 | EDU100   | 1034.82 | 7251000000000.00    | 7007100000.0 | CONTINUOUS     | 1000.00  | 1034.82  | 1000.00
-<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>...
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>ts                  | index_id | level   | aggregate_cap       | divisor      | session_state | day_open | day_high | day_low
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>--------------------+----------+---------+---------------------+--------------+----------------+----------+----------+---------
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>2026-06-25T10:00:01 | EDU100   | 1000.00 | 7007100000000.00    | 7007100000.0 | PRE_OPEN       |          |          |
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>2026-06-25T10:01:23 | EDU100   | 1034.82 | 7251000000000.00    | 7007100000.0 | CONTINUOUS     | 1000.00  | 1034.82  | 1000.00
+<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>...
 </code></pre></div>
 <p>You can list which index IDs <code>pm-stats</code> has actually recorded with:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>pm-stats-cli<span class="w"> </span>index-ids
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>pm-stats-cli<span class="w"> </span>index-ids
 </code></pre></div>
 <h3 id="view-eod-records">View EOD records<a class="headerlink" href="#view-eod-records" title="Permanent link">&para;</a></h3>
 <p><code>pm-index</code> no longer writes an end-of-day record to its own JSONL file —
 that file is structural/audit only now. Instead, <code>pm-stats</code> treats the
 EOD-forced publish like any other tick and rolls the day's ticks up into
 one daily OHLC row. Query it with <code>pm-stats-cli index-daily</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>pm-stats-cli<span class="w"> </span>index-daily<span class="w"> </span>--index-id<span class="w"> </span>EDU100
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>pm-stats-cli<span class="w"> </span>index-daily<span class="w"> </span>--index-id<span class="w"> </span>EDU100
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>date       | index_id | open_level | high_level | low_level | close_level | update_count
-<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>-----------+----------+------------+------------+-----------+-------------+--------------
-<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>2026-06-25 | EDU100   | 1000.00    | 1052.10    | 987.40    | 1041.55     | 312
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>date       | index_id | open_level | high_level | low_level | close_level | update_count
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>-----------+----------+------------+------------+-----------+-------------+--------------
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>2026-06-25 | EDU100   | 1000.00    | 1052.10    | 987.40    | 1041.55     | 312
 </code></pre></div>
 <p>Add <code>--wide</code> to also show the opening/closing aggregate market cap:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>pm-stats-cli<span class="w"> </span>index-daily<span class="w"> </span>--index-id<span class="w"> </span>EDU100<span class="w"> </span>--wide
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>pm-stats-cli<span class="w"> </span>index-daily<span class="w"> </span>--index-id<span class="w"> </span>EDU100<span class="w"> </span>--wide
 </code></pre></div>
 <h3 id="view-all-structural-events">View all structural events<a class="headerlink" href="#view-all-structural-events" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>events<span class="w"> </span>--index<span class="w"> </span>EDU100
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>events<span class="w"> </span>--index<span class="w"> </span>EDU100
 </code></pre></div>
 <p>This shows <code>INIT</code>, <code>CORP_ACTION</code>, <code>ADD_CONSTITUENT</code>, and <code>DELIST</code> records.
 You should see the split, dividend, add, and delist from earlier exercises.</p>
 <p>Filter to only corporate actions:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>events<span class="w"> </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--type<span class="w"> </span>CORP_ACTION
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>events<span class="w"> </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--type<span class="w"> </span>CORP_ACTION
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-index-cli</code> returns structural
 events; <code>pm-stats-cli index-snapshots</code> and <code>index-daily</code> return level and EOD
 rows for <code>EDU100</code>.</p>
 <h2 id="exercise-9-export-and-analyse-data">Exercise 9: Export and Analyse Data<a class="headerlink" href="#exercise-9-export-and-analyse-data" title="Permanent link">&para;</a></h2>
 <h3 id="export-eod-data-to-csv">Export EOD data to CSV<a class="headerlink" href="#export-eod-data-to-csv" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>index-daily<span class="w"> </span>--index-id<span class="w"> </span>EDU100<span class="w"> </span>&gt;<span class="w"> </span>edu100_eod.csv
-<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>cat<span class="w"> </span>edu100_eod.csv
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>index-daily<span class="w"> </span>--index-id<span class="w"> </span>EDU100<span class="w"> </span>&gt;<span class="w"> </span>edu100_eod.csv
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>cat<span class="w"> </span>edu100_eod.csv
 </code></pre></div>
 <h3 id="export-intraday-data-to-json">Export intraday data to JSON<a class="headerlink" href="#export-intraday-data-to-json" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>index-snapshots<span class="w"> </span>--index-id<span class="w"> </span>EDU100<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">"</span>
-<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="s2">import json, sys</span>
-<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="s2">rows = json.load(sys.stdin)</span>
-<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a><span class="s2">print(f'{len(rows)} snapshots')</span>
-<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a><span class="s2">if rows:</span>
-<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a><span class="s2">    print(f'First: {rows[0][\"ts\"]}  level={rows[0][\"level\"]}')</span>
-<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a><span class="s2">    print(f'Last:  {rows[-1][\"ts\"]}  level={rows[-1][\"level\"]}')</span>
-<a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a><span class="s2">"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>index-snapshots<span class="w"> </span>--index-id<span class="w"> </span>EDU100<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">"</span>
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a><span class="s2">import json, sys</span>
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="s2">rows = json.load(sys.stdin)</span>
+<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a><span class="s2">print(f'{len(rows)} snapshots')</span>
+<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a><span class="s2">if rows:</span>
+<a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a><span class="s2">    print(f'First: {rows[0][\"ts\"]}  level={rows[0][\"level\"]}')</span>
+<a id="__codelineno-32-8" name="__codelineno-32-8" href="#__codelineno-32-8"></a><span class="s2">    print(f'Last:  {rows[-1][\"ts\"]}  level={rows[-1][\"level\"]}')</span>
+<a id="__codelineno-32-9" name="__codelineno-32-9" href="#__codelineno-32-9"></a><span class="s2">"</span>
 </code></pre></div>
 <h3 id="date-range-query">Date-range query<a class="headerlink" href="#date-range-query" title="Permanent link">&para;</a></h3>
 <p>For a single trading day, <code>--date</code> is the simplest filter:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>pm-stats-cli<span class="w"> </span>index-snapshots<span class="w"> </span>--index-id<span class="w"> </span>EDU100<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-25<span class="w"> </span>--limit<span class="w"> </span><span class="m">500</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>pm-stats-cli<span class="w"> </span>index-snapshots<span class="w"> </span>--index-id<span class="w"> </span>EDU100<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-25<span class="w"> </span>--limit<span class="w"> </span><span class="m">500</span>
 </code></pre></div>
 <p>For an arbitrary time window, use <code>--from</code>/<code>--to</code> with full ISO-8601
 timestamps instead:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>pm-stats-cli<span class="w"> </span>index-snapshots<span class="w"> </span>--index-id<span class="w"> </span>EDU100<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-06-25T09:30:00+00:00<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a><span class="w">  </span>--to<span class="w"> </span><span class="m">2026</span>-06-25T16:00:00+00:00<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a><span class="w">  </span>--limit<span class="w"> </span><span class="m">500</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>pm-stats-cli<span class="w"> </span>index-snapshots<span class="w"> </span>--index-id<span class="w"> </span>EDU100<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-06-25T09:30:00+00:00<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="w">  </span>--to<span class="w"> </span><span class="m">2026</span>-06-25T16:00:00+00:00<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="w">  </span>--limit<span class="w"> </span><span class="m">500</span>
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> CSV and JSON exports contain the expected data.</p>
 <h2 id="exercise-10-two-indices">Exercise 10: Two Indices<a class="headerlink" href="#exercise-10-two-indices" title="Permanent link">&para;</a></h2>
 <p>Configure a second, narrower index alongside <code>EDU100</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="w">  </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>OPS01:ADMIN<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>AAPL:15000000000<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>MSFT:7400000000<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>TSLA:3200000000<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a><span class="w">  </span>--sessions-enabled<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-34-8" name="__codelineno-34-8" href="#__codelineno-34-8"></a><span class="w">  </span>--seed<span class="w"> </span><span class="m">20260625</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-34-9" name="__codelineno-34-9" href="#__codelineno-34-9"></a><span class="w">  </span>--index<span class="w"> </span>EDU100:<span class="s2">"EduMatcher broad index"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-34-10" name="__codelineno-34-10" href="#__codelineno-34-10"></a><span class="w">  </span>--index-constituents<span class="w"> </span>EDU100:AAPL,MSFT,TSLA<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-34-11" name="__codelineno-34-11" href="#__codelineno-34-11"></a><span class="w">  </span>--index<span class="w"> </span>TECH2:<span class="s2">"Technology pair"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-34-12" name="__codelineno-34-12" href="#__codelineno-34-12"></a><span class="w">  </span>--index-constituents<span class="w"> </span>TECH2:AAPL,MSFT<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-34-13" name="__codelineno-34-13" href="#__codelineno-34-13"></a><span class="w">  </span>--index-base-value<span class="w"> </span>TECH2:500.0<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-34-14" name="__codelineno-34-14" href="#__codelineno-34-14"></a><span class="w">  </span>--index-interval<span class="w"> </span>TECH2:2.0<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-34-15" name="__codelineno-34-15" href="#__codelineno-34-15"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a><span class="w">  </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>OPS01:ADMIN<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>AAPL:15000000000<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>MSFT:7400000000<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>TSLA:3200000000<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-7" name="__codelineno-35-7" href="#__codelineno-35-7"></a><span class="w">  </span>--sessions-enabled<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-8" name="__codelineno-35-8" href="#__codelineno-35-8"></a><span class="w">  </span>--seed<span class="w"> </span><span class="m">20260625</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-9" name="__codelineno-35-9" href="#__codelineno-35-9"></a><span class="w">  </span>--index<span class="w"> </span>EDU100:<span class="s2">"EduMatcher broad index"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-10" name="__codelineno-35-10" href="#__codelineno-35-10"></a><span class="w">  </span>--index-constituents<span class="w"> </span>EDU100:AAPL,MSFT,TSLA<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-11" name="__codelineno-35-11" href="#__codelineno-35-11"></a><span class="w">  </span>--index<span class="w"> </span>TECH2:<span class="s2">"Technology pair"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-12" name="__codelineno-35-12" href="#__codelineno-35-12"></a><span class="w">  </span>--index-constituents<span class="w"> </span>TECH2:AAPL,MSFT<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-13" name="__codelineno-35-13" href="#__codelineno-35-13"></a><span class="w">  </span>--index-base-value<span class="w"> </span>TECH2:500.0<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-14" name="__codelineno-35-14" href="#__codelineno-35-14"></a><span class="w">  </span>--index-interval<span class="w"> </span>TECH2:2.0<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-15" name="__codelineno-35-15" href="#__codelineno-35-15"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p>Restart <code>pm-index</code> with <code>--reset</code> to clear state and re-initialise:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>pm-index<span class="w"> </span>--reset
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>pm-index<span class="w"> </span>--reset
 </code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title"><code>--reset</code> discards divisors</p>
@@ -5138,16 +5142,16 @@ recomputed from scratch using current reference prices. Use only when
 you intentionally want a clean slate.</p>
 </div>
 <p>Run <code>INDEX</code> in the TRADER terminal to see both indices:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>[TRADER01]&gt; INDEX
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>[TRADER01]&gt; INDEX
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>[10:00:01.100] EDU100   1000.00  +0.00  +0.00%  PRE_OPEN
-<a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a>[10:00:01.100] TECH2     500.00  +0.00  +0.00%  PRE_OPEN
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>[10:00:01.100] EDU100   1000.00  +0.00  +0.00%  PRE_OPEN
+<a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a>[10:00:01.100] TECH2     500.00  +0.00  +0.00%  PRE_OPEN
 </code></pre></div>
 <p>Use <code>pm-index-cli</code> to list both configured indices, and <code>pm-stats-cli</code> to
 confirm <code>pm-stats</code> is capturing ticks for both:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>indices
-<a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a>pm-stats-cli<span class="w"> </span>index-ids
-<a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a>pm-stats-cli<span class="w"> </span>index-daily
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>indices
+<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>pm-stats-cli<span class="w"> </span>index-ids
+<a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a>pm-stats-cli<span class="w"> </span>index-daily
 </code></pre></div>
 <p><code>pm-index-cli indices</code> always shows every index in the config. <code>pm-stats-cli
 index-daily</code> with no <code>--index-id</code> filter shows the daily rollup for every
@@ -5159,13 +5163,13 @@ single-index scope keeps the output meaningful).</p>
 <h2 id="exercise-11-history-query-via-the-gateway">Exercise 11: History Query via the Gateway<a class="headerlink" href="#exercise-11-history-query-via-the-gateway" title="Permanent link">&para;</a></h2>
 <p><code>pm-index</code> also accepts history requests directly through the ADMIN gateway.
 These go over the PULL socket (port 5559) and return records inline:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>[OPS01]&gt; INDEX|HISTORY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>[OPS01]&gt; INDEX|HISTORY
 </code></pre></div>
 <p>Returns the last 30 days of <strong>structural/audit records</strong> — <code>INIT</code>,
 <code>CORP_ACTION</code>, <code>ADD_CONSTITUENT</code>, <code>DELIST</code> — for whichever index you last
 saw an <code>INDEX</code> update for (or pass <code>INDEX=&lt;id&gt;</code> explicitly, e.g.
 <code>INDEX|HISTORY|INDEX=EDU100</code>).</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>[OPS01]&gt; INDEX|HISTORY|FROM=2026-06-25|TO=2026-06-25
+<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>[OPS01]&gt; INDEX|HISTORY|FROM=2026-06-25|TO=2026-06-25
 </code></pre></div>
 <p>Returns structural/audit records within the specified date range, newest
 last.</p>

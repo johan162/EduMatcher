@@ -4231,9 +4231,10 @@ with the same config and data dir:</p>
 <p>Reconnect <code>TRADER01</code> and inspect orders:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[TRADER01]&gt; ORDERS
 </code></pre></div>
-<p>The GTC order should be restored — the engine also prints a line at shutdown
-confirming how many GTC orders it saved (<code>[ENGINE] Saved N GTC order(s) to
-...</code>), which you can check as a stable confirmation instead of relying on
+<p>The GTC order should be restored — with <code>pm-engine --verbose</code> the engine also
+logs a line at shutdown confirming how many resting orders it saved
+(<code>Saved N resting order(s) to ...</code>; the count covers both GTC and same-day DAY
+orders), which you can check as a stable confirmation instead of relying on
 <code>ORDERS</code> output alone.</p>
 <p>Compare explicitly after restart:</p>
 <ul>

@@ -2420,6 +2420,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#choose-your-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choose Your Path
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#training-plan" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2432,10 +2443,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#part-1-foundations-do-these-in-order" class="md-nav__link">
+  <a href="#part-1-foundations" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Part 1 — Foundations (do these in order)
+        Part 1 — Foundations
       
     </span>
   </a>
@@ -4163,14 +4174,18 @@
 <p>Welcome to the EduMatcher self-study training programme. This hands-on guide
 takes you from a cold start to confidently operating every major feature of the
 exchange.</p>
-<p>If you are new to finance we strongly recommend you start by 
-reading the <a href="../how-exchange-works/">How an Exchange Works</a> which is 
-a non-technical introduction to the core components and data flows in an exchange. 
-It will make the training exercises more intuitive and meaningful.</p>
+<p>If you are new to finance we strongly recommend you start by
+reading <a href="../how-exchange-works/">How an Exchange Works</a>, a non-technical
+introduction to the core components and data flows in an exchange. It will
+make the training exercises more intuitive and meaningful.</p>
 <h2 id="how-to-use-this-guide">How to Use This Guide<a class="headerlink" href="#how-to-use-this-guide" title="Permanent link">&para;</a></h2>
-<p>Each chapter is a hands-on session with exercises and checkpoints. Part 1 must
-be done in order — later chapters build on the exchange, configuration and
-liquidity it establishes. After that the parts are largely independent.</p>
+<p>The 28 chapters (00–27) are <strong>one continuous sequence, not independent
+modules</strong>. Every chapter's own "Prerequisites" section names the chapters it
+needs, and in every case but one that is simply "everything before it." There
+is no reordering the sequence — if you only need part of what the exchange
+does, the right move is to work through it from chapter 00 and stop when
+you've covered what you need, not to skip ahead. <a href="#choose-your-path">Choose Your Path</a>
+below tells you where a given goal lets you stop.</p>
 <p>Every chapter states its prerequisites and links the user-guide sections that
 back it. Read those first if the topic is new to you; use them afterwards as
 the reference.</p>
@@ -4185,7 +4200,7 @@ the reference.</p>
 <li><strong>Basic YAML and command line.</strong> No finance background is assumed.</li>
 </ul>
 <h3 id="the-two-consoles">The two consoles<a class="headerlink" href="#the-two-consoles" title="Permanent link">&para;</a></h3>
-<p>This is the one thing worth knowing before Chapter 01, because mixing them up
+<p>This is the one thing worth knowing before Chapter 00, because mixing them up
 is the most common early mistake:</p>
 <table>
 <thead>
@@ -4230,14 +4245,80 @@ a <code>BOOK</code> typed into a trader console just answers <code>Unknown comma
 <li><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> — a checkpoint. Verify it before moving on;
   if it fails, the next exercise will not behave as described.</li>
 </ul>
+<h2 id="choose-your-path">Choose Your Path<a class="headerlink" href="#choose-your-path" title="Permanent link">&para;</a></h2>
+<p>You do not have to complete all 28 chapters in one sitting. Because each
+chapter only assumes the ones before it, picking a goal below just means
+working through the sequence from chapter 00 and stopping where shown —
+everything up to that point is genuine prerequisite for what follows, so
+skipping ahead is not a shortcut, it just means an exercise stops working.</p>
+<pre class="mermaid"><code>flowchart LR
+    Start(["Why are you\nhere?"]) --&gt; Trader["Learn to trade"]
+    Start --&gt; Operator["Run or operate a\nclassroom exchange"]
+    Start --&gt; Everything["Cover it all,\nincluding external\nprotocols"]
+
+    Trader --&gt; T1["Chapters 00 → 08"]
+    T1 --&gt; TDone(["Placing, amending,\ncancelling orders;\nauctions and TIFs"])
+
+    Operator --&gt; O1["Chapters 00 → 19"]
+    O1 --&gt; ODone(["Liquidity, risk\ncontrols, P&amp;L, a full\nsession, admin tools"])
+
+    Everything --&gt; E1["Chapters 00 → 27\nin order"]
+    E1 --&gt; EDone(["Everything above, plus\nALF, BALF, CALF, RALF,\nREST/WebSocket, and\nthe market index"])
+
+    style Start fill:#4a5568,stroke:#2d3748,color:#fff
+    style TDone fill:#2f855a,stroke:#276749,color:#fff
+    style ODone fill:#2f855a,stroke:#276749,color:#fff
+    style EDone fill:#2f855a,stroke:#276749,color:#fff</code></pre>
+<table>
+<thead>
+<tr>
+<th>Your goal</th>
+<th>Work through chapters</th>
+<th>What you'll have</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Learn to trade</strong> — place, amend, and cancel orders; understand fills, TIFs, order types, and auctions</td>
+<td>00–08</td>
+<td>Everything a working trader needs day to day</td>
+</tr>
+<tr>
+<td><strong>Run or operate a classroom exchange</strong> — liquidity, risk controls, P&amp;L, a full session, admin tools</td>
+<td>00–19</td>
+<td>Everything above, plus the operator's toolkit</td>
+</tr>
+<tr>
+<td><strong>Cover everything, including external protocols</strong> — bots and systems that talk to the exchange over ALF, BALF, CALF, RALF, REST, or WebSocket</td>
+<td>00–27</td>
+<td>The full training programme</td>
+</tr>
+</tbody>
+</table>
+<p>There is one shortcut worth knowing about: <a href="#part-5-external-connectivity-integration-track">chapter 25</a>
+(the market index) only needs chapters 00–03, so if all you want is
+<code>pm-index</code>, you can jump to it early instead of working through the whole
+sequence — see the note at the end of Part 5.</p>
 <h2 id="training-plan">Training Plan<a class="headerlink" href="#training-plan" title="Permanent link">&para;</a></h2>
-<p>The chapters are grouped into five parts. <strong>Work through Part 1 in order</strong> —
-everything later assumes the exchange, configuration and liquidity it sets up.
-After that, Parts 2–4 can be taken in the order that suits you, and Part 5 is
-a separate integration track you can start any time after Part 1.</p>
+<p>The chapter numbers below are the order to work through them in — they are
+grouped into five parts purely so you can find a topic quickly by browsing,
+but a part is not a self-contained unit: some parts' chapters are spread
+across the real sequence, interleaved with other parts.</p>
+<pre class="mermaid"><code>flowchart LR
+    subgraph seq["The real order (chapter numbers)"]
+        direction LR
+        g1["00–03\nFoundations"] --&gt; g2["04–08\nTrading mechanics"]
+        g2 --&gt; g3["09–10\nLiquidity"]
+        g3 --&gt; g4a["11–13\nOperating"]
+        g4a --&gt; g4b["14\nLiquidity"]
+        g4b --&gt; g4c["15–19\nOperating"]
+        g4c --&gt; g5a["20\nExternal"]
+        g5a --&gt; g3b["21\nLiquidity"]
+        g3b --&gt; g5b["22–27\nExternal"]
+    end</code></pre>
 <p>Each row links to the lesson. The last column is the user-guide reading that
 backs it — skim it before the chapter, or use it afterwards as the reference.</p>
-<h3 id="part-1-foundations-do-these-in-order">Part 1 — Foundations (do these in order)<a class="headerlink" href="#part-1-foundations-do-these-in-order" title="Permanent link">&para;</a></h3>
+<h3 id="part-1-foundations">Part 1 — Foundations<a class="headerlink" href="#part-1-foundations" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -4272,12 +4353,6 @@ backs it — skim it before the chapter, or use it afterwards as the reference.<
 <td>Submit orders, read fills, follow an order's lifecycle</td>
 <td><a href="../user-guide/055-alf-console/">ALF Console</a>, <a href="../user-guide/060-order-types/">Order Types</a></td>
 </tr>
-<tr>
-<td>04</td>
-<td><a href="180-exchange-observer-processes/">Exchange Observer Processes</a></td>
-<td><em>Do this early.</em> See the book, the tape and the audit trail while you trade</td>
-<td><a href="../user-guide/170-processes/">Processes</a></td>
-</tr>
 </tbody>
 </table>
 <h3 id="part-2-trading-mechanics">Part 2 — Trading mechanics<a class="headerlink" href="#part-2-trading-mechanics" title="Permanent link">&para;</a></h3>
@@ -4292,46 +4367,34 @@ backs it — skim it before the chapter, or use it afterwards as the reference.<
 </thead>
 <tbody>
 <tr>
-<td>05</td>
+<td>04</td>
 <td><a href="040-amending-orders/">Amending Orders</a></td>
 <td>Change price and quantity, and predict the effect on queue priority</td>
 <td><a href="../user-guide/060-order-types/#order-amendment-amend">Order Amendment</a></td>
 </tr>
 <tr>
-<td>06</td>
-<td><a href="080-cancelling-orders/">Cancelling &amp; Managing Orders</a></td>
-<td>Inspect and cancel resting orders; use the operator's bulk-cancel tools</td>
-<td><a href="../user-guide/055-alf-console/">ALF Console</a>, <a href="../user-guide/160-exchange-commands/">Exchange Commands</a></td>
-</tr>
-<tr>
-<td>07</td>
+<td>05</td>
 <td><a href="050-order-types/">Order Types Deep Dive</a></td>
 <td>Use MARKET, STOP, STOP_LIMIT, FOK, IOC, ICEBERG and TRAILING_STOP</td>
 <td><a href="../user-guide/060-order-types/">Order Types</a></td>
 </tr>
 <tr>
-<td>08</td>
+<td>06</td>
 <td><a href="060-time-in-force-sessions/">Time-in-Force &amp; Sessions</a></td>
 <td>Choose a TIF and predict how each session phase treats it</td>
 <td><a href="../user-guide/080-session-scheduling/">Auctions &amp; Scheduling</a></td>
 </tr>
 <tr>
-<td>09</td>
+<td>07</td>
 <td><a href="070-auctions/">Auctions</a></td>
 <td>Run an auction and compute the equilibrium price by hand</td>
 <td><a href="../user-guide/080-session-scheduling/#equilibrium-price">Auctions &amp; Scheduling — Equilibrium price</a></td>
 </tr>
 <tr>
-<td>10</td>
-<td><a href="100-combo-orders/">Combo Orders</a></td>
-<td>Submit multi-leg and OCO orders, and reason about leg risk</td>
-<td><a href="../user-guide/070-combo-orders/">Combo Orders</a></td>
-</tr>
-<tr>
-<td>11</td>
-<td><a href="250-index/">Market Index</a></td>
-<td>Run an index and apply corporate actions without disturbing its level</td>
-<td><a href="../user-guide/150-market-index/">Market Index</a>, <a href="../user-guide/152-index-admin-cli/">Index Admin CLI</a></td>
+<td>08</td>
+<td><a href="080-cancelling-orders/">Cancelling &amp; Managing Orders</a></td>
+<td>Inspect and cancel resting orders; use the operator's bulk-cancel tools</td>
+<td><a href="../user-guide/055-alf-console/">ALF Console</a>, <a href="../user-guide/160-exchange-commands/">Exchange Commands</a></td>
 </tr>
 </tbody>
 </table>
@@ -4347,19 +4410,25 @@ backs it — skim it before the chapter, or use it afterwards as the reference.<
 </thead>
 <tbody>
 <tr>
-<td>12</td>
+<td>09</td>
 <td><a href="090-market-making/">Market Making</a></td>
 <td>Run a two-sided quote by hand and inspect its legs</td>
 <td><a href="../user-guide/090-market-maker/">Market Making</a></td>
 </tr>
 <tr>
-<td>13</td>
+<td>10</td>
+<td><a href="100-combo-orders/">Combo Orders</a></td>
+<td>Submit multi-leg and OCO orders, and reason about leg risk</td>
+<td><a href="../user-guide/070-combo-orders/">Combo Orders</a></td>
+</tr>
+<tr>
+<td>14</td>
 <td><a href="140-ai-traders/">AI Traders &amp; Swarm</a></td>
 <td>Generate realistic order flow for a demo or class</td>
 <td><a href="../user-guide/110-ai-traders/">AI Traders</a></td>
 </tr>
 <tr>
-<td>14</td>
+<td>21</td>
 <td><a href="210-automation-commandclient-mm-bot/">Automation &amp; MM Bot Tuning</a></td>
 <td>Script operator workflows and tune <code>pm-mm-bot</code></td>
 <td><a href="../user-guide/160-exchange-commands/">Exchange Commands</a>, <a href="../user-guide/100-mm-bot/">Market-Maker Bot</a></td>
@@ -4378,52 +4447,52 @@ backs it — skim it before the chapter, or use it afterwards as the reference.<
 </thead>
 <tbody>
 <tr>
-<td>15</td>
+<td>11</td>
 <td><a href="110-risk-controls/">Risk Controls</a></td>
 <td>Configure and trigger collars, circuit breakers, halts and the kill switch</td>
 <td><a href="../user-guide/120-risk-controls/">Risk Controls</a></td>
 </tr>
 <tr>
-<td>16</td>
-<td><a href="190-advanced-admin-operations/">Advanced Admin Operations</a></td>
-<td>Use KICK, QCANCEL, CANCEL_SYM and manual session overrides</td>
-<td><a href="../user-guide/160-exchange-commands/">Exchange Commands</a></td>
-</tr>
-<tr>
-<td>17</td>
+<td>12</td>
 <td><a href="120-pnl-clearing/">P&amp;L &amp; Clearing</a></td>
 <td>Read positions, VWAP cost and realized/unrealized P&amp;L</td>
 <td><a href="../user-guide/130-pnl-clearing/">P&amp;L &amp; Clearing</a></td>
 </tr>
 <tr>
-<td>18</td>
+<td>15</td>
 <td><a href="150-statistics-reporting/">Statistics &amp; Reporting</a></td>
 <td>Query OHLCV, trades and snapshots for analysis</td>
 <td><a href="../user-guide/140-statistics-and-reporting/">Statistics and Reporting</a></td>
 </tr>
 <tr>
-<td>19</td>
-<td><a href="250-index/">Market Index (<code>pm-index</code>)</a></td>
-<td>Run an index and apply corporate actions without disturbing its level</td>
-<td><a href="../user-guide/150-market-index/">Market Index</a>, <a href="../user-guide/152-index-admin-cli/">Index Admin CLI</a></td>
-</tr>
-<tr>
-<td>20</td>
+<td>16</td>
 <td><a href="160-persistence-recovery/">Persistence &amp; Recovery</a></td>
 <td>Say what survives a restart, and verify it</td>
 <td><a href="../user-guide/180-persistence/">Persistence</a>, <a href="../user-guide/190-audit/">Audit Trail</a></td>
 </tr>
 <tr>
-<td>21</td>
+<td>17</td>
 <td><a href="170-capstone-scenario/">Capstone Scenario</a></td>
 <td>Run a full session end to end, combining everything above</td>
 <td><a href="../user-guide/040-running-the-exchange/">Running the Exchange</a></td>
 </tr>
+<tr>
+<td>18</td>
+<td><a href="180-exchange-observer-processes/">Exchange Observer Processes</a></td>
+<td>Compare the book, tape, order monitor, audit trail, stats and clearing views side by side</td>
+<td><a href="../user-guide/170-processes/">Processes</a></td>
+</tr>
+<tr>
+<td>19</td>
+<td><a href="190-advanced-admin-operations/">Advanced Admin Operations</a></td>
+<td>Use <code>KICK</code>, <code>QCANCEL</code>, <code>CANCEL_SYM</code> and manual session overrides</td>
+<td><a href="../user-guide/160-exchange-commands/">Exchange Commands</a></td>
+</tr>
 </tbody>
 </table>
 <h3 id="part-5-external-connectivity-integration-track">Part 5 — External connectivity (integration track)<a class="headerlink" href="#part-5-external-connectivity-integration-track" title="Permanent link">&para;</a></h3>
-<p>Start any time after Part 1. These chapters are about connecting <em>other
-software</em> to the exchange, and are largely independent of each other.</p>
+<p>These chapters are about connecting <em>other software</em> to the exchange over its
+wire protocols and APIs.</p>
 <table>
 <thead>
 <tr>
@@ -4435,61 +4504,65 @@ software</em> to the exchange, and are largely independent of each other.</p>
 </thead>
 <tbody>
 <tr>
-<td>22</td>
+<td>13</td>
 <td><a href="130-market-data-drop-copy/">Market Data &amp; Drop Copy</a></td>
 <td>Explain the market-data and drop-copy feeds and watch them</td>
 <td><a href="../user-guide/200-drop-copy/">Drop Copy</a>, <a href="../user-guide/201-dc-gateway/">DC Gateway</a></td>
 </tr>
 <tr>
-<td>23</td>
+<td>20</td>
 <td><a href="200-drop-copy-replay-recovery/">Drop-Copy Replay &amp; Recovery</a></td>
 <td>Detect sequence gaps and recover a consumer</td>
 <td><a href="../user-guide/200-drop-copy/#replay">Drop Copy — Replay</a></td>
 </tr>
 <tr>
-<td>24</td>
-<td><a href="260-alf-gwy/">ALF TCP Gateway</a></td>
-<td>Speak ALF over a raw socket</td>
-<td><a href="../user-guide/220-alf-gateway/">ALF Gateway</a>, <a href="../user-guide/900-app-alf-protocol/">ALF Protocol</a></td>
-</tr>
-<tr>
-<td>25</td>
-<td><a href="270-balf-gwy/">BALF TCP Gateway</a></td>
-<td>Speak the binary order-entry protocol</td>
-<td><a href="../user-guide/230-balf-gateway/">BALF Gateway</a>, <a href="../user-guide/910-app-balf-protocol/">BALF Protocol</a></td>
-</tr>
-<tr>
-<td>26</td>
-<td><a href="230-calf/">CALF Market-Data Protocol</a></td>
-<td>Write a market-data consumer with snapshots and replay</td>
-<td><a href="../user-guide/240-calf-gateway/">CALF Gateway</a>, <a href="../user-guide/920-app-calf-protocol/">CALF Protocol</a></td>
-</tr>
-<tr>
-<td>27</td>
+<td>22</td>
 <td><a href="220-ralf/">RALF Post-Trade Protocol</a></td>
 <td>Write a clearing, drop-copy or audit consumer</td>
 <td><a href="../user-guide/250-ralf-gateway/">RALF Gateway</a>, <a href="../user-guide/930-app-ralf-protocol/">RALF Protocol</a></td>
 </tr>
 <tr>
-<td>28</td>
+<td>23</td>
+<td><a href="230-calf/">CALF Market-Data Protocol</a></td>
+<td>Write a market-data consumer with snapshots and replay</td>
+<td><a href="../user-guide/240-calf-gateway/">CALF Gateway</a>, <a href="../user-guide/920-app-calf-protocol/">CALF Protocol</a></td>
+</tr>
+<tr>
+<td>24</td>
 <td><a href="240-api-gwy/">API Gateway REST/WebSocket</a></td>
 <td>Trade and query over REST, and stream over WebSocket</td>
 <td><a href="../user-guide/260-api-gateway/">API Gateway</a>, <a href="../user-guide/950-app-REST-API-reference/">REST API Reference</a></td>
 </tr>
 <tr>
-<td>29</td>
-<td><a href="260-alf-gwy/">ALF Gateway</a></td>
-<td>Speak ALF over a raw socket using the gateway's training flow</td>
+<td>25</td>
+<td><a href="250-index/">Market Index (<code>pm-index</code>)</a></td>
+<td>Run an index and apply corporate actions without disturbing its level</td>
+<td><a href="../user-guide/150-market-index/">Market Index</a>, <a href="../user-guide/152-index-admin-cli/">Index Admin CLI</a></td>
+</tr>
+<tr>
+<td>26</td>
+<td><a href="260-alf-gwy/">ALF TCP Gateway</a></td>
+<td>Speak ALF over a raw socket</td>
 <td><a href="../user-guide/220-alf-gateway/">ALF Gateway</a>, <a href="../user-guide/900-app-alf-protocol/">ALF Protocol</a></td>
 </tr>
 <tr>
-<td>30</td>
-<td><a href="270-balf-gwy/">BALF Gateway</a></td>
-<td>Speak the binary order-entry protocol using the gateway's training flow</td>
+<td>27</td>
+<td><a href="270-balf-gwy/">BALF TCP Gateway</a></td>
+<td>Speak the binary order-entry protocol</td>
 <td><a href="../user-guide/230-balf-gateway/">BALF Gateway</a>, <a href="../user-guide/910-app-balf-protocol/">BALF Protocol</a></td>
 </tr>
 </tbody>
 </table>
+<div class="admonition note">
+<p class="admonition-title">Chapter 25 is the one chapter you can take out of order</p>
+<p>Every chapter above requires all chapters before it — except chapter 25
+(Market Index), which only needs chapters 00–03. Its natural reading
+partner is <a href="150-statistics-reporting/">Statistics &amp; Reporting</a>
+(chapter 15) — <code>pm-index</code> history is queried the same way. It is
+numbered 25 because that is where it was written, between the API
+Gateway and ALF Gateway chapters; treat the number as an ordering
+convenience, not a dependency on chapters 04–24.</p>
+</div>
 <h2 id="quick-reference">Quick Reference<a class="headerlink" href="#quick-reference" title="Permanent link">&para;</a></h2>
 <p>After completing the training, use the <a href="../user-guide/000-getting-started/">User Guide</a>
 and <a href="../glossary/">Glossary</a> for day-to-day reference.</p>

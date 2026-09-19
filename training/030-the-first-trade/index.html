@@ -4191,8 +4191,10 @@ this chapter.</p>
 <p>From <code>TRADER01</code>, send a market buy order for AAPL:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 </code></pre></div>
-<p>Expected output:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>[FILL] order_id=... AAPL BUY 100@150.05 status=FILLED
+<p>Expected output (the console's fill line reports the order ID, quantity,
+price and remaining/status — not the symbol or side, since you already know
+those from the order you just sent):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>[&lt;time&gt;] FILL      &lt;order_id&gt;  qty=100 @150.05  remaining=0  [FILLED]
 </code></pre></div>
 <p>The order matched against the MM's ask at 150.05.</p>
 <p>Now switch to the <code>pm-clearing</code> terminal. You should see the trade reflected in
@@ -4202,8 +4204,8 @@ sold AAPL, and positions/P&amp;L are updated from the execution price.</p>
 <h2 id="exercise-3-sell-at-market-hit-the-bid">Exercise 3: Sell at Market — Hit the Bid<a class="headerlink" href="#exercise-3-sell-at-market-hit-the-bid" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=100
 </code></pre></div>
-<p>Expected output:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[FILL] order_id=... AAPL SELL 100@149.95 status=FILLED
+<p>Expected output, in the same format as Exercise 2:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[&lt;time&gt;] FILL      &lt;order_id&gt;  qty=100 @149.95  remaining=0  [FILLED]
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> sell fill at the bid price.</p>
 <h2 id="exercise-4-place-a-limit-buy-order">Exercise 4: Place a Limit Buy Order<a class="headerlink" href="#exercise-4-place-a-limit-buy-order" title="Permanent link">&para;</a></h2>

@@ -4223,17 +4223,22 @@ intervention without relying on the MM terminal.</p>
 <p>Confirm TSLA resting orders were cleared while other symbols remain unchanged.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> symbol-scoped cancel works across gateways.</p>
 <h2 id="exercise-4-force-session-state-for-controlled-drills">Exercise 4: Force Session State for Controlled Drills<a class="headerlink" href="#exercise-4-force-session-state-for-controlled-drills" title="Permanent link">&para;</a></h2>
-<p>Set session state explicitly:</p>
+<p>Set session state explicitly. Transitions are validated by the engine: from
+<code>CLOSED</code> the only legal move is <code>PRE_OPEN</code>, so if a previous exercise left the
+exchange closed, go through <code>PRE_OPEN</code> first (an illegal jump is silently
+ignored and the console just times out).</p>
 <p>From admin console:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CONTINUOUS
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSING_AUCTION
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSED
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=PRE_OPEN
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CONTINUOUS
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSING_AUCTION
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSED
 </code></pre></div>
 <p>Or with CLI:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session<span class="w"> </span>--state<span class="w"> </span>CONTINUOUS
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session<span class="w"> </span>--state<span class="w"> </span>CLOSING_AUCTION
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session<span class="w"> </span>--state<span class="w"> </span>CLOSED
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session-status
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session<span class="w"> </span>--state<span class="w"> </span>PRE_OPEN
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session<span class="w"> </span>--state<span class="w"> </span>CONTINUOUS
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session<span class="w"> </span>--state<span class="w"> </span>CLOSING_AUCTION
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session<span class="w"> </span>--state<span class="w"> </span>CLOSED
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session-status
 </code></pre></div>
 <p>Use this to reproduce auction and close transitions deterministically in training.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> forced session transitions are visible and verifiable.</p>

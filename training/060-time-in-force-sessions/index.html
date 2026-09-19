@@ -4262,11 +4262,18 @@ gateway to freeze on a phase and advance only when you are ready:</p>
    <strong><code>CLOSED</code></strong> and stays there — so every order is rejected with
    "Market is closed" until you move it yourself in step 2. That is expected,
    not a fault.</li>
-<li>From the admin gateway, force the exact phase you need for the next
-   exercise:</li>
+<li>From the admin gateway, move to the exact phase you need for the next
+   exercise. The engine only accepts the transitions in the session
+   sequence, and from <code>CLOSED</code> the only legal move is to <code>PRE_OPEN</code> — so to
+   reach <code>CONTINUOUS</code> go in two steps:</li>
 </ol>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CONTINUOUS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=PRE_OPEN
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CONTINUOUS
 </code></pre></div>
+<p>An illegal jump (for example <code>CLOSED</code> straight to <code>CONTINUOUS</code>) is
+   silently ignored by the engine, and the console just prints <code>TIMEOUT</code>
+   with no reason. If you see that, run <code>SESSION_STATUS</code> and check which
+   phase you are really in.</p>
 <ol>
 <li>Confirm the change took effect with:</li>
 </ol>
@@ -4303,7 +4310,7 @@ session opens.</p>
 explicitly cancelled.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> GTC order remains after session restart.</p>
 <h2 id="exercise-4-ato-order">Exercise 4: ATO Order<a class="headerlink" href="#exercise-4-ato-order" title="Permanent link">&para;</a></h2>
-<p>Freeze in OPENING_AUCTION (<code>ADMIN01&gt; SESSION|STATE=OPENING_AUCTION</code> — from
+<p>Freeze in OPENING_AUCTION (<code>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=OPENING_AUCTION</code> — from
 PRE_OPEN, this is a valid direct transition), then place an At-The-Open
 order:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=150.50|TIF=ATO
