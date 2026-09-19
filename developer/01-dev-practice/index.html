@@ -3743,17 +3743,6 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#optional-helper-script" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Optional helper script
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#basic-toolchain-expectations" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3901,6 +3890,45 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Recommended startup order">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#core-backgroundexchange-processes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core background/exchange processes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#start-obersvers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Start obersvers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#start-interactive-terminals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Start interactive terminals
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -4036,17 +4064,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#a-practical-rule-of-thumb" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        A practical rule of thumb
-      
-    </span>
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -4153,22 +4170,50 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#current-release-workflow" class="md-nav__link">
+  <a href="#how-a-release-is-produced" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Current release workflow
+        How a release is produced
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Current release workflow">
+    <nav class="md-nav" aria-label="How a release is produced">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#release-checklist" class="md-nav__link">
+  <a href="#publishing-by-hand" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Release checklist
+        Publishing by hand
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#developer-release-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Developer release checklist
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Developer release checklist">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#before-tagging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Before tagging
       
     </span>
   </a>
@@ -4176,15 +4221,76 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#step-by-step" class="md-nav__link">
+  <a href="#tag-and-release" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Step-by-step
+        Tag and release
       
     </span>
   </a>
   
 </li>
+        
+          <li class="md-nav__item">
+  <a href="#after-the-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        After the release
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#doing-a-manual-ghcr-push" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Doing a manual GHCR push
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#summary-to-make-a-release-step-by-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary: To make a release, step-by-step
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#appendix-the-release-scripts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Appendix: The release scripts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-mkbldsh-does" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What mkbld.sh does
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What mkbld.sh does">
+      <ul class="md-nav__list">
         
           <li class="md-nav__item">
   <a href="#what-mkreleasesh-expects" class="md-nav__link">
@@ -4202,28 +4308,6 @@
     <span class="md-ellipsis">
       
         What mkghrelease.sh expects
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#what-mkbldsh-currently-does" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What mkbld.sh currently does
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#release-caution" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Release caution
       
     </span>
   </a>
@@ -4702,18 +4786,23 @@ in the tree now uses 3.12+ syntax (PEP 701 nested f-strings, for one), so an
 older interpreter fails at import rather than at runtime.</p>
 <h3 id="canonical-setup">Canonical setup<a class="headerlink" href="#canonical-setup" title="Permanent link">&para;</a></h3>
 <p>The project is <strong>Poetry-first</strong>. The most reliable setup path is:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>poetry<span class="w"> </span>config<span class="w"> </span>virtualenvs.in-project<span class="w"> </span><span class="nb">true</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>poetry<span class="w"> </span>install<span class="w"> </span>--with<span class="w"> </span>dev,docs
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Clone the repo</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/johan162/EduMatcher.git
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nb">cd</span><span class="w"> </span>EduMatcher
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># Verify necessart environment</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>./scripts/verify_setup.sh
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c1"># Setup poetry &amp;&amp; Python</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>poetry<span class="w"> </span>config<span class="w"> </span>virtualenvs.in-project<span class="w"> </span><span class="nb">true</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>poetry<span class="w"> </span>install<span class="w"> </span>--with<span class="w"> </span>dev,docs
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="c1"># Verify that a full build (incl. documents) succeeds</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>./scripts/mkbld.sh<span class="w"> </span>--intro
 </code></pre></div>
 <p>Then activate the environment if you want shell-local tools:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">source</span><span class="w"> </span>.venv/bin/activate
 </code></pre></div>
-<h3 id="optional-helper-script">Optional helper script<a class="headerlink" href="#optional-helper-script" title="Permanent link">&para;</a></h3>
-<p>The repository also contains <code>scripts/verify_setup.sh</code>. It is useful as a
-smoke-check helper, especially on a fresh machine, but it still contains some
-older inherited messages and command names from a previous project. Treat the
-<strong>Poetry commands above as the source of truth</strong>, and use the script as a
-convenience wrapper rather than as the canonical definition of the environment.</p>
 <h3 id="basic-toolchain-expectations">Basic toolchain expectations<a class="headerlink" href="#basic-toolchain-expectations" title="Permanent link">&para;</a></h3>
 <p>You should have these available locally:</p>
 <table>
@@ -4882,18 +4971,18 @@ them.</p>
 </ol>
 <h3 id="code-quality-gates">Code quality gates<a class="headerlink" href="#code-quality-gates" title="Permanent link">&para;</a></h3>
 <p>These are the checks a developer is expected to run regularly:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>black<span class="w"> </span>--check<span class="w"> </span>src<span class="w"> </span>tests
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>flake8<span class="w"> </span>src<span class="w"> </span>tests
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>poetry<span class="w"> </span>run<span class="w"> </span>mypy<span class="w"> </span>src<span class="w"> </span>tests
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/<span class="w"> </span>-m<span class="w"> </span><span class="s2">"not perf"</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>mkdocs<span class="w"> </span>build
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>make<span class="w"> </span>check
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>make<span class="w"> </span><span class="nb">test</span>
 </code></pre></div>
 <p>The Makefile provides wrappers if you prefer shorter commands:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>make<span class="w"> </span>install
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>make<span class="w"> </span>check
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>make<span class="w"> </span><span class="nb">test</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>make<span class="w"> </span>docs
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>make<span class="w"> </span>build
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>make<span class="w"> </span>install<span class="w">     </span><span class="c1"># install Python dependencies</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>make<span class="w"> </span>check<span class="w">       </span><span class="c1"># run static lints</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>make<span class="w"> </span><span class="nb">test</span><span class="w">        </span><span class="c1"># run all tests</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>make<span class="w"> </span>docs-site<span class="w">   </span><span class="c1"># build documentation site </span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>make<span class="w"> </span>build<span class="w">       </span><span class="c1"># build Python wheel</span>
+</code></pre></div>
+<p>but the standard way to run all checks and a full build is the <code>mkbld.sh</code> script</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>./scripts/mkbld.sh
 </code></pre></div>
 <h3 id="standards-enforced-by-the-repo">Standards enforced by the repo<a class="headerlink" href="#standards-enforced-by-the-repo" title="Permanent link">&para;</a></h3>
 <ul>
@@ -5004,63 +5093,78 @@ YAML appear to disagree.</p>
 <h3 id="minimal-reference-data">Minimal reference data<a class="headerlink" href="#minimal-reference-data" title="Permanent link">&para;</a></h3>
 <p>EduMatcher uses <code>engine_config.yaml</code> for reference data. A one-symbol minimal
 configuration can look like this:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">gateways</span><span class="p">:</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">First trader</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM01</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Market maker</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GW_ADMIN</span>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Operator console</span>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ADMIN</span>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="nt">symbols</span><span class="p">:</span>
-<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span>
-<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="w">    </span><span class="nt">tick_decimals</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
-<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="w">    </span><span class="nt">last_buy_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">149.90</span>
-<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="w">    </span><span class="nt">last_sell_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">150.10</span>
-<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="w">    </span><span class="nt">market_maker_quotes</span><span class="p">:</span>
-<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM01</span>
-<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a><span class="w">        </span><span class="nt">bid_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">149.90</span>
-<a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a><span class="w">        </span><span class="nt">ask_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">150.10</span>
-<a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a><span class="w">        </span><span class="nt">bid_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
-<a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a><span class="w">        </span><span class="nt">ask_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
-<a id="__codelineno-4-23" name="__codelineno-4-23" href="#__codelineno-4-23"></a><span class="w">        </span><span class="nt">tif</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DAY</span>
-<a id="__codelineno-4-24" name="__codelineno-4-24" href="#__codelineno-4-24"></a><span class="w">        </span><span class="nt">quote_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM-AAPL-SEED</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nt">gateways</span><span class="p">:</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">First trader</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM01</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Market maker</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GW_ADMIN</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Operator console</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ADMIN</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="nt">symbols</span><span class="p">:</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="w">    </span><span class="nt">tick_decimals</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="w">    </span><span class="nt">last_buy_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">149.90</span>
+<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="w">    </span><span class="nt">last_sell_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">150.10</span>
+<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a><span class="w">    </span><span class="nt">market_maker_quotes</span><span class="p">:</span>
+<a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM01</span>
+<a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a><span class="w">        </span><span class="nt">bid_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">149.90</span>
+<a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a><span class="w">        </span><span class="nt">ask_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">150.10</span>
+<a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a><span class="w">        </span><span class="nt">bid_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
+<a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a><span class="w">        </span><span class="nt">ask_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
+<a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a><span class="w">        </span><span class="nt">tif</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DAY</span>
+<a id="__codelineno-5-24" name="__codelineno-5-24" href="#__codelineno-5-24"></a><span class="w">        </span><span class="nt">quote_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM-AAPL-SEED</span>
 </code></pre></div>
 <p>See <a href="../../user-guide/010-configuration/">Configuration</a> for the full schema.</p>
 <h3 id="recommended-startup-order">Recommended startup order<a class="headerlink" href="#recommended-startup-order" title="Permanent link">&para;</a></h3>
 <p>Start the engine first. All other processes depend on its sockets being bound.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Terminal 1 — matching engine</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine<span class="w"> </span>--verbose
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># Terminal 2 — optional scheduler</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler<span class="w"> </span>--now
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="c1"># Terminal 3 — market maker gateway</span>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>MM01
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="c1"># Terminal 4 — trader gateway</span>
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
-<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>
-<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="c1"># Terminal 5 — operator console</span>
-<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN
-<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>
-<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="c1"># Terminal 6 — live order book</span>
-<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>AAPL
-<a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a>
-<a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a><span class="c1"># Terminal 7 — audit log</span>
-<a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-audit<span class="w"> </span>--terminal
-<a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a>
-<a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a><span class="c1"># Terminal 8 — clearing / P&amp;L</span>
-<a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-clearing
+<h4 id="core-backgroundexchange-processes">Core background/exchange processes<a class="headerlink" href="#core-backgroundexchange-processes" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Terminal 1 - Start the log server</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-log-srv<span class="w"> </span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># Terminal 2 — audit log</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-audit<span class="w"> </span>--terminal
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="c1"># Terminal 3 — matching engine</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine<span class="w"> </span>--verbose
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="c1"># Terminal 4 — optional scheduler</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler<span class="w"> </span>--now
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="c1"># Terminal 5 - Statistics</span>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-stats
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a><span class="c1"># Terminal 10 — clearing / P&amp;L</span>
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-clearing
 </code></pre></div>
-<p>Optional observers you will often add:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-orders
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-stats
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-ticker<span class="w"> </span>--db-interval<span class="w"> </span><span class="m">15</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-board
+<p>An easier way to start all basic exchange processes is to use the admin command <code>pm-opctl-cli</code> (OPerationall Control Client)</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-opctl-cli start
+</code></pre></div>
+<p>to then check all processes are running</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-opctl-cli list
+</code></pre></div>
+<p>and finally to stop all processes</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pm-opctl-cli stop
+</code></pre></div>
+<h4 id="start-obersvers">Start obersvers<a class="headerlink" href="#start-obersvers" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># Terminal 9 — live order book</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>AAPL
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1"># Terminal 10 — live all symbol display</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-board
+</code></pre></div>
+<h4 id="start-interactive-terminals">Start interactive terminals<a class="headerlink" href="#start-interactive-terminals" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Terminal 11 — Trader01 terminal</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># Terminal 12 — Trader02 terminal</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER02
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="c1"># Terminal 8 — operator console</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN
 </code></pre></div>
 <h3 id="inspecting-a-run-after-the-fact">Inspecting a run after the fact<a class="headerlink" href="#inspecting-a-run-after-the-fact" title="Permanent link">&para;</a></h3>
 <p>The processes above are the <em>live</em> view. Every store they write also has a
@@ -5144,15 +5248,15 @@ around them:</p>
 <p>If you normally bring the stack up with <code>pm-opctl-cli</code> rather than starting
 processes by hand, start (or restart) it with <code>-d</code>/<code>--debug</code> (alias <code>-vv</code>) to
 apply <code>--log-level DEBUG</code> to every process in the profile at once:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-opctl-cli<span class="w"> </span>stop
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>pm-opctl-cli<span class="w"> </span>start<span class="w"> </span>--debug
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>pm-opctl-cli<span class="w"> </span>stop
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>pm-opctl-cli<span class="w"> </span>start<span class="w"> </span>--debug
 </code></pre></div>
 <p>See <a href="../../user-guide/170-processes/#pm-opctl-cli-operational-process-control"><code>pm-opctl-cli</code></a>
 for the full flag reference.</p>
 <h3 id="macos-convenience-launcher">macOS convenience launcher<a class="headerlink" href="#macos-convenience-launcher" title="Permanent link">&para;</a></h3>
 <p>For demos or quick manual runs on macOS, use:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>./tools/launch_all.sh
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>./tools/launch_all.sh<span class="w"> </span>AAPL<span class="w"> </span>MSFT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>./tools/launch_all.sh
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>./tools/launch_all.sh<span class="w"> </span>AAPL<span class="w"> </span>MSFT
 </code></pre></div>
 <p><code>tools/launch_all.sh</code> opens one Terminal window per process using AppleScript.
 It is convenient, but it is <strong>macOS-only</strong> and it launches the standard demo
@@ -5170,7 +5274,10 @@ layout, not a custom research topology.</p>
 different questions.</p>
 <h3 id="normal-regression-tests">Normal regression tests<a class="headerlink" href="#normal-regression-tests" title="Permanent link">&para;</a></h3>
 <p>Run these continuously while developing:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/<span class="w"> </span>-m<span class="w"> </span><span class="s2">"not perf"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>-n<span class="w"> </span>auto<span class="w"> </span>tests/<span class="w"> </span>-m<span class="w"> </span><span class="s2">"not perf"</span>
+</code></pre></div>
+<p>or via the master Makefile</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>make<span class="w"> </span><span class="nb">test</span>
 </code></pre></div>
 <p>These are the default correctness tests and should remain fast enough for
 frequent reruns.</p>
@@ -5178,12 +5285,12 @@ frequent reruns.</p>
 <p>EduMatcher includes a dedicated replay-and-compare verification flow under
 <code>tools/</code>. This is the right choice when you need confidence that the production
 engine still agrees with the paper-trading oracle.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>bash<span class="w"> </span>tools/verify_matching.sh
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>bash<span class="w"> </span>tools/verify_matching.sh
 </code></pre></div>
 <p>Useful variants:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>bash<span class="w"> </span>tools/verify_matching.sh<span class="w"> </span>--seed<span class="w"> </span><span class="m">7</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>bash<span class="w"> </span>tools/verify_matching.sh<span class="w"> </span>--count<span class="w"> </span><span class="m">500</span>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>bash<span class="w"> </span>tools/verify_matching.sh<span class="w"> </span>--tolerance<span class="w"> </span><span class="m">0</span>.01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>bash<span class="w"> </span>tools/verify_matching.sh<span class="w"> </span>--seed<span class="w"> </span><span class="m">7</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>bash<span class="w"> </span>tools/verify_matching.sh<span class="w"> </span>--count<span class="w"> </span><span class="m">500</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>bash<span class="w"> </span>tools/verify_matching.sh<span class="w"> </span>--tolerance<span class="w"> </span><span class="m">0</span>.01
 </code></pre></div>
 <p>Read <a href="../04-verification/">Verification</a> before changing this flow. It explains
 why deterministic replay is hard and how the repository avoids common traps such
@@ -5191,17 +5298,19 @@ as clocks, ACK ordering, and persisted GTC state.</p>
 <h3 id="performance-tests">Performance tests<a class="headerlink" href="#performance-tests" title="Permanent link">&para;</a></h3>
 <p>Performance tests are intentionally separate from the normal CI path. They
 measure engine behavior, not the full end-to-end network stack.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># Full perf run</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>-o<span class="w"> </span><span class="nv">addopts</span><span class="o">=</span><span class="s1">''</span><span class="w"> </span>tests/test_perf.py<span class="w"> </span>-v<span class="w"> </span>-s<span class="w"> </span>-m<span class="w"> </span>perf<span class="w"> </span>-p<span class="w"> </span>no:cov
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="c1"># Throughput-focused view</span>
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>-o<span class="w"> </span><span class="nv">addopts</span><span class="o">=</span><span class="s1">''</span><span class="w"> </span>tests/test_perf.py<span class="w"> </span>-v<span class="w"> </span>-s<span class="w"> </span>-m<span class="w"> </span>perf<span class="w"> </span>-k<span class="w"> </span>max_tps<span class="w"> </span>-p<span class="w"> </span>no:cov
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>
-<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="c1"># Latency-focused view</span>
-<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>-o<span class="w"> </span><span class="nv">addopts</span><span class="o">=</span><span class="s1">''</span><span class="w"> </span>tests/test_perf.py<span class="w"> </span>-v<span class="w"> </span>-s<span class="w"> </span>-m<span class="w"> </span>perf<span class="w"> </span>-k<span class="w"> </span>latency<span class="w"> </span>-p<span class="w"> </span>no:cov
-<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>
-<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="c1"># Normal test run without perf tests</span>
-<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/<span class="w"> </span>-m<span class="w"> </span><span class="s2">"not perf"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="c1"># Full perf run</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>-o<span class="w"> </span><span class="nv">addopts</span><span class="o">=</span><span class="s1">''</span><span class="w"> </span>tests/test_perf.py<span class="w"> </span>-v<span class="w"> </span>-s<span class="w"> </span>-m<span class="w"> </span>perf<span class="w"> </span>-p<span class="w"> </span>no:cov
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="c1"># or</span>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>make<span class="w"> </span>test-perf
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="c1"># Throughput-focused view</span>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>-o<span class="w"> </span><span class="nv">addopts</span><span class="o">=</span><span class="s1">''</span><span class="w"> </span>tests/test_perf.py<span class="w"> </span>-v<span class="w"> </span>-s<span class="w"> </span>-m<span class="w"> </span>perf<span class="w"> </span>-k<span class="w"> </span>max_tps<span class="w"> </span>-p<span class="w"> </span>no:cov
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="c1"># Latency-focused view</span>
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>-o<span class="w"> </span><span class="nv">addopts</span><span class="o">=</span><span class="s1">''</span><span class="w"> </span>tests/test_perf.py<span class="w"> </span>-v<span class="w"> </span>-s<span class="w"> </span>-m<span class="w"> </span>perf<span class="w"> </span>-k<span class="w"> </span>latency<span class="w"> </span>-p<span class="w"> </span>no:cov
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a>
+<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a><span class="c1"># Normal test run without perf tests</span>
+<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/<span class="w"> </span>-m<span class="w"> </span><span class="s2">"not perf"</span>
 </code></pre></div>
 <p>Important interpretation rule: the performance tests primarily measure <strong>engine
 processing cost</strong>, not total production wire latency.</p>
@@ -5311,19 +5420,13 @@ authoritative. In general:</p>
 </tr>
 </tbody>
 </table>
-<h3 id="a-practical-rule-of-thumb">A practical rule of thumb<a class="headerlink" href="#a-practical-rule-of-thumb" title="Permanent link">&para;</a></h3>
-<p>If a script's behavior disagrees with <code>pyproject.toml</code>, <code>Makefile</code>, or the
-current docs, trust the <strong>project configuration and live code first</strong>. Several
-scripts and script help texts still show traces of an older project name, so a
-developer should read them critically rather than assuming every string is up to
-date.</p>
 <h2 id="documentation-workflow">Documentation workflow<a class="headerlink" href="#documentation-workflow" title="Permanent link">&para;</a></h2>
 <p>Developer-facing work is not finished until the docs still build cleanly.</p>
 <h3 id="fast-documentation-loop">Fast documentation loop<a class="headerlink" href="#fast-documentation-loop" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>mkdocs<span class="w"> </span>serve
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>mkdocs<span class="w"> </span>serve
 </code></pre></div>
 <h3 id="one-shot-validation">One-shot validation<a class="headerlink" href="#one-shot-validation" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>mkdocs<span class="w"> </span>build
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>mkdocs<span class="w"> </span>build
 </code></pre></div>
 <h3 id="what-to-update-when-behavior-changes">What to update when behavior changes<a class="headerlink" href="#what-to-update-when-behavior-changes" title="Permanent link">&para;</a></h3>
 <p>If you change:</p>
@@ -5385,63 +5488,210 @@ npm-installed binary.</p>
 globally does not invalidate previously cached renders. To force a full
 re-render, delete <code>build-tools/.mermaid-cache/</code> (or point
 <code>MERMAID_FILTER_CACHE_DIR</code> somewhere fresh).</p>
-<h2 id="current-release-workflow">Current release workflow<a class="headerlink" href="#current-release-workflow" title="Permanent link">&para;</a></h2>
-<p>Follow <code>release_checklist.md</code> as the source of truth.
-The practical flow below is aligned with the current script behavior.</p>
-<h3 id="release-checklist">Release checklist<a class="headerlink" href="#release-checklist" title="Permanent link">&para;</a></h3>
+<h2 id="how-a-release-is-produced">How a release is produced<a class="headerlink" href="#how-a-release-is-produced" title="Permanent link">&para;</a></h2>
+<p>Two scripts and two GitHub workflows. One tag produces the Python package and
+the container images together, all carrying the same version, which is what
+lets the installer pin a whole system with a single number.</p>
+<pre class="mermaid"><code>flowchart TD
+    MK["scripts/mkrelease.sh\nbump version, build docs, tag"]
+    TAG["git tag vX.Y.Z\npushed to GitHub"]
+    GH["scripts/mkghrelease.sh\ngh release create + artifacts"]
+    REL["GitHub release published"]
+
+    PYPI["publish-to-pypi.yml\npoetry build and publish"]
+    IMG["publish-images.yml"]
+
+    AMD["build amd64\nubuntu-24.04"]
+    ARM["build arm64\nubuntu-24.04-arm"]
+    MERGE["merge digests into\none manifest list\ntags X.Y.Z and latest"]
+
+    OUTP["PyPI\nedumatcher X.Y.Z"]
+    OUTC["GHCR\n5 multi-arch images X.Y.Z"]
+
+    USER1["pipx install edumatcher"]
+    USER2["curl .../install.sh | bash"]
+
+    MK --&gt; TAG --&gt; GH --&gt; REL
+    REL --&gt; PYPI --&gt; OUTP --&gt; USER1
+    REL --&gt; IMG
+    IMG --&gt; AMD --&gt; MERGE
+    IMG --&gt; ARM --&gt; MERGE
+    MERGE --&gt; OUTC --&gt; USER2
+    GH -.-&gt;|"phase 6B waits for the run"| MERGE</code></pre>
+<p>Each image is built <strong>natively</strong> on both architectures rather than emulated,
+then the two are joined into one manifest list. A user on Intel and a user on
+Apple Silicon pull the same tag and each gets the right binary.</p>
+<p>The five published images are:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>ghcr.io/johan162/edumatcher                 the exchange, all pm-* processes
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>ghcr.io/johan162/edumatcher-terminal-gui    the trading terminal
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>ghcr.io/johan162/edumatcher-log-gui         the log viewer
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>ghcr.io/johan162/edumatcher-config-gui      the configuration builder
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>ghcr.io/johan162/edumatcher-trader-gui      the trader GUI
+</code></pre></div>
+<p><code>latest</code> is only moved for an exact <code>vMAJOR.MINOR.PATCH</code> tag, so a pre-release
+never becomes what a new user gets by default — the same rule the PyPI workflow
+uses to choose between PyPI and TestPyPI.</p>
+<h3 id="publishing-by-hand">Publishing by hand<a class="headerlink" href="#publishing-by-hand" title="Permanent link">&para;</a></h3>
+<p><code>make ghcr-push</code> in <code>deployment/docker/</code> builds all five images from your
+checkout and pushes them, for when the workflow cannot run:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">GITHUB_USER</span><span class="o">=</span>&lt;you&gt;<span class="w"> </span><span class="nv">GHCR_TOKEN</span><span class="o">=</span>&lt;token<span class="w"> </span>with<span class="w"> </span>write:packages&gt;
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>make<span class="w"> </span>ghcr-push<span class="w">                              </span><span class="c1"># all five, tagged :dev</span>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>make<span class="w"> </span>ghcr-push<span class="w"> </span><span class="nv">TAG</span><span class="o">=</span><span class="m">0</span>.20.6<span class="w"> </span><span class="nv">FORCE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">LATEST</span><span class="o">=</span><span class="m">1</span><span class="w">  </span><span class="c1"># as a release tag</span>
+</code></pre></div>
+<p>It builds only for the architecture you are on. Pushing a single-architecture
+image over a release tag replaces the manifest list, and users on the other
+architecture then get "no matching manifest" — which you will not notice,
+because your own machine keeps working. That is why a release-looking tag needs
+<code>FORCE=1</code> and why <code>latest</code> is never moved unless asked.</p>
+<h2 id="developer-release-checklist">Developer release checklist<a class="headerlink" href="#developer-release-checklist" title="Permanent link">&para;</a></h2>
+<p>For the maintainer cutting a release. Steps 1-4 are local, 5-7 are automated
+but need watching, and 8-10 are the checks that the release actually works for
+somebody who is not you.</p>
+<h3 id="before-tagging">Before tagging<a class="headerlink" href="#before-tagging" title="Permanent link">&para;</a></h3>
 <ol>
 <li>
-<p>Bump the <code>pyproject.toml</code> version<br />
-    <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>poetry<span class="w"> </span>version<span class="w"> </span>&lt;NEW<span class="w"> </span>VERSION&gt;<span class="w">  </span>
+<p><strong>Working tree is clean and tests pass.</strong>
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>./scripts/mkbld.sh
 </code></pre></div></p>
 </li>
 <li>
-<p>Add a new <code>CHANGELOGENTRY.md</code>. Use the <code>/changelog</code> skill to create a draft version based on the git-logs</p>
+<p><strong><code>CHANGELOG.md</code> has an entry for this version.</strong> </p>
 </li>
 <li>
-<p>Run the complete build script <code>scripts/mkbld.sh</code> and fix any potential issues until it runs clean.</p>
+<p>Add a new <code>CHANGELOGENTRY.md</code>. Using the custom copilot skill <code>/changelog-entry</code> to create a draft version based on the git-logs</p>
 </li>
-<li>
-<p>Check in all modified files, some versions (e.g. README.md) have been bumped by the <code>mkbld.sh</code> script. Make sure the <code>develop</code>  branch is clean.</p>
-</li>
-<li>
-<p>Run the release script <code>script/mkrelease &lt;RELEASE-TYPE&gt;</code> to handle merge into <code>main</code> and verify that all things are in place. Fix potential isssues until it runs clean. This will also trigger GitHub actions like publishing the <code>gh-pages</code> to the doc-site.</p>
-</li>
-<li>
-<p>Make the GitHub release with <code>scripts/mkghrelease.sh</code> </p>
-</li>
+<li>or if there is no copilot available Use the script <code>scripts/mkchlogentry.sh</code> drafts one from the commit logs.</li>
 </ol>
-<p>The intended release flow is:</p>
+<h3 id="tag-and-release">Tag and release<a class="headerlink" href="#tag-and-release" title="Permanent link">&para;</a></h3>
 <ol>
-<li>Bump version and prepare changelog</li>
-<li>Build and validate all release artifacts</li>
-<li>Run scripted release from <code>develop</code></li>
-<li>Verify CI on <code>main</code></li>
-<li>Create GitHub release from latest tag on <code>main</code></li>
+<li>
+<p><strong>Run <code>scripts/mkrelease.sh</code>.</strong> It bumps the version, builds the
+   documentation bundles, commits and tags.</p>
+</li>
+<li>
+<p><strong>Wait for the CI workflows on the tag to go green</strong> before creating the
+   release.</p>
+</li>
+<li>
+<p><strong>Run <code>scripts/mkghrelease.sh</code>.</strong> It validates the artifacts in <code>dist/</code>,
+   creates the GitHub release, and then waits for the container image workflow.</p>
+</li>
 </ol>
-<h3 id="step-by-step">Step-by-step<a class="headerlink" href="#step-by-step" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="c1"># 1. Bump version in pyproject.toml</span>
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>poetry<span class="w"> </span>version<span class="w"> </span><span class="m">0</span>.3.2
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="c1"># 2. Create the changelog template (release type is major|minor|patch)</span>
-<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>./scripts/mkchlogentry.sh<span class="w"> </span><span class="m">0</span>.3.2<span class="w"> </span>patch
-<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>
-<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="c1"># 3. Edit CHANGELOG.md and replace placeholder bullets</span>
-<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>
-<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="c1"># 4. Build and validate release artifacts.</span>
-<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="c1"># Use --intro for real releases because mkghrelease.sh expects the intro bundle.</span>
-<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>./scripts/mkbld.sh<span class="w"> </span>--intro
-<a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a>
-<a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a><span class="c1"># 5. Commit release-ready changes on develop, then preview release actions</span>
-<a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a><span class="nv">GITHUB_USER</span><span class="o">=</span>&lt;your-gh-user&gt;<span class="w"> </span>./scripts/mkrelease.sh<span class="w"> </span>patch<span class="w"> </span>--dry-run
-<a id="__codelineno-16-15" name="__codelineno-16-15" href="#__codelineno-16-15"></a>
-<a id="__codelineno-16-16" name="__codelineno-16-16" href="#__codelineno-16-16"></a><span class="c1"># 6. Execute the local release flow (squash merge develop -&gt; main, tag, push, sync back)</span>
-<a id="__codelineno-16-17" name="__codelineno-16-17" href="#__codelineno-16-17"></a><span class="nv">GITHUB_USER</span><span class="o">=</span>&lt;your-gh-user&gt;<span class="w"> </span>./scripts/mkrelease.sh<span class="w"> </span>patch
-<a id="__codelineno-16-18" name="__codelineno-16-18" href="#__codelineno-16-18"></a>
-<a id="__codelineno-16-19" name="__codelineno-16-19" href="#__codelineno-16-19"></a><span class="c1"># 7. After CI is green on main, create the GitHub release from main</span>
-<a id="__codelineno-16-20" name="__codelineno-16-20" href="#__codelineno-16-20"></a>git<span class="w"> </span>switch<span class="w"> </span>main<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>git<span class="w"> </span>pull<span class="w"> </span>--ff-only
-<a id="__codelineno-16-21" name="__codelineno-16-21" href="#__codelineno-16-21"></a>./scripts/mkghrelease.sh
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--dry-run</code></td>
+<td>Show what would happen; create nothing</td>
+</tr>
+<tr>
+<td><code>--pre-release</code></td>
+<td>Force pre-release marking regardless of the tag</td>
+</tr>
+<tr>
+<td><code>--skip-images</code></td>
+<td>Do not wait for the image workflow</td>
+</tr>
+<tr>
+<td><code>IMAGE_WAIT_MINUTES=n</code></td>
+<td>How long to wait (default 30)</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code>```bash
+git switch main &amp;&amp; git pull --ff-only
+./scripts/mkghrelease.sh
+```
 </code></pre></div>
+<p>If the image workflow fails, the GitHub release still exists — only the
+   images are missing. Re-run just that part:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>gh<span class="w"> </span>run<span class="w"> </span>view<span class="w"> </span>&lt;run-id&gt;<span class="w"> </span>--log-failed
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>gh<span class="w"> </span>workflow<span class="w"> </span>run<span class="w"> </span>publish-images.yml<span class="w"> </span>-f<span class="w"> </span><span class="nv">tag</span><span class="o">=</span>vX.Y.Z
+</code></pre></div></p>
+<h3 id="after-the-release">After the release<a class="headerlink" href="#after-the-release" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Verify the one-line install as a stranger would.</strong> First <strong>stop any stack
+   you already have running</strong> — the released deployment and the source-built one
+   use the same container names and host ports, so an install started beside a
+   running stack silently attaches to it and verifies nothing:</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>make<span class="w"> </span>-C<span class="w"> </span>deployment/docker<span class="w"> </span>down-all
+</code></pre></div>
+<p>Then install into a throwaway directory so your own instance is untouched:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/vX.Y.Z/deployment/curl/install.sh<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="w">    </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--dir<span class="w"> </span>/tmp/em-release-test
+</code></pre></div>
+   Then open <a href="http://localhost:8090">http://localhost:8090</a>, and clean up with
+   <code>cd /tmp/em-release-test &amp;&amp; ./edumatcher.sh uninstall --data</code>.</p>
+<ol>
+<li><strong>Verify the PyPI install</strong> in a fresh environment:
+    <div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>pipx<span class="w"> </span>install<span class="w"> </span><span class="nv">edumatcher</span><span class="o">==</span>X.Y.Z
+</code></pre></div></li>
+</ol>
+<div class="admonition tip">
+<p class="admonition-title">Where releases usually go wrong</p>
+<p>Two failures are quiet rather than loud. An image built from PyPI instead
+of the checkout looks like a successful build but ships the <em>previous</em>
+release — step 3's <code>Installing local wheel</code> line is what catches it. And
+private GHCR packages fail only for other people, never for the maintainer
+who is already authenticated — step 9, run without credentials, is what
+catches that.</p>
+</div>
+<h2 id="doing-a-manual-ghcr-push">Doing a manual GHCR push<a class="headerlink" href="#doing-a-manual-ghcr-push" title="Permanent link">&para;</a></h2>
+<p>Normally the push is handled by the workflow but it can be manually overridden.
+The target <code>ghcr-push</code> in <code>deployment/docker/Makefile</code> builds all five images from. 
+In will login with ghe existing GITHUB_USER/GHCR_TOKEN, then tags and pushes each one.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>export GITHUB_USER=&lt;user with admin priv&gt; GHCR_TOKEN=&lt;token with write:packages&gt;
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>make ghcr-push                              # all five, tagged :dev
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>make ghcr-push TAG=0.20.6 FORCE=1           # ...as a release tag
+<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>make ghcr-push TAG=0.20.6 FORCE=1 LATEST=1  # ...and move :latest
+</code></pre></div>
+<h2 id="summary-to-make-a-release-step-by-step">Summary: To make a release, step-by-step<a class="headerlink" href="#summary-to-make-a-release-step-by-step" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="c1"># 1. Bump version in pyproject.toml</span>
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>poetry<span class="w"> </span>version<span class="w"> </span><span class="m">0</span>.3.2
+<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>
+<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="c1"># 2. Create the changelog template with help of copilot using the custom skill </span>
+<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>/changelog-entry<span class="w"> </span><span class="m">0</span>.3.2<span class="w"> </span>patch
+<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a>
+<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a><span class="c1"># 3. Review and edit CHANGELOG.md as needed. The commit the new changelog</span>
+<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a>git<span class="w"> </span>add<span class="w"> </span>CHANGELOG.md
+<a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a>git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">"chore(changelog): v0.3.2"</span>
+<a id="__codelineno-30-10" name="__codelineno-30-10" href="#__codelineno-30-10"></a>
+<a id="__codelineno-30-11" name="__codelineno-30-11" href="#__codelineno-30-11"></a><span class="c1"># 4. Build and validate release artifacts.</span>
+<a id="__codelineno-30-12" name="__codelineno-30-12" href="#__codelineno-30-12"></a><span class="c1"># Use --intro for real releases because mkghrelease.sh expects the intro bundle.</span>
+<a id="__codelineno-30-13" name="__codelineno-30-13" href="#__codelineno-30-13"></a>./scripts/mkbld.sh<span class="w"> </span>--intro
+<a id="__codelineno-30-14" name="__codelineno-30-14" href="#__codelineno-30-14"></a>
+<a id="__codelineno-30-15" name="__codelineno-30-15" href="#__codelineno-30-15"></a><span class="c1"># 5. Commit release-ready changes on develop, then preview release actions</span>
+<a id="__codelineno-30-16" name="__codelineno-30-16" href="#__codelineno-30-16"></a><span class="nv">GITHUB_USER</span><span class="o">=</span>&lt;your-gh-user&gt;<span class="w"> </span>./scripts/mkrelease.sh<span class="w"> </span>patch<span class="w"> </span>--dry-run
+<a id="__codelineno-30-17" name="__codelineno-30-17" href="#__codelineno-30-17"></a>
+<a id="__codelineno-30-18" name="__codelineno-30-18" href="#__codelineno-30-18"></a><span class="c1"># 6. Execute the local release flow (squash merge develop -&gt; main, tag, push, sync back)</span>
+<a id="__codelineno-30-19" name="__codelineno-30-19" href="#__codelineno-30-19"></a><span class="nv">GITHUB_USER</span><span class="o">=</span>&lt;your-gh-user&gt;<span class="w"> </span>./scripts/mkrelease.sh<span class="w"> </span>patch
+<a id="__codelineno-30-20" name="__codelineno-30-20" href="#__codelineno-30-20"></a>
+<a id="__codelineno-30-21" name="__codelineno-30-21" href="#__codelineno-30-21"></a><span class="c1"># 7. After CI is green on main, create the GitHub release from main</span>
+<a id="__codelineno-30-22" name="__codelineno-30-22" href="#__codelineno-30-22"></a>git<span class="w"> </span>switch<span class="w"> </span>main<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>git<span class="w"> </span>pull<span class="w"> </span>--ff-only
+<a id="__codelineno-30-23" name="__codelineno-30-23" href="#__codelineno-30-23"></a>./scripts/mkghrelease.sh
+</code></pre></div>
+<hr />
+<h2 id="appendix-the-release-scripts">Appendix: The release scripts<a class="headerlink" href="#appendix-the-release-scripts" title="Permanent link">&para;</a></h2>
+<h2 id="what-mkbldsh-does">What <code>mkbld.sh</code> does<a class="headerlink" href="#what-mkbldsh-does" title="Permanent link">&para;</a></h2>
+<p><code>mkbld.sh</code> is the build gate before release scripts. It currently:</p>
+<ol>
+<li>validates environment and required Poetry tools</li>
+<li>runs <code>black</code>, <code>flake8</code>, <code>mypy</code> (and <code>pyright</code> if available)</li>
+<li>runs all <code>npm</code> tests for the <code>web-apps/</code></li>
+<li>runs pytyest tests with coverage threshold <strong>80%</strong></li>
+<li>updates coverage badge when <code>coverage.xml</code> changed</li>
+<li>builds and verifies Python packages</li>
+<li>builds all documentations, user-guide PDF+EPUB, doc-site, training bundles, etc </li>
+<li>optionally builds Exchange Intro bundle when <code>--intro</code> is provided</li>
+</ol>
+<p>For release publishing, prefer running <code>./scripts/mkbld.sh --intro</code>.</p>
 <h3 id="what-mkreleasesh-expects">What <code>mkrelease.sh</code> expects<a class="headerlink" href="#what-mkreleasesh-expects" title="Permanent link">&para;</a></h3>
 <p>The script is designed around this model:</p>
 <ul>
@@ -5478,29 +5728,6 @@ The practical flow below is aligned with the current script behavior.</p>
 <p>It auto-detects pre-releases from tags ending in <code>rcN</code> (or you can force with
 <code>--pre-release</code>) and creates the GitHub release using notes extracted from
 <code>CHANGELOG.md</code>.</p>
-<h3 id="what-mkbldsh-currently-does">What <code>mkbld.sh</code> currently does<a class="headerlink" href="#what-mkbldsh-currently-does" title="Permanent link">&para;</a></h3>
-<p><code>mkbld.sh</code> is the build gate before release scripts. It currently:</p>
-<ol>
-<li>validates environment and required Poetry tools</li>
-<li>runs <code>black</code>, <code>flake8</code>, <code>mypy</code> (and <code>pyright</code> if available)</li>
-<li>runs tests with coverage threshold <strong>80%</strong></li>
-<li>updates coverage badge when <code>coverage.xml</code> changed</li>
-<li>builds and verifies Python packages</li>
-<li>builds user-guide PDF bundle and HTML docs</li>
-<li>optionally builds Exchange Intro bundle when <code>--intro</code> is provided</li>
-</ol>
-<p>For release publishing, prefer running <code>./scripts/mkbld.sh --intro</code>.</p>
-<h3 id="release-caution">Release caution<a class="headerlink" href="#release-caution" title="Permanent link">&para;</a></h3>
-<p>Some release scripts still contain inherited project-name strings and old help
-references. Always sanity-check:</p>
-<ul>
-<li>version number</li>
-<li>package name in <code>pyproject.toml</code></li>
-<li>changelog entry content</li>
-<li>branch and tag targets</li>
-<li>contents of <code>dist/</code></li>
-</ul>
-<p>before pushing a real release.</p>
 <h2 id="common-pitfalls-for-new-developers">Common pitfalls for new developers<a class="headerlink" href="#common-pitfalls-for-new-developers" title="Permanent link">&para;</a></h2>
 <h3 id="forgetting-which-data-directory-is-live">Forgetting which data directory is live<a class="headerlink" href="#forgetting-which-data-directory-is-live" title="Permanent link">&para;</a></h3>
 <p>In a source checkout, <code>src/data/</code> — not <code>~/.local/share/edumatcher/</code> — is the
@@ -5518,7 +5745,7 @@ above.</p>
 <p><code>pm-ticker</code> and <code>pm-board</code> rely on statistics written by <code>pm-stats</code>.</p>
 <h3 id="assuming-docs-only-changes-need-no-validation">Assuming docs-only changes need no validation<a class="headerlink" href="#assuming-docs-only-changes-need-no-validation" title="Permanent link">&para;</a></h3>
 <p>They still need:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>mkdocs<span class="w"> </span>build
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>mkdocs<span class="w"> </span>build
 </code></pre></div>
 <h3 id="treating-helper-scripts-as-canonical-truth">Treating helper scripts as canonical truth<a class="headerlink" href="#treating-helper-scripts-as-canonical-truth" title="Permanent link">&para;</a></h3>
 <p>Some scripts are polished automation; others still show drift from earlier repo

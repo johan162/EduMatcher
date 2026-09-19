@@ -11660,6 +11660,34 @@ wire-format specification in the
 <td>Absent for a MARKET order, which has no limit price.</td>
 </tr>
 <tr>
+<td><code>stop_price</code></td>
+<td><code>float</code></td>
+<td>omitted when unset</td>
+<td>unit <code>display_price</code></td>
+<td>STOP / STOP_LIMIT / TRAILING_STOP trigger. Absent for a type that carries none.</td>
+</tr>
+<tr>
+<td><code>visible_qty</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>unit <code>shares</code></td>
+<td>ICEBERG: fixed peak size. Absent for a type that carries none.</td>
+</tr>
+<tr>
+<td><code>trail_offset</code></td>
+<td><code>float</code></td>
+<td>omitted when unset</td>
+<td>unit <code>display_price</code></td>
+<td>TRAILING_STOP: trail distance, in display money. Absent for a type that carries none.</td>
+</tr>
+<tr>
+<td><code>smp_action</code></td>
+<td>enum: <code>NONE</code>, <code>CANCEL_AGGRESSOR</code>, <code>CANCEL_RESTING</code>, <code>CANCEL_BOTH</code></td>
+<td>omitted when unset</td>
+<td>—</td>
+<td>Self-match prevention. Null means the client did not specify SMP at all, distinct from an explicit NONE. See SmpAction's docstring.</td>
+</tr>
+<tr>
 <td><code>client_tag</code></td>
 <td><code>string</code></td>
 <td>omitted when unset</td>
