@@ -140,12 +140,20 @@ pm-index
 
 Expected startup output:
 
+`pm-index` logs at `WARNING` by default, so it starts silently. Run it with
+`-v` to see the startup messages:
+
+```bash
+pm-index -v
 ```
-[INFO] pm-index starting — 1 index configured
-[INFO] EDU100: No state file found — initialising from config
-[INFO] EDU100: divisor=7007100000.000 level=1000.00 (base_value)  constituents=AAPL,MSFT,TSLA
-[INFO] pm-index ready — subscribing to pm-engine on tcp://127.0.0.1:5556
+
 ```
+starting pm-index with log level INFO
+loaded 1 index runtime config(s)
+index ready index_id=EDU100 constituents=3 level=1000.0
+```
+
+(Each line is preceded by the usual timestamp, level and logger name.)
 
 The `INIT` record has been written to `data/indexes/EDU100_history.jsonl`.
 Verify:
@@ -155,7 +163,7 @@ cat data/indexes/EDU100_history.jsonl
 ```
 
 ```json
-{"type": "INIT", "timestamp": ..., "index_id": "EDU100", "base_value": 1000.0, "divisor": 7007100000.0, "constituents": ["AAPL", "MSFT", "TSLA"], "level": 1000.0}
+{"type": "INIT", "ts_ns": ..., "index_id": "EDU100", "base_value": 1000.0, "divisor": 7007100000.0, "constituents": ["AAPL", "MSFT", "TSLA"], "level": 1000.0}
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-index` running, INIT record visible in history file.
