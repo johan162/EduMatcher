@@ -16,17 +16,17 @@ All referenced desig documents live under `docs-design/`
 Target: Oct 2026
 
 ### Critical defects
-#### C1 — A rejected cancel or amend marks a live order `REJECTED` (GUI and gateway cache)
-#### C2 — Cancel-replace defaults to the original total quantity → over-trading on partial fills
-#### C3 — Live order rows lack `stop_price` / `visible_qty` / `trail_offset` / `smp_action`, so Replace and Undo break
+#### ~~C1 — A rejected cancel or amend marks a live order `REJECTED` (GUI and gateway cache)~~
+#### ~~C2 — Cancel-replace defaults to the original total quantity → over-trading on partial fills~~
+#### ~~C3 — Live order rows lack `stop_price` / `visible_qty` / `trail_offset` / `smp_action`, so Replace and Undo break~~
 
 ### High defects
-#### H1 — OCO legs are never grouped; "Cancel group" is unreachable
-#### H2 — Trade prints are not de-duplicated; replay inflates volume and can crash the chart handler
-#### H3 — Gap repair for `trade.executed` can never succeed
+#### ~~H1 — OCO legs are never grouped; "Cancel group" is unreachable~~
+#### ~~H2 — Trade prints are not de-duplicated; replay inflates volume and can crash the chart handler~~
+#### ~~H3 — Gap repair for `trade.executed` can never succeed~~
 #### H4 — Halts are invisible to TRADER/MARKET_MAKER unless they begin after login
-#### H5 — Session phase defaults to CLOSED and is never re-synced after a reconnect
-#### H6 — The private stream has no gap detection, and Refresh cannot reconcile
+#### ~~H5 — Session phase defaults to CLOSED and is never re-synced after a reconnect~~
+#### ~~H6 — The private stream has no gap detection, and Refresh cannot reconcile~~
 
 ### Medium defects
 #### M1 — Order-type gating is narrower than the engine

@@ -28,6 +28,20 @@ export type GatewayRole = "TRADER" | "MARKET_MAKER" | "ADMIN";
 
 export type ResumptionMode = "AUCTION" | "CONTINUOUS";
 
+// M2 (docs-design/reviews/EduMatcher-Trader-GUI-Review.md): why the engine
+// cancelled a resting/aggressor order itself, as opposed to a trader-
+// requested cancel (which carries no cancel_reason). Mirrors the engine's
+// OrderCancelledCancelReason (models/generated/order.py).
+export type CancelReason =
+  | "SELF_MATCH_PREVENTED"
+  | "INSUFFICIENT_LIQUIDITY"
+  | "KILL_SWITCH"
+  | "CIRCUIT_BREAKER_HALT"
+  | "GATEWAY_DISCONNECT"
+  | "ADMIN_CANCEL_SYMBOL"
+  | "QUOTE_REPLACED"
+  | "QUOTE_LEG_FILLED";
+
 export type RejectCode =
   | "MALFORMED_MESSAGE"
   | "MISSING_FIELD"
@@ -989,6 +1003,9 @@ export interface OrderTerminalData {
   combo_parent_id?: string;
   quote_id?: string;
   leg_index?: number;
+  /** Set on order.cancelled when the engine cancelled it itself (M2), e.g.
+   * an unfilled MARKET/IOC remainder; absent on a trader-requested cancel. */
+  cancel_reason?: CancelReason;
 }
 
 export interface ComboAckData {

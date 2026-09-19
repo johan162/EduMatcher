@@ -136,7 +136,9 @@ A freshly placed OCO therefore shows up as two unrelated orders with no Group ba
 
 **Fix:** publish `order_to_display_dict(leg)` in the OCO leg ack, the same shape the combo path uses (this lands with C3). In the GUI, `applyCancelled` / `applyExpired` should fold group ids like `detailPatch` does.
 
-### H2 — Trade prints are not de-duplicated; replay inflates volume and can crash the chart handler
+### ~~H2 — Trade prints are not de-duplicated; replay inflates volume and can crash the chart handler~~
+
+**FIXED**
 
 **Where:** `ws/WebSocketManager.ts:291` (`emit`) → `:306` (`recordTrade`) · `store/useBookStore.ts` `recordTrade` · `components/symbol/SymbolChart.tsx:191` · gateway `routers/ws.py:394`
 
@@ -162,7 +164,9 @@ Confirmed by probes P6a and P7.
 3. In `SymbolChart`, ignore ticks older than `lastBar.time`.
 4. Gateway: honour `resume_from` for the wildcard item too (see H3).
 
-### H3 — Gap repair for `trade.executed` can never succeed
+### ~~H3 — Gap repair for `trade.executed` can never succeed~~
+
+**FIXED**
 
 **Where:** `ws/WebSocketManager.ts:210` (`repairGap`) · gateway `routers/ws.py:419` (`_emit_resume`)
 
@@ -171,6 +175,8 @@ Confirmed by probes P6a and P7.
 **Fix (gateway + client):** support `resume` on `trade.executed` with no symbol by merging the per-symbol buffers on `seq > from_seq`, and apply the same path when replaying a wildcard `resume_from`. The client code needs no change once the server supports it.
 
 ### ~~H4 — Halts are invisible to TRADER/MARKET_MAKER unless they begin after login~~
+
+**FIXED**
 
 **Where:** `lib/bootstrap.ts:32` (halts only on `BootstrapAdmin`) · `OrderTicket.tsx` (no halt check)
 
@@ -184,6 +190,8 @@ Confirmed by probes P6a and P7.
 
 ### ~~H5 — Session phase defaults to CLOSED and is never re-synced after a reconnect~~
 
+**FIXED**
+
 **Where:** `store/useSessionStore.ts:45` · `lib/bootstrap.ts` · `WebSocketManager.ts:415` (`onReconnect`) · `useSessionQuery` (defined, never used)
 
 - If `bootstrap.session` is `null` (listed in `incomplete` when the engine query timed out), the phase stays `CLOSED`. The ticket then blocks every submit, and Flatten is disabled, until the next `session` event. On a quiet venue that can be the whole day.
@@ -191,7 +199,9 @@ Confirmed by probes P6a and P7.
 
 **Fix:** fetch `/session` (the existing `useSessionQuery`) on every market-data authentication and whenever bootstrap reports `session` incomplete. Model "unknown" explicitly rather than defaulting to `CLOSED`.
 
-### ~~H6 — The private stream has no gap detection, and Refresh cannot reconcile~~ **FIXED**
+### ~~H6 — The private stream has no gap detection, and Refresh cannot reconcile~~ 
+
+**FIXED**
 
 **Where:** `WebSocketManager.handlePrivateMessage` (ignores `stream_seq`) · gateway `routers/ws.py:173` (queue `maxsize=256`, `_record_drop` on overflow) · `useOrderStore.hydrate` · `types/index.ts:216`
 
@@ -211,7 +221,7 @@ Confirmed by probes P6a and P7.
 
 **~~M1 — Order-type gating is narrower than the engine.~~** **FIXED** `OrderTicket.tsx:40` disables MARKET/FOK/IOC only in the two auction phases. The engine rejects them in **every** phase where `is_matching_enabled` is false (only `CONTINUOUS` matches), so in `PRE_OPEN` they round-trip to `SESSION_NOT_PERMITTED`, and during a halt see H4. `PositionPanel` already gates on `phase === "CONTINUOUS"`, so the two components disagree. Gate on "not CONTINUOUS or symbol halted", in one helper next to `ALLOWED_TIF`.
 
-**M2 — "Accepted" is misleading for FOK, MARKET and IOC.** The ticket toasts `BUY 100 AAPL accepted` from the *first* ack (`OrderTicket.tsx:202`). For a FOK the authoritative outcome is a second `order.ack accepted=false INSUFFICIENT_LIQUIDITY`, and for MARKET/IOC with no liquidity it is `order.cancelled`. `useOrderEventNotifications` ignores `order.ack` and sends cancels to the Event Center without a toast, so the trader never learns the order died. Toast the terminal outcome of an order this session submitted: a reject ack, or a cancel with zero fills.
+**~~M2 — "Accepted" is misleading for FOK, MARKET and IOC.~~** **FIXED** The ticket toasts `BUY 100 AAPL accepted` from the *first* ack (`OrderTicket.tsx:202`). For a FOK the authoritative outcome is a second `order.ack accepted=false INSUFFICIENT_LIQUIDITY`, and for MARKET/IOC with no liquidity it is `order.cancelled`. `useOrderEventNotifications` ignores `order.ack` and sends cancels to the Event Center without a toast, so the trader never learns the order died. Toast the terminal outcome of an order this session submitted: a reject ack, or a cancel with zero fills.
 
 **M3 — Bulk cancel and Flatten All lose per-order feedback.** Both loop `mutation.mutate(...)` on a single `useMutation` (`ActiveOrdersPage.tsx:135`, `PositionPanel.tsx:99`). In TanStack Query v5 the callbacks passed to `mutate` fire only for the **latest** call (checked in `query-core` `MutationObserver`), so errors for N−1 of the cancels or flattens are silently dropped. Use `mutateAsync` with `Promise.allSettled` and report a summary.
 
