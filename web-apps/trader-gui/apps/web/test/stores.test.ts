@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useSessionStore } from "@/store/useSessionStore";
-import { useBookStore } from "@/store/useBookStore";
+import { useBookStore, __resetTradeDedupForTest } from "@/store/useBookStore";
+import type { TradeData } from "@/types/index";
 import { useHaltStore } from "@/store/useHaltStore";
 import { useNotificationStore } from "@/store/useNotificationStore";
 
@@ -14,6 +15,7 @@ beforeEach(() => {
     nextTransitionAt: null,
   });
   useBookStore.setState({ books: {} });
+  __resetTradeDedupForTest();
   useHaltStore.setState({ halts: {} });
   useNotificationStore.setState({ entries: [], unread: 0 });
 });
@@ -62,6 +64,40 @@ describe("useBookStore", () => {
     expect(entry).toBeDefined();
     expect(entry!.bids[0]!.price).toBe(150);
     expect(entry!.lastPrice).toBe(150.05);
+  });
+
+  // H2 (docs-design/reviews/EduMatcher-Trader-GUI-Review.md): a reconnect
+  // or gap repair redelivers prints already folded in -- recordTrade must
+  // not double-count liveVolume or duplicate recentTrades for them.
+  const trade = (id: string): TradeData => ({
+    id,
+    symbol: "AAPL",
+    price: 150.0,
+    quantity: 25,
+    tick_decimals: 2,
+    run_seq: 1,
+    buy_order_id: "",
+    sell_order_id: "",
+    buy_gateway_id: "",
+    sell_gateway_id: "",
+    aggressor_side: "BUY",
+    ts_ns: 1,
+  });
+
+  it("ignores a trade id it has already recorded (H2)", () => {
+    useBookStore.getState().recordTrade(trade("t1"));
+    useBookStore.getState().recordTrade(trade("t1"));
+    const entry = useBookStore.getState().books["AAPL"]!;
+    expect(entry.recentTrades).toHaveLength(1);
+    expect(entry.liveVolume).toBe(25);
+  });
+
+  it("records a second trade with a different id normally (H2)", () => {
+    useBookStore.getState().recordTrade(trade("t1"));
+    useBookStore.getState().recordTrade(trade("t2"));
+    const entry = useBookStore.getState().books["AAPL"]!;
+    expect(entry.recentTrades).toHaveLength(2);
+    expect(entry.liveVolume).toBe(50);
   });
 });
 

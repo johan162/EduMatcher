@@ -70,7 +70,18 @@ export function wsOn(type: string, handler: AnyHandler): () => void {
 }
 
 function emit(envelope: WsEnvelope<unknown>): void {
-  bus.get(envelope.type)?.forEach((h) => h(envelope));
+  // H2 (docs-design/reviews/EduMatcher-Trader-GUI-Review.md): forEach does
+  // not isolate a handler's exception -- one faulty listener (e.g. the
+  // chart hitting a lightweight-charts edge case) used to abort every
+  // later-registered listener for that envelope, silently dropping live
+  // data from the stores after it in iteration order.
+  bus.get(envelope.type)?.forEach((h) => {
+    try {
+      h(envelope);
+    } catch (err) {
+      console.error("[ws] bus handler threw", envelope.type, err);
+    }
+  });
 }
 
 // ── Module-scoped sockets ─────────────────────────────────────────────────────
@@ -86,6 +97,24 @@ const seqTracker = new SeqTracker();
 /** Topics with a resume in flight, so one gap does not fan out into many. */
 const pendingResume = new Set<string>();
 let lastMarketDataAt: number | null = null;
+
+// H2 (docs-design/reviews/EduMatcher-Trader-GUI-Review.md): a reconnect or
+// gap repair redelivers prints already processed (SeqTracker.observe
+// correctly reports these as "not a gap" -- they are not loss, they are
+// replay). Bounded per-symbol id memory keeps a duplicate print from ever
+// reaching the bus, so no listener double-counts it.
+const TRADE_ID_DEDUP_LIMIT = 200;
+const seenTradeIds = new Map<string, string[]>();
+
+function isDuplicateTrade(data: TradeData): boolean {
+  const seen = seenTradeIds.get(data.symbol);
+  if (seen?.includes(data.id)) return true;
+  const next = seen ?? [];
+  next.push(data.id);
+  if (next.length > TRADE_ID_DEDUP_LIMIT) next.shift();
+  seenTradeIds.set(data.symbol, next);
+  return false;
+}
 
 function authFrame(): object {
   return { api_key: useAuthStore.getState().apiKey ?? "" };
@@ -288,6 +317,10 @@ function handleMarketDataMessage(raw: unknown): void {
     pendingResume.delete(envelope.topic);
   }
 
+  if (envelope.type === "trade" && isDuplicateTrade(envelope.data as TradeData)) {
+    return;
+  }
+
   emit(envelope);
 
   switch (envelope.type) {
@@ -475,6 +508,7 @@ export function __setMarketDataSocketForTest(socket: ManagedSocket | null): void
   plan = { overview: true, focus: [] };
   pendingResume.clear();
   seqTracker.reset();
+  seenTradeIds.clear();
   lastMarketDataAt = null;
 }
 

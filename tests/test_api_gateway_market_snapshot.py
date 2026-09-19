@@ -178,6 +178,46 @@ def test_aged_trades_evicted_but_snapshot_kept() -> None:
         assert cache.snapshot("AAPL", "book")[0]["seq"] == 1
 
 
+def test_resume_trades_venue_wide_merges_and_sorts_by_seq() -> None:
+    cache = MarketDataCache()
+    cache.record(_trade("AAPL", 1, 100.0))
+    cache.record(_trade("MSFT", 2, 400.0))
+    cache.record(_trade("AAPL", 3, 101.0))
+    assert [e["seq"] for e in cache.resume_trades_venue_wide(0)] == [1, 2, 3]
+    assert [e["seq"] for e in cache.resume_trades_venue_wide(1)] == [2, 3]
+
+
+def test_resume_trades_venue_wide_empty_when_nothing_buffered() -> None:
+    cache = MarketDataCache()
+    assert cache.resume_trades_venue_wide(0) == []
+
+
+def test_resume_trades_venue_wide_a_late_starting_symbol_is_not_a_gap() -> None:
+    """A symbol that only starts trading after from_seq has nothing to miss
+    -- its own buffer's oldest entry being newer than from_seq + 1 must not
+    be mistaken for eviction the way it legitimately would be per-symbol."""
+    cache = MarketDataCache()
+    cache.record(_trade("AAPL", 1, 100.0))
+    cache.record(_trade("AAPL", 2, 101.0))
+    cache.record(_trade("AAPL", 3, 102.0))
+    # MSFT's first-ever trade is seq 4 -- its buffer starts there, not at 1.
+    cache.record(_trade("MSFT", 4, 400.0))
+    assert [e["seq"] for e in cache.resume_trades_venue_wide(2)] == [3, 4]
+
+
+def test_resume_trades_venue_wide_too_old_raises() -> None:
+    clock = [0.0]
+    with patch("edumatcher.api_gateway.market_cache.time.monotonic", lambda: clock[0]):
+        cache = MarketDataCache(window_sec=10)
+        cache.record(_trade("AAPL", 1, 100.0))
+        clock[0] += 100.0  # push seq 1 out of the window
+        cache.record(_trade("AAPL", 2, 101.0))
+        with pytest.raises(ReplayMiss):
+            cache.resume_trades_venue_wide(0)
+        # A from_seq at the eviction boundary is still serviceable.
+        assert [e["seq"] for e in cache.resume_trades_venue_wide(1)] == [2]
+
+
 def test_window_zero_disables_trade_buffer_but_serves_snapshots() -> None:
     cache = MarketDataCache(window_sec=0)
     cache.record(_trade("AAPL", 1, 100.0))
@@ -419,15 +459,75 @@ def test_emit_resume_snapshot_channel_cold_rejected(client: EngineClient) -> Non
     assert ws.sent[0]["type"] == "resume.rejected"
 
 
-def test_emit_resume_trades_without_symbol_rejected(client: EngineClient) -> None:
+def test_emit_resume_trades_without_symbol_merges_every_symbol(
+    client: EngineClient,
+) -> None:
+    """H3: a trade.executed resume with no symbol used to be rejected
+    outright (unreachable gap repair for the venue-wide topic). It must now
+    merge every symbol's buffered tail instead."""
+    _warm_engine(client)  # AAPL trades seq 1,2,3
+    client._handle_event("trade.executed", {"symbol": "MSFT", "price": 200.0})  # seq 4
     ws: Any = _FakeWS(client)
-    # trade.executed is not symbol-qualified, and no symbol supplied.
+    control = MarketDataControl.model_validate(
+        {"action": "resume", "topic": "trade.executed", "from_seq": 2}
+    )
+    _run(ws_mod._emit_resume(ws, client.market_cache, control))
+    # AAPL seq 3 and MSFT seq 4, in seq order -- not a rejection.
+    assert [e["seq"] for e in ws.sent] == [3, 4]
+
+
+def test_emit_resume_trades_without_symbol_empty_cache_sends_nothing(
+    client: EngineClient,
+) -> None:
+    """No symbol has ever traded -- a valid, empty replay, not a reject."""
+    ws: Any = _FakeWS(client)
     control = MarketDataControl.model_validate(
         {"action": "resume", "topic": "trade.executed", "from_seq": 1}
     )
     _run(ws_mod._emit_resume(ws, client.market_cache, control))
+    assert ws.sent == []
+
+
+def test_emit_resume_trades_without_symbol_too_old_falls_back_to_full_tail(
+    client: EngineClient,
+) -> None:
+    """A venue-wide resume older than any symbol's retained window can't be
+    served precisely -- reject for observability, then push every symbol's
+    current tail directly (H2's client-side dedup makes the overlap safe)."""
+    clock = [0.0]
+    with patch("edumatcher.api_gateway.market_cache.time.monotonic", lambda: clock[0]):
+        cache = MarketDataCache(window_sec=10)
+        cache.record(_trade("AAPL", 1, 100.0))
+        clock[0] = 500.0  # push seq 1 out of the window
+        cache.record(_trade("AAPL", 2, 101.0))
+        ws: Any = _FakeWS(client)
+        control = MarketDataControl.model_validate(
+            {"action": "resume", "topic": "trade.executed", "from_seq": 0}
+        )
+        _run(ws_mod._emit_resume(ws, cache, control))
     assert ws.sent[0]["type"] == "resume.rejected"
-    assert ws.sent[0]["data"]["reason"] == "unknown_topic"
+    assert ws.sent[0]["data"]["reason"] == "too_old"
+    assert [e["seq"] for e in ws.sent[1:]] == [2]
+
+
+def test_emit_snapshots_wildcard_trades_honours_resume_from(
+    client: EngineClient,
+) -> None:
+    """H2 item 4: the wildcard overview subscription used to ignore
+    resume_from on trades entirely and always resend the whole 60s tail on
+    every reconnect, inflating liveVolume and duplicating recentTrades."""
+    _warm_engine(client)  # AAPL trades seq 1,2,3
+    ws: Any = _FakeWS(client)
+    items = MarketDataControl.model_validate(
+        {
+            "action": "subscribe",
+            "items": [
+                {"symbols": ["*"], "channels": ["trades"], "resume_from": {"trades": 2}}
+            ],
+        }
+    ).as_items()
+    _run(ws_mod._emit_snapshots(ws, client.market_cache, items))
+    assert [e["seq"] for e in ws.sent] == [3]
 
 
 # ---------------------------------------------------------------------------

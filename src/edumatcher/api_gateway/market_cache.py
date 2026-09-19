@@ -110,6 +110,13 @@ class MarketDataCache:
         self._trades: dict[str, deque[_BufferedTrade]] = defaultdict(deque)
         # channel -> symbols seen, so a wildcard subscribe can enumerate them.
         self._symbols_by_channel: dict[str, set[str]] = defaultdict(set)
+        # Highest seq ever aged out of ANY symbol's trades buffer -- the
+        # venue-wide completeness watermark resume_trades_venue_wide checks
+        # against (H3). A per-symbol "oldest buffered seq" check does not
+        # generalise across symbols: a symbol that simply started trading
+        # later than from_seq has no gap, even though its own buffer's
+        # oldest entry is newer than from_seq + 1.
+        self._trades_evicted_watermark: int = 0
 
     # ------------------------------------------------------------------
     # Ingest
@@ -152,7 +159,9 @@ class MarketDataCache:
         if buf is None:
             return
         while buf and buf[0].created_mono < cutoff:
-            buf.popleft()
+            evicted = buf.popleft()
+            if evicted.seq > self._trades_evicted_watermark:
+                self._trades_evicted_watermark = evicted.seq
 
     # ------------------------------------------------------------------
     # Serve
@@ -205,6 +214,38 @@ class MarketDataCache:
                 f"from_seq={from_seq} precedes oldest retained seq={oldest}"
             )
         return [b.event for b in buf if b.seq > from_seq]
+
+    def resume_trades_venue_wide(self, from_seq: int) -> list[dict[str, Any]]:
+        """Replay every symbol's buffered ``trade`` envelopes with ``seq >
+        from_seq``, merged and sorted.
+
+        ``trade.executed`` carries no symbol (H3, docs-design/reviews/
+        EduMatcher-Trader-GUI-Review.md), so a resume against it has no
+        single per-symbol buffer to replay -- this merges every symbol's tail
+        instead. ``seq`` is the shared venue-wide engine sequence (``record``
+        stores it unchanged), so sorting the union by it is a correct
+        combined replay. Raises ``ReplayMiss`` when ``from_seq`` precedes
+        ``_trades_evicted_watermark`` -- the highest seq ever aged out of any
+        symbol's buffer. A per-symbol oldest-seq check (like ``resume_trades``
+        uses) does not generalise here: a symbol that simply started trading
+        after ``from_seq`` has no gap, even though its own buffer's oldest
+        entry is newer than ``from_seq + 1``.
+        """
+        symbols = self._symbols_by_channel.get("trades", set())
+        for symbol in symbols:
+            self._prune(symbol)
+        if from_seq < self._trades_evicted_watermark:
+            raise ReplayMiss(
+                f"from_seq={from_seq} precedes the oldest guaranteed "
+                f"venue-wide seq={self._trades_evicted_watermark}"
+            )
+        out: list[_BufferedTrade] = []
+        for symbol in symbols:
+            buf = self._trades.get(symbol)
+            if buf:
+                out.extend(b for b in buf if b.seq > from_seq)
+        out.sort(key=lambda b: b.seq)
+        return [b.event for b in out]
 
     def has_topic(self, topic: str) -> bool:
         """Whether a snapshot topic has ever been cached."""

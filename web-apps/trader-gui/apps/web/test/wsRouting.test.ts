@@ -9,7 +9,7 @@ import {
   setOverviewSubscription,
   wsOn,
 } from "@/ws/WebSocketManager";
-import { useBookStore } from "@/store/useBookStore";
+import { useBookStore, __resetTradeDedupForTest } from "@/store/useBookStore";
 import { useSessionStore } from "@/store/useSessionStore";
 import { useHaltStore } from "@/store/useHaltStore";
 import { useNotificationStore } from "@/store/useNotificationStore";
@@ -71,6 +71,7 @@ const bookEvent = (symbol: string, seq: number) => ({
 
 beforeEach(() => {
   useBookStore.setState({ books: {} });
+  __resetTradeDedupForTest();
   useHaltStore.setState({ halts: {} });
   useNotificationStore.setState({ entries: [], unread: 0 });
   useSessionStore.setState({
@@ -123,6 +124,52 @@ describe("market-data routing", () => {
     expect(entry.lastPrice).toBe(151); // the trade, not the stale book snapshot
     expect(entry.recentTrades).toHaveLength(1);
     expect(entry.auction).toMatchObject({ eqPrice: 150.5, indicative: true });
+  });
+
+  // H2 (docs-design/reviews/EduMatcher-Trader-GUI-Review.md): a market-data
+  // reconnect or gap repair redelivers prints already processed --
+  // SeqTracker.observe correctly reports these as "not a gap", but the
+  // envelope must not reach the bus or the book store a second time.
+  it("does not deliver a replayed trade id twice", () => {
+    installSocket();
+    const seen: unknown[] = [];
+    wsOn("trade", (env) => seen.push(env));
+    const t = {
+      type: "trade",
+      topic: "trade.executed",
+      ts: "",
+      seq: 1,
+      data: { id: "t1", symbol: "AAPL", price: 151, quantity: 25, tick_decimals: 2 },
+    };
+    route(t);
+    route(t); // replayed -- same id
+    expect(seen).toHaveLength(1);
+    expect(useBookStore.getState().books["AAPL"]!.recentTrades).toHaveLength(1);
+  });
+
+  // H2: emit() used to let one handler's exception abort every
+  // later-registered handler for that envelope AND the switch below it in
+  // handleMarketDataMessage -- recordTrade runs after emit(), so a faulty
+  // bus listener silently dropped live trades from the book store too.
+  it("isolates a bus handler's exception from the rest of the bus and from recordTrade", () => {
+    installSocket();
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const seen: unknown[] = [];
+    const unsubscribeThrower = wsOn("trade", () => {
+      throw new Error("boom");
+    });
+    wsOn("trade", (env) => seen.push(env));
+    route({
+      type: "trade",
+      topic: "trade.executed",
+      ts: "",
+      seq: 1,
+      data: { id: "t1", symbol: "AAPL", price: 151, quantity: 25, tick_decimals: 2 },
+    });
+    expect(seen).toHaveLength(1);
+    expect(useBookStore.getState().books["AAPL"]!.recentTrades).toHaveLength(1);
+    expect(errSpy).toHaveBeenCalled();
+    unsubscribeThrower();
   });
 
   it("routes a session event into the store and the event centre", () => {

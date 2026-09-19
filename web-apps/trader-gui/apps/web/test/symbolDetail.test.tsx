@@ -5,11 +5,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
 // Lightweight Charts needs real canvas/layout that jsdom lacks; stub it so the
-// Chart tab mounts without touching a canvas.
+// Chart tab mounts without touching a canvas. `chartSeries` is hoisted so
+// tests can assert on `update`/`setData` -- SymbolChart's live-tick tests
+// need to see what the chart itself was told.
+const chartSeries = vi.hoisted(() => ({ setData: vi.fn(), update: vi.fn() }));
 vi.mock("lightweight-charts", () => {
-  const series = { setData: vi.fn(), update: vi.fn() };
   const chart = {
-    addSeries: vi.fn(() => series),
+    addSeries: vi.fn(() => chartSeries),
     removeSeries: vi.fn(),
     applyOptions: vi.fn(),
     timeScale: vi.fn(() => ({ fitContent: vi.fn() })),
@@ -41,6 +43,10 @@ import { useSymbolStore } from "@/store/useSymbolStore";
 import { useSessionStore } from "@/store/useSessionStore";
 import { useTicketPrefillStore } from "@/store/useTicketPrefillStore";
 import type { BookEntry } from "@/store/useBookStore";
+import {
+  __marketDataMessageForTest as route,
+  __setMarketDataSocketForTest,
+} from "@/ws/WebSocketManager";
 
 class ResizeObserverStub {
   observe(): void {}
@@ -99,7 +105,19 @@ beforeEach(() => {
   useTicketPrefillStore.setState({ prefill: null });
   useActiveSymbolStore.setState({ activeSymbol: "AAPL" });
   useSymbolDetailStore.setState({ isOpen: true });
+  __setMarketDataSocketForTest(null);
+  chartSeries.update.mockClear();
 });
+
+function trade(id: string, tsNs: number, price: number) {
+  return {
+    type: "trade",
+    topic: "trade.executed",
+    ts: "2026-08-12T09:30:00Z",
+    seq: 1,
+    data: { id, symbol: "AAPL", price, quantity: 10, tick_decimals: 2, ts_ns: tsNs },
+  };
+}
 
 describe("SymbolDetailPanel", () => {
   it("does not render when closed", () => {
@@ -163,5 +181,27 @@ describe("SymbolDetailPanel", () => {
     renderPanel();
     fireEvent.click(screen.getByLabelText("Close symbol detail"));
     expect(useSymbolDetailStore.getState().isOpen).toBe(false);
+  });
+
+  // H2 (docs-design/reviews/EduMatcher-Trader-GUI-Review.md): a replayed
+  // print (reconnect, gap repair) can land in an already-closed earlier
+  // bucket. lightweight-charts' series.update requires non-decreasing time
+  // and throws "Cannot update oldest data" for one that doesn't -- which,
+  // pre-fix, aborted every bus listener registered after the chart (emit
+  // isn't exception-isolated either -- see the WebSocketManager unit below).
+  it("live tick append (Chart tab, default 5m timeframe)", () => {
+    renderPanel();
+    // 5m bucket = floor(epochSec / 300) * 300; 1_000s -> bucket 900.
+    route(trade("t1", 1_000_000_000_000, 150.5));
+    expect(chartSeries.update).toHaveBeenCalledTimes(1);
+
+    // A replayed print landing in an earlier, already-closed bucket (0s ->
+    // bucket 0) must be ignored, not passed to series.update.
+    route(trade("t2", 100_000_000_000, 149.0));
+    expect(chartSeries.update).toHaveBeenCalledTimes(1);
+
+    // A later tick in the same or a newer bucket still goes through.
+    route(trade("t3", 1_100_000_000_000, 150.75));
+    expect(chartSeries.update).toHaveBeenCalledTimes(2);
   });
 });
