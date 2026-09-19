@@ -88,6 +88,23 @@ function detailPatch(d: OrderAckData | Fill): Partial<Order> {
   if (d.client_tag != null) p.client_tag = d.client_tag;
   if (d.oco_group_id != null) p.oco_group_id = d.oco_group_id;
   if (d.combo_parent_id != null) p.combo_parent_id = d.combo_parent_id;
+  // C3 (docs-design/reviews/EduMatcher-Trader-GUI-Review.md): only order.ack
+  // carries these -- a fill never does -- so narrow with `in` rather than
+  // adding unused fields to Fill.
+  if ("stop_price" in d && d.stop_price != null) p.stop_price = d.stop_price;
+  if ("visible_qty" in d && d.visible_qty != null) p.visible_qty = d.visible_qty;
+  if ("trail_offset" in d && d.trail_offset != null) p.trail_offset = d.trail_offset;
+  if ("smp_action" in d && d.smp_action != null) p.smp_action = d.smp_action;
+  return p;
+}
+
+// H1 (docs-design/reviews/EduMatcher-Trader-GUI-Review.md): a cancel/expire
+// must fold group ids like detailPatch does, or the row an OCO/combo leg
+// went terminal on loses the id computeOrderGroups keys the Groups panel on.
+function terminalPatch(status: Order["status"], d: OrderTerminalData): Partial<Order> {
+  const p: Partial<Order> = { status };
+  if (d.oco_group_id != null) p.oco_group_id = d.oco_group_id;
+  if (d.combo_parent_id != null) p.combo_parent_id = d.combo_parent_id;
   return p;
 }
 
@@ -122,14 +139,25 @@ export const useOrderStore = create<OrderStore>((set) => {
     hydrate: (rows) =>
       set((state) => {
         const orders = { ...state.orders };
+        const seen = new Set<string>();
         for (const raw of rows) {
           const o = normalizeOrder(raw);
           if (!o.order_id) continue;
+          seen.add(o.order_id);
           const existing = orders[o.order_id];
           // Don't let a stale REST row resurrect an order we already saw go
           // terminal via the live stream.
           if (existing && isTerminal(existing.status) && !isTerminal(o.status)) continue;
           orders[o.order_id] = o;
+        }
+        // H6 (docs-design/reviews/EduMatcher-Trader-GUI-Review.md): `GET
+        // /orders` lists resting orders only, so it is authoritative for
+        // what is still working -- a locally non-terminal order it does not
+        // list is gone (missed terminal event), not still NEW. Terminal rows
+        // are untouched: their absence here means nothing, since the
+        // endpoint never lists them.
+        for (const [id, o] of Object.entries(orders)) {
+          if (!isTerminal(o.status) && !seen.has(id)) delete orders[id];
         }
         return { orders: pruneTerminal(orders), syncedAt: Date.now() };
       }),
@@ -137,6 +165,15 @@ export const useOrderStore = create<OrderStore>((set) => {
     applyAck: (d) =>
       set((state) => {
         if (!d.order_id) return state;
+        // order.ack accepted=false is shared by three different requests: a
+        // rejected NEW order, and a rejected cancel or amend against an
+        // order that is still resting (C1). The engine's own new-order
+        // reject paths always publish request_tag=null (order.new carries no
+        // such field); only a cancel or amend request carries one. A
+        // cancel/amend reject must not touch the order's status — the order
+        // it targets never stopped resting.
+        const isCancelOrAmendReject = !d.accepted && d.request_tag != null;
+        if (isCancelOrAmendReject) return state;
         const patch = detailPatch(d);
         patch.status = d.accepted ? "NEW" : "REJECTED";
         // An accepted new order rests with its full quantity remaining.
@@ -180,14 +217,14 @@ export const useOrderStore = create<OrderStore>((set) => {
     applyCancelled: (d) =>
       set((state) =>
         d.order_id
-          ? { orders: pruneTerminal(upsert(state, d.order_id, { status: "CANCELLED" })) }
+          ? { orders: pruneTerminal(upsert(state, d.order_id, terminalPatch("CANCELLED", d))) }
           : state,
       ),
 
     applyExpired: (d) =>
       set((state) =>
         d.order_id
-          ? { orders: pruneTerminal(upsert(state, d.order_id, { status: "EXPIRED" })) }
+          ? { orders: pruneTerminal(upsert(state, d.order_id, terminalPatch("EXPIRED", d))) }
           : state,
       ),
 

@@ -35,6 +35,7 @@ import { ApiError } from "@/api/apiFetch";
 import { useOrderFields } from "@/hooks/useOrderFields";
 import { useSessionStore } from "@/store/useSessionStore";
 import { useSymbolStore } from "@/store/useSymbolStore";
+import { useHaltStore } from "@/store/useHaltStore";
 import { useBookStore } from "@/store/useBookStore";
 import { useTicketPrefillStore } from "@/store/useTicketPrefillStore";
 import { useNotificationStore } from "@/store/useNotificationStore";
@@ -83,6 +84,7 @@ beforeEach(() => {
   useSymbolStore.setState({ symbols: SYMBOLS });
   useBookStore.setState({ books: {} });
   useSessionStore.setState({ phase: "CONTINUOUS" });
+  useHaltStore.setState({ halts: {} });
   useTicketPrefillStore.setState({ prefill: null });
   useNotificationStore.setState({ entries: [], unread: 0 });
 });
@@ -288,5 +290,41 @@ describe("OrderTicket auction banner (§12.10)", () => {
     renderTicket();
     expect(screen.getByRole("button", { name: "BUY" })).toHaveProperty("disabled", true);
     expect(screen.getByRole("button", { name: "SELL" })).toHaveProperty("disabled", true);
+  });
+});
+
+describe("OrderTicket order-type gating (M1, H4)", () => {
+  it("disables MARKET/FOK/IOC in PRE_OPEN, not just the auction phases", () => {
+    // Regression for M1: the engine's is_matching_enabled is CONTINUOUS-only,
+    // so PRE_OPEN rejects these with SESSION_NOT_PERMITTED exactly like an
+    // auction does — the old AUCTION_DISABLED-only check let them through.
+    useSessionStore.setState({ phase: "PRE_OPEN" });
+    renderTicket();
+    expect(screen.getByRole("tab", { name: "Market" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("tab", { name: "FOK" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("tab", { name: "IOC" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("tab", { name: "Limit" })).toHaveProperty("disabled", false);
+  });
+
+  it("disables MARKET/FOK/IOC for a halted symbol even in CONTINUOUS", () => {
+    // Regression for H4: a halt suspends matching, so these would round-trip
+    // to CIRCUIT_BREAKER_ACTIVE/INSTRUMENT_HALTED. LIMIT still rests fine.
+    useSessionStore.setState({ phase: "CONTINUOUS" });
+    useHaltStore.setState({ halts: { AAPL: { symbol: "AAPL", level: "L1" } } });
+    renderTicket();
+    const marketTab = screen.getByRole("tab", { name: "Market" });
+    expect(marketTab).toHaveProperty("disabled", true);
+    expect(marketTab.getAttribute("title")).toBe("AAPL is halted");
+    expect(screen.getByRole("tab", { name: "FOK" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("tab", { name: "IOC" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("tab", { name: "Limit" })).toHaveProperty("disabled", false);
+  });
+
+  it("does not block MARKET/FOK/IOC in CONTINUOUS for an unhalted symbol", () => {
+    useSessionStore.setState({ phase: "CONTINUOUS" });
+    renderTicket();
+    expect(screen.getByRole("tab", { name: "Market" })).toHaveProperty("disabled", false);
+    expect(screen.getByRole("tab", { name: "FOK" })).toHaveProperty("disabled", false);
+    expect(screen.getByRole("tab", { name: "IOC" })).toHaveProperty("disabled", false);
   });
 });

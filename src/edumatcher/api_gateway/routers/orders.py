@@ -105,6 +105,46 @@ async def _await_order_event(
         ) from exc
 
 
+async def _await_cancel_or_amend_event(
+    request: Request,
+    *,
+    success_topic: str,
+    gateway_id: str,
+    order_id: str,
+    wait: str | None,
+    request_tag: str | None,
+) -> dict[str, Any] | None:
+    """Wait for a cancel/amend, reporting a reject rather than timing out on it.
+
+    Without a request_tag there is nothing to safely race the reject topic
+    on (see EngineClient.await_cancel_or_amend_outcome), so this falls back
+    to the old single-topic wait — same behaviour as before C1's fix: a
+    reject still times out as a 503 in that case.
+    """
+    if wait != "ack":
+        return None
+    if request_tag is None:
+        return await _await_order_event(
+            request, success_topic, order_id, wait, request_tag=request_tag
+        )
+    try:
+        return cast(
+            dict[str, Any],
+            await request.app.state.engine.await_cancel_or_amend_outcome(
+                success_topic=success_topic,
+                gateway_id=gateway_id,
+                order_id=order_id,
+                request_tag=request_tag,
+                timeout=request.app.state.config.timeouts.wait_ack_sec,
+            ),
+        )
+    except TimeoutError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": {"code": "ENGINE_TIMEOUT", "message": str(exc)}},
+        ) from exc
+
+
 def _with_client_tag(order: dict[str, Any]) -> dict[str, Any]:
     """Return an order response carrying the canonical tag key."""
     result = dict(order)
@@ -177,17 +217,25 @@ async def cancel_order(
         request_tag,
     )
     request.app.state.engine.send_cancel(order_id, gateway_id, request_tag=request_tag)
-    event = await _await_order_event(
+    event = await _await_cancel_or_amend_event(
         request,
-        topic_order_cancelled(gateway_id),
-        order_id,
-        wait,
+        success_topic=topic_order_cancelled(gateway_id),
+        gateway_id=gateway_id,
+        order_id=order_id,
+        wait=wait,
         request_tag=request_tag,
     )
+    rejected = event is not None and event.get("accepted") is False
     return CancelAccepted(
         order_id=order_id,
         request_tag=request_tag,
-        status="PENDING_CANCEL",
+        status=(
+            "PENDING_CANCEL" if event is None else "REJECTED" if rejected else "ACKED"
+        ),
+        accepted=None if event is None else not rejected,
+        reject_code=(
+            event.get("reject_code") if event is not None and rejected else None
+        ),
         event=event,
     )
 
@@ -217,17 +265,25 @@ async def amend_order(
         body.quantity,
         request_tag=body.request_tag,
     )
-    event = await _await_order_event(
+    event = await _await_cancel_or_amend_event(
         request,
-        topic_order_amended(gateway_id),
-        order_id,
-        wait,
+        success_topic=topic_order_amended(gateway_id),
+        gateway_id=gateway_id,
+        order_id=order_id,
+        wait=wait,
         request_tag=body.request_tag,
     )
+    rejected = event is not None and event.get("accepted") is False
     return {
         "order_id": order_id,
         "request_tag": body.request_tag,
-        "status": "PENDING_AMEND",
+        "status": (
+            "PENDING_AMEND" if event is None else "REJECTED" if rejected else "ACKED"
+        ),
+        "accepted": None if event is None else not rejected,
+        "reject_code": (
+            event.get("reject_code") if event is not None and rejected else None
+        ),
         "event": event,
     }
 

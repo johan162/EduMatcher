@@ -1,13 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "@/components/shared/Modal.js";
 import { useAmendOrderMutation } from "@/queries/index.js";
 import { validateAmend } from "@/lib/validators.js";
 import { ApiError } from "@/api/apiFetch.js";
-import type { Order } from "@/types/index.js";
+import { useOrderStore, isTerminal } from "@/store/useOrderStore.js";
 
 interface AmendDialogProps {
-  order: Order;
+  orderId: string;
   onClose: () => void;
 }
 
@@ -19,14 +19,31 @@ const field =
  * priority. Editable: price (when the type has one) and quantity; everything
  * else is read-only. Submits `PATCH /orders/{id}`; the blotter row updates from
  * the live `order.amended` event, so on success the dialog just closes.
+ *
+ * The order is read live from the store by id (M6, docs-design/reviews/
+ * EduMatcher-Trader-GUI-Review.md) rather than a snapshot taken when the
+ * dialog opened, so a fill landing while it's open is reflected in Filled
+ * and in validateAmend's `filled`. If the order goes terminal while the
+ * dialog is open, it closes itself with a notice.
  */
-export function AmendDialog({ order, onClose }: AmendDialogProps) {
-  const hasPrice = order.price !== null;
-  const [price, setPrice] = useState(hasPrice ? String(order.price) : "");
-  const [qty, setQty] = useState(String(order.quantity));
+export function AmendDialog({ orderId, onClose }: AmendDialogProps) {
+  const order = useOrderStore((s) => s.orders[orderId]);
+  const [price, setPrice] = useState(() =>
+    order && order.price !== null ? String(order.price) : "",
+  );
+  const [qty, setQty] = useState(() => (order ? String(order.quantity) : ""));
   const [error, setError] = useState<string | null>(null);
   const amend = useAmendOrderMutation();
 
+  useEffect(() => {
+    if (order && !isTerminal(order.status)) return;
+    toast(`Order ${orderId.slice(0, 8)} is no longer open — closing`);
+    onClose();
+  }, [order, orderId, onClose]);
+
+  if (!order || isTerminal(order.status)) return null;
+
+  const hasPrice = order.price !== null;
   const filled = order.quantity - order.remaining_qty;
 
   const submit = () => {

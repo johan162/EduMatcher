@@ -1,18 +1,31 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { ManagedSocket, type WebSocketLike } from "@/ws/ManagedSocket";
+
+// H5: WebSocketManager resyncs session + halts via REST on every market-data
+// "authenticated" -- stub the REST layer so `installSocket()` (used by nearly
+// every test in this file) never makes a real network call.
+vi.mock("@/api/endpoints", () => ({
+  getSession: vi.fn(),
+  getHalts: vi.fn(),
+}));
+
 import {
   __marketDataMessageForTest as route,
   __setMarketDataSocketForTest,
+  __privateMessageForTest as routePrivate,
+  __setEventsSocketForTest,
+  __getEventsSocketForTest,
   getSubscriptionPlan,
   getAppliedPairs,
   setFocusSymbols,
   setOverviewSubscription,
   wsOn,
 } from "@/ws/WebSocketManager";
-import { useBookStore } from "@/store/useBookStore";
+import { useBookStore, __resetTradeDedupForTest } from "@/store/useBookStore";
 import { useSessionStore } from "@/store/useSessionStore";
 import { useHaltStore } from "@/store/useHaltStore";
 import { useNotificationStore } from "@/store/useNotificationStore";
+import { getSession, getHalts } from "@/api/endpoints";
 
 class FakeSocket implements WebSocketLike {
   static last: FakeSocket | null = null;
@@ -51,6 +64,21 @@ function installSocket(): FakeSocket {
   return fake;
 }
 
+/** An authenticated ManagedSocket over a fake transport, for the events socket. */
+function installEventsSocket(): FakeSocket {
+  const socket = new ManagedSocket("ws://test/events", {
+    authFrame: () => ({ api_key: "k" }),
+    factory: () => new FakeSocket(),
+  });
+  socket.connect();
+  const fake = FakeSocket.last!;
+  fake.onopen?.({});
+  fake.onmessage?.({ data: JSON.stringify({ type: "authenticated" }) });
+  __setEventsSocketForTest(socket);
+  fake.sent = []; // discard the auth frame
+  return fake;
+}
+
 const bookEvent = (symbol: string, seq: number) => ({
   type: "book",
   topic: `book.${symbol}`,
@@ -71,6 +99,7 @@ const bookEvent = (symbol: string, seq: number) => ({
 
 beforeEach(() => {
   useBookStore.setState({ books: {} });
+  __resetTradeDedupForTest();
   useHaltStore.setState({ halts: {} });
   useNotificationStore.setState({ entries: [], unread: 0 });
   useSessionStore.setState({
@@ -82,6 +111,8 @@ beforeEach(() => {
     schedule: null,
   });
   vi.spyOn(console, "warn").mockImplementation(() => {});
+  vi.mocked(getSession).mockReset().mockResolvedValue({ state: "CLOSED", sessions_enabled: true });
+  vi.mocked(getHalts).mockReset().mockResolvedValue({ halted: [] });
 });
 
 describe("market-data routing", () => {
@@ -123,6 +154,52 @@ describe("market-data routing", () => {
     expect(entry.lastPrice).toBe(151); // the trade, not the stale book snapshot
     expect(entry.recentTrades).toHaveLength(1);
     expect(entry.auction).toMatchObject({ eqPrice: 150.5, indicative: true });
+  });
+
+  // H2 (docs-design/reviews/EduMatcher-Trader-GUI-Review.md): a market-data
+  // reconnect or gap repair redelivers prints already processed --
+  // SeqTracker.observe correctly reports these as "not a gap", but the
+  // envelope must not reach the bus or the book store a second time.
+  it("does not deliver a replayed trade id twice", () => {
+    installSocket();
+    const seen: unknown[] = [];
+    wsOn("trade", (env) => seen.push(env));
+    const t = {
+      type: "trade",
+      topic: "trade.executed",
+      ts: "",
+      seq: 1,
+      data: { id: "t1", symbol: "AAPL", price: 151, quantity: 25, tick_decimals: 2 },
+    };
+    route(t);
+    route(t); // replayed -- same id
+    expect(seen).toHaveLength(1);
+    expect(useBookStore.getState().books["AAPL"]!.recentTrades).toHaveLength(1);
+  });
+
+  // H2: emit() used to let one handler's exception abort every
+  // later-registered handler for that envelope AND the switch below it in
+  // handleMarketDataMessage -- recordTrade runs after emit(), so a faulty
+  // bus listener silently dropped live trades from the book store too.
+  it("isolates a bus handler's exception from the rest of the bus and from recordTrade", () => {
+    installSocket();
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const seen: unknown[] = [];
+    const unsubscribeThrower = wsOn("trade", () => {
+      throw new Error("boom");
+    });
+    wsOn("trade", (env) => seen.push(env));
+    route({
+      type: "trade",
+      topic: "trade.executed",
+      ts: "",
+      seq: 1,
+      data: { id: "t1", symbol: "AAPL", price: 151, quantity: 25, tick_decimals: 2 },
+    });
+    expect(seen).toHaveLength(1);
+    expect(useBookStore.getState().books["AAPL"]!.recentTrades).toHaveLength(1);
+    expect(errSpy).toHaveBeenCalled();
+    unsubscribeThrower();
   });
 
   it("routes a session event into the store and the event centre", () => {
@@ -303,5 +380,114 @@ describe("subscription plan", () => {
       "AAPL|trades",
     ]);
     setOverviewSubscription(true);
+  });
+});
+
+describe("session/halts resync on authenticate (H5, H4)", () => {
+  // `installSocket()`'s FakeSocket is a standalone ManagedSocket used only to
+  // exercise subscribe/resume framing (§17.3.1) -- it is never wired via
+  // `.on(handleMarketDataMessage)`, so its own "authenticated" delivery does
+  // not reach the routing under test. `route()` (== handleMarketDataMessage)
+  // is what every test in this file uses to simulate an incoming envelope,
+  // "authenticated" included.
+
+  it("applies the fetched session phase and halts on every authenticate", async () => {
+    vi.mocked(getSession).mockResolvedValue({ state: "CONTINUOUS", sessions_enabled: true });
+    vi.mocked(getHalts).mockResolvedValue({
+      halted: [{ symbol: "AAPL", level: "L1", resume_at_ns: null }],
+    });
+
+    installSocket();
+    route({ type: "authenticated" });
+
+    await vi.waitFor(() => {
+      expect(useSessionStore.getState().phase).toBe("CONTINUOUS");
+      expect(useHaltStore.getState().isHalted("AAPL")).toBe(true);
+    });
+  });
+
+  it("re-syncs on a reconnect's fresh authenticate, replacing stale halts", async () => {
+    installSocket();
+    vi.mocked(getHalts).mockResolvedValue({
+      halted: [{ symbol: "AAPL", level: "L1", resume_at_ns: null }],
+    });
+    route({ type: "authenticated" });
+    await vi.waitFor(() => expect(useHaltStore.getState().isHalted("AAPL")).toBe(true));
+
+    // AAPL resumed and MSFT halted while disconnected; the reconnect's
+    // "authenticated" is the only thing that can catch the GUI up.
+    vi.mocked(getHalts).mockResolvedValue({
+      halted: [{ symbol: "MSFT", level: "L1", resume_at_ns: null }],
+    });
+    route({ type: "authenticated" });
+
+    await vi.waitFor(() => {
+      expect(useHaltStore.getState().isHalted("AAPL")).toBe(false);
+      expect(useHaltStore.getState().isHalted("MSFT")).toBe(true);
+    });
+  });
+
+  it("logs but does not throw when the session/halts resync fails", async () => {
+    installSocket();
+    vi.mocked(getSession).mockRejectedValue(new Error("engine timeout"));
+    vi.mocked(getHalts).mockRejectedValue(new Error("engine timeout"));
+    vi.mocked(console.warn).mockClear();
+
+    expect(() => route({ type: "authenticated" })).not.toThrow();
+
+    await vi.waitFor(() => {
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining("session resync failed"),
+        expect.any(Error),
+      );
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining("halts resync failed"),
+        expect.any(Error),
+      );
+    });
+  });
+});
+
+describe("private-stream stream_seq gap detection (H6)", () => {
+  // routers/ws.py numbers every private-stream frame -- authenticated,
+  // orders.snapshot, and every order.*/fill/quote event -- with a
+  // connection-wide stream_seq that still advances when the bounded queue
+  // drops an event under backpressure. There is no per-topic resume for
+  // this stream (unlike market data): the repair is to close the socket
+  // and open a new one, whose fresh orders.snapshot is the reconciliation.
+
+  it("does not reconnect when stream_seq is contiguous", () => {
+    installEventsSocket();
+    const before = __getEventsSocketForTest();
+    routePrivate({ type: "authenticated", topic: "", ts: "", stream_seq: 1, data: {} });
+    routePrivate({ type: "orders.snapshot", topic: "", ts: "", stream_seq: 2, data: {} });
+    routePrivate({ type: "order.ack", topic: "order.ack.GW1", ts: "", stream_seq: 3, data: {} });
+    expect(__getEventsSocketForTest()).toBe(before);
+  });
+
+  it("reconnects the events socket when stream_seq skips", () => {
+    installEventsSocket();
+    const before = __getEventsSocketForTest();
+    routePrivate({ type: "authenticated", topic: "", ts: "", stream_seq: 1, data: {} });
+    // stream_seq jumps from 1 to 3: event 2 was dropped by the queue.
+    routePrivate({ type: "order.ack", topic: "order.ack.GW1", ts: "", stream_seq: 3, data: {} });
+    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("stream_seq gap"));
+    expect(__getEventsSocketForTest()).not.toBe(before);
+  });
+
+  it("does not reconnect on an envelope with no stream_seq", () => {
+    installEventsSocket();
+    const before = __getEventsSocketForTest();
+    routePrivate({ type: "error", topic: "", ts: "", data: { message: "boom" } });
+    expect(__getEventsSocketForTest()).toBe(before);
+  });
+
+  it("treats the first stream_seq seen as a baseline, not a gap", () => {
+    installEventsSocket();
+    const before = __getEventsSocketForTest();
+    // A client that only just connected has nothing to compare the first
+    // number against.
+    routePrivate({ type: "authenticated", topic: "", ts: "", stream_seq: 42, data: {} });
+    expect(__getEventsSocketForTest()).toBe(before);
   });
 });

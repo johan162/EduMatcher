@@ -15,7 +15,6 @@ import { useCancelOcoMutation, useCancelComboMutation } from "@/queries/index.js
 import { getOrders } from "@/api/endpoints.js";
 import { ApiError } from "@/api/apiFetch.js";
 import type { OrderGroup } from "@/lib/orderGroups.js";
-import type { Order } from "@/types/index.js";
 
 /**
  * Active Orders screen (§13.1) — the full live blotter plus Amend, Cancel-Replace,
@@ -35,8 +34,10 @@ export function ActiveOrdersPage() {
   const { requestCancel, cancelById, confirmTarget, setConfirmTarget, confirmCancel, busy } =
     useOrderCancel();
 
-  const [amendTarget, setAmendTarget] = useState<Order | null>(null);
-  const [replaceTarget, setReplaceTarget] = useState<Order | null>(null);
+  // Amend/Replace dialogs read the order live from useOrderStore by id (M6),
+  // so only the id — not a snapshot of the order — needs to be held here.
+  const [amendTarget, setAmendTarget] = useState<string | null>(null);
+  const [replaceTarget, setReplaceTarget] = useState<string | null>(null);
   const [bulkTarget, setBulkTarget] = useState<string[] | null>(null);
   const [groupTarget, setGroupTarget] = useState<OrderGroup | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -103,16 +104,16 @@ export function ActiveOrdersPage() {
         orders={orders}
         tickDecimalsFor={tickDecimalsFor}
         onOpenDetail={openOrderDetail}
-        onAmend={setAmendTarget}
-        onReplace={setReplaceTarget}
+        onAmend={(o) => setAmendTarget(o.order_id)}
+        onReplace={(o) => setReplaceTarget(o.order_id)}
         onCancel={requestCancel}
         onBulkCancel={setBulkTarget}
       />
 
-      {amendTarget && <AmendDialog order={amendTarget} onClose={() => setAmendTarget(null)} />}
+      {amendTarget && <AmendDialog orderId={amendTarget} onClose={() => setAmendTarget(null)} />}
 
       {replaceTarget && (
-        <ReplaceDialog order={replaceTarget} onClose={() => setReplaceTarget(null)} />
+        <ReplaceDialog orderId={replaceTarget} onClose={() => setReplaceTarget(null)} />
       )}
 
       {confirmTarget && (

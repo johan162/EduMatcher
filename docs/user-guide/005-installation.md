@@ -109,7 +109,7 @@ Because the script is read from a pipe, options need `bash -s --` so that the
 shell hands them to the script rather than consuming them itself:
 
 ```bash
-curl -fsSL .../install.sh | bash -s -- --config ten-nominal --version 0.40.1
+curl -fsSL .../install.sh | bash -s -- --config ten-nominal --version 0.40.2
 ```
 
 Two environment variables are also honoured: `REPO_OWNER` (which GitHub
@@ -591,7 +591,7 @@ deployed configuration and `pm-opctl-cli` ready to start the stack.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | \
-    bash -s -- --version 0.40.1 --snapshot
+    bash -s -- --version 0.40.2 --snapshot
 
 multipass shell ems
 cd /home/ubuntu/session
@@ -614,7 +614,7 @@ To read the script before running it:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh -o curl_setup_vm.sh
 less curl_setup_vm.sh
-bash curl_setup_vm.sh --version 0.40.1 --snapshot
+bash curl_setup_vm.sh --version 0.40.2 --snapshot
 ```
 
 
@@ -738,197 +738,6 @@ snippets above assume the usual `autoload -Uz compinit && compinit` earlier
 in `~/.zshrc`. Loading the file with `source` instead of `eval` silently
 registers nothing; always use `eval` for the zsh script.
 
-
-## How a release is produced
-
-Two scripts and two GitHub workflows. One tag produces the Python package and
-the container images together, all carrying the same version, which is what
-lets the installer pin a whole system with a single number.
-
-```mermaid
-flowchart TD
-    MK["scripts/mkrelease.sh\nbump version, build docs, tag"]
-    TAG["git tag vX.Y.Z\npushed to GitHub"]
-    GH["scripts/mkghrelease.sh\ngh release create + artifacts"]
-    REL["GitHub release published"]
-
-    PYPI["publish-to-pypi.yml\npoetry build and publish"]
-    IMG["publish-images.yml"]
-
-    AMD["build amd64\nubuntu-24.04"]
-    ARM["build arm64\nubuntu-24.04-arm"]
-    MERGE["merge digests into\none manifest list\ntags X.Y.Z and latest"]
-
-    OUTP["PyPI\nedumatcher X.Y.Z"]
-    OUTC["GHCR\n5 multi-arch images X.Y.Z"]
-
-    USER1["pipx install edumatcher"]
-    USER2["curl .../install.sh | bash"]
-
-    MK --> TAG --> GH --> REL
-    REL --> PYPI --> OUTP --> USER1
-    REL --> IMG
-    IMG --> AMD --> MERGE
-    IMG --> ARM --> MERGE
-    MERGE --> OUTC --> USER2
-    GH -.->|"phase 6B waits for the run"| MERGE
-```
-
-Each image is built **natively** on both architectures rather than emulated,
-then the two are joined into one manifest list. A user on Intel and a user on
-Apple Silicon pull the same tag and each gets the right binary.
-
-The five published images are:
-
-```text
-ghcr.io/johan162/edumatcher                 the exchange, all pm-* processes
-ghcr.io/johan162/edumatcher-terminal-gui    the trading terminal
-ghcr.io/johan162/edumatcher-log-gui         the log viewer
-ghcr.io/johan162/edumatcher-config-gui      the configuration builder
-ghcr.io/johan162/edumatcher-trader-gui      the trader GUI
-```
-
-`latest` is only moved for an exact `vMAJOR.MINOR.PATCH` tag, so a pre-release
-never becomes what a new user gets by default — the same rule the PyPI workflow
-uses to choose between PyPI and TestPyPI.
-
-### Publishing by hand
-
-`make ghcr-push` in `deployment/docker/` builds all five images from your
-checkout and pushes them, for when the workflow cannot run:
-
-```bash
-export GITHUB_USER=<you> GHCR_TOKEN=<token with write:packages>
-make ghcr-push                              # all five, tagged :dev
-make ghcr-push TAG=0.20.6 FORCE=1 LATEST=1  # as a release tag
-```
-
-It builds only for the architecture you are on. Pushing a single-architecture
-image over a release tag replaces the manifest list, and users on the other
-architecture then get "no matching manifest" — which you will not notice,
-because your own machine keeps working. That is why a release-looking tag needs
-`FORCE=1` and why `latest` is never moved unless asked.
-
-
-## Developer release checklist
-
-For the maintainer cutting a release. Steps 1-4 are local, 5-7 are automated
-but need watching, and 8-10 are the checks that the release actually works for
-somebody who is not you.
-
-### Before tagging
-
-1. **Working tree is clean and tests pass.**
-   ```bash
-   poetry run pytest
-   make -C web-apps/terminal-gui typecheck test
-   ```
-   Repeat the last line for `log-gui`, `trader-gui` and `config-gui`.
-
-2. **`CHANGELOG.md` has an entry for this version.** `scripts/mkchlogentry.sh`
-   drafts one from the commit log.
-
-3. **The container stack starts from a clean state.** This is the test that
-   catches a stale deployed configuration or a broken image:
-   ```bash
-   cd deployment/docker
-   make build && make down-all && make clean-data && make up-all
-   ```
-   Confirm the build printed `Installing local wheel: ...`, not a PyPI
-   download, then check each application answers: 8090, 8091, 8093, and
-   `curl -s localhost:8093/api/v1/healthz`.
-
-4. **The trading terminal shows a live book *and* history.** This exercises the
-   whole chain — the private network, the gateway bind hosts and the
-   per-configuration API key — in one look:
-   ```bash
-   curl -s localhost:8090/api/bridge/status
-   ```
-   Expect `"calf":"ACTIVE"` with a non-zero `symbols` count.
-
-### Tag and release
-
-5. **Run `scripts/mkrelease.sh`.** It bumps the version, builds the
-   documentation bundles, commits and tags.
-
-6. **Wait for the CI workflows on the tag to go green** before creating the
-   release.
-
-7. **Run `scripts/mkghrelease.sh`.** It validates the artifacts in `dist/`,
-   creates the GitHub release, and then waits for the container image workflow.
-
-   | Option | Effect |
-   |---|---|
-   | `--dry-run` | Show what would happen; create nothing |
-   | `--pre-release` | Force pre-release marking regardless of the tag |
-   | `--skip-images` | Do not wait for the image workflow |
-   | `IMAGE_WAIT_MINUTES=n` | How long to wait (default 30) |
-
-   If the image workflow fails, the GitHub release still exists — only the
-   images are missing. Re-run just that part:
-   ```bash
-   gh run view <run-id> --log-failed
-   gh workflow run publish-images.yml -f tag=vX.Y.Z
-   ```
-
-### After the release
-
-8. **First release only: fix the GHCR package permissions.** Two separate
-   settings, both one-time and both per package:
-
-   - **Make each package Public.** New packages are private, so `podman pull`
-     fails for everyone except you and the one-line installer silently stops
-     working.
-   - **Grant the repository Write access** under *Manage Actions access* for
-     any package that existed before the workflow did — one pushed by hand with
-     a personal access token, for example. Such a package belongs to your user
-     account rather than the repository, and the workflow's `GITHUB_TOKEN`
-     cannot write to it. The symptom is `denied: permission_denied:
-     read_package` on push, after authentication has already succeeded.
-
-9. **Verify the one-line install as a stranger would.** First **stop any stack
-   you already have running** — the released deployment and the source-built one
-   use the same container names and host ports, so an install started beside a
-   running stack silently attaches to it and verifies nothing:
-
-   ```bash
-   make -C deployment/docker down-all
-   ```
-
-   Then install into a throwaway directory so your own instance is untouched:
-   ```bash
-   curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/vX.Y.Z/deployment/curl/install.sh \
-       | bash -s -- --dir /tmp/em-release-test
-   ```
-   Then open <http://localhost:8090>, and clean up with
-   `cd /tmp/em-release-test && ./edumatcher.sh uninstall --data`.
-
-10. **Verify the PyPI install** in a fresh environment:
-    ```bash
-    pipx install edumatcher==X.Y.Z
-    ```
-
-!!! tip "Where releases usually go wrong"
-    Two failures are quiet rather than loud. An image built from PyPI instead
-    of the checkout looks like a successful build but ships the *previous*
-    release — step 3's `Installing local wheel` line is what catches it. And
-    private GHCR packages fail only for other people, never for the maintainer
-    who is already authenticated — step 9, run without credentials, is what
-    catches that.
-
-## Doing a manual GHCR push
-
-Normally the push is handled by the workflow but it can be manually overridden.
-The target `ghcr-push` in `deployment/docker/Makefile` builds all five images from. 
-In will login with ghe existing GITHUB_USER/GHCR_TOKEN, then tags and pushes each one.
-
-```
-export GITHUB_USER=<user with admin priv> GHCR_TOKEN=<token with write:packages>
-
-make ghcr-push                              # all five, tagged :dev
-make ghcr-push TAG=0.20.6 FORCE=1           # ...as a release tag
-make ghcr-push TAG=0.20.6 FORCE=1 LATEST=1  # ...and move :latest
-```
 
 
 ## Where to go next

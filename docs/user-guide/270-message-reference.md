@@ -1861,6 +1861,10 @@ Acknowledge acceptance or rejection of a new order, addressed to the gateway tha
 | `tif` | `string` | omitted when unset | max_len 8 |  |
 | `qty` | `int` | omitted when unset | unit `shares` |  |
 | `price` | `float` | omitted when unset | unit `display_price` | Absent for a MARKET order, which has no limit price. |
+| `stop_price` | `float` | omitted when unset | unit `display_price` | STOP / STOP_LIMIT / TRAILING_STOP trigger. Absent for a type that carries none. |
+| `visible_qty` | `int` | omitted when unset | unit `shares` | ICEBERG: fixed peak size. Absent for a type that carries none. |
+| `trail_offset` | `float` | omitted when unset | unit `display_price` | TRAILING_STOP: trail distance, in display money. Absent for a type that carries none. |
+| `smp_action` | enum: `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | omitted when unset | — | Self-match prevention. Null means the client did not specify SMP at all, distinct from an explicit NONE. See SmpAction's docstring. |
 | `client_tag` | `string` | omitted when unset | max_len 64 |  |
 | `request_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for this request, echoed on the resulting event or rejection. Distinct from the target order's client_tag, which identifies the order rather than the request acting on it. A client may have several requests outstanding against one order. |
 | `oco_group_id` | `string` | omitted when unset | max_len 64 |  |

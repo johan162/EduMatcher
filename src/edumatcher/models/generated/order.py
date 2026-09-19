@@ -1069,6 +1069,13 @@ OrderAckRejectCode = Literal[
     "INTERNAL_ERROR",
     "UNKNOWN",
 ]
+_ORDER_ACK_SMP_ACTION_VALUES = (
+    "NONE",
+    "CANCEL_AGGRESSOR",
+    "CANCEL_RESTING",
+    "CANCEL_BOTH",
+)
+OrderAckSmpAction = Literal["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"]
 
 
 _ORDER_ACK_FIELDS: tuple[dict[str, Any], ...] = (
@@ -1158,6 +1165,35 @@ _ORDER_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "Absent for a MARKET order, which has no limit price.",
     },
     {
+        "name": "stop_price",
+        "type": "float",
+        "unit": "display_price",
+        "required": False,
+        "doc": "STOP / STOP_LIMIT / TRAILING_STOP trigger. Absent for a type that carries none.",
+    },
+    {
+        "name": "visible_qty",
+        "type": "int",
+        "unit": "shares",
+        "required": False,
+        "doc": "ICEBERG: fixed peak size. Absent for a type that carries none.",
+    },
+    {
+        "name": "trail_offset",
+        "type": "float",
+        "unit": "display_price",
+        "required": False,
+        "doc": "TRAILING_STOP: trail distance, in display money. Absent for a type that carries none.",
+    },
+    {
+        "name": "smp_action",
+        "type": "enum",
+        "unit": None,
+        "required": False,
+        "doc": "Self-match prevention. Null means the client did not specify SMP at all, distinct from an explicit NONE. See SmpAction's docstring.",
+        "values": _ORDER_ACK_SMP_ACTION_VALUES,
+    },
+    {
         "name": "client_tag",
         "type": "string",
         "unit": None,
@@ -1234,6 +1270,10 @@ class OrderAck:
     tif: str | None = None
     qty: int | None = None  # unit: shares
     price: float | None = None  # unit: display_price
+    stop_price: float | None = None  # unit: display_price
+    visible_qty: int | None = None  # unit: shares
+    trail_offset: float | None = None  # unit: display_price
+    smp_action: OrderAckSmpAction | None = None
     client_tag: str | None = None
     request_tag: str | None = None
     oco_group_id: str | None = None
@@ -1286,6 +1326,11 @@ class OrderAck:
                 raise MessageValidationError(
                     f"tif: length {len(self.tif)} exceeds max_len 8"
                 )
+        if self.smp_action is not None:
+            if self.smp_action not in _ORDER_ACK_SMP_ACTION_VALUES:
+                raise MessageValidationError(
+                    f"smp_action: {self.smp_action!r} is not one of {_ORDER_ACK_SMP_ACTION_VALUES!r}"
+                )
         if self.client_tag is not None:
             if len(self.client_tag) > 64:
                 raise MessageValidationError(
@@ -1336,6 +1381,16 @@ class OrderAck:
             tif=None if p.get("tif") is None else str(p["tif"]),
             qty=None if p.get("qty") is None else int(p["qty"]),
             price=None if p.get("price") is None else float(p["price"]),
+            stop_price=None if p.get("stop_price") is None else float(p["stop_price"]),
+            visible_qty=None if p.get("visible_qty") is None else int(p["visible_qty"]),
+            trail_offset=(
+                None if p.get("trail_offset") is None else float(p["trail_offset"])
+            ),
+            smp_action=(
+                None
+                if p.get("smp_action") is None
+                else cast(OrderAckSmpAction, str(p["smp_action"]))
+            ),
             client_tag=None if p.get("client_tag") is None else str(p["client_tag"]),
             request_tag=None if p.get("request_tag") is None else str(p["request_tag"]),
             oco_group_id=(
@@ -1371,6 +1426,14 @@ class OrderAck:
             payload["qty"] = self.qty
         if self.price is not None:
             payload["price"] = self.price
+        if self.stop_price is not None:
+            payload["stop_price"] = self.stop_price
+        if self.visible_qty is not None:
+            payload["visible_qty"] = self.visible_qty
+        if self.trail_offset is not None:
+            payload["trail_offset"] = self.trail_offset
+        if self.smp_action is not None:
+            payload["smp_action"] = self.smp_action
         if self.client_tag is not None:
             payload["client_tag"] = self.client_tag
         if self.request_tag is not None:
@@ -1425,6 +1488,10 @@ def make_order_ack_unchecked(
     tif: str | None = None,
     qty: int | None = None,
     price: float | None = None,
+    stop_price: float | None = None,
+    visible_qty: int | None = None,
+    trail_offset: float | None = None,
+    smp_action: OrderAckSmpAction | None = None,
     client_tag: str | None = None,
     request_tag: str | None = None,
     oco_group_id: str | None = None,
@@ -1463,6 +1530,14 @@ def make_order_ack_unchecked(
         payload["qty"] = int(qty)
     if price is not None:
         payload["price"] = float(price)
+    if stop_price is not None:
+        payload["stop_price"] = float(stop_price)
+    if visible_qty is not None:
+        payload["visible_qty"] = int(visible_qty)
+    if trail_offset is not None:
+        payload["trail_offset"] = float(trail_offset)
+    if smp_action is not None:
+        payload["smp_action"] = str(smp_action)
     if client_tag is not None:
         payload["client_tag"] = str(client_tag)
     if request_tag is not None:

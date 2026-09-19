@@ -193,6 +193,7 @@ async def test_trader_full_payload() -> None:
     assert result["session"]["state"] == "CONTINUOUS"
     assert result["orders"] == {"orders": []}
     assert result["recent_fills"] == {"events": [{"order_id": "O1"}], "count": 1}
+    assert result["halts"] == {"halted": []}
     assert result["capabilities"]["sessions_enabled"] is True
 
 
@@ -206,9 +207,10 @@ async def test_trader_read_only_key() -> None:
     assert result["gateway_role"] == "READ_ONLY"
     assert result["orders"] == {"orders": []}
     assert result["positions"] == []
-    # session and recent_fills are structurally absent, NOT flagged incomplete.
+    # session, recent_fills and halts are structurally absent, NOT flagged incomplete.
     assert result["session"] is None
     assert result["recent_fills"] is None
+    assert result["halts"] is None
     assert result["incomplete"] == []
     # resolve_role is never called for a keyless credential.
     assert not any(c[0] == "resolve_role" for c in engine.calls)
@@ -243,6 +245,19 @@ async def test_trader_optional_session_timeout_is_incomplete() -> None:
     )
     assert result["session"] is None
     assert "session" in result["incomplete"]
+    # orders still populated — a partial response, still 200.
+    assert result["orders"] == {"orders": []}
+
+
+@pytest.mark.anyio
+async def test_trader_optional_halts_timeout_is_incomplete() -> None:
+    """H4: halts is best-effort like session, not required like reference/orders."""
+    engine = BootstrapFakeEngine(raise_prefixes=frozenset({"system.halt_status."}))
+    result = await bootstrap.bootstrap_trader(
+        boot_request(engine), trading_session(), fills_limit=50
+    )
+    assert result["halts"] is None
+    assert "halts" in result["incomplete"]
     # orders still populated — a partial response, still 200.
     assert result["orders"] == {"orders": []}
 
@@ -293,6 +308,7 @@ async def test_mm_success_includes_quote_fields() -> None:
     assert result["gateway_role"] == "MARKET_MAKER"
     assert result["quote_bootstrap"] == {"quotes": []}
     assert result["quote_legs"] == {"legs": []}
+    assert result["halts"] == {"halted": []}
     assert result["incomplete"] == []
 
 

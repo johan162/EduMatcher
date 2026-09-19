@@ -1,14 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "@/components/shared/Modal.js";
 import { useReplaceOrderMutation } from "@/queries/index.js";
 import { useOrderFields } from "@/hooks/useOrderFields.js";
 import { orderSchema } from "@/lib/validators.js";
 import { ApiError } from "@/api/apiFetch.js";
-import type { Order } from "@/types/index.js";
+import { useOrderStore, isTerminal } from "@/store/useOrderStore.js";
 
 interface ReplaceDialogProps {
-  order: Order;
+  orderId: string;
   onClose: () => void;
 }
 
@@ -22,14 +22,39 @@ const field =
  * lost by design and no stale order is left live. Symbol/side/type/TIF are
  * inherited; price/stop and quantity are editable. Submits
  * `POST /orders/{id}/replace`; the row swaps via the live cancel + new-order acks.
+ *
+ * The replacement quantity defaults to what's actually still resting
+ * (`remaining_qty`), not the order's original total (C2, docs-design/
+ * reviews/EduMatcher-Trader-GUI-Review.md) — defaulting to the total would
+ * silently re-establish size already filled, over-trading the position.
+ * Filled-so-far is shown read-only for the same reason.
+ *
+ * The order is read live from the store by id (M6) rather than a snapshot
+ * taken when the dialog opened. If it goes terminal while the dialog is
+ * open, the dialog closes itself with a notice.
  */
-export function ReplaceDialog({ order, onClose }: ReplaceDialogProps) {
-  const fields = useOrderFields(order.order_type);
-  const [price, setPrice] = useState(order.price !== null ? String(order.price) : "");
-  const [stopPrice, setStopPrice] = useState(order.stop_price !== null ? String(order.stop_price) : "");
-  const [qty, setQty] = useState(String(order.quantity));
+export function ReplaceDialog({ orderId, onClose }: ReplaceDialogProps) {
+  const order = useOrderStore((s) => s.orders[orderId]);
+  const fields = useOrderFields(order?.order_type ?? "LIMIT");
+  const [price, setPrice] = useState(() =>
+    order && order.price !== null ? String(order.price) : "",
+  );
+  const [stopPrice, setStopPrice] = useState(() =>
+    order && order.stop_price !== null ? String(order.stop_price) : "",
+  );
+  const [qty, setQty] = useState(() => (order ? String(order.remaining_qty) : ""));
   const [error, setError] = useState<string | null>(null);
   const replace = useReplaceOrderMutation();
+
+  useEffect(() => {
+    if (order && !isTerminal(order.status)) return;
+    toast(`Order ${orderId.slice(0, 8)} is no longer open — closing`);
+    onClose();
+  }, [order, orderId, onClose]);
+
+  if (!order || isTerminal(order.status)) return null;
+
+  const filled = order.quantity - order.remaining_qty;
 
   const submit = () => {
     setError(null);
@@ -92,7 +117,7 @@ export function ReplaceDialog({ order, onClose }: ReplaceDialogProps) {
 
   return (
     <Modal title={`Replace ${order.symbol} · ${order.order_id.slice(0, 8)}`} onClose={onClose}>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-4 gap-2">
         <div className="flex flex-col gap-0.5">
           <span className="text-[10px] text-[#505070]">Symbol</span>
           <span className="font-mono text-xs text-[#9090b0]">{order.symbol}</span>
@@ -108,6 +133,10 @@ export function ReplaceDialog({ order, onClose }: ReplaceDialogProps) {
           <span className="font-mono text-xs text-[#9090b0]">
             {order.order_type} · {order.tif}
           </span>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[10px] text-[#505070]">Filled</span>
+          <span className="font-mono text-xs text-[#9090b0]">{filled}</span>
         </div>
       </div>
 
@@ -139,7 +168,7 @@ export function ReplaceDialog({ order, onClose }: ReplaceDialogProps) {
           </label>
         )}
         <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-[#505070]">Quantity</span>
+          <span className="text-[10px] text-[#505070]">Replacement quantity</span>
           <input
             type="number"
             min={1}

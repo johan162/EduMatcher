@@ -28,8 +28,7 @@ export function hydrateFromBootstrap(payload: BootstrapTrader | BootstrapAdmin):
     // the countdown falls back to the configured schedule.
     useSessionStore.getState().setPhase(payload.session.state, null, null);
   }
-  const halts = (payload as BootstrapAdmin).halts;
-  if (halts?.halted) {
-    useHaltStore.getState().setHalts(halts.halted);
+  if (payload.halts) {
+    useHaltStore.getState().setHalts(payload.halts.halted);
   }
 }

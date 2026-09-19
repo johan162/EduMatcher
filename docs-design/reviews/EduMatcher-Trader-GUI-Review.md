@@ -51,7 +51,9 @@ Each fix below removes the ambiguity at the source rather than patching one symp
 
 ## 2. Critical findings
 
-### C1 — A rejected cancel or amend marks a live order `REJECTED` (GUI and gateway cache)
+### ~~C1 — A rejected cancel or amend marks a live order `REJECTED` (GUI and gateway cache)~~
+
+**FIXED**
 
 **Where:** `store/useOrderStore.ts:137` (`applyAck`) · `api_gateway/caches.py:48` · engine `_handle_cancel` (main.py:5735) / `_handle_amend` (main.py:5808) → `_reject` (main.py:694)
 
@@ -81,7 +83,9 @@ Confirmed by probes P1a and P1b.
 
 ---
 
-### C2 — Cancel-replace defaults to the original total quantity → over-trading on partial fills
+### ~~C2 — Cancel-replace defaults to the original total quantity → over-trading on partial fills~~
+
+**FIXED**
 
 **Where:** `components/orders/ReplaceDialog.tsx:30`
 
@@ -93,7 +97,9 @@ Example: BUY 100 @ 10.00 with 60 filled. The trader opens Replace and changes on
 
 ---
 
-### C3 — Live order rows lack `stop_price` / `visible_qty` / `trail_offset` / `smp_action`, so Replace and Undo break
+### ~~C3 — Live order rows lack `stop_price` / `visible_qty` / `trail_offset` / `smp_action`, so Replace and Undo break~~
+
+**FIXED**
 
 **Where:** engine new-order hot-path ack (main.py, ack payload carries only `symbol, side, order_type, tif, qty, price, client_tag`) · `store/useOrderStore.ts` `detailPatch` · `ReplaceDialog.tsx:47` · `lib/resubmit.ts`
 
@@ -114,7 +120,9 @@ The Order Detail drawer also shows no stop or iceberg attributes. Confirmed by p
 
 ## 3. High findings
 
-### H1 — OCO legs are never grouped; "Cancel group" is unreachable
+### ~~H1 — OCO legs are never grouped; "Cancel group" is unreachable~~
+
+**FIXED**
 
 **Where:** engine `_handle_oco_order` (main.py:5563: leg ack `order={symbol, side, order_type, tif, quantity, price}`, no `oco_group_id`) · `hooks/useOrderEventNotifications.ts` (ignores accepted `oco.ack`) · `useOrderStore.applyCancelled` (patches status only)
 
@@ -162,7 +170,7 @@ Confirmed by probes P6a and P7.
 
 **Fix (gateway + client):** support `resume` on `trade.executed` with no symbol by merging the per-symbol buffers on `seq > from_seq`, and apply the same path when replaying a wildcard `resume_from`. The client code needs no change once the server supports it.
 
-### H4 — Halts are invisible to TRADER/MARKET_MAKER unless they begin after login
+### ~~H4 — Halts are invisible to TRADER/MARKET_MAKER unless they begin after login~~
 
 **Where:** `lib/bootstrap.ts:32` (halts only on `BootstrapAdmin`) · `OrderTicket.tsx` (no halt check)
 
@@ -174,7 +182,7 @@ Confirmed by probes P6a and P7.
 - Re-fetch it on every market-data reconnect.
 - Gate MARKET/FOK/IOC in the ticket on `useHaltStore`.
 
-### H5 — Session phase defaults to CLOSED and is never re-synced after a reconnect
+### ~~H5 — Session phase defaults to CLOSED and is never re-synced after a reconnect~~
 
 **Where:** `store/useSessionStore.ts:45` · `lib/bootstrap.ts` · `WebSocketManager.ts:415` (`onReconnect`) · `useSessionQuery` (defined, never used)
 
@@ -183,7 +191,7 @@ Confirmed by probes P6a and P7.
 
 **Fix:** fetch `/session` (the existing `useSessionQuery`) on every market-data authentication and whenever bootstrap reports `session` incomplete. Model "unknown" explicitly rather than defaulting to `CLOSED`.
 
-### H6 — The private stream has no gap detection, and Refresh cannot reconcile
+### ~~H6 — The private stream has no gap detection, and Refresh cannot reconcile~~ **FIXED**
 
 **Where:** `WebSocketManager.handlePrivateMessage` (ignores `stream_seq`) · gateway `routers/ws.py:173` (queue `maxsize=256`, `_record_drop` on overflow) · `useOrderStore.hydrate` · `types/index.ts:216`
 
@@ -201,7 +209,7 @@ Confirmed by probes P6a and P7.
 
 ## 4. Medium findings
 
-**M1 — Order-type gating is narrower than the engine.** `OrderTicket.tsx:40` disables MARKET/FOK/IOC only in the two auction phases. The engine rejects them in **every** phase where `is_matching_enabled` is false (only `CONTINUOUS` matches), so in `PRE_OPEN` they round-trip to `SESSION_NOT_PERMITTED`, and during a halt see H4. `PositionPanel` already gates on `phase === "CONTINUOUS"`, so the two components disagree. Gate on "not CONTINUOUS or symbol halted", in one helper next to `ALLOWED_TIF`.
+**~~M1 — Order-type gating is narrower than the engine.~~** **FIXED** `OrderTicket.tsx:40` disables MARKET/FOK/IOC only in the two auction phases. The engine rejects them in **every** phase where `is_matching_enabled` is false (only `CONTINUOUS` matches), so in `PRE_OPEN` they round-trip to `SESSION_NOT_PERMITTED`, and during a halt see H4. `PositionPanel` already gates on `phase === "CONTINUOUS"`, so the two components disagree. Gate on "not CONTINUOUS or symbol halted", in one helper next to `ALLOWED_TIF`.
 
 **M2 — "Accepted" is misleading for FOK, MARKET and IOC.** The ticket toasts `BUY 100 AAPL accepted` from the *first* ack (`OrderTicket.tsx:202`). For a FOK the authoritative outcome is a second `order.ack accepted=false INSUFFICIENT_LIQUIDITY`, and for MARKET/IOC with no liquidity it is `order.cancelled`. `useOrderEventNotifications` ignores `order.ack` and sends cancels to the Event Center without a toast, so the trader never learns the order died. Toast the terminal outcome of an order this session submitted: a reject ack, or a cancel with zero fills.
 
@@ -216,7 +224,7 @@ Serve `/positions` from the engine (as `/admin/positions` does), warn when oppos
 
 **M5 — The combo form forces `smp_action: "NONE"`** (`ComboForm.tsx:67`, `comboSchema` default). That *explicitly permits self-trades* and overrides the gateway's configured SMP default, which the single-leg ticket deliberately preserves by omitting the field. Omit it, or offer the same "Gateway default" choice.
 
-**M6 — The Amend and Replace dialogs work on a snapshot of the order.** The `order` prop is captured when the dialog opens, so fills that arrive while it is open are not reflected in *Filled* or in `validateAmend`'s `filled`. The engine then rejects, which triggers C1. Pass `order_id` and read the row live from `useOrderStore`. Close the dialog with a notice if the order goes terminal.
+**~~M6 — The Amend and Replace dialogs work on a snapshot of the order.~~** **FIXED** The `order` prop is captured when the dialog opens, so fills that arrive while it is open are not reflected in *Filled* or in `validateAmend`'s `filled`. The engine then rejects, which triggers C1. Pass `order_id` and read the row live from `useOrderStore`. Close the dialog with a notice if the order goes terminal.
 
 **M7 — The ticket's session and tick rules have no single source.** `AUCTION_DISABLED` (ticket), `isContinuous` (PositionPanel) and `ALLOWED_TIF` (sessionState.ts) encode overlapping engine rules in three places. The 2026-08-14 audit found the same "rule stated twice" failure. Consolidate the order-acceptance rules in `lib/sessionState.ts` with engine citations, the way `validateAmend` does.
 
@@ -280,12 +288,12 @@ So the fixes above are not read as "rewrite the layer":
 
 ## 8. Suggested fix order
 
-1. **C1** — Distinct cancel/amend reject messages (engine + gateway cache + GUI toast by `request_tag`).
-2. **C3 + H1** — Full order record on every ack (engine), then fold group ids in `applyCancelled`/`applyExpired` (GUI).
-3. **C2, M6** — The Replace/Amend dialogs read the live row and default to remaining quantity.
-4. **H2, H3** — Trade de-duplication by id, exception-isolated `emit`, chart old-tick guard, and venue-wide trade resume (gateway).
-5. **H4, H5, M1** — Halts in the trader bootstrap, re-sync session and halts on reconnect, one gating helper.
-6. **H6** — `stream_seq` gap detection, authoritative `hydrate`, `ts_ns`.
+1. ~~**C1** — Distinct cancel/amend reject messages (engine + gateway cache + GUI toast by `request_tag`).~~
+2. ~~**C3 + H1** — Full order record on every ack (engine), then fold group ids in `applyCancelled`/`applyExpired` (GUI).~~
+3. ~~**C2, M6** — The Replace/Amend dialogs read the live row and default to remaining quantity.~~
+4. ~~**H2, H3** — Trade de-duplication by id, exception-isolated `emit`, chart old-tick guard, and venue-wide trade resume (gateway).~~
+5. ~~**H4, H5, M1** — Halts in the trader bootstrap, re-sync session and halts on reconnect, one gating helper.~~
+6. ~~**H6** — `stream_seq` gap detection, authoritative `hydrate`, `ts_ns`.~~
 7. M2–M5, then the lows.
 
 Each step should come with a regression test that feeds the **engine's real payload shape**. Several existing tests pass only because they hand the store fields the engine never sends (e.g. `oco_group_id` on an OCO leg ack).

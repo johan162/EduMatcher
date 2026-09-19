@@ -55,9 +55,22 @@ older interpreter fails at import rather than at runtime.
 
 The project is **Poetry-first**. The most reliable setup path is:
 
+
+
 ```bash
+# Clone the repo
+git clone https://github.com/johan162/EduMatcher.git
+cd EduMatcher
+
+# Verify necessart environment
+./scripts/verify_setup.sh
+
+# Setup poetry && Python
 poetry config virtualenvs.in-project true
 poetry install --with dev,docs
+
+# Verify that a full build (incl. documents) succeeds
+./scripts/mkbld.sh --intro
 ```
 
 Then activate the environment if you want shell-local tools:
@@ -65,14 +78,6 @@ Then activate the environment if you want shell-local tools:
 ```bash
 source .venv/bin/activate
 ```
-
-### Optional helper script
-
-The repository also contains `scripts/verify_setup.sh`. It is useful as a
-smoke-check helper, especially on a fresh machine, but it still contains some
-older inherited messages and command names from a previous project. Treat the
-**Poetry commands above as the source of truth**, and use the script as a
-convenience wrapper rather than as the canonical definition of the environment.
 
 ### Basic toolchain expectations
 
@@ -88,7 +93,6 @@ You should have these available locally:
 
 If you plan to use the containerised docs workflow, you also need **Podman**
 for `scripts/docs-contctl.sh`.
-
 
 
 ##  Repository map
@@ -133,8 +137,6 @@ If you prefer a narrative to a file listing, read
 it walks one order through every file above in the order the code touches
 them.
 
-
-
 ##  Development workflow expectations
 
 ### Default working style
@@ -152,22 +154,26 @@ For most changes, follow this loop:
 These are the checks a developer is expected to run regularly:
 
 ```bash
-poetry run black --check src tests
-poetry run flake8 src tests
-poetry run mypy src tests
-poetry run pytest tests/ -m "not perf"
-poetry run mkdocs build
+make check
+make test
 ```
 
 The Makefile provides wrappers if you prefer shorter commands:
 
 ```bash
-make install
-make check
-make test
-make docs
-make build
+make install     # install Python dependencies
+make check       # run static lints
+make test        # run all tests
+make docs-site   # build documentation site 
+make build       # build Python wheel
 ```
+
+but the standard way to run all checks and a full build is the `mkbld.sh` script
+
+```
+./scripts/mkbld.sh
+```
+
 
 ### Standards enforced by the repo
 
@@ -202,8 +208,6 @@ This repository values:
 
 If you notice unrelated technical debt while doing a focused task, note it, but
 do not silently expand the scope of your change.
-
-
 
 ##  Running a minimal system while developing
 
@@ -310,40 +314,69 @@ See [Configuration](../user-guide/010-configuration.md) for the full schema.
 
 Start the engine first. All other processes depend on its sockets being bound.
 
+#### Core background/exchange processes
 ```bash
-# Terminal 1 — matching engine
-poetry run pm-engine --verbose
+# Terminal 1 - Start the log server
+poetry run pm-log-srv 
 
-# Terminal 2 — optional scheduler
-poetry run pm-scheduler --now
-
-# Terminal 3 — market maker gateway
-poetry run pm-alf-console --id MM01
-
-# Terminal 4 — trader gateway
-poetry run pm-alf-console --id TRADER01
-
-# Terminal 5 — operator console
-poetry run pm-admin --id GW_ADMIN
-
-# Terminal 6 — live order book
-poetry run pm-viewer --symbol AAPL
-
-# Terminal 7 — audit log
+# Terminal 2 — audit log
 poetry run pm-audit --terminal
 
-# Terminal 8 — clearing / P&L
+# Terminal 3 — matching engine
+poetry run pm-engine --verbose
+
+# Terminal 4 — optional scheduler
+poetry run pm-scheduler --now
+
+# Terminal 5 - Statistics
+poetry run pm-stats
+
+# Terminal 10 — clearing / P&L
 poetry run pm-clearing
 ```
 
-Optional observers you will often add:
+An easier way to start all basic exchange processes is to use the admin command `pm-opctl-cli` (OPerationall Control Client)
+
+```
+pm-opctl-cli start
+```
+
+to then check all processes are running
+
+```
+pm-opctl-cli list
+```
+
+and finally to stop all processes
+
+```
+pm-opctl-cli stop
+```
+
+
+#### Start obersvers
 
 ```bash
-poetry run pm-orders
-poetry run pm-stats
-poetry run pm-ticker --db-interval 15
+# Terminal 9 — live order book
+poetry run pm-viewer --symbol AAPL
+
+# Terminal 10 — live all symbol display
 poetry run pm-board
 ```
+
+#### Start interactive terminals
+
+```bash
+# Terminal 11 — Trader01 terminal
+poetry run pm-alf-console --id TRADER01
+
+# Terminal 12 — Trader02 terminal
+poetry run pm-alf-console --id TRADER02
+
+# Terminal 8 — operator console
+poetry run pm-admin --id GW_ADMIN
+```
+
 
 ### Inspecting a run after the fact
 
@@ -446,7 +479,13 @@ different questions.
 Run these continuously while developing:
 
 ```bash
-poetry run pytest tests/ -m "not perf"
+poetry run pytest -n auto tests/ -m "not perf"
+```
+
+or via the master Makefile
+
+```bash
+make test
 ```
 
 These are the default correctness tests and should remain fast enough for
@@ -482,6 +521,8 @@ measure engine behavior, not the full end-to-end network stack.
 ```bash
 # Full perf run
 poetry run pytest -o addopts='' tests/test_perf.py -v -s -m perf -p no:cov
+# or
+make test-perf
 
 # Throughput-focused view
 poetry run pytest -o addopts='' tests/test_perf.py -v -s -m perf -k max_tps -p no:cov
@@ -532,15 +573,6 @@ authoritative. In general:
 | `tools/verify_matching.sh` | Deterministic engine verification | Strong confidence check for engine changes |
 | `tools/launch_all.sh` | macOS demo/process launcher | Good for manual demos, not for production orchestration |
 | `tools/gen_completion.py` | Regenerate bash/zsh shell completion for every `pm-*` command | Dev-only (imports `shtab`); run via `make completion` after changing a command's flags |
-
-### A practical rule of thumb
-
-If a script's behavior disagrees with `pyproject.toml`, `Makefile`, or the
-current docs, trust the **project configuration and live code first**. Several
-scripts and script help texts still show traces of an older project name, so a
-developer should read them critically rather than assuming every string is up to
-date.
-
 
 
 ##  Documentation workflow
@@ -633,47 +665,184 @@ re-render, delete `build-tools/.mermaid-cache/` (or point
 
 
 
-##  Current release workflow
+## How a release is produced
 
-Follow `release_checklist.md` as the source of truth.
-The practical flow below is aligned with the current script behavior.
+Two scripts and two GitHub workflows. One tag produces the Python package and
+the container images together, all carrying the same version, which is what
+lets the installer pin a whole system with a single number.
 
-### Release checklist
+```mermaid
+flowchart TD
+    MK["scripts/mkrelease.sh\nbump version, build docs, tag"]
+    TAG["git tag vX.Y.Z\npushed to GitHub"]
+    GH["scripts/mkghrelease.sh\ngh release create + artifacts"]
+    REL["GitHub release published"]
 
-1. Bump the `pyproject.toml` version  
-    ```sh
-    poetry version <NEW VERSION>  
+    PYPI["publish-to-pypi.yml\npoetry build and publish"]
+    IMG["publish-images.yml"]
+
+    AMD["build amd64\nubuntu-24.04"]
+    ARM["build arm64\nubuntu-24.04-arm"]
+    MERGE["merge digests into\none manifest list\ntags X.Y.Z and latest"]
+
+    OUTP["PyPI\nedumatcher X.Y.Z"]
+    OUTC["GHCR\n5 multi-arch images X.Y.Z"]
+
+    USER1["pipx install edumatcher"]
+    USER2["curl .../install.sh | bash"]
+
+    MK --> TAG --> GH --> REL
+    REL --> PYPI --> OUTP --> USER1
+    REL --> IMG
+    IMG --> AMD --> MERGE
+    IMG --> ARM --> MERGE
+    MERGE --> OUTC --> USER2
+    GH -.->|"phase 6B waits for the run"| MERGE
+```
+
+Each image is built **natively** on both architectures rather than emulated,
+then the two are joined into one manifest list. A user on Intel and a user on
+Apple Silicon pull the same tag and each gets the right binary.
+
+The five published images are:
+
+```text
+ghcr.io/johan162/edumatcher                 the exchange, all pm-* processes
+ghcr.io/johan162/edumatcher-terminal-gui    the trading terminal
+ghcr.io/johan162/edumatcher-log-gui         the log viewer
+ghcr.io/johan162/edumatcher-config-gui      the configuration builder
+ghcr.io/johan162/edumatcher-trader-gui      the trader GUI
+```
+
+`latest` is only moved for an exact `vMAJOR.MINOR.PATCH` tag, so a pre-release
+never becomes what a new user gets by default — the same rule the PyPI workflow
+uses to choose between PyPI and TestPyPI.
+
+### Publishing by hand
+
+`make ghcr-push` in `deployment/docker/` builds all five images from your
+checkout and pushes them, for when the workflow cannot run:
+
+```bash
+export GITHUB_USER=<you> GHCR_TOKEN=<token with write:packages>
+make ghcr-push                              # all five, tagged :dev
+make ghcr-push TAG=0.20.6 FORCE=1 LATEST=1  # as a release tag
+```
+
+It builds only for the architecture you are on. Pushing a single-architecture
+image over a release tag replaces the manifest list, and users on the other
+architecture then get "no matching manifest" — which you will not notice,
+because your own machine keeps working. That is why a release-looking tag needs
+`FORCE=1` and why `latest` is never moved unless asked.
+
+
+## Developer release checklist
+
+For the maintainer cutting a release. Steps 1-4 are local, 5-7 are automated
+but need watching, and 8-10 are the checks that the release actually works for
+somebody who is not you.
+
+### Before tagging
+
+1. **Working tree is clean and tests pass.**
+   ```bash
+   ./scripts/mkbld.sh
+   ```
+
+2. **`CHANGELOG.md` has an entry for this version.** 
+
+- Add a new `CHANGELOGENTRY.md`. Using the custom copilot skill `/changelog-entry` to create a draft version based on the git-logs
+- or if there is no copilot available Use the script `scripts/mkchlogentry.sh` drafts one from the commit logs.
+
+
+### Tag and release
+
+3. **Run `scripts/mkrelease.sh`.** It bumps the version, builds the
+   documentation bundles, commits and tags.
+
+4. **Wait for the CI workflows on the tag to go green** before creating the
+   release.
+
+5. **Run `scripts/mkghrelease.sh`.** It validates the artifacts in `dist/`,
+   creates the GitHub release, and then waits for the container image workflow.
+
+   | Option | Effect |
+   |---|---|
+   | `--dry-run` | Show what would happen; create nothing |
+   | `--pre-release` | Force pre-release marking regardless of the tag |
+   | `--skip-images` | Do not wait for the image workflow |
+   | `IMAGE_WAIT_MINUTES=n` | How long to wait (default 30) |
+   
+    ```bash
+    git switch main && git pull --ff-only
+    ./scripts/mkghrelease.sh
     ```
 
-2. Add a new `CHANGELOGENTRY.md`. Use the `/changelog` skill to create a draft version based on the git-logs
+   If the image workflow fails, the GitHub release still exists — only the
+   images are missing. Re-run just that part:
+   ```bash
+   gh run view <run-id> --log-failed
+   gh workflow run publish-images.yml -f tag=vX.Y.Z
+   ```
 
-3. Run the complete build script `scripts/mkbld.sh` and fix any potential issues until it runs clean.
+### After the release
 
-4. Check in all modified files, some versions (e.g. README.md) have been bumped by the `mkbld.sh` script. Make sure the `develop`  branch is clean.
+6. **Verify the one-line install as a stranger would.** First **stop any stack
+   you already have running** — the released deployment and the source-built one
+   use the same container names and host ports, so an install started beside a
+   running stack silently attaches to it and verifies nothing:
 
-5. Run the release script `script/mkrelease <RELEASE-TYPE>` to handle merge into `main` and verify that all things are in place. Fix potential isssues until it runs clean. This will also trigger GitHub actions like publishing the `gh-pages` to the doc-site.
+   ```bash
+   make -C deployment/docker down-all
+   ```
 
-6. Make the GitHub release with `scripts/mkghrelease.sh` 
+   Then install into a throwaway directory so your own instance is untouched:
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/vX.Y.Z/deployment/curl/install.sh \
+       | bash -s -- --dir /tmp/em-release-test
+   ```
+   Then open <http://localhost:8090>, and clean up with
+   `cd /tmp/em-release-test && ./edumatcher.sh uninstall --data`.
 
+7. **Verify the PyPI install** in a fresh environment:
+    ```bash
+    pipx install edumatcher==X.Y.Z
+    ```
 
-The intended release flow is:
+!!! tip "Where releases usually go wrong"
+    Two failures are quiet rather than loud. An image built from PyPI instead
+    of the checkout looks like a successful build but ships the *previous*
+    release — step 3's `Installing local wheel` line is what catches it. And
+    private GHCR packages fail only for other people, never for the maintainer
+    who is already authenticated — step 9, run without credentials, is what
+    catches that.
 
-1. Bump version and prepare changelog
-2. Build and validate all release artifacts
-3. Run scripted release from `develop`
-4. Verify CI on `main`
-5. Create GitHub release from latest tag on `main`
+## Doing a manual GHCR push
 
-### Step-by-step
+Normally the push is handled by the workflow but it can be manually overridden.
+The target `ghcr-push` in `deployment/docker/Makefile` builds all five images from. 
+In will login with ghe existing GITHUB_USER/GHCR_TOKEN, then tags and pushes each one.
+
+```
+export GITHUB_USER=<user with admin priv> GHCR_TOKEN=<token with write:packages>
+
+make ghcr-push                              # all five, tagged :dev
+make ghcr-push TAG=0.20.6 FORCE=1           # ...as a release tag
+make ghcr-push TAG=0.20.6 FORCE=1 LATEST=1  # ...and move :latest
+```
+
+## Summary: To make a release, step-by-step
 
 ```bash
 # 1. Bump version in pyproject.toml
 poetry version 0.3.2
 
-# 2. Create the changelog template (release type is major|minor|patch)
-./scripts/mkchlogentry.sh 0.3.2 patch
+# 2. Create the changelog template with help of copilot using the custom skill 
+/changelog-entry 0.3.2 patch
 
-# 3. Edit CHANGELOG.md and replace placeholder bullets
+# 3. Review and edit CHANGELOG.md as needed. The commit the new changelog
+git add CHANGELOG.md
+git commit -m "chore(changelog): v0.3.2"
 
 # 4. Build and validate release artifacts.
 # Use --intro for real releases because mkghrelease.sh expects the intro bundle.
@@ -689,6 +858,25 @@ GITHUB_USER=<your-gh-user> ./scripts/mkrelease.sh patch
 git switch main && git pull --ff-only
 ./scripts/mkghrelease.sh
 ```
+
+---
+##  Appendix: The release scripts
+
+## What `mkbld.sh` does
+
+`mkbld.sh` is the build gate before release scripts. It currently:
+
+1. validates environment and required Poetry tools
+2. runs `black`, `flake8`, `mypy` (and `pyright` if available)
+3. runs all `npm` tests for the `web-apps/`
+4. runs pytyest tests with coverage threshold **80%**
+5. updates coverage badge when `coverage.xml` changed
+6. builds and verifies Python packages
+7. builds all documentations, user-guide PDF+EPUB, doc-site, training bundles, etc 
+8. optionally builds Exchange Intro bundle when `--intro` is provided
+
+For release publishing, prefer running `./scripts/mkbld.sh --intro`.
+
 
 ### What `mkrelease.sh` expects
 
@@ -712,6 +900,7 @@ During execution, `mkrelease.sh` will:
 4. merge `main` back into `develop` and push `develop`
 5. wait for GitHub Actions completion with `gh run watch --exit-status`
 
+
 ### What `mkghrelease.sh` expects
 
 The script is designed around this model:
@@ -729,34 +918,6 @@ The script is designed around this model:
 It auto-detects pre-releases from tags ending in `rcN` (or you can force with
 `--pre-release`) and creates the GitHub release using notes extracted from
 `CHANGELOG.md`.
-
-### What `mkbld.sh` currently does
-
-`mkbld.sh` is the build gate before release scripts. It currently:
-
-1. validates environment and required Poetry tools
-2. runs `black`, `flake8`, `mypy` (and `pyright` if available)
-3. runs tests with coverage threshold **80%**
-4. updates coverage badge when `coverage.xml` changed
-5. builds and verifies Python packages
-6. builds user-guide PDF bundle and HTML docs
-7. optionally builds Exchange Intro bundle when `--intro` is provided
-
-For release publishing, prefer running `./scripts/mkbld.sh --intro`.
-
-### Release caution
-
-Some release scripts still contain inherited project-name strings and old help
-references. Always sanity-check:
-
-- version number
-- package name in `pyproject.toml`
-- changelog entry content
-- branch and tag targets
-- contents of `dist/`
-
-before pushing a real release.
-
 
 
 ##  Common pitfalls for new developers
@@ -807,8 +968,6 @@ A change that passes unit tests can still break:
 - UI observers
 
 That is why a minimal live run is worth doing.
-
-
 
 ##  Suggested first-week path for a new developer
 

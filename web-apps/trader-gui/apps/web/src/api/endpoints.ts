@@ -64,6 +64,11 @@ export const getReferenceSchedule = () =>
 // ── Session ───────────────────────────────────────────────────────────────────
 export const getSession = () => apiFetch<SessionStatusDTO>("/api/v1/session");
 
+// ── Halts (§H4) ───────────────────────────────────────────────────────────────
+// Trading-role equivalent of GET /admin/halts — same engine query, no ADMIN
+// gate, so the market-data reconnect resync (WebSocketManager) can call it.
+export const getHalts = () => apiFetch<{ halted: HaltEntry[] }>("/api/v1/halts");
+
 // ── Orders ────────────────────────────────────────────────────────────────────
 // Raw rows: the engine `OrderDisplay` (id/timestamp/client_tag) or the thin
 // timeout-fallback cache row (order_id). Callers normalize via normalizeOrder.

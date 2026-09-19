@@ -11,6 +11,32 @@ import type {
 /** How many prints per symbol the tape keeps in memory. */
 const RECENT_TRADES_LIMIT = 50;
 
+// H2 (docs-design/reviews/EduMatcher-Trader-GUI-Review.md): recordTrade can
+// be reached with a print it has already folded (a market-data reconnect or
+// gap repair redelivers the tail) -- this is what keeps liveVolume from
+// double-counting and recentTrades from holding duplicates. Independent of
+// WebSocketManager's own dedup gate: a defensive check on the store's own
+// public action, not a guarantee about what called it.
+const TRADE_ID_DEDUP_LIMIT = 200;
+const seenTradeIds = new Map<string, string[]>();
+
+function isDuplicateTrade(data: TradeData): boolean {
+  const seen = seenTradeIds.get(data.symbol);
+  if (seen?.includes(data.id)) return true;
+  const next = seen ?? [];
+  next.push(data.id);
+  if (next.length > TRADE_ID_DEDUP_LIMIT) next.shift();
+  seenTradeIds.set(data.symbol, next);
+  return false;
+}
+
+/** Test seam: this module-scope dedup memory outlives a store `setState`
+ * reset, so a test suite that replays the same trade id across cases must
+ * clear it too. Not used by the app. */
+export function __resetTradeDedupForTest(): void {
+  seenTradeIds.clear();
+}
+
 export interface BookEntry {
   symbol: string;
   bids: { price: number; qty: number; count: number }[];
@@ -141,6 +167,7 @@ export const useBookStore = create<BookStore>((set, get) => ({
   },
 
   recordTrade: (data) => {
+    if (isDuplicateTrade(data)) return;
     const symbol = data.symbol;
     set((s) => {
       const prev = s.books[symbol] ?? defaultEntry(symbol);

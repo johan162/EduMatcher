@@ -32,6 +32,7 @@ import {
   type SubscriptionPlan,
 } from "./subscriptions.js";
 import { useAuthStore } from "@/store/useAuthStore.js";
+import { getSession, getHalts } from "@/api/endpoints.js";
 import { useSessionStore } from "@/store/useSessionStore.js";
 import { useBookStore } from "@/store/useBookStore.js";
 import { useHaltStore } from "@/store/useHaltStore.js";
@@ -70,13 +71,30 @@ export function wsOn(type: string, handler: AnyHandler): () => void {
 }
 
 function emit(envelope: WsEnvelope<unknown>): void {
-  bus.get(envelope.type)?.forEach((h) => h(envelope));
+  // H2 (docs-design/reviews/EduMatcher-Trader-GUI-Review.md): forEach does
+  // not isolate a handler's exception -- one faulty listener (e.g. the
+  // chart hitting a lightweight-charts edge case) used to abort every
+  // later-registered listener for that envelope, silently dropping live
+  // data from the stores after it in iteration order.
+  bus.get(envelope.type)?.forEach((h) => {
+    try {
+      h(envelope);
+    } catch (err) {
+      console.error("[ws] bus handler threw", envelope.type, err);
+    }
+  });
 }
 
 // ── Module-scoped sockets ─────────────────────────────────────────────────────
 let eventsWs: ManagedSocket | null = null;
 let marketDataWs: ManagedSocket | null = null;
 let adminWs: ManagedSocket | null = null;
+
+// H6 (docs-design/reviews/EduMatcher-Trader-GUI-Review.md): the private
+// stream is unfiltered, so `stream_seq` is a single connection-wide counter
+// rather than the per-topic scheme SeqTracker exists for -- a plain
+// high-water mark is all a single counter needs.
+let lastStreamSeq: number | null = null;
 
 // ── Market-data subscription state ───────────────────────────────────────────
 let plan: SubscriptionPlan = { overview: true, focus: [] };
@@ -87,8 +105,43 @@ const seqTracker = new SeqTracker();
 const pendingResume = new Set<string>();
 let lastMarketDataAt: number | null = null;
 
+// H2 (docs-design/reviews/EduMatcher-Trader-GUI-Review.md): a reconnect or
+// gap repair redelivers prints already processed (SeqTracker.observe
+// correctly reports these as "not a gap" -- they are not loss, they are
+// replay). Bounded per-symbol id memory keeps a duplicate print from ever
+// reaching the bus, so no listener double-counts it.
+const TRADE_ID_DEDUP_LIMIT = 200;
+const seenTradeIds = new Map<string, string[]>();
+
+function isDuplicateTrade(data: TradeData): boolean {
+  const seen = seenTradeIds.get(data.symbol);
+  if (seen?.includes(data.id)) return true;
+  const next = seen ?? [];
+  next.push(data.id);
+  if (next.length > TRADE_ID_DEDUP_LIMIT) next.shift();
+  seenTradeIds.set(data.symbol, next);
+  return false;
+}
+
 function authFrame(): object {
   return { api_key: useAuthStore.getState().apiKey ?? "" };
+}
+
+// H5 (docs-design/reviews/EduMatcher-Trader-GUI-Review.md): a `session`/
+// circuit_breaker event missed while the market-data socket was down (or
+// never sent, e.g. bootstrap's engine query timed out) leaves the phase and
+// halt badges wrong indefinitely -- nothing else re-reads them. Every fresh
+// market-data `authenticated` (initial connect and every reconnect) re-pulls
+// both from their REST endpoints and applies them unconditionally, the same
+// way bootstrap hydration does. Independent failures are logged and do not
+// block each other.
+function resyncSessionAndHalts(): void {
+  getSession()
+    .then((data) => useSessionStore.getState().setPhase(data.state, null, null))
+    .catch((err) => console.warn("[ws] session resync failed", err));
+  getHalts()
+    .then((data) => useHaltStore.getState().setHalts(data.halted))
+    .catch((err) => console.warn("[ws] halts resync failed", err));
 }
 
 // ── Connection health (observable) ───────────────────────────────────────────
@@ -254,6 +307,7 @@ function handleMarketDataMessage(raw: unknown): void {
   // Control frames are not market data and carry no `seq`.
   switch (envelope.type) {
     case "authenticated":
+      resyncSessionAndHalts();
       return;
     case "subscription": {
       const data = envelope.data as { rejected?: unknown[] } | undefined;
@@ -286,6 +340,10 @@ function handleMarketDataMessage(raw: unknown): void {
     repairGap(gap.topic, gap.expected - 1);
   } else if (envelope.topic) {
     pendingResume.delete(envelope.topic);
+  }
+
+  if (envelope.type === "trade" && isDuplicateTrade(envelope.data as TradeData)) {
+    return;
   }
 
   emit(envelope);
@@ -375,11 +433,49 @@ function applyCircuitBreakerEvent(envelope: WsEnvelope<unknown>): void {
 }
 
 // ── Routing: private + admin ─────────────────────────────────────────────────
+/**
+ * The private queue (`routers/ws.py`) drops events under backpressure and
+ * numbers every frame -- `authenticated`, `orders.snapshot`, and every
+ * `order.*`/`fill`/`quote` event alike -- with a `stream_seq` that still
+ * advances on a drop, so a gap here means a fill or cancel never arrived
+ * (H6). There is no per-topic resume for this stream: the repair is to
+ * close and reopen the socket, whose fresh `orders.snapshot` is itself the
+ * reconciliation.
+ */
 function handlePrivateMessage(raw: unknown): void {
   const envelope = raw as WsEnvelope<unknown>;
   if (!envelope?.type) return;
+
+  const seq = envelope.stream_seq;
+  if (seq !== undefined && Number.isFinite(seq)) {
+    if (lastStreamSeq !== null && seq > lastStreamSeq + 1) {
+      console.warn(`[ws] stream_seq gap on /events: expected ${lastStreamSeq + 1}, got ${seq}`);
+      lastStreamSeq = null;
+      reconnectEvents();
+      return;
+    }
+    if (lastStreamSeq === null || seq > lastStreamSeq) lastStreamSeq = seq;
+  }
+
   emit(envelope);
   // Order/fill/quote consumers attach via wsOn() from hooks/queries (phase 6+).
+}
+
+/** Build and connect the events socket (shared by initial connect and gap repair). */
+function connectEvents(): void {
+  eventsWs = new ManagedSocket(wsUrl("/api/v1/events"), {
+    authFrame,
+    onReconnect: () => notifyHealth(),
+  });
+  eventsWs.on(handlePrivateMessage);
+  eventsWs.onStatus(notifyHealth);
+  eventsWs.connect();
+}
+
+/** Discard the current events socket and open a new one (H6 gap repair). */
+function reconnectEvents(): void {
+  eventsWs?.close();
+  connectEvents();
 }
 
 function handleAdminMonitorMessage(raw: unknown): void {
@@ -400,13 +496,7 @@ export function connectAll(role: GatewayRole): void {
 
   // Events socket (TRADER + MM only; ADMIN uses the admin monitor feed).
   if (role !== "ADMIN") {
-    eventsWs = new ManagedSocket(wsUrl("/api/v1/events"), {
-      authFrame,
-      onReconnect: () => notifyHealth(),
-    });
-    eventsWs.on(handlePrivateMessage);
-    eventsWs.onStatus(notifyHealth);
-    eventsWs.connect();
+    connectEvents();
   }
 
   // Market-data socket (all roles).
@@ -459,6 +549,7 @@ export function disconnectAll(): void {
   applied = new Set();
   pendingResume.clear();
   seqTracker.reset();
+  lastStreamSeq = null;
   lastMarketDataAt = null;
   useMonitorStore.getState().clear();
   notifyHealth();
@@ -475,10 +566,22 @@ export function __setMarketDataSocketForTest(socket: ManagedSocket | null): void
   plan = { overview: true, focus: [] };
   pendingResume.clear();
   seqTracker.reset();
+  seenTradeIds.clear();
   lastMarketDataAt = null;
 }
 
+/**
+ * Test seam: install a fake events socket and reset private-stream state.
+ * Mirrors __setMarketDataSocketForTest.
+ */
+export function __setEventsSocketForTest(socket: ManagedSocket | null): void {
+  eventsWs = socket;
+  lastStreamSeq = null;
+}
+
 export const __marketDataMessageForTest = handleMarketDataMessage;
+export const __privateMessageForTest = handlePrivateMessage;
+export const __getEventsSocketForTest = (): ManagedSocket | null => eventsWs;
 
 // ── React hook ────────────────────────────────────────────────────────────────
 /**

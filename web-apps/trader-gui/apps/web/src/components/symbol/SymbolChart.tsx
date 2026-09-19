@@ -181,11 +181,17 @@ export function SymbolChart({ symbol }: SymbolChartProps) {
     if (!isIntraday(timeframeRef.current)) return;
     const series = seriesRef.current;
     if (!series) return;
+    const prevBar = lastBarRef.current;
     const { bar } = foldTick(
-      lastBarRef.current,
+      prevBar,
       { timestamp: nsToEpochSec(d.ts_ns), price: d.price, quantity: d.quantity },
       timeframeRef.current as IntradayTimeframe,
     );
+    // H2 (docs-design/reviews/EduMatcher-Trader-GUI-Review.md): a replayed
+    // print (reconnect, gap repair) can land in an already-closed earlier
+    // bucket -- lightweight-charts' series.update requires non-decreasing
+    // time and throws "Cannot update oldest data" otherwise.
+    if (prevBar && bar.time < prevBar.time) return;
     lastBarRef.current = bar;
     if (chartTypeRef.current === "candlestick") {
       series.update({

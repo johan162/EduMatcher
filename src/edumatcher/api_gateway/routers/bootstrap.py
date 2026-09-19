@@ -271,11 +271,12 @@ async def bootstrap_trader(
     """One-request startup payload for TRADER, MARKET_MAKER, and ADMIN roles.
 
     Returns gateway identity, full reference data, live session state,
-    positions, active orders, recent fills for today, and capability flags.
-    ``reference`` and ``orders`` are required — the endpoint returns ``503``
-    if either cannot be fetched.  All other engine-backed fields (``session``,
-    ``recent_fills``) are optional: they appear as ``null`` with their name
-    listed in ``incomplete`` on failure.
+    positions, active orders, recent fills for today, currently-halted
+    symbols, and capability flags.  ``reference`` and ``orders`` are
+    required — the endpoint returns ``503`` if either cannot be fetched.
+    All other engine-backed fields (``session``, ``recent_fills``,
+    ``halts``) are optional: they appear as ``null`` with their name listed
+    in ``incomplete`` on failure.
 
     Read-only keys (``gateway_id: null``) receive ``gateway_role: "READ_ONLY"``,
     empty ``positions``, and empty ``orders`` without an engine round-trip for
@@ -304,21 +305,23 @@ async def bootstrap_trader(
             "positions": [],
             "orders": {"orders": []},
             "recent_fills": None,
+            "halts": None,
             "capabilities": _capabilities(request, reference),
         }
 
     # --- trading credential: all sub-queries in parallel --------------------
     gateway_role = await engine.resolve_role(gateway_id, timeout)
-    results: tuple[_QueryResult, _QueryResult, _QueryResult, _QueryResult] = (
-        await asyncio.gather(
-            _fetch_reference(request, session),
-            _fetch_session(request, gateway_id),
-            _fetch_orders(request, gateway_id),
-            _fetch_fills(request, gateway_id, fills_limit),
-            return_exceptions=True,
-        )
+    results: tuple[
+        _QueryResult, _QueryResult, _QueryResult, _QueryResult, _QueryResult
+    ] = await asyncio.gather(
+        _fetch_reference(request, session),
+        _fetch_session(request, gateway_id),
+        _fetch_orders(request, gateway_id),
+        _fetch_fills(request, gateway_id, fills_limit),
+        _fetch_halts(request, gateway_id),
+        return_exceptions=True,
     )
-    ref_r, sess_r, orders_r, fills_r = results
+    ref_r, sess_r, orders_r, fills_r, halts_r = results
 
     required = _require_or_503([("reference", ref_r), ("orders", orders_r)])
     reference = required["reference"]
@@ -326,7 +329,9 @@ async def bootstrap_trader(
     incomplete: list[str] = []
     data: dict[str, Any] = {}
     _collect_optional(
-        [("session", sess_r), ("recent_fills", fills_r)], data, incomplete
+        [("session", sess_r), ("recent_fills", fills_r), ("halts", halts_r)],
+        data,
+        incomplete,
     )
 
     return {
@@ -339,6 +344,7 @@ async def bootstrap_trader(
         "positions": _positions(request, gateway_id),
         "orders": required["orders"],
         "recent_fills": data.get("recent_fills"),
+        "halts": data.get("halts"),
         "capabilities": _capabilities(request, reference),
     }
 
@@ -361,7 +367,7 @@ async def bootstrap_mm(
 
     Restricted to MARKET_MAKER keys.  TRADER and ADMIN keys receive ``403``.
     ``reference`` and ``orders`` are required (503 on failure).  Quote fields
-    and ``session``/``recent_fills`` are optional (null + incomplete).
+    and ``session``/``recent_fills``/``halts`` are optional (null + incomplete).
     """
     engine = request.app.state.engine
     timeout = request.app.state.config.timeouts.engine_reply_sec
@@ -381,23 +387,31 @@ async def bootstrap_mm(
         )
 
     # --- all sub-queries in parallel ----------------------------------------
-    results: tuple[
-        _QueryResult,
-        _QueryResult,
-        _QueryResult,
-        _QueryResult,
-        _QueryResult,
-        _QueryResult,
-    ] = await asyncio.gather(
-        _fetch_reference(request, session),
-        _fetch_session(request, gateway_id),
-        _fetch_orders(request, gateway_id),
-        _fetch_fills(request, gateway_id, fills_limit),
-        _fetch_quote_bootstrap(request, gateway_id),
-        _fetch_quote_legs(request, gateway_id),
-        return_exceptions=True,
+    # 7 args is past typeshed's asyncio.gather tuple overloads (it falls back
+    # to list[Any] beyond 6) -- cast back to the known-fixed shape, same as
+    # `_await_topic`'s cast a few lines up.
+    results = cast(
+        tuple[
+            _QueryResult,
+            _QueryResult,
+            _QueryResult,
+            _QueryResult,
+            _QueryResult,
+            _QueryResult,
+            _QueryResult,
+        ],
+        await asyncio.gather(
+            _fetch_reference(request, session),
+            _fetch_session(request, gateway_id),
+            _fetch_orders(request, gateway_id),
+            _fetch_fills(request, gateway_id, fills_limit),
+            _fetch_quote_bootstrap(request, gateway_id),
+            _fetch_quote_legs(request, gateway_id),
+            _fetch_halts(request, gateway_id),
+            return_exceptions=True,
+        ),
     )
-    ref_r, sess_r, orders_r, fills_r, qb_r, ql_r = results
+    ref_r, sess_r, orders_r, fills_r, qb_r, ql_r, halts_r = results
 
     # --- required fields (503 on failure) -----------------------------------
     required = _require_or_503([("reference", ref_r), ("orders", orders_r)])
@@ -412,6 +426,7 @@ async def bootstrap_mm(
             ("recent_fills", fills_r),
             ("quote_bootstrap", qb_r),
             ("quote_legs", ql_r),
+            ("halts", halts_r),
         ],
         data,
         incomplete,
@@ -432,6 +447,7 @@ async def bootstrap_mm(
         "capabilities": caps,
         "quote_bootstrap": data.get("quote_bootstrap"),
         "quote_legs": data.get("quote_legs"),
+        "halts": data.get("halts"),
     }
 
 

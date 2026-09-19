@@ -392,8 +392,15 @@ async def _emit_snapshots(
         for channel in item.channels:
             resume_seq = (item.resume_from or {}).get(channel)
             if wildcard:
-                for event in cache.snapshot_channel(channel):
-                    await websocket.send_json(event)
+                # H2/H3 (docs-design/reviews/EduMatcher-Trader-GUI-Review.md):
+                # this used to ignore resume_from and always send the whole
+                # tail, inflating liveVolume/recentTrades on every
+                # market-data reconnect.
+                if channel == "trades" and resume_seq is not None:
+                    await _emit_trade_resume_venue_wide(websocket, cache, resume_seq)
+                else:
+                    for event in cache.snapshot_channel(channel):
+                        await websocket.send_json(event)
                 continue
             for symbol in symbols:
                 if channel == "trades" and resume_seq is not None:
@@ -421,7 +428,9 @@ async def _emit_resume(
     from_seq = control.from_seq or 0
     if channel == "trades":
         if not symbol:
-            await _reject_resume(websocket, topic, control.from_seq, "unknown_topic")
+            # trade.executed is venue-wide (H3): no per-topic symbol to
+            # resume a single buffer with -- merge every symbol's tail.
+            await _emit_trade_resume_venue_wide(websocket, cache, from_seq)
             return
         await _emit_trade_resume(websocket, cache, symbol, from_seq)
         return
@@ -455,6 +464,33 @@ async def _emit_trade_resume(
         await _reject_resume(websocket, TOPIC_TRADE_EXECUTED, from_seq, "too_old")
         # Follow the reset with a fresh tail so the client is not left empty.
         for event in cache.snapshot(symbol, "trades"):
+            await websocket.send_json(event)
+        return
+    for event in events:
+        await websocket.send_json(event)
+
+
+async def _emit_trade_resume_venue_wide(
+    websocket: WebSocket,
+    cache: MarketDataCache,
+    from_seq: int,
+) -> None:
+    """Replay every symbol's buffered trades after *from_seq* (H2/H3).
+
+    Venue-wide counterpart to ``_emit_trade_resume`` for a `trade.executed`
+    resume that names no symbol -- the wildcard overview subscription (H2)
+    and an explicit resume on the bare topic (H3). See
+    ``MarketDataCache.resume_trades_venue_wide``.
+    """
+    try:
+        events = cache.resume_trades_venue_wide(from_seq)
+    except ReplayMiss:
+        await _reject_resume(websocket, TOPIC_TRADE_EXECUTED, from_seq, "too_old")
+        # No single symbol to target with trades.reset -- push every
+        # symbol's current tail directly instead. H2's client-side
+        # dedup-by-id makes the overlap with what the client already has
+        # harmless.
+        for event in cache.snapshot_channel("trades"):
             await websocket.send_json(event)
         return
     for event in events:

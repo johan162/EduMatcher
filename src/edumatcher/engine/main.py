@@ -1663,6 +1663,26 @@ class Engine:
         _ack_price = (
             from_ticks(_tick_px, order.symbol) if _tick_px is not None else None
         )
+        # C3 (docs-design/reviews/EduMatcher-Trader-GUI-Review.md): the ack
+        # must carry the complete order record, not just price -- Replace and
+        # power-user Undo need stop_price/visible_qty/trail_offset/smp_action
+        # for the order types that carry them, or those actions 422 against a
+        # body missing a required field (visible_qty is already plain shares,
+        # not ticks, so no from_ticks conversion).
+        _ack_stop_price = (
+            from_ticks(order.stop_price_ticks, order.symbol)
+            if order.stop_price_ticks is not None
+            else None
+        )
+        _ack_trail_offset = (
+            from_ticks(order.trail_offset_ticks, order.symbol)
+            if order.trail_offset_ticks is not None
+            else None
+        )
+        # order.smp_action was resolved to a concrete SmpAction (never None)
+        # a few lines above, by the _resolve_smp_action() call this hot path
+        # shares with every other order-entry point.
+        _ack_smp_action = order.smp_action.value
         _pub.send_multipart(
             [
                 ack_topic,
@@ -1677,6 +1697,10 @@ class Engine:
                         "tif": _tif_v,
                         "qty": order.quantity,
                         "price": _ack_price,
+                        "stop_price": _ack_stop_price,
+                        "visible_qty": order.visible_qty,
+                        "trail_offset": _ack_trail_offset,
+                        "smp_action": _ack_smp_action,
                         "client_tag": order.client_tag,
                     }
                 ),
@@ -5566,18 +5590,17 @@ class Engine:
                     gateway_id,
                     leg.id,
                     accepted=True,
-                    order={
-                        "symbol": leg.symbol,
-                        "side": leg.side.value,
-                        "order_type": leg.order_type.value,
-                        "tif": leg.tif.value,
-                        "quantity": leg.quantity,
-                        "price": (
-                            from_ticks(leg.price_ticks, leg.symbol)
-                            if leg.price_ticks is not None
-                            else None
-                        ),
-                    },
+                    # order_to_display_dict(leg) is the full order record
+                    # (mirrors the combo leg ack below) rather than a
+                    # hand-picked subset — it's what carries oco_group_id
+                    # (H1, so "Cancel group" can find this leg) and
+                    # stop_price/visible_qty/trail_offset/smp_action (C3, so
+                    # Replace and power-user Undo have the fields those order
+                    # types need), docs-design/reviews/
+                    # EduMatcher-Trader-GUI-Review.md. Safe to call here,
+                    # before book.process(leg, ...) below: remaining_qty
+                    # still equals quantity at this pre-match moment.
+                    order=order_to_display_dict(leg),
                 )
             )
 
@@ -6509,7 +6532,11 @@ class Engine:
                     if payload.get("client_tag") is not None
                     else None
                 ),
-                request_tag=None,
+                request_tag=(
+                    str(payload["request_tag"])
+                    if payload.get("request_tag") is not None
+                    else None
+                ),
             )
         except Exception as send_exc:
             # The reject is best-effort: raising here would escape run() and
