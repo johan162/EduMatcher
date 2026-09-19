@@ -2,17 +2,36 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePositionsQuery, useSubmitOrderMutation } from "@/queries/index.js";
-import { cancelOrder } from "@/api/endpoints.js";
 import { useWsEvent } from "@/hooks/useWsEvent.js";
 import { useSessionStore } from "@/store/useSessionStore.js";
 import { useBookStore } from "@/store/useBookStore.js";
 import { useSymbolStore } from "@/store/useSymbolStore.js";
 import { useSettingsStore } from "@/store/useSettingsStore.js";
+import { useOrderStore, isTerminal } from "@/store/useOrderStore.js";
 import { CancelConfirm } from "@/components/orders/CancelConfirm.js";
 import { buildFlattenOrder } from "@/lib/flatten.js";
+import { summarizeSettled, describeBulkOutcome } from "@/lib/bulkOutcome.js";
 import { formatPrice, formatQty } from "@/lib/formatters.js";
 import { ApiError } from "@/api/apiFetch.js";
-import type { Position } from "@/types/index.js";
+import type { Order, Position, Side } from "@/types/index.js";
+
+/**
+ * M4: count of this symbol's working (non-terminal) orders on `side` -- the
+ * side a flatten for this symbol would itself submit. If one of these later
+ * fills too, combined with the flatten's own fill the position can overshoot
+ * past flat (e.g. a long 100 with a working SELL 100 flattens to short 100).
+ * Warn about it; do not block the flatten.
+ */
+function workingOrdersOnSide(orders: Record<string, Order>, symbol: string, side: Side): number {
+  return Object.values(orders).filter(
+    (o) => o.symbol === symbol && o.side === side && !isTerminal(o.status),
+  ).length;
+}
+
+function overshootWarning(count: number, side: Side): string {
+  if (!count) return "";
+  return ` Warning: ${count} working ${side} ${count === 1 ? "order" : "orders"} on this symbol could add to this once filled.`;
+}
 
 /**
  * Position Summary Panel with Flatten (§13.6), shared by the TRADER and
@@ -30,6 +49,7 @@ export function PositionPanel() {
   const books = useBookStore((s) => s.books);
   const symbols = useSymbolStore((s) => s.symbols);
   const confirmCancellations = useSettingsStore((s) => s.confirmCancellations);
+  const ordersMap = useOrderStore((s) => s.orders);
 
   const [flattenTarget, setFlattenTarget] = useState<Position | null>(null);
   const [flattenAll, setFlattenAll] = useState(false);
@@ -52,30 +72,16 @@ export function PositionPanel() {
   // Prefer the live last trade price; fall back to the cache's last_price.
   const lastPriceFor = (p: Position) => books[p.symbol]?.lastPrice ?? p.last_price;
 
-  const submitFlatten = (p: Position, opts: { undo?: boolean } = {}) => {
+  // M4: the power-user "Undo" used to cancel the just-submitted MARKET
+  // order, which never rests and so can never undo anything -- dropped.
+  const submitFlatten = (p: Position) => {
     const body = buildFlattenOrder(p);
     if (!body) return;
     submit.mutate(
       { body: body as unknown as Record<string, unknown> },
       {
-        onSuccess: (res) => {
-          if (opts.undo) {
-            // Power-user path: fire immediately, offer a brief undo window that
-            // cancels the just-submitted MARKET order if it has not yet filled
-            // (best-effort — priority/fill are not guaranteed reversible).
-            toast(`Flatten ${p.symbol}: ${body.side} ${body.quantity} MARKET`, {
-              action: {
-                label: "Undo",
-                onClick: () => {
-                  cancelOrder(res.order_id).catch(() => {
-                    /* already filled/cancelled — nothing to undo */
-                  });
-                },
-              },
-            });
-          } else {
-            toast.success(`Flatten ${p.symbol}: ${body.side} ${body.quantity} MARKET submitted`);
-          }
+        onSuccess: () => {
+          toast.success(`Flatten ${p.symbol}: ${body.side} ${body.quantity} MARKET submitted`);
           void qc.invalidateQueries({ queryKey: ["positions"] });
         },
         onError: (err) => {
@@ -92,12 +98,44 @@ export function PositionPanel() {
   const onFlattenClick = (p: Position) => {
     if (!isContinuous) return;
     if (confirmCancellations) setFlattenTarget(p);
-    else submitFlatten(p, { undo: true }); // undo-toast in power-user mode
+    else submitFlatten(p);
   };
 
-  const doFlattenAll = () => {
-    for (const p of nonZero) submitFlatten(p);
-    toast(`Flattening ${nonZero.length} ${nonZero.length === 1 ? "position" : "positions"}`);
+  // M4: how many of the non-zero positions also have a working order on
+  // their own flatten side, surfaced in the Flatten All confirm message.
+  const flattenAllOverlapCount = nonZero.filter((p) => {
+    const order = buildFlattenOrder(p);
+    return order ? workingOrdersOnSide(ordersMap, p.symbol, order.side) > 0 : false;
+  }).length;
+  const flattenAllMessage =
+    `Submit MARKET closing orders for ${nonZero.length} ` +
+    `${nonZero.length === 1 ? "position" : "positions"}? This is high-impact and affects ` +
+    `multiple symbols.` +
+    (flattenAllOverlapCount
+      ? ` Warning: ${flattenAllOverlapCount} of these also ` +
+        `${flattenAllOverlapCount === 1 ? "has" : "have"} a working order on the flatten side, ` +
+        `which could push the position past flat once filled.`
+      : "");
+
+  // M3: fire every close concurrently via mutateAsync and report one summary
+  // toast once all settle, instead of looping submitFlatten (whose
+  // onSuccess/onError only ever fired for the last position in the batch).
+  const doFlattenAll = async () => {
+    const bodies = nonZero
+      .map((p) => buildFlattenOrder(p))
+      .filter((b): b is NonNullable<typeof b> => b !== null);
+    toast(`Flattening ${bodies.length} ${bodies.length === 1 ? "position" : "positions"}`);
+    const results = await Promise.allSettled(
+      bodies.map((body) =>
+        submit.mutateAsync({ body: body as unknown as Record<string, unknown> }),
+      ),
+    );
+    void qc.invalidateQueries({ queryKey: ["positions"] });
+    const outcome = summarizeSettled(results);
+    const message = describeBulkOutcome("Flattened", "position", outcome);
+    if (outcome.failed) toast.error(message);
+    else if (outcome.pending) toast(message);
+    else toast.success(message);
   };
 
   return (
@@ -187,6 +225,7 @@ export function PositionPanel() {
       {flattenTarget && (
         <FlattenConfirm
           position={flattenTarget}
+          orders={ordersMap}
           onConfirm={() => {
             submitFlatten(flattenTarget);
             setFlattenTarget(null);
@@ -199,10 +238,10 @@ export function PositionPanel() {
       {flattenAll && (
         <CancelConfirm
           title="Flatten all positions?"
-          message={`Submit MARKET closing orders for ${nonZero.length} ${nonZero.length === 1 ? "position" : "positions"}? This is high-impact and affects multiple symbols.`}
+          message={flattenAllMessage}
           confirmLabel="Flatten All"
           onConfirm={() => {
-            doFlattenAll();
+            void doFlattenAll();
             setFlattenAll(false);
           }}
           onClose={() => setFlattenAll(false)}
@@ -215,10 +254,12 @@ export function PositionPanel() {
 /** Single-position flatten confirmation with the resolved side/qty spelled out. */
 function FlattenConfirm({
   position,
+  orders,
   onConfirm,
   onClose,
 }: {
   position: Position;
+  orders: Record<string, Order>;
   onConfirm: () => void;
   onClose: () => void;
 }) {
@@ -228,7 +269,8 @@ function FlattenConfirm({
       title="Flatten position?"
       message={
         order
-          ? `Flatten ${position.symbol}: ${order.side} ${order.quantity} MARKET?`
+          ? `Flatten ${position.symbol}: ${order.side} ${order.quantity} MARKET?` +
+            overshootWarning(workingOrdersOnSide(orders, position.symbol, order.side), order.side)
           : `${position.symbol} is already flat.`
       }
       confirmLabel="Flatten"

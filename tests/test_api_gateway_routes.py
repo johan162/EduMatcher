@@ -55,6 +55,8 @@ class FakeEngine:
         self.calls.append(("await_event", (topic, match, timeout)))
         if topic.startswith("order.orders."):
             return {"orders": [{"order_id": "ORD1"}]}
+        if topic.startswith("system.position_snapshot."):
+            return {"positions": [{"symbol": "AAPL", "net_qty": 5, "avg_cost": 150.0}]}
         if topic.startswith("risk.kill_switch_ack."):
             return {"accepted": True, "cancelled_orders": 1, "cancelled_quotes": 0}
         return {
@@ -155,6 +157,9 @@ class FakeEngine:
 
     def request_halt_status(self, gateway_id: str) -> None:
         self.calls.append(("request_halt_status", gateway_id))
+
+    def request_position(self, gateway_id: str) -> None:
+        self.calls.append(("request_position", gateway_id))
 
     def request_gateways(self, gateway_id: str) -> None:
         self.calls.append(("request_gateways", gateway_id))
@@ -529,13 +534,53 @@ async def test_reference_routes() -> None:
     assert await reference.quote_bootstrap(request, session)
     engine.cache.quote_legs["Q1"] = {"quote_id": "Q1"}
     assert (await reference.quote_legs(request, session))["legs"]
-    engine.cache.positions["AAPL"] = 5
     engine.cache.last_prices["AAPL"] = 151.0
-    assert (await reference.positions(request, session))["positions"]
+    result = await reference.positions(request, session)
+    assert result["positions"] == [
+        {"symbol": "AAPL", "net_qty": 5, "last_price": 151.0}
+    ]
+    assert ("request_position", "GW01") in engine.calls
+    engine.cache.positions["AAPL"] = 5
     summary = await reference.status_summary(request, session)
     assert summary["positions"]
     assert summary["gateway_role"] == "TRADER"
     assert (await reference.healthz(request))["ok"] is True  # test double
+
+
+@pytest.mark.anyio
+async def test_positions_reads_engine_not_local_cache() -> None:
+    """M4: GET /positions must be a genuine engine round trip, not this
+    gateway process's own local fill cache -- which reads flat after a
+    restart even though the engine still holds the position (the review's
+    exact scenario). engine.cache.positions is left empty here (as it would
+    be right after a restart) while the engine's own snapshot reports a real
+    holding; the route must report the engine's number, not zero/empty."""
+    engine = FakeEngine()
+    request = fake_request(engine)
+    session = trading_session()
+    engine.cache.last_prices["AAPL"] = 151.0
+    assert engine.cache.positions == {}
+    result = await reference.positions(request, session)
+    assert result["positions"] == [
+        {"symbol": "AAPL", "net_qty": 5, "last_price": 151.0}
+    ]
+
+
+@pytest.mark.anyio
+async def test_positions_empty_reply_renders_empty_list() -> None:
+    class FlatEngine(FakeEngine):
+        async def await_event(
+            self, topic: str, match: dict[str, str] | None, timeout: float
+        ) -> dict[str, Any]:
+            if topic.startswith("system.position_snapshot."):
+                return {"positions": []}
+            return await super().await_event(topic, match, timeout)
+
+    engine = FlatEngine()
+    request = fake_request(engine)
+    session = trading_session()
+    result = await reference.positions(request, session)
+    assert result == {"positions": []}
 
 
 @pytest.mark.anyio

@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent, cleanup, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { toast } from "sonner";
 import type { ReactNode } from "react";
 
 vi.mock("sonner", () => ({
@@ -38,6 +39,8 @@ import { useSessionStore } from "@/store/useSessionStore";
 import { useSymbolStore } from "@/store/useSymbolStore";
 import { useBookStore } from "@/store/useBookStore";
 import { useSettingsStore } from "@/store/useSettingsStore";
+import { useOrderStore } from "@/store/useOrderStore";
+import { ApiError } from "@/api/apiFetch";
 import type { Symbol } from "@/types/index";
 
 const SYMBOLS: Symbol[] = [
@@ -64,6 +67,7 @@ beforeEach(() => {
   useBookStore.setState({ books: {} });
   useSessionStore.setState({ phase: "CONTINUOUS" });
   useSettingsStore.setState({ confirmCancellations: true });
+  useOrderStore.getState().clear();
 });
 
 describe("PositionPanel (§13.6)", () => {
@@ -144,5 +148,106 @@ describe("PositionPanel (§13.6)", () => {
     );
     // No confirmation dialog text should have appeared.
     expect(screen.queryByText(/Flatten AAPL: SELL 500 MARKET/)).toBeNull();
+  });
+
+  it("power-user flatten shows a plain success toast with no Undo action (M4)", async () => {
+    // The power-user "Undo" used to cancel the just-submitted MARKET order,
+    // which never rests and so could never undo anything -- dropped.
+    useSettingsStore.setState({ confirmCancellations: false });
+    wrap(<PositionPanel />);
+    await waitFor(() => expect(screen.getByText("AAPL")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Flatten AAPL" }));
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("Flatten AAPL: SELL 500 MARKET submitted"),
+    );
+    const anyActionToast = (toast as unknown as { mock: { calls: unknown[][] } }).mock.calls.some(
+      (c) => (c[1] as { action?: unknown } | undefined)?.action,
+    );
+    expect(anyActionToast).toBe(false);
+  });
+
+  it("warns in the confirm dialog about a working order on the flatten side, but still allows it (M4)", async () => {
+    // AAPL is long 500, so its flatten side is SELL; a resting SELL on the
+    // same symbol could, once filled, add to that once the flatten also
+    // fills -- overshooting past flat.
+    useOrderStore.getState().applyAck({
+      gateway_id: "GW1",
+      order_id: "ORD1",
+      accepted: true,
+      reason: "",
+      symbol: "AAPL",
+      side: "SELL",
+      order_type: "LIMIT",
+      qty: 50,
+    });
+    wrap(<PositionPanel />);
+    await waitFor(() => expect(screen.getByText("AAPL")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Flatten AAPL" }));
+    expect(
+      screen.getByText(/1 working SELL order on this symbol could add to this once filled/),
+    ).toBeTruthy();
+    // Still allowed -- this is a warning, not a block.
+    fireEvent.click(screen.getByRole("button", { name: "Flatten" }));
+    await waitFor(() =>
+      expect(apiFetchMock.mock.calls.some(([p]) => String(p).startsWith("/api/v1/orders"))).toBe(
+        true,
+      ),
+    );
+  });
+
+  it("Flatten All's confirm dialog warns about positions with a working order on the flatten side (M4)", async () => {
+    useOrderStore.getState().applyAck({
+      gateway_id: "GW1",
+      order_id: "ORD1",
+      accepted: true,
+      reason: "",
+      symbol: "AAPL",
+      side: "SELL",
+      order_type: "LIMIT",
+      qty: 50,
+    });
+    wrap(<PositionPanel />);
+    await waitFor(() => expect(screen.getByText("AAPL")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Flatten All" }));
+    const dialog = screen.getByRole("dialog", { name: "Flatten all positions?" });
+    expect(
+      within(dialog).getByText(
+        /1 of these also has a working order on the flatten side, which could push the position past flat once filled/,
+      ),
+    ).toBeTruthy();
+  });
+
+  it("Flatten All reports one summary toast reflecting every position's outcome, not just the last (M3)", async () => {
+    apiFetchMock.mockImplementationOnce(async () => ({
+      positions: [
+        { symbol: "AAPL", net_qty: 500, last_price: 151.2 },
+        { symbol: "MSFT", net_qty: -200, last_price: 410.0 },
+      ],
+    }));
+    apiFetchMock.mockImplementationOnce(async () => ({
+      order_id: "flat-aapl",
+      status: "PENDING",
+      accepted: null,
+      event: null,
+    }));
+    apiFetchMock.mockRejectedValueOnce(new ApiError(400, "REJECTED", "collar breach"));
+
+    wrap(<PositionPanel />);
+    await waitFor(() => expect(screen.getByText("AAPL")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Flatten All" }));
+    const dialog = screen.getByRole("dialog", { name: "Flatten all positions?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Flatten All" }));
+
+    // Both closes were sent (nothing was skipped)...
+    await waitFor(() => {
+      const orderCalls = apiFetchMock.mock.calls.filter(([p]) =>
+        String(p).startsWith("/api/v1/orders"),
+      );
+      expect(orderCalls.length).toBe(2);
+    });
+    // ...and the summary toast reflects BOTH outcomes, not just the second
+    // (last) call's -- the bug this bulk path shared with the single shared
+    // mutation looped over.
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Flattened 1 position, 1 failed"));
   });
 });

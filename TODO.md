@@ -24,15 +24,15 @@ Target: Oct 2026
 #### ~~H1 — OCO legs are never grouped; "Cancel group" is unreachable~~
 #### ~~H2 — Trade prints are not de-duplicated; replay inflates volume and can crash the chart handler~~
 #### ~~H3 — Gap repair for `trade.executed` can never succeed~~
-#### H4 — Halts are invisible to TRADER/MARKET_MAKER unless they begin after login
+#### ~~H4 — Halts are invisible to TRADER/MARKET_MAKER unless they begin after login~~
 #### ~~H5 — Session phase defaults to CLOSED and is never re-synced after a reconnect~~
 #### ~~H6 — The private stream has no gap detection, and Refresh cannot reconcile~~
 
 ### Medium defects
-#### M1 — Order-type gating is narrower than the engine
-#### M2 — "Accepted" is misleading for FOK, MARKET and IOC
-#### M3 — Bulk cancel and Flatten All lose per-order feedback
-#### M4 — Flatten semantics
+#### ~~M1 — Order-type gating is narrower than the engine~~
+#### ~~M2 — "Accepted" is misleading for FOK, MARKET and IOC~~
+#### ~~M3 — Bulk cancel and Flatten All lose per-order feedback~~
+#### ~~M4 — Flatten semantics~~
 #### M5 — The combo form forces
 #### M6 — The Amend and Replace dialogs work on a snapshot of the order
 #### M7 — The ticket's session and tick rules have no single source

@@ -10,6 +10,7 @@ from edumatcher.api_gateway.sessions import Session, auth, require_trading
 from edumatcher.models.generated.system import (
     topic_gateways,
     topic_halt_status,
+    topic_position_snapshot,
     topic_quote_bootstrap,
     topic_quote_legs,
     topic_reference,
@@ -30,6 +31,8 @@ async def _request_reply(
         engine.request_session(gateway_id)
     elif send == "halts":
         engine.request_halt_status(gateway_id)
+    elif send == "positions":
+        engine.request_position(gateway_id)
     elif send == "quote_bootstrap":
         engine.request_quote_bootstrap(gateway_id)
     elif send == "quote_legs":
@@ -208,14 +211,34 @@ async def quote_legs(
 async def positions(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
+    """Net position per symbol for the caller's own gateway (M4).
+
+    A genuine engine round trip on ``system.position_request`` /
+    ``system.position_snapshot.<gateway_id>`` -- the same pair
+    ``GET /admin/positions`` uses for any gateway -- rather than this
+    process's own local fill cache (``SessionCaches.positions``), which
+    reads flat after a gateway restart even though the engine still holds
+    the position. ``last_price`` still comes from this cache: it tracks
+    venue-wide trade prints, not the position calculation itself.
+    """
     gateway_id = require_trading(session)
     cache = request.app.state.engine.get_caches(gateway_id)
-    positions_payload = []
-    for symbol, qty in sorted(cache.positions.items()):
-        last_price = cache.last_prices.get(symbol)
-        positions_payload.append(
-            {"symbol": symbol, "net_qty": qty, "last_price": last_price}
-        )
+    reply = await _request_reply(
+        request, "positions", topic_position_snapshot(gateway_id), gateway_id
+    )
+    raw_positions = reply.get("positions", [])
+    if not isinstance(raw_positions, list):
+        raw_positions = []
+    positions_payload = [
+        {
+            "symbol": entry.get("symbol"),
+            "net_qty": entry.get("net_qty"),
+            "last_price": cache.last_prices.get(str(entry.get("symbol", ""))),
+        }
+        for entry in raw_positions
+        if isinstance(entry, dict)
+    ]
+    positions_payload.sort(key=lambda p: str(p["symbol"]))
     return {"positions": positions_payload}
 
 

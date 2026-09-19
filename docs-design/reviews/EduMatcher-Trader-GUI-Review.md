@@ -223,9 +223,9 @@ Confirmed by probes P6a and P7.
 
 **~~M2 — "Accepted" is misleading for FOK, MARKET and IOC.~~** **FIXED** The ticket toasts `BUY 100 AAPL accepted` from the *first* ack (`OrderTicket.tsx:202`). For a FOK the authoritative outcome is a second `order.ack accepted=false INSUFFICIENT_LIQUIDITY`, and for MARKET/IOC with no liquidity it is `order.cancelled`. `useOrderEventNotifications` ignores `order.ack` and sends cancels to the Event Center without a toast, so the trader never learns the order died. Toast the terminal outcome of an order this session submitted: a reject ack, or a cancel with zero fills.
 
-**M3 — Bulk cancel and Flatten All lose per-order feedback.** Both loop `mutation.mutate(...)` on a single `useMutation` (`ActiveOrdersPage.tsx:135`, `PositionPanel.tsx:99`). In TanStack Query v5 the callbacks passed to `mutate` fire only for the **latest** call (checked in `query-core` `MutationObserver`), so errors for N−1 of the cancels or flattens are silently dropped. Use `mutateAsync` with `Promise.allSettled` and report a summary.
+**~~M3 — Bulk cancel and Flatten All lose per-order feedback.~~** **FIXED** Both loop `mutation.mutate(...)` on a single `useMutation` (`ActiveOrdersPage.tsx:135`, `PositionPanel.tsx:99`). In TanStack Query v5 the callbacks passed to `mutate` fire only for the **latest** call (checked in `query-core` `MutationObserver`), so errors for N−1 of the cancels or flattens are silently dropped. Use `mutateAsync` with `Promise.allSettled` and report a summary.
 
-**M4 — Flatten semantics.**
+**~~M4 — Flatten semantics.~~** **FIXED**
 - It sizes the close from `GET /positions`, which the gateway builds from fills *this gateway process* has seen (`routers/reference.py:186`), not the engine ledger. After a gateway restart it reads flat while the engine holds a position.
 - It ignores resting orders on the same symbol, so a long 100 with a working SELL 100 flattens to short 100.
 - The power-user "Undo" cancels a MARKET order (`PositionPanel.tsx:70`), which never rests, so it can never undo anything.

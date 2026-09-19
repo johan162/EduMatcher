@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { useCancelOrderMutation, useSubmitOrderMutation } from "@/queries/index.js";
+import { summarizeSettled, type BulkOutcome } from "@/lib/bulkOutcome.js";
 import { useSettingsStore } from "@/store/useSettingsStore.js";
 import { buildResubmitOrder } from "@/lib/resubmit.js";
 import { ApiError } from "@/api/apiFetch.js";
@@ -16,8 +17,9 @@ import type { Order } from "@/types/index.js";
  *    undo-toast offers to re-submit an equivalent order (priority not
  *    preserved — the toast says so).
  *
- * `cancelById` is the plain, dialog-less cancel used for each id in a bulk
- * cancel (which has its own always-confirm dialog at the call site).
+ * `cancelById` is the plain, dialog-less single-order cancel (used by
+ * `confirmCancel`); `cancelMany` (M3) is the bulk-cancel entry point --
+ * see its own doc comment below.
  */
 export function useOrderCancel() {
   const cancel = useCancelOrderMutation();
@@ -39,6 +41,16 @@ export function useOrderCancel() {
       onSuccess: () => toast.success(`Cancel submitted for ${id8}`),
       onError: onCancelError(id8),
     });
+  };
+
+  /**
+   * Bulk cancel (M3): fires every cancel concurrently via `mutateAsync`,
+   * whose own returned promise settles per-call, unlike looping `cancelById`
+   * (`.mutate`) on the shared `cancel` mutation -- see lib/bulkOutcome.ts.
+   */
+  const cancelMany = async (orderIds: string[]): Promise<BulkOutcome> => {
+    const results = await Promise.allSettled(orderIds.map((id) => cancel.mutateAsync(id)));
+    return summarizeSettled(results);
   };
 
   const resubmit = (order: Order) => {
@@ -86,6 +98,7 @@ export function useOrderCancel() {
   return {
     requestCancel,
     cancelById,
+    cancelMany,
     confirmTarget,
     setConfirmTarget,
     confirmCancel,
