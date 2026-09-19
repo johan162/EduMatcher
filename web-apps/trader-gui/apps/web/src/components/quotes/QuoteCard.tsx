@@ -38,6 +38,13 @@ export function QuoteCard({ symbol, tickDecimals, quote }: QuoteCardProps) {
   const [formOpen, setFormOpen] = useState(false);
   const [initial, setInitial] = useState<QuoteFormInitial | undefined>(undefined);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // L10: NewQuoteForm seeds its fields from `initial` only in its useState
+  // initializers, so re-opening with new values while it's already mounted
+  // (a Re-quote prefill, or a second "New Quote" click) would leave the old
+  // fields in place. Bumped on every fresh `initial` and used as the form's
+  // `key` below to force a remount, which is what actually re-seeds it --
+  // the same pattern AppShell.tsx already uses for OrderDetailDrawer.
+  const [formInstance, setFormInstance] = useState(0);
 
   // A "Re-quote" fill alert (or any prefill for this symbol) opens the form
   // prefilled with the previous quote's prices/qtys and a fresh quote id.
@@ -50,6 +57,7 @@ export function QuoteCard({ symbol, tickDecimals, quote }: QuoteCardProps) {
         ask_qty: prefill.ask_qty,
       });
       setFormOpen(true);
+      setFormInstance((n) => n + 1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefill?.nonce]);
@@ -67,6 +75,7 @@ export function QuoteCard({ symbol, tickDecimals, quote }: QuoteCardProps) {
         : undefined,
     );
     setFormOpen(true);
+    setFormInstance((n) => n + 1);
   };
 
   const doCancel = () => {
@@ -163,6 +172,7 @@ export function QuoteCard({ symbol, tickDecimals, quote }: QuoteCardProps) {
 
       {formOpen && (
         <NewQuoteForm
+          key={formInstance}
           symbol={symbol}
           tickDecimals={tickDecimals}
           initial={initial}

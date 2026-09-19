@@ -39,8 +39,7 @@ Target: Oct 2026
 #### ~~M8 — Gateway~~
 
 ### Low defect
-~~L1, L2, L3, L4, L5, L6~~
-L7 - L10
+~~L1, L2, L3, L4, L5, L6, L7, L8, L9, L10~~
 
 ## Fix remaining bugs in Trader Info Terminal GUI
 
