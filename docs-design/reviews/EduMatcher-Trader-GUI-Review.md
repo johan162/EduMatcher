@@ -238,7 +238,7 @@ Serve `/positions` from the engine (as `/admin/positions` does), warn when oppos
 
 **~~M7 — The ticket's session and tick rules have no single source.~~** **FIXED** `AUCTION_DISABLED` (ticket), `isContinuous` (PositionPanel) and `ALLOWED_TIF` (sessionState.ts) encode overlapping engine rules in three places. The 2026-08-14 audit found the same "rule stated twice" failure. Consolidate the order-acceptance rules in `lib/sessionState.ts` with engine citations, the way `validateAmend` does.
 
-**M8 — Gateway `build_combo_payload` hardcodes `tick_decimals=2` per leg** (`api_gateway/translate.py`). This is outside the GUI, but the combo ticket drives it. Prices are converted with the right symbol, so the field is at best redundant and at worst wrong for non-2-decimal symbols.
+**~~M8 — Gateway `build_combo_payload` hardcodes `tick_decimals=2` per leg~~** **FIXED** (`api_gateway/translate.py`). This is outside the GUI, but the combo ticket drives it. Prices are converted with the right symbol, so the field is at best redundant and at worst wrong for non-2-decimal symbols.
 
 ---
 
