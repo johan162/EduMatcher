@@ -117,6 +117,40 @@ class TestGatewaysEmitTicks:
         assert prices == [9550, 13025]
         assert all(isinstance(p, int) for p in prices)
 
+    def test_api_gateway_combo_leg_tick_decimals_is_the_legs_own_symbol(self) -> None:
+        """M8: build_combo_payload hardcoded tick_decimals=2 per leg, wrong
+        for a non-2-decimal symbol -- resolve it from each leg's own symbol,
+        like build_order and config_loader's market_maker_combos seeding do.
+        """
+        from edumatcher.api_gateway.schemas import ComboLegRequest, ComboRequest
+        from edumatcher.api_gateway.translate import build_combo_payload
+        from edumatcher.models.order import OrderType, Side, TIF
+        from edumatcher.models.price import clear_tick_registry, register_tick_decimals
+
+        register_tick_decimals("BTCUSD", 4)
+        try:
+            leg = ComboLegRequest(
+                symbol="BTCUSD",
+                side=Side.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=10,
+                price=95.5,
+            )
+            other = ComboLegRequest(
+                symbol="MSFT",
+                side=Side.SELL,
+                order_type=OrderType.LIMIT,
+                quantity=10,
+                price=130.25,
+            )
+            payload = build_combo_payload(
+                ComboRequest(combo_id="C1", tif=TIF.DAY, legs=[leg, other]), "GW1"
+            )
+        finally:
+            clear_tick_registry()
+        decimals = [each["tick_decimals"] for each in payload["legs"]]
+        assert decimals == [4, 2]
+
     def test_api_gateway_new_order_price_is_ticks(self) -> None:
         from edumatcher.api_gateway.schemas import OrderRequest
         from edumatcher.api_gateway.translate import build_order

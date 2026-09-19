@@ -40,10 +40,13 @@ Stop the scheduler and use manual phase control instead (see
 You want to be sitting in `OPENING_AUCTION` — **not** `PRE_OPEN` — before
 sending the `TIF=ATO` orders below: the engine only accepts `ATO` orders
 while the session state is exactly `OPENING_AUCTION` and rejects them during
-`PRE_OPEN` even though `PRE_OPEN` accepts orders generally. From
-`PRE_OPEN`, transition directly:
+`PRE_OPEN` even though `PRE_OPEN` accepts orders generally. With no
+scheduler running, a freshly started engine sits in `CLOSED`, and `CLOSED`'s
+only legal move is to `PRE_OPEN` — so get there first, then go on to
+`OPENING_AUCTION`:
 
 ```
+[GW_ADMIN|ADMIN]> SESSION|STATE=PRE_OPEN
 [GW_ADMIN|ADMIN]> SESSION|STATE=OPENING_AUCTION
 ```
 

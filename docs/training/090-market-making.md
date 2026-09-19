@@ -419,10 +419,10 @@ symbol — use `KILL`:
 Expected:
 
 ```
-KILL ACK  cancelled_orders=<n> cancelled_quotes=<n>
+[<time>] KILL ACK  orders=<n> quote_legs=<n>
 ```
 
-`cancelled_quotes` counts individual legs, not quote records, so a single
+`quote_legs` counts individual legs, not quote records, so a single
 two-sided quote contributes up to 2 to that count. Scope it to one symbol
 with `KILL|SYM=<symbol>` instead of clearing every symbol at once.
 

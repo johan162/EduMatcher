@@ -383,6 +383,108 @@ describe("subscription plan", () => {
   });
 });
 
+describe("SeqTracker forgets unsubscribed topics on re-focus (L5)", () => {
+  it("does not treat the first envelope after a re-focus as a gap", () => {
+    const fake = installSocket();
+    setFocusSymbols(["AAPL"]);
+    fake.sent = [];
+
+    // AAPL's depth channel advances to seq 5 while focused.
+    route({
+      type: "depth",
+      topic: "depth.AAPL",
+      ts: "",
+      seq: 5,
+      data: { symbol: "AAPL", mid_price: 150.05, imbalance: 0.1 },
+    });
+
+    // Un-focus AAPL (unsubscribes its depth/auction pair) and re-focus it.
+    // The server's own depth.AAPL counter keeps advancing in the meantime,
+    // so seq 8 -- not 6 -- is the first envelope the client actually
+    // receives once it resubscribes.
+    setFocusSymbols(["MSFT"]);
+    setFocusSymbols(["AAPL"]);
+    fake.sent = [];
+
+    route({
+      type: "depth",
+      topic: "depth.AAPL",
+      ts: "",
+      seq: 8,
+      data: { symbol: "AAPL", mid_price: 150.1, imbalance: 0.1 },
+    });
+
+    // Regression for L5: a stale high-water mark surviving the unsubscribe
+    // would read this as "6 and 7 were missed" and fire a needless resume
+    // for a topic that was just freshly (re)subscribed.
+    expect(fake.frames).toHaveLength(0);
+  });
+
+  it("also forgets both auction topics (result and indicative) on unsubscribe", () => {
+    const fake = installSocket();
+    setFocusSymbols(["AAPL"]);
+    fake.sent = [];
+    route({
+      type: "auction.result",
+      topic: "auction.result.AAPL",
+      ts: "",
+      seq: 3,
+      data: { symbol: "AAPL", price: 150, quantity: 100 },
+    });
+    route({
+      type: "auction.indicative",
+      topic: "auction.indicative.AAPL",
+      ts: "",
+      seq: 3,
+      data: { symbol: "AAPL", price: 150, quantity: 100 },
+    });
+
+    setFocusSymbols(["MSFT"]);
+    setFocusSymbols(["AAPL"]);
+    fake.sent = [];
+
+    route({
+      type: "auction.result",
+      topic: "auction.result.AAPL",
+      ts: "",
+      seq: 6,
+      data: { symbol: "AAPL", price: 151, quantity: 100 },
+    });
+    route({
+      type: "auction.indicative",
+      topic: "auction.indicative.AAPL",
+      ts: "",
+      seq: 6,
+      data: { symbol: "AAPL", price: 151, quantity: 100 },
+    });
+
+    expect(fake.frames).toHaveLength(0);
+  });
+
+  it("still detects a real gap on a topic that stayed subscribed throughout", () => {
+    const fake = installSocket();
+    setFocusSymbols(["AAPL"]);
+    fake.sent = [];
+    route({
+      type: "depth",
+      topic: "depth.AAPL",
+      ts: "",
+      seq: 1,
+      data: { symbol: "AAPL", mid_price: 150.05, imbalance: 0.1 },
+    });
+    route({
+      type: "depth",
+      topic: "depth.AAPL",
+      ts: "",
+      seq: 4,
+      data: { symbol: "AAPL", mid_price: 150.2, imbalance: 0.1 },
+    });
+    expect(fake.frames).toEqual([
+      { action: "resume", topic: "depth.AAPL", from_seq: 1, symbols: ["AAPL"] },
+    ]);
+  });
+});
+
 describe("session/halts resync on authenticate (H5, H4)", () => {
   // `installSocket()`'s FakeSocket is a standalone ManagedSocket used only to
   // exercise subscribe/resume framing (§17.3.1) -- it is never wired via

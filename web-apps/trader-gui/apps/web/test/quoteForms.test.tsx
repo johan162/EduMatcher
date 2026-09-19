@@ -166,4 +166,45 @@ describe("QuoteCard (§14.1)", () => {
     });
     expect(screen.queryByLabelText("Quote ID")).toBeNull();
   });
+
+  // L10: the form's fields are seeded once (useState initializers), so a
+  // Re-quote prefill landing while the form is already open (e.g. the
+  // trader opened it manually first) must still update them.
+  it("updates the fields when a Re-quote prefill lands while the form is already open", async () => {
+    wrap(<QuoteCard symbol="AAPL" tickDecimals={2} quote={activeQuote()} />);
+    fireEvent.click(screen.getByRole("button", { name: "New Quote" }));
+    const bidBefore = screen.getByLabelText("Bid price") as HTMLInputElement;
+    fireEvent.change(bidBefore, { target: { value: "1" } });
+    expect(bidBefore.value).toBe("1");
+
+    act(() => {
+      useQuotePrefillStore.getState().setPrefill({
+        symbol: "AAPL",
+        bid_price: 149.9,
+        bid_qty: 500,
+        ask_price: 150.1,
+        ask_qty: 500,
+        quote_id: "mm-aapl-1",
+      });
+    });
+
+    await waitFor(() =>
+      expect((screen.getByLabelText("Bid price") as HTMLInputElement).value).toBe("149.9"),
+    );
+    expect((screen.getByLabelText("Ask price") as HTMLInputElement).value).toBe("150.1");
+  });
+
+  // L10: a second manual "New Quote" click while the form is already open
+  // hits the same staleness bug via a different trigger -- confirm it also
+  // re-seeds instead of leaving whatever the trader had typed.
+  it("re-seeds from the live quote on a second New Quote click while already open", () => {
+    wrap(<QuoteCard symbol="AAPL" tickDecimals={2} quote={activeQuote()} />);
+    fireEvent.click(screen.getByRole("button", { name: "New Quote" }));
+    const bidInput = screen.getByLabelText("Bid price") as HTMLInputElement;
+    fireEvent.change(bidInput, { target: { value: "1" } });
+    expect(bidInput.value).toBe("1");
+
+    fireEvent.click(screen.getByRole("button", { name: "New Quote" }));
+    expect((screen.getByLabelText("Bid price") as HTMLInputElement).value).toBe("149.9");
+  });
 });

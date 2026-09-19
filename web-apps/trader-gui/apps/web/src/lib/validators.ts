@@ -104,7 +104,7 @@ export const comboSchema = z.object({
   combo_id: z.string().min(1),
   combo_type: z.literal("AON").default("AON"),
   tif: z.enum(["DAY", "GTC"]).default("DAY"),
-  smp_action: z.enum(["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"]).default("NONE"),
+  smp_action: z.enum(["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"]).optional(),
   legs: z
     .array(
       z

@@ -128,17 +128,27 @@ pm-mm-bot \
 
 Observe startup logs for:
 
-- QBOOT bootstrap resolution.
-- QLEGS reconciliation status.
-- Session readiness before first quote.
+- Bootstrap reference resolution (existing quote adopted, or a random-range
+  price).
+- Session readiness before the first quote.
+- QLEGS reconciliation, which is silent while everything agrees and only
+  logs when it finds a mismatch.
 
-Representative startup sequence:
+Every bot log line is prefixed with the bot's gateway ID (`[<gateway_id>]`),
+and per-symbol lines add a `[<symbol>]` tag. Representative startup lines
+(after the usual timestamp/level/logger prefix):
 
 ```
-[INFO] QBOOT reply: active_quote=None bootstrap_prices={...}
-[INFO] QLEGS reconcile: symbol=AAPL state=clean
-[INFO] Session state CONTINUOUS; issuing initial quote
+[MM_AAPL_01] starting: symbols=AAPL strategy=... gap=0.1 qty=500 ...
+[MM_AAPL_01] [AAPL] bootstrap from random range: 100.37
+[MM_AAPL_01] running symbols=['AAPL'] session=CONTINUOUS
 ```
+
+The `bootstrap from random range` line only appears when the price came from
+`--initial_min`/`--initial_max` (Exercise 5); with a live book the reference
+comes from the book and `-v` shows it as `[<symbol>] reference from book/trade: <price>`. There is no
+per-quote `INFO` line — use `QLEGS|SYM=AAPL` on the MM gateway to confirm the
+quote is live.
 
 :material-checkbox-blank-outline: **Checkpoint:** you can identify and tune the timeout knobs that control startup behavior.
 

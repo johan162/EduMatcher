@@ -123,7 +123,12 @@ def build_combo_payload(request: ComboRequest, gateway_id: str) -> dict[str, Any
             side=Side(leg.side),
             order_type=OrderType(leg.order_type),
             quantity=leg.quantity,
-            tick_decimals=2,
+            # M8: a combo's legs trade different instruments, which need not
+            # share a tick size (ComboLeg's own docstring) -- resolve per
+            # leg's own symbol, the same source build_order and
+            # config_loader's market_maker_combos seeding already use,
+            # instead of assuming every symbol is 2-decimal.
+            tick_decimals=get_tick_decimals(leg.symbol),
             price_ticks=(
                 to_ticks_exact(leg.price, leg.symbol) if leg.price is not None else None
             ),

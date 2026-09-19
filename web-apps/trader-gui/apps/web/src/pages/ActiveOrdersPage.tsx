@@ -11,6 +11,7 @@ import { useBookStore } from "@/store/useBookStore.js";
 import { useSymbolStore } from "@/store/useSymbolStore.js";
 import { useUiStore } from "@/store/useUiStore.js";
 import { useOrderCancel } from "@/hooks/useOrderCancel.js";
+import { describeBulkOutcome } from "@/lib/bulkOutcome.js";
 import { useCancelOcoMutation, useCancelComboMutation } from "@/queries/index.js";
 import { getOrders } from "@/api/endpoints.js";
 import { ApiError } from "@/api/apiFetch.js";
@@ -31,8 +32,19 @@ export function ActiveOrdersPage() {
   const openOrderDetail = useUiStore((s) => s.openOrderDetail);
   // Single-order cancel (confirm dialog by default, undo-toast in power-user
   // mode) is shared with the workspace compact blotter via this hook (§20.3).
-  const { requestCancel, cancelById, confirmTarget, setConfirmTarget, confirmCancel, busy } =
+  const { requestCancel, cancelMany, confirmTarget, setConfirmTarget, confirmCancel, busy } =
     useOrderCancel();
+
+  // Bulk cancel (M3): fires every id concurrently and reports one summary
+  // toast once all settle, instead of looping the single-order cancel
+  // (whose onSuccess/onError only ever fired for the last id in the batch).
+  const doBulkCancel = async (orderIds: string[]) => {
+    const outcome = await cancelMany(orderIds);
+    const message = describeBulkOutcome("Cancelled", "order", outcome);
+    if (outcome.failed) toast.error(message);
+    else if (outcome.pending) toast(message);
+    else toast.success(message);
+  };
 
   // Amend/Replace dialogs read the order live from useOrderStore by id (M6),
   // so only the id — not a snapshot of the order — needs to be held here.
@@ -133,8 +145,8 @@ export function ActiveOrdersPage() {
           message={`Cancel ${bulkTarget.length} selected ${bulkTarget.length === 1 ? "order" : "orders"}? This cannot be undone.`}
           confirmLabel={`Cancel ${bulkTarget.length}`}
           onConfirm={() => {
-            bulkTarget.forEach(cancelById);
             toast(`Cancelling ${bulkTarget.length} orders`);
+            void doBulkCancel(bulkTarget);
             setBulkTarget(null);
           }}
           onClose={() => setBulkTarget(null)}

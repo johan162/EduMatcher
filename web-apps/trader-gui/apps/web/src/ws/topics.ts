@@ -29,6 +29,27 @@ export function channelForTopic(topic: string): MarketDataChannel | null {
 }
 
 /**
+ * The topic string(s) a `(symbol, channel)` subscription pair maps to --
+ * the inverse of `channelForTopic`/`symbolForTopic`. `auction` covers two
+ * topics (result and indicative), each with its own independent `seq`.
+ * `trades` returns none: `trade.executed` is venue-wide, shared by every
+ * focus symbol, so no single symbol's pair owns it (used by L5 to reset only
+ * the topics a real unsubscribe actually stops receiving).
+ */
+export function topicsForPair(symbol: string, channel: MarketDataChannel): string[] {
+  switch (channel) {
+    case "book":
+      return [`${PREFIX_BOOK}${symbol}`];
+    case "depth":
+      return [`${PREFIX_DEPTH}${symbol}`];
+    case "auction":
+      return [`${PREFIX_AUCTION_RESULT}${symbol}`, `${PREFIX_AUCTION_INDICATIVE}${symbol}`];
+    case "trades":
+      return [];
+  }
+}
+
+/**
  * Symbol a topic names, or null when the topic is venue-wide.
  * `trade.executed` is a single topic for every symbol, so its symbol comes
  * from the payload, not the topic.

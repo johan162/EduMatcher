@@ -93,12 +93,20 @@ gateway to freeze on a phase and advance only when you are ready:
    **`CLOSED`** and stays there — so every order is rejected with
    "Market is closed" until you move it yourself in step 2. That is expected,
    not a fault.
-2. From the admin gateway, force the exact phase you need for the next
-   exercise:
+2. From the admin gateway, move to the exact phase you need for the next
+   exercise. The engine only accepts the transitions in the session
+   sequence, and from `CLOSED` the only legal move is to `PRE_OPEN` — so to
+   reach `CONTINUOUS` go in two steps:
 
    ```
+   [GW_ADMIN|ADMIN]> SESSION|STATE=PRE_OPEN
    [GW_ADMIN|ADMIN]> SESSION|STATE=CONTINUOUS
    ```
+
+   An illegal jump (for example `CLOSED` straight to `CONTINUOUS`) is
+   silently ignored by the engine, and the console just prints `TIMEOUT`
+   with no reason. If you see that, run `SESSION_STATUS` and check which
+   phase you are really in.
 
 3. Confirm the change took effect with:
 
@@ -161,7 +169,7 @@ explicitly cancelled.
 
 ## Exercise 4: ATO Order
 
-Freeze in OPENING_AUCTION (`ADMIN01> SESSION|STATE=OPENING_AUCTION` — from
+Freeze in OPENING_AUCTION (`[GW_ADMIN|ADMIN]> SESSION|STATE=OPENING_AUCTION` — from
 PRE_OPEN, this is a valid direct transition), then place an At-The-Open
 order:
 

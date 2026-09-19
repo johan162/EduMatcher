@@ -136,7 +136,9 @@ A freshly placed OCO therefore shows up as two unrelated orders with no Group ba
 
 **Fix:** publish `order_to_display_dict(leg)` in the OCO leg ack, the same shape the combo path uses (this lands with C3). In the GUI, `applyCancelled` / `applyExpired` should fold group ids like `detailPatch` does.
 
-### H2 — Trade prints are not de-duplicated; replay inflates volume and can crash the chart handler
+### ~~H2 — Trade prints are not de-duplicated; replay inflates volume and can crash the chart handler~~
+
+**FIXED**
 
 **Where:** `ws/WebSocketManager.ts:291` (`emit`) → `:306` (`recordTrade`) · `store/useBookStore.ts` `recordTrade` · `components/symbol/SymbolChart.tsx:191` · gateway `routers/ws.py:394`
 
@@ -162,7 +164,9 @@ Confirmed by probes P6a and P7.
 3. In `SymbolChart`, ignore ticks older than `lastBar.time`.
 4. Gateway: honour `resume_from` for the wildcard item too (see H3).
 
-### H3 — Gap repair for `trade.executed` can never succeed
+### ~~H3 — Gap repair for `trade.executed` can never succeed~~
+
+**FIXED**
 
 **Where:** `ws/WebSocketManager.ts:210` (`repairGap`) · gateway `routers/ws.py:419` (`_emit_resume`)
 
@@ -171,6 +175,8 @@ Confirmed by probes P6a and P7.
 **Fix (gateway + client):** support `resume` on `trade.executed` with no symbol by merging the per-symbol buffers on `seq > from_seq`, and apply the same path when replaying a wildcard `resume_from`. The client code needs no change once the server supports it.
 
 ### ~~H4 — Halts are invisible to TRADER/MARKET_MAKER unless they begin after login~~
+
+**FIXED**
 
 **Where:** `lib/bootstrap.ts:32` (halts only on `BootstrapAdmin`) · `OrderTicket.tsx` (no halt check)
 
@@ -184,6 +190,8 @@ Confirmed by probes P6a and P7.
 
 ### ~~H5 — Session phase defaults to CLOSED and is never re-synced after a reconnect~~
 
+**FIXED**
+
 **Where:** `store/useSessionStore.ts:45` · `lib/bootstrap.ts` · `WebSocketManager.ts:415` (`onReconnect`) · `useSessionQuery` (defined, never used)
 
 - If `bootstrap.session` is `null` (listed in `incomplete` when the engine query timed out), the phase stays `CLOSED`. The ticket then blocks every submit, and Flatten is disabled, until the next `session` event. On a quiet venue that can be the whole day.
@@ -191,7 +199,9 @@ Confirmed by probes P6a and P7.
 
 **Fix:** fetch `/session` (the existing `useSessionQuery`) on every market-data authentication and whenever bootstrap reports `session` incomplete. Model "unknown" explicitly rather than defaulting to `CLOSED`.
 
-### ~~H6 — The private stream has no gap detection, and Refresh cannot reconcile~~ **FIXED**
+### ~~H6 — The private stream has no gap detection, and Refresh cannot reconcile~~ 
+
+**FIXED**
 
 **Where:** `WebSocketManager.handlePrivateMessage` (ignores `stream_seq`) · gateway `routers/ws.py:173` (queue `maxsize=256`, `_record_drop` on overflow) · `useOrderStore.hydrate` · `types/index.ts:216`
 
@@ -211,39 +221,39 @@ Confirmed by probes P6a and P7.
 
 **~~M1 — Order-type gating is narrower than the engine.~~** **FIXED** `OrderTicket.tsx:40` disables MARKET/FOK/IOC only in the two auction phases. The engine rejects them in **every** phase where `is_matching_enabled` is false (only `CONTINUOUS` matches), so in `PRE_OPEN` they round-trip to `SESSION_NOT_PERMITTED`, and during a halt see H4. `PositionPanel` already gates on `phase === "CONTINUOUS"`, so the two components disagree. Gate on "not CONTINUOUS or symbol halted", in one helper next to `ALLOWED_TIF`.
 
-**M2 — "Accepted" is misleading for FOK, MARKET and IOC.** The ticket toasts `BUY 100 AAPL accepted` from the *first* ack (`OrderTicket.tsx:202`). For a FOK the authoritative outcome is a second `order.ack accepted=false INSUFFICIENT_LIQUIDITY`, and for MARKET/IOC with no liquidity it is `order.cancelled`. `useOrderEventNotifications` ignores `order.ack` and sends cancels to the Event Center without a toast, so the trader never learns the order died. Toast the terminal outcome of an order this session submitted: a reject ack, or a cancel with zero fills.
+**~~M2 — "Accepted" is misleading for FOK, MARKET and IOC.~~** **FIXED** The ticket toasts `BUY 100 AAPL accepted` from the *first* ack (`OrderTicket.tsx:202`). For a FOK the authoritative outcome is a second `order.ack accepted=false INSUFFICIENT_LIQUIDITY`, and for MARKET/IOC with no liquidity it is `order.cancelled`. `useOrderEventNotifications` ignores `order.ack` and sends cancels to the Event Center without a toast, so the trader never learns the order died. Toast the terminal outcome of an order this session submitted: a reject ack, or a cancel with zero fills.
 
-**M3 — Bulk cancel and Flatten All lose per-order feedback.** Both loop `mutation.mutate(...)` on a single `useMutation` (`ActiveOrdersPage.tsx:135`, `PositionPanel.tsx:99`). In TanStack Query v5 the callbacks passed to `mutate` fire only for the **latest** call (checked in `query-core` `MutationObserver`), so errors for N−1 of the cancels or flattens are silently dropped. Use `mutateAsync` with `Promise.allSettled` and report a summary.
+**~~M3 — Bulk cancel and Flatten All lose per-order feedback.~~** **FIXED** Both loop `mutation.mutate(...)` on a single `useMutation` (`ActiveOrdersPage.tsx:135`, `PositionPanel.tsx:99`). In TanStack Query v5 the callbacks passed to `mutate` fire only for the **latest** call (checked in `query-core` `MutationObserver`), so errors for N−1 of the cancels or flattens are silently dropped. Use `mutateAsync` with `Promise.allSettled` and report a summary.
 
-**M4 — Flatten semantics.**
+**~~M4 — Flatten semantics.~~** **FIXED**
 - It sizes the close from `GET /positions`, which the gateway builds from fills *this gateway process* has seen (`routers/reference.py:186`), not the engine ledger. After a gateway restart it reads flat while the engine holds a position.
 - It ignores resting orders on the same symbol, so a long 100 with a working SELL 100 flattens to short 100.
 - The power-user "Undo" cancels a MARKET order (`PositionPanel.tsx:70`), which never rests, so it can never undo anything.
 
 Serve `/positions` from the engine (as `/admin/positions` does), warn when opposite-side working orders exist, and drop the Undo on flatten.
 
-**M5 — The combo form forces `smp_action: "NONE"`** (`ComboForm.tsx:67`, `comboSchema` default). That *explicitly permits self-trades* and overrides the gateway's configured SMP default, which the single-leg ticket deliberately preserves by omitting the field. Omit it, or offer the same "Gateway default" choice.
+**~~M5 — The combo form forces `smp_action: "NONE"`~~** **FIXED** (`ComboForm.tsx:67`, `comboSchema` default). That *explicitly permits self-trades* and overrides the gateway's configured SMP default, which the single-leg ticket deliberately preserves by omitting the field. Omit it, or offer the same "Gateway default" choice.
 
 **~~M6 — The Amend and Replace dialogs work on a snapshot of the order.~~** **FIXED** The `order` prop is captured when the dialog opens, so fills that arrive while it is open are not reflected in *Filled* or in `validateAmend`'s `filled`. The engine then rejects, which triggers C1. Pass `order_id` and read the row live from `useOrderStore`. Close the dialog with a notice if the order goes terminal.
 
-**M7 — The ticket's session and tick rules have no single source.** `AUCTION_DISABLED` (ticket), `isContinuous` (PositionPanel) and `ALLOWED_TIF` (sessionState.ts) encode overlapping engine rules in three places. The 2026-08-14 audit found the same "rule stated twice" failure. Consolidate the order-acceptance rules in `lib/sessionState.ts` with engine citations, the way `validateAmend` does.
+**~~M7 — The ticket's session and tick rules have no single source.~~** **FIXED** `AUCTION_DISABLED` (ticket), `isContinuous` (PositionPanel) and `ALLOWED_TIF` (sessionState.ts) encode overlapping engine rules in three places. The 2026-08-14 audit found the same "rule stated twice" failure. Consolidate the order-acceptance rules in `lib/sessionState.ts` with engine citations, the way `validateAmend` does.
 
-**M8 — Gateway `build_combo_payload` hardcodes `tick_decimals=2` per leg** (`api_gateway/translate.py`). This is outside the GUI, but the combo ticket drives it. Prices are converted with the right symbol, so the field is at best redundant and at worst wrong for non-2-decimal symbols.
+**~~M8 — Gateway `build_combo_payload` hardcodes `tick_decimals=2` per leg~~** **FIXED** (`api_gateway/translate.py`). This is outside the GUI, but the combo ticket drives it. Prices are converted with the right symbol, so the field is at best redundant and at worst wrong for non-2-decimal symbols.
 
 ---
 
 ## 5. Low findings
 
-- **L1 — The shortcut table disagrees with the bindings** (`lib/shortcuts.ts` vs `useGlobalShortcuts.ts`). F3, F4 and Ctrl+L are documented as "toggle" but navigate. `Shift+F` (flatten selected position) is documented but not bound. Ctrl+Shift+F only navigates. Derive the table from the bindings, the same fix pattern as the `serve.ts` `ENV_OPTIONS` change.
-- **L2 — B/S fire a live order on a single keystroke with no confirmation** whenever focus is not in an input, for example right after clicking an order-type tab or a DOM level. It is intentional per §12.11, but for MARKET it is a one-key market order of the last quantity typed. Consider "armed" mode or confirming MARKET.
-- **L3 — `setOverviewSubscription` is never called** (`WebSocketManager.ts:176`), so the `FOCUS_FULL_CHANNELS` branch of `planPairs` is unreachable. `useSessionQuery` is unused. This is dead code, mentioned rather than removed.
-- **L4 — The `apiFetch` docstring says 401 triggers automatic logout;** no `QueryClient` error handler does that. `ManagedSocket`'s `onAuthFailure` is never wired either, so a revoked key reconnects forever.
-- **L5 — `SeqTracker` keeps high-water marks for focus topics after unsubscribe.** Re-focusing a symbol later logs a spurious gap and sends a needless resume for its `depth`/`auction` topics.
-- **L6 — `useWsEvent` binds the handler once** (`deps: [type]`). Every current handler is safe because it reads stores via `getState`, uses stable setters, or is remounted by key. It is a latent stale-closure trap for the next author; route it through `useEventCallback`.
-- **L7 — Order Detail drawer:** live entries are appended to history without de-duplication, so after the 30-second refetch the same event shows twice.
-- **L8 — Order Entry:** the ticket's symbol starts empty even when an active symbol exists, so the Ref hint is blank until the trader types.
-- **L9 — `client_tag` is dropped by Replace and by Undo.**
-- **L10 (MM) — `NewQuoteForm` captures `initial` in `useState` once.** A Re-quote prefill while the form is already open does not update the fields.
+- **~~L1 — The shortcut table disagrees with the bindings~~** **FIXED** (`lib/shortcuts.ts` vs `useGlobalShortcuts.ts`). F3, F4 and Ctrl+L are documented as "toggle" but navigate. `Shift+F` (flatten selected position) is documented but not bound. Ctrl+Shift+F only navigates. Derive the table from the bindings, the same fix pattern as the `serve.ts` `ENV_OPTIONS` change. Fixed by correcting the table's own rows rather than a structural derivation: the actual bindings are split across `useHotkeys` (three files, differing `enableOnFormTags` scoping) and hand-rolled `onKeyDown` in `OrdersBlotter.tsx`, so a shared single-source declaration was judged disproportionate for a documentation-accuracy finding — F3/F4/Ctrl+L now read "Go to the ... screen", Ctrl+Shift+F reads "Go to Positions, where Flatten All lives (always confirms)", and the phantom Shift+F row (bound nowhere) was removed.
+- **~~L2 — B/S fire a live order on a single keystroke with no confirmation~~** **FIXED** whenever focus is not in an input, for example right after clicking an order-type tab or a DOM level. It is intentional per §12.11, but for MARKET it is a one-key market order of the last quantity typed. Consider "armed" mode or confirming MARKET. Fixed by gating both the hotkey and the on-screen BUY/SELL button through a shared `requestSubmit`, which raises the existing `CancelConfirm` dialog (reused generically, as `PositionPanel` already does for Flatten) only when `orderType === "MARKET"`, and only when `confirmCancellations` is on (power-user mode still skips it, matching Cancel/Flatten). Non-MARKET order types are unaffected.
+- **~~L3 — `setOverviewSubscription` is never called~~** **FIXED** (`WebSocketManager.ts:176`), so the `FOCUS_FULL_CHANNELS` branch of `planPairs` is unreachable. `useSessionQuery` is unused. This is dead code, mentioned rather than removed. Fixed by adding a doc comment at each of the three relevant sites (`setOverviewSubscription`, the `planPairs` branch it would enable, and `useSessionQuery`, superseded by H4+H5+M1's `resyncSessionAndHalts()`) explaining why each is unreachable/unused, per the review's own "mention rather than remove" framing. No behavior change.
+- **~~L4 — The `apiFetch` docstring says 401 triggers automatic logout~~** **FIXED;** no `QueryClient` error handler did that. `ManagedSocket`'s `onAuthFailure` was never wired either, so a revoked key reconnected forever. User chose to make the docstring's claim true (over a `QueryCache`/`MutationCache` global handler, or a docs-only correction): `apiFetch` now calls `useAuthStore.getState().logout()` directly on any 401, which covers every caller uniformly, not just ones routed through TanStack Query (e.g. `WebSocketManager`'s own `getSession()`/`getHalts()` resync calls). `useWebSocketManager`'s pre-existing `apiKey`/`role` effect then tears every socket down and `RoleGuard` redirects to `/login` -- no new teardown logic needed. `onAuthFailure` is now wired on all three `ManagedSocket` instances (events, market-data, admin monitor) to the same `logout()` call, so a mid-session revoke (POLICY_VIOLATION/ADMIN_REQUIRED close) stops the reconnect-forever loop the same way.
+- **~~L5 — `SeqTracker` keeps high-water marks for focus topics after unsubscribe~~** **FIXED.** Re-focusing a symbol later used to log a spurious gap and send a needless resume for its `depth`/`auction` topics. `syncSubscriptions()` now resets the `SeqTracker` entry for every topic a real unsubscribe stops receiving, via a new `topicsForPair(symbol, channel)` (the inverse of `channelForTopic`/`symbolForTopic`) that also covers `auction`'s two independent topics (result and indicative); `trades` deliberately resets nothing, since `trade.executed` is venue-wide and shared by every focus symbol.
+- **~~L6 — `useWsEvent` binds the handler once~~** **FIXED** (`deps: [type]`). Every current handler was safe because it reads stores via `getState`, uses stable setters, or is remounted by key -- a latent stale-closure trap for the next author. Routed through the existing `useEventCallback` (the same "latest ref" utility L2's hotkey fix uses), exactly as the review suggested: `wsOn` now holds a permanently stable function that always runs the latest render's closure, so the effect can depend on it (`[type, stableHandler]`) without resubscribing on every render.
+- **~~L7 — Order Detail drawer:~~** live entries are appended to history without de-duplication, so after the 30-second refetch the same event shows twice. **FIXED.** Added `timelineSignature()` in `OrderDetailDrawer.tsx`, matching a live entry against the historical rows by the type-specific fields that actually distinguish one event from another (a FILL's own qty/price/remaining, etc.) rather than by `ts`/`seq`, neither of which a live-appended entry shares with its eventual historical row. A live entry whose signature already appears in the history is dropped before rendering.
+- **~~L8 — Order Entry:~~** the ticket's symbol starts empty even when an active symbol exists, so the Ref hint is blank until the trader types. **FIXED.** `OrderTicket.tsx`'s `typedSymbol` state now seeds from `useActiveSymbolStore.getState().activeSymbol` at mount (a one-time read, not an ongoing sync — once the trader types, a later change to the active symbol elsewhere must not overwrite it).
+- **~~L9 — `client_tag` is dropped by Replace and by Undo.~~** **FIXED.** `ReplaceDialog.tsx` and `lib/resubmit.ts`'s `buildResubmitOrder()` both now carry `client_tag` forward from the original order, the same way they already do for `price`/`stop_price`/`visible_qty`/`trail_offset`/`smp_action`.
+- **~~L10 (MM) — `NewQuoteForm` captures `initial` in `useState` once.~~** A Re-quote prefill while the form is already open does not update the fields. **FIXED.** `NewQuoteForm` itself needed no change (its `useState` initializers seeding from `initial` are the standard, correct pattern for a form that gets a fresh mount) — the bug was that `QuoteCard.tsx` kept the same form instance mounted across both retrigger paths (a same-symbol Re-quote prefill landing while the form was already open, and a second manual "New Quote" click while it was already open). Fixed with a `key`-based remount, the same idiom `AppShell.tsx` already uses for `OrderDetailDrawer`: a new `formInstance` counter bumps on every fresh `initial`, keyed onto `<NewQuoteForm key={formInstance} .../>`.
 
 ---
 
@@ -294,7 +304,7 @@ So the fixes above are not read as "rewrite the layer":
 4. ~~**H2, H3** — Trade de-duplication by id, exception-isolated `emit`, chart old-tick guard, and venue-wide trade resume (gateway).~~
 5. ~~**H4, H5, M1** — Halts in the trader bootstrap, re-sync session and halts on reconnect, one gating helper.~~
 6. ~~**H6** — `stream_seq` gap detection, authoritative `hydrate`, `ts_ns`.~~
-7. M2–M5, then the lows.
+7. ~~M2–M5~~, then the lows.
 
 Each step should come with a regression test that feeds the **engine's real payload shape**. Several existing tests pass only because they hand the store fields the engine never sends (e.g. `oco_group_id` on an OCO leg ack).
 

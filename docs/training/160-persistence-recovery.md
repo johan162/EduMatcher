@@ -102,9 +102,10 @@ Reconnect `TRADER01` and inspect orders:
 [TRADER01]> ORDERS
 ```
 
-The GTC order should be restored — the engine also prints a line at shutdown
-confirming how many GTC orders it saved (`[ENGINE] Saved N GTC order(s) to
-...`), which you can check as a stable confirmation instead of relying on
+The GTC order should be restored — with `pm-engine --verbose` the engine also
+logs a line at shutdown confirming how many resting orders it saved
+(`Saved N resting order(s) to ...`; the count covers both GTC and same-day DAY
+orders), which you can check as a stable confirmation instead of relying on
 `ORDERS` output alone.
 
 Compare explicitly after restart:

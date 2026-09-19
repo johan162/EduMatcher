@@ -502,7 +502,13 @@ Map observed ERR codes to operator action:
 - INVALID_CHANNEL: unsupported CH value
 - INVALID_SYMBOL: unknown symbol, or `SYM=*` used with `INDEX`/`DEPTH`/`CB`
 - REPLAY_MISS: requested resume point outside replay retention
-- SLOW_CLIENT: consumer cannot keep up with delivery rate
+- RATE_LIMITED: client is sending commands too fast; throttle it
+- SUB_LIMIT: too many subscriptions on one session; subscribe more narrowly
+
+CALF has no `SLOW_CLIENT` error line. A consumer that cannot keep up with
+delivery is disconnected without any `ERR` being sent (the gateway logs
+`disconnecting slow client`), so the client only sees the connection drop —
+detect it by reconnecting and using `RESUME` (Exercise 6).
 
 :material-checkbox-blank-outline: Checkpoint: you can convert each ERR code into a practical remediation step.
 

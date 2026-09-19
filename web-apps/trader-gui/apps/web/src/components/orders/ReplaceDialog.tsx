@@ -72,6 +72,9 @@ export function ReplaceDialog({ orderId, onClose }: ReplaceDialogProps) {
     if (fields.visible_qty && order.visible_qty !== null) candidate.visible_qty = order.visible_qty;
     if (fields.trail_offset && order.trail_offset !== null) candidate.trail_offset = order.trail_offset;
     if (order.smp_action !== null) candidate.smp_action = order.smp_action;
+    // L9: Replace builds a brand-new order server-side, so the original's
+    // correlation tag is otherwise silently dropped rather than carried over.
+    if (order.client_tag) candidate.client_tag = order.client_tag;
 
     const parsed = orderSchema.safeParse(candidate);
     if (!parsed.success) {
@@ -92,6 +95,7 @@ export function ReplaceDialog({ orderId, onClose }: ReplaceDialogProps) {
     if (fields.visible_qty && d.visible_qty !== undefined) body.visible_qty = d.visible_qty;
     if (fields.trail_offset && d.trail_offset !== undefined) body.trail_offset = d.trail_offset;
     if (d.smp_action !== undefined) body.smp_action = d.smp_action;
+    if (d.client_tag) body.client_tag = d.client_tag;
 
     replace.mutate(
       { orderId: order.order_id, body },

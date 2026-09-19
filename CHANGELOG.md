@@ -1,3 +1,26 @@
+## [v0.40.3] - 2026-09-20
+
+Release Type: patch
+
+### 📋 Summary
+This patch release fixes Trader GUI edge cases around quote prefill, order replacement, stale state, and timing while bringing the training guide back in line with the current CLI output and protocol details.
+
+### 🚀 Improvements
+- Improved Trader GUI behavior for quote form refreshes, shortcut context, and order-detail timeline deduplication
+- Improved training documentation for current CLI output, session sequencing, and protocol details
+
+### 🐛 Bug Fixes
+- Fixed Trader GUI issues with stale order snapshots, cancel/replace over-trades, rejected cancel/amend handling, and incorrect auto-logout on auth failure
+- Fixed order-detail and symbol seeding problems, including missing `client_tag` propagation and quote prefill on reopen
+- Fixed combo order defaults, flatten gating, and bulk action outcome reporting in the Trader GUI
+- Fixed API gateway combo leg tick-decimal resolution and inconsistent order-type gating in the web app flow
+
+### 📚 Documentation
+- Updated the training landing page and fixed outdated logs, session-sequence details, and CLI output examples
+
+### 🛠 Internal
+- Tightened validation for private-stream gap detection, hydration authority, `ts_ns` handling, trade deduplication, and venue-wide trade resume logic
+
 ## [v0.40.2] - 2026-09-19
 
 Release Type: patch
