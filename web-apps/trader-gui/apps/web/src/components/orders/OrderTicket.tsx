@@ -7,11 +7,12 @@ import { useEventCallback } from "@/hooks/useEventCallback.js";
 import { usePriceHint } from "@/hooks/usePriceHint.js";
 import { useSessionStore } from "@/store/useSessionStore.js";
 import { useSymbolStore } from "@/store/useSymbolStore.js";
+import { useHaltStore } from "@/store/useHaltStore.js";
 import { useActiveSymbolStore } from "@/store/useActiveSymbolStore.js";
 import { useTicketPrefillStore } from "@/store/useTicketPrefillStore.js";
 import { useNotificationStore } from "@/store/useNotificationStore.js";
 import { orderSchema } from "@/lib/validators.js";
-import { ALLOWED_TIF } from "@/lib/sessionState.js";
+import { ALLOWED_TIF, isOrderTypeBlocked } from "@/lib/sessionState.js";
 import { ApiError } from "@/api/apiFetch.js";
 import { FieldInfo } from "@/components/shared/FieldInfo.js";
 import type { OrderType, Side, Tif, SmpAction } from "@/types/index.js";
@@ -35,9 +36,6 @@ const TABS: { type: OrderType; label: string }[] = [
   { type: "IOC", label: "IOC" },
   { type: "TRAILING_STOP", label: "Trailing Stop" },
 ];
-
-/** Order types the engine rejects during a call auction (FR-ENG-030, §12.10). */
-const AUCTION_DISABLED: OrderType[] = ["MARKET", "FOK", "IOC"];
 
 const ALL_TIF: Tif[] = ["DAY", "GTC", "ATO", "ATC"];
 const SMP_OPTIONS: SmpAction[] = ["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"];
@@ -87,10 +85,15 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
   // have no per-symbol reference price over REST (see usePriceHint / §12.6).
   const refPrice = usePriceHint(symbol || null);
 
+  const halts = useHaltStore((s) => s.halts);
+  const halted = symbol !== "" && halts[symbol] !== undefined;
+
   const allowedTif = ALLOWED_TIF[phase];
   const isAuction = phase === "OPENING_AUCTION" || phase === "CLOSING_AUCTION";
   const isClosed = phase === "CLOSED";
-  const typeBlockedByAuction = isAuction && AUCTION_DISABLED.includes(orderType);
+  // M1: not just the auction phases -- the engine matches only in
+  // CONTINUOUS, and a halt suspends matching there too (H4).
+  const typeBlocked = isOrderTypeBlocked(orderType, phase, halted);
   const symbolInputId = useId();
   const symbolFieldRef = useRef<HTMLInputElement>(null);
   const qtyFieldRef = useRef<HTMLInputElement>(null);
@@ -104,13 +107,14 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
     }
   }, [allowedTif, tif]);
 
-  // A continuous-only type selected as we enter an auction: fall back to LIMIT
-  // (always valid) so the ticket stays submittable instead of dead-ended.
+  // A continuous-only type selected as it becomes blocked (auction, PRE_OPEN,
+  // or a halt): fall back to LIMIT (always valid) so the ticket stays
+  // submittable instead of dead-ended.
   useEffect(() => {
-    if (isAuction && AUCTION_DISABLED.includes(orderType)) {
+    if (typeBlocked) {
       setOrderType("LIMIT");
     }
-  }, [isAuction, orderType]);
+  }, [typeBlocked]);
 
   // Click-to-trade prefill (§11.4): a DOM level click records price + side.
   // Keyed on the nonce so re-clicking the same level still refreshes.
@@ -122,7 +126,7 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefill?.nonce]);
 
-  const canSubmit = !submit.isPending && !isClosed && !typeBlockedByAuction;
+  const canSubmit = !submit.isPending && !isClosed && !typeBlocked;
 
   const doSubmit = (side: Side) => {
     setErrors({});
@@ -130,8 +134,12 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
       setErrors({ _form: "Market is closed — no orders accepted" });
       return;
     }
-    if (typeBlockedByAuction) {
-      setErrors({ _form: `${orderType} orders are not accepted during an auction` });
+    if (typeBlocked) {
+      setErrors({
+        _form: halted
+          ? `${symbol} is halted — ${orderType} orders not accepted`
+          : `${orderType} orders are only accepted during continuous trading`,
+      });
       return;
     }
 
@@ -276,15 +284,17 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
     { enableOnFormTags: true },
   );
 
-  const tabDisabled = (t: OrderType) => isAuction && AUCTION_DISABLED.includes(t);
+  const tabDisabled = (t: OrderType) => isOrderTypeBlocked(t, phase, halted);
 
   const sideBtn = (side: Side) => {
     const isBuy = side === "BUY";
     const suggested = suggestedSide === side;
     const disabledReason = isClosed
       ? "Market is closed"
-      : typeBlockedByAuction
-        ? `${orderType} not accepted during an auction`
+      : typeBlocked
+        ? halted
+          ? `${symbol} is halted`
+          : `${orderType} not accepted outside continuous trading`
         : undefined;
     return (
       <button
@@ -343,7 +353,13 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
               role="tab"
               aria-selected={active}
               disabled={disabled}
-              title={disabled ? "Not available during an auction" : undefined}
+              title={
+                disabled
+                  ? halted
+                    ? `${symbol} is halted`
+                    : "Only available during continuous trading"
+                  : undefined
+              }
               onClick={() => setOrderType(type)}
               className={`px-2 py-1 rounded text-[11px] font-medium disabled:opacity-30 disabled:cursor-not-allowed ${
                 active

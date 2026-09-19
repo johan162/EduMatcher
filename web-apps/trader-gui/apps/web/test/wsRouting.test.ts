@@ -1,5 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { ManagedSocket, type WebSocketLike } from "@/ws/ManagedSocket";
+
+// H5: WebSocketManager resyncs session + halts via REST on every market-data
+// "authenticated" -- stub the REST layer so `installSocket()` (used by nearly
+// every test in this file) never makes a real network call.
+vi.mock("@/api/endpoints", () => ({
+  getSession: vi.fn(),
+  getHalts: vi.fn(),
+}));
+
 import {
   __marketDataMessageForTest as route,
   __setMarketDataSocketForTest,
@@ -13,6 +22,7 @@ import { useBookStore, __resetTradeDedupForTest } from "@/store/useBookStore";
 import { useSessionStore } from "@/store/useSessionStore";
 import { useHaltStore } from "@/store/useHaltStore";
 import { useNotificationStore } from "@/store/useNotificationStore";
+import { getSession, getHalts } from "@/api/endpoints";
 
 class FakeSocket implements WebSocketLike {
   static last: FakeSocket | null = null;
@@ -83,6 +93,8 @@ beforeEach(() => {
     schedule: null,
   });
   vi.spyOn(console, "warn").mockImplementation(() => {});
+  vi.mocked(getSession).mockReset().mockResolvedValue({ state: "CLOSED", sessions_enabled: true });
+  vi.mocked(getHalts).mockReset().mockResolvedValue({ halted: [] });
 });
 
 describe("market-data routing", () => {
@@ -350,5 +362,70 @@ describe("subscription plan", () => {
       "AAPL|trades",
     ]);
     setOverviewSubscription(true);
+  });
+});
+
+describe("session/halts resync on authenticate (H5, H4)", () => {
+  // `installSocket()`'s FakeSocket is a standalone ManagedSocket used only to
+  // exercise subscribe/resume framing (§17.3.1) -- it is never wired via
+  // `.on(handleMarketDataMessage)`, so its own "authenticated" delivery does
+  // not reach the routing under test. `route()` (== handleMarketDataMessage)
+  // is what every test in this file uses to simulate an incoming envelope,
+  // "authenticated" included.
+
+  it("applies the fetched session phase and halts on every authenticate", async () => {
+    vi.mocked(getSession).mockResolvedValue({ state: "CONTINUOUS", sessions_enabled: true });
+    vi.mocked(getHalts).mockResolvedValue({
+      halted: [{ symbol: "AAPL", level: "L1", resume_at_ns: null }],
+    });
+
+    installSocket();
+    route({ type: "authenticated" });
+
+    await vi.waitFor(() => {
+      expect(useSessionStore.getState().phase).toBe("CONTINUOUS");
+      expect(useHaltStore.getState().isHalted("AAPL")).toBe(true);
+    });
+  });
+
+  it("re-syncs on a reconnect's fresh authenticate, replacing stale halts", async () => {
+    installSocket();
+    vi.mocked(getHalts).mockResolvedValue({
+      halted: [{ symbol: "AAPL", level: "L1", resume_at_ns: null }],
+    });
+    route({ type: "authenticated" });
+    await vi.waitFor(() => expect(useHaltStore.getState().isHalted("AAPL")).toBe(true));
+
+    // AAPL resumed and MSFT halted while disconnected; the reconnect's
+    // "authenticated" is the only thing that can catch the GUI up.
+    vi.mocked(getHalts).mockResolvedValue({
+      halted: [{ symbol: "MSFT", level: "L1", resume_at_ns: null }],
+    });
+    route({ type: "authenticated" });
+
+    await vi.waitFor(() => {
+      expect(useHaltStore.getState().isHalted("AAPL")).toBe(false);
+      expect(useHaltStore.getState().isHalted("MSFT")).toBe(true);
+    });
+  });
+
+  it("logs but does not throw when the session/halts resync fails", async () => {
+    installSocket();
+    vi.mocked(getSession).mockRejectedValue(new Error("engine timeout"));
+    vi.mocked(getHalts).mockRejectedValue(new Error("engine timeout"));
+    vi.mocked(console.warn).mockClear();
+
+    expect(() => route({ type: "authenticated" })).not.toThrow();
+
+    await vi.waitFor(() => {
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining("session resync failed"),
+        expect.any(Error),
+      );
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining("halts resync failed"),
+        expect.any(Error),
+      );
+    });
   });
 });

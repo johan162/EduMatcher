@@ -32,6 +32,7 @@ import {
   type SubscriptionPlan,
 } from "./subscriptions.js";
 import { useAuthStore } from "@/store/useAuthStore.js";
+import { getSession, getHalts } from "@/api/endpoints.js";
 import { useSessionStore } from "@/store/useSessionStore.js";
 import { useBookStore } from "@/store/useBookStore.js";
 import { useHaltStore } from "@/store/useHaltStore.js";
@@ -118,6 +119,23 @@ function isDuplicateTrade(data: TradeData): boolean {
 
 function authFrame(): object {
   return { api_key: useAuthStore.getState().apiKey ?? "" };
+}
+
+// H5 (docs-design/reviews/EduMatcher-Trader-GUI-Review.md): a `session`/
+// circuit_breaker event missed while the market-data socket was down (or
+// never sent, e.g. bootstrap's engine query timed out) leaves the phase and
+// halt badges wrong indefinitely -- nothing else re-reads them. Every fresh
+// market-data `authenticated` (initial connect and every reconnect) re-pulls
+// both from their REST endpoints and applies them unconditionally, the same
+// way bootstrap hydration does. Independent failures are logged and do not
+// block each other.
+function resyncSessionAndHalts(): void {
+  getSession()
+    .then((data) => useSessionStore.getState().setPhase(data.state, null, null))
+    .catch((err) => console.warn("[ws] session resync failed", err));
+  getHalts()
+    .then((data) => useHaltStore.getState().setHalts(data.halted))
+    .catch((err) => console.warn("[ws] halts resync failed", err));
 }
 
 // ── Connection health (observable) ───────────────────────────────────────────
@@ -283,6 +301,7 @@ function handleMarketDataMessage(raw: unknown): void {
   // Control frames are not market data and carry no `seq`.
   switch (envelope.type) {
     case "authenticated":
+      resyncSessionAndHalts();
       return;
     case "subscription": {
       const data = envelope.data as { rejected?: unknown[] } | undefined;

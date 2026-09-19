@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from edumatcher.api_gateway.sessions import Session, auth, require_trading
 from edumatcher.models.generated.system import (
     topic_gateways,
+    topic_halt_status,
     topic_quote_bootstrap,
     topic_quote_legs,
     topic_reference,
@@ -27,6 +28,8 @@ async def _request_reply(
         engine.request_symbols(gateway_id)
     elif send == "session":
         engine.request_session(gateway_id)
+    elif send == "halts":
+        engine.request_halt_status(gateway_id)
     elif send == "quote_bootstrap":
         engine.request_quote_bootstrap(gateway_id)
     elif send == "quote_legs":
@@ -157,6 +160,24 @@ async def session_state(
     gateway_id = require_trading(session)
     return await _request_reply(
         request, "session", topic_session_status(gateway_id), gateway_id
+    )
+
+
+@router.get("/halts")
+async def halts(
+    request: Request, session: Annotated[Session, Depends(auth)]
+) -> dict[str, Any]:
+    """Currently-halted symbols, for TRADER/MARKET_MAKER (§H4).
+
+    Same engine query as ``GET /admin/halts``, without the ADMIN-role gate:
+    the halt_status_request/halt_status pair carries no admin-only state, and
+    a trading gateway needs it too — at login (bootstrap) and again on every
+    market-data reconnect, since a halt missed while disconnected would
+    otherwise leave a stale badge for the rest of the session.
+    """
+    gateway_id = require_trading(session)
+    return await _request_reply(
+        request, "halts", topic_halt_status(gateway_id), gateway_id
     )
 
 

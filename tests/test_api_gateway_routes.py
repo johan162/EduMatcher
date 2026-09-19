@@ -153,6 +153,9 @@ class FakeEngine:
     ) -> None:
         self.calls.append(("request_quote_legs", (gateway_id, symbol, show)))
 
+    def request_halt_status(self, gateway_id: str) -> None:
+        self.calls.append(("request_halt_status", gateway_id))
+
     def request_gateways(self, gateway_id: str) -> None:
         self.calls.append(("request_gateways", gateway_id))
 
@@ -522,6 +525,7 @@ async def test_reference_routes() -> None:
     session = trading_session()
     assert await reference.symbols(request, session)
     assert await reference.session_state(request, session)
+    assert await reference.halts(request, session)
     assert await reference.quote_bootstrap(request, session)
     engine.cache.quote_legs["Q1"] = {"quote_id": "Q1"}
     assert (await reference.quote_legs(request, session))["legs"]

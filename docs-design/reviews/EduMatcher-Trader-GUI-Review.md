@@ -170,7 +170,7 @@ Confirmed by probes P6a and P7.
 
 **Fix (gateway + client):** support `resume` on `trade.executed` with no symbol by merging the per-symbol buffers on `seq > from_seq`, and apply the same path when replaying a wildcard `resume_from`. The client code needs no change once the server supports it.
 
-### H4 — Halts are invisible to TRADER/MARKET_MAKER unless they begin after login
+### ~~H4 — Halts are invisible to TRADER/MARKET_MAKER unless they begin after login~~
 
 **Where:** `lib/bootstrap.ts:32` (halts only on `BootstrapAdmin`) · `OrderTicket.tsx` (no halt check)
 
@@ -182,7 +182,7 @@ Confirmed by probes P6a and P7.
 - Re-fetch it on every market-data reconnect.
 - Gate MARKET/FOK/IOC in the ticket on `useHaltStore`.
 
-### H5 — Session phase defaults to CLOSED and is never re-synced after a reconnect
+### ~~H5 — Session phase defaults to CLOSED and is never re-synced after a reconnect~~
 
 **Where:** `store/useSessionStore.ts:45` · `lib/bootstrap.ts` · `WebSocketManager.ts:415` (`onReconnect`) · `useSessionQuery` (defined, never used)
 
@@ -209,7 +209,7 @@ Confirmed by probes P6a and P7.
 
 ## 4. Medium findings
 
-**M1 — Order-type gating is narrower than the engine.** `OrderTicket.tsx:40` disables MARKET/FOK/IOC only in the two auction phases. The engine rejects them in **every** phase where `is_matching_enabled` is false (only `CONTINUOUS` matches), so in `PRE_OPEN` they round-trip to `SESSION_NOT_PERMITTED`, and during a halt see H4. `PositionPanel` already gates on `phase === "CONTINUOUS"`, so the two components disagree. Gate on "not CONTINUOUS or symbol halted", in one helper next to `ALLOWED_TIF`.
+**~~M1 — Order-type gating is narrower than the engine.~~** `OrderTicket.tsx:40` disables MARKET/FOK/IOC only in the two auction phases. The engine rejects them in **every** phase where `is_matching_enabled` is false (only `CONTINUOUS` matches), so in `PRE_OPEN` they round-trip to `SESSION_NOT_PERMITTED`, and during a halt see H4. `PositionPanel` already gates on `phase === "CONTINUOUS"`, so the two components disagree. Gate on "not CONTINUOUS or symbol halted", in one helper next to `ALLOWED_TIF`.
 
 **M2 — "Accepted" is misleading for FOK, MARKET and IOC.** The ticket toasts `BUY 100 AAPL accepted` from the *first* ack (`OrderTicket.tsx:202`). For a FOK the authoritative outcome is a second `order.ack accepted=false INSUFFICIENT_LIQUIDITY`, and for MARKET/IOC with no liquidity it is `order.cancelled`. `useOrderEventNotifications` ignores `order.ack` and sends cancels to the Event Center without a toast, so the trader never learns the order died. Toast the terminal outcome of an order this session submitted: a reject ack, or a cancel with zero fills.
 

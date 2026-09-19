@@ -908,6 +908,8 @@ export interface BootstrapTrader {
   positions: Position[];
   orders: { orders: Order[] };
   recent_fills: { events: unknown[]; count: number } | null;
+  /** Currently-halted symbols (§H4) — null + `incomplete` on engine timeout. */
+  halts: { halted: HaltEntry[] } | null;
   capabilities: BootstrapCapabilities;
 }
 

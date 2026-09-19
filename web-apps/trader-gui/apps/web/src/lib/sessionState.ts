@@ -1,4 +1,4 @@
-import type { SessionState, Tif } from "@/types/index.js";
+import type { OrderType, SessionState, Tif } from "@/types/index.js";
 
 /** TIF values allowed per session phase (§12.5). */
 export const ALLOWED_TIF: Record<SessionState, Tif[]> = {
@@ -8,6 +8,11 @@ export const ALLOWED_TIF: Record<SessionState, Tif[]> = {
   CLOSING_AUCTION: ["DAY", "GTC", "ATC"],
   CLOSED: [],
 };
+
+/** Order types that cannot rest, so the engine only accepts them where
+ * `is_matching_enabled` is true (FR-ENG-030) -- CONTINUOUS only, never the
+ * two auction phases and never PRE_OPEN. */
+const NO_MATCH_ORDER_TYPES: OrderType[] = ["MARKET", "FOK", "IOC"];
 
 /** Valid session-state transitions (§15.4). */
 export const VALID_TRANSITIONS: Record<SessionState, SessionState[]> = {
@@ -33,4 +38,18 @@ export const SESSION_PHASE_META: Record<
 /** Returns true if a given TIF is allowed in the current session phase. */
 export function isTifAllowed(tif: Tif, phase: SessionState): boolean {
   return (ALLOWED_TIF[phase] as Tif[]).includes(tif);
+}
+
+/**
+ * Returns true if the engine would reject `type` right now (M1): outside
+ * CONTINUOUS it cannot match, and even in CONTINUOUS a halted symbol has
+ * matching suspended, so MARKET/FOK/IOC cannot rest to wait either out —
+ * the engine rejects both cases (SESSION_NOT_PERMITTED /
+ * CIRCUIT_BREAKER_ACTIVE / INSTRUMENT_HALTED). Replaces OrderTicket's
+ * previous auction-only check, which disagreed with the engine (and with
+ * PositionPanel's already-correct `phase === "CONTINUOUS"`) in PRE_OPEN
+ * and during a halt.
+ */
+export function isOrderTypeBlocked(type: OrderType, phase: SessionState, halted: boolean): boolean {
+  return NO_MATCH_ORDER_TYPES.includes(type) && (phase !== "CONTINUOUS" || halted);
 }
