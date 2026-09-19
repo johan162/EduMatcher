@@ -40,6 +40,7 @@ import { AmendDialog } from "@/components/orders/AmendDialog";
 import { ReplaceDialog } from "@/components/orders/ReplaceDialog";
 import { OrderDetailDrawer } from "@/components/orders/OrderDetailDrawer";
 import { useOrderStore } from "@/store/useOrderStore";
+import { __privateMessageForTest } from "@/ws/WebSocketManager";
 import { normalizeOrder } from "@/types/index";
 import type { Order } from "@/types/index";
 
@@ -226,6 +227,29 @@ describe("ReplaceDialog (§13.2)", () => {
     expect(toast).toHaveBeenCalledTimes(1);
     expect(vi.mocked(toast).mock.calls[0]![0]).toContain("no longer open");
   });
+
+  // L9: Replace builds a brand-new order server-side, so the original's
+  // client_tag was silently dropped rather than carried over.
+  it("carries the original order's client_tag into the replacement (L9)", async () => {
+    const tagged = normalizeOrder({ ...ORDER, client_tag: "desk-42" });
+    useOrderStore.getState().seed([tagged]);
+    wrap(<ReplaceDialog orderId={tagged.order_id} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Replace order" }));
+    await waitFor(() => expect(callFor("/replace")).toBeTruthy());
+    const [, init] = callFor("/replace")!;
+    const body = JSON.parse(init.body!);
+    expect(body.client_tag).toBe("desk-42");
+  });
+
+  it("omits client_tag when the original order had none", async () => {
+    useOrderStore.getState().seed([ORDER]);
+    wrap(<ReplaceDialog orderId={ORDER.order_id} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Replace order" }));
+    await waitFor(() => expect(callFor("/replace")).toBeTruthy());
+    const [, init] = callFor("/replace")!;
+    const body = JSON.parse(init.body!);
+    expect(body).not.toHaveProperty("client_tag");
+  });
 });
 
 describe("OrderDetailDrawer (§13.4)", () => {
@@ -236,5 +260,60 @@ describe("OrderDetailDrawer (§13.4)", () => {
     expect(screen.getByText("FILL")).toBeTruthy();
     // Fill detail line shows qty @ price and remaining.
     expect(screen.getByText(/40 @ 150/)).toBeTruthy();
+  });
+
+  // L7: a live event stayed in the timeline forever, so once the periodic
+  // history refetch caught up and durably persisted the same event, it
+  // rendered twice.
+  it("drops a live-appended event once the history refetch reports it durably (L7)", async () => {
+    useOrderStore.getState().seed([{ order_id: "o1", symbol: "AAPL", side: "BUY", order_type: "LIMIT", status: "PARTIAL", quantity: 100, remaining_qty: 60 }]);
+
+    // First fetch: history hasn't caught up to the fill yet -- ACK only.
+    vi.mocked(apiFetchMock).mockImplementationOnce(async () => ({
+      count: 1,
+      events: [
+        { seq: 1, ts: "2026-07-27T10:00:00.000Z", event_type: "ACK", order_id: "o1", gateway_id: "GW1", symbol: "AAPL", price: 150, quantity: 100 },
+      ],
+    }));
+
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <OrderDetailDrawer orderId="o1" onClose={vi.fn()} />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(screen.getByText("ACK")).toBeTruthy());
+    expect(screen.queryByText("FILL")).toBeNull();
+
+    // A live fill arrives before history has it -- appended with "live".
+    act(() => {
+      __privateMessageForTest({
+        type: "order.fill",
+        topic: "order.fill.GW1",
+        ts: "2026-07-27T10:01:00.000Z",
+        data: {
+          order_id: "o1",
+          gateway_id: "GW1",
+          fill_qty: 40,
+          fill_price: 150,
+          remaining_qty: 60,
+          status: "PARTIAL",
+          trade_ids: ["t1"],
+        },
+      });
+    });
+    await waitFor(() => expect(screen.getAllByText("FILL")).toHaveLength(1));
+
+    // History refetches (the default apiFetchMock response, ACK + the same
+    // fill, takes over from here) and now reports the fill as a durable row.
+    await act(async () => {
+      await qc.invalidateQueries({ queryKey: ["order-history", "o1"] });
+    });
+
+    // Wait for the refetch itself to land before asserting on its effect.
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledTimes(2));
+
+    // Regression for L7: without de-duplication this would be 2.
+    await waitFor(() => expect(screen.getAllByText("FILL")).toHaveLength(1));
   });
 });

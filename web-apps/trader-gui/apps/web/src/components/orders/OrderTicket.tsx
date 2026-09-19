@@ -67,7 +67,14 @@ const fieldCls =
  */
 export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }: OrderTicketProps) {
   const [orderType, setOrderType] = useState<OrderType>("LIMIT");
-  const [typedSymbol, setTypedSymbol] = useState("");
+  // L8: seed from whatever's already active (e.g. picked on another screen
+  // earlier in the session) so the Ref hint has something to show right
+  // away, instead of starting blank until the trader types. One-time read
+  // at mount, not an ongoing sync -- once the trader's typed something, a
+  // later change elsewhere must not overwrite it.
+  const [typedSymbol, setTypedSymbol] = useState(
+    () => useActiveSymbolStore.getState().activeSymbol ?? "",
+  );
   const [qty, setQty] = useState("100");
   const [price, setPrice] = useState("");
   const [stopPrice, setStopPrice] = useState("");

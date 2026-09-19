@@ -29,5 +29,8 @@ export function buildResubmitOrder(order: Order): Record<string, unknown> | null
   if (order.visible_qty != null) body.visible_qty = order.visible_qty;
   if (order.trail_offset != null) body.trail_offset = order.trail_offset;
   if (order.smp_action != null) body.smp_action = order.smp_action;
+  // L9: carry the original order's correlation tag into its undo re-submit,
+  // the same way every other identifying field here is preserved.
+  if (order.client_tag != null) body.client_tag = order.client_tag;
   return body;
 }

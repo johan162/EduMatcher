@@ -40,6 +40,7 @@ import { useBookStore } from "@/store/useBookStore";
 import { useTicketPrefillStore } from "@/store/useTicketPrefillStore";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import { useSettingsStore } from "@/store/useSettingsStore";
+import { useActiveSymbolStore } from "@/store/useActiveSymbolStore";
 import type { BookEntry } from "@/store/useBookStore";
 import type { Symbol } from "@/types/index";
 
@@ -89,6 +90,7 @@ beforeEach(() => {
   useTicketPrefillStore.setState({ prefill: null });
   useNotificationStore.setState({ entries: [], unread: 0 });
   useSettingsStore.setState({ confirmCancellations: true });
+  useActiveSymbolStore.setState({ activeSymbol: null });
 });
 
 describe("useOrderFields (§12.3)", () => {
@@ -342,6 +344,34 @@ describe("OrderTicket reference-price hint (§12.6)", () => {
     renderTicket(); // no book set; AAPL prev_close is 150.0
     const price = screen.getByLabelText("Price") as HTMLInputElement;
     expect(price.placeholder).toBe("Ref: 150.00");
+  });
+});
+
+describe("OrderTicket unlocked symbol field (L8)", () => {
+  it("seeds the Symbol field from the already-active symbol instead of starting blank", () => {
+    useActiveSymbolStore.setState({ activeSymbol: "AAPL" });
+    renderTicket({ lockedSymbol: undefined });
+    const symbolInput = screen.getByLabelText("Symbol") as HTMLInputElement;
+    expect(symbolInput.value).toBe("AAPL");
+    // ...and the Ref hint has something to show right away, the actual
+    // symptom the review named.
+    const price = screen.getByLabelText("Price") as HTMLInputElement;
+    expect(price.placeholder).toBe("Ref: 150.00");
+  });
+
+  it("starts blank when there is no active symbol yet", () => {
+    renderTicket({ lockedSymbol: undefined });
+    const symbolInput = screen.getByLabelText("Symbol") as HTMLInputElement;
+    expect(symbolInput.value).toBe("");
+  });
+
+  it("does not overwrite what the trader has already typed if the active symbol changes later", () => {
+    useActiveSymbolStore.setState({ activeSymbol: "AAPL" });
+    renderTicket({ lockedSymbol: undefined });
+    fireEvent.change(screen.getByLabelText("Symbol"), { target: { value: "MSFT" } });
+    useActiveSymbolStore.setState({ activeSymbol: "AAPL" });
+    const symbolInput = screen.getByLabelText("Symbol") as HTMLInputElement;
+    expect(symbolInput.value).toBe("MSFT");
   });
 });
 

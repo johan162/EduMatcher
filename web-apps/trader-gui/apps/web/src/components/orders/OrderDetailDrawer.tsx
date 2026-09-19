@@ -56,6 +56,28 @@ function detailLine(e: TimelineEntry): string {
 }
 
 /**
+ * L7: identifies a timeline entry by the fields that actually distinguish
+ * one event of that type from another -- deliberately excluding `ts` and
+ * `seq`, neither of which a live-appended entry shares with its eventual
+ * historical row (see the call site in the component below). CANCEL/EXPIRE
+ * carry no distinguishing fields at all, but each occurs at most once per
+ * order lifecycle, so the event type alone is already unique.
+ */
+function timelineSignature(e: TimelineEntry): string {
+  switch (e.event_type) {
+    case "FILL":
+      return `FILL|${e.fill_qty}|${e.fill_price}|${e.remaining_qty}`;
+    case "AMEND":
+      return `AMEND|${e.price}|${e.quantity}|${e.remaining_qty}|${e.priority_reset}`;
+    case "ACK":
+    case "REJECT":
+      return `${e.event_type}|${e.price}|${e.quantity}|${e.reason}`;
+    default:
+      return e.event_type;
+  }
+}
+
+/**
  * Order Detail drawer (§13.4) — the full chronological lifecycle of one order.
  * Seeded from `GET /history/orders/{id}` (durable stats.db events) and kept
  * current by appending live `order.*` events for this id, so it stays accurate
@@ -111,7 +133,17 @@ export function OrderDetailDrawer({ orderId, onClose }: OrderDetailDrawerProps) 
   });
 
   const historyEntries: TimelineEntry[] = (historyQuery.data?.events ?? []).map((e) => ({ ...e }));
-  const entries = [...historyEntries, ...liveEntries];
+  // L7: a live entry has no durable `seq` (it's only assigned once the event
+  // lands in stats.db) and its `ts` is the client's receipt time, not the
+  // server's -- neither lines up with the historical row the periodic
+  // refetch eventually brings in for the same event, so matching on the
+  // type-specific fields that actually distinguish one event from another
+  // (e.g. a FILL's own qty/price/remaining) is what catches the duplicate.
+  const historicalSignatures = new Set(historyEntries.map(timelineSignature));
+  const dedupedLiveEntries = liveEntries.filter(
+    (e) => !historicalSignatures.has(timelineSignature(e)),
+  );
+  const entries = [...historyEntries, ...dedupedLiveEntries];
 
   const is503 = historyQuery.error instanceof ApiError && historyQuery.error.status === 503;
 

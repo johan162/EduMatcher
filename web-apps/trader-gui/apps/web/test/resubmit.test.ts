@@ -48,4 +48,19 @@ describe("buildResubmitOrder (§20.3 undo)", () => {
   it("returns null when there is no remaining quantity to re-submit", () => {
     expect(buildResubmitOrder(order({ order_id: "o4", remaining_qty: 0, status: "FILLED" }))).toBeNull();
   });
+
+  // L9: client_tag was silently dropped -- every other identifying field on
+  // the original order (price, stop_price, visible_qty, ...) already survives
+  // the undo re-submit.
+  it("carries the original order's client_tag (L9)", () => {
+    const body = buildResubmitOrder(
+      order({ order_id: "o5", remaining_qty: 100, client_tag: "desk-42" }),
+    );
+    expect(body).toMatchObject({ client_tag: "desk-42" });
+  });
+
+  it("omits client_tag when the original order had none", () => {
+    const body = buildResubmitOrder(order({ order_id: "o6", remaining_qty: 100 }));
+    expect(body).not.toHaveProperty("client_tag");
+  });
 });
