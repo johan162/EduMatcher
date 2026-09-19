@@ -12,6 +12,9 @@ vi.mock("@/api/endpoints", () => ({
 import {
   __marketDataMessageForTest as route,
   __setMarketDataSocketForTest,
+  __privateMessageForTest as routePrivate,
+  __setEventsSocketForTest,
+  __getEventsSocketForTest,
   getSubscriptionPlan,
   getAppliedPairs,
   setFocusSymbols,
@@ -57,6 +60,21 @@ function installSocket(): FakeSocket {
   fake.onopen?.({});
   fake.onmessage?.({ data: JSON.stringify({ type: "authenticated" }) });
   __setMarketDataSocketForTest(socket);
+  fake.sent = []; // discard the auth frame
+  return fake;
+}
+
+/** An authenticated ManagedSocket over a fake transport, for the events socket. */
+function installEventsSocket(): FakeSocket {
+  const socket = new ManagedSocket("ws://test/events", {
+    authFrame: () => ({ api_key: "k" }),
+    factory: () => new FakeSocket(),
+  });
+  socket.connect();
+  const fake = FakeSocket.last!;
+  fake.onopen?.({});
+  fake.onmessage?.({ data: JSON.stringify({ type: "authenticated" }) });
+  __setEventsSocketForTest(socket);
   fake.sent = []; // discard the auth frame
   return fake;
 }
@@ -427,5 +445,49 @@ describe("session/halts resync on authenticate (H5, H4)", () => {
         expect.any(Error),
       );
     });
+  });
+});
+
+describe("private-stream stream_seq gap detection (H6)", () => {
+  // routers/ws.py numbers every private-stream frame -- authenticated,
+  // orders.snapshot, and every order.*/fill/quote event -- with a
+  // connection-wide stream_seq that still advances when the bounded queue
+  // drops an event under backpressure. There is no per-topic resume for
+  // this stream (unlike market data): the repair is to close the socket
+  // and open a new one, whose fresh orders.snapshot is the reconciliation.
+
+  it("does not reconnect when stream_seq is contiguous", () => {
+    installEventsSocket();
+    const before = __getEventsSocketForTest();
+    routePrivate({ type: "authenticated", topic: "", ts: "", stream_seq: 1, data: {} });
+    routePrivate({ type: "orders.snapshot", topic: "", ts: "", stream_seq: 2, data: {} });
+    routePrivate({ type: "order.ack", topic: "order.ack.GW1", ts: "", stream_seq: 3, data: {} });
+    expect(__getEventsSocketForTest()).toBe(before);
+  });
+
+  it("reconnects the events socket when stream_seq skips", () => {
+    installEventsSocket();
+    const before = __getEventsSocketForTest();
+    routePrivate({ type: "authenticated", topic: "", ts: "", stream_seq: 1, data: {} });
+    // stream_seq jumps from 1 to 3: event 2 was dropped by the queue.
+    routePrivate({ type: "order.ack", topic: "order.ack.GW1", ts: "", stream_seq: 3, data: {} });
+    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("stream_seq gap"));
+    expect(__getEventsSocketForTest()).not.toBe(before);
+  });
+
+  it("does not reconnect on an envelope with no stream_seq", () => {
+    installEventsSocket();
+    const before = __getEventsSocketForTest();
+    routePrivate({ type: "error", topic: "", ts: "", data: { message: "boom" } });
+    expect(__getEventsSocketForTest()).toBe(before);
+  });
+
+  it("treats the first stream_seq seen as a baseline, not a gap", () => {
+    installEventsSocket();
+    const before = __getEventsSocketForTest();
+    // A client that only just connected has nothing to compare the first
+    // number against.
+    routePrivate({ type: "authenticated", topic: "", ts: "", stream_seq: 42, data: {} });
+    expect(__getEventsSocketForTest()).toBe(before);
   });
 });

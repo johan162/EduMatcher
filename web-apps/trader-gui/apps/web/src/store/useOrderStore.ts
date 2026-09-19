@@ -139,14 +139,25 @@ export const useOrderStore = create<OrderStore>((set) => {
     hydrate: (rows) =>
       set((state) => {
         const orders = { ...state.orders };
+        const seen = new Set<string>();
         for (const raw of rows) {
           const o = normalizeOrder(raw);
           if (!o.order_id) continue;
+          seen.add(o.order_id);
           const existing = orders[o.order_id];
           // Don't let a stale REST row resurrect an order we already saw go
           // terminal via the live stream.
           if (existing && isTerminal(existing.status) && !isTerminal(o.status)) continue;
           orders[o.order_id] = o;
+        }
+        // H6 (docs-design/reviews/EduMatcher-Trader-GUI-Review.md): `GET
+        // /orders` lists resting orders only, so it is authoritative for
+        // what is still working -- a locally non-terminal order it does not
+        // list is gone (missed terminal event), not still NEW. Terminal rows
+        // are untouched: their absence here means nothing, since the
+        // endpoint never lists them.
+        for (const [id, o] of Object.entries(orders)) {
+          if (!isTerminal(o.status) && !seen.has(id)) delete orders[id];
         }
         return { orders: pruneTerminal(orders), syncedAt: Date.now() };
       }),

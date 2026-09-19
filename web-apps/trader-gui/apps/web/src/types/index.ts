@@ -77,7 +77,7 @@ export interface StatusResponse {
 /**
  * Canonical order shape used across the UI. It is NOT the raw wire shape:
  * `GET /orders` returns the engine's pm-msgen `OrderDisplay`, whose id key is
- * `id`, whose timestamp is `timestamp` (epoch seconds), and whose client tag
+ * `id`, whose timestamp is `ts_ns` (epoch nanoseconds), and whose client tag
  * is `client_tag`; the timeout-fallback path returns a thinner row keyed on
  * `order_id`. `normalizeOrder()` (below) folds both into this one shape, so
  * every screen reads `order_id`/`updated_at`/`client_tag` regardless of
@@ -102,7 +102,7 @@ export interface Order {
   combo_parent_id?: string | null;
   /** Present on admin cross-gateway views; absent on own-gateway /orders */
   gateway_id?: string;
-  /** Epoch-seconds order timestamp, ISO-normalised for display. */
+  /** Order timestamp, ISO-normalised for display. */
   updated_at: string | null;
 }
 
@@ -130,7 +130,7 @@ export interface OrderAccepted {
 
 /**
  * The two shapes `GET /orders` can return: the rich engine `OrderDisplay`
- * (id/timestamp/client_tag) and the thin gateway cache fallback that a reply
+ * (id/ts_ns/client_tag) and the thin gateway cache fallback that a reply
  * timeout produces (order_id, no display prices). Everything is optional so a
  * single normalizer can accept either.
  */
@@ -155,7 +155,7 @@ export interface RawOrder {
   oco_group_id?: string | null;
   combo_parent_id?: string | null;
   gateway_id?: string;
-  timestamp?: number | null; // OrderDisplay: epoch seconds
+  ts_ns?: number | null; // OrderDisplay: epoch nanoseconds
   client_tag?: string | null; // OrderDisplay
   updated_at?: string | null;
 }
@@ -208,12 +208,12 @@ export function toOrderStatus(
 
 /**
  * Fold either `/orders` shape into the canonical {@link Order}. The engine
- * `OrderDisplay` uses `id`/`timestamp`/`client_tag`; the reply-timeout cache
+ * `OrderDisplay` uses `id`/`ts_ns`/`client_tag`; the reply-timeout cache
  * fallback uses `order_id` and omits the display fields — this reconciles both
  * so no screen has to know which one it got.
  */
 export function normalizeOrder(raw: RawOrder): Order {
-  const tsSec = raw.timestamp ?? null;
+  const tsNs = raw.ts_ns ?? null;
   const quantity = raw.quantity ?? raw.qty ?? 0;
   const remaining = raw.remaining_qty ?? quantity;
   // "AMENDED" is a cache-only marker; an amended order is still working, so
@@ -238,8 +238,7 @@ export function normalizeOrder(raw: RawOrder): Order {
     oco_group_id: raw.oco_group_id ?? null,
     combo_parent_id: raw.combo_parent_id ?? null,
     gateway_id: raw.gateway_id,
-    updated_at:
-      raw.updated_at ?? (tsSec === null ? null : new Date(tsSec * 1000).toISOString()),
+    updated_at: raw.updated_at ?? (tsNs === null ? null : new Date(tsNs / 1e6).toISOString()),
   };
 }
 

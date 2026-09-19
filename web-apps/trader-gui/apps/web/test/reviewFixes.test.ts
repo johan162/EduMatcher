@@ -6,7 +6,7 @@ import { useSessionStore } from "@/store/useSessionStore";
 // Fix A — /orders identity normalization (engine `id` vs fallback `order_id`)
 // ─────────────────────────────────────────────────────────────────────────────
 describe("normalizeOrder", () => {
-  it("maps the engine OrderDisplay shape (id/timestamp/client_tag)", () => {
+  it("maps the engine OrderDisplay shape (id/ts_ns/client_tag)", () => {
     // The bug: the engine reply keys the id as `id`, not `order_id`, so a
     // consumer reading `order_id` got undefined and cancel/keys broke.
     const raw: RawOrder = {
@@ -19,7 +19,7 @@ describe("normalizeOrder", () => {
       remaining_qty: 40,
       price: 150.5,
       status: "PARTIAL",
-      timestamp: 1_765_000_000, // epoch seconds
+      ts_ns: 1_765_000_000_000_000_000, // epoch nanoseconds (H6)
       client_tag: "ui-42",
     };
     const o = normalizeOrder(raw);

@@ -191,7 +191,7 @@ Confirmed by probes P6a and P7.
 
 **Fix:** fetch `/session` (the existing `useSessionQuery`) on every market-data authentication and whenever bootstrap reports `session` incomplete. Model "unknown" explicitly rather than defaulting to `CLOSED`.
 
-### H6 — The private stream has no gap detection, and Refresh cannot reconcile
+### ~~H6 — The private stream has no gap detection, and Refresh cannot reconcile~~ **FIXED**
 
 **Where:** `WebSocketManager.handlePrivateMessage` (ignores `stream_seq`) · gateway `routers/ws.py:173` (queue `maxsize=256`, `_record_drop` on overflow) · `useOrderStore.hydrate` · `types/index.ts:216`
 
@@ -209,7 +209,7 @@ Confirmed by probes P6a and P7.
 
 ## 4. Medium findings
 
-**~~M1 — Order-type gating is narrower than the engine.~~** `OrderTicket.tsx:40` disables MARKET/FOK/IOC only in the two auction phases. The engine rejects them in **every** phase where `is_matching_enabled` is false (only `CONTINUOUS` matches), so in `PRE_OPEN` they round-trip to `SESSION_NOT_PERMITTED`, and during a halt see H4. `PositionPanel` already gates on `phase === "CONTINUOUS"`, so the two components disagree. Gate on "not CONTINUOUS or symbol halted", in one helper next to `ALLOWED_TIF`.
+**~~M1 — Order-type gating is narrower than the engine.~~** **FIXED** `OrderTicket.tsx:40` disables MARKET/FOK/IOC only in the two auction phases. The engine rejects them in **every** phase where `is_matching_enabled` is false (only `CONTINUOUS` matches), so in `PRE_OPEN` they round-trip to `SESSION_NOT_PERMITTED`, and during a halt see H4. `PositionPanel` already gates on `phase === "CONTINUOUS"`, so the two components disagree. Gate on "not CONTINUOUS or symbol halted", in one helper next to `ALLOWED_TIF`.
 
 **M2 — "Accepted" is misleading for FOK, MARKET and IOC.** The ticket toasts `BUY 100 AAPL accepted` from the *first* ack (`OrderTicket.tsx:202`). For a FOK the authoritative outcome is a second `order.ack accepted=false INSUFFICIENT_LIQUIDITY`, and for MARKET/IOC with no liquidity it is `order.cancelled`. `useOrderEventNotifications` ignores `order.ack` and sends cancels to the Event Center without a toast, so the trader never learns the order died. Toast the terminal outcome of an order this session submitted: a reject ack, or a cancel with zero fills.
 
@@ -292,8 +292,8 @@ So the fixes above are not read as "rewrite the layer":
 2. ~~**C3 + H1** — Full order record on every ack (engine), then fold group ids in `applyCancelled`/`applyExpired` (GUI).~~
 3. ~~**C2, M6** — The Replace/Amend dialogs read the live row and default to remaining quantity.~~
 4. ~~**H2, H3** — Trade de-duplication by id, exception-isolated `emit`, chart old-tick guard, and venue-wide trade resume (gateway).~~
-5. **H4, H5, M1** — Halts in the trader bootstrap, re-sync session and halts on reconnect, one gating helper.
-6. **H6** — `stream_seq` gap detection, authoritative `hydrate`, `ts_ns`.
+5. ~~**H4, H5, M1** — Halts in the trader bootstrap, re-sync session and halts on reconnect, one gating helper.~~
+6. ~~**H6** — `stream_seq` gap detection, authoritative `hydrate`, `ts_ns`.~~
 7. M2–M5, then the lows.
 
 Each step should come with a regression test that feeds the **engine's real payload shape**. Several existing tests pass only because they hand the store fields the engine never sends (e.g. `oco_group_id` on an OCO leg ack).

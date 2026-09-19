@@ -248,4 +248,56 @@ describe("useOrderStore reducers", () => {
     useOrderStore.getState().hydrate([{ order_id: "o1", symbol: "AAPL", status: "NEW", quantity: 100 }]);
     expect(useOrderStore.getState().orders["o1"]!.status).toBe("CANCELLED");
   });
+
+  // H6 (docs-design/reviews/EduMatcher-Trader-GUI-Review.md): `GET /orders`
+  // lists resting orders only. A working row missing from a fresh reconcile
+  // was never observed to go terminal locally (a fill/cancel/expire this
+  // client's stream missed, e.g. under the private queue's H6 backpressure
+  // drop) — Refresh must remove it, not leave it NEW forever (probe P5).
+  it("hydrate removes a working order that GET /orders no longer lists", () => {
+    useOrderStore.getState().applyAck(ack({ order_id: "o1", accepted: true, qty: 100 }));
+    expect(useOrderStore.getState().orders["o1"]!.status).toBe("NEW");
+    useOrderStore.getState().hydrate([]);
+    expect(useOrderStore.getState().orders["o1"]).toBeUndefined();
+  });
+
+  it("hydrate keeps a working order GET /orders still lists", () => {
+    useOrderStore.getState().applyAck(ack({ order_id: "o1", accepted: true, qty: 100 }));
+    useOrderStore
+      .getState()
+      .hydrate([{ order_id: "o1", symbol: "AAPL", status: "NEW", quantity: 100 }]);
+    expect(useOrderStore.getState().orders["o1"]!.status).toBe("NEW");
+  });
+
+  it("hydrate does not drop a locally-terminal order absent from GET /orders", () => {
+    // GET /orders never lists terminal orders at all, so their absence from
+    // a reconcile carries no information — only a *working* absence is news.
+    useOrderStore.getState().applyAck(ack({ order_id: "o1", accepted: true, qty: 100 }));
+    useOrderStore.getState().applyCancelled(terminal("o1"));
+    useOrderStore.getState().hydrate([]);
+    expect(useOrderStore.getState().orders["o1"]!.status).toBe("CANCELLED");
+  });
+});
+
+describe("normalizeOrder ts_ns (H6)", () => {
+  it("reads OrderDisplay's ts_ns (epoch nanoseconds) into updated_at", () => {
+    // 2026-01-01T00:00:00.000Z in epoch nanoseconds.
+    const o = normalizeOrder({ order_id: "o1", status: "NEW", quantity: 100, ts_ns: 1_767_225_600_000_000_000 });
+    expect(o.updated_at).toBe("2026-01-01T00:00:00.000Z");
+  });
+
+  it("leaves updated_at null when neither updated_at nor ts_ns is present", () => {
+    expect(normalizeOrder({ order_id: "o1", status: "NEW", quantity: 100 }).updated_at).toBeNull();
+  });
+
+  it("prefers an explicit updated_at over ts_ns", () => {
+    const o = normalizeOrder({
+      order_id: "o1",
+      status: "NEW",
+      quantity: 100,
+      ts_ns: 1_767_225_600_000_000_000,
+      updated_at: "2026-06-01T00:00:00.000Z",
+    });
+    expect(o.updated_at).toBe("2026-06-01T00:00:00.000Z");
+  });
 });
