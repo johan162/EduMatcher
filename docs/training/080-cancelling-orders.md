@@ -108,7 +108,7 @@ Find your order in the table. The response includes:
 
 - `symbol`, `side`, `type`, `price`, `qty`
 - remaining quantity
-- `status` (NEW, PARTIAL, FILLED, CANCELLED)
+- `status` (NEW, PARTIAL, FILLED, CANCELLED, REJECTED, EXPIRED)
 - `tif`, last update time
 
 :material-checkbox-blank-outline: **Checkpoint:** `ORDERS` returns full details for each resting order.

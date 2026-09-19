@@ -34,14 +34,18 @@ tool lets you query this data without writing SQL.
 pm-stats
 ```
 
-Expected (the exact path shown reflects your `EDUMATCHER_DATA_DIR`):
+`pm-stats` logs at `WARNING` by default, so it starts silently. To see its
+startup messages, run it with `-v`:
 
-```
-[INFO] Stats service connected — recording to <EDUMATCHER_DATA_DIR>/stats.db
+```bash
+pm-stats -v
 ```
 
-To confirm the active path with a stable command rather than trusting the
-log line, run:
+The last startup line reads `recording market statistics (Ctrl-C to stop)`,
+preceded by an `opened stats DB connection path=...` line showing the
+database path (which reflects your `EDUMATCHER_DATA_DIR`).
+
+To confirm the active path with a stable command instead, run:
 
 ```bash
 pm-stats --help

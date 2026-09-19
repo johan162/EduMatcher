@@ -89,10 +89,11 @@ way to observe the event stream without writing a custom ZMQ subscriber.
 
 ## Exercise 4: Confirm the Drop-Copy Feed Is Bound
 
-Restart `pm-engine --verbose` and look for this startup line:
+Restart `pm-engine --verbose` and look for this startup line in the engine
+output (preceded by the usual timestamp, level and logger name):
 
 ```
-[ENGINE] Drop copy PUB bound on port 5557
+Drop copy PUB bound on port 5557
 ```
 
 That confirms the drop-copy publisher is active. It is intended for external
@@ -190,8 +191,10 @@ Start the multi-symbol dashboard:
 pm-board --rows 8 --interval 10
 ```
 
-If `pm-stats` is running, `pm-board` combines live book state with recent OHLCV
-context from `stats.db`.
+`pm-board` is a pure market-data subscriber: it builds its table from the live
+`book.*` and `trade.executed` topics only and does not read `stats.db`. It
+auto-rotates pages every `--interval` seconds; Enter, PgUp and PgDn page
+manually.
 
 :material-checkbox-blank-outline: **Checkpoint:** board shows AAPL, MSFT, and TSLA in one view.
 

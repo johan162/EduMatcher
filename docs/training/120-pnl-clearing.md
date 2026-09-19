@@ -98,10 +98,17 @@ the fill price for the newly-opened side.
 pm-clearing
 ```
 
-Expected:
+`pm-clearing` logs at WARNING level by default, so it starts silently. To see
+that it is up, add `-v`:
+
+```bash
+pm-clearing -v
+```
+
+The last startup line reads (prefix and timestamp vary):
 
 ```
-[INFO] Clearing connected - listening for trade events
+pm-clearing waiting for pm-engine events
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** clearing service is running.

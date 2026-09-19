@@ -126,11 +126,15 @@ Confirm TSLA resting orders were cleared while other symbols remain unchanged.
 
 ## Exercise 4: Force Session State for Controlled Drills
 
-Set session state explicitly:
+Set session state explicitly. Transitions are validated by the engine: from
+`CLOSED` the only legal move is `PRE_OPEN`, so if a previous exercise left the
+exchange closed, go through `PRE_OPEN` first (an illegal jump is silently
+ignored and the console just times out).
 
 From admin console:
 
 ```
+[GW_ADMIN|ADMIN]> SESSION|STATE=PRE_OPEN
 [GW_ADMIN|ADMIN]> SESSION|STATE=CONTINUOUS
 [GW_ADMIN|ADMIN]> SESSION|STATE=CLOSING_AUCTION
 [GW_ADMIN|ADMIN]> SESSION|STATE=CLOSED
@@ -139,6 +143,7 @@ From admin console:
 Or with CLI:
 
 ```bash
+pm-admin-cli --id GW_ADMIN session --state PRE_OPEN
 pm-admin-cli --id GW_ADMIN session --state CONTINUOUS
 pm-admin-cli --id GW_ADMIN session --state CLOSING_AUCTION
 pm-admin-cli --id GW_ADMIN session --state CLOSED

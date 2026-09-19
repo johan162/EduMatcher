@@ -187,6 +187,13 @@ is automatically cancelled:
 When the first order fills (price drops to 149.50), the second order at 148.00
 is automatically cancelled.
 
+To pull an OCO pair yourself before either leg fills, cancel it by its
+`OCO_ID` rather than cancelling each leg individually:
+
+```
+[TRADER01]> CANCEL|OCO_ID=OCO-AAPL-ENTRY
+```
+
 :material-checkbox-blank-outline: **Checkpoint:** filling one OCO leg cancels the other.
 
  
