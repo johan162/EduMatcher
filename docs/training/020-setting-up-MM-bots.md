@@ -187,9 +187,9 @@ Submit quotes:
 
  
 
-## Exercise 4: Verify Liquidity from the Trader Gateway
+## Exercise 4: Verify Liquidity from the Operator Console
 
-From `TRADER01`:
+From the **operator console** (`pm-admin`) — a trader cannot inspect the whole book:
 
 ```
 [GW_ADMIN|ADMIN]> BOOK|SYM=AAPL

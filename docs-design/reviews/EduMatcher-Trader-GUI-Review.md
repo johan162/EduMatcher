@@ -304,7 +304,7 @@ So the fixes above are not read as "rewrite the layer":
 4. ~~**H2, H3** — Trade de-duplication by id, exception-isolated `emit`, chart old-tick guard, and venue-wide trade resume (gateway).~~
 5. ~~**H4, H5, M1** — Halts in the trader bootstrap, re-sync session and halts on reconnect, one gating helper.~~
 6. ~~**H6** — `stream_seq` gap detection, authoritative `hydrate`, `ts_ns`.~~
-7. M2–M5, then the lows.
+7. ~~M2–M5~~, then the lows.
 
 Each step should come with a regression test that feeds the **engine's real payload shape**. Several existing tests pass only because they hand the store fields the engine never sends (e.g. `oco_group_id` on an OCO leg ack).
 

@@ -48,10 +48,12 @@ From `TRADER01`, send a market buy order for AAPL:
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 ```
 
-Expected output:
+Expected output (the console's fill line reports the order ID, quantity,
+price and remaining/status — not the symbol or side, since you already know
+those from the order you just sent):
 
 ```
-[FILL] order_id=... AAPL BUY 100@150.05 status=FILLED
+[<time>] FILL      <order_id>  qty=100 @150.05  remaining=0  [FILLED]
 ```
 
 The order matched against the MM's ask at 150.05.
@@ -70,10 +72,10 @@ sold AAPL, and positions/P&L are updated from the execution price.
 [TRADER01]> NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=100
 ```
 
-Expected output:
+Expected output, in the same format as Exercise 2:
 
 ```
-[FILL] order_id=... AAPL SELL 100@149.95 status=FILLED
+[<time>] FILL      <order_id>  qty=100 @149.95  remaining=0  [FILLED]
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** sell fill at the bid price.
