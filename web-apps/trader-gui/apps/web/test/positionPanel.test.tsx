@@ -40,6 +40,7 @@ import { useSymbolStore } from "@/store/useSymbolStore";
 import { useBookStore } from "@/store/useBookStore";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { useOrderStore } from "@/store/useOrderStore";
+import { useHaltStore } from "@/store/useHaltStore";
 import { ApiError } from "@/api/apiFetch";
 import type { Symbol } from "@/types/index";
 
@@ -68,6 +69,7 @@ beforeEach(() => {
   useSessionStore.setState({ phase: "CONTINUOUS" });
   useSettingsStore.setState({ confirmCancellations: true });
   useOrderStore.getState().clear();
+  useHaltStore.setState({ halts: {} });
 });
 
 describe("PositionPanel (§13.6)", () => {
@@ -249,5 +251,35 @@ describe("PositionPanel (§13.6)", () => {
     // (last) call's -- the bug this bulk path shared with the single shared
     // mutation looped over.
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Flattened 1 position, 1 failed"));
+  });
+
+  it("disables a halted symbol's flatten even during CONTINUOUS (M7)", async () => {
+    // PositionPanel used to only gate Flatten on phase === CONTINUOUS and
+    // never checked halts, so Flatten was offered on a halted symbol even
+    // though the engine rejects MARKET orders for it (isOrderTypeBlocked).
+    useHaltStore.setState({ halts: { AAPL: { symbol: "AAPL", level: "L1" } } });
+    wrap(<PositionPanel />);
+    await waitFor(() => expect(screen.getByText("AAPL")).toBeTruthy());
+    expect(screen.getByRole("button", { name: "Flatten AAPL" })).toHaveProperty("disabled", true);
+    // MSFT is not halted, so its flatten stays available.
+    expect(screen.getByRole("button", { name: "Flatten MSFT" })).toHaveProperty("disabled", false);
+  });
+
+  it("Flatten All skips halted symbols and says so in the confirm dialog (M7)", async () => {
+    useHaltStore.setState({ halts: { AAPL: { symbol: "AAPL", level: "L1" } } });
+    wrap(<PositionPanel />);
+    await waitFor(() => expect(screen.getByText("AAPL")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Flatten All" }));
+    const dialog = screen.getByRole("dialog", { name: "Flatten all positions?" });
+    expect(within(dialog).getByText(/Submit MARKET closing orders for 1 position/)).toBeTruthy();
+    expect(within(dialog).getByText(/1 position is halted and will be skipped/)).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Flatten All" }));
+    await waitFor(() => {
+      const orderCalls = apiFetchMock.mock.calls.filter(([p]) =>
+        String(p).startsWith("/api/v1/orders"),
+      );
+      expect(orderCalls.length).toBe(1); // only MSFT, AAPL was skipped
+    });
+    expect(orderBody()).toMatchObject({ symbol: "MSFT" });
   });
 });

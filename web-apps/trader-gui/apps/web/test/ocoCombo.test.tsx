@@ -140,4 +140,33 @@ describe("ComboForm (§12.8)", () => {
     expect(screen.getAllByText("Price required for a LIMIT leg").length).toBeGreaterThan(0);
     expect(apiFetchMock).not.toHaveBeenCalled();
   });
+
+  // M5: the form used to force smp_action: "NONE" unconditionally, which
+  // explicitly permits self-trades and overrides the gateway's configured
+  // SMP default -- the single-leg ticket deliberately omits the field
+  // instead. "Gateway default" (the initial selection) must omit it too.
+  it("omits smp_action when SMP is left at Gateway default (M5)", async () => {
+    wrap(<ComboForm />);
+    const prices = screen.getAllByLabelText(/Leg \d price/);
+    fireEvent.change(prices[0]!, { target: { value: "150" } });
+    fireEvent.change(prices[1]!, { target: { value: "410" } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit Combo" }));
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalled());
+    const body = bodyFor("/api/v1/combos");
+    expect(body).not.toHaveProperty("smp_action");
+  });
+
+  it("sends smp_action when a specific SMP policy is chosen (M5)", async () => {
+    wrap(<ComboForm />);
+    fireEvent.change(screen.getByLabelText("Combo SMP action"), {
+      target: { value: "CANCEL_RESTING" },
+    });
+    const prices = screen.getAllByLabelText(/Leg \d price/);
+    fireEvent.change(prices[0]!, { target: { value: "150" } });
+    fireEvent.change(prices[1]!, { target: { value: "410" } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit Combo" }));
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalled());
+    const body = bodyFor("/api/v1/combos");
+    expect(body.smp_action).toBe("CANCEL_RESTING");
+  });
 });

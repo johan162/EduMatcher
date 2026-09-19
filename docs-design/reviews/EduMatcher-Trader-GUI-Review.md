@@ -232,11 +232,11 @@ Confirmed by probes P6a and P7.
 
 Serve `/positions` from the engine (as `/admin/positions` does), warn when opposite-side working orders exist, and drop the Undo on flatten.
 
-**M5 — The combo form forces `smp_action: "NONE"`** (`ComboForm.tsx:67`, `comboSchema` default). That *explicitly permits self-trades* and overrides the gateway's configured SMP default, which the single-leg ticket deliberately preserves by omitting the field. Omit it, or offer the same "Gateway default" choice.
+**~~M5 — The combo form forces `smp_action: "NONE"`~~** **FIXED** (`ComboForm.tsx:67`, `comboSchema` default). That *explicitly permits self-trades* and overrides the gateway's configured SMP default, which the single-leg ticket deliberately preserves by omitting the field. Omit it, or offer the same "Gateway default" choice.
 
 **~~M6 — The Amend and Replace dialogs work on a snapshot of the order.~~** **FIXED** The `order` prop is captured when the dialog opens, so fills that arrive while it is open are not reflected in *Filled* or in `validateAmend`'s `filled`. The engine then rejects, which triggers C1. Pass `order_id` and read the row live from `useOrderStore`. Close the dialog with a notice if the order goes terminal.
 
-**M7 — The ticket's session and tick rules have no single source.** `AUCTION_DISABLED` (ticket), `isContinuous` (PositionPanel) and `ALLOWED_TIF` (sessionState.ts) encode overlapping engine rules in three places. The 2026-08-14 audit found the same "rule stated twice" failure. Consolidate the order-acceptance rules in `lib/sessionState.ts` with engine citations, the way `validateAmend` does.
+**~~M7 — The ticket's session and tick rules have no single source.~~** **FIXED** `AUCTION_DISABLED` (ticket), `isContinuous` (PositionPanel) and `ALLOWED_TIF` (sessionState.ts) encode overlapping engine rules in three places. The 2026-08-14 audit found the same "rule stated twice" failure. Consolidate the order-acceptance rules in `lib/sessionState.ts` with engine citations, the way `validateAmend` does.
 
 **M8 — Gateway `build_combo_payload` hardcodes `tick_decimals=2` per leg** (`api_gateway/translate.py`). This is outside the GUI, but the combo ticket drives it. Prices are converted with the right symbol, so the field is at best redundant and at worst wrong for non-2-decimal symbols.
 

@@ -6,7 +6,8 @@ import { useSymbolStore } from "@/store/useSymbolStore.js";
 import { useNotificationStore } from "@/store/useNotificationStore.js";
 import { comboSchema } from "@/lib/validators.js";
 import { ApiError } from "@/api/apiFetch.js";
-import type { Side } from "@/types/index.js";
+import { SMP_OPTIONS } from "@/components/orders/OrderTicket.js";
+import type { Side, SmpAction } from "@/types/index.js";
 
 const fieldCls =
   "bg-[#1a1a28] border border-[#2a2a45] rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#3a3a60]";
@@ -45,6 +46,7 @@ export function ComboForm() {
 
   const [comboId, setComboId] = useState(() => `combo-${Date.now().toString(36)}`);
   const [tif, setTif] = useState<"DAY" | "GTC">("DAY");
+  const [smp, setSmp] = useState<SmpAction | "">("");
   const [legs, setLegs] = useState<LegState[]>(() => [
     emptyLeg(symbols[0]?.symbol ?? ""),
     emptyLeg(symbols[0]?.symbol ?? ""),
@@ -64,7 +66,7 @@ export function ComboForm() {
       combo_id: comboId.trim(),
       combo_type: "AON" as const,
       tif,
-      smp_action: "NONE" as const,
+      ...(smp !== "" ? { smp_action: smp } : {}),
       legs: legs.map((l) => ({
         symbol: l.symbol.toUpperCase(),
         side: l.side,
@@ -114,7 +116,7 @@ export function ComboForm() {
         }
       }}
     >
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <label className="flex flex-col gap-0.5">
           <span className="text-[10px] text-[#505070]">Combo ID</span>
           <input
@@ -135,6 +137,22 @@ export function ComboForm() {
           >
             <option value="DAY">DAY</option>
             <option value="GTC">GTC</option>
+          </select>
+        </label>
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[10px] text-[#505070]">SMP (all legs)</span>
+          <select
+            value={smp}
+            onChange={(e) => setSmp(e.target.value as SmpAction | "")}
+            aria-label="Combo SMP action"
+            className={fieldCls}
+          >
+            <option value="">Gateway default</option>
+            {SMP_OPTIONS.map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
           </select>
         </label>
       </div>

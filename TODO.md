@@ -33,10 +33,13 @@ Target: Oct 2026
 #### ~~M2 — "Accepted" is misleading for FOK, MARKET and IOC~~
 #### ~~M3 — Bulk cancel and Flatten All lose per-order feedback~~
 #### ~~M4 — Flatten semantics~~
-#### M5 — The combo form forces
-#### M6 — The Amend and Replace dialogs work on a snapshot of the order
-#### M7 — The ticket's session and tick rules have no single source
+#### ~~M5 — The combo form forces~~
+#### ~~M6 — The Amend and Replace dialogs work on a snapshot of the order~~
+#### ~~M7 — The ticket's session and tick rules have no single source~~
 #### M8 — Gateway
+
+### Low defect
+L1 - L8
 
 ## Fix remaining bugs in Trader Info Terminal GUI
 

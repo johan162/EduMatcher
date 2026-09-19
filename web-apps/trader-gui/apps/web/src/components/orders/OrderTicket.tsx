@@ -38,7 +38,12 @@ const TABS: { type: OrderType; label: string }[] = [
 ];
 
 const ALL_TIF: Tif[] = ["DAY", "GTC", "ATO", "ATC"];
-const SMP_OPTIONS: SmpAction[] = ["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"];
+export const SMP_OPTIONS: SmpAction[] = [
+  "NONE",
+  "CANCEL_AGGRESSOR",
+  "CANCEL_RESTING",
+  "CANCEL_BOTH",
+];
 
 const fieldCls =
   "bg-[#1a1a28] border border-[#2a2a45] rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#3a3a60] disabled:opacity-40";
