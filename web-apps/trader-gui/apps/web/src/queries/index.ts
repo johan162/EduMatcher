@@ -49,6 +49,12 @@ export function useReferenceScheduleQuery() {
 }
 
 // ── Session ───────────────────────────────────────────────────────────────────
+/**
+ * L3: not called anywhere in the app (H4+H5+M1's session resync went a
+ * different route -- `resyncSessionAndHalts()` off the market-data socket's
+ * `"authenticated"` event, see `handleMarketDataMessage`). No test exercises
+ * this one either. Left in place rather than removed, per the review.
+ */
 export function useSessionQuery() {
   return useQuery({
     queryKey: ["session"],

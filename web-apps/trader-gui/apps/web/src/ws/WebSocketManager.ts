@@ -20,12 +20,13 @@ import { useEffect } from "react";
 import { ManagedSocket, type SocketStatus } from "./ManagedSocket.js";
 import { wsUrl } from "./wsUrl.js";
 import { SeqTracker } from "./seqTracker.js";
-import { channelForTopic, symbolForTopic } from "./topics.js";
+import { channelForTopic, symbolForTopic, topicsForPair } from "./topics.js";
 import {
   capSymbols,
   diffPairs,
   planPairs,
   replayItems,
+  WILDCARD,
   type MarketDataChannel,
   type PairKey,
   type SubscriptionItem,
@@ -223,9 +224,31 @@ function syncSubscriptions(): void {
   sendItems("unsubscribe", unsubscribe);
   sendItems("subscribe", subscribe);
   applied = desired;
+  // L5: forget the high-water mark for every topic we just unsubscribed
+  // from. Left stale, it survives a later re-focus of the same symbol, so
+  // the fresh subscribe's first envelope looks like it skipped seqs the
+  // client was never actually sent -- a spurious gap, followed by a resume
+  // for a topic that was just freshly (re)subscribed.
+  for (const item of unsubscribe) {
+    for (const symbol of item.symbols) {
+      if (symbol === WILDCARD) continue;
+      for (const channel of item.channels) {
+        for (const topic of topicsForPair(symbol, channel)) seqTracker.reset(topic);
+      }
+    }
+  }
 }
 
-/** Enable/disable the broad `*` book+trades item (Market Overview). */
+/**
+ * Enable/disable the broad `*` book+trades item (Market Overview).
+ *
+ * L3: no production caller wires this to a real UI flow today -- every
+ * screen keeps the overview item on, so `planPairs`'s `FOCUS_FULL_CHANNELS`
+ * branch (the plan-without-overview shape this function would produce) is
+ * currently unreachable in the app. Exercised directly by
+ * `wsRouting.test.ts`. Left in place rather than removed: a screen that
+ * only shows the focus set is exactly what this was built for.
+ */
 export function setOverviewSubscription(enabled: boolean): void {
   if (plan.overview === enabled) return;
   plan = { ...plan, overview: enabled };
@@ -461,11 +484,27 @@ function handlePrivateMessage(raw: unknown): void {
   // Order/fill/quote consumers attach via wsOn() from hooks/queries (phase 6+).
 }
 
+/**
+ * L4: the gateway closes a socket with POLICY_VIOLATION/ADMIN_REQUIRED when
+ * the key it holds stops being valid (revoked, or an ADMIN-only socket given
+ * a downgraded key). `ManagedSocket` itself always schedules a reconnect
+ * after `onAuthFailure` fires -- retrying is right for a transient drop, but
+ * wrong for a dead key, which would otherwise retry forever. Logging out
+ * here reuses `useWebSocketManager`'s existing apiKey/role effect to tear
+ * every socket down (superseding that one reconnect attempt) and send the
+ * user back to /login, the same path a 401 REST response now takes (see
+ * apiFetch.ts).
+ */
+function handleAuthFailure(): void {
+  useAuthStore.getState().logout();
+}
+
 /** Build and connect the events socket (shared by initial connect and gap repair). */
 function connectEvents(): void {
   eventsWs = new ManagedSocket(wsUrl("/api/v1/events"), {
     authFrame,
     onReconnect: () => notifyHealth(),
+    onAuthFailure: handleAuthFailure,
   });
   eventsWs.on(handlePrivateMessage);
   eventsWs.onStatus(notifyHealth);
@@ -502,6 +541,7 @@ export function connectAll(role: GatewayRole): void {
   // Market-data socket (all roles).
   marketDataWs = new ManagedSocket(wsUrl("/api/v1/market-data"), {
     authFrame,
+    onAuthFailure: handleAuthFailure,
     onReconnect: (ws) => {
       // The server holds no subscription state across a reconnect, so the
       // full item list is re-declared — with the per-topic resume points so
@@ -523,6 +563,7 @@ export function connectAll(role: GatewayRole): void {
     adminWs = new ManagedSocket(wsUrl("/api/v1/admin/monitor"), {
       authFrame,
       onReconnect: () => notifyHealth(),
+      onAuthFailure: handleAuthFailure,
     });
     adminWs.on(handleAdminMonitorMessage);
     adminWs.onStatus(notifyHealth);

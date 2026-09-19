@@ -79,7 +79,15 @@ export function capSymbols(symbols: readonly string[], max: number): string[] {
   return out;
 }
 
-/** The full `(symbol, channel)` pair set a plan asks for. */
+/**
+ * The full `(symbol, channel)` pair set a plan asks for.
+ *
+ * L3: `plan.overview` starts `true` and nothing in the app ever calls
+ * `setOverviewSubscription(false)` (see its own doc comment in
+ * WebSocketManager.ts), so the `FOCUS_FULL_CHANNELS` branch below is
+ * currently unreachable outside `wsRouting.test.ts`, which calls it
+ * directly. Left in place rather than removed.
+ */
 export function planPairs(plan: SubscriptionPlan): Set<PairKey> {
   const pairs = new Set<PairKey>();
   if (plan.overview) {

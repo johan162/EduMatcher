@@ -11,10 +11,12 @@ import { useHaltStore } from "@/store/useHaltStore.js";
 import { useActiveSymbolStore } from "@/store/useActiveSymbolStore.js";
 import { useTicketPrefillStore } from "@/store/useTicketPrefillStore.js";
 import { useNotificationStore } from "@/store/useNotificationStore.js";
+import { useSettingsStore } from "@/store/useSettingsStore.js";
 import { orderSchema } from "@/lib/validators.js";
 import { ALLOWED_TIF, isOrderTypeBlocked } from "@/lib/sessionState.js";
 import { ApiError } from "@/api/apiFetch.js";
 import { FieldInfo } from "@/components/shared/FieldInfo.js";
+import { CancelConfirm } from "@/components/orders/CancelConfirm.js";
 import type { OrderType, Side, Tif, SmpAction } from "@/types/index.js";
 
 interface OrderTicketProps {
@@ -76,6 +78,10 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
   const [clientTag, setClientTag] = useState("");
   const [suggestedSide, setSuggestedSide] = useState<Side | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // L2: B/S submits a MARKET order on a single keystroke/click with no
+  // resting safety net -- a mis-press executes immediately, unlike LIMIT/
+  // STOP/etc., which just rest an order the trader can still cancel.
+  const [pendingMarketSide, setPendingMarketSide] = useState<Side | null>(null);
 
   const fields = useOrderFields(orderType);
   const phase = useSessionStore((s) => s.phase);
@@ -83,6 +89,7 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
   const setActiveSymbol = useActiveSymbolStore((s) => s.setActiveSymbol);
   const prefill = useTicketPrefillStore((s) => s.prefill);
   const pushNotification = useNotificationStore((s) => s.push);
+  const confirmCancellations = useSettingsStore((s) => s.confirmCancellations);
   const submit = useSubmitOrderMutation();
 
   const symbol = (lockedSymbol ?? typedSymbol).toUpperCase();
@@ -266,13 +273,25 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
     );
   };
 
+  // L2: a MARKET order executes immediately with no resting safety net, so
+  // B/S routes through a confirm step for it first -- both from the hotkey
+  // and the on-screen button, so the two don't disagree. Skippable in
+  // power-user mode (confirmCancellations off), like Cancel/Flatten.
+  const requestSubmit = (side: Side) => {
+    if (orderType === "MARKET" && confirmCancellations) {
+      setPendingMarketSide(side);
+      return;
+    }
+    doSubmit(side);
+  };
+
   // Route the B/S handlers through a latest-ref stable callback so they always
   // run the current closure (order type / fields / phase). react-hotkeys-hook
   // freezes a stale callback when given a deps array; useEventCallback makes
   // that irrelevant. enableOnFormTags:false gives the §12.11 "ignore
   // input/textarea/select" behaviour so the explicit buttons stay unambiguous.
-  const submitBuy = useEventCallback(() => canSubmit && doSubmit("BUY"));
-  const submitSell = useEventCallback(() => canSubmit && doSubmit("SELL"));
+  const submitBuy = useEventCallback(() => canSubmit && requestSubmit("BUY"));
+  const submitSell = useEventCallback(() => canSubmit && requestSubmit("SELL"));
   useHotkeys("b", submitBuy, { enableOnFormTags: false });
   useHotkeys("s", submitSell, { enableOnFormTags: false });
   // F1 focuses the ticket's first field from anywhere; Escape clears errors.
@@ -304,7 +323,7 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
     return (
       <button
         type="button"
-        onClick={() => doSubmit(side)}
+        onClick={() => requestSubmit(side)}
         disabled={!canSubmit}
         title={disabledReason}
         aria-keyshortcuts={isBuy ? "b" : "s"}
@@ -603,6 +622,19 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
       </div>
 
       {errors._form && <p className="text-[11px] text-ask">{errors._form}</p>}
+
+      {pendingMarketSide && (
+        <CancelConfirm
+          title="Submit MARKET order?"
+          message={`Submit a MARKET ${pendingMarketSide} ${qty} ${symbol}? MARKET orders execute immediately at the best available price.`}
+          confirmLabel={pendingMarketSide}
+          onConfirm={() => {
+            doSubmit(pendingMarketSide);
+            setPendingMarketSide(null);
+          }}
+          onClose={() => setPendingMarketSide(null)}
+        />
+      )}
     </div>
   );
 }

@@ -36,10 +36,11 @@ Target: Oct 2026
 #### ~~M5 — The combo form forces~~
 #### ~~M6 — The Amend and Replace dialogs work on a snapshot of the order~~
 #### ~~M7 — The ticket's session and tick rules have no single source~~
-#### M8 — Gateway
+#### ~~M8 — Gateway~~
 
 ### Low defect
-L1 - L8
+~~L1, L2, L3, L4, L5, L6~~
+L7 - L10
 
 ## Fix remaining bugs in Trader Info Terminal GUI
 

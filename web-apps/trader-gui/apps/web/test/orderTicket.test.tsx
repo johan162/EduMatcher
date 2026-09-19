@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
@@ -39,6 +39,7 @@ import { useHaltStore } from "@/store/useHaltStore";
 import { useBookStore } from "@/store/useBookStore";
 import { useTicketPrefillStore } from "@/store/useTicketPrefillStore";
 import { useNotificationStore } from "@/store/useNotificationStore";
+import { useSettingsStore } from "@/store/useSettingsStore";
 import type { BookEntry } from "@/store/useBookStore";
 import type { Symbol } from "@/types/index";
 
@@ -87,6 +88,7 @@ beforeEach(() => {
   useHaltStore.setState({ halts: {} });
   useTicketPrefillStore.setState({ prefill: null });
   useNotificationStore.setState({ entries: [], unread: 0 });
+  useSettingsStore.setState({ confirmCancellations: true });
 });
 
 describe("useOrderFields (§12.3)", () => {
@@ -238,11 +240,79 @@ describe("OrderTicket submit side (§12.9)", () => {
 describe("OrderTicket B/S hotkeys (§12.11)", () => {
   it("B submits a BUY when the ticket is not focused on a form field", async () => {
     renderTicket();
-    fireEvent.click(screen.getByRole("tab", { name: "Market" }));
+    // LIMIT is the default type, so this is not a MARKET order -- no confirm
+    // step, matching the "confirm only for MARKET" scope of L2.
+    fireEvent.change(screen.getByLabelText("Price"), { target: { value: "150.25" } });
     fireEvent.keyDown(document, { key: "b", code: "KeyB" });
     await waitFor(() => expect(apiFetchMock).toHaveBeenCalled());
     expect(lastBody().side).toBe("BUY");
+    expect(lastBody().order_type).toBe("LIMIT");
+  });
+
+  it("B on a MARKET order raises the L2 confirm dialog rather than submitting directly", async () => {
+    // Regression for L2: previously B/S fired a live MARKET order on a single
+    // keystroke with no confirmation. The hotkey must be gated exactly like
+    // the on-screen button.
+    renderTicket();
+    fireEvent.click(screen.getByRole("tab", { name: "Market" }));
+    fireEvent.keyDown(document, { key: "b", code: "KeyB" });
+    expect(screen.getByRole("dialog", { name: "Submit MARKET order?" })).toBeTruthy();
+    expect(apiFetchMock).not.toHaveBeenCalled();
+    const dialog = screen.getByRole("dialog", { name: "Submit MARKET order?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "BUY" }));
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalled());
+    expect(lastBody().side).toBe("BUY");
     expect(lastBody().order_type).toBe("MARKET");
+  });
+});
+
+describe("OrderTicket MARKET submit confirmation (L2)", () => {
+  it("clicking BUY on a MARKET order shows a confirm dialog instead of submitting immediately", () => {
+    renderTicket();
+    fireEvent.click(screen.getByRole("tab", { name: "Market" }));
+    fireEvent.click(screen.getByRole("button", { name: "BUY" }));
+    expect(screen.getByRole("dialog", { name: "Submit MARKET order?" })).toBeTruthy();
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("confirming the dialog submits the MARKET order", async () => {
+    renderTicket();
+    fireEvent.click(screen.getByRole("tab", { name: "Market" }));
+    fireEvent.click(screen.getByRole("button", { name: "SELL" }));
+    const dialog = screen.getByRole("dialog", { name: "Submit MARKET order?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "SELL" }));
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalled());
+    expect(lastBody().side).toBe("SELL");
+    expect(lastBody().order_type).toBe("MARKET");
+  });
+
+  it("keeping the order (dismissing the dialog) does not submit", () => {
+    renderTicket();
+    fireEvent.click(screen.getByRole("tab", { name: "Market" }));
+    fireEvent.click(screen.getByRole("button", { name: "BUY" }));
+    const dialog = screen.getByRole("dialog", { name: "Submit MARKET order?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Keep order" }));
+    expect(screen.queryByRole("dialog", { name: "Submit MARKET order?" })).toBeNull();
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("skips the confirm dialog in power-user mode (confirmCancellations off)", async () => {
+    useSettingsStore.setState({ confirmCancellations: false });
+    renderTicket();
+    fireEvent.click(screen.getByRole("tab", { name: "Market" }));
+    fireEvent.click(screen.getByRole("button", { name: "BUY" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalled());
+    expect(lastBody().order_type).toBe("MARKET");
+  });
+
+  it("never shows the confirm dialog for non-MARKET order types", async () => {
+    renderTicket(); // LIMIT default
+    fireEvent.change(screen.getByLabelText("Price"), { target: { value: "150.25" } });
+    fireEvent.click(screen.getByRole("button", { name: "BUY" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalled());
+    expect(lastBody().order_type).toBe("LIMIT");
   });
 });
 

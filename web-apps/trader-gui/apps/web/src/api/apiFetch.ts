@@ -24,7 +24,10 @@ export class ApiError extends Error {
  * – Injects Authorization: Bearer <key>
  * – Deserialises JSON responses
  * – Maps HTTP status codes to typed ApiError instances
- * – Throws ApiError(401) so TanStack Query can trigger automatic logout
+ * – On a 401 (revoked/invalid key), logs the user out directly (L4) so
+ *   every caller gets the same behavior, not just ones routed through
+ *   TanStack Query. `useWebSocketManager`'s existing apiKey/role effect
+ *   then tears down the sockets, and RoleGuard redirects to /login.
  */
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const key = useAuthStore.getState().apiKey;
@@ -38,6 +41,11 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   });
 
   if (!res.ok) {
+    // L4: a 401 means the key is missing/invalid/revoked -- log out
+    // unconditionally. Harmless pre-login too: LoginPage's own probe also
+    // goes through apiFetch, and logout() on an already-logged-out store
+    // (apiKey already null) is a no-op.
+    if (res.status === 401) useAuthStore.getState().logout();
     let body: Record<string, unknown> = {};
     try {
       body = (await res.json()) as Record<string, unknown>;
