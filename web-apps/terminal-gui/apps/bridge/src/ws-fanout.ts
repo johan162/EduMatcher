@@ -24,6 +24,24 @@ export interface SubscriptionSink {
   unwatch(ch: WatchChannel, sym: string): void;
 }
 
+/**
+ * Bridge-side half of the liveness fix (design review H4).
+ *
+ * The browser watchdog catches a half-open socket from the tab's side; this
+ * catches it from the bridge's, and catches the tab that stopped reading
+ * without ever closing. Neither fires a TCP `close`, so without this a dead
+ * or stalled tab keeps its `DEPTH`/`CB` holds, accumulates outbound frames in
+ * bridge memory, and counts toward `maxWsClients` until the OS timeout.
+ */
+export interface ReapingConfig {
+  /** Cadence of protocol-level `ping` frames sent to each tab. */
+  pingIntervalSec: number;
+  /** Consecutive missed `pong`s before a tab is `terminate()`d. */
+  pingMaxMissed: number;
+  /** `bufferedAmount` above which a tab is treated as stalled and closed. */
+  maxBufferedBytes: number;
+}
+
 interface Tab {
   socket: WebSocket;
   /** `${ch}|${sym}` the tab asked for explicitly (Symbol Detail, Depth toggle). */
@@ -31,6 +49,8 @@ interface Tab {
   /** Symbols this tab's Session board holds `CB` for. */
   boardHolds: Set<string>;
   haltBoardOpen: boolean;
+  /** `ping`s sent since the last `pong` this tab answered. */
+  missedPongs: number;
 }
 
 const holdKey = (ch: WatchChannel, sym: string) => `${ch}|${sym}`;
@@ -39,11 +59,16 @@ export class WsHub {
   private readonly tabs = new Set<Tab>();
   /** Symbols currently in `SESSION=HALTED`, tracked from the `state` stream. */
   private readonly halted = new Set<string>();
+  private readonly reapTimer: ReturnType<typeof setInterval>;
 
   constructor(
     private readonly subs: SubscriptionSink,
     private readonly maxClients: number,
-  ) {}
+    private readonly reaping: ReapingConfig,
+  ) {
+    this.reapTimer = setInterval(() => this.reap(), this.reaping.pingIntervalSec * 1000);
+    this.reapTimer.unref();
+  }
 
   get clientCount(): number {
     return this.tabs.size;
@@ -57,7 +82,13 @@ export class WsHub {
   register(socket: WebSocket): boolean {
     if (this.tabs.size >= this.maxClients) return false;
 
-    const tab: Tab = { socket, viewHolds: new Set(), boardHolds: new Set(), haltBoardOpen: false };
+    const tab: Tab = {
+      socket,
+      viewHolds: new Set(),
+      boardHolds: new Set(),
+      haltBoardOpen: false,
+      missedPongs: 0,
+    };
     this.tabs.add(tab);
 
     socket.on("message", (raw: Buffer) => {
@@ -70,9 +101,44 @@ export class WsHub {
       this.onClientFrame(tab, frame);
     });
 
+    socket.on("pong", () => {
+      tab.missedPongs = 0;
+    });
+
     socket.on("close", () => this.unregister(tab));
     socket.on("error", () => this.unregister(tab));
     return true;
+  }
+
+  /**
+   * One reaping pass, run on `pingIntervalSec` cadence: close any tab whose
+   * outbound buffer has backed up past `maxBufferedBytes`, then ping every
+   * remaining tab and terminate whichever missed the previous answer
+   * `pingMaxMissed` times running. `unregister` (via the socket's own `close`
+   * event) releases the reaped tab's holds either way.
+   */
+  private reap(): void {
+    for (const tab of this.tabs) {
+      if (tab.socket.readyState !== tab.socket.OPEN) continue;
+
+      if (tab.socket.bufferedAmount > this.reaping.maxBufferedBytes) {
+        tab.socket.close(1013, "buffer exceeded");
+        continue;
+      }
+
+      tab.missedPongs += 1;
+      if (tab.missedPongs > this.reaping.pingMaxMissed) {
+        tab.socket.terminate();
+        continue;
+      }
+
+      tab.socket.ping();
+    }
+  }
+
+  /** Stop the reaping timer. Called on process shutdown. */
+  stop(): void {
+    clearInterval(this.reapTimer);
   }
 
   /** Route one frame to whichever tabs should see it. */

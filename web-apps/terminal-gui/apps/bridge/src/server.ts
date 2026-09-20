@@ -42,7 +42,11 @@ if (!config.apiGateway.apiKey) {
 }
 
 const uplink = new CalfUplink(config.calf);
-const hub = new WsHub(uplink, config.maxWsClients);
+const hub = new WsHub(uplink, config.maxWsClients, {
+  pingIntervalSec: config.wsPingIntervalSec,
+  pingMaxMissed: config.wsPingMaxMissed,
+  maxBufferedBytes: config.wsMaxBufferedBytes,
+});
 
 uplink.on("frame", (frame: ServerFrame) => hub.broadcast(frame));
 
@@ -61,6 +65,18 @@ uplink.on("status", (state) => {
 
   hub.broadcast({ type: "bridge_status", calf: state, since: uplink.stateSince, wsClients: hub.clientCount });
 });
+
+/**
+ * Liveness heartbeat for the browser↔bridge socket (design review H4).
+ *
+ * `bridge_status` already fires on CALF state change; this repeats it on a
+ * fixed cadence regardless, so a silent tab can distinguish "feed is quiet"
+ * from "connection is half-open" instead of waiting on a TCP close that a
+ * dead NAT/proxy path may never deliver.
+ */
+setInterval(() => {
+  hub.broadcast({ type: "bridge_status", calf: uplink.state, since: uplink.stateSince, wsClients: hub.clientCount });
+}, config.wsHeartbeatIntervalSec * 1000).unref();
 
 // A tab's `hello` is a point-in-time snapshot of the universe; this keeps
 // already-open tabs current as the gateway learns of more instruments.
@@ -143,6 +159,7 @@ if (config.staticDir) {
 
 async function shutdown(signal: string): Promise<void> {
   log.info("terminal-bridge.main", `${signal} received; shutting down`);
+  hub.stop();
   await uplink.stop();
   await app.close();
   await log.close();

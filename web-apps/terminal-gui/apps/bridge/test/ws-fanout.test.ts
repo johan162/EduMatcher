@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WebSocket } from "ws";
 import type { ClientFrame, ServerFrame } from "@edumatcher/terminal-types";
 import { WsHub, type SubscriptionSink } from "../src/ws-fanout.js";
@@ -8,9 +8,12 @@ class FakeSocket {
   readonly OPEN = 1;
   readonly sent: ServerFrame[] = [];
   readyState = 1;
-  private handlers: Record<string, Array<(arg: Buffer) => void>> = {};
+  bufferedAmount = 0;
+  pingCount = 0;
+  terminated = false;
+  private handlers: Record<string, Array<(arg?: Buffer) => void>> = {};
 
-  on(event: string, handler: (arg: Buffer) => void): this {
+  on(event: string, handler: (arg?: Buffer) => void): this {
     (this.handlers[event] ??= []).push(handler);
     return this;
   }
@@ -24,8 +27,23 @@ class FakeSocket {
     for (const handler of this.handlers["message"] ?? []) handler(Buffer.from(JSON.stringify(frame), "utf8"));
   }
 
-  /** Simulate the tab going away. */
-  close(): void {
+  ping(): void {
+    this.pingCount += 1;
+  }
+
+  /** Simulate the tab answering the last ping. */
+  pong(): void {
+    for (const handler of this.handlers["pong"] ?? []) handler();
+  }
+
+  terminate(): void {
+    this.terminated = true;
+    this.close();
+  }
+
+  /** Simulate the tab going away. `code`/`reason` are accepted to match the
+   * real `close(code?, data?)` and discarded — nothing here asserts on them. */
+  close(_code?: number, _reason?: string): void {
     this.readyState = 3;
     for (const handler of this.handlers["close"] ?? []) handler(Buffer.alloc(0));
   }
@@ -80,7 +98,7 @@ describe("WsHub", () => {
 
   beforeEach(() => {
     sink = new RecordingSink();
-    hub = new WsHub(sink, 3);
+    hub = new WsHub(sink, 3, { pingIntervalSec: 10, pingMaxMissed: 2, maxBufferedBytes: 1_000_000 });
   });
 
   function connect(): FakeSocket {
@@ -315,6 +333,90 @@ describe("WsHub", () => {
       tab.receive({ t: "halt_board", open: true });
 
       expect(sink.calls).toEqual(["watch CB TSLA"]);
+    });
+  });
+
+  /**
+   * H4's bridge-side half: a tab that never answers `pong`, or one whose
+   * outbound buffer backs up, never fires TCP `close` either. Reaping is
+   * what makes `unregister` run for it instead of waiting on the OS timeout.
+   */
+  describe("liveness reaping", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("terminates a tab that misses the configured number of pongs", () => {
+      const reapingSink = new RecordingSink();
+      const reapingHub = new WsHub(reapingSink, 3, {
+        pingIntervalSec: 10,
+        pingMaxMissed: 2,
+        maxBufferedBytes: 1_000_000,
+      });
+      const socket = new FakeSocket();
+      reapingHub.register(socket.asWebSocket());
+      socket.receive({ t: "subscribe", ch: "DEPTH", sym: "AAPL" });
+
+      // pingMaxMissed: 2 — a miss can only be confirmed on the tick after
+      // the ping that went unanswered, so the tab gets two pings before the
+      // third tick's check (missedPongs > 2) terminates it.
+      vi.advanceTimersByTime(10_000);
+      expect(socket.pingCount).toBe(1);
+      expect(socket.terminated).toBe(false);
+
+      vi.advanceTimersByTime(10_000);
+      expect(socket.pingCount).toBe(2);
+      expect(socket.terminated).toBe(false);
+
+      vi.advanceTimersByTime(10_000);
+      expect(socket.terminated).toBe(true);
+
+      // Termination fires the socket's own "close", which must still
+      // release what the tab was holding.
+      expect(reapingSink.calls).toEqual(["watch DEPTH AAPL", "unwatch DEPTH AAPL"]);
+      reapingHub.stop();
+    });
+
+    it("resets the missed count on a pong", () => {
+      const reapingSink = new RecordingSink();
+      const reapingHub = new WsHub(reapingSink, 3, {
+        pingIntervalSec: 10,
+        pingMaxMissed: 2,
+        maxBufferedBytes: 1_000_000,
+      });
+      const socket = new FakeSocket();
+      reapingHub.register(socket.asWebSocket());
+
+      vi.advanceTimersByTime(10_000);
+      socket.pong();
+      vi.advanceTimersByTime(10_000);
+      expect(socket.terminated).toBe(false);
+
+      reapingHub.stop();
+    });
+
+    it("closes with 1013 a tab whose outbound buffer exceeds the ceiling", () => {
+      const reapingSink = new RecordingSink();
+      const reapingHub = new WsHub(reapingSink, 3, {
+        pingIntervalSec: 10,
+        pingMaxMissed: 2,
+        maxBufferedBytes: 1_000,
+      });
+      const socket = new FakeSocket();
+      reapingHub.register(socket.asWebSocket());
+      socket.bufferedAmount = 2_000;
+
+      vi.advanceTimersByTime(10_000);
+
+      expect(socket.readyState).toBe(3);
+      expect(socket.terminated).toBe(false); // closed cleanly, not force-terminated
+      expect(socket.pingCount).toBe(0); // stalled tab is closed, not pinged
+
+      reapingHub.stop();
     });
   });
 });

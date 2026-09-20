@@ -51,8 +51,13 @@ class FakeSocket {
     this.fire("open");
   }
 
-  private fire(type: string): void {
-    for (const handler of this.listeners.get(type) ?? []) handler();
+  /** Drive an inbound server frame, as the browser would deliver a "message". */
+  deliver(frame: unknown): void {
+    this.fire("message", { data: JSON.stringify(frame) });
+  }
+
+  private fire(type: string, event?: unknown): void {
+    for (const handler of this.listeners.get(type) ?? []) handler(event);
   }
 
   get frames(): ClientFrame[] {
@@ -168,5 +173,67 @@ describe("subscriptions across a reconnect", () => {
       socket().accept();
       expect(socket().frames).toEqual([{ t: "subscribe", ch: "CB", sym: "TSLA" }]);
     }
+  });
+});
+
+/**
+ * H4: a half-open socket never fires the browser's own `close` event, so the
+ * only way to notice it is a watchdog timing out on frames actually received.
+ */
+describe("liveness watchdog on a silent socket", () => {
+  it("closes the socket and goes reconnecting after three missed heartbeat intervals", () => {
+    const statuses: string[] = [];
+    const client = new TerminalStreamClient(
+      () => undefined,
+      (status) => statuses.push(status),
+    );
+    client.connect();
+    FakeSocket.instances[0]?.accept();
+
+    // The socket never receives another frame and never fires "close" itself
+    // — exactly what a half-open TCP path looks like from here.
+    vi.advanceTimersByTime(14_999);
+    expect(statuses).not.toContain("reconnecting");
+
+    vi.advanceTimersByTime(1);
+    expect(statuses).toContain("reconnecting");
+  });
+
+  it("does not fire while frames keep arriving, including bare heartbeats", () => {
+    const statuses: string[] = [];
+    const client = new TerminalStreamClient(
+      () => undefined,
+      (status) => statuses.push(status),
+    );
+    client.connect();
+    const socket = FakeSocket.instances[0]!;
+    socket.accept();
+
+    for (let i = 0; i < 5; i += 1) {
+      vi.advanceTimersByTime(4_000);
+      socket.deliver({ type: "bridge_status", calf: "ACTIVE", since: "t", wsClients: 1 });
+    }
+
+    expect(statuses).not.toContain("reconnecting");
+  });
+
+  it("gives a reconnected socket a fresh window rather than the old deadline", () => {
+    const statuses: string[] = [];
+    const client = new TerminalStreamClient(
+      () => undefined,
+      (status) => statuses.push(status),
+    );
+    client.connect();
+    FakeSocket.instances[0]?.accept();
+
+    vi.advanceTimersByTime(10_000);
+    FakeSocket.instances[0]?.close();
+    vi.advanceTimersByTime(500); // the reconnect backoff
+    FakeSocket.instances.at(-1)?.accept();
+    statuses.length = 0;
+
+    // Only 10s left if the old deadline carried over; it must not have.
+    vi.advanceTimersByTime(10_000);
+    expect(statuses).not.toContain("reconnecting");
   });
 });
