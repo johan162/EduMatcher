@@ -3,15 +3,19 @@
 Release Type: patch
 
 ### 📋 Summary
-This patch release fixes OCO leg price and trigger serialization, improves browser-to-bridge WebSocket recovery, and corrects documentation and build-pipeline issues.
+This patch release fixes OCO leg price and trigger serialization, improves browser-to-bridge WebSocket recovery, and corrects documentation and build-pipeline issues. It also brings the config GUI up to date with the latest config specification.
 
 ### 🐛 Bug Fixes
 - Fixed ALF gateway and console handling so OCO leg prices, stop prices, and trailing offsets are sent as tick values
 - Fixed terminal GUI detection of half-open browser-to-bridge WebSocket connections
 - Fixed a Makefile race condition in the introduction book build
+- Fixed a number of issues in `config-gui` to bring it up on par with latest config specification
+- Fixed config-gen always used global default tick configuration and not the symbols own tick size (if set)
 
 ### 📚 Documentation
 - Corrected factual errors in user-guide chapters covering commands, output, schemas, and source behavior
+- Corrected duplicate entry in config specification
+
 
 ## [v0.40.3] - 2026-09-20
 
