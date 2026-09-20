@@ -272,7 +272,7 @@ Core engine and risk options:
 | `--symbol-max-order-value SYM:AMOUNT`    | Repeatable       | none            | Per-symbol `order_limits.max_order_value` (notional, `> 0`) |
 | `--symbol-risk-level SYM:LEVEL`          | Repeatable       | none            | Per-symbol `symbols.<SYM>.level` override           |
 | `--risk-level NAME:STATIC[:DYNAMIC]`     | Repeatable       | none            | Add named risk levels under `risk_controls.levels`  |
-| `--cb-levels NAME:SHIFT[:HALT_MINS[:RESUMPTION_MODE]] ...` | List | built-in ladder | Circuit-breaker level specs; `RESUMPTION_MODE` is `AUCTION` (default) or `CONTINUOUS` |
+| `--cb-levels NAME:SHIFT[:HALT_MINS] ...` | List | built-in ladder | Circuit-breaker level specs |
 | `--cb-window-ns NS`                      | int (`> 0`)      | `300000000000`  | Circuit-breaker reference window                    |
 
 Market-maker and symbol defaults:
@@ -956,18 +956,18 @@ pm-config-gen \
   --output engine_config.yaml
 ```
 
-Circuit-breaker ladder with `CONTINUOUS` resumption on level 2 (no auction on L2 halt recovery):
+Custom circuit-breaker ladder in place of the built-in defaults:
 
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT TSLA \
   --gateways TRADER01 OPS01:ADMIN \
   --sessions-enabled \
-  --cb-levels L1:0.07:5:AUCTION L2:0.13:15:CONTINUOUS L3:0.20 \
+  --cb-levels L1:0.07:5 L2:0.13:15 L3:0.20 \
   --output engine_config.yaml
 ```
 
-Per-symbol `CONTINUOUS` resumption override while using global defaults for the other levels:
+Per-symbol reopening-auction band override while using global defaults for the circuit-breaker levels:
 
 ```bash
 pm-config-gen \
@@ -1137,18 +1137,24 @@ If you are running from a Poetry checkout, prefix commands with `poetry run`.
 
 ### Missing-file Behavior
 
-The engine and scheduler handle missing config differently:
+Neither process accepts a config path on the command line — both always read
+the deployed artifact — and they handle a missing artifact differently:
 
-| Process        | Missing default config | Missing explicit `--config`       |
-|----------------|------------------------|-----------------------------------|
-| `pm-engine`    | Starts unrestricted    | Starts unrestricted for that path |
-| `pm-scheduler` | Uses built-in schedule | Fatal error                       |
+| Process        | No deployed artifact                     |
+|----------------|-------------------------------------------|
+| `pm-engine`    | Starts unrestricted                        |
+| `pm-scheduler` | Fatal error — refuses to start             |
 
 Unrestricted engine mode means there is no symbol allowlist, no gateway
 allowlist, no configured risk levels, no seeded last prices, no seeded
 market-maker quotes, no configured startup combos, and no outstanding share
 metadata.
 
+`pm-scheduler` treats a missing artifact as fatal because running a timetable
+the engine has never seen is worse than not starting at all. This is
+different from a *deployed* config with session scheduling disabled
+(`sessions_enabled: false` or no `schedule` section): in that case the
+scheduler starts normally and falls back to its built-in default schedule.
 
 ## Inspect Configs with `pm-config-show`
 
@@ -2367,9 +2373,12 @@ simply left inactive when omitted. Two fields become mandatory, but only under
 specific conditions:
 
 - **`market_maker_quotes`** — becomes mandatory (must be a non-empty list) for
-  *every* symbol as soon as any `gateways.alf` entry has `role: MARKET_MAKER`.
-  If no `MARKET_MAKER` gateway is configured, this field can be omitted for
-  every symbol.
+  *every* symbol as soon as any `gateways.alf` entry has `role: MARKET_MAKER`,
+  unless the top-level `require_mm_seed_quotes` is explicitly set to `false`
+  (default `true`). With `require_mm_seed_quotes: false`, a `MARKET_MAKER`
+  gateway may exist with no `market_maker_quotes` entries at all. If no
+  `MARKET_MAKER` gateway is configured, this field can be omitted for every
+  symbol regardless of `require_mm_seed_quotes`.
 - **`outstanding_shares`** — becomes mandatory (must be a positive integer)
   only for symbols listed in an `indices[].constituents` entry (see
   [Configuring `pm-index`](#configuring-pm-index)). A symbol not referenced by
@@ -2891,6 +2900,10 @@ Ranges use mathematical interval notation: `(a, b)` is open (exclusive),
 | `circuit_breaker_defaults` | mapping |       No | —                                                     | —                      | —                                        |
 | `market_maker_combos`      | list    |       No | `[]`                                                  | —                      | Each entry must be a mapping             |
 | `schedule`                 | mapping |       No | —                                                     | —                      | Parsed by scheduler and stored by engine |
+| `require_mm_seed_quotes`   | bool    |       No | `true`                                                | `true`, `false`        | If `false`, a `MARKET_MAKER` gateway may exist with no `market_maker_quotes` (see [Mandatory Fields](#mandatory-fields)) |
+| `country`                  | str     |       No | `"Sweden"`                                            | Any non-empty string   | Used for the scheduler's holiday calendar; an unrecognized value falls back to the default (see `M026` in [Config Verifier](020-config-verifier.md)) |
+| `indices`                  | list    |       No | `[]`                                                  | —                      | At most 5 entries; see [Configuring `pm-index`](#configuring-pm-index) for the per-index field reference |
+| `auction_indicative_interval_sec` | float | No | `1.0`                                            | Any number             | Must be `> 0`                            |
 
 ### `engine_tuning` fields
 
@@ -3024,7 +3037,16 @@ symbol has no breaker):
 | `last_sell_price` | float | No | `null` | Any number | Overridden by persisted `book_stats.json` |
 | `collar` | mapping | No | — | See collar fields | Merged over the level's collar; symbol wins on conflicting keys |
 | `circuit_breaker` | mapping | No | — | See circuit-breaker fields | `levels` subkey merged over defaults; other keys replace |
-| `market_maker_quotes` | list | No | `[]` | List of quote seed mappings | Required (non-empty) if any `MARKET_MAKER` gateway is configured |
+| `market_maker_quotes` | list | No | `[]` | List of quote seed mappings | Required (non-empty) if any `MARKET_MAKER` gateway is configured, unless `require_mm_seed_quotes: false` (see [Mandatory Fields](#mandatory-fields)) |
+| `outstanding_shares` | int | No | `null` | Positive integer | Required if the symbol is listed in an `indices[].constituents` entry (see [Mandatory Fields](#mandatory-fields)) |
+| `order_limits` | mapping | No | — | See below | Rejected at `risk_controls.levels.<LEVEL>` — set per symbol only |
+
+### `symbols.<SYMBOL>.order_limits` fields
+
+| Field | Type | Required | Default | Allowed values / range | Constraint |
+|---|---|---:|---|---|---|
+| `max_order_qty` | int | No | `null` (no limit) | Positive integer | Must be `> 0` |
+| `max_order_value` | float | No | `null` (no limit) | Any number | Must be `> 0` |
 
 ---
 
@@ -3089,7 +3111,8 @@ These constraints span multiple sections and are checked after all fields are
 parsed:
 
 1. If any gateway has `role: MARKET_MAKER`, every symbol in `symbols` must
-   have at least one `market_maker_quotes` entry.
+   have at least one `market_maker_quotes` entry, unless top-level
+   `require_mm_seed_quotes` is set to `false`.
 2. Every `market_maker_quotes[].gateway_id` must reference a configured
    gateway with `role: MARKET_MAKER`.
 3. Every `symbols.<SYMBOL>.level` must reference a key in
@@ -3103,6 +3126,8 @@ parsed:
 7. Symbols within one combo must be unique.
 8. `risk_controls.levels.<LEVEL>.circuit_breaker` is explicitly rejected with
    an error; use top-level `circuit_breaker_defaults` instead.
+9. `risk_controls.levels.<LEVEL>.order_limits` is explicitly rejected with an
+   error; set `order_limits` on each symbol instead.
 
 
 ## Verifying the Deployed Artifact

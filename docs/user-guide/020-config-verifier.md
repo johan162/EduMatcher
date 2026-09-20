@@ -66,19 +66,26 @@ With `--strict`, any warning also produces exit code `2`.
 
 ## CLI Reference
 
+`pm-cverifier --help`:
+
 ```
-pm-cverifier [OPTIONS] CONFIG_FILE
+usage: pm-cverifier [-h] [--version] [--format {text,json}]
+                    [--level {info,warn,error}] [--no-color] [--strict]
+                    CONFIG_FILE
 
-Arguments:
-  CONFIG_FILE   Path to engine_config.yaml to verify.
+Read-only engine_config.yaml verification tool.
 
-Options:
-  --format      Output format: text (default), json
-  --level       Minimum severity to show: info, warn, error (default: info)
-  --no-color    Disable ANSI color in text output
-  --strict      Treat warnings as errors for CI exit-code purposes
-  --help        Show help and exit
-  --version     Show the pm-cverifier version and exit
+positional arguments:
+  CONFIG_FILE           Path to engine_config.yaml
+
+options:
+  -h, --help            show this help message and exit
+  --version             show program's version number and exit
+  --format {text,json}  Output format (default: text)
+  --level {info,warn,error}
+                        Minimum severity to show (default: info)
+  --no-color            Disable ANSI color in text output
+  --strict              Treat warnings as errors for CI exit-code purposes
 ```
 
 
@@ -142,7 +149,8 @@ Symbols          2  (AAPL, MSFT)
 Gateways         2  (TRADER01: TRADER, MM01: MARKET_MAKER)
 Sessions         disabled — always CONTINUOUS
 Collars          enabled — DEFAULT: static=20%, dynamic=2%
-Circuit breakers enabled — L1=7% (5 min), L2=13% (15 min), L3=20% (rest-of-day)
+Order limits     none configured
+Circuit breakers enabled — L1=7% (5 min), L2=13% (15 min), L3=20% (rest-of-day) (built-in defaults)
 MM obligations   not enforced
 Admin gateway    none ⚠
 
@@ -239,7 +247,7 @@ the key if it appears on a risk level.
 | `S114` | `symbols.<SYMBOL>.order_limits` present but not a mapping              |
 | `S115` | `symbols.<SYMBOL>.order_limits.max_order_qty` not a positive integer   |
 | `S116` | `symbols.<SYMBOL>.order_limits.max_order_value` not a positive number  |
-| `S065` | `symbols.<SYMBOL>.circuit_breaker` or `.levels` not a mapping           |
+| `S065` | `symbols.<SYMBOL>.circuit_breaker` or `.levels` not a mapping — **also reused** for top-level `country` present but not a non-empty string (unrelated condition, same code) |
 | `S066` | `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>` missing `price_shift_pct` |
 | `S067` | `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>.price_shift_pct` out of range `(0, 1)` |
 | `S068` | `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>.halt_duration_ns` not a positive integer |
@@ -464,7 +472,7 @@ field, and both are conditions `pm-log-srv` refuses to start on:
 See [LALF-PS](280-log-srv.md#lalf-ps-the-zeromq-log-distribution-interface)
 for what these fields do.
 
-### Layer 3 — Semantic (`M001`–`M025`)
+### Layer 3 — Semantic (`M001`–`M026`)
 
 `M014` is currently emitted during the schema pass because CB threshold ordering
 is validated while parsing `circuit_breaker_defaults`.
@@ -496,6 +504,7 @@ is validated while parsing `circuit_breaker_defaults`.
 | `M023` | ERROR    | A `schedule` time value doesn't parse as a valid 24-hour `HH:MM` time |
 | `M024` | ERROR    | `sessions_enabled: true` but `schedule` is missing one or more of the five phase keys |
 | `M025` | ERROR    | `schedule` phases don't form a legal transition chain starting from `CLOSED` |
+| `M026` | WARN     | Top-level `country` is not recognised by the `holidays` package (`pm-scheduler` falls back to Sweden at runtime) |
 
 ### Layer 4 — Completeness (`C001`–`C013`)
 
@@ -547,7 +556,8 @@ actually do at runtime?"*
 | Gateways         | Total count, ID, and role for each               |
 | Sessions         | Enabled/disabled, schedule summary               |
 | Collars          | Whether enforced and which levels are configured |
-| Circuit breakers | Whether enforced and threshold summary           |
+| Order limits     | Per-symbol max order qty/value, or "none configured" |
+| Circuit breakers | Whether enforced and threshold summary; noted "(built-in defaults)" when no `circuit_breaker_defaults` is configured |
 | MM obligations   | Whether enforcement is active                    |
 | Admin gateway    | Which gateway (if any) has role `ADMIN`          |
 | Indices          | Index IDs if any are configured                  |
