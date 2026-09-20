@@ -45,7 +45,8 @@ img {
   margin: 1.2em auto;
 }
 
-/* ── Admonitions (!!! note "Title" / tip / warning / info) ─────────────── */
+/* ── Admonitions (!!! note / tip / warning / info / abstract / important /
+       question / danger / bug) ──────────────────────────────────────────── */
 div.admonition {
   margin: 1.2em 0;
   padding: 0.7em 1em;
@@ -82,6 +83,36 @@ div.admonition.info {
   background: #f0f0f1;
 }
 div.admonition.info p.admonition-title { color: #2d3748; }
+
+div.admonition.abstract {
+  border-left-color: #0e7490;
+  background: #ecf7fa;
+}
+div.admonition.abstract p.admonition-title { color: #0b5c73; }
+
+div.admonition.important {
+  border-left-color: #0f766e;
+  background: #ecf7f5;
+}
+div.admonition.important p.admonition-title { color: #0c5f59; }
+
+div.admonition.question {
+  border-left-color: #65750f;
+  background: #f5f7ea;
+}
+div.admonition.question p.admonition-title { color: #55620c; }
+
+div.admonition.danger {
+  border-left-color: #991b1b;
+  background: #f9e3e3;
+}
+div.admonition.danger p.admonition-title { color: #7f1616; }
+
+div.admonition.bug {
+  border-left-color: #9d174d;
+  background: #f9e8ef;
+}
+div.admonition.bug p.admonition-title { color: #831243; }
 
 div.admonition > *:last-child {
   margin-bottom: 0;

@@ -325,7 +325,7 @@ subcommand reference, `--dry-run` output, and exit codes.
     will have a brief moment where the pre-adjustment divisor is used for one
     more trade before the action takes effect.
 
-??? note "Under the hood: `ExchangeCommandClient`"
+!!! note "Under the hood: `ExchangeCommandClient`"
     `pm-index-admin-cli` is a thin wrapper over the `ExchangeCommandClient`
     class (`edumatcher.commands.client`) — the same class `pm-admin-cli` uses
     internally for its engine commands. The CLI calls its

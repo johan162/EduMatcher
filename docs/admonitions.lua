@@ -15,6 +15,21 @@
 --   !!! note "Title"
 --       Body text
 --
+--   !!! abstract "Title"
+--       Body text
+--
+--   !!! important "Title"
+--       Body text
+--
+--   !!! question "Title"
+--       Body text
+--
+--   !!! danger "Title"
+--       Body text
+--
+--   !!! bug "Title"
+--       Body text
+--
 -- Notes:
 -- - This filter targets LaTeX and EPUB3 output only (FORMAT == "latex" or
 --   "epub3"); all other formats (e.g. MkDocs' own HTML build, which already
@@ -44,6 +59,31 @@ local STYLE = {
     colback = "black!5",
     colframe = "black!65",
   },
+  abstract = {
+    label = "Abstract",
+    colback = "cyan!7",
+    colframe = "cyan!60!black",
+  },
+  important = {
+    label = "Important",
+    colback = "teal!8",
+    colframe = "teal!65!black",
+  },
+  question = {
+    label = "Question",
+    colback = "olive!10",
+    colframe = "olive!65!black",
+  },
+  danger = {
+    label = "Danger",
+    colback = "red!12",
+    colframe = "red!80!black",
+  },
+  bug = {
+    label = "Bug",
+    colback = "magenta!7",
+    colframe = "magenta!60!black",
+  },
 }
 
 local function trim(s)
@@ -65,6 +105,10 @@ local function inlines_after_first_linebreak(inlines)
     end
   end
   return pandoc.List()
+end
+
+local function starts_with_bangs(inlines)
+  return #inlines > 0 and inlines[1].t == "Str" and inlines[1].text == "!!!"
 end
 
 local function parse_admonition_header(inlines)
@@ -452,10 +496,13 @@ function Pandoc(doc)
         while i + 1 + collected <= #doc.blocks do
           local next_block = doc.blocks[i + 1 + collected]
           
-          -- Stop at headers, horizontal rules, or other admonitions
+          -- Stop at headers, horizontal rules, or other admonitions. The
+          -- test is "starts with !!!", not "is a recognised admonition": an
+          -- unsupported kind must still end this block rather than be
+          -- absorbed into its body as literal text.
           if next_block.t == "Header" or 
              next_block.t == "HorizontalRule" or
-             (next_block.t == "Para" and parse_admonition_header(next_block.content)) then
+             (next_block.t == "Para" and starts_with_bangs(next_block.content)) then
             break
           end
 

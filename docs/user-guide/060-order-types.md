@@ -296,14 +296,14 @@ Use ICEBERG when:
   the same price, the order with the lowest `arrival_seq` — i.e. the one the
   engine admitted first — gets filled first; a fresh `arrival_seq` means this
   peak waits behind all other orders already resting at that price)
-
-    !!! info "Priority is keyed on `arrival_seq`, not the order's `timestamp`"
-        `arrival_seq` is a monotonic counter the **engine** assigns when it
-        admits an order into the book — it is not the client-supplied
-        `timestamp` field on the order. See [Priority Rules](#priority-rules)
-        below and [Order Amendment — AMEND](../user-guide/900-app-alf-protocol.md#priority-rules)
-        for the full explanation of why this distinction matters.
 - The total hidden size is **never visible** to other market participants
+
+!!! info "Priority is keyed on `arrival_seq`, not the order's `timestamp`"
+    `arrival_seq` is a monotonic counter the **engine** assigns when it
+    admits an order into the book — it is not the client-supplied
+    `timestamp` field on the order. See [Priority Rules](#priority-rules)
+    below and [Order Amendment — AMEND](../user-guide/900-app-alf-protocol.md#priority-rules)
+    for the full explanation of why this distinction matters.
 
 
 ### Gateway Syntax
