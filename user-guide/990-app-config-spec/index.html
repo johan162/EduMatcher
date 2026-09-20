@@ -6294,10 +6294,6 @@ rejected at load.</p>
 <td><code>circuit_breaker.reopening.initial_band_pct</code> and every <code>expansions[].widen_pct</code> ∈ (0,1); <code>expansions</code> is non-empty; <code>expansions[].min_duration_ns</code> is <code>&gt; 0</code>; <code>random_end_max_ns</code> is <code>&gt;= 0</code>; <code>random_seed</code> and <code>expansions</code> appear only under <code>circuit_breaker_defaults</code>.</td>
 </tr>
 <tr>
-<td>CV13</td>
-<td><code>symbols.&lt;S&gt;.tick_decimals</code> ∈ 0..8; <code>outstanding_shares</code>, when present, <code>&gt; 0</code>.</td>
-</tr>
-<tr>
 <td>CV14</td>
 <td>(<code>pm-alf-gwy</code>, <code>pm-balf-gwy</code>) No <code>gateways.alf</code> id may be a prefix of another id.</td>
 </tr>
@@ -6310,12 +6306,16 @@ rejected at load.</p>
 <td>(<code>pm-scheduler</code>) An unrecognised <code>country</code> value is the <strong>sole exception</strong> to the "MUST be rejected" rule in this section — the loader substitutes the default (<code>"Sweden"</code>) and logs a warning instead of aborting. <code>pm-scheduler</code> treats a calendar day as non-trading (and sends no <code>schedule</code> transitions) when it is a Saturday, a Sunday, or a <code>country</code> bank holiday.</td>
 </tr>
 <tr>
+<td>CV17</td>
+<td>(<code>pm-log-srv</code>) <code>log_server.retention_days</code>, when present, MUST be <code>&gt;= 0</code> or <code>null</code>; <code>port</code>, <code>max_message_bytes</code>, <code>max_client_queue</code>, <code>write_batch_size</code>, <code>write_batch_interval_ms</code>, and <code>heartbeat_interval_sec</code> MUST each be <code>&gt; 0</code>.</td>
+</tr>
+<tr>
 <td>CV18</td>
 <td>Every <code>Price</code> in the file is a whole multiple of its symbol's tick size — <code>symbols.&lt;S&gt;.last_buy_price</code>/<code>last_sell_price</code>, <code>market_maker_quotes[].bid_price</code>/<code>ask_price</code>, and <code>market_maker_combos[].legs[].price</code>/<code>stop_price</code>. The scale is the owning symbol's <code>tick_decimals</code>; for a combo leg that is the <strong>leg's</strong> symbol, not the combo's first. An off-grid price is rejected, not rounded.</td>
 </tr>
 <tr>
-<td>CV17</td>
-<td>(<code>pm-log-srv</code>) <code>log_server.retention_days</code>, when present, MUST be <code>&gt;= 0</code> or <code>null</code>; <code>port</code>, <code>max_message_bytes</code>, <code>max_client_queue</code>, <code>write_batch_size</code>, <code>write_batch_interval_ms</code>, and <code>heartbeat_interval_sec</code> MUST each be <code>&gt; 0</code>.</td>
+<td>CV19</td>
+<td><code>symbols.&lt;S&gt;.tick_decimals</code> ∈ 0..8; <code>outstanding_shares</code>, when present, <code>&gt; 0</code>.</td>
 </tr>
 </tbody>
 </table>

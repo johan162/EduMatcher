@@ -5511,6 +5511,22 @@ the matching system keeps lifecycle and cancellation coupling explicit.</p>
 <p>Each leg is a standard LIMIT order posted to its respective symbol book</p>
 </li>
 <li>All legs are tracked together under a parent combo ID</li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">Known bug: OCO leg price/stop/trail fields are dropped on the wire</p>
+<p>The ALF gateway builds each OCO leg's wire payload with the keys <code>price</code>,
+<code>stop_price</code>, and <code>trail_offset</code>, but the engine's OCO handler reads
+<code>price_ticks</code>, <code>stop_price_ticks</code>, and <code>trail_offset_ticks</code> from that same
+payload. The mismatch means any <code>LEG1_PRICE=</code>/<code>LEG1_STOP=</code>/<code>LEG1_TRAIL=</code>
+(or <code>LEG2_*</code>) value you supply is silently dropped before it reaches the
+engine, and the leg is then rejected as missing its required price/stop
+(e.g. <code>Leg 1 (LIMIT) requires price</code>). As of this writing, <strong>every OCO
+example below that includes a leg price, stop, or trail offset will be
+rejected</strong> — only an OCO pair whose legs need no such field (which none
+of the standard order types allow) would go through. This is a defect in
+the gateway/engine wire contract, not in how you invoke <code>NEW|TYPE=OCO</code>.</p>
+</div>
+<ul>
 <li>If any leg is cancelled or expires, all remaining legs are automatically
   <strong>cascade-cancelled</strong> (unfilled quantities only — fills already executed
   are not reversed)</li>
@@ -5612,7 +5628,7 @@ that instruction is valid under changing session states.</p>
 <tbody>
 <tr>
 <td><code>DAY</code> (default)</td>
-<td>Valid for the current trading session only. Cancelled/expired at engine shutdown or when the session transitions to CLOSED.</td>
+<td>Valid for the current trading session only. <strong>Not</strong> discarded at engine shutdown — it is persisted (alongside GTC orders) and restored on the next startup, dropped there only if the business day has since moved on. True expiry happens when the session transitions to <code>CLOSED</code>.</td>
 </tr>
 <tr>
 <td><code>GTC</code></td>

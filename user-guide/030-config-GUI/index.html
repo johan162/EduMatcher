@@ -4729,7 +4729,7 @@ effort. Pick the one that matches your situation.</p>
 <td><a href="#option-3-local-development">Local development</a></td>
 <td>Contributing to the GUI itself</td>
 <td>Node.js + npm</td>
-<td><code>http://127.0.0.1:5174</code></td>
+<td><code>http://127.0.0.1:8192</code></td>
 </tr>
 </tbody>
 </table>
@@ -4753,18 +4753,18 @@ are covered under <a href="#deployment-and-operations">Deployment and operations
 <h3 id="option-2-a-pre-built-image-artifact">Option 2 — A pre-built image artifact<a class="headerlink" href="#option-2-a-pre-built-image-artifact" title="Permanent link">&para;</a></h3>
 <p>For a host without a repository clone — or to ship a ready-to-run image — the
 distributable artifact is a self-contained OCI image archive built with
-<code>make dist</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>dist/edumatcher-config-gui-&lt;version&gt;.tar
+<code>make cdist</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>dist/edumatcher-config-gui-&lt;version&gt;.tar.xz
 </code></pre></div>
-<p>The tar contains everything the application needs at runtime (Node.js runtime,
-compiled frontend, and the Fastify backend) with no external dependencies. Load
-and run it on the target host:</p>
+<p>The archive contains everything the application needs at runtime (Node.js
+runtime, compiled frontend, and the Fastify backend) with no external
+dependencies. Load and run it on the target host:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Podman</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>podman<span class="w"> </span>load<span class="w">  </span>--input<span class="w"> </span>edumatcher-config-gui-&lt;version&gt;.tar
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>podman<span class="w"> </span>load<span class="w">  </span>--input<span class="w"> </span>edumatcher-config-gui-&lt;version&gt;.tar.xz
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>podman<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>config-gui<span class="w"> </span>-p<span class="w"> </span><span class="m">8092</span>:8092<span class="w"> </span>edumatcher-config-gui:&lt;version&gt;
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
 <a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># Docker</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>docker<span class="w"> </span>load<span class="w">  </span>--input<span class="w"> </span>edumatcher-config-gui-&lt;version&gt;.tar
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>docker<span class="w"> </span>load<span class="w">  </span>--input<span class="w"> </span>edumatcher-config-gui-&lt;version&gt;.tar.xz
 <a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>docker<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>config-gui<span class="w"> </span>-p<span class="w"> </span><span class="m">8092</span>:8092<span class="w"> </span>edumatcher-config-gui:&lt;version&gt;
 </code></pre></div>
 <p>The <code>load</code> command prints the exact image tag, e.g. <code>edumatcher-config-gui:1.0.0</code>.
@@ -4782,10 +4782,10 @@ Docker — no Node.js, no npm, and no repository clone.</p>
 <strong>web</strong> dev server) from a checkout:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">cd</span><span class="w"> </span>web-apps/config-gui
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>npm<span class="w"> </span>install
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>npm<span class="w"> </span>run<span class="w"> </span>dev<span class="w">          </span><span class="c1"># starts the API (port 5175) and the web UI (port 5174)</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>npm<span class="w"> </span>run<span class="w"> </span>dev<span class="w">          </span><span class="c1"># starts the API (port 5192) and the web UI (port 8192)</span>
 </code></pre></div>
-<p>Open <strong>http://127.0.0.1:5174</strong>. The Vite dev server hot-reloads on save and
-proxies <code>/api/*</code> to the backend, so you only ever open the <code>5174</code> URL.</p>
+<p>Open <strong>http://127.0.0.1:8192</strong>. The Vite dev server hot-reloads on save and
+proxies <code>/api/*</code> to the backend, so you only ever open the <code>8192</code> URL.</p>
 <p>For separate logs, run the processes in two terminals with <code>npm run dev:server</code>
 and <code>npm run dev:web</code> (or <code>make dev-server</code> / <code>make dev-web</code>). Developer-facing
 details — project layout, tests, and how to keep the GUI in sync with the
@@ -5026,7 +5026,7 @@ all start consistent. See also
 <td>Uppercased automatically; must be unique.</td>
 </tr>
 <tr>
-<td><strong>Reference price</strong></td>
+<td><strong>IPO reference price</strong></td>
 <td>The opening mid-price. Derives <code>last_buy_price</code> / <code>last_sell_price</code> and becomes the collar's static reference on day one.</td>
 </tr>
 <tr>
@@ -5584,7 +5584,7 @@ separately; then either reverse-proxy <code>/api</code> under the same origin or
 </tr>
 <tr>
 <td><code>PORT</code></td>
-<td><code>5175</code></td>
+<td><code>5192</code></td>
 <td>API port (<code>8092</code> in the container image)</td>
 </tr>
 <tr>
@@ -5735,7 +5735,7 @@ server can also serve the built UI, collapsing the two into one container.</p>
 <tr>
 <td><strong>API calls fail in dev</strong> (<code>ECONNREFUSED</code> / 404 on <code>/api</code>)</td>
 <td>The backend is not running</td>
-<td>Start <code>npm run dev:server</code>; the web dev server proxies <code>/api</code> to <code>http://127.0.0.1:5175</code>.</td>
+<td>Start <code>npm run dev:server</code>; the web dev server proxies <code>/api</code> to <code>http://127.0.0.1:5192</code>.</td>
 </tr>
 <tr>
 <td><strong><code>"root" option must be an absolute path</code></strong> on startup</td>
@@ -5769,7 +5769,7 @@ server can also serve the built UI, collapsing the two into one container.</p>
 </tr>
 <tr>
 <td><strong>Port already in use</strong></td>
-<td>Another process holds <code>5174</code>/<code>5175</code>/<code>8092</code></td>
+<td>Another process holds <code>8192</code>/<code>5192</code>/<code>8092</code></td>
 <td>Change <code>PORT</code> (API) or <code>server.port</code> / proxy target in <code>web-apps/config-gui/apps/web/vite.config.ts</code> (web).</td>
 </tr>
 <tr>

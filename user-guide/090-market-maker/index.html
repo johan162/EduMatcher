@@ -5192,7 +5192,7 @@ management.</p>
 <tr>
 <td><code>TIF=</code></td>
 <td><code>DAY</code></td>
-<td>Either <code>DAY</code> or <code>GTC</code>; controls whether the quote survives to the next session</td>
+<td><code>DAY</code>, <code>GTC</code>, <code>ATO</code>, or <code>ATC</code> are all accepted (same <code>TIF</code> enum as <code>NEW</code>); <code>DAY</code>/<code>GTC</code> control whether the quote survives to the next session. Unlike <code>NEW</code>, the engine applies no session-phase check for <code>ATO</code>/<code>ATC</code> quotes.</td>
 </tr>
 </tbody>
 </table>
@@ -5232,7 +5232,7 @@ management.</p>
 </tr>
 <tr>
 <td>Sending a new quote replaces any existing quote for the same (gateway, symbol) pair</td>
-<td><em>(no rejection; the existing quote is cancelled silently)</em></td>
+<td><em>(no rejection; the existing quote is cancelled with an ordinary <code>quote.status CANCELLED</code> event — see <a href="#quote-lifecycle">Quote lifecycle</a> below)</em></td>
 </tr>
 </tbody>
 </table>
@@ -5482,13 +5482,18 @@ classroom or demo environment it is useful to have quotes already in the book
 <em>before any participant connects</em>, so the book is never completely empty and
 price discovery can begin from a known starting point.</p>
 <div class="admonition warning">
-<p class="admonition-title"><code>market_maker_quotes</code> is mandatory once any MARKET_MAKER gateway is configured</p>
-<p>This is not just a convenience feature. Config loading enforces it: if
-<code>gateways.alf</code> contains <strong>any</strong> gateway with <code>role: MARKET_MAKER</code>, then
+<p class="admonition-title"><code>market_maker_quotes</code> is mandatory by default once any MARKET_MAKER gateway is configured</p>
+<p>Config loading enforces this by default: if <code>gateways.alf</code> contains
+<strong>any</strong> gateway with <code>role: MARKET_MAKER</code> and the top-level
+<code>require_mm_seed_quotes</code> flag is left at its default (<code>true</code>), then
 <strong>every</strong> configured symbol must have at least one <code>market_maker_quotes</code>
 entry, or <code>load_engine_config()</code> raises <code>ValueError("Symbol '&lt;SYM&gt;': at
 least one market_maker_quotes entry is required when MARKET_MAKER
-gateways are configured")</code> and the engine refuses to start. Each seed's
+gateways are configured (set require_mm_seed_quotes: false to allow an
+empty book)")</code> and the engine refuses to start. Set <code>require_mm_seed_quotes:
+false</code> at the top level of <code>engine_config.yaml</code> to opt out and allow a
+MARKET_MAKER-configured symbol to start with an empty book — see
+<a href="../010-configuration/">Configuration</a> for this flag. Each seed's
 <code>gateway_id</code> must also reference a gateway that is actually configured
 with <code>role: MARKET_MAKER</code> — a seed pointing at a <code>TRADER</code> gateway is
 rejected at load time too.</p>
@@ -5769,10 +5774,10 @@ the MM disconnects.</p>
 <a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>
 <a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a># 2. GW02 buys 200 at market — hits the ASK leg
 <a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>[GW02]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=200
-<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>[14:30:01] FILL  ord-003  AAPL BUY  200@150.05
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>[14:30:01] FILL      ord-003  qty=200 @150.05  remaining=0  [FILLED]
 <a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>
 <a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a># MM01 sees:
-<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>[14:30:01] FILL  ord-002  AAPL SELL  200@150.05  (partial fill on ask)
+<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>[14:30:01] FILL      ord-002  qty=200 @150.05  remaining=300  [PARTIAL]  (fill on ask leg)
 <a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a>[14:30:01] QUOTE INACTIVE_ASK_FILLED  q1          (bid leg auto-cancelled)
 <a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a>
 <a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a># 3. MM01 re-quotes
@@ -5846,7 +5851,8 @@ or re-issue a quote.</p>
 <p>The fill arrives as a normal <code>order.fill.&lt;gateway_id&gt;</code> event for a leg <code>order_id</code>.</p>
 <p>Important implementation detail:</p>
 <ul>
-<li><code>order.fill</code> does <strong>not</strong> include <code>quote_id</code> in its published payload.</li>
+<li><code>order.fill</code> <strong>does</strong> include <code>quote_id</code> in its published payload (an
+  <code>Order</code>'s <code>quote_id</code> field is carried straight through to the fill event).</li>
 </ul>
 <p>Therefore the MM must identify quote-leg fills by keeping the mapping returned
 by <code>quote.ack</code>:</p>
@@ -5953,7 +5959,7 @@ The fill payload includes fields such as:</p>
 <li><code>qty</code></li>
 <li><code>price</code></li>
 </ul>
-<p>It does <strong>not</strong> include <code>quote_id</code>.</p>
+<p>It <strong>does</strong> include <code>quote_id</code> (see above).</p>
 <p>So the MM must not assume that <code>order.fill</code> alone is enough to identify the
 logical quote instance unless the MM already persisted the order-id mapping from
 <code>quote.ack</code>.</p>
@@ -6107,7 +6113,7 @@ fill pattern produced that leftover.</p>
 <strong>partial</strong> fill, chosen deliberately for this example because it is the
 case that is easy to get wrong (a full fill collapses the nuance below,
 since there is no remainder left to reason about). The MM may see:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[09:31:02] FILL  B1A8C2D4  AAPL BUY 100@209.80  remaining=400  status=PARTIAL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[09:31:02] FILL      B1A8C2D4  qty=100 @209.80  remaining=400  [PARTIAL]
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>[09:31:02] CANCELLED  S9F3E1AA
 <a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>[09:31:02] QUOTE INACTIVE_BID_FILLED  Q123
 </code></pre></div>
@@ -6145,7 +6151,7 @@ other resting order.</p>
 <h3 id="example-2-full-fill-only-policy">Example 2: full-fill-only policy<a class="headerlink" href="#example-2-full-fill-only-policy" title="Permanent link">&para;</a></h3>
 <p>Assume policy <code>INACTIVATE_ON_FULL_FILL</code>.</p>
 <p>If the bid leg is only partially filled, the MM may see:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>[09:31:02] FILL  B1A8C2D4  AAPL BUY 100@209.80  remaining=400  status=PARTIAL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>[09:31:02] FILL      B1A8C2D4  qty=100 @209.80  remaining=400  [PARTIAL]
 </code></pre></div>
 <p>And that may be all.</p>
 <p>In that case:</p>
@@ -6162,7 +6168,7 @@ other resting order.</p>
 <h3 id="example-3-never_inactivate">Example 3: <code>NEVER_INACTIVATE</code><a class="headerlink" href="#example-3-never_inactivate" title="Permanent link">&para;</a></h3>
 <p>Assume policy <code>NEVER_INACTIVATE</code>.</p>
 <p>The MM may see:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>[09:31:02] FILL  B1A8C2D4  AAPL BUY 100@209.80
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>[09:31:02] FILL      B1A8C2D4  qty=100 @209.80  remaining=400  [PARTIAL]
 </code></pre></div>
 <p>And no automatic sibling cancel, and no <code>INACTIVE_*</code> status.</p>
 <p>Meaning:</p>
@@ -6196,7 +6202,7 @@ immediately replacing the quote with another quote on the same symbol.</p>
 <h3 id="example-4-immediate-fill-before-quoteack">Example 4: immediate fill before <code>quote.ack</code><a class="headerlink" href="#example-4-immediate-fill-before-quoteack" title="Permanent link">&para;</a></h3>
 <p>This is the tricky case that every robust MM must handle.</p>
 <p>Suppose the quote is marketable as soon as it is inserted. The MM may see:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>[09:30:00] FILL  B1A8C2D4  AAPL BUY 500@209.80
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>[09:30:00] FILL      B1A8C2D4  qty=500 @209.80  remaining=0  [FILLED]
 <a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>[09:30:00] CANCELLED  S9F3E1AA
 <a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>[09:30:00] QUOTE INACTIVE_BID_FILLED  Q123
 <a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>[09:30:00] QUOTE ACK  Q123  bid=B1A8C2D4 ask=S9F3E1AA
@@ -6230,15 +6236,17 @@ print back, and what the operator must remember while managing live quotes.</p>
 format.</p>
 <p>Important display behavior:</p>
 <ul>
-<li><code>QUOTE ACK</code> shows the <code>quote_id</code> and the first 8 characters of each child order ID</li>
-<li><code>FILL</code> shows the first 8 characters of the filled child order ID</li>
-<li><code>CANCELLED</code> shows the first 8 characters of the cancelled child order ID</li>
+<li><code>QUOTE ACK</code> shows the <code>quote_id</code> and the full child order ID for each leg</li>
+<li><code>FILL</code> shows the full filled child order ID</li>
+<li><code>CANCELLED</code> shows the full cancelled child order ID</li>
 <li><code>QUOTE INACTIVE_*</code> and <code>QUOTE CANCELLED</code> show the <code>quote_id</code></li>
 </ul>
-<p>So a human operator correlates events using:</p>
+<p>The gateway prints full order IDs (32-character hex strings) — it does not
+truncate them. So a human operator correlates events using:</p>
 <ul>
 <li><code>quote_id</code> for the logical quote instance</li>
-<li>the displayed 8-character order-id prefixes for the bid and ask legs</li>
+<li>the full order IDs for the bid and ask legs (shortened to 8 characters in
+  the examples below purely for readability)</li>
 </ul>
 <p>To reduce manual correlation load in fast markets, the gateway supports:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>QLEGS[|SYM=&lt;symbol&gt;][|SHOW=ACTIVE|RECENT|ALL]
@@ -6269,8 +6277,9 @@ recover the current <code>quote_id</code> → leg mapping without having witness
 original <code>quote.ack</code>.</p>
 </div>
 <p>A programmatic MM should keep the full IDs from the message payload. A human
-operator using the terminal will usually work from the 8-character prefixes
-printed by the gateway.</p>
+operator using the terminal sees those same full IDs printed — the shortened
+IDs in the examples below (e.g. <code>7c4a91e2</code>) stand in for the full 32-character
+order ID for readability.</p>
 <h3 id="typical-manual-quoting-session">Typical manual quoting session<a class="headerlink" href="#typical-manual-quoting-session" title="Permanent link">&para;</a></h3>
 <p>Assume the MM operator is connected as <code>MM01</code> and wants to quote <code>AAPL</code>.</p>
 <h4 id="step-1-submit-a-quote">Step 1: submit a quote<a class="headerlink" href="#step-1-submit-a-quote" title="Permanent link">&para;</a></h4>

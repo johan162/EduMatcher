@@ -4696,7 +4696,7 @@ the equilibrium price before continuous matching begins.</p>
 </div>
 <h3 id="valid-state-transitions">Valid state transitions<a class="headerlink" href="#valid-state-transitions" title="Permanent link">&para;</a></h3>
 <pre class="mermaid"><code>stateDiagram-v2
-    [*] --&gt; PRE_OPEN : engine start (sessions enabled)
+    [*] --&gt; CLOSED : engine start (sessions enabled)
     PRE_OPEN --&gt; OPENING_AUCTION
     PRE_OPEN --&gt; CONTINUOUS : skip opening auction
     OPENING_AUCTION --&gt; CONTINUOUS : uncross + ATO expiry
@@ -4726,8 +4726,10 @@ socket. It only does so on working days — see
 <a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="c1"># Custom delay between transitions in --now mode (default 3 s)</span>
 <a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler<span class="w"> </span>--now<span class="w"> </span>--delay<span class="w"> </span><span class="m">5</span>
 <a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>
-<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="c1"># Point to a different config file</span>
-<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="c1"># pm-scheduler always reads the deployed compiled artifact (like pm-engine) --</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="c1"># there is no flag to point it at a different config file; see</span>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="c1"># [Configuration -- Missing-file Behavior](010-configuration.md) for why.</span>
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler
 </code></pre></div>
 <h3 id="cli-flag-reference">CLI flag reference<a class="headerlink" href="#cli-flag-reference" title="Permanent link">&para;</a></h3>
 <table>
@@ -4753,11 +4755,6 @@ socket. It only does so on working days — see
 <td><code>--daily</code></td>
 <td>off</td>
 <td>Run continuously, repeating the schedule every calendar day instead of exiting after today</td>
-</tr>
-<tr>
-<td><code>--config FILE</code> / <code>-c</code></td>
-<td><code>engine_config.yaml</code></td>
-<td>Config YAML with a <code>schedule</code> section</td>
 </tr>
 <tr>
 <td><code>--no-confirm</code></td>
@@ -5147,10 +5144,13 @@ improvement or slippage during the uncross.</p>
 </table>
 <hr />
 <h2 id="hands-on-driving-an-opening-auction-manually">Hands-on: driving an opening auction manually<a class="headerlink" href="#hands-on-driving-an-opening-auction-manually" title="Permanent link">&para;</a></h2>
-<p>This short walkthrough uses two terminals with <code>sessions_enabled: true</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a># Terminal 1 — ADMIN gateway
+<p>This short walkthrough uses two terminals with <code>sessions_enabled: true</code>. Terminal 1
+runs <code>pm-admin --id OPS01</code> (a gateway configured with <code>role: ADMIN</code>) — the
+<code>SESSION|STATE=</code> command that advances the session is only available there, not
+in <code>pm-alf-console</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a># Terminal 1 — ADMIN gateway (pm-admin --id OPS01)
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>[OPS01|ADMIN]&gt; SESSION|STATE=OPENING_AUCTION
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>[PRE_OPEN → OPENING_AUCTION]
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>SESSION  PRE_OPEN → OPENING_AUCTION
 <a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>
 <a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a># Terminal 2 — trader submits orders during auction
 <a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=ATO
@@ -5158,8 +5158,9 @@ improvement or slippage during the uncross.</p>
 <a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>
 <a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a># Terminal 1 — trigger the uncross
 <a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>[OPS01|ADMIN]&gt; SESSION|STATE=CONTINUOUS
-<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>[OPENING_AUCTION → CONTINUOUS]
-<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a># Engine prints: auction.result AAPL price=149.50 qty=100 surplus=0
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>SESSION  OPENING_AUCTION → CONTINUOUS
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a># Engine logs: UNCROSS AAPL: 1 trade(s) @ 149.5, qty=100, surplus=0 (...)
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a># and publishes an auction.result.AAPL message with the same fields.
 </code></pre></div>
 <p>Both ATO orders fill at the equilibrium price.  The <code>TIF=ATO</code> orders are
 expired if they did <em>not</em> fill.</p>

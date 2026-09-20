@@ -4733,7 +4733,7 @@ streams into the same PUSH socket instead of two sockets.</p>
     WAITING_FOR_SESSION --&gt; REISSUING : session=CONTINUOUS + reference available
     QUOTING --&gt; REPRICING : mid drift exceeds threshold
     QUOTING --&gt; REISSUING : quote inactivated (fill)
-    QUOTING --&gt; PAUSED : session != CONTINUOUS or HALTED
+    QUOTING --&gt; PAUSED : session != CONTINUOUS, or circuit_breaker.halt for this symbol
     REPRICING --&gt; REISSUING : new quote required
     REISSUING --&gt; QUOTING : quote.ack received
     PAUSED --&gt; WAITING_FOR_SESSION : resume trigger
@@ -4888,12 +4888,13 @@ is ever lost:</p>
 <td><code>CLOSED</code></td>
 <td>Cancel any live quote; wait</td>
 </tr>
-<tr>
-<td><code>HALTED</code> (circuit breaker)</td>
-<td>Cancel and pause immediately</td>
-</tr>
 </tbody>
 </table>
+<p>A circuit-breaker halt is <strong>not</strong> a <code>session.state</code> value — it arrives on a
+separate, per-symbol <code>circuit_breaker.halt.&lt;SYMBOL&gt;</code> topic (and clears on the
+matching <code>circuit_breaker.resume.&lt;SYMBOL&gt;</code> topic), independent of the session
+state. On a halt for one of its symbols, the bot cancels that symbol's live
+quote and pauses immediately; it resumes on the matching resume event.</p>
 <p>When the session transitions to <code>CONTINUOUS</code>, the bot resumes quoting
 automatically.</p>
 <hr />
@@ -5161,9 +5162,12 @@ is centred, never the rules for how it's rounded or how wide it can get.</p>
 = <code>150.00</code>. At <code>net_position = +500</code> (half of max_position, long):
 <code>fraction = 0.5</code>, <code>skew = -0.5 × 0.05 = -0.025</code>, <code>effective_mid = 149.975</code>.
 The bid and ask (still <code>±0.05</code> from that effective mid, then tick-rounded)
-come out at roughly <code>149.93</code> / <code>150.03</code> — both about two and a half cents
-lower than the flat-position quote of <code>149.95</code> / <code>150.05</code>, making the ask
-cheaper to lift and the bid less attractive to hit.</p>
+come out at <code>149.92</code> / <code>150.02</code> — both about three cents lower than the
+flat-position quote of <code>149.95</code> / <code>150.05</code>, making the ask cheaper to lift
+and the bid less attractive to hit. (The rounded values land three cents,
+not the two-and-a-half the raw <code>149.975 ± 0.05</code> arithmetic suggests, because
+<code>149.975 - 0.05</code> evaluates to <code>149.92499999999998</code> in floating point and
+rounds down a tick.)</p>
 <p><strong>What happens when <code>--max-position</code> is reached?</strong> The bot does <strong>not</strong>
 stop quoting. <code>fraction</code> is clamped to <code>±1.0</code>, so once <code>|net_position| &gt;=
 max_position</code> the skew simply stays pinned at its maximum (the full
@@ -5336,36 +5340,42 @@ quoting rather than failing the whole process — see
 </code></pre></div>
 <hr />
 <h2 id="understanding-bot-output">Understanding bot output<a class="headerlink" href="#understanding-bot-output" title="Permanent link">&para;</a></h2>
-<p>Each bot prefixes every log line with its gateway ID and timestamp. At default
-verbosity the bot is quiet — it only logs milestones and problems, not routine
-quoting activity:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>[MM:MM_AAPL_01 09:30:00] starting: symbols=AAPL strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
-<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>[MM:MM_AAPL_01 09:30:01] authenticated
-<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>[MM:MM_AAPL_01 09:30:01] bootstrap from random range: 150.00
-<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>[MM:MM_AAPL_01 09:30:14] quote REJECTED: gap exceeds mm_max_spread_ticks
-<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>[MM:MM_AAPL_01 09:30:20] circuit breaker HALT
-<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>[MM:MM_AAPL_01 09:30:45] circuit breaker RESUME
-<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a>[MM:MM_AAPL_01 09:31:02] heartbeat: no active quote — reissuing
-<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a>[MM:MM_AAPL_01 09:31:10] QLEGS mismatch: quote_id divergence — reissuing
-<a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a>[MM:MM_AAPL_01 09:35:00] shutdown complete
+<p>Every log line has the standard EduMatcher format
+(<code>&lt;timestamp&gt; &lt;LEVEL&gt; &lt;logger-name&gt; - &lt;message&gt;</code>), and every message the bot
+itself emits is further prefixed with its own gateway ID in brackets, e.g.
+<code>[MM_AAPL_01] &lt;message&gt;</code>. At true default verbosity (no <code>-v</code>/<code>-q</code>/<code>--log-level</code>
+flag at all) the bot's own lifecycle messages are logged at <code>INFO</code>, but the
+default logging level is <code>WARNING</code> — so <strong>none of them are visible</strong> unless
+something fails outright (those paths log at <code>ERROR</code>). Pass <code>-v</code> to see the
+bot's milestones and problems (routine per-quote activity needs <code>-vv</code> or the
+dedicated <code>--verbose</code> sections below):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>2026-09-20 09:30:00,001 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] starting: symbols=AAPL strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>2026-09-20 09:30:01,002 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] authenticated
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>2026-09-20 09:30:01,003 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] bootstrap from random range: 150.00
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>2026-09-20 09:30:20,004 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] circuit breaker HALT
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>2026-09-20 09:30:45,005 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] circuit breaker RESUME
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>2026-09-20 09:35:00,006 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] shutdown complete
 </code></pre></div>
-<p>The <code>starting:</code> line reports the bot's resolved configuration and is always
-visible — you don't need <code>-v</code> to confirm what a running bot is actually
-configured to quote. For a <code>--symbols</code> bot, <code>symbols=</code> lists every symbol
-the process covers (e.g. <code>symbols=AAPL,MSFT</code>), and every per-symbol log line
-below carries an additional <code>[SYMBOL]</code> tag ahead of the message so you can
-tell which symbol a given quoting decision belongs to:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>[MM:MM_TECH_01 09:30:00] starting: symbols=AAPL,MSFT strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
-<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>[MM:MM_TECH_01 09:30:01] authenticated
-<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>[MM:MM_TECH_01 09:30:01] [AAPL] bootstrap from random range: 150.00
-<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a>[MM:MM_TECH_01 09:30:01] [MSFT] bootstrap from random range: 310.00
-<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>[MM:MM_TECH_01 09:30:14] [AAPL] quote REJECTED: gap exceeds mm_max_spread_ticks
-<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a>[MM:MM_TECH_01 09:30:14] [AAPL] startup failed: --gap exceeds mm_max_spread_ticks obligation
-<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a>[MM:MM_TECH_01 09:30:14] running symbols=['MSFT'] session=CONTINUOUS
-<a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a>[MM:MM_TECH_01 09:30:20] [MSFT] circuit breaker HALT
-<a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a>[MM:MM_TECH_01 09:30:45] [MSFT] circuit breaker RESUME
-<a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a>[MM:MM_TECH_01 09:35:00] shutdown complete
+<p>The <code>starting:</code> line reports the bot's resolved configuration. For a
+<code>--symbols</code> bot, <code>symbols=</code> lists every symbol the process covers (e.g.
+<code>symbols=AAPL,MSFT</code>), and every per-symbol log line carries an additional
+<code>[SYMBOL]</code> tag ahead of the message so you can tell which symbol a given
+quoting decision belongs to:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>2026-09-20 09:30:00,001 INFO edumatcher.mm_bot.bot - [MM_TECH_01] starting: symbols=AAPL,MSFT strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>2026-09-20 09:30:01,002 INFO edumatcher.mm_bot.bot - [MM_TECH_01] authenticated
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>2026-09-20 09:30:01,003 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [AAPL] bootstrap from random range: 150.00
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a>2026-09-20 09:30:01,004 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] bootstrap from random range: 310.00
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>2026-09-20 09:30:14,005 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [AAPL] startup failed: --gap exceeds mm_max_spread_ticks obligation
+<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a>2026-09-20 09:30:14,006 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [AAPL] excluded from quoting: --gap exceeds mm_max_spread_ticks obligation
+<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a>2026-09-20 09:30:14,007 INFO edumatcher.mm_bot.bot - [MM_TECH_01] running symbols=['MSFT'] session=CONTINUOUS
+<a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a>2026-09-20 09:30:20,008 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] circuit breaker HALT
+<a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a>2026-09-20 09:30:45,009 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] circuit breaker RESUME
+<a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a>2026-09-20 09:35:00,010 INFO edumatcher.mm_bot.bot - [MM_TECH_01] shutdown complete
 </code></pre></div>
+<p>Note that a symbol excluded during startup (as <code>AAPL</code> is here) never reaches
+the point of sending a <code>QUOTE</code> to the engine, so there is no engine-side
+<code>quote REJECTED</code> for it — the <code>startup failed:</code>/<code>excluded from quoting:</code>
+pair above is the complete picture for that symbol.</p>
 <p>Here <code>AAPL</code> failed its gap-vs-obligation check at startup (see
 <a href="#per-symbol-failure-isolation">Per-symbol failure isolation</a>) and was
 excluded, while <code>MSFT</code> continued on its own — the <code>running symbols=[...]</code>
@@ -5374,16 +5384,19 @@ loop.</p>
 <p>With <code>--verbose</code> (<code>-v</code>), the bot additionally logs routine quoting activity —
 symbol/session updates, every quote sent, every fill, and every repricing
 decision:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>[MM:MM_AAPL_01 09:30:01] symbols received: ['AAPL', 'MSFT', 'TSLA']
-<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>[MM:MM_AAPL_01 09:30:01] reference from book/trade: 150.00
-<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>[MM:MM_AAPL_01 09:30:01] QUOTE sent bid=149.95 ask=150.05
-<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>[MM:MM_AAPL_01 09:30:01] quote ACK id=q-001
-<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>[MM:MM_AAPL_01 09:30:14] fill: ASK 200@150.05
-<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>[MM:MM_AAPL_01 09:30:15] QUOTE sent bid=149.95 ask=150.05
-<a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a>[MM:MM_AAPL_01 09:31:02] drift detected — repricing
-<a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a>[MM:MM_AAPL_01 09:31:02] state: QUOTING -&gt; REPRICING
-<a id="__codelineno-27-9" name="__codelineno-27-9" href="#__codelineno-27-9"></a>[MM:MM_AAPL_01 09:31:02] QUOTE sent bid=149.99 ask=150.09
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>2026-09-20 09:30:01,001 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] symbols received: ['AAPL', 'MSFT', 'TSLA']
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>2026-09-20 09:30:01,002 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] reference from book/trade: 150.00
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>2026-09-20 09:30:01,003 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] QUOTE sent bid=149.95 ask=150.05
+<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>2026-09-20 09:30:01,004 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] quote ACK id=q-001
+<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>2026-09-20 09:30:14,005 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] fill: ASK 200@150.05
+<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>2026-09-20 09:30:15,006 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] QUOTE sent bid=149.95 ask=150.05
+<a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a>2026-09-20 09:31:02,007 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] drift detected — repricing
+<a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a>2026-09-20 09:31:02,008 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] state: QUOTING -&gt; REPRICING
+<a id="__codelineno-27-9" name="__codelineno-27-9" href="#__codelineno-27-9"></a>2026-09-20 09:31:02,009 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] QUOTE sent bid=149.99 ask=150.09
 </code></pre></div>
+<p>(<code>symbols received:</code> covers the whole gateway and carries no <code>[SYMBOL]</code> tag;
+every other line above is per-symbol and always carries one, even when the
+bot is only quoting a single symbol.)</p>
 <p><code>-v</code> also raises the underlying log level and enables the bot's own debug
 prints together — it is not just a "print more" switch, it also turns on
 low-level flow tracing (e.g. <code>book mid=...</code>, <code>session: OLD -&gt; NEW</code>, and
@@ -5420,7 +5433,7 @@ low-level flow tracing (e.g. <code>book mid=...</code>, <code>session: OLD -&gt;
 <td>Use only one</td>
 </tr>
 <tr>
-<td><code>startup failed: no reference price</code></td>
+<td><code>startup failed: no reference price available (no book, no trade, no bootstrap, no random range)</code></td>
 <td>Empty book + no <code>--initial_min</code>/<code>--initial_max</code>, for a symbol with no other symbol left quoting</td>
 <td>Add bootstrap range flags</td>
 </tr>

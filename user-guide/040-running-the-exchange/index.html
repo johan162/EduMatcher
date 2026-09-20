@@ -5053,8 +5053,8 @@ directory. What is left is shorter:</p>
 <tbody>
 <tr>
 <td>The right configuration is deployed</td>
-<td><code>./edumatcher.sh config</code> or <code>make config-show</code></td>
-<td><code>EM_CONFIG</code> picks a bundled example; <code>EM_CONFIG_FILE</code> overrides it</td>
+<td><code>make config-show</code> (or <code>./edumatcher.sh shell</code> then <code>pm-config-show</code>)</td>
+<td><code>EM_CONFIG</code> picks a bundled example; <code>EM_CONFIG_FILE</code> overrides it. <code>./edumatcher.sh config &lt;name&gt;</code> <em>selects</em> a configuration and requires an argument — it does not show what is currently deployed</td>
 </tr>
 <tr>
 <td>Every process came up</td>
@@ -5090,7 +5090,7 @@ operator who needs records afterwards.</p>
 listening on the core sockets.</p>
 <p>Typical signals:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>Loaded deployed config .../ref_data/engine_config.json
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>Session handling: disabled (startup state: CONTINUOUS)
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>Session handling: enabled (startup state: CLOSED)
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>Drop copy PUB bound on port 5557
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>Listening on PULL=tcp://127.0.0.1:5555  PUB=tcp://127.0.0.1:5556
 </code></pre></div>
@@ -5205,15 +5205,15 @@ up, or when you are debugging one of them.</p>
 <pre class="mermaid"><code>flowchart TD
     PRE["1. Preflight\nset data dir, deploy config"]
         LOG["2. pm-log-srv\noperational logs"]
-        REC["3. recorders\npm-audit, pm-clearing, pm-stats"]
+        REC["3. recorders\npm-audit, pm-stats, pm-clearing"]
         ENG["4. pm-engine\nbinds :5555 :5556 :5557"]
         SCHED["5. pm-scheduler\nif sessions enabled"]
-        IDX["6. pm-index\nif indices configured"]
-        FEEDS["7. external feeds\npm-md-gwy, pm-api-gwy"]
-        ENTRY["8. external order entry\npm-alf-gwy, optional pm-balf-gwy"]
-        UI["9. browser UIs\nTapeDeck, pm-log-ui"]
+        FEEDS["6. external feeds\npm-md-gwy, pm-ralf-gwy, pm-dc-gwy, pm-api-gwy"]
+        ENTRY["7. external order entry\npm-alf-gwy, optional pm-balf-gwy"]
+        IDX["8. pm-index\nif indices configured"]
+        UI["9. browser UIs\nTapeDeck, log console"]
 
-        PRE --&gt; LOG --&gt; REC --&gt; ENG --&gt; SCHED --&gt; IDX --&gt; FEEDS --&gt; ENTRY --&gt; UI</code></pre>
+        PRE --&gt; LOG --&gt; REC --&gt; ENG --&gt; SCHED --&gt; FEEDS --&gt; ENTRY --&gt; IDX --&gt; UI</code></pre>
 <table>
 <thead>
 <tr>
@@ -5237,7 +5237,7 @@ up, or when you are debugging one of them.</p>
 <td><code>pm-log-srv</code></td>
 <td><code>pm-log-srv</code></td>
 <td>Optional <code>--host</code>, <code>--port</code>, <code>--db</code>; usually none</td>
-<td>Operational logs should have somewhere to go before other long-running services start. This is operationally mandatory when you rely on centralized logs.</td>
+<td>Operational logs should have somewhere to go before other long-running services start. No process fails to start without it — each one queues log records and falls back to a local log file after a 30-second grace window — but starting it first keeps every process's logs centralized instead of scattered on disk.</td>
 </tr>
 <tr>
 <td style="text-align: right;">2</td>
@@ -5248,17 +5248,17 @@ up, or when you are debugging one of them.</p>
 </tr>
 <tr>
 <td style="text-align: right;">3</td>
-<td><code>pm-clearing</code></td>
-<td><code>pm-clearing --timezone Europe/Stockholm</code></td>
-<td>Use the same <code>--timezone</code> as <code>pm-stats</code>, or omit both for UTC</td>
-<td>Clearing records trades, positions and P&amp;L. Start it before trading; daily reconciliation depends on timezone consistency.</td>
-</tr>
-<tr>
-<td style="text-align: right;">4</td>
 <td><code>pm-stats</code></td>
 <td><code>pm-stats --timezone Europe/Stockholm</code></td>
 <td>Use the same <code>--timezone</code> as <code>pm-clearing</code>; optional <code>--snapshot-interval</code></td>
 <td>Statistics powers reports, history and many displays. Start it before trades so OHLCV and history are complete.</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td><code>pm-clearing</code></td>
+<td><code>pm-clearing --timezone Europe/Stockholm</code></td>
+<td>Use the same <code>--timezone</code> as <code>pm-stats</code>, or omit both for UTC</td>
+<td>Clearing records trades, positions and P&amp;L. Start it before trading; daily reconciliation depends on timezone consistency.</td>
 </tr>
 <tr>
 <td style="text-align: right;">5</td>
@@ -5276,41 +5276,55 @@ up, or when you are debugging one of them.</p>
 </tr>
 <tr>
 <td style="text-align: right;">7</td>
-<td><code>pm-index</code></td>
-<td><code>pm-index</code></td>
-<td>Index definitions in deployed config</td>
-<td>Start before market-data consumers so index publications are available when feeds and dashboards connect.</td>
+<td><code>pm-md-gwy</code></td>
+<td><code>pm-md-gwy</code></td>
+<td>Optional <code>--bind</code>, <code>--port</code>, <code>--engine-pub</code></td>
+<td>CALF market data is the live feed used by external clients and TapeDeck. Start after the engine is alive.</td>
 </tr>
 <tr>
 <td style="text-align: right;">8</td>
-<td><code>pm-md-gwy</code></td>
-<td><code>pm-md-gwy</code></td>
-<td>Optional <code>--bind</code>, <code>--port</code>, <code>--engine-host</code></td>
-<td>CALF market data is the live feed used by external clients and TapeDeck. Start after engine/index are alive.</td>
+<td><code>pm-ralf-gwy</code></td>
+<td><code>pm-ralf-gwy</code></td>
+<td>Optional <code>--bind</code>, <code>--port</code>, <code>--engine-pub</code></td>
+<td>Post-trade dissemination (RALF). Start after the engine is alive.</td>
 </tr>
 <tr>
 <td style="text-align: right;">9</td>
+<td><code>pm-dc-gwy</code></td>
+<td><code>pm-dc-gwy</code></td>
+<td>Optional <code>--bind</code>, <code>--port</code>, <code>--engine-dc-pub</code></td>
+<td>Drop-copy feed (DCLF). Start after the engine is alive.</td>
+</tr>
+<tr>
+<td style="text-align: right;">10</td>
 <td><code>pm-api-gwy</code></td>
 <td><code>pm-api-gwy</code></td>
 <td>Optional <code>--instance NAME</code>, <code>--host</code>, <code>--port</code>, <code>--engine-host</code>; API keys come from config</td>
 <td>The API gateway has no <code>--id</code>. Use <code>--instance</code> only when multiple <code>api_gateways</code> entries are configured. Start after engine and stats history are available.</td>
 </tr>
 <tr>
-<td style="text-align: right;">10</td>
+<td style="text-align: right;">11</td>
 <td><code>pm-alf-gwy</code></td>
 <td><code>pm-alf-gwy</code></td>
 <td>Optional <code>--bind</code>, <code>--port</code>, <code>--engine-host</code>; gateway IDs come from client <code>HELLO</code> and config</td>
 <td>The ALF TCP gateway has no process-level <code>--id</code>. Start after the engine is healthy, then external text clients can connect.</td>
 </tr>
 <tr>
-<td style="text-align: right;">11</td>
+<td style="text-align: right;">12</td>
 <td><code>pm-balf-gwy</code></td>
 <td><code>pm-balf-gwy</code></td>
 <td>Optional <code>--bind</code>, <code>--port</code>, <code>--engine-host</code>; identity is configured/client-provided</td>
 <td>Optional binary order-entry gateway. Start only for BALF client exercises or integrations.</td>
 </tr>
 <tr>
-<td style="text-align: right;">12</td>
+<td style="text-align: right;">13</td>
+<td><code>pm-index</code></td>
+<td><code>pm-index</code></td>
+<td>Index definitions in deployed config</td>
+<td>Started last in the <code>default</code> profile; index publications depend on the engine and its own configured indices, not on any other process here.</td>
+</tr>
+<tr>
+<td style="text-align: right;">14</td>
 <td>Web applications</td>
 <td><code>cd deployment/docker &amp;&amp; make up-all</code></td>
 <td>None — <code>up-all</code> resolves the read-only API key and the backend hostname itself</td>
@@ -5810,7 +5824,8 @@ processes:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>pm-calf-spy<span class="w"> </span>--channels<span class="w"> </span>TOP,TRADE<span class="w"> </span>--symbols<span class="w"> </span>AAPL
 <a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a>pm-ralf-spy<span class="w"> </span>--role<span class="w"> </span>AUDIT
 <a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a>pm-dc-spy
-<a id="__codelineno-38-4" name="__codelineno-38-4" href="#__codelineno-38-4"></a>curl<span class="w"> </span>-s<span class="w"> </span>http://127.0.0.1:8080/api/v1/status
+<a id="__codelineno-38-4" name="__codelineno-38-4" href="#__codelineno-38-4"></a>curl<span class="w"> </span>-s<span class="w"> </span>http://127.0.0.1:8080/api/v1/healthz
+<a id="__codelineno-38-5" name="__codelineno-38-5" href="#__codelineno-38-5"></a>curl<span class="w"> </span>-s<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer &lt;api-key&gt;"</span><span class="w"> </span>http://127.0.0.1:8080/api/v1/status
 </code></pre></div>
 <h3 id="tapedeck-loads-but-shows-offline-or-missing-history">TapeDeck loads but shows offline or missing history<a class="headerlink" href="#tapedeck-loads-but-shows-offline-or-missing-history" title="Permanent link">&para;</a></h3>
 <p>If the browser loads, the TapeDeck bridge is running. Then check upstreams:</p>
@@ -5906,8 +5921,11 @@ state. Use it for planned maintenance, not casual operator cleanup.</p>
 <li>Wait for clean shutdown messages.</li>
 <li>Start the engine, then restart or verify dependent processes.</li>
 </ol>
-<p>On clean shutdown, the engine persists GTC state and publishes end-of-day style
-events. DAY orders expire.</p>
+<p>On clean shutdown, the engine persists resting order state — both GTC and DAY
+orders — to disk and publishes end-of-day style events. A DAY order is not
+discarded at shutdown; it is only dropped on the <em>next</em> startup if the
+business day has since moved on (a shutdown mid-session is not itself a day
+boundary).</p>
 <h3 id="full-clean-shutdown">Full clean shutdown<a class="headerlink" href="#full-clean-shutdown" title="Permanent link">&para;</a></h3>
 <p>Recommended order:</p>
 <ol>
@@ -5923,10 +5941,10 @@ events. DAY orders expire.</p>
 <a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a><span class="w">    </span>-C<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">"</span><span class="w"> </span>.
 </code></pre></div>
 <h3 id="shutting-down-a-managed-stack">Shutting down a managed stack<a class="headerlink" href="#shutting-down-a-managed-stack" title="Permanent link">&para;</a></h3>
-<p><code>pm-opctl-cli stop</code> sends <code>SIGTERM</code> to everything it started, in the order the
-PID files are found — which is <em>not</em> the order above. For a session whose
-records matter, stop order entry first (close the participant terminals, or
-halt the session with <code>pm-admin</code>), then let it stop the rest.</p>
+<p><code>pm-opctl-cli stop</code> sends <code>SIGTERM</code> to everything it started, in alphabetical
+order by process name — which is <em>not</em> the startup order above. For a session
+whose records matter, stop order entry first (close the participant
+terminals, or halt the session with <code>pm-admin</code>), then let it stop the rest.</p>
 <p>For a container:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>./edumatcher.sh<span class="w"> </span>stop<span class="w">        </span><span class="c1"># or: make down-all</span>
 </code></pre></div>

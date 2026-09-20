@@ -1895,6 +1895,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#symbolssymbolorder_limits-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        symbols.&lt;SYMBOL&gt;.order_limits fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#symbolssymbolmarket_maker_quotes-fields" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5478,10 +5489,10 @@ for each MM quote seed at generation time.</p>
 <td>Add named risk levels under <code>risk_controls.levels</code></td>
 </tr>
 <tr>
-<td><code>--cb-levels NAME:SHIFT[:HALT_MINS[:RESUMPTION_MODE]] ...</code></td>
+<td><code>--cb-levels NAME:SHIFT[:HALT_MINS] ...</code></td>
 <td>List</td>
 <td>built-in ladder</td>
-<td>Circuit-breaker level specs; <code>RESUMPTION_MODE</code> is <code>AUCTION</code> (default) or <code>CONTINUOUS</code></td>
+<td>Circuit-breaker level specs</td>
 </tr>
 <tr>
 <td><code>--cb-window-ns NS</code></td>
@@ -6817,15 +6828,15 @@ of <code>pm-api-gwy</code>.</p>
 <a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a><span class="w">  </span>--combo<span class="w"> </span><span class="s2">"SEED-AT:AON:DAY:AAPL/BUY/LIMIT/100/20950,TSLA/SELL/LIMIT/20/24800"</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-31-10" name="__codelineno-31-10" href="#__codelineno-31-10"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div>
-<p>Circuit-breaker ladder with <code>CONTINUOUS</code> resumption on level 2 (no auction on L2 halt recovery):</p>
+<p>Custom circuit-breaker ladder in place of the built-in defaults:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a><span class="w">  </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>OPS01:ADMIN<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="w">  </span>--sessions-enabled<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a><span class="w">  </span>--cb-levels<span class="w"> </span>L1:0.07:5:AUCTION<span class="w"> </span>L2:0.13:15:CONTINUOUS<span class="w"> </span>L3:0.20<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a><span class="w">  </span>--cb-levels<span class="w"> </span>L1:0.07:5<span class="w"> </span>L2:0.13:15<span class="w"> </span>L3:0.20<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div>
-<p>Per-symbol <code>CONTINUOUS</code> resumption override while using global defaults for the other levels:</p>
+<p>Per-symbol reopening-auction band override while using global defaults for the circuit-breaker levels:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a><span class="w">  </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>OPS01:ADMIN<span class="w"> </span><span class="se">\</span>
@@ -7173,25 +7184,23 @@ provenance rather than integrity would need a signature.</p>
 an unknown version is refused with a message telling you to recompile.</p>
 <p>If you are running from a Poetry checkout, prefix commands with <code>poetry run</code>.</p>
 <h3 id="missing-file-behavior">Missing-file Behavior<a class="headerlink" href="#missing-file-behavior" title="Permanent link">&para;</a></h3>
-<p>The engine and scheduler handle missing config differently:</p>
+<p>Neither process accepts a config path on the command line — both always read
+the deployed artifact — and they handle a missing artifact differently:</p>
 <table>
 <thead>
 <tr>
 <th>Process</th>
-<th>Missing default config</th>
-<th>Missing explicit <code>--config</code></th>
+<th>No deployed artifact</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>pm-engine</code></td>
 <td>Starts unrestricted</td>
-<td>Starts unrestricted for that path</td>
 </tr>
 <tr>
 <td><code>pm-scheduler</code></td>
-<td>Uses built-in schedule</td>
-<td>Fatal error</td>
+<td>Fatal error — refuses to start</td>
 </tr>
 </tbody>
 </table>
@@ -7199,6 +7208,11 @@ an unknown version is refused with a message telling you to recompile.</p>
 allowlist, no configured risk levels, no seeded last prices, no seeded
 market-maker quotes, no configured startup combos, and no outstanding share
 metadata.</p>
+<p><code>pm-scheduler</code> treats a missing artifact as fatal because running a timetable
+the engine has never seen is worse than not starting at all. This is
+different from a <em>deployed</em> config with session scheduling disabled
+(<code>sessions_enabled: false</code> or no <code>schedule</code> section): in that case the
+scheduler starts normally and falls back to its built-in default schedule.</p>
 <h2 id="inspect-configs-with-pm-config-show">Inspect Configs with <code>pm-config-show</code><a class="headerlink" href="#inspect-configs-with-pm-config-show" title="Permanent link">&para;</a></h2>
 <p><code>pm-config-show</code> prints the effective configuration as a terminal dashboard and
 exits. Where <code>pm-cverifier</code> answers <em>is this file correct</em>, <code>pm-config-show</code>
@@ -8893,9 +8907,12 @@ simply left inactive when omitted. Two fields become mandatory, but only under
 specific conditions:</p>
 <ul>
 <li><strong><code>market_maker_quotes</code></strong> — becomes mandatory (must be a non-empty list) for
-  <em>every</em> symbol as soon as any <code>gateways.alf</code> entry has <code>role: MARKET_MAKER</code>.
-  If no <code>MARKET_MAKER</code> gateway is configured, this field can be omitted for
-  every symbol.</li>
+  <em>every</em> symbol as soon as any <code>gateways.alf</code> entry has <code>role: MARKET_MAKER</code>,
+  unless the top-level <code>require_mm_seed_quotes</code> is explicitly set to <code>false</code>
+  (default <code>true</code>). With <code>require_mm_seed_quotes: false</code>, a <code>MARKET_MAKER</code>
+  gateway may exist with no <code>market_maker_quotes</code> entries at all. If no
+  <code>MARKET_MAKER</code> gateway is configured, this field can be omitted for every
+  symbol regardless of <code>require_mm_seed_quotes</code>.</li>
 <li><strong><code>outstanding_shares</code></strong> — becomes mandatory (must be a positive integer)
   only for symbols listed in an <code>indices[].constituents</code> entry (see
   <a href="#configuring-pm-index">Configuring <code>pm-index</code></a>). A symbol not referenced by
@@ -9656,6 +9673,38 @@ Ranges use mathematical interval notation: <code>(a, b)</code> is open (exclusiv
 <td>—</td>
 <td>Parsed by scheduler and stored by engine</td>
 </tr>
+<tr>
+<td><code>require_mm_seed_quotes</code></td>
+<td>bool</td>
+<td style="text-align: right;">No</td>
+<td><code>true</code></td>
+<td><code>true</code>, <code>false</code></td>
+<td>If <code>false</code>, a <code>MARKET_MAKER</code> gateway may exist with no <code>market_maker_quotes</code> (see <a href="#mandatory-fields">Mandatory Fields</a>)</td>
+</tr>
+<tr>
+<td><code>country</code></td>
+<td>str</td>
+<td style="text-align: right;">No</td>
+<td><code>"Sweden"</code></td>
+<td>Any non-empty string</td>
+<td>Used for the scheduler's holiday calendar; an unrecognized value falls back to the default (see <code>M026</code> in <a href="../020-config-verifier/">Config Verifier</a>)</td>
+</tr>
+<tr>
+<td><code>indices</code></td>
+<td>list</td>
+<td style="text-align: right;">No</td>
+<td><code>[]</code></td>
+<td>—</td>
+<td>At most 5 entries; see <a href="#configuring-pm-index">Configuring <code>pm-index</code></a> for the per-index field reference</td>
+</tr>
+<tr>
+<td><code>auction_indicative_interval_sec</code></td>
+<td>float</td>
+<td style="text-align: right;">No</td>
+<td><code>1.0</code></td>
+<td>Any number</td>
+<td>Must be <code>&gt; 0</code></td>
+</tr>
 </tbody>
 </table>
 <h3 id="engine_tuning-fields"><code>engine_tuning</code> fields<a class="headerlink" href="#engine_tuning-fields" title="Permanent link">&para;</a></h3>
@@ -10263,7 +10312,54 @@ symbol has no breaker):</p>
 <td style="text-align: right;">No</td>
 <td><code>[]</code></td>
 <td>List of quote seed mappings</td>
-<td>Required (non-empty) if any <code>MARKET_MAKER</code> gateway is configured</td>
+<td>Required (non-empty) if any <code>MARKET_MAKER</code> gateway is configured, unless <code>require_mm_seed_quotes: false</code> (see <a href="#mandatory-fields">Mandatory Fields</a>)</td>
+</tr>
+<tr>
+<td><code>outstanding_shares</code></td>
+<td>int</td>
+<td style="text-align: right;">No</td>
+<td><code>null</code></td>
+<td>Positive integer</td>
+<td>Required if the symbol is listed in an <code>indices[].constituents</code> entry (see <a href="#mandatory-fields">Mandatory Fields</a>)</td>
+</tr>
+<tr>
+<td><code>order_limits</code></td>
+<td>mapping</td>
+<td style="text-align: right;">No</td>
+<td>—</td>
+<td>See below</td>
+<td>Rejected at <code>risk_controls.levels.&lt;LEVEL&gt;</code> — set per symbol only</td>
+</tr>
+</tbody>
+</table>
+<h3 id="symbolssymbolorder_limits-fields"><code>symbols.&lt;SYMBOL&gt;.order_limits</code> fields<a class="headerlink" href="#symbolssymbolorder_limits-fields" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th style="text-align: right;">Required</th>
+<th>Default</th>
+<th>Allowed values / range</th>
+<th>Constraint</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>max_order_qty</code></td>
+<td>int</td>
+<td style="text-align: right;">No</td>
+<td><code>null</code> (no limit)</td>
+<td>Positive integer</td>
+<td>Must be <code>&gt; 0</code></td>
+</tr>
+<tr>
+<td><code>max_order_value</code></td>
+<td>float</td>
+<td style="text-align: right;">No</td>
+<td><code>null</code> (no limit)</td>
+<td>Any number</td>
+<td>Must be <code>&gt; 0</code></td>
 </tr>
 </tbody>
 </table>
@@ -10534,7 +10630,8 @@ tick size, so each leg's price is checked against its own symbol's
 parsed:</p>
 <ol>
 <li>If any gateway has <code>role: MARKET_MAKER</code>, every symbol in <code>symbols</code> must
-   have at least one <code>market_maker_quotes</code> entry.</li>
+   have at least one <code>market_maker_quotes</code> entry, unless top-level
+   <code>require_mm_seed_quotes</code> is set to <code>false</code>.</li>
 <li>Every <code>market_maker_quotes[].gateway_id</code> must reference a configured
    gateway with <code>role: MARKET_MAKER</code>.</li>
 <li>Every <code>symbols.&lt;SYMBOL&gt;.level</code> must reference a key in
@@ -10548,6 +10645,8 @@ parsed:</p>
 <li>Symbols within one combo must be unique.</li>
 <li><code>risk_controls.levels.&lt;LEVEL&gt;.circuit_breaker</code> is explicitly rejected with
    an error; use top-level <code>circuit_breaker_defaults</code> instead.</li>
+<li><code>risk_controls.levels.&lt;LEVEL&gt;.order_limits</code> is explicitly rejected with an
+   error; set <code>order_limits</code> on each symbol instead.</li>
 </ol>
 <h2 id="verifying-the-deployed-artifact">Verifying the Deployed Artifact<a class="headerlink" href="#verifying-the-deployed-artifact" title="Permanent link">&para;</a></h2>
 <p>The compiled artifact carries two independent integrity checks. They answer

@@ -4521,8 +4521,9 @@ no Node, no checkout. The only requirement is Podman or Docker.</p>
 <ol>
 <li>Checks that Podman or Docker is present, preferring Podman when both are.</li>
 <li>Resolves the newest release (or the one you named with <code>--version</code>).</li>
-<li>Downloads <code>compose.yaml</code>, <code>edumatcher.sh</code> and <code>.env.example</code> <strong>from that
-   release's tag</strong>, so the files and the images always come from one commit.</li>
+<li>Downloads <code>compose.yaml</code>, <code>compose.zmq.yaml</code>, <code>edumatcher.sh</code> and
+   <code>.env.example</code> <strong>from that release's tag</strong>, so the files and the images
+   always come from one commit.</li>
 <li>Writes <code>.env</code>, creating <code>data/</code> and <code>config/</code> beside it.</li>
 <li>Pulls the five images and starts them.</li>
 </ol>
@@ -4573,7 +4574,7 @@ describe different systems.</p>
 </table>
 <p>Because the script is read from a pipe, options need <code>bash -s --</code> so that the
 shell hands them to the script rather than consuming them itself:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>.../install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--config<span class="w"> </span>ten-nominal<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.40.3
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>.../install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--config<span class="w"> </span>ten-nominal<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.40.4
 </code></pre></div>
 <p>Two environment variables are also honoured: <code>REPO_OWNER</code> (which GitHub
 account and GHCR namespace to use) and <code>REPO_REF</code> (fetch the support files
@@ -4703,14 +4704,17 @@ next time you switched configuration.</p>
 <a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>./edumatcher.sh<span class="w"> </span>uninstall<span class="w"> </span>--data<span class="w">    </span><span class="c1"># remove everything</span>
 </code></pre></div>
 <h3 id="choosing-what-the-exchange-trades">Choosing what the exchange trades<a class="headerlink" href="#choosing-what-the-exchange-trades" title="Permanent link">&para;</a></h3>
-<p>EduMatcher ships twelve ready-made configurations: one, three, ten or thirty
-order books, each as a <code>basic</code>, <code>nominal</code> or <code>complex</code> variant. They are inside
-the backend image, so no download is involved in switching.</p>
+<p>EduMatcher ships 24 ready-made configurations: one, three, ten or thirty
+order books, each as a <code>basic</code>, <code>nominal</code> or <code>complex</code> variant, and each of
+those with or without seeded market-maker quotes. They are inside the backend
+image, so no download is involved in switching.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>./edumatcher.sh<span class="w"> </span>config<span class="w"> </span>ten-nominal
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>./edumatcher.sh<span class="w"> </span>restart
 </code></pre></div>
 <p>The names are <code>one-</code>, <code>three-</code>, <code>ten-</code> and <code>thirty-</code> combined with <code>basic</code>,
-<code>nominal</code> and <code>complex</code>. <code>./edumatcher.sh config</code> lists them all if you mistype
+<code>nominal</code> and <code>complex</code>, each with an optional <code>-nomm</code> suffix for the variant
+with empty order books instead of seeded market-maker quotes (for example
+<code>three-basic-nomm</code>). <code>./edumatcher.sh config</code> lists them all if you mistype
 one. See <a href="../810-example-configs/">Example Engine Configs</a> for what each
 contains.</p>
 <p>To run a configuration of your own, give the same command a path instead:</p>
@@ -4767,10 +4771,13 @@ alone) and <code>up-all</code> (the exchange plus the GUIs).</p>
 </table>
 <div class="admonition warning">
 <p class="admonition-title">Confirm which package went in</p>
-<p>A successful build prints <code>Installing local wheel: /tmp/wheel/edumatcher-&lt;version&gt;.whl</code>.
-If instead you see pip <em>downloading</em> <code>edumatcher</code>, the image is running a
-published release rather than your code — and a source change you are
-hunting for will appear not to take effect.</p>
+<p>A successful build prints a line of the form
+<code>Installing local wheel: /tmp/wheel/edumatcher-&lt;version&gt;-&lt;build-tag&gt;.whl</code>
+(the exact filename comes from whatever Poetry built, so it may include a
+platform or Python-tag suffix beyond the version). If instead you see pip
+<em>downloading</em> <code>edumatcher</code>, the image is running a published release
+rather than your code — and a source change you are hunting for will
+appear not to take effect.</p>
 </div>
 <h3 id="flags-that-control-a-start">Flags that control a start<a class="headerlink" href="#flags-that-control-a-start" title="Permanent link">&para;</a></h3>
 <table>
@@ -4866,7 +4873,7 @@ plain <code>make up-all</code> afterwards goes back to whatever <code>.env</code
 </tr>
 <tr>
 <td><code>TZ</code></td>
-<td><code>UTC</code></td>
+<td><code>Europe/Stockholm</code></td>
 <td>Container timezone — match the trading calendar in your configuration</td>
 </tr>
 <tr>
@@ -4978,7 +4985,7 @@ need these mainly behind a corporate proxy.</p>
 <tr>
 <td><code>NPM_REGISTRY</code></td>
 <td><code>https://registry.npmjs.org/</code></td>
-<td>Internal npm mirror</td>
+<td>Internal npm mirror. The Dockerfiles accept this argument, but the compose files' <code>args:</code> blocks do not currently pass it through, so setting it in your shell has no effect via <code>make up-all</code>/<code>make build-guis</code> — pass <code>--build-arg NPM_REGISTRY=...</code> directly to <code>podman build</code>/<code>docker build</code> instead</td>
 </tr>
 <tr>
 <td><code>NPM_STRICT_SSL</code></td>
@@ -4993,7 +5000,7 @@ need these mainly behind a corporate proxy.</p>
 <tr>
 <td><code>USE_PROXY_CA</code> / <code>CA_CERT_FILE</code></td>
 <td><em>(empty)</em></td>
-<td>config-gui only: install a corporate CA certificate</td>
+<td>Declared only by the unused <code>web-apps/config-gui/Dockerfile.proxy</code>, not the <code>Dockerfile</code> that <code>compose.config-gui.yaml</code> actually builds — setting these currently has no effect on <code>make up-all CONFIG_GUI=1</code></td>
 </tr>
 </tbody>
 </table>
@@ -5024,7 +5031,7 @@ hostname <code>edumatcher</code>.</p>
     BROWSER --&gt; LOG
     BROWSER --&gt; CFG
     BROWSER --&gt; TRD
-    CLIENT --&gt;|"published 5560-5600, 8080-8081\nvia BIND_ADDR"| BE
+    CLIENT --&gt;|"published 5560, 5565, 5570,\n5580, 5590, 5600, 8080-8081\nvia BIND_ADDR"| BE
 
     TERM --&gt;|"edumatcher:5570 market data\nedumatcher:8081 history"| BE
     LOG --&gt;|"edumatcher:5601 / :5602 log stream"| BE
@@ -5051,7 +5058,7 @@ have deliberately different defaults.</p>
             IDX["pm-index\n5558 pub · 5559 pull"]
         end
         subgraph svc["Service layer — every other listener"]
-            GW["pm-alf-gwy 5560 · pm-md-gwy 5570\npm-balf-gwy 5580 · pm-ralf-gwy 5590\npm-dc-gwy 5600 · pm-log-srv 5601/5602\npm-api-gwy 8080/8081"]
+            GW["pm-alf-gwy 5565 · pm-md-gwy 5570\npm-balf-gwy 5560 · pm-ralf-gwy 5580\npm-dc-gwy 5590 · pm-log-srv 5600/5601/5602\npm-api-gwy 8080/8081"]
         end
     end
     core --&gt;|"defaults to 127.0.0.1"| N1["Private to the container.\nOpen it with EDUMATCHER_ENGINE_BIND_HOST\nand EDUMATCHER_INDEX_BIND_HOST — ZMQ=1 does this"]
@@ -5299,8 +5306,8 @@ from. Absolute paths in the configuration remain explicit overrides.</p>
 </tr>
 <tr>
 <td>VM</td>
-<td><code>/home/ubuntu/session</code> inside the VM</td>
-<td><code>mknode.sh</code></td>
+<td><code>/home/ubuntu/.local/share/edumatcher</code> inside the VM (same installed default as pipx)</td>
+<td><code>mknode.sh</code>, via <code>EDUMATCHER_DATA_DIR</code> in <code>.bashrc</code></td>
 </tr>
 </tbody>
 </table>
@@ -5366,7 +5373,7 @@ VM. This mode installs the backend only — the web GUIs are part of the
 container deployment. Provisioning runs <code>pm-setup</code>, so the VM comes up with a
 deployed configuration and <code>pm-opctl-cli</code> ready to start the stack.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.40.3<span class="w"> </span>--snapshot
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.40.4<span class="w"> </span>--snapshot
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
 <a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>multipass<span class="w"> </span>shell<span class="w"> </span>ems
 <a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="nb">cd</span><span class="w"> </span>/home/ubuntu/session
@@ -5426,7 +5433,7 @@ deployed configuration and <code>pm-opctl-cli</code> ready to start the stack.</
 <p>To read the script before running it:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span>-o<span class="w"> </span>curl_setup_vm.sh
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>less<span class="w"> </span>curl_setup_vm.sh
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.40.3<span class="w"> </span>--snapshot
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.40.4<span class="w"> </span>--snapshot
 </code></pre></div>
 <h2 id="pipx-commands-on-your-own-machine">pipx — commands on your own machine<a class="headerlink" href="#pipx-commands-on-your-own-machine" title="Permanent link">&para;</a></h2>
 <p>Use this when you want to run the processes yourself, one per terminal, which

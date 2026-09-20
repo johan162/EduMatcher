@@ -4619,11 +4619,12 @@ EXPIRED). Combos add a <strong>second layer</strong>:</p>
     [*] --&gt; PENDING : legs accepted
     PENDING --&gt; PARTIALLY_MATCHED : first leg fill
     PARTIALLY_MATCHED --&gt; MATCHED : all legs fully filled
-    PENDING --&gt; FAILED : a leg cancelled or expired
-    PARTIALLY_MATCHED --&gt; FAILED : a leg cancelled or expired
+    PENDING --&gt; MATCHED : all legs fill immediately (e.g. both legs cross resting liquidity at submission)
+    PENDING --&gt; FAILED : cascade-cancel on a leg cancelled or expired
+    PARTIALLY_MATCHED --&gt; FAILED : cascade-cancel on a leg cancelled or expired
     PENDING --&gt; CANCELLED : explicit CANCEL|COMBO_ID=
     PARTIALLY_MATCHED --&gt; CANCELLED : explicit CANCEL|COMBO_ID=
-    FAILED --&gt; [*] : cascade-cancel remaining legs
+    FAILED --&gt; [*]
     CANCELLED --&gt; [*]
     MATCHED --&gt; [*]</code></pre>
 <p>The engine must detect transitions at the combo level whenever a child-level event
@@ -4811,6 +4812,13 @@ partially matched, exposed to leg risk, until eventually the AAPL leg fills or e
 </code></pre></div>
 <p>This ensures that when a retail trader submits a combo, there is resting liquidity on
 both legs from day one.</p>
+<p>Note that a <code>market_maker_combos</code> entry has no <code>gateway_id</code> field — unlike
+<code>market_maker_quotes</code>, it is not attached to <code>MM01</code> or any other configured
+gateway. The engine assigns every config-seeded combo the fixed internal
+owner <code>MM</code>, which is not a real, authenticatable gateway ID. As a result, a
+seeded combo cannot be cancelled with <code>CANCEL|COMBO_ID=</code> from any ALF console
+session — cancellation only works for combos submitted live by an
+authenticated gateway.</p>
 <h2 id="example-strategies-in-detail">Example Strategies in Detail<a class="headerlink" href="#example-strategies-in-detail" title="Permanent link">&para;</a></h2>
 <h3 id="example-1-pairs-trade-msft-vs-aapl">Example 1 — Pairs Trade: MSFT vs AAPL<a class="headerlink" href="#example-1-pairs-trade-msft-vs-aapl" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> You believe MSFT is undervalued relative to AAPL. The historical price
