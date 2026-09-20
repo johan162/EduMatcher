@@ -1,3 +1,18 @@
+## [v0.40.4] - 2026-09-20
+
+Release Type: patch
+
+### 📋 Summary
+This patch release fixes OCO leg price and trigger serialization, improves browser-to-bridge WebSocket recovery, and corrects documentation and build-pipeline issues.
+
+### 🐛 Bug Fixes
+- Fixed ALF gateway and console handling so OCO leg prices, stop prices, and trailing offsets are sent as tick values
+- Fixed terminal GUI detection of half-open browser-to-bridge WebSocket connections
+- Fixed a Makefile race condition in the introduction book build
+
+### 📚 Documentation
+- Corrected factual errors in user-guide chapters covering commands, output, schemas, and source behavior
+
 ## [v0.40.3] - 2026-09-20
 
 Release Type: patch
