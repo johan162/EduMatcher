@@ -190,7 +190,7 @@ stateDiagram-v2
     WAITING_FOR_SESSION --> REISSUING : session=CONTINUOUS + reference available
     QUOTING --> REPRICING : mid drift exceeds threshold
     QUOTING --> REISSUING : quote inactivated (fill)
-    QUOTING --> PAUSED : session != CONTINUOUS or HALTED
+    QUOTING --> PAUSED : session != CONTINUOUS, or circuit_breaker.halt for this symbol
     REPRICING --> REISSUING : new quote required
     REISSUING --> QUOTING : quote.ack received
     PAUSED --> WAITING_FOR_SESSION : resume trigger
@@ -327,7 +327,12 @@ The bot respects the exchange session lifecycle:
 | `CONTINUOUS`               | Post and maintain a two-sided quote |
 | `CLOSING_AUCTION`          | Cancel any live quote; wait         |
 | `CLOSED`                   | Cancel any live quote; wait         |
-| `HALTED` (circuit breaker) | Cancel and pause immediately        |
+
+A circuit-breaker halt is **not** a `session.state` value — it arrives on a
+separate, per-symbol `circuit_breaker.halt.<SYMBOL>` topic (and clears on the
+matching `circuit_breaker.resume.<SYMBOL>` topic), independent of the session
+state. On a halt for one of its symbols, the bot cancels that symbol's live
+quote and pauses immediately; it resumes on the matching resume event.
 
 When the session transitions to `CONTINUOUS`, the bot resumes quoting
 automatically.
@@ -524,9 +529,12 @@ is centred, never the rules for how it's rounded or how wide it can get.
 = `150.00`. At `net_position = +500` (half of max_position, long):
 `fraction = 0.5`, `skew = -0.5 × 0.05 = -0.025`, `effective_mid = 149.975`.
 The bid and ask (still `±0.05` from that effective mid, then tick-rounded)
-come out at roughly `149.93` / `150.03` — both about two and a half cents
-lower than the flat-position quote of `149.95` / `150.05`, making the ask
-cheaper to lift and the bid less attractive to hit.
+come out at `149.92` / `150.02` — both about three cents lower than the
+flat-position quote of `149.95` / `150.05`, making the ask cheaper to lift
+and the bid less attractive to hit. (The rounded values land three cents,
+not the two-and-a-half the raw `149.975 ± 0.05` arithmetic suggests, because
+`149.975 - 0.05` evaluates to `149.92499999999998` in floating point and
+rounds down a tick.)
 
 **What happens when `--max-position` is reached?** The bot does **not**
 stop quoting. `fraction` is clamped to `±1.0`, so once `|net_position| >=
@@ -753,41 +761,48 @@ POS|GW=MM_AAPL_01
 
 ## Understanding bot output
 
-Each bot prefixes every log line with its gateway ID and timestamp. At default
-verbosity the bot is quiet — it only logs milestones and problems, not routine
-quoting activity:
+Every log line has the standard EduMatcher format
+(`<timestamp> <LEVEL> <logger-name> - <message>`), and every message the bot
+itself emits is further prefixed with its own gateway ID in brackets, e.g.
+`[MM_AAPL_01] <message>`. At true default verbosity (no `-v`/`-q`/`--log-level`
+flag at all) the bot's own lifecycle messages are logged at `INFO`, but the
+default logging level is `WARNING` — so **none of them are visible** unless
+something fails outright (those paths log at `ERROR`). Pass `-v` to see the
+bot's milestones and problems (routine per-quote activity needs `-vv` or the
+dedicated `--verbose` sections below):
 
 ```
-[MM:MM_AAPL_01 09:30:00] starting: symbols=AAPL strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
-[MM:MM_AAPL_01 09:30:01] authenticated
-[MM:MM_AAPL_01 09:30:01] bootstrap from random range: 150.00
-[MM:MM_AAPL_01 09:30:14] quote REJECTED: gap exceeds mm_max_spread_ticks
-[MM:MM_AAPL_01 09:30:20] circuit breaker HALT
-[MM:MM_AAPL_01 09:30:45] circuit breaker RESUME
-[MM:MM_AAPL_01 09:31:02] heartbeat: no active quote — reissuing
-[MM:MM_AAPL_01 09:31:10] QLEGS mismatch: quote_id divergence — reissuing
-[MM:MM_AAPL_01 09:35:00] shutdown complete
+2026-09-20 09:30:00,001 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] starting: symbols=AAPL strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
+2026-09-20 09:30:01,002 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] authenticated
+2026-09-20 09:30:01,003 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] bootstrap from random range: 150.00
+2026-09-20 09:30:20,004 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] circuit breaker HALT
+2026-09-20 09:30:45,005 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] circuit breaker RESUME
+2026-09-20 09:35:00,006 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] shutdown complete
 ```
 
-The `starting:` line reports the bot's resolved configuration and is always
-visible — you don't need `-v` to confirm what a running bot is actually
-configured to quote. For a `--symbols` bot, `symbols=` lists every symbol
-the process covers (e.g. `symbols=AAPL,MSFT`), and every per-symbol log line
-below carries an additional `[SYMBOL]` tag ahead of the message so you can
-tell which symbol a given quoting decision belongs to:
+The `starting:` line reports the bot's resolved configuration. For a
+`--symbols` bot, `symbols=` lists every symbol the process covers (e.g.
+`symbols=AAPL,MSFT`), and every per-symbol log line carries an additional
+`[SYMBOL]` tag ahead of the message so you can tell which symbol a given
+quoting decision belongs to:
 
 ```
-[MM:MM_TECH_01 09:30:00] starting: symbols=AAPL,MSFT strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
-[MM:MM_TECH_01 09:30:01] authenticated
-[MM:MM_TECH_01 09:30:01] [AAPL] bootstrap from random range: 150.00
-[MM:MM_TECH_01 09:30:01] [MSFT] bootstrap from random range: 310.00
-[MM:MM_TECH_01 09:30:14] [AAPL] quote REJECTED: gap exceeds mm_max_spread_ticks
-[MM:MM_TECH_01 09:30:14] [AAPL] startup failed: --gap exceeds mm_max_spread_ticks obligation
-[MM:MM_TECH_01 09:30:14] running symbols=['MSFT'] session=CONTINUOUS
-[MM:MM_TECH_01 09:30:20] [MSFT] circuit breaker HALT
-[MM:MM_TECH_01 09:30:45] [MSFT] circuit breaker RESUME
-[MM:MM_TECH_01 09:35:00] shutdown complete
+2026-09-20 09:30:00,001 INFO edumatcher.mm_bot.bot - [MM_TECH_01] starting: symbols=AAPL,MSFT strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
+2026-09-20 09:30:01,002 INFO edumatcher.mm_bot.bot - [MM_TECH_01] authenticated
+2026-09-20 09:30:01,003 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [AAPL] bootstrap from random range: 150.00
+2026-09-20 09:30:01,004 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] bootstrap from random range: 310.00
+2026-09-20 09:30:14,005 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [AAPL] startup failed: --gap exceeds mm_max_spread_ticks obligation
+2026-09-20 09:30:14,006 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [AAPL] excluded from quoting: --gap exceeds mm_max_spread_ticks obligation
+2026-09-20 09:30:14,007 INFO edumatcher.mm_bot.bot - [MM_TECH_01] running symbols=['MSFT'] session=CONTINUOUS
+2026-09-20 09:30:20,008 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] circuit breaker HALT
+2026-09-20 09:30:45,009 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] circuit breaker RESUME
+2026-09-20 09:35:00,010 INFO edumatcher.mm_bot.bot - [MM_TECH_01] shutdown complete
 ```
+
+Note that a symbol excluded during startup (as `AAPL` is here) never reaches
+the point of sending a `QUOTE` to the engine, so there is no engine-side
+`quote REJECTED` for it — the `startup failed:`/`excluded from quoting:`
+pair above is the complete picture for that symbol.
 
 Here `AAPL` failed its gap-vs-obligation check at startup (see
 [Per-symbol failure isolation](#per-symbol-failure-isolation)) and was
@@ -800,16 +815,20 @@ symbol/session updates, every quote sent, every fill, and every repricing
 decision:
 
 ```
-[MM:MM_AAPL_01 09:30:01] symbols received: ['AAPL', 'MSFT', 'TSLA']
-[MM:MM_AAPL_01 09:30:01] reference from book/trade: 150.00
-[MM:MM_AAPL_01 09:30:01] QUOTE sent bid=149.95 ask=150.05
-[MM:MM_AAPL_01 09:30:01] quote ACK id=q-001
-[MM:MM_AAPL_01 09:30:14] fill: ASK 200@150.05
-[MM:MM_AAPL_01 09:30:15] QUOTE sent bid=149.95 ask=150.05
-[MM:MM_AAPL_01 09:31:02] drift detected — repricing
-[MM:MM_AAPL_01 09:31:02] state: QUOTING -> REPRICING
-[MM:MM_AAPL_01 09:31:02] QUOTE sent bid=149.99 ask=150.09
+2026-09-20 09:30:01,001 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] symbols received: ['AAPL', 'MSFT', 'TSLA']
+2026-09-20 09:30:01,002 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] reference from book/trade: 150.00
+2026-09-20 09:30:01,003 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] QUOTE sent bid=149.95 ask=150.05
+2026-09-20 09:30:01,004 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] quote ACK id=q-001
+2026-09-20 09:30:14,005 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] fill: ASK 200@150.05
+2026-09-20 09:30:15,006 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] QUOTE sent bid=149.95 ask=150.05
+2026-09-20 09:31:02,007 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] drift detected — repricing
+2026-09-20 09:31:02,008 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] state: QUOTING -> REPRICING
+2026-09-20 09:31:02,009 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] QUOTE sent bid=149.99 ask=150.09
 ```
+
+(`symbols received:` covers the whole gateway and carries no `[SYMBOL]` tag;
+every other line above is per-symbol and always carries one, even when the
+bot is only quoting a single symbol.)
 
 `-v` also raises the underlying log level and enables the bot's own debug
 prints together — it is not just a "print more" switch, it also turns on
@@ -826,7 +845,7 @@ low-level flow tracing (e.g. `book mid=...`, `session: OLD -> NEW`, and
 | `invalid config file: ... unknown key(s)` | A `--config` file has a typo'd or unsupported key | Check the key against [Config file](#config-file) — long flag name, dashes as underscores |
 | `--symbol or --symbols is required (directly or via --config)` | Neither `--symbol` nor `--symbols` nor the config file's `symbol:`/`symbols:` key was given | Add one of the two |
 | `--symbol and --symbols are mutually exclusive` | Both `--symbol` and `--symbols` ended up set, from any combination of CLI and `--config` | Use only one |
-| `startup failed: no reference price` | Empty book + no `--initial_min`/`--initial_max`, for a symbol with no other symbol left quoting | Add bootstrap range flags |
+| `startup failed: no reference price available (no book, no trade, no bootstrap, no random range)` | Empty book + no `--initial_min`/`--initial_max`, for a symbol with no other symbol left quoting | Add bootstrap range flags |
 | `startup failed: no session.state` | Engine not running or scheduler not started | Start the engine and scheduler |
 | `startup failed: no symbol survived startup checks` | Every symbol failed startup (see [Per-symbol failure isolation](#per-symbol-failure-isolation)) | Fix whichever per-symbol cause each excluded-symbol log line names |
 | `[SYM] excluded from quoting: ...` | One symbol (not all) failed a startup check on a `--symbols` bot | Expected if intentional (e.g. testing failure isolation); otherwise fix that symbol's cause and restart |

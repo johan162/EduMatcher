@@ -73,7 +73,7 @@ Optional fields:
 | Field       | Default        | Description                                                                    |
 |-------------|----------------|--------------------------------------------------------------------------------|
 | `QUOTE_ID=` | Auto-generated | Label for this quote pair; used in status events and cancel                    |
-| `TIF=`      | `DAY`          | Either `DAY` or `GTC`; controls whether the quote survives to the next session |
+| `TIF=`      | `DAY`          | `DAY`, `GTC`, `ATO`, or `ATC` are all accepted (same `TIF` enum as `NEW`); `DAY`/`GTC` control whether the quote survives to the next session. Unlike `NEW`, the engine applies no session-phase check for `ATO`/`ATC` quotes. |
 
 ### Validation rules
 
@@ -87,7 +87,7 @@ The engine rejects a quote if:
 | Symbol is halted                                                                    | `{SYMBOL} is halted — quotes rejected during circuit breaker halt` |
 | Spread exceeds `mm_max_spread_ticks`                                                | `Spread {n} ticks exceeds max {m}`                                 |
 | Either side below `mm_min_qty`                                                      | `Quote size must be >= {n}`                                        |
-| Sending a new quote replaces any existing quote for the same (gateway, symbol) pair | *(no rejection; the existing quote is cancelled silently)*         |
+| Sending a new quote replaces any existing quote for the same (gateway, symbol) pair | *(no rejection; the existing quote is cancelled with an ordinary `quote.status CANCELLED` event — see [Quote lifecycle](#quote-lifecycle) below)* |
 
 ### Quote acknowledgement
 
@@ -342,13 +342,18 @@ classroom or demo environment it is useful to have quotes already in the book
 *before any participant connects*, so the book is never completely empty and
 price discovery can begin from a known starting point.
 
-!!! warning "`market_maker_quotes` is mandatory once any MARKET_MAKER gateway is configured"
-    This is not just a convenience feature. Config loading enforces it: if
-    `gateways.alf` contains **any** gateway with `role: MARKET_MAKER`, then
+!!! warning "`market_maker_quotes` is mandatory by default once any MARKET_MAKER gateway is configured"
+    Config loading enforces this by default: if `gateways.alf` contains
+    **any** gateway with `role: MARKET_MAKER` and the top-level
+    `require_mm_seed_quotes` flag is left at its default (`true`), then
     **every** configured symbol must have at least one `market_maker_quotes`
     entry, or `load_engine_config()` raises `ValueError("Symbol '<SYM>': at
     least one market_maker_quotes entry is required when MARKET_MAKER
-    gateways are configured")` and the engine refuses to start. Each seed's
+    gateways are configured (set require_mm_seed_quotes: false to allow an
+    empty book)")` and the engine refuses to start. Set `require_mm_seed_quotes:
+    false` at the top level of `engine_config.yaml` to opt out and allow a
+    MARKET_MAKER-configured symbol to start with an empty book — see
+    [Configuration](010-configuration.md) for this flag. Each seed's
     `gateway_id` must also reference a gateway that is actually configured
     with `role: MARKET_MAKER` — a seed pointing at a `TRADER` gateway is
     rejected at load time too.
@@ -563,10 +568,10 @@ the MM disconnects.
 
 # 2. GW02 buys 200 at market — hits the ASK leg
 [GW02]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=200
-[14:30:01] FILL  ord-003  AAPL BUY  200@150.05
+[14:30:01] FILL      ord-003  qty=200 @150.05  remaining=0  [FILLED]
 
 # MM01 sees:
-[14:30:01] FILL  ord-002  AAPL SELL  200@150.05  (partial fill on ask)
+[14:30:01] FILL      ord-002  qty=200 @150.05  remaining=300  [PARTIAL]  (fill on ask leg)
 [14:30:01] QUOTE INACTIVE_ASK_FILLED  q1          (bid leg auto-cancelled)
 
 # 3. MM01 re-quotes
@@ -658,7 +663,8 @@ The fill arrives as a normal `order.fill.<gateway_id>` event for a leg `order_id
 
 Important implementation detail:
 
-- `order.fill` does **not** include `quote_id` in its published payload.
+- `order.fill` **does** include `quote_id` in its published payload (an
+  `Order`'s `quote_id` field is carried straight through to the fill event).
 
 Therefore the MM must identify quote-leg fills by keeping the mapping returned
 by `quote.ack`:
@@ -779,7 +785,7 @@ The fill payload includes fields such as:
 - `qty`
 - `price`
 
-It does **not** include `quote_id`.
+It **does** include `quote_id` (see above).
 
 So the MM must not assume that `order.fill` alone is enough to identify the
 logical quote instance unless the MM already persisted the order-id mapping from
@@ -971,7 +977,7 @@ case that is easy to get wrong (a full fill collapses the nuance below,
 since there is no remainder left to reason about). The MM may see:
 
 ```text
-[09:31:02] FILL  B1A8C2D4  AAPL BUY 100@209.80  remaining=400  status=PARTIAL
+[09:31:02] FILL      B1A8C2D4  qty=100 @209.80  remaining=400  [PARTIAL]
 [09:31:02] CANCELLED  S9F3E1AA
 [09:31:02] QUOTE INACTIVE_BID_FILLED  Q123
 ```
@@ -1019,7 +1025,7 @@ Assume policy `INACTIVATE_ON_FULL_FILL`.
 If the bid leg is only partially filled, the MM may see:
 
 ```text
-[09:31:02] FILL  B1A8C2D4  AAPL BUY 100@209.80  remaining=400  status=PARTIAL
+[09:31:02] FILL      B1A8C2D4  qty=100 @209.80  remaining=400  [PARTIAL]
 ```
 
 And that may be all.
@@ -1042,7 +1048,7 @@ Assume policy `NEVER_INACTIVATE`.
 The MM may see:
 
 ```text
-[09:31:02] FILL  B1A8C2D4  AAPL BUY 100@209.80
+[09:31:02] FILL      B1A8C2D4  qty=100 @209.80  remaining=400  [PARTIAL]
 ```
 
 And no automatic sibling cancel, and no `INACTIVE_*` status.
@@ -1094,7 +1100,7 @@ This is the tricky case that every robust MM must handle.
 Suppose the quote is marketable as soon as it is inserted. The MM may see:
 
 ```text
-[09:30:00] FILL  B1A8C2D4  AAPL BUY 500@209.80
+[09:30:00] FILL      B1A8C2D4  qty=500 @209.80  remaining=0  [FILLED]
 [09:30:00] CANCELLED  S9F3E1AA
 [09:30:00] QUOTE INACTIVE_BID_FILLED  Q123
 [09:30:00] QUOTE ACK  Q123  bid=B1A8C2D4 ask=S9F3E1AA
@@ -1140,15 +1146,17 @@ format.
 
 Important display behavior:
 
-- `QUOTE ACK` shows the `quote_id` and the first 8 characters of each child order ID
-- `FILL` shows the first 8 characters of the filled child order ID
-- `CANCELLED` shows the first 8 characters of the cancelled child order ID
+- `QUOTE ACK` shows the `quote_id` and the full child order ID for each leg
+- `FILL` shows the full filled child order ID
+- `CANCELLED` shows the full cancelled child order ID
 - `QUOTE INACTIVE_*` and `QUOTE CANCELLED` show the `quote_id`
 
-So a human operator correlates events using:
+The gateway prints full order IDs (32-character hex strings) — it does not
+truncate them. So a human operator correlates events using:
 
 - `quote_id` for the logical quote instance
-- the displayed 8-character order-id prefixes for the bid and ask legs
+- the full order IDs for the bid and ask legs (shortened to 8 characters in
+  the examples below purely for readability)
 
 To reduce manual correlation load in fast markets, the gateway supports:
 
@@ -1186,8 +1194,9 @@ multiple event lines.
     original `quote.ack`.
 
 A programmatic MM should keep the full IDs from the message payload. A human
-operator using the terminal will usually work from the 8-character prefixes
-printed by the gateway.
+operator using the terminal sees those same full IDs printed — the shortened
+IDs in the examples below (e.g. `7c4a91e2`) stand in for the full 32-character
+order ID for readability.
 
 ### Typical manual quoting session
 

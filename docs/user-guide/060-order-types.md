@@ -344,6 +344,19 @@ Use COMBO when:
 
 - Each leg is a standard LIMIT order posted to its respective symbol book
 - All legs are tracked together under a parent combo ID
+!!! warning "Known bug: OCO leg price/stop/trail fields are dropped on the wire"
+    The ALF gateway builds each OCO leg's wire payload with the keys `price`,
+    `stop_price`, and `trail_offset`, but the engine's OCO handler reads
+    `price_ticks`, `stop_price_ticks`, and `trail_offset_ticks` from that same
+    payload. The mismatch means any `LEG1_PRICE=`/`LEG1_STOP=`/`LEG1_TRAIL=`
+    (or `LEG2_*`) value you supply is silently dropped before it reaches the
+    engine, and the leg is then rejected as missing its required price/stop
+    (e.g. `Leg 1 (LIMIT) requires price`). As of this writing, **every OCO
+    example below that includes a leg price, stop, or trail offset will be
+    rejected** — only an OCO pair whose legs need no such field (which none
+    of the standard order types allow) would go through. This is a defect in
+    the gateway/engine wire contract, not in how you invoke `NEW|TYPE=OCO`.
+
 - If any leg is cancelled or expires, all remaining legs are automatically
   **cascade-cancelled** (unfilled quantities only — fills already executed
   are not reversed)
@@ -429,7 +442,7 @@ Use TIF to align execution intent with horizon:
 
 | Value | Meaning |
 |-------|----------|
-| `DAY` (default) | Valid for the current trading session only. Cancelled/expired at engine shutdown or when the session transitions to CLOSED. |
+| `DAY` (default) | Valid for the current trading session only. **Not** discarded at engine shutdown — it is persisted (alongside GTC orders) and restored on the next startup, dropped there only if the business day has since moved on. True expiry happens when the session transitions to `CLOSED`. |
 | `GTC` | Good-Till-Cancelled. Persisted to `data/gtc_orders.json` at shutdown and reloaded next session. Survives across trading days. |
 | `ATO` | At-The-Open. Only accepted during the `OPENING_AUCTION` phase. Automatically expired when the opening auction ends (transition to CONTINUOUS). |
 | `ATC` | At-The-Close. Only accepted during the `CLOSING_AUCTION` phase. Automatically expired when the closing auction ends (transition to CLOSED). |

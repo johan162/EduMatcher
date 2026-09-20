@@ -147,6 +147,9 @@ The ID must be preconfigured in `engine_config.yaml` under `gateways.alf`.
 | `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
 | `-q` / `--quiet` | off | Reduce output to warnings/errors |
+| `--log-target` | `server` (auto-detected `pm-log-srv`) | Where operational logs go: `server`, `stdout`, or `file` |
+| `--log-file PATH` | — | Operational log file path; required when `--log-target file` |
+| `--log-failover-timeout SECONDS` | 30 | Grace window before falling back to a local log file once `pm-log-srv` becomes unreachable |
 | `--version` | — | Print the installed version and exit |
 | `-h` / `--help` | — | Print the argument reference and exit |
 
@@ -555,9 +558,9 @@ per-order value and the gateway default interact.
 
 !!! note "ATO / ATC orders"
     The `ATO` (At-The-Open) and `ATC` (At-The-Close) TIF values are accepted by
-    the engine during the appropriate auction phase but are **not exposed** in the
-    terminal's tab completion. To submit an ATO/ATC order, type the TIF value
-    manually: `TIF=ATO` or `TIF=ATC`. These orders are only valid during
+    the engine during the appropriate auction phase and are offered by the
+    terminal's tab completion alongside `DAY` and `GTC` (see
+    [Tab Completion](#tab-completion) below). These orders are only valid during
     `OPENING_AUCTION` and `CLOSING_AUCTION` phases respectively.
 
 #### Examples
@@ -602,13 +605,13 @@ NEW|TYPE=COMBO|COMBO_ID=<label>|COMBO_TYPE=AON|TIF=<DAY|GTC>|LEG_COUNT=<n>|LEG0.
 |--------------------|----------|----------------------------------------------------|
 | `TYPE=COMBO`       | Yes      | Signals multi-leg order                          |
 | `COMBO_ID=<label>` | Yes      | Your tracking label (used for cancel)            |
-| `COMBO_TYPE=AON`   | Yes      | All-or-none semantics                            |
+| `COMBO_TYPE=AON`   | No       | All-or-none semantics; defaults to `AON`, currently the only supported value |
 | `TIF=DAY\|GTC`     | No       | Time-in-force (default DAY), applies to all legs |
 | `LEG_COUNT=<n>`    | Yes      | Number of legs (2–10)                            |
 | `LEG<i>.SYM`       | Yes      | Symbol for leg *i* (0-indexed)                   |
 | `LEG<i>.SIDE`      | Yes      | BUY or SELL                                      |
 | `LEG<i>.QTY`       | Yes      | Quantity                                         |
-| `LEG<i>.PRICE`     | Yes*     | Limit price (*required for LIMIT type)           |
+| `LEG<i>.PRICE`     | Yes*     | Limit price (*required for LIMIT, FOK, STOP_LIMIT, ICEBERG leg types) |
 | `LEG<i>.TYPE`      | No       | Order type (default LIMIT)                       |
 | `SMP=<action>`     | No       | Self-match prevention, applied to every leg; same values as `NEW`'s `SMP`. If omitted, falls back to the gateway's configured `gateways.alf[].smp_action` (else `NONE`) — see [Configuration — Gateway Fields](010-configuration.md#gateway-fields) |
 
@@ -633,13 +636,15 @@ NEW|TYPE=COMBO|COMBO_ID=<label>|COMBO_TYPE=AON|TIF=<DAY|GTC>|LEG_COUNT=<n>|LEG0.
 AMEND|ID=<full-order-id>[|PRICE=<new-price>][|QTY=<new-total-qty>][|RTAG=<request-tag>]
 ```
 
-At least one of `PRICE=` or `QTY=` must be present.
+At least one of `PRICE=` or `QTY=` must be present. Only resting `LIMIT` and
+`ICEBERG` orders can be amended — amending any other order type is rejected
+with `Cannot amend <TYPE> orders`.
 
 | Field   | Required    | Description                                      |
 |---------|-------------|--------------------------------------------------|
 | `ID`    | Yes         | Full order UUID (visible in the `ORDERS` table)  |
 | `PRICE` | Conditional | New limit price; omit to keep current price      |
-| `QTY`   | Conditional | New total quantity; must be >= filled quantity   |
+| `QTY`   | Conditional | New total quantity; must exceed the already-filled quantity |
 | `RTAG`  | No          | Request tag echoed on `AMENDED` or rejected ACK  |
 
 **Priority rules:**
@@ -650,7 +655,7 @@ At least one of `PRICE=` or `QTY=` must be present.
 | Price change           | **Lost** — the order moves to the back of the queue at the new price |
 | Quantity increase      | **Lost** — the order moves to the back of the queue                  |
 
-Reply: `AMENDED <id>  price=<p> qty=<q> remaining=<r> rtag=<request-tag>` on success when `RTAG` was supplied, or a rejection via `REJECTED` with a reason.
+Reply: `AMENDED <id>  price=<p> qty=<q> remaining=<r> [(priority reset)] rtag=<request-tag>` on success (the `(priority reset)` suffix appears only when the amend cost the order its time priority; `rtag` appears only when `RTAG` was supplied), or a rejection via `REJECTED` with a reason.
 
 
 
@@ -672,7 +677,7 @@ NEW|TYPE=OCO|OCO_ID=<label>|SYM=<symbol>|QTY=<qty>[|TIF=<DAY|GTC>]
 | `TIF`        | No                 | `DAY` or `GTC`; defaults to `DAY`              |
 | `LEG1_SIDE`  | Yes                | `BUY` or `SELL`                                |
 | `LEG1_TYPE`  | Yes                | Order type for leg 1                           |
-| `LEG1_PRICE` | Conditional        | Required for `LIMIT`, `STOP_LIMIT`, `FOK` legs |
+| `LEG1_PRICE` | Conditional        | Required for `LIMIT`, `IOC`, `FOK` legs (a `STOP_LIMIT` leg only requires `LEG1_STOP`, not `LEG1_PRICE`) |
 | `LEG1_STOP`  | Conditional        | Required for `STOP`, `STOP_LIMIT` legs         |
 | `LEG1_TRAIL` | Conditional        | Required for `TRAILING_STOP` legs              |
 | `LEG2_*`     | Same rules as LEG1 | Second leg fields                              |
@@ -753,9 +758,11 @@ full order ID, current status, remaining quantity, and last update time. This is
 the primary command for order inspection inside `pm-alf-console`.
 
 !!! note
-    Combo orders are not shown in the `ORDERS` table. Their lifecycle is tracked
-    via real-time `combo.ack` and `combo.status` messages printed as they arrive.
-    To see all order activity (including combo children), use `pm-orders`.
+    Combo child orders ARE resting orders like any other and do appear in the
+    `ORDERS` table once accepted — there is nothing in the table to identify
+    them as combo legs versus single-leg orders. Combo-level lifecycle
+    (acceptance, partial/full match, cascade-cancel) is tracked separately via
+    real-time `combo.ack` and `combo.status` messages printed as they arrive.
 
 
 
@@ -901,10 +908,10 @@ is printed:
 ```
 
 !!! note
-    The same `SESSION` line format is also pushed to every connected gateway
-    unsolicited whenever the engine's session phase actually changes — see
-    [Session lifecycle](#session-lifecycle). Sending the `SESSION` command
-    simply lets you ask for the current state on demand instead of waiting.
+    Sending the `SESSION` command asks the engine for its current state
+    on demand. The terminal does **not** subscribe to unsolicited session
+    phase-change broadcasts — see the "Session phase changes" note under
+    [System Events](#system-events) below.
 
 
 
@@ -950,7 +957,7 @@ All events are printed inline with a `[HH:MM:SS.mmm]` timestamp prefix. A backgr
 | Message                                               | Meaning                                               |
 |---------------------------------------------------------|---------------------------------------------------------|
 | `ACK  <id>  order accepted`                           | Engine received and registered the order              |
-| `REJECTED  <id> code=<reject-code> tag=<order-tag> rtag=<request-tag>  <reason>` | Order was rejected; `code` is stable for automation and tags are present when known |
+| `REJECTED  <id> code=<reject-code> rtag=<request-tag>  <reason>` | Order was rejected; `code` is stable for automation, `rtag` is present when the request supplied one |
 | `FILL  <id>  qty=50 @150.50  remaining=50  [PARTIAL]` | Partial fill                                          |
 | `FILL  <id>  qty=100 @150.50  remaining=0  [FILLED]`  | Full fill                                             |
 | `AMENDED  <id>  price=151.0 qty=100 remaining=100`    | Amendment confirmed                                   |
@@ -962,7 +969,7 @@ All events are printed inline with a `[HH:MM:SS.mmm]` timestamp prefix. A backgr
 | Message                                                  | Meaning                                                                    |
 |------------------------------------------------------------|-------------------------------------------------------------------------------|
 | `QUOTE ACK  <quote_id>  bid=<8-char-id> ask=<8-char-id>` | Both quote legs accepted and posted to the book                            |
-| `QUOTE REJ  <quote_id>  <reason>`                        | Quote rejected (e.g. `BID >= ASK`, missing gateway role)                   |
+| `QUOTE REJ  <quote_id>  <reason>`                        | Quote rejected (e.g. "Quote requires bid_price < ask_price", missing gateway role) |
 | `QUOTE <status>  <quote_id>  [reason]`                   | Quote lifecycle update — status is `INACTIVATED`, `CANCELLED`, or `FILLED` |
 
 ### OCO Events
@@ -977,8 +984,8 @@ All events are printed inline with a `[HH:MM:SS.mmm]` timestamp prefix. A backgr
 
 | Message                                       | Meaning                                                 |
 |---------------------------------------------------|-----------------------------------------------------------|
-| `COMBO ACK  <combo_id>  accepted`             | Combo validated, child orders posted to books           |
-| `COMBO REJECTED  <combo_id>  <reason>`        | Combo failed validation (e.g. "Duplicate symbols")      |
+| `COMBO ACK  <combo_id>  combo accepted`       | Combo validated, child orders posted to books           |
+| `COMBO REJ  <combo_id>  <reason>`             | Combo failed validation (e.g. "Duplicate symbols in combo legs") |
 | `COMBO STATUS  <combo_id>  PARTIALLY_MATCHED` | At least one leg has filled                             |
 | `COMBO STATUS  <combo_id>  MATCHED`           | All legs fully filled                                   |
 | `COMBO STATUS  <combo_id>  FAILED  <reason>`  | A leg was cancelled/expired; siblings cascade-cancelled |
@@ -1032,7 +1039,7 @@ $ poetry run pm-alf-console --id TRADER01
 # copy full UUID from table if you plan to amend/cancel
 
 [TRADER01]> AMEND|ID=7c4a91e2-...|PRICE=150.10|RTAG=AMD-001
-[09:30:01.500] AMENDED  7c4a91e2  price=150.1 qty=100 remaining=100 rtag=AMD-001
+[09:30:01.500] AMENDED  7c4a91e2  price=150.1 qty=100 remaining=100 (priority reset) rtag=AMD-001
 
 [09:30:02.200] FILL  7c4a91e2  qty=40 @150.10  remaining=60  [PARTIAL]
 
@@ -1084,12 +1091,12 @@ The terminal provides **context-aware tab completion**:
 
 | Position                  | Completions                                                                                                                               |
 |---------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| First word                | `NEW`, `AMEND`, `CANCEL`, `QUOTE`, `QUOTE_CANCEL`, `QBOOT`, `QLEGS`, `KILL`, `DC`, `STATUS`, `ORDERS`, `POS`, `SYMBOLS`, `INDEX`, `HELP`, `EXIT`, `QUIT` |
+| First word                | `NEW`, `QUOTE`, `QUOTE_CANCEL`, `QBOOT`, `QLEGS`, `KILL`, `AMEND`, `CANCEL`, `STATUS`, `ORDERS`, `POS`, `SYMBOLS`, `INDEX`, `HELP`, `CLEAR`, `EXIT`, `QUIT` |
 | After `NEW\|`             | `SYM=`, `SIDE=`, `TYPE=`, `QTY=`, `PRICE=`, `STOP=`, `TRAIL=`, `TIF=`, `VISIBLE=`, `SMP=`                                                 |
 | After `NEW\|TYPE=COMBO\|` | `COMBO_ID=`, `COMBO_TYPE=`, `TIF=`, `LEG_COUNT=`, plus `LEG0.SYM=`, `LEG0.SIDE=`, etc.                                                    |
 | After `NEW\|TYPE=OCO\|`   | `OCO_ID=`, `SYM=`, `QTY=`, `TIF=`, `LEG1_SIDE=`, `LEG1_TYPE=`, etc.                                                                       |
-| After `AMEND\|`           | `ID=`, `PRICE=`, `QTY=`                                                                                                                   |
-| After `CANCEL\|`          | `ID=`, `COMBO_ID=`, `OCO_ID=`                                                                                                             |
+| After `AMEND\|`           | `ID=`, `PRICE=`, `QTY=`, `RTAG=`                                                                                                     |
+| After `CANCEL\|`          | `ID=`, `COMBO_ID=`, `OCO_ID=`, `RTAG=`                                                                                               |
 | After `TYPE=`             | All order types: `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `IOC`, `ICEBERG`, `TRAILING_STOP`, `COMBO`, `OCO`                        |
 | After `SIDE=`             | `BUY`, `SELL`                                                                                                                             |
 | After `TIF=`              | `DAY`, `GTC`, `ATO`, `ATC`                                                                                                                |
@@ -1115,9 +1122,9 @@ the command prompt. You can continue typing while events arrive.
 |---|---|---|---|
 | `Gateway authentication timed out` | Engine is not running/reachable | Is `pm-engine` running in another terminal? | Start `pm-engine` first |
 | `Gateway not configured: GW01` | Gateway ID not in `engine_config.yaml` | Check `gateways.alf` list | Add ID under `gateways.alf` and restart engine |
-| `REJECTED: SYMBOL_NOT_CONFIGURED` | Symbol unknown to engine config | Run `SYMBOLS` | Use listed symbols or add symbol to config |
-| `REJECTED: SYMBOL_HALTED` | Circuit breaker/operator halt | Check audit/viewer output | Wait for resume or use admin controls |
-| `REJECTED: STATIC_COLLAR_BREACH` | Price too far from reference | Compare to recent trade prices | Reprice closer to market |
+| `REJECTED ... code=UNKNOWN_SYMBOL` | Symbol unknown to engine config | Run `SYMBOLS` | Use listed symbols or add symbol to config |
+| `REJECTED ... code=INSTRUMENT_HALTED` (or `CIRCUIT_BREAKER_ACTIVE`) | Circuit breaker/operator halt | Check audit/viewer output | Wait for resume or use admin controls |
+| `REJECTED ... code=COLLAR_BREACH` | Price too far from reference | Compare to recent trade prices | Reprice closer to market |
 | Order rests but does not fill | No crossing liquidity | Check opposite side activity | Wait or improve price |
 | `Quotes are only allowed for MARKET_MAKER participants` | Role is `TRADER` | Verify gateway role in config | Change role to `MARKET_MAKER` if intended |
 | `AMEND`/`CANCEL` fails with unknown ID | Short ID used instead of full UUID | Run `ORDERS` and inspect full ID | Retry with full order UUID |

@@ -190,7 +190,7 @@ directory. What is left is shorter:
 
 | Check | Command | Why it matters |
 |---|---|---|
-| The right configuration is deployed | `./edumatcher.sh config` or `make config-show` | `EM_CONFIG` picks a bundled example; `EM_CONFIG_FILE` overrides it |
+| The right configuration is deployed | `make config-show` (or `./edumatcher.sh shell` then `pm-config-show`) | `EM_CONFIG` picks a bundled example; `EM_CONFIG_FILE` overrides it. `./edumatcher.sh config <name>` *selects* a configuration and requires an argument — it does not show what is currently deployed |
 | Every process came up | `./edumatcher.sh status` or `make status` | Runs `pm-opctl-cli list` inside the container |
 | It is *your* exchange on those ports | `./edumatcher.sh mounts` or `make mounts` | A released and a source-built stack use the same container names and host ports |
 | The applications answer | open 8090, 8091, 8093 | The two-phase start can succeed for the backend and still leave a GUI unhealthy |
@@ -218,7 +218,7 @@ Typical signals:
 
 ```text
 Loaded deployed config .../ref_data/engine_config.json
-Session handling: disabled (startup state: CONTINUOUS)
+Session handling: enabled (startup state: CLOSED)
 Drop copy PUB bound on port 5557
 Listening on PULL=tcp://127.0.0.1:5555  PUB=tcp://127.0.0.1:5556
 ```
@@ -337,32 +337,34 @@ The ordering has two principles:
 flowchart TD
     PRE["1. Preflight\nset data dir, deploy config"]
         LOG["2. pm-log-srv\noperational logs"]
-        REC["3. recorders\npm-audit, pm-clearing, pm-stats"]
+        REC["3. recorders\npm-audit, pm-stats, pm-clearing"]
         ENG["4. pm-engine\nbinds :5555 :5556 :5557"]
         SCHED["5. pm-scheduler\nif sessions enabled"]
-        IDX["6. pm-index\nif indices configured"]
-        FEEDS["7. external feeds\npm-md-gwy, pm-api-gwy"]
-        ENTRY["8. external order entry\npm-alf-gwy, optional pm-balf-gwy"]
-        UI["9. browser UIs\nTapeDeck, pm-log-ui"]
+        FEEDS["6. external feeds\npm-md-gwy, pm-ralf-gwy, pm-dc-gwy, pm-api-gwy"]
+        ENTRY["7. external order entry\npm-alf-gwy, optional pm-balf-gwy"]
+        IDX["8. pm-index\nif indices configured"]
+        UI["9. browser UIs\nTapeDeck, log console"]
 
-        PRE --> LOG --> REC --> ENG --> SCHED --> IDX --> FEEDS --> ENTRY --> UI
+        PRE --> LOG --> REC --> ENG --> SCHED --> FEEDS --> ENTRY --> IDX --> UI
 ```
 
 | Order | Process | Typical command | Required options | Why here |
 |---:|---|---|---|---|
 | 0 | Preflight | `pm-config-deploy --check engine_config.yaml` then `pm-config-deploy engine_config.yaml` | `EDUMATCHER_DATA_DIR` set consistently | Every later process reads the deployed artifact; do this before anything long-running starts. |
-| 1 | `pm-log-srv` | `pm-log-srv` | Optional `--host`, `--port`, `--db`; usually none | Operational logs should have somewhere to go before other long-running services start. This is operationally mandatory when you rely on centralized logs. |
+| 1 | `pm-log-srv` | `pm-log-srv` | Optional `--host`, `--port`, `--db`; usually none | Operational logs should have somewhere to go before other long-running services start. No process fails to start without it — each one queues log records and falls back to a local log file after a 30-second grace window — but starting it first keeps every process's logs centralized instead of scattered on disk. |
 | 2 | `pm-audit` | `pm-audit --terminal` | Optional `--audit-log-file`; use `--terminal` when watching live | Audit is the durable event trail. Start it before the engine so initial session, seed and trade events are not missed. |
-| 3 | `pm-clearing` | `pm-clearing --timezone Europe/Stockholm` | Use the same `--timezone` as `pm-stats`, or omit both for UTC | Clearing records trades, positions and P&L. Start it before trading; daily reconciliation depends on timezone consistency. |
-| 4 | `pm-stats` | `pm-stats --timezone Europe/Stockholm` | Use the same `--timezone` as `pm-clearing`; optional `--snapshot-interval` | Statistics powers reports, history and many displays. Start it before trades so OHLCV and history are complete. |
+| 3 | `pm-stats` | `pm-stats --timezone Europe/Stockholm` | Use the same `--timezone` as `pm-clearing`; optional `--snapshot-interval` | Statistics powers reports, history and many displays. Start it before trades so OHLCV and history are complete. |
+| 4 | `pm-clearing` | `pm-clearing --timezone Europe/Stockholm` | Use the same `--timezone` as `pm-stats`, or omit both for UTC | Clearing records trades, positions and P&L. Start it before trading; daily reconciliation depends on timezone consistency. |
 | 5 | `pm-engine` | `pm-engine --verbose` | Usually none; all config comes from the deployed artifact | The engine owns the books and binds `:5555`, `:5556`, `:5557`. Start it after subscribers that must not miss early events. |
 | 6 | `pm-scheduler` | `pm-scheduler` or `pm-scheduler --now --delay 5` | Only needed when scheduled sessions are enabled | The scheduler drives phase transitions. Start it after the engine so transitions have a live target and before participants are invited to trade. |
-| 7 | `pm-index` | `pm-index` | Index definitions in deployed config | Start before market-data consumers so index publications are available when feeds and dashboards connect. |
-| 8 | `pm-md-gwy` | `pm-md-gwy` | Optional `--bind`, `--port`, `--engine-host` | CALF market data is the live feed used by external clients and TapeDeck. Start after engine/index are alive. |
-| 9 | `pm-api-gwy` | `pm-api-gwy` | Optional `--instance NAME`, `--host`, `--port`, `--engine-host`; API keys come from config | The API gateway has no `--id`. Use `--instance` only when multiple `api_gateways` entries are configured. Start after engine and stats history are available. |
-| 10 | `pm-alf-gwy` | `pm-alf-gwy` | Optional `--bind`, `--port`, `--engine-host`; gateway IDs come from client `HELLO` and config | The ALF TCP gateway has no process-level `--id`. Start after the engine is healthy, then external text clients can connect. |
-| 11 | `pm-balf-gwy` | `pm-balf-gwy` | Optional `--bind`, `--port`, `--engine-host`; identity is configured/client-provided | Optional binary order-entry gateway. Start only for BALF client exercises or integrations. |
-| 12 | Web applications | `cd deployment/docker && make up-all` | None — `up-all` resolves the read-only API key and the backend hostname itself | TapeDeck needs `pm-md-gwy` for live data and `pm-api-gwy` for history; the log console needs `pm-log-srv`. Starting them last is why `up-all` runs in two phases. |
+| 7 | `pm-md-gwy` | `pm-md-gwy` | Optional `--bind`, `--port`, `--engine-pub` | CALF market data is the live feed used by external clients and TapeDeck. Start after the engine is alive. |
+| 8 | `pm-ralf-gwy` | `pm-ralf-gwy` | Optional `--bind`, `--port`, `--engine-pub` | Post-trade dissemination (RALF). Start after the engine is alive. |
+| 9 | `pm-dc-gwy` | `pm-dc-gwy` | Optional `--bind`, `--port`, `--engine-dc-pub` | Drop-copy feed (DCLF). Start after the engine is alive. |
+| 10 | `pm-api-gwy` | `pm-api-gwy` | Optional `--instance NAME`, `--host`, `--port`, `--engine-host`; API keys come from config | The API gateway has no `--id`. Use `--instance` only when multiple `api_gateways` entries are configured. Start after engine and stats history are available. |
+| 11 | `pm-alf-gwy` | `pm-alf-gwy` | Optional `--bind`, `--port`, `--engine-host`; gateway IDs come from client `HELLO` and config | The ALF TCP gateway has no process-level `--id`. Start after the engine is healthy, then external text clients can connect. |
+| 12 | `pm-balf-gwy` | `pm-balf-gwy` | Optional `--bind`, `--port`, `--engine-host`; identity is configured/client-provided | Optional binary order-entry gateway. Start only for BALF client exercises or integrations. |
+| 13 | `pm-index` | `pm-index` | Index definitions in deployed config | Started last in the `default` profile; index publications depend on the engine and its own configured indices, not on any other process here. |
+| 14 | Web applications | `cd deployment/docker && make up-all` | None — `up-all` resolves the read-only API key and the backend hostname itself | TapeDeck needs `pm-md-gwy` for live data and `pm-api-gwy` for history; the log console needs `pm-log-srv`. Starting them last is why `up-all` runs in two phases. |
 
 This order is approximate for independent consumers, but not arbitrary. The
 recorders can safely wait for the engine to appear, so starting them first is a
@@ -881,7 +883,8 @@ Useful probes:
 pm-calf-spy --channels TOP,TRADE --symbols AAPL
 pm-ralf-spy --role AUDIT
 pm-dc-spy
-curl -s http://127.0.0.1:8080/api/v1/status
+curl -s http://127.0.0.1:8080/api/v1/healthz
+curl -s -H "Authorization: Bearer <api-key>" http://127.0.0.1:8080/api/v1/status
 ```
 
 ### TapeDeck loads but shows offline or missing history
@@ -942,8 +945,11 @@ Before restarting:
 5. Wait for clean shutdown messages.
 6. Start the engine, then restart or verify dependent processes.
 
-On clean shutdown, the engine persists GTC state and publishes end-of-day style
-events. DAY orders expire.
+On clean shutdown, the engine persists resting order state — both GTC and DAY
+orders — to disk and publishes end-of-day style events. A DAY order is not
+discarded at shutdown; it is only dropped on the *next* startup if the
+business day has since moved on (a shutdown mid-session is not itself a day
+boundary).
 
 ### Full clean shutdown
 
@@ -965,10 +971,10 @@ tar -czf edumatcher-session-$(date +%Y%m%d-%H%M%S).tgz \
 
 ### Shutting down a managed stack
 
-`pm-opctl-cli stop` sends `SIGTERM` to everything it started, in the order the
-PID files are found — which is *not* the order above. For a session whose
-records matter, stop order entry first (close the participant terminals, or
-halt the session with `pm-admin`), then let it stop the rest.
+`pm-opctl-cli stop` sends `SIGTERM` to everything it started, in alphabetical
+order by process name — which is *not* the startup order above. For a session
+whose records matter, stop order entry first (close the participant
+terminals, or halt the session with `pm-admin`), then let it stop the rest.
 
 For a container:
 

@@ -195,7 +195,7 @@ one did not, or the transition is the end-of-day close — including the
 
 ```mermaid
 stateDiagram-v2
-    [*] --> PRE_OPEN : engine start (sessions enabled)
+    [*] --> CLOSED : engine start (sessions enabled)
     PRE_OPEN --> OPENING_AUCTION
     PRE_OPEN --> CONTINUOUS : skip opening auction
     OPENING_AUCTION --> CONTINUOUS : uncross + ATO expiry
@@ -234,7 +234,9 @@ poetry run pm-scheduler --now
 # Custom delay between transitions in --now mode (default 3 s)
 poetry run pm-scheduler --now --delay 5
 
-# Point to a different config file
+# pm-scheduler always reads the deployed compiled artifact (like pm-engine) --
+# there is no flag to point it at a different config file; see
+# [Configuration -- Missing-file Behavior](010-configuration.md) for why.
 poetry run pm-scheduler
 ```
 
@@ -245,7 +247,6 @@ poetry run pm-scheduler
 | `--now`                  | off                 | Rapid-fire all five transitions immediately (for testing / demos)             |
 | `--delay SECONDS`        | `3.0`                | Seconds between transitions in `--now` mode; ignored (with a warning) otherwise |
 | `--daily`                | off                 | Run continuously, repeating the schedule every calendar day instead of exiting after today |
-| `--config FILE` / `-c`   | `engine_config.yaml` | Config YAML with a `schedule` section                                       |
 | `--no-confirm`           | off                 | Skip querying/confirming session state via the engine's `session.state` broadcast |
 | `--log-level {CRITICAL,ERROR,WARNING,INFO,DEBUG}` | `WARNING` | Explicit logging level override                                    |
 | `--verbose` / `-v`       | off (WARNING)       | Increase log verbosity; repeatable (`-v` = INFO, `-vv` = DEBUG)              |
@@ -557,12 +558,15 @@ When an uncross completes, the engine publishes:
 
 ## Hands-on: driving an opening auction manually
 
-This short walkthrough uses two terminals with `sessions_enabled: true`.
+This short walkthrough uses two terminals with `sessions_enabled: true`. Terminal 1
+runs `pm-admin --id OPS01` (a gateway configured with `role: ADMIN`) — the
+`SESSION|STATE=` command that advances the session is only available there, not
+in `pm-alf-console`.
 
 ```text
-# Terminal 1 — ADMIN gateway
+# Terminal 1 — ADMIN gateway (pm-admin --id OPS01)
 [OPS01|ADMIN]> SESSION|STATE=OPENING_AUCTION
-[PRE_OPEN → OPENING_AUCTION]
+SESSION  PRE_OPEN → OPENING_AUCTION
 
 # Terminal 2 — trader submits orders during auction
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=ATO
@@ -570,8 +574,9 @@ This short walkthrough uses two terminals with `sessions_enabled: true`.
 
 # Terminal 1 — trigger the uncross
 [OPS01|ADMIN]> SESSION|STATE=CONTINUOUS
-[OPENING_AUCTION → CONTINUOUS]
-# Engine prints: auction.result AAPL price=149.50 qty=100 surplus=0
+SESSION  OPENING_AUCTION → CONTINUOUS
+# Engine logs: UNCROSS AAPL: 1 trade(s) @ 149.5, qty=100, surplus=0 (...)
+# and publishes an auction.result.AAPL message with the same fields.
 ```
 
 Both ATO orders fill at the equilibrium price.  The `TIF=ATO` orders are
