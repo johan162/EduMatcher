@@ -53,7 +53,8 @@ export const reopeningOverrideSchema = z.object({
 
 export const cbLevelSchema = z.object({
   priceShiftPct: z.number().gt(0).lt(1),
-  haltDurationNs: z.number().int().nonnegative().nullable(),
+  // > 0 or null (rest of day); 0 is rejected by the engine loader.
+  haltDurationNs: z.number().int().positive().nullable(),
 });
 
 export const mmQuoteStubSchema = z.object({
@@ -123,6 +124,7 @@ export const gatewayConfigSchema = z.object({
   role: z.enum(PARTICIPANT_ROLES),
   disconnectBehaviour: z.enum(DISCONNECT_BEHAVIOURS),
   description: z.string().optional(),
+  smpAction: z.enum(SMP_ACTIONS),
   quoteRefreshPolicy: z.enum(QUOTE_REFRESH_POLICIES).optional(),
   enforceMmObligation: z.boolean().optional(),
   mmMaxSpreadTicks: z.number().int().positive().optional(),
@@ -133,13 +135,13 @@ export const gatewayConfigSchema = z.object({
 });
 
 export const riskLevelSchema = z.object({
-  staticBandPct: z.number().gt(0).lt(1),
-  dynamicBandPct: z.number().gt(0).lt(1),
+  staticBandPct: z.number().gt(0).lt(1).optional(),
+  dynamicBandPct: z.number().gt(0).lt(1).optional(),
 });
 
 export const indexConfigSchema = z.object({
-  id: z.string().min(1),
-  description: z.string().optional(),
+  id: z.string().regex(/^[A-Za-z0-9]+$/, "Index id must be alphanumeric"),
+  description: z.string().regex(/\S/, "Index description must not be empty"),
   constituents: z.array(z.string()),
   baseValue: z.number().positive(),
   publishIntervalSec: z.number().positive(),
@@ -154,7 +156,7 @@ export const comboLegSchema = z.object({
   quantity: z.number().int().positive(),
   price: z.number().nullable().optional(),
   stopPrice: z.number().nullable().optional(),
-  smpAction: z.enum(SMP_ACTIONS),
+  smpAction: z.enum(SMP_ACTIONS).optional(),
 });
 
 export const comboConfigSchema = z.object({
@@ -164,42 +166,60 @@ export const comboConfigSchema = z.object({
   legs: z.array(comboLegSchema),
 });
 
+// Field law from 990-app-config-spec.md §6: every interval, timeout and
+// limit is > 0. `Int` fields are integers; `Secs` fields may be fractional.
 const networkBase = {
-  enabled: z.boolean(),
+  include: z.boolean(),
   name: z.string().min(1),
   bindAddress: z.string().min(1),
   port: z.number().int().min(1).max(65535),
-  heartbeatIntervalSec: z.number().nonnegative(),
-  idleTimeoutSec: z.number().nonnegative(),
+  heartbeatIntervalSec: z.number().int().positive(),
+  idleTimeoutSec: z.number().int().positive(),
   maxClientQueue: z.number().int().positive(),
 };
 
+export const alfGatewayProcSchema = z.object({
+  ...networkBase,
+  enabled: z.boolean(),
+  handshakeTimeoutSec: z.number().int().positive(),
+  maxConnections: z.number().int().positive(),
+  maxCommandsPerSecond: z.number().int().positive(),
+  maxErrorsBeforeDisconnect: z.number().int().positive(),
+  errorWindowSec: z.number().int().positive(),
+});
+
 export const postTradeGatewaySchema = z.object({
   ...networkBase,
-  replayRetentionSec: z.number().int().nonnegative(),
+  replayRetentionSec: z.number().int().positive(),
   allowedRoles: z.array(z.string()),
 });
 
 export const marketDataGatewaySchema = z.object({
   ...networkBase,
-  replayWindowSec: z.number().int().nonnegative(),
+  enabled: z.boolean(),
+  replayWindowSec: z.number().int().positive(),
+  maxConnections: z.number().int().positive(),
+  maxMessagesPerSecond: z.number().int().positive(),
   maxSymbolsPerClient: z.number().int().positive(),
   depthLevels: z.number().int().positive(),
 });
 
 export const balfGatewaySchema = z.object({
   ...networkBase,
-  heartbeatTimeoutSec: z.number().nonnegative(),
-  authTimeoutSec: z.number().nonnegative(),
+  enabled: z.boolean(),
+  heartbeatIntervalSec: z.number().positive(),
+  idleTimeoutSec: z.number().positive(),
+  heartbeatTimeoutSec: z.number().positive(),
+  authTimeoutSec: z.number().positive(),
   maxConnections: z.number().int().positive(),
   maxMessagesPerSecond: z.number().int().positive(),
   maxErrorsBeforeDisconnect: z.number().int().positive(),
-  errorWindowSec: z.number().int().positive(),
+  errorWindowSec: z.number().positive(),
   duplicateSessionPolicy: z.enum(DUPLICATE_SESSION_POLICIES),
 });
 
 export const dcGatewaySchema = z.object({
-  enabled: z.boolean(),
+  include: z.boolean(),
   name: z.string().min(1),
   bindAddress: z.string().min(1),
   port: z.number().int().min(1).max(65535),
@@ -208,52 +228,39 @@ export const dcGatewaySchema = z.object({
   maxClientQueue: z.number().int().positive(),
 });
 
-export const logServerSchema = z
-  .object({
-    enabled: z.boolean(),
-    name: z.string().min(1),
-    bindAddress: z.string().min(1),
-    port: z.number().int().min(1).max(65535),
-    dbPath: z.string().min(1),
-    retentionDays: z.number().int().nonnegative().nullable(),
-    maxMessageBytes: z.number().int().positive(),
-    maxClientQueue: z.number().int().positive(),
-    writeBatchSize: z.number().int().positive(),
-    writeBatchIntervalMs: z.number().int().positive(),
-    heartbeatIntervalSec: z.number().positive(),
-    // LALF-PS
-    pubsubEnabled: z.boolean(),
-    pubPort: z.number().int().min(1).max(65535),
-    pullPort: z.number().int().min(1).max(65535),
-    leaseSec: z.number().int().positive(),
-    maxLeaseSec: z.number().int().positive(),
-    maxSubscribers: z.number().int().positive(),
-    notifyIntervalMs: z.number().int().positive(),
-    backfillChunkRows: z.number().int().positive(),
-    maxBackfillMinutes: z.number().int().positive(),
-    maxBackfillRows: z.number().int().positive(),
-    maxPendingRows: z.number().int().positive(),
-    pubSndhwm: z.number().int().positive(),
-  })
-  // The two cross-field rules pm-log-srv refuses to start on, mirroring
-  // pm-cverifier's S102 and S103. Only enforced when LALF-PS is actually
-  // enabled — a disabled interface binds nothing, so its ports are inert.
-  .refine(
-    (g) => !g.pubsubEnabled || new Set([g.port, g.pubPort, g.pullPort]).size === 3,
-    {
-      message:
-        "port, pub port and pull port must all be different — pm-log-srv binds all three",
-      path: ["pubPort"],
-    },
-  )
-  .refine((g) => g.maxLeaseSec >= g.leaseSec, {
-    message: "max lease must be at least the default lease",
-    path: ["maxLeaseSec"],
-  });
+// The cross-field port/lease rules (pm-cverifier S102/S103) live in the
+// diagnostics package, which reports them only when the section is written.
+export const logServerSchema = z.object({
+  include: z.boolean(),
+  enabled: z.boolean(),
+  name: z.string().min(1),
+  bindAddress: z.string().min(1),
+  port: z.number().int().min(1).max(65535),
+  dbPath: z.string().min(1),
+  retentionDays: z.number().int().nonnegative().nullable(),
+  maxMessageBytes: z.number().int().positive(),
+  maxClientQueue: z.number().int().positive(),
+  writeBatchSize: z.number().int().positive(),
+  writeBatchIntervalMs: z.number().int().positive(),
+  heartbeatIntervalSec: z.number().positive(),
+  // LALF-PS
+  pubsubEnabled: z.boolean(),
+  pubPort: z.number().int().min(1).max(65535),
+  pullPort: z.number().int().min(1).max(65535),
+  leaseSec: z.number().int().positive(),
+  maxLeaseSec: z.number().int().positive(),
+  maxSubscribers: z.number().int().positive(),
+  notifyIntervalMs: z.number().int().positive(),
+  backfillChunkRows: z.number().int().positive(),
+  maxBackfillMinutes: z.number().int().positive(),
+  maxBackfillRows: z.number().int().positive(),
+  maxPendingRows: z.number().int().positive(),
+  pubSndhwm: z.number().int().positive(),
+});
 
 export const apiCredentialSchema = z.object({
-  apiKey: z.string(),
-  gatewayId: z.string().nullable(),
+  apiKey: z.string().min(1),
+  gatewayId: z.string().min(1).nullable(),
   description: z.string().optional(),
 });
 
@@ -264,13 +271,11 @@ export const apiGatewaySchema = z.object({
   port: z.number().int().min(1).max(65535),
   swaggerEnabled: z.boolean(),
   logLevel: z.enum(API_LOG_LEVELS),
-  statsDb: z.string(),
-  gatewayIds: z.array(z.string()),
-  generateKeys: z.boolean(),
-  generateReadonlyKey: z.boolean(),
+  statsDb: z.string().min(1),
+  auditDb: z.string().min(1).optional(),
   credentials: z.array(apiCredentialSchema),
-  rateLimitWritesPerSecond: z.number().int().nonnegative(),
-  rateLimitBurst: z.number().int().nonnegative(),
+  rateLimitWritesPerSecond: z.number().int().positive(),
+  rateLimitBurst: z.number().int().positive(),
   engineAuthSec: z.number().positive(),
   engineReplySec: z.number().positive(),
   waitAckSec: z.number().positive(),
@@ -280,6 +285,7 @@ export const apiGatewaySchema = z.object({
 
 export const engineConfigDraftSchema = z.object({
   sessionsEnabled: z.boolean(),
+  requireMmSeedQuotes: z.boolean(),
   country: z.string().min(1),
   emitSchedule: z.boolean(),
   snapshotIntervalSec: z.number().positive(),
@@ -301,7 +307,7 @@ export const engineConfigDraftSchema = z.object({
     levels: z.record(z.string(), riskLevelSchema),
   }),
   circuitBreakerDefaults: z.object({
-    enabled: z.boolean(),
+    include: z.boolean(),
     windowNs: z.number().int().positive(),
     levels: z.record(z.string(), cbLevelSchema),
     levelOrder: z.array(z.string()),
@@ -316,10 +322,10 @@ export const engineConfigDraftSchema = z.object({
     mmMidRange: z.object({ min: z.number(), max: z.number() }).optional(),
     seedLastPricesFromMm: z.boolean(),
     seedLastPrices: z.boolean(),
-    randomSeed: z.number().int().optional(),
   }),
   indices: z.array(indexConfigSchema),
   combos: z.array(comboConfigSchema),
+  alfGateway: alfGatewayProcSchema,
   postTradeGateway: postTradeGatewaySchema,
   marketDataGateway: marketDataGatewaySchema,
   balfGateway: balfGatewaySchema,

@@ -40,9 +40,12 @@ function isConfigured(draft: EngineConfigDraft, tabId: string): boolean {
       return draft.combos.length > 0;
     case "gateways":
       return (
-        draft.postTradeGateway.enabled ||
-        draft.marketDataGateway.enabled ||
-        draft.balfGateway.enabled ||
+        draft.alfGateway.include ||
+        draft.postTradeGateway.include ||
+        draft.marketDataGateway.include ||
+        draft.balfGateway.include ||
+        draft.dcGateway.include ||
+        draft.logServer.include ||
         draft.apiGateways.length > 0
       );
     case "engine-tuning":

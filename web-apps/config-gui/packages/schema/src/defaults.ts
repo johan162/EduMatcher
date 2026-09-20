@@ -62,6 +62,13 @@ export const DEFAULT_ACE_EXPANSIONS: ReadonlyArray<{
 
 export const DEFAULT_MM_SPREAD_TICKS = 20;
 export const DEFAULT_MM_MIN_QTY = 100;
+/**
+ * What the engine loader applies when `mm_max_spread_ticks` is omitted —
+ * not the same as the value pm-config-gen writes for a new config (20).
+ * An imported file must reflect the loader's value, or re-export would
+ * silently change it.
+ */
+export const ENGINE_DEFAULT_MM_MAX_SPREAD_TICKS = 10;
 export const DEFAULT_MM_STUB_QTY = 1000;
 
 /** Opening two-sided quote width (in ticks) used when seeding an IPO quote. */
@@ -80,6 +87,20 @@ export const DEFAULT_POST_TRADE_GATEWAY = {
   allowedRoles: ["CLEARING", "DROP_COPY", "AUDIT"] as string[],
 } as const;
 
+export const DEFAULT_ALF_GATEWAY = {
+  name: "alf-gwy01",
+  bindAddress: "0.0.0.0",
+  port: 5565,
+  heartbeatIntervalSec: 5,
+  handshakeTimeoutSec: 10,
+  idleTimeoutSec: 30,
+  maxConnections: 64,
+  maxClientQueue: 10_000,
+  maxCommandsPerSecond: 100,
+  maxErrorsBeforeDisconnect: 50,
+  errorWindowSec: 60,
+} as const;
+
 export const DEFAULT_MARKET_DATA_GATEWAY = {
   enabled: true,
   name: "md-gwy01",
@@ -88,6 +109,8 @@ export const DEFAULT_MARKET_DATA_GATEWAY = {
   heartbeatIntervalSec: 1,
   idleTimeoutSec: 5,
   replayWindowSec: 30,
+  maxConnections: 64,
+  maxMessagesPerSecond: 200,
   maxSymbolsPerClient: 200,
   maxClientQueue: 10_000,
   depthLevels: 10,
@@ -153,8 +176,6 @@ export const DEFAULT_API_GATEWAY = {
   swaggerEnabled: true,
   logLevel: "info" as "debug" | "info" | "warning" | "error",
   statsDb: "data/stats.db",
-  generateKeys: true,
-  generateReadonlyKey: false,
   rateLimitWritesPerSecond: 10,
   rateLimitBurst: 20,
   engineAuthSec: 3.0,

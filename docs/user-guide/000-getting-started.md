@@ -207,11 +207,11 @@ Data directory: /home/ubuntu/.local/share/edumatcher
   started clearing (pid 21216): pm-clearing --verbose
   started engine (pid 21218): pm-engine --verbose
   started scheduler (pid 21220): pm-scheduler --daily --verbose
-  started market-data-gwy (pid 21222): pm-md-gwy --verbose
-  started post-trade-gwy (pid 21224): pm-ralf-gwy --verbose
-  started drop-copy-gwy (pid 21226): pm-dc-gwy --verbose
-  started api-desk-gwy (pid 21228): pm-api-gwy --verbose --instance desk
-  started api-dashboards-gwy (pid 21231): pm-api-gwy --verbose --instance dashboards
+  started market-data-gwy (md-gwy) (pid 21222): pm-md-gwy --verbose
+  started post-trade-gwy (ralf-gwy) (pid 21224): pm-ralf-gwy --verbose
+  started drop-copy-gwy (dc-gwy) (pid 21226): pm-dc-gwy --verbose
+  started api-desk-gwy (api-gwy) (pid 21228): pm-api-gwy --verbose --instance desk
+  started api-dashboards-gwy (api-gwy) (pid 21231): pm-api-gwy --verbose --instance dashboards
   started alf-gwy (pid 21233): pm-alf-gwy --verbose
   started balf-gwy (pid 21235): pm-balf-gwy --verbose
   started index-srv (pid 21239): pm-index --verbose
@@ -224,21 +224,20 @@ ubuntu@ems:~$ pm-opctl-cli list
 pm-opctl profile: default
 data directory: /home/ubuntu/.local/share/edumatcher
   Process                  PID   Uptime  RSS(MB)  Status          Details
--------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------
 ✅ log                   106208    00:51     40.0  running         tcp connect to 127.0.0.1:5600 ok
 ✅ audit                 106210    00:51     38.2  running         no healthcheck or tcp check configured
 ✅ stats                 106212    00:51     40.8  running         healthcheck passed
 ✅ clearing              106214    00:51     42.5  running         no healthcheck or tcp check configured
 ✅ engine                106216    00:51     51.3  running         tcp connect to 127.0.0.1:5555 ok
 ✅ scheduler             106218    00:51     49.9  running         no healthcheck or tcp check configured
-✅ market-data-gwy       106220    00:51     37.9  running         tcp connect to 127.0.0.1:5570 ok
-✅ post-trade-gwy        106222    00:51     37.7  running         tcp connect to 127.0.0.1:5580 ok
-✅ drop-copy-gwy         106224    00:51     37.7  running         tcp connect to 127.0.0.1:5590 ok
-✅ api-desk-gwy          106264    00:51     71.9  running         tcp connect to 127.0.0.1:8080 ok
-✅ api-dashboards-gwy    106268    00:51     71.9  running         tcp connect to 127.0.0.1:8081 ok
+✅ market-data-gwy (md-gwy)  106220    00:51     37.9  running         tcp connect to 127.0.0.1:5570 ok
+✅ post-trade-gwy (ralf-gwy)  106222    00:51     37.7  running         tcp connect to 127.0.0.1:5580 ok
+✅ drop-copy-gwy (dc-gwy)  106224    00:51     37.7  running         tcp connect to 127.0.0.1:5590 ok
+✅ api-desk-gwy (api-gwy)  106264    00:51     71.9  running         tcp connect to 127.0.0.1:8080 ok
+✅ api-dashboards-gwy (api-gwy)  106268    00:51     71.9  running         tcp connect to 127.0.0.1:8081 ok
 ✅ alf-gwy               106270    00:51     37.9  running         tcp connect to 127.0.0.1:5565 ok
 ✅ balf-gwy              106272    00:51     38.1  running         tcp connect to 127.0.0.1:5560 ok
-✅ ralf-gwy              106222    00:51     37.7  running         tcp connect to 127.0.0.1:5580 ok
 ✅ index-srv             106276    00:51     38.3  running         no healthcheck or tcp check configured
 ```
 
@@ -616,7 +615,7 @@ market-maker quotes in configuration, or with `pm-mm-bot` / AI traders.
 If a beginner sees no fill, the most common reason is simple: nobody is resting
 on the other side at a price that crosses.
 
-**Tip:** Use the `pm-viewer --s <SYMBOL>` command to view a selected symbols order-boook. 
+**Tip:** Use the `pm-viewer --symbol <SYMBOL>` command to view a selected symbol's order book. 
 This tool sits on the bus so this command will only work if you are running t
 he command on the "inside" of the container/VM with one exception.
 If the container was started with `ZMQ=1` . This makes the bus ports available

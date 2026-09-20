@@ -298,6 +298,46 @@ def test_new_oco_and_combo_forward_client_tag(gateway: AlfGateway) -> None:
     assert oco_payload["client_tag"] == "OCO-TAG"
     assert combo_topic == "order.combo"
     assert combo_payload["client_tag"] == "COMBO-TAG"
+
+
+def test_new_oco_leg_prices_are_ticks_on_the_wire(gateway: AlfGateway) -> None:
+    """LEG1_PRICE/LEG1_STOP/LEG2_STOP must reach the engine as *_ticks.
+
+    The gateway converts each leg field with ``self._ticks`` but used to store
+    the result under the display-value key (``price``, ``stop_price``,
+    ``trail_offset``) instead of the engine's expected ``*_ticks`` key. The
+    engine's OCO handler only reads the ``*_ticks`` keys, so every leg price,
+    stop, or trail was silently dropped and the leg was then rejected as
+    missing its required price/stop.
+    """
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    session.role = "TRADER"
+    session.rate_tokens = 10.0
+    gateway._symbols_snapshot_loaded = True
+    gateway._known_symbols = {"AAPL"}
+
+    gateway._handle_client_line(
+        session,
+        "NEW|TYPE=OCO|OCO_ID=O2|SYM=AAPL|QTY=2|"
+        "LEG1_SIDE=SELL|LEG1_TYPE=STOP_LIMIT|LEG1_PRICE=101.50|LEG1_STOP=100.00|"
+        "LEG2_SIDE=SELL|LEG2_TYPE=TRAILING_STOP|LEG2_TRAIL=2.00",
+    )
+
+    fake_push = gateway._push
+    assert isinstance(fake_push, _FakePush)
+    _topic, payload = decode(fake_push.sent[-1])
+
+    leg1, leg2 = payload["leg1"], payload["leg2"]
+    assert leg1["price_ticks"] == 10150
+    assert leg1["stop_price_ticks"] == 10000
+    assert leg2["trail_offset_ticks"] == 200
+    for leg in (leg1, leg2):
+        assert "price" not in leg
+        assert "stop_price" not in leg
+        assert "trail_offset" not in leg
+    peer.close()
     peer.close()
 
 

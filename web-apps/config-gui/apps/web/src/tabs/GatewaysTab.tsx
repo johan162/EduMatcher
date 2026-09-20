@@ -29,6 +29,7 @@ export function GatewaysTab() {
     >
       <Tabs.Root defaultValue="post-trade" className="mt-2">
         <Tabs.List className="mb-4 flex flex-wrap gap-1 border-b border-border">
+          {canSee("E") && <Tabs.Trigger value="alf" className={TAB_TRIGGER}>ALF</Tabs.Trigger>}
           <Tabs.Trigger value="post-trade" className={TAB_TRIGGER}>Post-Trade</Tabs.Trigger>
           <Tabs.Trigger value="market-data" className={TAB_TRIGGER}>Market-Data</Tabs.Trigger>
           {canSee("E") && <Tabs.Trigger value="balf" className={TAB_TRIGGER}>BALF</Tabs.Trigger>}
@@ -37,6 +38,7 @@ export function GatewaysTab() {
           {canSee("E") && <Tabs.Trigger value="api" className={TAB_TRIGGER}>API</Tabs.Trigger>}
         </Tabs.List>
 
+        {canSee("E") && <Tabs.Content value="alf"><AlfPanel /></Tabs.Content>}
         <Tabs.Content value="post-trade"><PostTradePanel /></Tabs.Content>
         <Tabs.Content value="market-data"><MarketDataPanel /></Tabs.Content>
         {canSee("E") && <Tabs.Content value="balf"><BalfPanel /></Tabs.Content>}
@@ -48,6 +50,34 @@ export function GatewaysTab() {
   );
 }
 
+function AlfPanel() {
+  const g = useDraftStore((s) => s.draft.alfGateway);
+  const update = useDraftStore((s) => s.update);
+  const set = (fn: (gw: typeof g) => void) => update((d) => fn(d.alfGateway));
+
+  return (
+    <div>
+      <IncludeRow include={g.include} onToggle={(v) => set((gw) => (gw.include = v))} label="Write alf_gateway section" hasEnabledKey />
+      {g.include && (
+        <>
+          <EnabledRow enabled={g.enabled} onToggle={(v) => set((gw) => (gw.enabled = v))} label="pm-alf-gwy enabled" />
+          <TextField label="Name" value={g.name} onChange={(v) => set((gw) => (gw.name = v))} help={{ text: "Service name of this ALF text gateway instance." }} />
+          <TextField label="Bind address" value={g.bindAddress} onChange={(v) => set((gw) => (gw.bindAddress = v))} help={{ text: "Network interface the ALF TCP gateway listens on. Use 127.0.0.1 for loopback-only." }} />
+          <NumField label="Port" path="alfGateway.port" value={g.port} onChange={(v) => set((gw) => (gw.port = v ?? gw.port))} help={{ text: "TCP port ALF clients connect to." }} />
+          <NumField label="Heartbeat interval (sec)" value={g.heartbeatIntervalSec} onChange={(v) => set((gw) => (gw.heartbeatIntervalSec = v ?? gw.heartbeatIntervalSec))} help={{ text: "Seconds between heartbeats." }} />
+          <NumField label="Handshake timeout (sec)" value={g.handshakeTimeoutSec} onChange={(v) => set((gw) => (gw.handshakeTimeoutSec = v ?? gw.handshakeTimeoutSec))} help={{ text: "How long a new connection has to complete the LOGIN handshake." }} />
+          <NumField label="Idle timeout (sec)" value={g.idleTimeoutSec} onChange={(v) => set((gw) => (gw.idleTimeoutSec = v ?? gw.idleTimeoutSec))} help={{ text: "Disconnect threshold when a connected client sends no traffic for this many seconds." }} />
+          <NumField label="Max connections" value={g.maxConnections} onChange={(v) => set((gw) => (gw.maxConnections = v ?? gw.maxConnections))} help={{ text: "Maximum number of simultaneous ALF client connections." }} />
+          <NumField label="Max client queue" value={g.maxClientQueue} onChange={(v) => set((gw) => (gw.maxClientQueue = v ?? gw.maxClientQueue))} help={{ text: "Per-client outbound buffer capacity before the client is treated as slow." }} />
+          <NumField label="Max commands/sec" value={g.maxCommandsPerSecond} onChange={(v) => set((gw) => (gw.maxCommandsPerSecond = v ?? gw.maxCommandsPerSecond))} help={{ text: "Per-client inbound command rate limit." }} />
+          <NumField label="Max errors before disconnect" value={g.maxErrorsBeforeDisconnect} onChange={(v) => set((gw) => (gw.maxErrorsBeforeDisconnect = v ?? gw.maxErrorsBeforeDisconnect))} help={{ text: "Protocol errors allowed within the error window before disconnect." }} />
+          <NumField label="Error window (sec)" value={g.errorWindowSec} onChange={(v) => set((gw) => (gw.errorWindowSec = v ?? gw.errorWindowSec))} help={{ text: "Rolling window over which protocol errors are counted." }} />
+        </>
+      )}
+    </div>
+  );
+}
+
 function PostTradePanel() {
   const g = useDraftStore((s) => s.draft.postTradeGateway);
   const update = useDraftStore((s) => s.update);
@@ -55,8 +85,8 @@ function PostTradePanel() {
 
   return (
     <div>
-      <EnableRow enabled={g.enabled} onToggle={(v) => set((gw) => (gw.enabled = v))} label="Enable post-trade gateway" flag="--post-trade-gateway" />
-      {g.enabled && (
+      <IncludeRow include={g.include} onToggle={(v) => set((gw) => (gw.include = v))} label="Write post_trade_gateway section" flag="--post-trade-gateway" />
+      {g.include && (
         <>
           <TextField label="Name" value={g.name} onChange={(v) => set((gw) => (gw.name = v))} help={{ text: "Service name reported to connecting RALF clients (e.g. in a WELCOME/identity line).", cliFlag: "--post-trade-name" }} />
           <TextField label="Bind address" value={g.bindAddress} onChange={(v) => set((gw) => (gw.bindAddress = v))} help={{ text: "Network interface the post-trade (RALF) TCP gateway listens on. Use 127.0.0.1 for loopback-only.", cliFlag: "--post-trade-bind-address" }} />
@@ -95,15 +125,18 @@ function MarketDataPanel() {
 
   return (
     <div>
-      <EnableRow enabled={g.enabled} onToggle={(v) => set((gw) => (gw.enabled = v))} label="Enable market-data gateway" flag="--market-data-gateway" />
-      {g.enabled && (
+      <IncludeRow include={g.include} onToggle={(v) => set((gw) => (gw.include = v))} label="Write market_data_gateway section" flag="--market-data-gateway" hasEnabledKey />
+      {g.include && (
         <>
+          <EnabledRow enabled={g.enabled} onToggle={(v) => set((gw) => (gw.enabled = v))} label="pm-md-gwy enabled" />
           <TextField label="Name" value={g.name} onChange={(v) => set((gw) => (gw.name = v))} help={{ text: "Service name reported to CALF clients as WELCOME|GW=.", cliFlag: "--market-data-name" }} />
           <TextField label="Bind address" value={g.bindAddress} onChange={(v) => set((gw) => (gw.bindAddress = v))} help={{ text: "Network interface the market-data (CALF) TCP gateway listens on. Use 127.0.0.1 for loopback-only.", cliFlag: "--market-data-bind-address" }} />
           <NumField label="Port" path="marketDataGateway.port" value={g.port} onChange={(v) => set((gw) => (gw.port = v ?? gw.port))} help={{ text: "TCP port CALF subscribers connect to for order-book snapshots, trade prints, and session-state changes.", cliFlag: "--market-data-port" }} />
           <NumField label="Heartbeat interval (sec)" value={g.heartbeatIntervalSec} onChange={(v) => set((gw) => (gw.heartbeatIntervalSec = v ?? gw.heartbeatIntervalSec))} help={{ text: "Seconds between HB keepalive lines, advertised to clients as WELCOME|HBINT=.", cliFlag: "--market-data-heartbeat-interval-sec" }} />
           <NumField label="Idle timeout (sec)" value={g.idleTimeoutSec} onChange={(v) => set((gw) => (gw.idleTimeoutSec = v ?? gw.idleTimeoutSec))} help={{ text: "Disconnect threshold when a connected client sends no traffic for this many seconds.", cliFlag: "--market-data-idle-timeout-sec" }} />
           <NumField label="Replay window (sec)" value={g.replayWindowSec} onChange={(v) => set((gw) => (gw.replayWindowSec = v ?? gw.replayWindowSec))} help={{ text: "How far back a reconnecting client can request a sequence-gap replay, advertised as WELCOME|REPLAY=.", cliFlag: "--market-data-replay-window-sec" }} />
+          <NumField label="Max connections" value={g.maxConnections} onChange={(v) => set((gw) => (gw.maxConnections = v ?? gw.maxConnections))} help={{ text: "Maximum number of simultaneous CALF client connections." }} />
+          <NumField label="Max messages/sec" value={g.maxMessagesPerSecond} onChange={(v) => set((gw) => (gw.maxMessagesPerSecond = v ?? gw.maxMessagesPerSecond))} help={{ text: "Per-client inbound message rate limit." }} />
           <NumField label="Max symbols per client" value={g.maxSymbolsPerClient} onChange={(v) => set((gw) => (gw.maxSymbolsPerClient = v ?? gw.maxSymbolsPerClient))} help={{ text: "Upper bound on how many symbols a single client connection may subscribe to at once.", cliFlag: "--market-data-max-symbols-per-client" }} />
           <NumField label="Max client queue" value={g.maxClientQueue} onChange={(v) => set((gw) => (gw.maxClientQueue = v ?? gw.maxClientQueue))} help={{ text: "Per-client outbound line buffer capacity before the client is treated as slow and disconnected.", cliFlag: "--market-data-max-client-queue" }} />
           <NumField label="Depth levels" value={g.depthLevels} onChange={(v) => set((gw) => (gw.depthLevels = v ?? gw.depthLevels))} help={{ text: "Number of aggregated price levels per side included in DEPTH channel snapshots and updates.", cliFlag: "--market-data-depth-levels" }} />
@@ -120,9 +153,10 @@ function BalfPanel() {
 
   return (
     <div>
-      <EnableRow enabled={g.enabled} onToggle={(v) => set((gw) => (gw.enabled = v))} label="Enable BALF gateway" flag="--balf-gateway" />
-      {g.enabled && (
+      <IncludeRow include={g.include} onToggle={(v) => set((gw) => (gw.include = v))} label="Write balf_gateway section" flag="--balf-gateway" hasEnabledKey />
+      {g.include && (
         <>
+          <EnabledRow enabled={g.enabled} onToggle={(v) => set((gw) => (gw.enabled = v))} label="pm-balf-gwy enabled" />
           <TextField label="Name" value={g.name} onChange={(v) => set((gw) => (gw.name = v))} help={{ text: "Service name reported to connecting BALF clients.", cliFlag: "--balf-name" }} />
           <TextField label="Bind address" value={g.bindAddress} onChange={(v) => set((gw) => (gw.bindAddress = v))} help={{ text: "Network interface the BALF binary TCP gateway listens on. Use 127.0.0.1 for loopback-only.", cliFlag: "--balf-bind-address" }} />
           <NumField label="Port" path="balfGateway.port" value={g.port} onChange={(v) => set((gw) => (gw.port = v ?? gw.port))} help={{ text: "TCP port BALF clients connect to for fixed-width binary order-entry frames.", cliFlag: "--balf-port" }} />
@@ -156,13 +190,13 @@ function DcPanel() {
 
   return (
     <div>
-      <EnableRow
-        enabled={g.enabled}
-        onToggle={(v) => set((gw) => (gw.enabled = v))}
-        label="Enable drop-copy gateway"
+      <IncludeRow
+        include={g.include}
+        onToggle={(v) => set((gw) => (gw.include = v))}
+        label="Write dc_gateway section"
         flag="--dc-gateway"
       />
-      {g.enabled && (
+      {g.include && (
         <>
           <TextField label="Name" value={g.name} onChange={(v) => set((gw) => (gw.name = v))} help={{ text: "Service name echoed in WELCOME messages to connecting DC1 clients.", cliFlag: "--dc-name" }} />
           <TextField label="Bind address" value={g.bindAddress} onChange={(v) => set((gw) => (gw.bindAddress = v))} help={{ text: "Network interface/address the drop-copy TCP gateway listens on. Use 127.0.0.1 for loopback-only.", cliFlag: "--dc-bind-address" }} />
@@ -204,14 +238,16 @@ function LogServerPanel() {
 
   return (
     <div>
-      <EnableRow
-        enabled={g.enabled}
-        onToggle={(v) => set((gw) => (gw.enabled = v))}
-        label="Enable log server"
+      <IncludeRow
+        include={g.include}
+        onToggle={(v) => set((gw) => (gw.include = v))}
+        label="Write log_server section"
         flag="--log-server"
+        hasEnabledKey
       />
-      {g.enabled && (
+      {g.include && (
         <>
+          <EnabledRow enabled={g.enabled} onToggle={(v) => set((gw) => (gw.enabled = v))} label="pm-log-srv enabled" />
           <TextField
             label="Name"
             value={g.name}
@@ -351,32 +387,13 @@ function ApiPanel() {
           </div>
 
           <TextField label="Instance name" value={gw.name} onChange={(v) => update((d) => (d.apiGateways[i]!.name = v))} help={{ text: "Key this instance is generated under in api_gateways.<NAME>. Must be unique across instances.", cliFlag: "--api-gateway-name" }} />
+          <FieldRow label="Enabled" help={{ text: "The instance's `enabled` key. A disabled instance is still written, with enabled: false." }}>
+            <Switch aria-label="API instance enabled" checked={gw.enabled} onCheckedChange={(v) => update((d) => (d.apiGateways[i]!.enabled = v))} />
+          </FieldRow>
           <TextField label="Host" value={gw.host} onChange={(v) => update((d) => (d.apiGateways[i]!.host = v))} help={{ text: "Network interface this instance's HTTP/WebSocket server binds to.", cliFlag: "--api-gateway-host" }} />
           <NumField label="Port" path={`apiGateways.${gw.name}.port`} value={gw.port} onChange={(v) => update((d) => (d.apiGateways[i]!.port = v ?? gw.port))} help={{ text: "TCP port this instance's REST/WebSocket server listens on.", cliFlag: "--api-gateway-port" }} />
 
-          <FieldRow label="Scoped gateway IDs" path={`apiGateways.${gw.name}.gatewayIds`} help={{ text: "ALF gateway IDs this instance serves. Leave empty to serve all. Each ID may belong to only one instance.", cliFlag: "--api-gateway-instance" }}>
-            <div className="flex flex-wrap gap-1.5">
-              {draft.gateways.length === 0 && <span className="text-sm text-fg-subtle">Add ALF gateways in Basics.</span>}
-              {draft.gateways.map((alf) => {
-                const on = gw.gatewayIds.includes(alf.id);
-                return (
-                  <button
-                    key={alf.id}
-                    type="button"
-                    onClick={() =>
-                      update((d) => {
-                        const ids = d.apiGateways[i]!.gatewayIds;
-                        d.apiGateways[i]!.gatewayIds = on ? ids.filter((x) => x !== alf.id) : [...ids, alf.id];
-                      })
-                    }
-                    className={on ? "rounded-full border border-accent bg-accent px-2.5 py-0.5 text-sm text-accent-fg" : "rounded-full border border-border px-2.5 py-0.5 text-sm hover:bg-muted"}
-                  >
-                    {alf.id}
-                  </button>
-                );
-              })}
-            </div>
-          </FieldRow>
+          <ApiCredentialsEditor index={i} />
 
           <FieldRow label="Swagger UI" help={{ text: "Serve interactive /docs and /openapi.json pages alongside the API.", cliFlag: "--api-gateway-swagger-enabled" }}>
             <Switch aria-label="Swagger UI enabled" checked={gw.swaggerEnabled} onCheckedChange={(v) => update((d) => (d.apiGateways[i]!.swaggerEnabled = v))} />
@@ -390,6 +407,7 @@ function ApiPanel() {
             />
           </FieldRow>
           <TextField label="Stats DB path" value={gw.statsDb} onChange={(v) => update((d) => (d.apiGateways[i]!.statsDb = v))} help={{ text: "SQLite database this instance reads for /history/* endpoints (the same file pm-stats writes).", cliFlag: "--api-gateway-stats-db" }} />
+          <TextField label="Audit DB path" value={gw.auditDb ?? ""} onChange={(v) => update((d) => (d.apiGateways[i]!.auditDb = v || undefined))} help={{ text: "Read-only audit index used by GET /admin/orders/{order_id}. Empty = key omitted; pm-api-gwy then uses its resolved audit_index.db." }} />
           <NumField
             label="Order cache retention (s)"
             value={gw.orderRetentionSec}
@@ -409,20 +427,123 @@ function ApiPanel() {
             <NumField label="Rate limit writes/sec" value={gw.rateLimitWritesPerSecond} onChange={(v) => update((d) => (d.apiGateways[i]!.rateLimitWritesPerSecond = v ?? gw.rateLimitWritesPerSecond))} help={{ text: "Sustained per-key limit on order-entry write requests per second.", cliFlag: "--api-gateway-rate-limit-writes-per-second" }} />
             <NumField label="Rate limit burst" value={gw.rateLimitBurst} onChange={(v) => update((d) => (d.apiGateways[i]!.rateLimitBurst = v ?? gw.rateLimitBurst))} help={{ text: "Short-term burst allowance above the sustained write rate limit, per key.", cliFlag: "--api-gateway-rate-limit-burst" }} />
           </div>
-          <FieldRow label="Auto-generate keys" help={{ text: "Generate a per-gateway API key for each ALF gateway on export.", cliFlag: "--api-gateway-generate-keys" }}>
-            <Switch aria-label="Auto-generate keys" checked={gw.generateKeys} onCheckedChange={(v) => update((d) => (d.apiGateways[i]!.generateKeys = v))} />
-          </FieldRow>
         </div>
       ))}
     </div>
   );
 }
 
+/** Radix Select cannot use "" as an option value; this stands for gateway_id: null. */
+const READ_ONLY_KEY = "__read_only__";
+
+function newApiKey(): string {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** `api_gateways.<name>.credentials` — one row per api_key. */
+function ApiCredentialsEditor({ index }: { index: number }) {
+  const gw = useDraftStore((s) => s.draft.apiGateways[index]!);
+  const alfIds = useDraftStore((s) => s.draft.gateways.map((g) => g.id).join("\u0000"));
+  const update = useDraftStore((s) => s.update);
+  const setCred = (ci: number, fn: (c: (typeof gw.credentials)[number]) => void) =>
+    update((d) => fn(d.apiGateways[index]!.credentials[ci]!));
+  const baseOptions = [
+    { value: READ_ONLY_KEY, label: "(read-only market data)" },
+    ...(alfIds ? alfIds.split("\u0000") : []).map((id) => ({ value: id, label: id })),
+  ];
+
+  return (
+    <FieldRow
+      label="Credentials"
+      path={`apiGateways.${gw.name}.credentials`}
+      help={{ text: "API keys this instance accepts. A key bound to an ALF gateway may trade as that gateway; one without a gateway is a read-only market-data key. A gateway may have keys in only one instance." }}
+    >
+      <div className="w-full">
+        <table className="w-full text-sm">
+          <thead className="text-left text-xs uppercase text-fg-subtle">
+            <tr>
+              <th className="px-2 py-1">API key *</th>
+              <th className="px-2 py-1">Gateway</th>
+              <th className="px-2 py-1">Description</th>
+              <th className="px-2 py-1" />
+            </tr>
+          </thead>
+          <tbody>
+            {gw.credentials.map((c, ci) => (
+              <tr key={ci}>
+                <td className="px-2 py-1">
+                  <div className="flex items-center gap-1">
+                    <TextInput aria-label={`Credential ${ci + 1} API key`} value={c.apiKey} onChange={(v) => setCred(ci, (x) => (x.apiKey = v))} className="w-64 font-mono" />
+                    <button type="button" onClick={() => setCred(ci, (x) => (x.apiKey = newApiKey()))} className="rounded-md border border-border px-2 py-1 text-xs hover:bg-muted">
+                      Generate
+                    </button>
+                  </div>
+                </td>
+                <td className="px-2 py-1">
+                  <Select
+                    aria-label={`Credential ${ci + 1} gateway`}
+                    value={c.gatewayId ?? READ_ONLY_KEY}
+                    onValueChange={(v) => setCred(ci, (x) => (x.gatewayId = v === READ_ONLY_KEY ? null : v))}
+                    options={
+                      c.gatewayId !== null && !baseOptions.some((o) => o.value === c.gatewayId)
+                        ? [...baseOptions, { value: c.gatewayId, label: `${c.gatewayId} (unknown)` }]
+                        : baseOptions
+                    }
+                  />
+                </td>
+                <td className="px-2 py-1">
+                  <TextInput aria-label={`Credential ${ci + 1} description`} value={c.description ?? ""} onChange={(v) => setCred(ci, (x) => (x.description = v))} className="w-48" />
+                </td>
+                <td className="px-2 py-1 text-right">
+                  <button type="button" aria-label={`Remove credential ${ci + 1}`} onClick={() => update((d) => d.apiGateways[index]!.credentials.splice(ci, 1))} className="text-fg-subtle hover:text-error">
+                    ×
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {gw.credentials.length === 0 && (
+              <tr>
+                <td colSpan={4} className="px-2 py-2 text-fg-subtle">No credentials.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        <button
+          type="button"
+          onClick={() => update((d) => d.apiGateways[index]!.credentials.push({ apiKey: newApiKey(), gatewayId: null, description: "" }))}
+          className="mt-2 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
+        >
+          + Add credential
+        </button>
+      </div>
+    </FieldRow>
+  );
+}
+
 // --- small shared field helpers for the gateway panels ----------------------
 
-function EnableRow({ enabled, onToggle, label, flag }: { enabled: boolean; onToggle: (v: boolean) => void; label: string; flag: string }) {
+/**
+ * Whether the section is written. Leaving out a block that has an `enabled`
+ * key does not disable its process — it runs on built-in defaults — so that
+ * is said explicitly rather than calling this switch "Enable".
+ */
+function IncludeRow({ include, onToggle, label, flag, hasEnabledKey }: { include: boolean; onToggle: (v: boolean) => void; label: string; flag?: string; hasEnabledKey?: boolean }) {
+  const text = hasEnabledKey
+    ? "Write this section to the file. When off the section is left out and the process, if started, runs on its built-in defaults — it is not disabled. Use the enabled switch below to disable it."
+    : "Write this section to the file. When off the section is left out and the process, if started, runs on its built-in defaults.";
   return (
-    <FieldRow label={label} help={{ text: "Turning this off keeps your values but excludes the section from the exported config.", cliFlag: flag }}>
+    <FieldRow label={label} help={{ text, cliFlag: flag }}>
+      <Switch aria-label={label} checked={include} onCheckedChange={onToggle} />
+    </FieldRow>
+  );
+}
+
+/** The section's own `enabled` key. */
+function EnabledRow({ enabled, onToggle, label }: { enabled: boolean; onToggle: (v: boolean) => void; label: string }) {
+  return (
+    <FieldRow label={label} help={{ text: "The section's own `enabled` key (spec §6), written as shown." }}>
       <Switch aria-label={label} checked={enabled} onCheckedChange={onToggle} />
     </FieldRow>
   );

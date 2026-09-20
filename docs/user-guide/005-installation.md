@@ -85,8 +85,9 @@ no Node, no checkout. The only requirement is Podman or Docker.
 
 1. Checks that Podman or Docker is present, preferring Podman when both are.
 2. Resolves the newest release (or the one you named with `--version`).
-3. Downloads `compose.yaml`, `edumatcher.sh` and `.env.example` **from that
-   release's tag**, so the files and the images always come from one commit.
+3. Downloads `compose.yaml`, `compose.zmq.yaml`, `edumatcher.sh` and
+   `.env.example` **from that release's tag**, so the files and the images
+   always come from one commit.
 4. Writes `.env`, creating `data/` and `config/` beside it.
 5. Pulls the five images and starts them.
 
@@ -109,7 +110,7 @@ Because the script is read from a pipe, options need `bash -s --` so that the
 shell hands them to the script rather than consuming them itself:
 
 ```bash
-curl -fsSL .../install.sh | bash -s -- --config ten-nominal --version 0.40.3
+curl -fsSL .../install.sh | bash -s -- --config ten-nominal --version 0.40.4
 ```
 
 Two environment variables are also honoured: `REPO_OWNER` (which GitHub
@@ -194,9 +195,10 @@ cd ~/.edumatcher
 
 ### Choosing what the exchange trades
 
-EduMatcher ships twelve ready-made configurations: one, three, ten or thirty
-order books, each as a `basic`, `nominal` or `complex` variant. They are inside
-the backend image, so no download is involved in switching.
+EduMatcher ships 24 ready-made configurations: one, three, ten or thirty
+order books, each as a `basic`, `nominal` or `complex` variant, and each of
+those with or without seeded market-maker quotes. They are inside the backend
+image, so no download is involved in switching.
 
 ```bash
 ./edumatcher.sh config ten-nominal
@@ -204,7 +206,9 @@ the backend image, so no download is involved in switching.
 ```
 
 The names are `one-`, `three-`, `ten-` and `thirty-` combined with `basic`,
-`nominal` and `complex`. `./edumatcher.sh config` lists them all if you mistype
+`nominal` and `complex`, each with an optional `-nomm` suffix for the variant
+with empty order books instead of seeded market-maker quotes (for example
+`three-basic-nomm`). `./edumatcher.sh config` lists them all if you mistype
 one. See [Example Engine Configs](810-example-configs.md) for what each
 contains.
 
@@ -251,10 +255,13 @@ alone) and `up-all` (the exchange plus the GUIs).
 | `CONTAINER_ENGINE=docker` | Force Docker when Podman is also installed |
 
 !!! warning "Confirm which package went in"
-    A successful build prints `Installing local wheel: /tmp/wheel/edumatcher-<version>.whl`.
-    If instead you see pip *downloading* `edumatcher`, the image is running a
-    published release rather than your code — and a source change you are
-    hunting for will appear not to take effect.
+    A successful build prints a line of the form
+    `Installing local wheel: /tmp/wheel/edumatcher-<version>-<build-tag>.whl`
+    (the exact filename comes from whatever Poetry built, so it may include a
+    platform or Python-tag suffix beyond the version). If instead you see pip
+    *downloading* `edumatcher`, the image is running a published release
+    rather than your code — and a source change you are hunting for will
+    appear not to take effect.
 
 ### Flags that control a start
 
@@ -293,7 +300,7 @@ plain `make up-all` afterwards goes back to whatever `.env` says.
 | `EM_CONFIG` | `three-basic` | Bundled example to deploy |
 | `EM_CONFIG_FILE` | *(empty)* | Path **inside the container** to a configuration of your own; set for you by `CONFIG=<file>` |
 | `EM_PROFILE` | `default` | Process profile to start |
-| `TZ` | `UTC` | Container timezone — match the trading calendar in your configuration |
+| `TZ` | `Europe/Stockholm` | Container timezone — match the trading calendar in your configuration |
 | `BIND_ADDR` | `127.0.0.1` | Which host interface the published ports listen on. See below |
 | `EDUMATCHER_GATEWAY_BIND_HOST` | `0.0.0.0` | Bind host for the service-layer listeners *inside* the container — the four protocol gateways, `pm-log-srv` and `pm-api-gwy`. It is what makes them reachable from the GUI containers, and it wins over any `bind_address:` in the deployed configuration. Not a host-exposure setting; that is `BIND_ADDR` |
 | `SSH_PORT` | `2222` | Host port forwarded to `sshd` |
@@ -334,10 +341,10 @@ Each web GUI image (`web-apps/*/Dockerfile`):
 | Argument | Default | Purpose |
 |---|---|---|
 | `WEB_PORT` | per app | Port the server listens on inside the container |
-| `NPM_REGISTRY` | `https://registry.npmjs.org/` | Internal npm mirror |
+| `NPM_REGISTRY` | `https://registry.npmjs.org/` | Internal npm mirror. The Dockerfiles accept this argument, but the compose files' `args:` blocks do not currently pass it through, so setting it in your shell has no effect via `make up-all`/`make build-guis` — pass `--build-arg NPM_REGISTRY=...` directly to `podman build`/`docker build` instead |
 | `NPM_STRICT_SSL` | `true` | Set `false` when a proxy re-signs TLS |
 | `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` | *(empty)* | Honoured by npm during the build |
-| `USE_PROXY_CA` / `CA_CERT_FILE` | *(empty)* | config-gui only: install a corporate CA certificate |
+| `USE_PROXY_CA` / `CA_CERT_FILE` | *(empty)* | Declared only by the unused `web-apps/config-gui/Dockerfile.proxy`, not the `Dockerfile` that `compose.config-gui.yaml` actually builds — setting these currently has no effect on `make up-all CONFIG_GUI=1` |
 
 
 ## How the containers are wired
@@ -372,7 +379,7 @@ flowchart LR
     BROWSER --> LOG
     BROWSER --> CFG
     BROWSER --> TRD
-    CLIENT -->|"published 5560-5600, 8080-8081\nvia BIND_ADDR"| BE
+    CLIENT -->|"published 5560, 5565, 5570,\n5580, 5590, 5600, 8080-8081\nvia BIND_ADDR"| BE
 
     TERM -->|"edumatcher:5570 market data\nedumatcher:8081 history"| BE
     LOG -->|"edumatcher:5601 / :5602 log stream"| BE
@@ -405,7 +412,7 @@ flowchart TB
             IDX["pm-index\n5558 pub · 5559 pull"]
         end
         subgraph svc["Service layer — every other listener"]
-            GW["pm-alf-gwy 5560 · pm-md-gwy 5570\npm-balf-gwy 5580 · pm-ralf-gwy 5590\npm-dc-gwy 5600 · pm-log-srv 5601/5602\npm-api-gwy 8080/8081"]
+            GW["pm-alf-gwy 5565 · pm-md-gwy 5570\npm-balf-gwy 5560 · pm-ralf-gwy 5580\npm-dc-gwy 5590 · pm-log-srv 5600/5601/5602\npm-api-gwy 8080/8081"]
         end
     end
     core -->|"defaults to 127.0.0.1"| N1["Private to the container.\nOpen it with EDUMATCHER_ENGINE_BIND_HOST\nand EDUMATCHER_INDEX_BIND_HOST — ZMQ=1 does this"]
@@ -561,7 +568,7 @@ from. Absolute paths in the configuration remain explicit overrides.
 | Containers from source | `deployment/docker/data`, mounted at `/data` | The `./data:/data` mount in `compose.yaml` |
 | pipx | `~/.local/share/edumatcher` | `EDUMATCHER_DATA_DIR` |
 | Poetry checkout | `<repo>/src/data/` | `EDUMATCHER_DATA_DIR` |
-| VM | `/home/ubuntu/session` inside the VM | `mknode.sh` |
+| VM | `/home/ubuntu/.local/share/edumatcher` inside the VM (same installed default as pipx) | `mknode.sh`, via `EDUMATCHER_DATA_DIR` in `.bashrc` |
 
 The container images set `EDUMATCHER_DATA_DIR=/data` internally, so the
 container's view and your directory are the same files. Your data is on your
@@ -591,7 +598,7 @@ deployed configuration and `pm-opctl-cli` ready to start the stack.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | \
-    bash -s -- --version 0.40.3 --snapshot
+    bash -s -- --version 0.40.4 --snapshot
 
 multipass shell ems
 cd /home/ubuntu/session
@@ -614,7 +621,7 @@ To read the script before running it:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh -o curl_setup_vm.sh
 less curl_setup_vm.sh
-bash curl_setup_vm.sh --version 0.40.3 --snapshot
+bash curl_setup_vm.sh --version 0.40.4 --snapshot
 ```
 
 

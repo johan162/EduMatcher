@@ -778,19 +778,19 @@ class AlfGateway:
             }
 
             if f"{prefix}PRICE" in fields:
-                leg["price"] = self._ticks(
+                leg["price_ticks"] = self._ticks(
                     safe_float(fields[f"{prefix}PRICE"], f"{prefix}PRICE"),
                     symbol,
                     f"{prefix}PRICE",
                 )
             if f"{prefix}STOP" in fields:
-                leg["stop_price"] = self._ticks(
+                leg["stop_price_ticks"] = self._ticks(
                     safe_float(fields[f"{prefix}STOP"], f"{prefix}STOP"),
                     symbol,
                     f"{prefix}STOP",
                 )
             if f"{prefix}TRAIL" in fields:
-                leg["trail_offset"] = self._ticks(
+                leg["trail_offset_ticks"] = self._ticks(
                     safe_float(fields[f"{prefix}TRAIL"], f"{prefix}TRAIL"),
                     symbol,
                     f"{prefix}TRAIL",

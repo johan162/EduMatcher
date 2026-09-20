@@ -306,20 +306,6 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
     if args.dynamic_band is not None and not (0 < args.dynamic_band < 1):
         raise ValueError("--dynamic-band must be in (0, 1)")
 
-    if args.seed_mm_mid_range is not None:
-        min_price, max_price = _parse_seed_mm_mid_range(args.seed_mm_mid_range)
-        tick_size = 10 ** (-int(args.tick_decimals))
-        min_steps = math.ceil(min_price / tick_size)
-        max_steps = math.floor(max_price / tick_size)
-        if min_steps > max_steps:
-            raise ValueError(
-                "--seed-mm-mid-range does not contain any prices on the configured tick grid"
-            )
-        if min_steps <= 1:
-            raise ValueError(
-                "--seed-mm-mid-range minimum must allow a positive bid after applying a one-tick spread"
-            )
-
     if args.seed_last_prices_from_mm and args.seed_mm_mid_range is None:
         raise ValueError("--seed-last-prices-from-mm requires --seed-mm-mid-range")
 
@@ -1480,6 +1466,36 @@ def _parse_index_specs(args: argparse.Namespace) -> tuple[IndexSpec, ...]:
     )
 
 
+def _validate_seed_mm_mid_range_grid(
+    seed_mm_mid_range: tuple[float, float] | None,
+    tick_decimals_by_symbol: dict[str, int],
+) -> None:
+    """The mid-range must hold a price on every symbol's own tick grid.
+
+    The builder snaps each symbol's seed to that symbol's tick_decimals, so a
+    range that fits the global grid can still be empty (or leave no positive
+    bid) for a symbol with fewer decimals.
+    """
+    if seed_mm_mid_range is None:
+        return
+    min_price, max_price = seed_mm_mid_range
+    for sym, tick_decimals in tick_decimals_by_symbol.items():
+        tick_size = 10 ** (-tick_decimals)
+        min_steps = math.ceil(min_price / tick_size)
+        max_steps = math.floor(max_price / tick_size)
+        if min_steps > max_steps:
+            raise ValueError(
+                f"--seed-mm-mid-range does not contain any prices on {sym}'s "
+                f"tick grid (tick_decimals={tick_decimals})"
+            )
+        if min_steps <= 1:
+            raise ValueError(
+                f"--seed-mm-mid-range minimum must allow a positive bid after "
+                f"applying a one-tick spread on {sym}'s tick grid "
+                f"(tick_decimals={tick_decimals})"
+            )
+
+
 def _tick_decimals_by_symbol(
     symbols: list[str],
     symbol_overrides: dict[str, SymbolOverride],
@@ -1721,6 +1737,7 @@ def main() -> None:
         tick_decimals_by_symbol = _tick_decimals_by_symbol(
             symbols, symbol_overrides, int(args.tick_decimals)
         )
+        _validate_seed_mm_mid_range_grid(seed_mm_mid_range, tick_decimals_by_symbol)
         combos = _parse_combo_specs(
             args,
             allowed_symbols=set(symbols),

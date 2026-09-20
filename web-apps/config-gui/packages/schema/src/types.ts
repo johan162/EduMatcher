@@ -211,6 +211,11 @@ export interface GatewayConfig {
   disconnectBehaviour: DisconnectBehaviour;
   description?: string;
   /**
+   * SMP action applied to this gateway's orders when the order itself does
+   * not carry one. NONE (the engine default) is omitted from the output.
+   */
+  smpAction: SmpAction;
+  /**
    * When quotes are inactivated after a fill. Only meaningful for MARKET_MAKER
    * gateways; omitted from output for other roles. Undefined = engine/GUI
    * default (INACTIVATE_ON_ANY_FILL).
@@ -227,14 +232,20 @@ export interface GatewayConfig {
   mmObligations?: Record<string, GatewayMmObligationOverride>;
 }
 
+/**
+ * A named risk level's collar. A key left undefined is omitted from the file
+ * and the engine applies its default for it (0.20 / 0.02); with both
+ * undefined the level carries no collar at all.
+ */
 export interface RiskLevel {
-  staticBandPct: number;
-  dynamicBandPct: number;
+  staticBandPct?: number;
+  dynamicBandPct?: number;
 }
 
 export interface IndexConfig {
   id: string;
-  description?: string;
+  /** Required and non-empty; written exactly as entered. */
+  description: string;
   constituents: string[];
   baseValue: number;
   publishIntervalSec: number;
@@ -250,7 +261,12 @@ export interface ComboLeg {
   /** Decimal display price, as written to the YAML. */
   price?: number | null;
   stopPrice?: number | null;
-  smpAction: SmpAction;
+  /**
+   * Explicit per-leg SMP action. Undefined = omitted from the file, so the
+   * engine falls back to the seeding gateway's `smp_action`. An explicit
+   * NONE is not the same thing: it overrides the gateway default.
+   */
+  smpAction?: SmpAction;
 }
 
 export interface ComboConfig {
@@ -260,8 +276,14 @@ export interface ComboConfig {
   legs: ComboLeg[];
 }
 
+/**
+ * Every auxiliary gateway block carries `include`: whether the section is
+ * written to the file at all. It is deliberately not called `enabled` — for
+ * the blocks that have an `enabled` key, leaving the section out does NOT
+ * disable the process; it runs on its built-in defaults.
+ */
 export interface NetworkGatewayBase {
-  enabled: boolean;
+  include: boolean;
   name: string;
   bindAddress: string;
   port: number;
@@ -276,13 +298,30 @@ export interface PostTradeGatewayConfig extends NetworkGatewayBase {
 }
 
 export interface MarketDataGatewayConfig extends NetworkGatewayBase {
+  /** The block's own `enabled` key. */
+  enabled: boolean;
   replayWindowSec: number;
+  maxConnections: number;
+  maxMessagesPerSecond: number;
   maxSymbolsPerClient: number;
   /** Aggregated price levels per side sent on the CALF DEPTH channel. */
   depthLevels: number;
 }
 
+/** `alf_gateway` — the pm-alf-gwy process block (spec §6.1). */
+export interface AlfGatewayProcConfig extends NetworkGatewayBase {
+  /** The block's own `enabled` key. */
+  enabled: boolean;
+  handshakeTimeoutSec: number;
+  maxConnections: number;
+  maxCommandsPerSecond: number;
+  maxErrorsBeforeDisconnect: number;
+  errorWindowSec: number;
+}
+
 export interface BalfGatewayConfig extends NetworkGatewayBase {
+  /** The block's own `enabled` key. */
+  enabled: boolean;
   heartbeatTimeoutSec: number;
   authTimeoutSec: number;
   maxConnections: number;
@@ -298,7 +337,8 @@ export interface BalfGatewayConfig extends NetworkGatewayBase {
  * pipelines, compliance monitors). No authentication or replay-by-sequence.
  */
 export interface DcGatewayConfig {
-  enabled: boolean;
+  /** Whether the section is written; the block has no `enabled` key. */
+  include: boolean;
   name: string;
   bindAddress: string;
   port: number;
@@ -314,6 +354,9 @@ export interface DcGatewayConfig {
  * bus and to any other gateway; a standalone operational-logging sink.
  */
 export interface LogServerConfig {
+  /** Whether the section is written (see {@link NetworkGatewayBase}). */
+  include: boolean;
+  /** The block's own `enabled` key. */
   enabled: boolean;
   name: string;
   bindAddress: string;
@@ -368,10 +411,8 @@ export interface ApiGatewayConfig {
   swaggerEnabled: boolean;
   logLevel: ApiLogLevel;
   statsDb: string;
-  /** ALF gateway IDs this instance is scoped to (multi-instance mode). */
-  gatewayIds: string[];
-  generateKeys: boolean;
-  generateReadonlyKey: boolean;
+  /** Undefined = key omitted; pm-api-gwy resolves its default audit_index.db. */
+  auditDb?: string;
   credentials: ApiCredential[];
   rateLimitWritesPerSecond: number;
   rateLimitBurst: number;
@@ -389,6 +430,11 @@ export interface ApiGatewayConfig {
 export interface EngineConfigDraft {
   sessionsEnabled: boolean;
   /**
+   * When false, a MARKET_MAKER gateway may exist with no seed quotes (CV3
+   * waived) and no quote stubs are generated.
+   */
+  requireMmSeedQuotes: boolean;
+  /**
    * Country pm-scheduler uses for its bank-holiday/weekend calendar (name,
    * e.g. "Sweden", or ISO 3166-1 alpha-2 code, e.g. "SE"). Defaults to
    * "Sweden" -- see DEFAULT_COUNTRY in defaults.ts.
@@ -404,6 +450,10 @@ export interface EngineConfigDraft {
   enforceCircuitBreakers: boolean;
   schedule: Schedule;
 
+  /**
+   * Tick decimals given to newly created symbols. GUI-only: there is no
+   * global tick_decimals key, every symbol writes its own.
+   */
   tickDecimals: number;
 
   symbols: Record<string, SymbolConfig>;
@@ -420,8 +470,13 @@ export interface EngineConfigDraft {
   };
 
   circuitBreakerDefaults: {
-    enabled: boolean;
+    /**
+     * Whether `circuit_breaker_defaults` is written. Without it a symbol
+     * that has no `circuit_breaker` of its own has no circuit breaker.
+     */
+    include: boolean;
     windowNs: number;
+    /** Empty = key omitted; the engine then applies its built-in ladder. */
     levels: Record<string, CbLevel>;
     levelOrder: string[];
     reopening: ReopeningConfig;
@@ -438,12 +493,12 @@ export interface EngineConfigDraft {
     mmMidRange?: { min: number; max: number };
     seedLastPricesFromMm: boolean;
     seedLastPrices: boolean;
-    randomSeed?: number;
   };
 
   indices: IndexConfig[];
   combos: ComboConfig[];
 
+  alfGateway: AlfGatewayProcConfig;
   postTradeGateway: PostTradeGatewayConfig;
   marketDataGateway: MarketDataGatewayConfig;
   balfGateway: BalfGatewayConfig;

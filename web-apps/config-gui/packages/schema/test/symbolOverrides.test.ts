@@ -142,3 +142,22 @@ describe("bulk edits", () => {
     expect(d.symbols.GHOST).toBeUndefined();
   });
 });
+
+describe("override rows — inherited collar", () => {
+  it("shows the symbol's risk-level collar, not the global DEFAULT", () => {
+    const d = draftWith(1);
+    d.riskControls.globalStaticBandPct = 0.2;
+    d.riskControls.levels = { TIGHT: { staticBandPct: 0.05, dynamicBandPct: 0.01 } };
+    d.symbols.SYM000!.level = "TIGHT";
+    const row = buildOverrideRow(d, "SYM000");
+    expect(row.staticBandPct).toEqual({ value: 0.05, overridden: false });
+    expect(row.dynamicBandPct).toEqual({ value: 0.01, overridden: false });
+  });
+
+  it("shows the engine default for a key the collar leaves out", () => {
+    const d = draftWith(1);
+    d.symbols.SYM000!.collar = { staticBandPct: 0.1 };
+    const row = buildOverrideRow(d, "SYM000");
+    expect(row.dynamicBandPct).toEqual({ value: 0.02, overridden: false });
+  });
+});

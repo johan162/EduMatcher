@@ -716,18 +716,20 @@ class ConfigBuilder:
         symbols: dict[str, Any] = {}
         for symbol in self.spec.symbols:
             override = self.spec.symbol_overrides.get(symbol, SymbolOverride())
-            payload: dict[str, Any] = {
-                "tick_decimals": (
-                    override.tick_decimals
-                    if override.tick_decimals is not None
-                    else self.spec.tick_decimals
-                )
-            }
+            # Every seeded price is snapped to the symbol's own grid: a
+            # symbol at 0 decimals cannot take a 2-decimal seed, and the
+            # engine loader refuses an off-grid price (CV18).
+            tick_decimals = (
+                override.tick_decimals
+                if override.tick_decimals is not None
+                else self.spec.tick_decimals
+            )
+            payload: dict[str, Any] = {"tick_decimals": tick_decimals}
 
             if override.level is not None:
                 payload["level"] = override.level
 
-            seeded_midpoint = self._seeded_midpoint(self.spec.tick_decimals)
+            seeded_midpoint = self._seeded_midpoint(tick_decimals)
 
             if self.spec.seed_last_prices_from_mm and seeded_midpoint is not None:
                 midpoint = float(seeded_midpoint)
@@ -798,7 +800,7 @@ class ConfigBuilder:
                 payload["market_maker_quotes"] = [
                     self._build_mm_quote_seed(
                         gateway_id=gateway_id,
-                        tick_decimals=self.spec.tick_decimals,
+                        tick_decimals=tick_decimals,
                         seeded_midpoint=seeded_midpoint,
                     )
                     for gateway_id in mm_gateways

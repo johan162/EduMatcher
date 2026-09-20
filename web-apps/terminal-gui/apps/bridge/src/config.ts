@@ -18,6 +18,28 @@ export interface BridgeConfig {
   corsOrigin: string;
   staticDir?: string;
   maxWsClients: number;
+  /**
+   * Browser-facing liveness (design review H4). `bridge_status` is
+   * broadcast on this cadence, in addition to on CALF state change, so a
+   * silent tab can tell a healthy-but-quiet feed from a half-open socket.
+   * Excluded from `MARKET_DATA_FRAMES`, so it never resets a data-age clock.
+   */
+  wsHeartbeatIntervalSec: number;
+  /**
+   * Protocol-level `ping` cadence to each browser tab, and the number of
+   * consecutive missed `pong`s before the bridge terminates the socket.
+   * Reaps a half-open tab that never fires TCP `close`, which would
+   * otherwise hold its CALF subscriptions and count toward
+   * `maxWsClients` until the OS timeout (design review H4).
+   */
+  wsPingIntervalSec: number;
+  wsPingMaxMissed: number;
+  /**
+   * `bufferedAmount` (bytes) above which a tab is treated as stalled and
+   * closed with 1013, rather than left to accumulate outbound frames in
+   * bridge memory indefinitely (design review H4).
+   */
+  wsMaxBufferedBytes: number;
 
   calf: {
     host: string;
@@ -104,6 +126,10 @@ export function loadBridgeConfig(): BridgeConfig {
     corsOrigin: process.env["CORS_ORIGIN"] ?? "*",
     staticDir: process.env["STATIC_DIR"] || undefined,
     maxWsClients: intFromEnv("MAX_WS_CLIENTS", 200),
+    wsHeartbeatIntervalSec: intFromEnv("WS_HEARTBEAT_INTERVAL_SEC", 5),
+    wsPingIntervalSec: intFromEnv("WS_PING_INTERVAL_SEC", 10),
+    wsPingMaxMissed: intFromEnv("WS_PING_MAX_MISSED", 2),
+    wsMaxBufferedBytes: intFromEnv("WS_MAX_BUFFERED_BYTES", 5_000_000),
 
     calf: {
       host: process.env["CALF_HOST"] ?? "127.0.0.1",

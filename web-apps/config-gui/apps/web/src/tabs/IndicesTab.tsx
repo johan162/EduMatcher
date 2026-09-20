@@ -62,7 +62,7 @@ export function IndicesTab() {
             />
           </FieldRow>
 
-          <FieldRow label="Description" path={`indices.${index.id}.description`} defaultHint={`Default: Index ${index.id}`}>
+          <FieldRow label="Description" path={`indices.${index.id}.description`} required>
             <TextInput
               aria-label="Index description"
               value={index.description ?? ""}

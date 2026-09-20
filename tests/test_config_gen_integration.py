@@ -819,6 +819,33 @@ def test_seed_mm_mid_range_requires_mm_gateway(
     assert exc_info.value.code == 2
 
 
+def test_seed_mm_mid_range_must_fit_every_symbols_tick_grid(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # 20.25..20.75 holds 2-decimal prices but no whole one, so it cannot
+    # seed a symbol at tick_decimals=0.
+    with pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "WHOLE",
+                "--gateways",
+                "TRADER01",
+                "MM01:MARKET_MAKER",
+                "--symbol-opts",
+                "WHOLE:tick_decimals=0",
+                "--seed-mm-mid-range",
+                "20.25:20.75",
+                "--dry-run",
+            ],
+        )
+    assert exc_info.value.code == 2
+    assert "WHOLE's tick grid" in capsys.readouterr().err
+
+
 def test_comment_default_config_fields_emits_engine_field_defaults(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

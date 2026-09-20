@@ -188,6 +188,36 @@ def test_builder_seed_last_prices_from_mm_uses_midpoint() -> None:
     assert payload["symbols"]["AAPL"]["last_sell_price"] == midpoint
 
 
+def test_builder_seeds_on_each_symbols_own_tick_grid() -> None:
+    # The mid-range seed, the one-tick quote spread and the seeded last
+    # prices must all use the symbol's tick_decimals, not the global one:
+    # a 2-decimal seed on a 0-decimal symbol is off-grid and refused (CV18).
+    spec = ConfigSpec(
+        symbols=["WHOLE", "FINE"],
+        gateways=[
+            parse_gateway_spec("TRADER01"),
+            parse_gateway_spec("MM01:MARKET_MAKER"),
+        ],
+        emit_mm_defaults=True,
+        random_seed=3,
+        seed_mm_mid_range=(20.25, 21.25),
+        seed_last_prices_from_mm=True,
+        symbol_overrides={
+            "WHOLE": SymbolOverride(tick_decimals=0),
+            "FINE": SymbolOverride(tick_decimals=4),
+        },
+    )
+    symbols = ConfigBuilder(spec).build()["symbols"]
+
+    whole = symbols["WHOLE"]
+    assert whole["last_buy_price"] == 21.0  # the only whole price in range
+    assert whole["market_maker_quotes"][0]["bid_price"] == 20.0
+    assert whole["market_maker_quotes"][0]["ask_price"] == 22.0
+
+    fine = symbols["FINE"]["market_maker_quotes"][0]
+    assert round(fine["ask_price"] - fine["bid_price"], 6) == 0.0002
+
+
 def test_builder_with_cb_defaults_and_symbol_override() -> None:
     ov = SymbolOverride()
     ov.cb_shift["L1"] = 0.10

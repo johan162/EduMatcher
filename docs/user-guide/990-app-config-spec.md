@@ -585,12 +585,12 @@ rejected at load.
 | CV11 | Every key of `mm_obligation_defaults.symbols` references a symbol that exists in `symbols`. |
 | CV12 | `collar.*_band_pct` ∈ (0,1); `circuit_breaker.levels.<L>.price_shift_pct` ∈ (0,1); `halt_duration_ns` is `> 0` or `null`. |
 | CV13 | `circuit_breaker.reopening.initial_band_pct` and every `expansions[].widen_pct` ∈ (0,1); `expansions` is non-empty; `expansions[].min_duration_ns` is `> 0`; `random_end_max_ns` is `>= 0`; `random_seed` and `expansions` appear only under `circuit_breaker_defaults`. |
-| CV13 | `symbols.<S>.tick_decimals` ∈ 0..8; `outstanding_shares`, when present, `> 0`. |
 | CV14 | (`pm-alf-gwy`, `pm-balf-gwy`) No `gateways.alf` id may be a prefix of another id. |
 | CV15 | (`pm-api-gwy`) The singular `api_gateway` key is not supported; a `gateway_id` credential MUST NOT be shared across two `api_gateways` instances. |
 | CV16 | (`pm-scheduler`) An unrecognised `country` value is the **sole exception** to the "MUST be rejected" rule in this section — the loader substitutes the default (`"Sweden"`) and logs a warning instead of aborting. `pm-scheduler` treats a calendar day as non-trading (and sends no `schedule` transitions) when it is a Saturday, a Sunday, or a `country` bank holiday. |
-| CV18 | Every `Price` in the file is a whole multiple of its symbol's tick size — `symbols.<S>.last_buy_price`/`last_sell_price`, `market_maker_quotes[].bid_price`/`ask_price`, and `market_maker_combos[].legs[].price`/`stop_price`. The scale is the owning symbol's `tick_decimals`; for a combo leg that is the **leg's** symbol, not the combo's first. An off-grid price is rejected, not rounded. |
 | CV17 | (`pm-log-srv`) `log_server.retention_days`, when present, MUST be `>= 0` or `null`; `port`, `max_message_bytes`, `max_client_queue`, `write_batch_size`, `write_batch_interval_ms`, and `heartbeat_interval_sec` MUST each be `> 0`. |
+| CV18 | Every `Price` in the file is a whole multiple of its symbol's tick size — `symbols.<S>.last_buy_price`/`last_sell_price`, `market_maker_quotes[].bid_price`/`ask_price`, and `market_maker_combos[].legs[].price`/`stop_price`. The scale is the owning symbol's `tick_decimals`; for a combo leg that is the **leg's** symbol, not the combo's first. An off-grid price is rejected, not rounded. |
+| CV19 | `symbols.<S>.tick_decimals` ∈ 0..8; `outstanding_shares`, when present, `> 0`. |
 
 ---
 

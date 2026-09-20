@@ -7,7 +7,7 @@
  * worth testing, which is awkward through a rendered table.
  */
 
-import { bandPctAt } from "./effective.js";
+import { bandPctAt, resolveEffectiveCollar } from "./effective.js";
 import type { EngineConfigDraft, SymbolConfig } from "./types.js";
 
 /** Scalar per-symbol settings the table can edit inline. */
@@ -57,20 +57,21 @@ export function buildOverrideRow(
   const config: SymbolConfig | undefined = draft.symbols[symbol];
   const ace = draft.circuitBreakerDefaults.reopening;
   const ro = config?.circuitBreaker?.reopening;
+  // The value a non-overridden cell shows is what the engine applies: the
+  // symbol's risk-level collar (explicit level, else the default level), or
+  // the engine default for a key the level leaves out once any collar
+  // applies. Blank when no collar applies at all.
+  const effCollar = config ? resolveEffectiveCollar(draft, config) : undefined;
+  const inheritedStatic = effCollar?.applies ? effCollar.staticBandPct : undefined;
+  const inheritedDynamic = effCollar?.applies ? effCollar.dynamicBandPct : undefined;
 
   const row: SymbolOverrideRow = {
     symbol,
     // tickDecimals is always present on a symbol, so it is never "inherited"
     // in the sense the other columns are.
     tickDecimals: { value: config?.tickDecimals ?? 2, overridden: false },
-    staticBandPct: cell(
-      config?.collar?.staticBandPct,
-      draft.riskControls.globalStaticBandPct,
-    ),
-    dynamicBandPct: cell(
-      config?.collar?.dynamicBandPct,
-      draft.riskControls.globalDynamicBandPct,
-    ),
+    staticBandPct: cell(config?.collar?.staticBandPct, inheritedStatic),
+    dynamicBandPct: cell(config?.collar?.dynamicBandPct, inheritedDynamic),
     aceEnabled: cell(ro?.enabled, ace.enabled),
     aceInitialBandPct: cell(ro?.initialBandPct, ace.initialBandPct),
     aceRandomEndMaxNs: cell(ro?.randomEndMaxNs, ace.randomEndMaxNs),

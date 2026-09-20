@@ -49,14 +49,15 @@ function classroomWithSchedule(): EngineConfigDraft {
   d.mmObligationDefaults = { enforceMmObligation: true, mmMaxSpreadTicks: 12, mmMinQty: 200 };
   d.seeding.mmMidRange = { min: 20, max: 300 };
   d.seeding.seedLastPricesFromMm = true;
-  d.postTradeGateway.enabled = true;
-  d.marketDataGateway.enabled = true;
+  d.postTradeGateway.include = true;
+  d.marketDataGateway.include = true;
   return d;
 }
 
 function expertFull(): EngineConfigDraft {
   const d = classroomWithSchedule();
   const edu = createIndex("EDU100");
+  edu.description = "EduMatcher 100";
   edu.constituents = ["AAPL", "MSFT"];
   d.indices = [edu];
   d.combos = [
@@ -70,7 +71,7 @@ function expertFull(): EngineConfigDraft {
       ],
     },
   ];
-  d.balfGateway.enabled = true;
+  d.balfGateway.include = true;
   d.output.commentDefaultFields = true;
 
   // P1.1: non-default quote refresh policy on the market maker.
@@ -81,7 +82,7 @@ function expertFull(): EngineConfigDraft {
   if (d.symbols.AAPL) {
     d.symbols.AAPL.circuitBreaker = {
       referenceWindowNs: 600_000_000_000,
-      levels: { L1: { haltDurationNs: 120_000_000_000, resumptionMode: "CONTINUOUS" } },
+      levels: { L1: { haltDurationNs: 120_000_000_000 } },
     };
   }
 

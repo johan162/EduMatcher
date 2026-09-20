@@ -29,10 +29,11 @@ describe("buildConfigDocument", () => {
   it("emits mandatory top-level keys in builder.py order", () => {
     const doc = buildConfigDocument(twoTraderExchange());
     const keys = Object.keys(doc);
-    expect(keys.slice(0, 4)).toEqual([
+    expect(keys.slice(0, 5)).toEqual([
       "sessions_enabled",
       "enforce_collars",
       "enforce_circuit_breakers",
+      "require_mm_seed_quotes",
       "engine_tuning",
     ]);
     expect(doc.engine_tuning).toEqual({

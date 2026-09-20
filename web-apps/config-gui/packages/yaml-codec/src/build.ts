@@ -11,13 +11,10 @@
 
 import {
   DEFAULT_COUNTRY,
-  DEFAULT_DYNAMIC_BAND_PCT,
   DEFAULT_INDEX_DATA_DIR,
-  DEFAULT_MM_STUB_QTY,
-  DEFAULT_STATIC_BAND_PCT,
   effectiveDefaultCollar,
-  quoteAroundMidpoint,
-  seededMidpoint,
+  writtenLastPrices,
+  writtenMmQuotes,
   type EngineConfigDraft,
   type SymbolConfig,
 } from "@edumatcher/schema";
@@ -83,13 +80,22 @@ function buildRiskControls(draft: EngineConfigDraft): PlainConfig | null {
     defaultLevel = draft.riskControls.defaultLevel ?? "DEFAULT";
   }
 
+  // Only the keys the level sets: the engine fills a missing one with its
+  // default, and a level with neither carries no collar at all.
   for (const [name, level] of Object.entries(draft.riskControls.levels)) {
-    levels[name] = {
-      collar: {
-        static_band_pct: level.staticBandPct,
-        dynamic_band_pct: level.dynamicBandPct ?? DEFAULT_DYNAMIC_BAND_PCT,
-      },
-    };
+    if (
+      level.staticBandPct === undefined &&
+      level.dynamicBandPct === undefined
+    ) {
+      levels[name] = {};
+      continue;
+    }
+    const collar: PlainConfig = {};
+    if (level.staticBandPct !== undefined)
+      collar.static_band_pct = level.staticBandPct;
+    if (level.dynamicBandPct !== undefined)
+      collar.dynamic_band_pct = level.dynamicBandPct;
+    levels[name] = { collar };
   }
 
   if (draft.riskControls.defaultLevel && !defaultLevel) {
@@ -125,11 +131,15 @@ function buildCbDefaults(draft: EngineConfigDraft): PlainConfig {
   };
   // Engine-wide by construction — pm-cverifier rejects it per symbol (S110).
   if (r.randomSeed !== undefined) reopening.random_seed = r.randomSeed;
-  return {
+  const payload: PlainConfig = {
     reference_window_ns: draft.circuitBreakerDefaults.windowNs,
-    levels,
-    reopening,
   };
+  // An empty ladder is written as no `levels` key: the engine then applies
+  // its built-in L1/L2/L3 (writing `levels: {}` would mean the same, but
+  // omission is what the spec documents).
+  if (Object.keys(levels).length > 0) payload.levels = levels;
+  payload.reopening = reopening;
+  return payload;
 }
 
 function buildGateways(draft: EngineConfigDraft): PlainConfig[] {
@@ -145,6 +155,8 @@ function buildGateways(draft: EngineConfigDraft): PlainConfig[] {
       payload.quote_refresh_policy =
         gw.quoteRefreshPolicy ?? "INACTIVATE_ON_ANY_FILL";
     }
+    // NONE is the engine default; builder.py omits it too.
+    if (gw.smpAction !== "NONE") payload.smp_action = gw.smpAction;
     // Per-gateway flat MM obligation overrides — emitted only when explicitly set.
     if (gw.enforceMmObligation !== undefined) {
       payload.enforce_mm_obligation = gw.enforceMmObligation;
@@ -171,49 +183,20 @@ function buildGateways(draft: EngineConfigDraft): PlainConfig[] {
   });
 }
 
-function buildMmQuoteSeed(
-  gatewayId: string,
-  tickDecimals: number,
-  midpoint: number | null,
-): PlainConfig {
-  const prices =
-    midpoint === null ? null : quoteAroundMidpoint(midpoint, tickDecimals);
-  return {
-    gateway_id: gatewayId,
-    bid_price: prices?.bidPrice ?? null,
-    ask_price: prices?.askPrice ?? null,
-    bid_qty: DEFAULT_MM_STUB_QTY,
-    ask_qty: DEFAULT_MM_STUB_QTY,
-    tif: "DAY",
-    seed_once: true,
-  };
-}
-
 function buildSymbol(
   draft: EngineConfigDraft,
-  symbol: string,
   config: SymbolConfig,
-  mmGatewayIds: string[],
 ): PlainConfig {
-  const tickDecimals = config.tickDecimals ?? draft.tickDecimals;
-  const payload: PlainConfig = { tick_decimals: tickDecimals };
+  const payload: PlainConfig = { tick_decimals: config.tickDecimals };
 
   if (config.level) payload.level = config.level;
 
-  const midpoint = seededMidpoint(draft, draft.tickDecimals);
-  // Explicit per-symbol last prices always win over global seeding.
-  if (config.lastBuyPrice !== undefined || config.lastSellPrice !== undefined) {
-    if (config.lastBuyPrice !== undefined)
-      payload.last_buy_price = config.lastBuyPrice;
-    if (config.lastSellPrice !== undefined)
-      payload.last_sell_price = config.lastSellPrice;
-  } else if (draft.seeding.seedLastPricesFromMm && midpoint !== null) {
-    payload.last_buy_price = midpoint;
-    payload.last_sell_price = midpoint;
-  } else if (draft.seeding.seedLastPrices) {
-    payload.last_buy_price = null;
-    payload.last_sell_price = null;
-  }
+  // Shared with the read-only views, so what they show is what is written.
+  const lastPrices = writtenLastPrices(draft, config);
+  if ("lastBuyPrice" in lastPrices)
+    payload.last_buy_price = lastPrices.lastBuyPrice;
+  if ("lastSellPrice" in lastPrices)
+    payload.last_sell_price = lastPrices.lastSellPrice;
 
   if (
     config.collar?.staticBandPct !== undefined ||
@@ -281,26 +264,21 @@ function buildSymbol(
     }
   }
 
-  if (mmGatewayIds.length > 0) {
-    // Explicit per-symbol quotes (possibly multiple MMs) take precedence over
-    // the auto-generated one-stub-per-MM-gateway fallback.
-    if (config.marketMakerQuotes && config.marketMakerQuotes.length > 0) {
-      payload.market_maker_quotes = config.marketMakerQuotes.map((q) => {
-        const seed: PlainConfig = { gateway_id: q.gatewayId };
-        if (q.quoteId) seed.quote_id = q.quoteId;
-        seed.bid_price = q.bidPrice;
-        seed.ask_price = q.askPrice;
-        seed.bid_qty = q.bidQty;
-        seed.ask_qty = q.askQty;
-        seed.tif = q.tif;
-        seed.seed_once = q.seedOnce;
-        return seed;
-      });
-    } else {
-      payload.market_maker_quotes = mmGatewayIds.map((gatewayId) =>
-        buildMmQuoteSeed(gatewayId, draft.tickDecimals, midpoint),
-      );
-    }
+  // Explicit per-symbol quotes (possibly multiple MMs) take precedence over
+  // the auto-generated one-stub-per-MM-gateway fallback.
+  const quotes = writtenMmQuotes(draft, config);
+  if (quotes.length > 0) {
+    payload.market_maker_quotes = quotes.map((q) => {
+      const seed: PlainConfig = { gateway_id: q.gatewayId };
+      if (q.quoteId) seed.quote_id = q.quoteId;
+      seed.bid_price = q.bidPrice;
+      seed.ask_price = q.askPrice;
+      seed.bid_qty = q.bidQty;
+      seed.ask_qty = q.askQty;
+      seed.tif = q.tif;
+      seed.seed_once = q.seedOnce;
+      return seed;
+    });
   }
 
   if (config.outstandingShares !== undefined) {
@@ -311,12 +289,11 @@ function buildSymbol(
 }
 
 function buildSymbols(draft: EngineConfigDraft): PlainConfig {
-  const mmGatewayIds = marketMakerGatewayIds(draft);
   const symbols: PlainConfig = {};
   for (const symbol of draft.symbolOrder) {
     const config = draft.symbols[symbol];
     if (!config) continue;
-    symbols[symbol] = buildSymbol(draft, symbol, config, mmGatewayIds);
+    symbols[symbol] = buildSymbol(draft, config);
   }
   return symbols;
 }
@@ -324,7 +301,8 @@ function buildSymbols(draft: EngineConfigDraft): PlainConfig {
 function buildIndices(draft: EngineConfigDraft): PlainConfig[] {
   return draft.indices.map((idx) => ({
     id: idx.id,
-    description: idx.description || `Index ${idx.id}`,
+    // Written as entered; an empty one is a diagnostic, not a made-up name.
+    description: idx.description,
     base_value: idx.baseValue,
     publish_interval_sec: idx.publishIntervalSec,
     history_file:
@@ -340,22 +318,27 @@ function buildCombos(draft: EngineConfigDraft): PlainConfig[] {
     combo_id: combo.comboId,
     combo_type: combo.comboType,
     tif: combo.tif,
-    legs: combo.legs.map((leg) => ({
-      symbol: leg.symbol,
-      side: leg.side,
-      order_type: leg.orderType,
-      quantity: leg.quantity,
-      price: leg.price ?? null,
-      stop_price: leg.stopPrice ?? null,
-      smp_action: leg.smpAction,
-    })),
+    legs: combo.legs.map((leg) => {
+      const payload: PlainConfig = {
+        symbol: leg.symbol,
+        side: leg.side,
+        order_type: leg.orderType,
+        quantity: leg.quantity,
+        price: leg.price ?? null,
+        stop_price: leg.stopPrice ?? null,
+      };
+      // Omitted = the seeding gateway's smp_action; explicit NONE overrides it.
+      if (leg.smpAction !== undefined) payload.smp_action = leg.smpAction;
+      return payload;
+    }),
   }));
 }
 
 function buildApiGateways(draft: EngineConfigDraft): PlainConfig {
   const payload: PlainConfig = {};
+  // A disabled instance is written with `enabled: false`, not dropped: its
+  // settings are still part of the file.
   for (const gw of draft.apiGateways) {
-    if (!gw.enabled) continue;
     payload[gw.name] = {
       enabled: gw.enabled,
       host: gw.host,
@@ -363,6 +346,7 @@ function buildApiGateways(draft: EngineConfigDraft): PlainConfig {
       swagger_enabled: gw.swaggerEnabled,
       log_level: gw.logLevel,
       stats_db: gw.statsDb,
+      ...(gw.auditDb !== undefined ? { audit_db: gw.auditDb } : {}),
       order_retention_sec: gw.orderRetentionSec,
       credentials: gw.credentials.map((c) => ({
         api_key: c.apiKey,
@@ -389,6 +373,7 @@ export function buildConfigDocument(draft: EngineConfigDraft): PlainConfig {
     sessions_enabled: draft.sessionsEnabled,
     enforce_collars: draft.enforceCollars,
     enforce_circuit_breakers: draft.enforceCircuitBreakers,
+    require_mm_seed_quotes: draft.requireMmSeedQuotes,
     engine_tuning: {
       snapshot_interval_sec: draft.snapshotIntervalSec,
       quote_history_maxlen: draft.quoteHistoryMaxlen,
@@ -412,28 +397,30 @@ export function buildConfigDocument(draft: EngineConfigDraft): PlainConfig {
   const riskControls = buildRiskControls(draft);
   if (riskControls !== null) cfg.risk_controls = riskControls;
 
-  if (
-    draft.enforceCircuitBreakers &&
-    draft.circuitBreakerDefaults.levelOrder.length > 0
-  ) {
+  // Written independently of enforce_circuit_breakers: switching enforcement
+  // off must not delete the ladder from the file.
+  if (draft.circuitBreakerDefaults.include) {
     cfg.circuit_breaker_defaults = buildCbDefaults(draft);
   }
 
   cfg.gateways = { alf: buildGateways(draft) };
 
-  if (draft.postTradeGateway.enabled) {
+  if (draft.alfGateway.include) {
+    cfg.alf_gateway = buildNetworkGateway(draft, "alf");
+  }
+  if (draft.postTradeGateway.include) {
     cfg.post_trade_gateway = buildNetworkGateway(draft, "postTrade");
   }
-  if (draft.marketDataGateway.enabled) {
+  if (draft.marketDataGateway.include) {
     cfg.market_data_gateway = buildNetworkGateway(draft, "marketData");
   }
-  if (draft.balfGateway.enabled) {
+  if (draft.balfGateway.include) {
     cfg.balf_gateway = buildNetworkGateway(draft, "balf");
   }
-  if (draft.dcGateway.enabled) {
+  if (draft.dcGateway.include) {
     cfg.dc_gateway = buildNetworkGateway(draft, "dc");
   }
-  if (draft.logServer.enabled) {
+  if (draft.logServer.include) {
     cfg.log_server = buildLogServer(draft);
   }
   const apiGateways = buildApiGateways(draft);
@@ -444,7 +431,9 @@ export function buildConfigDocument(draft: EngineConfigDraft): PlainConfig {
   if (draft.combos.length > 0) cfg.market_maker_combos = buildCombos(draft);
   if (draft.indices.length > 0) cfg.indices = buildIndices(draft);
 
-  if (draft.sessionsEnabled && draft.emitSchedule) {
+  // pm-scheduler reads `schedule` whatever sessions_enabled says, so the
+  // block is written whenever it is switched on (an imported one included).
+  if (draft.emitSchedule) {
     cfg.schedule = {
       pre_open: draft.schedule.preOpen,
       opening_auction_start: draft.schedule.openingAuction,
@@ -464,8 +453,25 @@ export function buildConfigDocument(draft: EngineConfigDraft): PlainConfig {
 
 function buildNetworkGateway(
   draft: EngineConfigDraft,
-  which: "postTrade" | "marketData" | "balf" | "dc",
+  which: "alf" | "postTrade" | "marketData" | "balf" | "dc",
 ): PlainConfig {
+  if (which === "alf") {
+    const g = draft.alfGateway;
+    return {
+      enabled: g.enabled,
+      name: g.name,
+      bind_address: g.bindAddress,
+      port: g.port,
+      heartbeat_interval_sec: g.heartbeatIntervalSec,
+      handshake_timeout_sec: g.handshakeTimeoutSec,
+      idle_timeout_sec: g.idleTimeoutSec,
+      max_connections: g.maxConnections,
+      max_client_queue: g.maxClientQueue,
+      max_commands_per_second: g.maxCommandsPerSecond,
+      max_errors_before_disconnect: g.maxErrorsBeforeDisconnect,
+      error_window_sec: g.errorWindowSec,
+    };
+  }
   if (which === "postTrade") {
     const g = draft.postTradeGateway;
     return {
@@ -489,6 +495,8 @@ function buildNetworkGateway(
       heartbeat_interval_sec: g.heartbeatIntervalSec,
       idle_timeout_sec: g.idleTimeoutSec,
       replay_window_sec: g.replayWindowSec,
+      max_connections: g.maxConnections,
+      max_messages_per_second: g.maxMessagesPerSecond,
       max_symbols_per_client: g.maxSymbolsPerClient,
       max_client_queue: g.maxClientQueue,
       depth_levels: g.depthLevels,
@@ -497,6 +505,7 @@ function buildNetworkGateway(
   if (which === "balf") {
     const g = draft.balfGateway;
     return {
+      enabled: g.enabled,
       name: g.name,
       bind_address: g.bindAddress,
       port: g.port,

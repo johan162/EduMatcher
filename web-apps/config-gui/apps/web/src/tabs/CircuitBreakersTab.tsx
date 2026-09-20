@@ -40,11 +40,30 @@ export function CircuitBreakersTab() {
         </FieldRow>
         {!draft.enforceCircuitBreakers && (
           <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
-            Circuit breakers are disabled — suitable for tests only. The ladder below will not be emitted.
+            Circuit breakers are disabled — suitable for tests only. The ladder below is still
+            written, but not enforced.
           </div>
         )}
+        <FieldRow
+          label="Write exchange defaults"
+          path="circuitBreakerDefaults.include"
+          htmlFor="cb-include"
+          help={{
+            text: "Write the circuit_breaker_defaults block below. When off it is left out of the file, and a symbol without a circuit_breaker override of its own has no circuit breaker at all.",
+          }}
+        >
+          <Switch
+            id="cb-include"
+            aria-label="Write exchange circuit-breaker defaults"
+            checked={cb.include}
+            disabled={!editable}
+            onCheckedChange={(checked) => update((d) => (d.circuitBreakerDefaults.include = checked))}
+          />
+        </FieldRow>
       </Section>
 
+      {cb.include && (
+      <>
       {canSee("I") && (
         <Section title="Reference window">
           <FieldRow
@@ -59,7 +78,10 @@ export function CircuitBreakersTab() {
               aria-label="Reference window minutes"
               value={nsToMinutes(cb.windowNs) ?? undefined}
               min={1}
-              onChange={(v) => update((d) => (d.circuitBreakerDefaults.windowNs = minutesToNs(v ?? 5)!))}
+              onChange={(v) => {
+                const ns = minutesToNs(v ?? null);
+                if (ns !== null) update((d) => (d.circuitBreakerDefaults.windowNs = ns));
+              }}
             />
             <span className="text-sm text-fg-subtle">min</span>
           </FieldRow>
@@ -74,6 +96,12 @@ export function CircuitBreakersTab() {
             : "Built-in three-level ladder. Switch to Intermediate to customize it."
         }
       >
+        {cb.levelOrder.length === 0 && (
+          <p className="mb-2 text-sm text-fg-subtle">
+            No levels — the file carries no <code>levels</code> key, so the engine applies its
+            built-in ladder (L1 7% / 5 min, L2 13% / 15 min, L3 20% / rest of day).
+          </p>
+        )}
         <div className="overflow-hidden rounded-md border border-border">
           <table className="w-full text-sm">
             <thead className="bg-muted text-left text-xs uppercase text-fg-subtle">
@@ -114,11 +142,15 @@ export function CircuitBreakersTab() {
                         value={restOfDay ? undefined : (nsToMinutes(level.haltDurationNs) ?? undefined)}
                         disabled={!editable || restOfDay}
                         min={1}
-                        onChange={(v) =>
+                        onChange={(v) => {
+                          // Rest of day is set with its switch only; clearing or
+                          // zeroing the minutes must not silently turn it on.
+                          const ns = minutesToNs(v ?? null);
+                          if (ns === null) return;
                           update((d) => {
-                            d.circuitBreakerDefaults.levels[name]!.haltDurationNs = minutesToNs(v ?? 0);
-                          })
-                        }
+                            d.circuitBreakerDefaults.levels[name]!.haltDurationNs = ns;
+                          });
+                        }}
                         className="w-24"
                       />
                     </td>
@@ -347,12 +379,13 @@ export function CircuitBreakersTab() {
                             value={nsToMinutes(rung.minDurationNs) ?? undefined}
                             disabled={!editable}
                             min={1}
-                            onChange={(v) =>
+                            onChange={(v) => {
+                              const ns = minutesToNs(v ?? null);
+                              if (ns === null) return;
                               update((d) => {
-                                d.circuitBreakerDefaults.reopening.expansions[i]!.minDurationNs =
-                                  minutesToNs(v ?? 2)!;
-                              })
-                            }
+                                d.circuitBreakerDefaults.reopening.expansions[i]!.minDurationNs = ns;
+                              });
+                            }}
                             className="w-24"
                           />
                         </td>
@@ -421,6 +454,8 @@ export function CircuitBreakersTab() {
           </>
         )}
       </Section>
+      </>
+      )}
     </Panel>
   );
 }

@@ -1,15 +1,19 @@
 import {
   DISCONNECT_BEHAVIOURS,
   PARTICIPANT_ROLES,
+  SMP_ACTIONS,
   createGateway,
   defaultDisconnectBehaviour,
+  writtenLastPrices,
   type DisconnectBehaviour,
   type ParticipantRole,
+  type SmpAction,
 } from "@edumatcher/schema";
 import { useState } from "react";
 import { useDraftStore } from "@/store/draftStore";
 import { usePersona } from "@/lib/usePersona";
 import { uppercaseId } from "@/lib/format";
+import { removeSymbol } from "@/lib/symbols";
 import { Panel, Section } from "@/components/layout/Panel";
 import { FieldRow } from "@/components/fields/FieldRow";
 import { TextInput } from "@/components/fields/inputs";
@@ -40,17 +44,8 @@ export function BasicsTab() {
     setDialogOpen(true);
   };
 
-  const removeSymbol = (symbol: string) =>
-    update((d) => {
-      delete d.symbols[symbol];
-      d.symbolOrder = d.symbolOrder.filter((s) => s !== symbol);
-      for (const index of d.indices) {
-        index.constituents = index.constituents.filter((c) => c !== symbol);
-      }
-      for (const combo of d.combos) {
-        combo.legs = combo.legs.filter((leg) => leg.symbol !== symbol);
-      }
-    });
+  const onRemoveSymbol = (symbol: string) =>
+    update((d) => removeSymbol(d, symbol));
 
   return (
     <Panel
@@ -111,19 +106,21 @@ export function BasicsTab() {
                 <tbody>
                   {draft.symbolOrder.map((symbol) => {
                     const cfg = draft.symbols[symbol]!;
+                    // The prices as written, mid-range seeding included.
+                    const written = writtenLastPrices(draft, cfg);
                     const missing =
-                      cfg.lastBuyPrice === undefined ||
-                      cfg.lastBuyPrice === null ||
-                      cfg.lastSellPrice === undefined ||
-                      cfg.lastSellPrice === null;
+                      written.lastBuyPrice === undefined ||
+                      written.lastBuyPrice === null ||
+                      written.lastSellPrice === undefined ||
+                      written.lastSellPrice === null;
                     return (
                       <tr key={symbol} className="border-t border-border">
                         <td className="px-3 py-1.5 font-medium">{symbol}</td>
                         <td className="px-3 py-1.5">
-                          {cfg.lastBuyPrice ?? "—"}
+                          {written.lastBuyPrice ?? "—"}
                         </td>
                         <td className="px-3 py-1.5">
-                          {cfg.lastSellPrice ?? "—"}
+                          {written.lastSellPrice ?? "—"}
                         </td>
                         {canSee("I") && (
                           <td className="px-3 py-1.5">
@@ -151,7 +148,7 @@ export function BasicsTab() {
                           <button
                             type="button"
                             aria-label={`Remove ${symbol}`}
-                            onClick={() => removeSymbol(symbol)}
+                            onClick={() => onRemoveSymbol(symbol)}
                             className="text-fg-subtle hover:text-error"
                           >
                             ×
@@ -198,13 +195,14 @@ export function BasicsTab() {
           }}
         >
           <div className="w-full">
-            <div className="overflow-hidden rounded-md border border-border">
+            <div className="overflow-x-auto rounded-md border border-border">
               <table className="w-full text-sm">
                 <thead className="bg-muted text-left text-xs uppercase text-fg-subtle">
                   <tr>
                     <th className="px-3 py-2">ID *</th>
                     <th className="px-3 py-2">Role</th>
                     {canSee("I") && <th className="px-3 py-2">Disconnect</th>}
+                    {canSee("I") && <th className="px-3 py-2">SMP</th>}
                     {canSee("I") && <th className="px-3 py-2">Description</th>}
                     <th className="px-3 py-2" />
                   </tr>
@@ -274,6 +272,23 @@ export function BasicsTab() {
                       )}
                       {canSee("I") && (
                         <td className="px-3 py-1.5">
+                          <Select
+                            aria-label={`Gateway ${index + 1} SMP action`}
+                            value={gateway.smpAction}
+                            onValueChange={(v) =>
+                              update((d) => {
+                                d.gateways[index]!.smpAction = v as SmpAction;
+                              })
+                            }
+                            options={SMP_ACTIONS.map((a) => ({
+                              value: a,
+                              label: a,
+                            }))}
+                          />
+                        </td>
+                      )}
+                      {canSee("I") && (
+                        <td className="px-3 py-1.5">
                           <TextInput
                             aria-label={`Gateway ${index + 1} description`}
                             value={gateway.description ?? ""}
@@ -316,7 +331,7 @@ export function BasicsTab() {
                   {draft.gateways.length === 0 && (
                     <tr>
                       <td
-                        colSpan={5}
+                        colSpan={canSee("I") ? 6 : 3}
                         className="px-3 py-3 text-center text-fg-subtle"
                       >
                         No gateways yet.

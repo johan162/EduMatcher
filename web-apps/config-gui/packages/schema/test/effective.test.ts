@@ -207,3 +207,49 @@ describe("resolveEffectiveSymbol — order limits", () => {
     expect(eff.orderLimits.applies).toBe(false);
   });
 });
+
+describe("resolveEffectiveSymbol — shows what the file says", () => {
+  it("reports seeded last prices the codec writes, not the unset field", () => {
+    const d = draftWith();
+    d.symbols.AAPL = { tickDecimals: 2 };
+    d.seeding.mmMidRange = { min: 50, max: 50 };
+    d.seeding.seedLastPricesFromMm = true;
+    const eff = resolveEffectiveSymbol(d, "AAPL")!;
+    expect(eff.lastBuyPrice).toBe(50);
+    expect(eff.lastSellPrice).toBe(50);
+  });
+
+  it("reports no circuit breaker when neither defaults nor an override are written", () => {
+    const d = draftWith();
+    d.circuitBreakerDefaults.include = false;
+    expect(resolveEffectiveSymbol(d, "AAPL")!.circuitBreaker.applies).toBe(false);
+  });
+
+  it("shows the built-in ladder when no level is configured anywhere", () => {
+    const d = draftWith();
+    d.circuitBreakerDefaults.levels = {};
+    d.circuitBreakerDefaults.levelOrder = [];
+    const cb = resolveEffectiveSymbol(d, "AAPL")!.circuitBreaker;
+    expect(cb.builtInLadder).toBe(true);
+    expect(cb.levels.map((l) => l.name)).toEqual(["L1", "L2", "L3"]);
+  });
+
+  it("includes a level only the symbol defines, in the engine's shift order", () => {
+    const d = draftWith();
+    d.symbols.AAPL!.circuitBreaker = {
+      levels: { L0: { priceShiftPct: 0.03, haltDurationNs: 60_000_000_000 } },
+    };
+    const names = resolveEffectiveSymbol(d, "AAPL")!.circuitBreaker.levels.map((l) => l.name);
+    expect(names).toEqual(["L0", "L1", "L2", "L3"]);
+  });
+
+  it("lists explicit quotes even with no MARKET_MAKER gateway left (they are still written)", () => {
+    const d = draftWith();
+    d.symbols.AAPL!.marketMakerQuotes = [
+      { gatewayId: "MM01", bidPrice: 99, askPrice: 101, bidQty: 1, askQty: 1, tif: "DAY", seedOnce: true },
+    ];
+    const eff = resolveEffectiveSymbol(d, "AAPL")!;
+    expect(eff.marketMakerRelevant).toBe(true);
+    expect(eff.mmQuotes).toHaveLength(1);
+  });
+});

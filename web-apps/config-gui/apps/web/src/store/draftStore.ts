@@ -9,7 +9,9 @@ import { evaluateDiagnostics } from "@edumatcher/diagnostics";
 
 export type Theme = "light" | "dark";
 
-const DRAFT_KEY = "edumatcher.config-gui.draft.v1";
+// v2: the draft model changed shape (section `include` flags, API credentials,
+// require_mm_seed_quotes, alf_gateway). A v1 draft is not migrated.
+const DRAFT_KEY = "edumatcher.config-gui.draft.v2";
 const PERSONA_KEY = "edumatcher.config-gui.persona.v1";
 const THEME_KEY = "edumatcher.config-gui.theme.v1";
 const TOUR_KEY = "edumatcher.config-gui.tour-seen.v1";

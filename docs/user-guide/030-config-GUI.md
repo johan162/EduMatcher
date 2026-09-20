@@ -109,7 +109,7 @@ effort. Pick the one that matches your situation.
 |---|---|---|---|
 | [Container stack](#option-1-one-command-with-the-container-stack) | Most users; production | Podman/Docker + Make | `http://localhost:8092` |
 | [Pre-built image artifact](#option-2-a-pre-built-image-artifact) | Offline hosts, no repo clone | Podman/Docker only | `http://localhost:8092` |
-| [Local development](#option-3-local-development) | Contributing to the GUI itself | Node.js + npm | `http://127.0.0.1:5174` |
+| [Local development](#option-3-local-development) | Contributing to the GUI itself | Node.js + npm | `http://127.0.0.1:8192` |
 
 ### Option 1 — One command with the container stack
 
@@ -140,23 +140,23 @@ are covered under [Deployment and operations](#deployment-and-operations).
 
 For a host without a repository clone — or to ship a ready-to-run image — the
 distributable artifact is a self-contained OCI image archive built with
-`make dist`:
+`make cdist`:
 
 ```
-dist/edumatcher-config-gui-<version>.tar
+dist/edumatcher-config-gui-<version>.tar.xz
 ```
 
-The tar contains everything the application needs at runtime (Node.js runtime,
-compiled frontend, and the Fastify backend) with no external dependencies. Load
-and run it on the target host:
+The archive contains everything the application needs at runtime (Node.js
+runtime, compiled frontend, and the Fastify backend) with no external
+dependencies. Load and run it on the target host:
 
 ```bash
 # Podman
-podman load  --input edumatcher-config-gui-<version>.tar
+podman load  --input edumatcher-config-gui-<version>.tar.xz
 podman run -d --name config-gui -p 8092:8092 edumatcher-config-gui:<version>
 
 # Docker
-docker load  --input edumatcher-config-gui-<version>.tar
+docker load  --input edumatcher-config-gui-<version>.tar.xz
 docker run -d --name config-gui -p 8092:8092 edumatcher-config-gui:<version>
 ```
 
@@ -178,11 +178,11 @@ To hack on the GUI, run the two processes (the Fastify **API** and the Vite
 ```bash
 cd web-apps/config-gui
 npm install
-npm run dev          # starts the API (port 5175) and the web UI (port 5174)
+npm run dev          # starts the API (port 5192) and the web UI (port 8192)
 ```
 
-Open **http://127.0.0.1:5174**. The Vite dev server hot-reloads on save and
-proxies `/api/*` to the backend, so you only ever open the `5174` URL.
+Open **http://127.0.0.1:8192**. The Vite dev server hot-reloads on save and
+proxies `/api/*` to the backend, so you only ever open the `8192` URL.
 
 For separate logs, run the processes in two terminals with `npm run dev:server`
 and `npm run dev:web` (or `make dev-server` / `make dev-web`). Developer-facing
@@ -331,7 +331,7 @@ The dialog collects:
 | Field | Purpose |
 |---|---|
 | **Symbol name** | Uppercased automatically; must be unique. |
-| **Reference price** | The opening mid-price. Derives `last_buy_price` / `last_sell_price` and becomes the collar's static reference on day one. |
+| **IPO reference price** | The opening mid-price. Derives `last_buy_price` / `last_sell_price` and becomes the collar's static reference on day one. |
 | **Tick decimals** (Intermediate+) | Price precision (0–8). Defaults to the global value. See [tick size](060-order-types.md). |
 | **Outstanding shares** | Required if the symbol will be an [index](150-market-index.md) constituent; a sensible default is pre-filled. |
 | **Opening spread (ticks)** (Intermediate+) | Spread, in ticks, used to auto-derive the primary market maker's opening bid/ask around the reference price. |
@@ -817,7 +817,7 @@ All optional, read by the Fastify server:
 | Variable | Default | Purpose |
 |---|---|---|
 | `HOST` | `127.0.0.1` | API bind address (use `0.0.0.0` in containers) |
-| `PORT` | `5175` | API port (`8092` in the container image) |
+| `PORT` | `5192` | API port (`8092` in the container image) |
 | `STATIC_DIR` | *(unset)* | Absolute path to the built UI; enables single-origin/single-container mode |
 | `MAX_IMPORT_BYTES` | `1000000` | Maximum accepted import payload (1 MB) |
 | `CVERIFIER_COMMAND` | `pm-cverifier` | Command for the optional verify endpoint, e.g. `"poetry run pm-cverifier"` |
@@ -924,14 +924,14 @@ server can also serve the built UI, collapsing the two into one container.
 | **`docker compose up --build` hangs at `RUN npm install`** | Corporate proxy/firewall blocks the registry; the build does not inherit host settings | Confirm with `docker run --rm node:22-slim sh -c "npm config set fetch-timeout 30000 && npm ping"`, then pass proxy/registry build args — see [Building behind a corporate proxy](#building-behind-a-corporate-proxy-or-firewall). |
 | **`make up` fails: neither podman nor docker found** | No container runtime on the host | Install Podman or Docker, or use [local development](#option-3-local-development). |
 | **`make up` on macOS: podman machine not running** | The Podman VM is not started | `make up` starts it automatically; otherwise `podman machine init && podman machine start`. |
-| **API calls fail in dev** (`ECONNREFUSED` / 404 on `/api`) | The backend is not running | Start `npm run dev:server`; the web dev server proxies `/api` to `http://127.0.0.1:5175`. |
+| **API calls fail in dev** (`ECONNREFUSED` / 404 on `/api`) | The backend is not running | Start `npm run dev:server`; the web dev server proxies `/api` to `http://127.0.0.1:5192`. |
 | **`"root" option must be an absolute path`** on startup | `STATIC_DIR` is a relative path | Use an absolute path, e.g. `STATIC_DIR="$PWD/apps/web/dist"`. |
 | **Blank page in production**, API works | UI not built or `STATIC_DIR` wrong | Run `npm run build`, then point `STATIC_DIR` at `apps/web/dist`. |
 | **Client route (e.g. `/review`) 404s in production** | Static host without SPA fallback | Let the API serve the UI (`STATIC_DIR`) — it falls back to `index.html`. |
 | **"pm-cverifier is not available"** in the Review tab | Verifier not on `PATH` (expected in the default container) | Optional; set `CVERIFIER_COMMAND="poetry run pm-cverifier"` or run where the tool is installed. |
 | **`npm run verify:python` cannot import `edumatcher`** | Python env not installed | Run `poetry install` at the repository root. |
 | **Import rejected as too large** | File exceeds `MAX_IMPORT_BYTES` (1 MB) | Raise the limit via the env var, or trim the file. |
-| **Port already in use** | Another process holds `5174`/`5175`/`8092` | Change `PORT` (API) or `server.port` / proxy target in `web-apps/config-gui/apps/web/vite.config.ts` (web). |
+| **Port already in use** | Another process holds `8192`/`5192`/`8092` | Change `PORT` (API) or `server.port` / proxy target in `web-apps/config-gui/apps/web/vite.config.ts` (web). |
 | **Imported config shows an "unmapped" banner** | The file has sections the GUI does not model | Expected — those sections are preserved read-only and re-emitted unchanged. |
 | **Quote Stub Review shows "! fill in" after import** | No mid-range seeding and no explicit quotes for some symbols | Set a mid-range on the Market Maker tab, or enter explicit bid/ask on each flagged symbol's MM Quotes sub-tab. |
 | **A tab you expected is missing** | It is above the current persona, or (Market Maker) no MM gateway exists | Raise the [persona](#personas), or add a `MARKET_MAKER` gateway. |

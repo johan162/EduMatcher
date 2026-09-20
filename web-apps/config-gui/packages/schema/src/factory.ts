@@ -1,6 +1,7 @@
 /** Factory helpers producing fully-defaulted draft fragments. */
 
 import {
+  DEFAULT_ALF_GATEWAY,
   DEFAULT_API_GATEWAY,
   DEFAULT_BALF_GATEWAY,
   DEFAULT_CB_LADDER,
@@ -31,6 +32,7 @@ import {
   defaultDisconnectBehaviour,
 } from "./defaults.js";
 import type {
+  AlfGatewayProcConfig,
   ApiGatewayConfig,
   BalfGatewayConfig,
   CbLevel,
@@ -75,9 +77,27 @@ export function defaultCbLevels(): {
   return { levels, levelOrder };
 }
 
+export function createAlfGatewayProc(): AlfGatewayProcConfig {
+  return {
+    include: false,
+    enabled: true,
+    name: DEFAULT_ALF_GATEWAY.name,
+    bindAddress: DEFAULT_ALF_GATEWAY.bindAddress,
+    port: DEFAULT_ALF_GATEWAY.port,
+    heartbeatIntervalSec: DEFAULT_ALF_GATEWAY.heartbeatIntervalSec,
+    handshakeTimeoutSec: DEFAULT_ALF_GATEWAY.handshakeTimeoutSec,
+    idleTimeoutSec: DEFAULT_ALF_GATEWAY.idleTimeoutSec,
+    maxConnections: DEFAULT_ALF_GATEWAY.maxConnections,
+    maxClientQueue: DEFAULT_ALF_GATEWAY.maxClientQueue,
+    maxCommandsPerSecond: DEFAULT_ALF_GATEWAY.maxCommandsPerSecond,
+    maxErrorsBeforeDisconnect: DEFAULT_ALF_GATEWAY.maxErrorsBeforeDisconnect,
+    errorWindowSec: DEFAULT_ALF_GATEWAY.errorWindowSec,
+  };
+}
+
 export function createPostTradeGateway(): PostTradeGatewayConfig {
   return {
-    enabled: false,
+    include: false,
     name: DEFAULT_POST_TRADE_GATEWAY.name,
     bindAddress: DEFAULT_POST_TRADE_GATEWAY.bindAddress,
     port: DEFAULT_POST_TRADE_GATEWAY.port,
@@ -91,7 +111,8 @@ export function createPostTradeGateway(): PostTradeGatewayConfig {
 
 export function createMarketDataGateway(): MarketDataGatewayConfig {
   return {
-    enabled: false,
+    include: false,
+    enabled: DEFAULT_MARKET_DATA_GATEWAY.enabled,
     name: DEFAULT_MARKET_DATA_GATEWAY.name,
     bindAddress: DEFAULT_MARKET_DATA_GATEWAY.bindAddress,
     port: DEFAULT_MARKET_DATA_GATEWAY.port,
@@ -99,6 +120,8 @@ export function createMarketDataGateway(): MarketDataGatewayConfig {
     idleTimeoutSec: DEFAULT_MARKET_DATA_GATEWAY.idleTimeoutSec,
     maxClientQueue: DEFAULT_MARKET_DATA_GATEWAY.maxClientQueue,
     replayWindowSec: DEFAULT_MARKET_DATA_GATEWAY.replayWindowSec,
+    maxConnections: DEFAULT_MARKET_DATA_GATEWAY.maxConnections,
+    maxMessagesPerSecond: DEFAULT_MARKET_DATA_GATEWAY.maxMessagesPerSecond,
     maxSymbolsPerClient: DEFAULT_MARKET_DATA_GATEWAY.maxSymbolsPerClient,
     depthLevels: DEFAULT_MARKET_DATA_GATEWAY.depthLevels,
   };
@@ -106,7 +129,8 @@ export function createMarketDataGateway(): MarketDataGatewayConfig {
 
 export function createBalfGateway(): BalfGatewayConfig {
   return {
-    enabled: false,
+    include: false,
+    enabled: true,
     name: DEFAULT_BALF_GATEWAY.name,
     bindAddress: DEFAULT_BALF_GATEWAY.bindAddress,
     port: DEFAULT_BALF_GATEWAY.port,
@@ -125,7 +149,7 @@ export function createBalfGateway(): BalfGatewayConfig {
 
 export function createDcGateway(): DcGatewayConfig {
   return {
-    enabled: false,
+    include: false,
     name: DEFAULT_DC_GATEWAY.name,
     bindAddress: DEFAULT_DC_GATEWAY.bindAddress,
     port: DEFAULT_DC_GATEWAY.port,
@@ -137,7 +161,8 @@ export function createDcGateway(): DcGatewayConfig {
 
 export function createLogServer(): LogServerConfig {
   return {
-    enabled: false,
+    include: false,
+    enabled: DEFAULT_LOG_SERVER.enabled,
     name: DEFAULT_LOG_SERVER.name,
     bindAddress: DEFAULT_LOG_SERVER.bindAddress,
     port: DEFAULT_LOG_SERVER.port,
@@ -174,9 +199,6 @@ export function createApiGateway(
     swaggerEnabled: DEFAULT_API_GATEWAY.swaggerEnabled,
     logLevel: DEFAULT_API_GATEWAY.logLevel,
     statsDb: DEFAULT_API_GATEWAY.statsDb,
-    gatewayIds: [],
-    generateKeys: DEFAULT_API_GATEWAY.generateKeys,
-    generateReadonlyKey: DEFAULT_API_GATEWAY.generateReadonlyKey,
     credentials: [],
     rateLimitWritesPerSecond: DEFAULT_API_GATEWAY.rateLimitWritesPerSecond,
     rateLimitBurst: DEFAULT_API_GATEWAY.rateLimitBurst,
@@ -191,7 +213,12 @@ export function createGateway(
   id: string,
   role: ParticipantRole = "TRADER",
 ): GatewayConfig {
-  return { id, role, disconnectBehaviour: defaultDisconnectBehaviour(role) };
+  return {
+    id,
+    role,
+    disconnectBehaviour: defaultDisconnectBehaviour(role),
+    smpAction: "NONE",
+  };
 }
 
 /** A new symbol config with the given tick precision and optional seed prices. */
@@ -269,6 +296,7 @@ export function createBlankDraft(): EngineConfigDraft {
   const cb = defaultCbLevels();
   return {
     sessionsEnabled: false,
+    requireMmSeedQuotes: true,
     country: DEFAULT_COUNTRY,
     emitSchedule: true,
     snapshotIntervalSec: DEFAULT_SNAPSHOT_INTERVAL_SEC,
@@ -296,7 +324,7 @@ export function createBlankDraft(): EngineConfigDraft {
       levels: {},
     },
     circuitBreakerDefaults: {
-      enabled: true,
+      include: true,
       windowNs: DEFAULT_CB_WINDOW_NS,
       levels: cb.levels,
       levelOrder: cb.levelOrder,
@@ -316,10 +344,10 @@ export function createBlankDraft(): EngineConfigDraft {
       mmMidRange: undefined,
       seedLastPricesFromMm: false,
       seedLastPrices: false,
-      randomSeed: undefined,
     },
     indices: [],
     combos: [],
+    alfGateway: createAlfGatewayProc(),
     postTradeGateway: createPostTradeGateway(),
     marketDataGateway: createMarketDataGateway(),
     balfGateway: createBalfGateway(),

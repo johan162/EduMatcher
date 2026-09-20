@@ -15,17 +15,24 @@
  */
 
 import {
+  DEFAULT_ACE_EXPANSIONS,
+  DEFAULT_ACE_INITIAL_BAND_PCT,
+  DEFAULT_ACE_RANDOM_END_MAX_NS,
+  DEFAULT_CB_LADDER,
+  DEFAULT_CB_WINDOW_NS,
   DEFAULT_DYNAMIC_BAND_PCT,
   DEFAULT_MM_STUB_QTY,
   DEFAULT_STATIC_BAND_PCT,
 } from "./defaults.js";
-import { effectiveDefaultCollar } from "./factory.js";
+import { effectiveDefaultCollar, minutesToNs } from "./factory.js";
 import type {
+  CbLevel,
   EngineConfigDraft,
   GatewayMmObligationOverride,
   MmQuoteSeed,
   ReopeningConfig,
   ReopeningOverride,
+  SymbolConfig,
   Tif,
 } from "./types.js";
 
@@ -65,6 +72,77 @@ export function seededQuotePrices(
   return midpoint === null ? null : quoteAroundMidpoint(midpoint, tickDecimals);
 }
 
+// ---- What the codec writes for one symbol (single source of truth) ---------
+//
+// The codec's build step and every read-only view call these, so what the GUI
+// shows is by construction what the file says. Seeded prices are always
+// snapped to the symbol's OWN tick_decimals — a symbol at 0 decimals cannot
+// take a 2-decimal seed, and the engine refuses an off-grid price.
+
+/**
+ * `last_buy_price` / `last_sell_price` as written. A property that is absent
+ * from the result is a key omitted from the file.
+ */
+export function writtenLastPrices(
+  draft: EngineConfigDraft,
+  config: SymbolConfig,
+): { lastBuyPrice?: number | null; lastSellPrice?: number | null } {
+  // Explicit per-symbol last prices always win over global seeding.
+  if (config.lastBuyPrice !== undefined || config.lastSellPrice !== undefined) {
+    const out: { lastBuyPrice?: number | null; lastSellPrice?: number | null } =
+      {};
+    if (config.lastBuyPrice !== undefined) out.lastBuyPrice = config.lastBuyPrice;
+    if (config.lastSellPrice !== undefined)
+      out.lastSellPrice = config.lastSellPrice;
+    return out;
+  }
+  const midpoint = seededMidpoint(draft, config.tickDecimals);
+  if (draft.seeding.seedLastPricesFromMm && midpoint !== null) {
+    return { lastBuyPrice: midpoint, lastSellPrice: midpoint };
+  }
+  if (draft.seeding.seedLastPrices) {
+    return { lastBuyPrice: null, lastSellPrice: null };
+  }
+  return {};
+}
+
+export type EffectiveMmQuote = MmQuoteSeed & { origin: "explicit" | "seeded" | "stub" };
+
+/**
+ * `market_maker_quotes` as written; an empty list means the key is omitted.
+ *
+ * Explicit quotes are written whenever the symbol has any — even with no
+ * MARKET_MAKER gateway configured, where diagnostics report them rather than
+ * the export silently dropping what the user can still see. Otherwise one
+ * stub per MARKET_MAKER gateway, seeded from the mid-range when set; with no
+ * mid-range the stubs carry null prices, and none are written at all when
+ * `require_mm_seed_quotes` is off (mirrors builder.py).
+ */
+export function writtenMmQuotes(
+  draft: EngineConfigDraft,
+  config: SymbolConfig,
+): EffectiveMmQuote[] {
+  if (config.marketMakerQuotes && config.marketMakerQuotes.length > 0) {
+    return config.marketMakerQuotes.map((q) => ({ ...q, origin: "explicit" as const }));
+  }
+  const mmGatewayIds = draft.gateways
+    .filter((g) => g.role === "MARKET_MAKER")
+    .map((g) => g.id);
+  if (mmGatewayIds.length === 0) return [];
+  const prices = seededQuotePrices(draft, config.tickDecimals);
+  if (prices === null && !draft.requireMmSeedQuotes) return [];
+  return mmGatewayIds.map((gatewayId) => ({
+    gatewayId,
+    bidPrice: prices?.bidPrice ?? null,
+    askPrice: prices?.askPrice ?? null,
+    bidQty: DEFAULT_MM_STUB_QTY,
+    askQty: DEFAULT_MM_STUB_QTY,
+    tif: "DAY" as Tif,
+    seedOnce: true,
+    origin: prices ? ("seeded" as const) : ("stub" as const),
+  }));
+}
+
 // ---- Effective-symbol view --------------------------------------------------
 
 export type ValueSource = "override" | "level" | "global" | "default";
@@ -93,7 +171,11 @@ export interface EffectiveOrderLimits {
 
 export interface EffectiveCbLevel {
   name: string;
-  priceShiftPct: number;
+  /**
+   * Undefined only for a symbol-only level that sets no shift — the engine
+   * refuses that (price_shift_pct is required), and diagnostics say so.
+   */
+  priceShiftPct: number | undefined;
   shiftOverridden: boolean;
   haltDurationNs: number | null;
   haltOverridden: boolean;
@@ -112,11 +194,100 @@ export interface EffectiveReopening {
 }
 
 export interface EffectiveCircuitBreaker {
+  /**
+   * False when neither `circuit_breaker_defaults` nor the symbol's own
+   * `circuit_breaker` is written: the engine then runs the symbol with no
+   * circuit breaker at all.
+   */
+  applies: boolean;
   enforcedGlobally: boolean;
   referenceWindowNs: number;
   windowOverridden: boolean;
+  /** True when no level is configured and the engine's built-in ladder applies. */
+  builtInLadder: boolean;
+  /** In the engine's order: ascending price shift. */
   levels: EffectiveCbLevel[];
   reopening: EffectiveReopening;
+}
+
+/** The engine's built-in ACE settings, used when circuit_breaker_defaults is absent. */
+function builtInReopening(): ReopeningConfig {
+  return {
+    enabled: true,
+    initialBandPct: DEFAULT_ACE_INITIAL_BAND_PCT,
+    expansions: DEFAULT_ACE_EXPANSIONS.map((r) => ({ ...r })),
+    randomEndMaxNs: DEFAULT_ACE_RANDOM_END_MAX_NS,
+  };
+}
+
+/**
+ * Mirrors config_loader: symbol levels merge over the defaults by level key
+ * (field-by-field), the built-in ladder applies only when the merge is empty,
+ * and levels are ordered by price shift.
+ */
+function resolveCircuitBreaker(
+  draft: EngineConfigDraft,
+  symbolCb: SymbolConfig["circuitBreaker"],
+): EffectiveCircuitBreaker {
+  const cbDefaults = draft.circuitBreakerDefaults;
+  const symbolHasCb =
+    symbolCb !== undefined &&
+    (Object.keys(symbolCb.levels).length > 0 ||
+      symbolCb.referenceWindowNs !== undefined ||
+      (symbolCb.reopening !== undefined &&
+        Object.keys(symbolCb.reopening).length > 0));
+  const baseLevels: Record<string, CbLevel> = cbDefaults.include
+    ? cbDefaults.levels
+    : {};
+  const names = [
+    ...(cbDefaults.include ? cbDefaults.levelOrder : []),
+    ...Object.keys(symbolCb?.levels ?? {}).filter(
+      (n) => !(cbDefaults.include && n in baseLevels),
+    ),
+  ];
+  let levels: EffectiveCbLevel[] = names.map((name) => {
+    const g = baseLevels[name];
+    const o = symbolCb?.levels[name];
+    const haltOverridden = o !== undefined && o.haltDurationNs !== undefined;
+    return {
+      name,
+      priceShiftPct: o?.priceShiftPct ?? g?.priceShiftPct,
+      shiftOverridden: o?.priceShiftPct !== undefined,
+      haltDurationNs: haltOverridden
+        ? (o!.haltDurationNs as number | null)
+        : (g?.haltDurationNs ?? null),
+      haltOverridden,
+    };
+  });
+  const builtInLadder = levels.length === 0;
+  if (builtInLadder) {
+    levels = DEFAULT_CB_LADDER.map((l) => ({
+      name: l.name,
+      priceShiftPct: l.priceShiftPct,
+      shiftOverridden: false,
+      haltDurationNs: minutesToNs(l.haltMinutes),
+      haltOverridden: false,
+    }));
+  }
+  levels.sort(
+    (a, b) =>
+      (a.priceShiftPct ?? Number.POSITIVE_INFINITY) -
+      (b.priceShiftPct ?? Number.POSITIVE_INFINITY),
+  );
+  return {
+    applies: cbDefaults.include || symbolHasCb,
+    enforcedGlobally: draft.enforceCircuitBreakers,
+    referenceWindowNs:
+      symbolCb?.referenceWindowNs ??
+      (cbDefaults.include ? cbDefaults.windowNs : DEFAULT_CB_WINDOW_NS),
+    windowOverridden: symbolCb?.referenceWindowNs !== undefined,
+    builtInLadder,
+    levels,
+    reopening: resolveReopening(
+      cbDefaults.include ? cbDefaults.reopening : builtInReopening(),
+      symbolCb?.reopening,
+    ),
+  };
 }
 
 /**
@@ -174,12 +345,9 @@ export interface EffectiveMmObligation {
   perGatewayOverrides: Array<{ gatewayId: string } & GatewayMmObligationOverride>;
 }
 
-export type EffectiveMmQuote = MmQuoteSeed & { origin: "explicit" | "seeded" | "stub" };
-
 export interface EffectiveSymbol {
   name: string;
   tickDecimals: number;
-  tickOverridden: boolean;
   lastBuyPrice: number | null;
   lastSellPrice: number | null;
   outstandingShares?: number;
@@ -195,16 +363,18 @@ export interface EffectiveSymbol {
   combos: string[];
 }
 
-export function resolveEffectiveSymbol(
+/**
+ * The risk level a symbol resolves to and the collar that results. Exported
+ * as {@link resolveEffectiveCollar} for views that need only the collar.
+ */
+function resolveLevelAndCollar(
   draft: EngineConfigDraft,
-  name: string,
-): EffectiveSymbol | null {
-  const config = draft.symbols[name];
-  if (!config) return null;
-
-  const tickDecimals = config.tickDecimals;
-  const tickOverridden = config.tickDecimals !== draft.tickDecimals;
-
+  config: SymbolConfig,
+): {
+  level: string | undefined;
+  levelSource: "symbol" | "default" | "none";
+  collar: EffectiveCollar;
+} {
   // --- Risk level applied to the symbol -------------------------------------
   const defaultLevelName =
     draft.riskControls.defaultLevel ??
@@ -222,15 +392,22 @@ export function resolveEffectiveSymbol(
   }
 
   // --- Collar ---------------------------------------------------------------
-  let levelCollar: { staticBandPct: number; dynamicBandPct: number } | undefined;
-  if (level === "DEFAULT") {
+  // A named level wins over the derived DEFAULT: the codec writes the named
+  // one second, so a clash (reported by diagnostics) resolves the same way.
+  let levelCollar: { staticBandPct?: number; dynamicBandPct?: number } | undefined;
+  const namedLevel = level ? draft.riskControls.levels[level] : undefined;
+  if (namedLevel) {
+    if (
+      namedLevel.staticBandPct !== undefined ||
+      namedLevel.dynamicBandPct !== undefined
+    ) {
+      levelCollar = {
+        staticBandPct: namedLevel.staticBandPct,
+        dynamicBandPct: namedLevel.dynamicBandPct,
+      };
+    }
+  } else if (level === "DEFAULT") {
     levelCollar = effectiveDefaultCollar(draft);
-  } else if (level && draft.riskControls.levels[level]) {
-    const l = draft.riskControls.levels[level]!;
-    levelCollar = {
-      staticBandPct: l.staticBandPct,
-      dynamicBandPct: l.dynamicBandPct,
-    };
   }
   const symbolCollar = config.collar;
   const symbolHasCollar =
@@ -257,6 +434,28 @@ export function resolveEffectiveSymbol(
     };
   }
 
+  return { level, levelSource, collar };
+}
+
+/** The collar the engine applies to one symbol, with provenance. */
+export function resolveEffectiveCollar(
+  draft: EngineConfigDraft,
+  config: SymbolConfig,
+): EffectiveCollar {
+  return resolveLevelAndCollar(draft, config).collar;
+}
+
+export function resolveEffectiveSymbol(
+  draft: EngineConfigDraft,
+  name: string,
+): EffectiveSymbol | null {
+  const config = draft.symbols[name];
+  if (!config) return null;
+
+  const tickDecimals = config.tickDecimals;
+
+  const { level, levelSource, collar } = resolveLevelAndCollar(draft, config);
+
   // --- Order limits ---------------------------------------------------------
   // Symbol scope only: no level default, no global default, no fallback.
   const symbolLimits = config.orderLimits;
@@ -271,32 +470,12 @@ export function resolveEffectiveSymbol(
         };
 
   // --- Circuit breaker ------------------------------------------------------
-  const cbDefaults = draft.circuitBreakerDefaults;
-  const symbolCb = config.circuitBreaker;
-  const circuitBreaker: EffectiveCircuitBreaker = {
-    enforcedGlobally: draft.enforceCircuitBreakers,
-    referenceWindowNs: symbolCb?.referenceWindowNs ?? cbDefaults.windowNs,
-    windowOverridden: symbolCb?.referenceWindowNs !== undefined,
-    levels: cbDefaults.levelOrder.map((lvlName) => {
-      const g = cbDefaults.levels[lvlName]!;
-      const o = symbolCb?.levels[lvlName];
-      const haltOverridden = o !== undefined && o.haltDurationNs !== undefined;
-      return {
-        name: lvlName,
-        priceShiftPct: o?.priceShiftPct ?? g.priceShiftPct,
-        shiftOverridden: o?.priceShiftPct !== undefined,
-        haltDurationNs: haltOverridden ? (o!.haltDurationNs as number | null) : g.haltDurationNs,
-        haltOverridden,
-      };
-    }),
-    reopening: resolveReopening(cbDefaults.reopening, symbolCb?.reopening),
-  };
+  const circuitBreaker = resolveCircuitBreaker(draft, config.circuitBreaker);
 
   // --- Market maker ---------------------------------------------------------
-  const mmGatewayIds = draft.gateways
-    .filter((g) => g.role === "MARKET_MAKER")
-    .map((g) => g.id);
-  const marketMakerRelevant = mmGatewayIds.length > 0;
+  const mmQuotes = writtenMmQuotes(draft, config);
+  const marketMakerRelevant =
+    mmQuotes.length > 0 || draft.gateways.some((g) => g.role === "MARKET_MAKER");
   const mmDefaults = draft.mmObligationDefaults;
   const symMm = config.marketMaker;
   const mmObligation: EffectiveMmObligation = {
@@ -311,31 +490,13 @@ export function resolveEffectiveSymbol(
       .map((g) => ({ gatewayId: g.id, ...g.mmObligations![name]! })),
   };
 
-  let mmQuotes: EffectiveMmQuote[] = [];
-  if (config.marketMakerQuotes && config.marketMakerQuotes.length > 0) {
-    mmQuotes = config.marketMakerQuotes.map((q) => ({ ...q, origin: "explicit" as const }));
-  } else if (marketMakerRelevant) {
-    // Mirror the codec's fallback: one stub per MM gateway, seeded from the
-    // mid-range when configured, otherwise a null-price stub to fill in.
-    const prices = seededQuotePrices(draft, draft.tickDecimals);
-    mmQuotes = mmGatewayIds.map((gatewayId) => ({
-      gatewayId,
-      bidPrice: prices?.bidPrice ?? null,
-      askPrice: prices?.askPrice ?? null,
-      bidQty: DEFAULT_MM_STUB_QTY,
-      askQty: DEFAULT_MM_STUB_QTY,
-      tif: "DAY" as Tif,
-      seedOnce: true,
-      origin: prices ? "seeded" : "stub",
-    }));
-  }
+  const lastPrices = writtenLastPrices(draft, config);
 
   return {
     name,
     tickDecimals,
-    tickOverridden,
-    lastBuyPrice: config.lastBuyPrice ?? null,
-    lastSellPrice: config.lastSellPrice ?? null,
+    lastBuyPrice: lastPrices.lastBuyPrice ?? null,
+    lastSellPrice: lastPrices.lastSellPrice ?? null,
     outstandingShares: config.outstandingShares,
     level,
     levelSource,

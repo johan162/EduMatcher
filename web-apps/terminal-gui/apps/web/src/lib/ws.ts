@@ -26,6 +26,25 @@ export type WsStatus = "connecting" | "open" | "reconnecting" | "closed";
 const RETRY_INITIAL_MS = 500;
 const RETRY_MAX_MS = 10_000;
 
+/**
+ * Liveness watchdog (design review H4).
+ *
+ * The bridge broadcasts `bridge_status` every `WS_HEARTBEAT_INTERVAL_SEC`
+ * (default 5s; see `apps/bridge/src/config.ts`) regardless of CALF state, so
+ * silence here means the path itself is gone, not just the feed. A NAT/proxy
+ * idle timeout, a Wi-Fi change or a paused bridge container can leave the
+ * browser's TCP socket half-open with no `close` event ever firing, so this
+ * cannot wait on the browser's own `WebSocket` to notice — it has to check
+ * elapsed time against frames actually received.
+ *
+ * Three missed intervals, not one: a single slow tick over a loaded network
+ * is not evidence of a dead path, and the review's "OFFLINE within ~15s" is
+ * sized against this multiple at the default interval.
+ */
+const WATCHDOG_HEARTBEAT_MS = 5_000;
+const WATCHDOG_MISSED_INTERVALS = 3;
+const WATCHDOG_CHECK_MS = WATCHDOG_HEARTBEAT_MS * WATCHDOG_MISSED_INTERVALS;
+
 export class TerminalStreamClient {
   private socket: WebSocket | null = null;
   private retryDelayMs = RETRY_INITIAL_MS;
@@ -38,6 +57,8 @@ export class TerminalStreamClient {
    * the socket closes and the views will never say them again.
    */
   private readonly standing = new Map<string, ClientFrame>();
+  private watchdogTimer: ReturnType<typeof setInterval> | null = null;
+  private lastFrameAt = 0;
 
   constructor(
     private readonly onFrame: (frame: ServerFrame) => void,
@@ -63,9 +84,11 @@ export class TerminalStreamClient {
       // subscriptions already re-declared rather than racing them.
       for (const frame of this.standing.values()) this.transmit(frame);
       this.onStatus("open");
+      this.armWatchdog();
     });
 
     socket.addEventListener("message", (event) => {
+      this.lastFrameAt = Date.now();
       try {
         this.onFrame(JSON.parse(event.data as string) as ServerFrame);
       } catch {
@@ -74,6 +97,7 @@ export class TerminalStreamClient {
     });
 
     socket.addEventListener("close", () => {
+      this.disarmWatchdog();
       if (this.stopped) {
         this.onStatus("closed");
         return;
@@ -121,8 +145,33 @@ export class TerminalStreamClient {
     }
   }
 
+  /**
+   * Start (or restart) the liveness check for the socket that just opened.
+   * `lastFrameAt` is seeded to "now" rather than left at its previous value,
+   * so a reconnect gets a full window before the watchdog can fire.
+   */
+  private armWatchdog(): void {
+    this.lastFrameAt = Date.now();
+    this.watchdogTimer = setInterval(() => {
+      if (Date.now() - this.lastFrameAt >= WATCHDOG_CHECK_MS) {
+        // Force the close the underlying TCP connection never delivered.
+        // The existing "close" handler does the rest: reconnect, replay
+        // standing interest, and the OFFLINE status change in between.
+        this.socket?.close();
+      }
+    }, WATCHDOG_HEARTBEAT_MS);
+  }
+
+  private disarmWatchdog(): void {
+    if (this.watchdogTimer) {
+      clearInterval(this.watchdogTimer);
+      this.watchdogTimer = null;
+    }
+  }
+
   close(): void {
     this.stopped = true;
+    this.disarmWatchdog();
     this.socket?.close();
   }
 }

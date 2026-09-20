@@ -213,11 +213,12 @@ stateDiagram-v2
     [*] --> PENDING : legs accepted
     PENDING --> PARTIALLY_MATCHED : first leg fill
     PARTIALLY_MATCHED --> MATCHED : all legs fully filled
-    PENDING --> FAILED : a leg cancelled or expired
-    PARTIALLY_MATCHED --> FAILED : a leg cancelled or expired
+    PENDING --> MATCHED : all legs fill immediately (e.g. both legs cross resting liquidity at submission)
+    PENDING --> FAILED : cascade-cancel on a leg cancelled or expired
+    PARTIALLY_MATCHED --> FAILED : cascade-cancel on a leg cancelled or expired
     PENDING --> CANCELLED : explicit CANCEL|COMBO_ID=
     PARTIALLY_MATCHED --> CANCELLED : explicit CANCEL|COMBO_ID=
-    FAILED --> [*] : cascade-cancel remaining legs
+    FAILED --> [*]
     CANCELLED --> [*]
     MATCHED --> [*]
 ```
@@ -395,6 +396,14 @@ market_maker_combos:
 
 This ensures that when a retail trader submits a combo, there is resting liquidity on
 both legs from day one.
+
+Note that a `market_maker_combos` entry has no `gateway_id` field — unlike
+`market_maker_quotes`, it is not attached to `MM01` or any other configured
+gateway. The engine assigns every config-seeded combo the fixed internal
+owner `MM`, which is not a real, authenticatable gateway ID. As a result, a
+seeded combo cannot be cancelled with `CANCEL|COMBO_ID=` from any ALF console
+session — cancellation only works for combos submitted live by an
+authenticated gateway.
 
 
 
