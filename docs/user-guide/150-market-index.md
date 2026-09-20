@@ -5,7 +5,7 @@
 
     - What `pm-index` does and how it fits into the EduMatcher process model
     - How to start `pm-index` and which CLI options are available
-    - How to configure one or more indices in `engine_config.yaml`
+    - How to configure one or more indices in the engine config (`engine_config.yaml`)
     - How cap-weighted index calculation and divisor normalisation work
     - How to apply corporate actions without disrupting the index level
     - How to query the current index value, structural/audit records, and
@@ -37,8 +37,10 @@ order or session commands to the engine — it only listens and publishes.
 ## Prerequisites
 
 - `pm-engine` running
-- At least one index defined in `engine_config.yaml`
+- At least one index defined in `engine_config.yaml`, compiled and installed
+  with `pm-config-deploy` (see [Engine Configuration](010-configuration.md#compile-configs-with-pm-config-deploy))
 - Every constituent symbol listed in `symbols:` with `outstanding_shares` set
+  and at least one of `last_buy_price` / `last_sell_price` (its reference price)
 
 `pm-index` can start before or after `pm-engine`; the ZMQ subscriber will
 reconnect automatically. Order only matters for the first few seconds of a fresh
@@ -52,7 +54,6 @@ Installed mode:
 
 ```bash
 pm-index
-pm-index
 pm-index --reset
 ```
 
@@ -60,19 +61,28 @@ Developer / Poetry mode:
 
 ```bash
 poetry run pm-index
-poetry run pm-index
 poetry run pm-index --reset
 ```
+
+`pm-index` takes no config-file argument. Like the engine, it reads the
+compiled configuration that `pm-config-deploy` installed
+(`<DATA_DIR>/ref_data/engine_config.json`), so it always agrees with the running
+engine about constituents and reference prices. If no compiled configuration is
+deployed it logs a warning (`no compiled configuration at ... — no indices will
+be calculated. Run pm-config-deploy to install one.`) and calculates nothing.
 
 ### CLI options
 
 | Option                      | Default              | Description                                                            |
 |-----------------------------|----------------------|------------------------------------------------------------------------|
-| `--config FILE` / `-c FILE` | `engine_config.yaml` | Path to the engine config YAML file                                    |
 | `--reset`                   | off                  | Delete persisted state files and re-initialise all indices from config |
+| `--version`                 | —                    | Print the version and exit                                             |
 | `--log-level`               | `WARNING`            | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`        |
 | `-v` / `--verbose`          | off                  | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                    |
-| `-q` / `--quiet`            | off                  | Reduce output to warnings/errors                                        |
+| `-q` / `--quiet`            | off                  | Accepted for symmetry with the other processes; `WARNING` is already the default |
+| `--log-target`              | `server`             | Where this process's own log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file`                | —                    | Operational log file path — required when `--log-target file`          |
+| `--log-failover-timeout`    | `30`                 | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
 
 `--reset` is useful after:
 
@@ -90,7 +100,7 @@ poetry run pm-index --reset
 ## Configuration
 
 All index configuration lives in the top-level `indices:` section of
-`engine_config.yaml`. See
+`engine_config.yaml` (deployed with `pm-config-deploy`). See
 [Engine Configuration](010-configuration.md#configuring-pm-index)
 for the full field reference; a complete YAML example is shown below.
 
@@ -132,9 +142,9 @@ indices:
 | Field                  | Type   | Default                           | Description                                                                     |
 |------------------------|--------|-----------------------------------|---------------------------------------------------------------------------------|
 | `id`                   | string | —                                 | Alphanumeric index identifier; used in events, file names, and gateway commands |
-| `description`          | string | —                                 | Human-readable label emitted in index events                                    |
-| `base_value`           | float  | `1000.0`                          | Starting index level on first launch                                            |
-| `publish_interval_sec` | float  | `1.0`                             | Throttle on how often `index.update` is broadcast                               |
+| `description`          | string | —                                 | Human-readable label emitted in index events; required, non-empty               |
+| `base_value`           | float  | `1000.0`                          | Starting index level on first launch; must be `> 0`                             |
+| `publish_interval_sec` | float  | `1.0`                             | Throttle on how often `index.update` is broadcast; must be `> 0`                |
 | `history_file`         | string | `data/indexes/<ID>_history.jsonl` | Append-only JSONL **structural/audit trail** — corporate actions and constituent changes only, not level history (see [State and History](#state-and-history)) |
 | `state_file`           | string | `data/indexes/<ID>_state.json`    | Checkpoint file for divisor and last prices                                     |
 | `constituents`         | list   | —                                 | Symbols included in the index                                                   |
@@ -142,8 +152,11 @@ indices:
 Constraints:
 
 - Maximum **5** indices per config file
-- Every constituent symbol must appear in `symbols:` with `outstanding_shares > 0`
-- `id` values must be unique
+- `id` must be alphanumeric, and `id` values must be unique
+- `constituents` must be a non-empty list with no duplicates
+- Every constituent symbol must appear in `symbols:` with `outstanding_shares` set
+- Relative `history_file` / `state_file` paths (including a leading `data/`) are
+  resolved inside the data directory (`EDUMATCHER_DATA_DIR`); absolute paths are used as given
 
 !!! note "Index eligibility is set at listing (IPO)"
     `outstanding_shares` is what makes a symbol index-eligible, and it is part
@@ -172,6 +185,14 @@ pm-config-gen \
 
 File paths are derived from the index ID automatically when `--index-history-file`
 and `--index-state-file` are not specified.
+
+!!! warning "The generated file has no reference prices yet"
+    `pm-index` refuses a constituent that has neither `last_buy_price` nor
+    `last_sell_price`, and `pm-config-gen` does not invent them. Either pass
+    `--seed-last-prices` (emits `null` placeholders you then fill in by hand) or
+    `--seed-mm-mid-range MIN:MAX --seed-last-prices-from-mm` (needs at least one
+    `MARKET_MAKER` gateway), or add the two fields to each symbol yourself. Then
+    install the result with `pm-config-deploy engine_config.yaml`.
 
 
 ## How Calculation Works
@@ -243,9 +264,10 @@ the throttle controls only how often `index.update` messages are broadcast.
 
 ### Intraday OHLC
 
-`pm-index` tracks day open, high, and low internally. They are reset at
-`OPENING_AUCTION` or `CONTINUOUS` session transitions and finalised with a
-closing value when the session reaches `CLOSED`.
+`pm-index` tracks day open, high, and low internally. They are cleared at every
+`OPENING_AUCTION` or `CONTINUOUS` session transition and start again from the
+next level update; the day is finalised with a closing value when the session
+reaches `CLOSED`.
 
 
 ## Corporate Actions
@@ -286,9 +308,10 @@ to a running `pm-index` process:
 pm-index-admin-cli --id OPS01 split    --index EDU100 --sym AAPL --ratio 2:1
 pm-index-admin-cli --id OPS01 dividend --index EDU100 --sym MSFT --amount 2.50
 pm-index-admin-cli --id OPS01 shares   --index EDU100 --sym TSLA --new-shares 3500000000
+pm-index-admin-cli --id OPS01 shares   --index EDU100 --sym TSLA --delta -200000000   # buy-back
 ```
 
-Each subcommand prints a confirmation prompt before sending (skip it with
+Each mutating subcommand prints a confirmation prompt before sending (skip it with
 `-y`/`--yes`), supports `--dry-run` to preview the outbound payload without
 sending it, and blocks for the `index.corp_action_ack.{gateway_id}` response.
 `pm-index` applies the action in-process, immediately publishes an updated
@@ -371,22 +394,26 @@ corporate action or constituent change (add/delist):
   "divisor": 7007100000.0,
   "constituents": ["AAPL", "MSFT", "TSLA"],
   "last_prices": {
-    "AAPL": 211.30,
-    "MSFT": 418.50,
-    "TSLA": 251.00
+    "AAPL": 211.3,
+    "MSFT": 418.5,
+    "TSLA": 251.0
   },
-  "day_open": 1042.10,
-  "day_high": 1056.30,
-  "day_low": 1040.05,
-  "last_level": 1051.20,
+  "day_open": 1002.45,
+  "day_high": 1012.35,
+  "day_low": 998.4,
+  "last_level": 1008.9195,
   "last_updated": 1749760800.0
 }
 ```
 
 On restart, this file is loaded to restore the divisor and last prices.
-If the `index_id` or constituent list in the file does not match the current
-config, `pm-index` exits with an error. Use `--reset` to clear the state and
-reinitialise from config.
+If the `index_id` in the file does not match, or the persisted constituent list
+differs from the configured one, `pm-index` exits with an error telling you to
+use `--reset`. The persisted list is stored **sorted alphabetically** and is
+compared in order with the configured `constituents`, so list constituents
+alphabetically in the config. After an `add` or `delist` made through
+`pm-index-admin-cli`, update the config to match, deploy it, and start with
+`--reset` (the change is otherwise lost or trips this check on the next start).
 
 ### History file
 
@@ -400,12 +427,15 @@ divisor are appended (one JSON object per line):
 | `CORP_ACTION`     | After every split, dividend, or shares-issuance adjustment                             |
 | `ADD_CONSTITUENT` | After a new symbol is added to the index                                               |
 | `DELIST`          | After a symbol is removed from the index                                               |
+| `REBALANCE`       | After a batch share-outstanding update                                                 |
 
+Every record carries `type`, `ts_ns` (epoch **nanoseconds**), `index_id` and
+`level`. Records are written as compact JSON (no spaces after `:` or `,`).
 Example history file extract:
 
 ```jsonl
-{"type": "INIT", "timestamp": 1749733100.0, "index_id": "EDU100", "base_value": 1000.0, "divisor": 7007100000.0, "constituents": ["AAPL", "MSFT", "TSLA"], "level": 1000.0}
-{"type": "CORP_ACTION", "timestamp": 1749847200.0, "index_id": "EDU100", "symbol": "AAPL", "action": "SPLIT", "detail": "2:1", "old_divisor": 7007100000.0, "new_divisor": 7007100000.0, "level": 1051.20}
+{"type":"INIT","ts_ns":1749733100000000000,"index_id":"EDU100","base_value":1000.0,"divisor":7007100000.0,"constituents":["AAPL","MSFT","TSLA"],"level":1000.0}
+{"type":"CORP_ACTION","ts_ns":1749847200000000000,"index_id":"EDU100","symbol":"AAPL","action":"SPLIT","detail":"2:1","old_divisor":7007100000.0,"new_divisor":7007100000.0,"level":1051.2}
 ```
 
 History files are not deleted by `--reset`. They accumulate across sessions and
@@ -441,7 +471,7 @@ INDEX
 Sample output:
 
 ```
-[10:15:23.411] EDU100  1048.73  +6.63  +0.64%  O=1042.10 H=1056.30 L=1040.05  CONTINUOUS
+[10:15:23.411] EDU100 1048.73 +6.63 +0.64% O=1042.10 H=1056.30 L=1040.05 CONTINUOUS
 ```
 
 !!! note ""
@@ -461,15 +491,21 @@ the console prints `INDEX|HISTORY requires INDEX=<id> or prior index.update.`
 and sends nothing.
 
 Returns the last 30 days of structural/audit records (`INIT`, `CORP_ACTION`,
-`ADD_CONSTITUENT`, `DELIST`) — corporate actions and constituent changes, not
-level ticks.
+`ADD_CONSTITUENT`, `DELIST`, `REBALANCE`) — corporate actions and constituent
+changes, not level ticks. The result is printed as a table titled
+*Index structural history* with the columns Type, Time (local), Symbol, Detail
+and Level; when nothing matches it prints a "No structural index history
+records returned" hint instead.
 
 ```
 INDEX|HISTORY|INDEX=EDU100|FROM=2026-06-01|TO=2026-06-12
 ```
 
-Returns records within the given date range (inclusive). The response includes
-one line per record, newest last.
+Returns records within the given date range, oldest first. `FROM` and `TO`
+are dates (`YYYY-MM-DD`) read as **local midnight at the start of that day**,
+so `TO=2026-06-12` stops at the start of 12 June and does not include that
+day's records — use the following day to include it. An unparseable date is
+silently ignored and the default (30 days back / now) is used.
 
 !!! tip "Level/EOD history is a different tool"
     `INDEX|HISTORY` only returns structural/audit events. For index level or
@@ -495,9 +531,14 @@ SUB|CH=INDEX|SYM=EDU100
 The gateway sends an initial `SNAP` and then live `IDX` messages:
 
 ```
-SNAP|CH=INDEX|SYM=EDU100|SEQ=1|TS=2026-06-12T10:15:23.000Z|LEVEL=1048.73|OPEN=1042.10|HIGH=1056.30|LOW=1040.05|SESSION=CONTINUOUS
-IDX|CH=INDEX|SYM=EDU100|SEQ=2|TS=2026-06-12T10:15:24.411Z|LEVEL=1051.20|CHG=+9.10|PCTCHG=+0.87|OPEN=1042.10|HIGH=1056.30|LOW=1040.05|AGGCAP=7368000000000|SESSION=CONTINUOUS
+SNAP|CH=INDEX|SYM=EDU100|SEQ=1|TS=2026-06-12T10:15:23.000Z|LEVEL=1048.73|SESSION=CONTINUOUS|OPEN=1042.1|CHG=+6.63|PCTCHG=+0.64|HIGH=1056.3|LOW=1040.05|AGGCAP=7348555983000
+IDX|CH=INDEX|SYM=EDU100|SEQ=2|TS=2026-06-12T10:15:24.411Z|LEVEL=1051.2|SESSION=CONTINUOUS|OPEN=1042.1|CHG=+9.10|PCTCHG=+0.87|HIGH=1056.3|LOW=1040.05|AGGCAP=7365863520000
 ```
+
+The `SNAP` carries the same fields as the most recent `IDX`. `LEVEL`, `OPEN`,
+`HIGH` and `LOW` are the raw numbers (no fixed decimal places — `1042.1`, not
+`1042.10`); `CHG` and `PCTCHG` are rounded to two places. The field order on
+the wire is as shown, but clients should parse by key.
 
 #### `IDX` message fields
 
@@ -510,9 +551,9 @@ IDX|CH=INDEX|SYM=EDU100|SEQ=2|TS=2026-06-12T10:15:24.411Z|LEVEL=1051.20|CHG=+9.1
 | `LEVEL`   | decimal | Current index level                                                 |
 | `CHG`     | decimal | Change from day open (signed); omitted before first open            |
 | `PCTCHG`  | decimal | Percentage change from day open (signed); omitted before first open |
-| `OPEN`    | decimal | Day open level; omitted during `PRE_OPEN` and `OPENING_AUCTION`     |
-| `HIGH`    | decimal | Day high                                                            |
-| `LOW`     | decimal | Day low                                                             |
+| `OPEN`    | decimal | Day open level; omitted until the first level update after the day's open/high/low were last cleared (each `OPENING_AUCTION` / `CONTINUOUS` transition) |
+| `HIGH`    | decimal | Day high; omitted together with `OPEN`                              |
+| `LOW`     | decimal | Day low; omitted together with `OPEN`                               |
 | `AGGCAP`  | int     | Current aggregate market cap                                        |
 | `SESSION` | string  | Current session state                                               |
 
@@ -547,8 +588,9 @@ pm-index-cli --config engine_config.yaml events \
 # List all configured indices
 pm-index-cli --config engine_config.yaml indices
 
-# Read history files directly from a directory without a config file
-# (defaults to ./data/indexes when --data-dir is omitted)
+# --config is optional: without it the deployed (compiled) configuration is used.
+# --data-dir is only a fallback for indices the configuration does not know
+# (default data/indexes, inside the data directory); a configured history_file wins.
 pm-index-cli --data-dir /custom/path/indexes events --index EDU100
 ```
 
@@ -584,7 +626,7 @@ time series over HTTP, under `/api/v1/history`:
 | `GET /history/index-daily` | Daily index OHLC rows | `pm-stats` SQLite |
 | `GET /history/index-snapshots` | Intraday index level ticks | `pm-stats` SQLite |
 | `GET /history/index-ids` | Index IDs with recorded statistics | `pm-stats` SQLite |
-| `GET /history/index-events` | Structural/audit records (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`) | Live round-trip to `pm-index`, not `pm-stats` |
+| `GET /history/index-events` | Structural/audit records (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`, `REBALANCE`) | Live round-trip to `pm-index`, not `pm-stats` |
 
 ```bash
 curl -s -H "Authorization: Bearer key-trader-demo" \
@@ -608,7 +650,7 @@ for quick one-off inspections or when `pm-index-cli` is not available:
 tail -20 data/indexes/EDU100_history.jsonl
 
 # Corporate action records only
-grep '"type": "CORP_ACTION"' data/indexes/EDU100_history.jsonl | python3 -m json.tool
+grep '"type":"CORP_ACTION"' data/indexes/EDU100_history.jsonl | python3 -m json.tool
 
 # Structural records between two timestamps
 python3 - <<'EOF'
@@ -618,13 +660,18 @@ to_ts   = 1749800000.0
 with open("data/indexes/EDU100_history.jsonl") as f:
     for line in f:
         rec = json.loads(line)
-        if from_ts <= rec["timestamp"] <= to_ts:
-            print(f"{rec['timestamp']:.0f}  {rec['type']}  {rec.get('symbol', '')}")
+        ts = rec["ts_ns"] / 1e9          # epoch nanoseconds -> seconds
+        if from_ts <= ts <= to_ts:
+            print(f"{ts:.0f}  {rec['type']}  {rec.get('symbol', '')}")
 EOF
 ```
 
 
 ## Example Configurations
+
+The `pm-config-gen` commands below need the reference prices described in the
+[warning above](#generating-with-pm-config-gen) (for example `--seed-last-prices`)
+before `pm-index` will accept the result.
 
 ### Single index, three constituents
 

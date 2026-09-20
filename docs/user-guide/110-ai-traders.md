@@ -13,7 +13,7 @@
     **Prerequisites**: [Running the Engine](040-running-the-exchange.md) — the engine must be running
     before AI traders can connect.
     [Configuration](010-configuration.md) — AI traders connect as regular gateways; their IDs
-    must be listed in `engine_config.yaml` (or the engine must be in unrestricted mode).
+    must be listed in the deployed engine configuration (or the engine must be in unrestricted mode).
 
 ---
 
@@ -24,7 +24,7 @@ EduMatcher ships two processes that generate autonomous order flow:
 | Process | Command | Purpose |
 |---|---|---|
 | `pm-ai-trader` | `poetry run pm-ai-trader` | A **single autonomous bot** — connects as a gateway, watches the book, submits limit orders |
-| `pm-ai-swarm` | `poetry run pm-ai-swarm` | A **swarm launcher** — spawns `N` bots in one command, distributes profiles and symbols across them |
+| `pm-ai-swarm` | `poetry run pm-ai-swarm` | A **swarm launcher** — spawns `N` bots in one command, assigns each a profile and exactly one symbol (round-robin) |
 
 They are designed to simulate realistic human order behaviour so that a
 classroom exchange has live activity even when students are not yet trading.
@@ -48,8 +48,8 @@ flowchart TD
     PAUSE{Risk pause\nactive?}
     STALE{Market data\nfresh?}
     PICK[Pick a symbol\ncheck position limit]
-    PRICE[Calculate order price\nbest_bid / best_ask ± offset]
-    SIDE[Choose side\ncross_probability → BUY or SELL]
+    SIDE[Choose side\n50/50 BUY or SELL, forced at the position limit]
+    PRICE[Calculate order price\ncross_probability → best opposite price,\nelse best price ± offset]
     SUBMIT[Submit LIMIT DAY order]
     EVENTS[Handle events\nfill, ack, reject, book, trade]
     REJECT{Reject count\n≥ max_rejects\nin window?}
@@ -61,7 +61,7 @@ flowchart TD
     PAUSE -->|no| STALE
     STALE -->|stale or no data| LOOP
     STALE -->|fresh| PICK
-    PICK --> PRICE --> SIDE --> SUBMIT
+    PICK --> SIDE --> PRICE --> SUBMIT
     SUBMIT --> EVENTS
     EVENTS --> REJECT
     REJECT -->|yes| BREAKER --> LOOP
@@ -87,11 +87,12 @@ aggressively it crosses the spread. The four built-in profiles are:
 | `few-large` | 1400 ms | 150–700 | 12% | 1 tick away | block-heavy | Infrequent institutional-style block orders |
 
 **cross_probability** is the probability that the bot places a **marketable
-limit order** (price ≥ best ask for a buy, price $\leq$ best bid for a sell) rather
-than a passive limit order beyond the spread.
+limit order**, priced exactly at the opposite best price (a buy at the best
+ask, a sell at the best bid), rather than a passive limit order.
 
-**passive_offset_ticks** is how many ticks *inside* the spread the passive
-order is placed. Offset = 0 means posting at the best bid/ask; offset = 2 means
+**passive_offset_ticks** is how many ticks *behind* its own side's best price a
+passive order is placed (a buy at best bid − offset, a sell at best ask +
+offset). Offset = 0 means posting at the best bid/ask; offset = 2 means
 posting 2 ticks behind the best price.
 
 ### Size distributions
@@ -112,9 +113,11 @@ Each bot has two built-in safety mechanisms:
 ### Position limit
 
 The bot tracks its own `position` per symbol (net quantity of shares held).
-Once `|position|` reaches `max_position` (default: 1000), it stops adding to
-the position in that direction. A long bot that is at +1000 will only submit
-sell orders; a short bot at −1000 will only submit buy orders.
+Each order's quantity is capped so that `|position|` cannot exceed
+`max_position` (default: 1000). Once the limit is reached the bot forces the
+opposite side: a long bot at +1000 will only submit sell orders; a short bot at
+−1000 will only submit buy orders. Positions are tracked from fills within the
+current run only.
 
 ### Reject breaker
 
@@ -123,8 +126,12 @@ pauses for `reject_cooldown_sec` before submitting again. This prevents a
 misconfigured bot from flooding the engine with invalid orders.
 
 ```
-[AI:AI01 14:30:05] reject breaker tripped; pausing submissions for 5.0s
+2026-09-20 14:30:05,120 WARNING edumatcher.ai_trader.main - reject breaker tripped gateway_id=AI01 cooldown=5.0s
 ```
+
+The tripped warning is visible at the default log level. The bot also logs
+`[AI01] reject breaker tripped; pausing submissions for 5.0s` at `INFO`
+(shown with `-v`).
 
 ---
 
@@ -138,7 +145,7 @@ Common options:
 
 | Option | Default | Description |
 |---|---|---|
-| `--id` | required | Gateway ID — must match an entry in `engine_config.yaml` or engine must be unrestricted |
+| `--id` | required | Gateway ID — must be listed under `gateways.alf` in the deployed engine configuration (or the engine must be unrestricted) |
 | `--profile` | `cautious` | One of: `aggressive`, `cautious`, `many-small`, `few-large` |
 | `--symbols` | all | Comma-separated list of symbols this bot watches; default is all symbols from engine |
 | `--seed` | `1` | Random seed — same seed produces identical order sequence (useful for reproducibility) |
@@ -148,10 +155,13 @@ Common options:
 | `--max-rejects` | `25` | Reject breaker threshold within the window |
 | `--reject-window` | `10.0` | Rolling window in seconds for reject counting |
 | `--reject-cooldown` | `5.0` | Pause duration in seconds after reject breaker trips |
-| `--stale-data` | `4.0` | Seconds before market data is considered too old to trade on |
+| `--stale-data` | `4.0` | Seconds before a symbol's market data is considered too old to trade on (0 disables the check) |
 | `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v`, `--verbose` | off | Increase verbosity (`-v` enables bot debug prints, `-vv` sets DEBUG) |
-| `-q`, `--quiet` | off | Reduce output to warnings/errors |
+| `-q`, `--quiet` | off | Reduce output to warnings/errors (the default level already, so currently a no-op) |
+| `--log-target` | `server` | Where operational logs go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file PATH` | — | Log file path; required with `--log-target file` |
+| `--log-failover-timeout SECONDS` | `30` | Grace window before falling back to a local log file when `pm-log-srv` is unreachable |
 
 Example with all options:
 
@@ -165,10 +175,11 @@ poetry run pm-ai-trader \
   --max-position 500
 ```
 
-The bot prints a summary on exit:
+When the run ends by reaching `--duration`, the bot logs a summary at `INFO`
+(visible with `-v`, or `--log-target stdout -v` to see it in the terminal):
 
 ```
-[AI:AI01 14:32:01] stopped submitted=284 acked=281 rejected=3 fills=68
+2026-09-20 14:32:01,004 INFO edumatcher.ai_trader.main - [AI01] stopped submitted=284 acked=281 rejected=3 fills=68
 ```
 
 ---
@@ -194,15 +205,17 @@ order**: `aggressive`, `cautious`, `few-large`, `many-small`.
 | `--prefix` | `AI` | Gateway ID prefix (e.g. `BOT` → `BOT01`, `BOT02`, …) |
 | `--start-index` | `1` | Starting index for gateway IDs |
 | `--profiles` | all | Comma-separated profile cycle, e.g. `aggressive,cautious` |
-| `--symbols` | all from config | Comma-separated symbols to trade |
-| `--config` | `engine_config.yaml` | Path to config file used to discover symbols |
+| `--symbols` | all from the engine config | Comma-separated symbols to trade; when omitted, the symbols in `<DATA_DIR>/ref_data/engine_config.yaml` are used (the path is fixed — there is no `--config` option) |
 | `--seed-base` | `1000` | Seeds are `seed_base + i` for bot `i` |
 | `--duration` | `60.0` | Seconds each bot runs; 0 = run until Ctrl-C |
 | `--max-position` | `1000` | Position limit per bot per symbol |
 | `--python` | current Python | Path to Python executable |
 | `--log-level` | `WARNING` | Logging level for swarm launcher; also forwarded to child bots |
 | `-v`, `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`); forwarded to child bots |
-| `-q`, `--quiet` | off | Reduce output to warnings/errors; forwarded to child bots |
+| `-q`, `--quiet` | off | Reduce output to warnings/errors (the default level already); forwarded to child bots |
+| `--log-target` | `server` | Where operational logs go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file PATH` | — | Log file path; required with `--log-target file` |
+| `--log-failover-timeout SECONDS` | `30` | Grace window before falling back to a local log file when `pm-log-srv` is unreachable |
 
 ```mermaid
 flowchart LR
@@ -224,9 +237,11 @@ The swarm waits for all bots to finish (or until Ctrl-C), then exits. Each
 bot's output is interleaved in the terminal.
 
 !!! tip "Graceful shutdown"
-    Pressing Ctrl-C sends SIGINT to the swarm process, which forwards it to all
-    child bots.  Each bot cancels pending orders, prints its summary line, and
-    disconnects cleanly.  A second Ctrl-C force-kills immediately.
+    Pressing Ctrl-C makes the swarm send SIGTERM to all child bots, wait up to
+    2 seconds, and then kill any that remain. Bots do **not** cancel their
+    resting orders and do not log the `stopped` summary when interrupted;
+    resting DAY orders stay on the book until they fill or expire at the
+    `CLOSED` transition. Use `--duration` for a clean exit that logs the summary.
 
 ---
 
@@ -234,8 +249,12 @@ bot's output is interleaved in the terminal.
 
 ### Unrestricted mode (no config file)
 
-If you start the engine with no `engine_config.yaml`, any gateway ID can
-connect and trade any symbol. This is the easiest way to test:
+Unrestricted mode applies only when the engine finds no configuration at all
+(neither a deployed compiled artifact nor `<DATA_DIR>/ref_data/engine_config.yaml`).
+In that case any gateway ID can connect and trade any symbol. If a
+configuration is deployed, every bot ID must be listed under `gateways.alf`
+and the engine reads only the deployed artifact (`pm-config-deploy`). This is the
+easiest way to test:
 
 ```bash
 poetry run pm-engine               # unrestricted
@@ -342,7 +361,10 @@ gateways:
 # Terminal 1: matching engine
 poetry run pm-engine
 
-# Terminal 2: session scheduler (opens at 09:30, closes at 16:00)
+# Terminal 2: session scheduler (default schedule: PRE_OPEN 09:00, OPENING_AUCTION 09:25,
+# CONTINUOUS 09:30, CLOSING_AUCTION 16:00, CLOSED 16:05). With sessions enabled the
+# engine starts CLOSED and rejects orders ("Market is closed") until the scheduler
+# opens it — start the swarm only after that, or use `pm-scheduler --now`.
 poetry run pm-scheduler
 
 # Terminal 3: clearing and stats
@@ -373,35 +395,47 @@ For a quick demo without scheduling, use the launch script:
 
 ## Understanding bot output
 
-Each bot prefixes every log line with its gateway ID and time. At default
-verbosity the bot logs milestones and a startup summary of its own
-configuration, but not individual order submissions:
+Bots log through the standard EduMatcher logger
+(`<timestamp> <LEVEL> <logger> - <message>`), and every bot message is tagged
+with the gateway ID in brackets. Records go to `pm-log-srv` by default; add
+`--log-target stdout` to see them in the terminal. The default level is
+`WARNING`, so the bot's milestone lines (all `INFO`) appear only with `-v`
+(or `--log-level INFO`); at the default level you see just the reject-breaker
+warning. With `-v` you get the milestones and a startup summary of the bot's
+own configuration, but not individual order submissions:
 
 ```
-[AI:AI01 14:30:00] starting: profile=aggressive symbols=all duration=120s run_id=botrun-...
-[AI:AI01 14:30:00] authenticated
-[AI:AI01 14:30:01] reject breaker tripped; pausing submissions for 5.0s
-[AI:AI01 14:30:06] reject breaker cooldown ended; resuming submissions
-[AI:AI01 14:31:59] stopped submitted=312 acked=308 rejected=4 (PRICE_OUTSIDE_COLLAR=3, STALE_SYMBOL=1) fills=72
+2026-09-20 14:30:00,001 INFO edumatcher.ai_trader.main - [AI01] starting: profile=aggressive symbols=all duration=120s run_id=botrun-...
+2026-09-20 14:30:00,050 INFO edumatcher.ai_trader.main - [AI01] authenticated
+2026-09-20 14:30:01,200 INFO edumatcher.ai_trader.main - [AI01] reject breaker tripped; pausing submissions for 5.0s
+2026-09-20 14:30:06,201 INFO edumatcher.ai_trader.main - [AI01] reject breaker cooldown ended; resuming submissions
+2026-09-20 14:31:59,900 INFO edumatcher.ai_trader.main - [AI01] stopped submitted=312 acked=308 rejected=4 (Market is closed=3, Gateway not configured: AI01=1) fills=72
 ```
 
-The `rejected` count typically reflects orders at prices outside the
-collar or submitted during a halt; a count of 3–5 per 300 submissions is
-normal. If the count is very high, check that the bot's gateway IDs are
-configured in the engine. The `stopped` line's parenthetical breaks the
+(`symbols=all` is what a single bot without `--symbols` logs; a swarm child is
+assigned one symbol and logs e.g. `symbols=['AAPL']`.)
+
+Rejects normally come from submitting while the market is closed (sessions
+enabled and the scheduler has not opened it yet), from a gateway ID that is not
+in the engine configuration, or from price-collar breaches. A halted symbol
+does not reject the bot's LIMIT orders — they rest without matching. If the
+count is very high, check that the bot's gateway IDs are configured in the
+engine and that the market is open. The `stopped` line's parenthetical breaks the
 rejects down by reason, taken directly from the engine's `order.ack`
 rejection payloads.
 
 With `--verbose` (`-v`), the bot additionally logs every order submission,
 fill, individual rejection, and reasons for skipping a trading decision
-(stale market data, position limit reached):
+(stale market data, position limit reached). The `SUBMIT` price is in
+**ticks** (with `tick_decimals: 2`, `14997` means 149.97); fill prices are
+shown in display money:
 
 ```
-[AI:AI01 14:30:01] order SUBMIT BUY 45@149.97 AAPL
-[AI:AI01 14:30:01] order REJECTED: PRICE_OUTSIDE_COLLAR
-[AI:AI01 14:30:05] fill: BUY 45@149.97 AAPL pos=45
-[AI:AI01 14:30:12] position limit reached on AAPL (pos=1000); forcing SELL
-[AI:AI01 14:30:18] skip AAPL: stale market data (4.2s > 4.0s)
+2026-09-20 14:30:01,010 INFO edumatcher.ai_trader.main - [AI01] order SUBMIT BUY 45@14997 AAPL
+2026-09-20 14:30:01,020 INFO edumatcher.ai_trader.main - [AI01] order REJECTED: Market is closed
+2026-09-20 14:30:05,030 INFO edumatcher.ai_trader.main - [AI01] fill: BUY 45@149.97 AAPL pos=45
+2026-09-20 14:30:12,040 INFO edumatcher.ai_trader.main - [AI01] position limit reached on AAPL (pos=1000); forcing SELL
+2026-09-20 14:30:18,050 INFO edumatcher.ai_trader.main - [AI01] skip AAPL: stale market data (4.2s > 4.0s)
 ```
 
 ---

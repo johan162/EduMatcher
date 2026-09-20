@@ -38,7 +38,7 @@ Under the hood, `pm-index-admin-cli` is built directly on the same
 specifically its `index_corp_action()`, `index_delist()`,
 `index_add_constituent()`, and `index_history()` methods. No engine-side or
 `pm-index`-side code changes were needed to add this tool; it is a pure
-client addition. See
+client addition.
 
 
 ## Why not `pm-index-cli`?
@@ -137,7 +137,7 @@ $ pm-index-admin-cli --id OPS01 --format json --yes split --index NOPE --sym AAP
 {
   "accepted": false,
   "reason": "Unknown index_id 'NOPE'",
-  "timestamp": 1784500215.39
+  "ts_ns": 1784500215390000000
 }
 ```
 
@@ -166,12 +166,16 @@ Is pm-index running and reachable at tcp://127.0.0.1:59999?
 Every mutating subcommand (`split`, `dividend`, `shares`, `add`, `delist`)
 prints a description of the action and asks `Continue? [y/N]` before sending
 anything. `-y`/`--yes` skips the prompt for scripted use. If stdin is not a
-TTY and `--yes` was not passed, the tool prints an error and exits `1` rather
-than hanging — this matters for CI/cron use.
+TTY and `--yes` was not passed, the tool prints the prompt followed by
+`REJECTED  stdin is not a TTY; pass --yes/-y to confirm non-interactively.` to
+stderr and exits `1` rather than hanging — this matters for CI/cron use.
 
 `--dry-run` prints the exact outbound topic and JSON payload and exits `0`
-without sending anything or prompting. Use it to check a `--ratio` parse or a
-`--delta`-resolved share count before committing:
+without sending the command or prompting (the payload carries no `command_id`;
+that is added only when a command is really sent). Use it to check a `--ratio`
+parse or a `--delta`-resolved share count before committing — note that
+`shares --delta --dry-run` still queries `pm-index` for the current share count,
+so `pm-index` must be running for it:
 
 ```bash
 $ pm-index-admin-cli --id OPS01 split --index TECH10 --sym AAPL --ratio 4:1 --dry-run
@@ -223,7 +227,7 @@ pm-index-admin-cli --id OPS01 dividend --index TECH10 --sym MSFT --amount 0.75
 
 ```bash
 $ pm-index-admin-cli --id OPS01 --yes dividend --index TECH10 --sym MSFT --amount 500
-REJECTED  Resulting price for MSFT would be non-positive (-88.50)
+REJECTED  Dividend would make price non-positive
 ```
 
 ### `shares` — Set shares outstanding (issuance or buy-back)
@@ -242,13 +246,16 @@ pm-index-admin-cli --id OPS01 shares --index TECH10 --sym AAPL --new-shares 1520
 `pm-index` has no dedicated `BUYBACK` action — only `SHARES_ISSUANCE`, which
 always sets an absolute share count regardless of direction (see
 [Market Index — Supported corporate actions](150-market-index.md#supported-corporate-actions)).
-`--delta` is a CLI-side convenience: it looks up the constituent's last
-recorded `SHARES_ISSUANCE` value via `history`, applies the signed delta, and
-shows the computed absolute value before sending. If no prior share count is
-on record for that symbol (for example, right after `add`, before any
-`SHARES_ISSUANCE` has ever been applied), `--delta` cannot resolve and the
-command fails with a clear message telling you to use `--new-shares`
-instead.
+`--delta` is a CLI-side convenience: it queries the index's whole history and
+takes the most recent share count recorded for that symbol — either an
+`ADD_CONSTITUENT` record's `shares_outstanding` or a `SHARES_ISSUANCE`
+corporate action — applies the signed delta, and shows the computed absolute
+value before sending. So it works right after `add`. Two caveats: a `SPLIT`
+recorded since then is **not** reflected (the share count it starts from is the
+pre-split one), and `ADD_CONSTITUENT` records written by older versions carry no
+`shares_outstanding`. If no share count can be found, the command prints
+`REJECTED  no prior shares_outstanding found for SYM in index IDX — pass --new-shares instead.`
+to stderr and exits `1`.
 
 ```bash
 $ pm-index-admin-cli --id OPS01 shares --index TECH10 --sym AAPL --delta -800000000
@@ -276,7 +283,10 @@ pm-index-admin-cli --id OPS01 add --index TECH10 --sym NVDA --shares 2470000000 
     constituent. If the symbol doesn't exist elsewhere in the config, it
     will be added to the index but never receive live price updates. The
     confirmation prompt states this requirement, but `pm-index-admin-cli`
-    has no `--config` flag and cannot verify it for you.
+    has no `--config` flag and cannot verify it for you. A change made this
+    way also lives only in `pm-index`'s state and history — see
+    [Market Index — State file](150-market-index.md#state-file) for what to do
+    to the config afterwards.
 
 ### `delist` — Remove a constituent
 
@@ -294,7 +304,7 @@ Delisting the last remaining constituent of an index is rejected by
 
 ```bash
 $ pm-index-admin-cli --id OPS01 --yes delist --index TECH10 --sym AAPL
-REJECTED  Cannot delist AAPL: index TECH10 would have no remaining constituents
+REJECTED  Delisting last constituent would make aggregate cap zero
 ```
 
 `delist` has no undo. Re-adding a delisted symbol requires supplying
@@ -310,10 +320,10 @@ pm-index-admin-cli --id OPS01 history --index TECH10 --limit 20
 | Flag | Required | Default | Description |
 |---|---|---|---|
 | `--index` | Yes | — | Index ID |
-| `--from` | No | 24h ago | Start of range, as a Unix timestamp |
-| `--to` | No | now | End of range, as a Unix timestamp |
-| `--types` | No | all | Comma-separated filter: `INIT`, `CORP_ACTION`, `DELIST`, `ADD_CONSTITUENT` |
-| `--limit` | No | `50` | Maximum rows shown |
+| `--from` | No | `--to` minus 24 h | Start of range, as a Unix timestamp (seconds) |
+| `--to` | No | now | End of range, as a Unix timestamp (seconds) |
+| `--types` | No | all | Comma-separated filter: `INIT`, `CORP_ACTION`, `DELIST`, `ADD_CONSTITUENT`, `REBALANCE` |
+| `--limit` | No | `50` | Maximum rows shown — the oldest `N` of the matching, oldest-first list |
 
 This is the same underlying `index.history_request` used by
 `INDEX|HISTORY` in `pm-alf-console` (see
@@ -324,12 +334,14 @@ and needs no running process, `history` here round-trips through the live
 `pm-index` process.
 
 ```bash
-$ pm-index-admin-cli --id OPS01 history --index TECH10 --limit 3
-  2026-07-19T09:15:02Z  CORP_ACTION     AAPL     SPLIT 4:1 -> level=8452.17
-  2026-07-18T14:02:11Z  CORP_ACTION     AAPL     SHARES_ISSUANCE 16000000000 -> level=8390.02
-  2026-07-15T09:30:00Z  ADD_CONSTITUENT NVDA     shares=2,470,000,000 price=118.50
+$ pm-index-admin-cli --id OPS01 history --index TECH10 --from 1784000000 --limit 3
+  1784106000000000000  ADD_CONSTITUENT NVDA     shares=2,470,000,000 price=118.5
+  1784365200000000000  CORP_ACTION     AAPL     SHARES_ISSUANCE shares=16000000000 -> level=8390.02
+  1784451302000000000  CORP_ACTION     AAPL     SPLIT 4:1 -> level=8452.17
 ```
 
+The first column is the record's raw `ts_ns` (epoch nanoseconds), and records
+are listed oldest first. An empty result prints `No history records found.`
 `--format json` prints the raw record list instead:
 
 ```bash
@@ -340,19 +352,23 @@ pm-index-admin-cli --id OPS01 --format json history --index TECH10 --limit 3
 ## Output formats
 
 Default (`--format table`) output is a single-line
-`<COMMAND> OK   <fields>` summary on success, or a `REJECTED   <reason>` line
-on failure — the same convention `pm-admin-cli` uses. `--format json` prints
-the raw ack payload (or, for `history`, a JSON array of records) instead,
-for scripting:
+`<COMMAND> OK   <fields>` summary on success, or a `REJECTED  <reason>` line
+on failure — the same convention `pm-admin-cli` uses. `new_level` and
+`new_divisor` are printed exactly as `pm-index` computed them (unrounded
+floats). `--format json` prints the raw ack payload (or, for `history`, a JSON
+array of records) instead, for scripting:
 
 ```bash
 $ pm-index-admin-cli --id OPS01 --format json --yes split --index TECH10 --sym AAPL --ratio 4:1
 {
   "accepted": true,
+  "command_id": "cmd-3f9a1c0b7d2e4a65b81e0c94d7a2f356",
   "divisor": 118.3352,
   "index_id": "TECH10",
   "level": 8452.17,
-  "reason": ""
+  "old_divisor": 118.3352,
+  "reason": "",
+  "ts_ns": 1784451302000000000
 }
 ```
 
