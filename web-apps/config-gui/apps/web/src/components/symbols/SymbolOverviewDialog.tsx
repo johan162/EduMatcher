@@ -95,10 +95,7 @@ export function SymbolOverviewDialog({ open, onOpenChange, symbol }: Props) {
             <div className="space-y-4">
               {/* General */}
               <Section title="General">
-                <DefRow label="Tick decimals">
-                  {eff.tickDecimals}
-                  <Src>{eff.tickOverridden ? "per-symbol override" : "global default"}</Src>
-                </DefRow>
+                <DefRow label="Tick decimals">{eff.tickDecimals}</DefRow>
                 <DefRow label="Last buy price">{eff.lastBuyPrice ?? "—"}</DefRow>
                 <DefRow label="Last sell price">{eff.lastSellPrice ?? "—"}</DefRow>
                 <DefRow label="Outstanding shares">
@@ -164,6 +161,13 @@ export function SymbolOverviewDialog({ open, onOpenChange, symbol }: Props) {
 
               {/* Circuit breaker */}
               <Section title="Circuit breaker (effective)">
+                {!eff.circuitBreaker.applies ? (
+                  <p className="text-sm text-fg-subtle">
+                    No circuit breaker — neither exchange defaults nor a symbol override are
+                    written, so this symbol is never halted.
+                  </p>
+                ) : (
+                <>
                 {!eff.circuitBreaker.enforcedGlobally && (
                   <p className="mb-2 text-xs text-warning">
                     ! Circuit breakers are disabled globally — this ladder will not be enforced.
@@ -186,7 +190,7 @@ export function SymbolOverviewDialog({ open, onOpenChange, symbol }: Props) {
                       <tr key={l.name} className="border-t border-border">
                         <td className="py-1 font-medium">{l.name}</td>
                         <td className={clsx("py-1", l.shiftOverridden && "text-accent font-medium")} title={l.shiftOverridden ? "per-symbol override" : "inherited"}>
-                          {fractionToPercent(l.priceShiftPct)}%
+                          {l.priceShiftPct === undefined ? "— (missing)" : `${fractionToPercent(l.priceShiftPct)}%`}
                         </td>
                         <td className={clsx("py-1", l.haltOverridden && "text-accent font-medium")} title={l.haltOverridden ? "per-symbol override" : "inherited"}>
                           {haltLabel(l.haltDurationNs)}
@@ -196,7 +200,9 @@ export function SymbolOverviewDialog({ open, onOpenChange, symbol }: Props) {
                   </tbody>
                 </table>
                 <p className="mt-1 text-xs text-fg-subtle">
-                  Values in accent are per-symbol overrides; the rest inherit the global ladder.
+                  {eff.circuitBreaker.builtInLadder
+                    ? "No ladder is configured, so the engine's built-in ladder applies."
+                    : "Values in accent are per-symbol overrides; the rest inherit the global ladder."}
                 </p>
 
                 <DefRow label="Reopening (ACE)">
@@ -235,6 +241,8 @@ export function SymbolOverviewDialog({ open, onOpenChange, symbol }: Props) {
                       close? It prints at the corridor boundary.
                     </p>
                   </>
+                )}
+                </>
                 )}
               </Section>
 

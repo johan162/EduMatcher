@@ -1,11 +1,61 @@
-import { DEFAULT_DYNAMIC_BAND_PCT } from "@edumatcher/schema";
+import { useState } from "react";
+import {
+  DEFAULT_DYNAMIC_BAND_PCT,
+  DEFAULT_STATIC_BAND_PCT,
+  effectiveDefaultCollar,
+  type EngineConfigDraft,
+} from "@edumatcher/schema";
 import { useDraftStore } from "@/store/draftStore";
 import { usePersona } from "@/lib/usePersona";
 import { fractionToPercent, percentToFraction, uppercaseId } from "@/lib/format";
 import { Panel, Section } from "@/components/layout/Panel";
 import { FieldRow } from "@/components/fields/FieldRow";
 import { NumberInput, TextInput } from "@/components/fields/inputs";
+import { Select } from "@/components/ui/Select";
 import { Switch } from "@/components/ui/Switch";
+
+/** Radix Select cannot use "" as an option value (see SymbolsTab). */
+const NO_DEFAULT = "__none__";
+
+/** Rename a risk level and every reference to it (symbol levels, default level). */
+function renameLevel(d: EngineConfigDraft, from: string, to: string): void {
+  d.riskControls.levels[to] = d.riskControls.levels[from]!;
+  delete d.riskControls.levels[from];
+  if (d.riskControls.defaultLevel === from) d.riskControls.defaultLevel = to;
+  for (const symbol of d.symbolOrder) {
+    const cfg = d.symbols[symbol];
+    if (cfg?.level === from) cfg.level = to;
+  }
+}
+
+/**
+ * Level name field. Edits are staged locally and committed on blur: the name
+ * is the row's React key, so renaming per keystroke would remount the row and
+ * drop focus after every character.
+ */
+function LevelNameInput({ name, disabled }: { name: string; disabled: boolean }) {
+  const update = useDraftStore((s) => s.update);
+  const taken = useDraftStore((s) => s.draft.riskControls.levels);
+  const [text, setText] = useState(name);
+  const commit = () => {
+    const next = uppercaseId(text);
+    if (next && next !== name && taken[next] === undefined) {
+      update((d) => renameLevel(d, name, next));
+    } else {
+      setText(name);
+    }
+  };
+  return (
+    <TextInput
+      aria-label={`Risk level ${name} name`}
+      value={text}
+      disabled={disabled}
+      onChange={setText}
+      onBlur={commit}
+      className="w-40"
+    />
+  );
+}
 
 export function RiskTab() {
   const draft = useDraftStore((s) => s.draft);
@@ -104,41 +154,58 @@ export function RiskTab() {
       {canSee("I") ? (
         <Section
           title="Named risk levels"
-          description="Reusable collar profiles that symbols can reference by name (in the Symbols tab). Names are uppercased and must be unique."
+          description="Reusable collar profiles that symbols can reference by name (in the Symbols tab). Names are uppercased and must be unique. A blank band is left out of the file and the engine applies its default; with both blank the level has no collar."
         >
+          <FieldRow
+            label="Default level"
+            path="riskControls.defaultLevel"
+            help={{
+              text: "Level applied to every symbol that does not name its own (risk_controls.default_level). With a global collar set, DEFAULT is the default level unless another is chosen.",
+            }}
+          >
+            <Select
+              aria-label="Default risk level"
+              value={rc.defaultLevel ?? (effectiveDefaultCollar(draft) ? "DEFAULT" : NO_DEFAULT)}
+              onValueChange={(v) =>
+                update((d) => {
+                  d.riskControls.defaultLevel =
+                    v === NO_DEFAULT || (v === "DEFAULT" && effectiveDefaultCollar(d)) ? undefined : v;
+                })
+              }
+              options={[
+                ...(effectiveDefaultCollar(draft)
+                  ? [{ value: "DEFAULT", label: "DEFAULT (global collar)" }]
+                  : [{ value: NO_DEFAULT, label: "(none)" }]),
+                ...Object.keys(rc.levels).map((n) => ({ value: n, label: n })),
+                ...(rc.defaultLevel &&
+                rc.levels[rc.defaultLevel] === undefined &&
+                !(rc.defaultLevel === "DEFAULT" && effectiveDefaultCollar(draft))
+                  ? [{ value: rc.defaultLevel, label: `${rc.defaultLevel} (undefined)` }]
+                  : []),
+              ]}
+            />
+          </FieldRow>
           {Object.entries(rc.levels).map(([name, level]) => (
             <div key={name} className="rounded-md border border-border bg-surface-raised p-3">
               <div className="flex flex-wrap items-end gap-3">
                 <label className="text-sm">
                   <span className="mb-1 block font-medium">Name</span>
-                  <TextInput
-                    aria-label={`Risk level ${name} name`}
-                    value={name}
-                    disabled={!collarsEnabled}
-                    onChange={(v) =>
-                      update((d) => {
-                        const newName = uppercaseId(v);
-                        if (newName && newName !== name && !d.riskControls.levels[newName]) {
-                          d.riskControls.levels[newName] = d.riskControls.levels[name]!;
-                          delete d.riskControls.levels[name];
-                        }
-                      })
-                    }
-                    className="w-40"
-                  />
+                  <LevelNameInput name={name} disabled={!collarsEnabled} />
                 </label>
                 <label className="text-sm">
                   <span className="mb-1 block font-medium">Static %</span>
                   <NumberInput
                     aria-label={`Risk level ${name} static percent`}
-                    value={fractionToPercent(level.staticBandPct)}
+                    value={level.staticBandPct !== undefined ? fractionToPercent(level.staticBandPct) : undefined}
+                    placeholder={`${fractionToPercent(DEFAULT_STATIC_BAND_PCT)} (default)`}
                     disabled={!collarsEnabled}
                     min={0}
                     max={100}
                     step={0.5}
                     onChange={(v) =>
                       update((d) => {
-                        d.riskControls.levels[name]!.staticBandPct = percentToFraction(v ?? 0);
+                        d.riskControls.levels[name]!.staticBandPct =
+                          v === undefined ? undefined : percentToFraction(v);
                       })
                     }
                     className="w-28"
@@ -148,19 +215,24 @@ export function RiskTab() {
                   <span className="mb-1 block font-medium">Dynamic %</span>
                   <NumberInput
                     aria-label={`Risk level ${name} dynamic percent`}
-                    value={fractionToPercent(level.dynamicBandPct)}
+                    value={level.dynamicBandPct !== undefined ? fractionToPercent(level.dynamicBandPct) : undefined}
+                    placeholder={`${fractionToPercent(DEFAULT_DYNAMIC_BAND_PCT)} (default)`}
                     disabled={!collarsEnabled}
                     min={0}
                     max={100}
                     step={0.5}
                     onChange={(v) =>
                       update((d) => {
-                        d.riskControls.levels[name]!.dynamicBandPct = percentToFraction(v ?? 0);
+                        d.riskControls.levels[name]!.dynamicBandPct =
+                          v === undefined ? undefined : percentToFraction(v);
                       })
                     }
                     className="w-28"
                   />
                 </label>
+                {level.staticBandPct === undefined && level.dynamicBandPct === undefined && (
+                  <span className="text-xs text-fg-subtle">No collar</span>
+                )}
                 <button
                   type="button"
                   onClick={() =>

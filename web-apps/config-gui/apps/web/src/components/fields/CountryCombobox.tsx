@@ -22,8 +22,7 @@ function matches(option: CountryOption, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return false;
   return (
-    option.name.toLowerCase().includes(q) ||
-    option.code.toLowerCase() === q.toUpperCase()
+    option.name.toLowerCase().includes(q) || option.code.toLowerCase() === q
   );
 }
 

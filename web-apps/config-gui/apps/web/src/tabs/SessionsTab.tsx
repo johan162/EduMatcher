@@ -36,7 +36,7 @@ export function SessionsTab() {
           help={{
             text: "When on, the engine starts CLOSED and pm-scheduler drives the trading-day timeline. When off, the engine runs in continuous mode and ignores the schedule.",
             cliFlag: "--sessions-enabled",
-            docHref: "../docs/user-guide/01-configuration.md",
+            docHref: "../docs/user-guide/010-configuration.md",
           }}
         >
           <Switch
@@ -54,13 +54,13 @@ export function SessionsTab() {
           </div>
         )}
 
-        {draft.sessionsEnabled && canSee("I") && (
+        {canSee("I") && (
           <FieldRow
             label="Emit schedule block"
             path="emitSchedule"
             htmlFor="emit-schedule"
             help={{
-              text: "Write an explicit schedule block. Turn off to let the scheduler use its own defaults.",
+              text: "Write an explicit schedule block. Turn off to let the scheduler use its own defaults (09:00–16:05). pm-scheduler reads the block whether or not sessions are enabled.",
               cliFlag: "--schedule / --no-schedule",
             }}
           >
@@ -74,14 +74,14 @@ export function SessionsTab() {
         )}
       </Section>
 
-      {draft.sessionsEnabled && (
+      {draft.emitSchedule && (
         <Section
           title="Schedule"
           description="Times are HH:MM (24-hour) in server-local time and must be strictly increasing across the day."
         >
           {!canSee("I") ? (
             <p className="text-sm text-fg-subtle">
-              Beginner mode emits the default schedule (09:00–16:05).{" "}
+              Written schedule: {SCHEDULE_FIELDS.map(({ key }) => draft.schedule[key]).join(" · ")}.{" "}
               <span className="text-linked">Switch to Intermediate to customize session times.</span>
             </p>
           ) : (

@@ -45,7 +45,8 @@ export function ReviewTab() {
     a.href = url;
     a.download = draft.output.filename || "engine_config.yaml";
     a.click();
-    URL.revokeObjectURL(url);
+    // Revoking synchronously can cancel the download in some browsers.
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
   };
 
   const runVerify = async () => {

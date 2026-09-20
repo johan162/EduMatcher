@@ -3,15 +3,24 @@ import * as Tabs from "@radix-ui/react-tabs";
 import clsx from "clsx";
 import {
   effectiveDefaultCollar,
+  writtenLastPrices,
   type CbLevel,
   type MmQuoteSeed,
 } from "@edumatcher/schema";
 import { useDraftStore } from "@/store/draftStore";
 import { usePersona } from "@/lib/usePersona";
-import { fractionToPercent, minutesToNs, nsToMinutes, percentToFraction } from "@/lib/format";
+import {
+  fractionToPercent,
+  minutesToNs,
+  nsToMinutes,
+  percentToFraction,
+  tickStep,
+  uppercaseId,
+} from "@/lib/format";
+import { removeSymbol } from "@/lib/symbols";
 import { Panel, Section } from "@/components/layout/Panel";
 import { FieldRow } from "@/components/fields/FieldRow";
-import { NumberInput } from "@/components/fields/inputs";
+import { NumberInput, TextInput } from "@/components/fields/inputs";
 import { Select } from "@/components/ui/Select";
 import { Switch } from "@/components/ui/Switch";
 import { ColumnHead } from "@/components/ui/ColumnHead";
@@ -20,8 +29,27 @@ import { SymbolEditorDialog } from "@/components/symbols/SymbolEditorDialog";
 import { SymbolOverviewDialog } from "@/components/symbols/SymbolOverviewDialog";
 import { SymbolOverridesTable } from "@/components/symbols/SymbolOverridesTable";
 
-/** Sentinel for "inherit the exchange default" in per-symbol dropdowns. */
-const CB_INHERIT = "__inherit__";
+/**
+ * Sentinel for "inherit" in per-symbol dropdowns. Radix Select reserves the
+ * empty string for "no selection" (it renders the placeholder, i.e. a blank
+ * trigger), so "" cannot be used as an option value.
+ */
+const INHERIT = "__inherit__";
+
+/**
+ * Hint under a last-price field whose own value is unset, saying what the
+ * file gets instead — mid-range seeding can fill it without the field
+ * holding a value.
+ */
+function seededHint(
+  written: number | null | undefined,
+  own: number | null | undefined,
+): string | undefined {
+  if (own !== undefined) return undefined;
+  if (written === undefined) return "Not set — the key is omitted from the file";
+  if (written === null) return "Written as null (placeholder)";
+  return `Written as ${written} (seeded from the MM mid-range)`;
+}
 
 export function SymbolsTab() {
   const draft = useDraftStore((s) => s.draft);
@@ -32,6 +60,7 @@ export function SymbolsTab() {
   const [editingSymbol, setEditingSymbol] = useState<string | undefined>(undefined);
   /** Symbol whose read-only overview is open (independent of selection). */
   const [overviewSymbol, setOverviewSymbol] = useState<string | null>(null);
+  const [newCbLevel, setNewCbLevel] = useState("");
 
   const symbol = selected && draft.symbols[selected] ? selected : draft.symbolOrder[0] ?? null;
   const config = symbol ? draft.symbols[symbol] : undefined;
@@ -41,7 +70,7 @@ export function SymbolsTab() {
     .map((g) => g.id);
 
   const levelOptions = [
-    { value: "", label: "(inherit default)" },
+    { value: INHERIT, label: "(inherit default)" },
     ...(effectiveDefaultCollar(draft) ? [{ value: "DEFAULT", label: "DEFAULT" }] : []),
     ...Object.keys(draft.riskControls.levels).map((name) => ({ value: name, label: name })),
   ];
@@ -57,7 +86,7 @@ export function SymbolsTab() {
           label="Tick decimals (global)"
           path="tickDecimals"
           help={{
-            text: "Display precision and tick-size conversion applied to symbols without an override. 0..8.",
+            text: "Tick decimals given to newly created symbols. Not written to the file: every symbol writes its own tick_decimals, and changing this does not change existing symbols. 0..8.",
             cliFlag: "--tick-decimals",
           }}
           defaultHint="Default: 2"
@@ -89,18 +118,7 @@ export function SymbolsTab() {
                   <button
                     type="button"
                     aria-label={`Remove ${s}`}
-                    onClick={() =>
-                      update((d) => {
-                        delete d.symbols[s];
-                        d.symbolOrder = d.symbolOrder.filter((x) => x !== s);
-                        for (const index of d.indices) {
-                          index.constituents = index.constituents.filter((c) => c !== s);
-                        }
-                        for (const combo of d.combos) {
-                          combo.legs = combo.legs.filter((leg) => leg.symbol !== s);
-                        }
-                      })
-                    }
+                    onClick={() => update((d) => removeSymbol(d, s))}
                     className="text-fg-subtle hover:text-error"
                   >
                     ×
@@ -212,8 +230,7 @@ export function SymbolsTab() {
                 <FieldRow
                   label="Tick decimals"
                   path={`symbols.${symbol}.tickDecimals`}
-                  help={{ text: "Per-symbol price precision override.", cliFlag: "--symbol-opts tick_decimals" }}
-                  defaultHint={`Inherits global: ${draft.tickDecimals}`}
+                  help={{ text: "This symbol's price precision; always written.", cliFlag: "--symbol-opts tick_decimals" }}
                 >
                   <NumberInput
                     aria-label="Tick decimals"
@@ -228,12 +245,13 @@ export function SymbolsTab() {
                   path={`symbols.${symbol}.lastBuyPrice`}
                   required
                   help={{ text: "Opening reference used to seed the book and the collar static reference. Required.", cliFlag: "--seed-last-prices" }}
+                  defaultHint={seededHint(writtenLastPrices(draft, config).lastBuyPrice, config.lastBuyPrice)}
                 >
                   <NumberInput
                     aria-label="Last buy price"
                     value={config.lastBuyPrice ?? undefined}
                     min={0}
-                    step={0.01}
+                    step={tickStep(config.tickDecimals)}
                     onChange={(v) => update((d) => (d.symbols[symbol]!.lastBuyPrice = v ?? null))}
                   />
                 </FieldRow>
@@ -242,12 +260,13 @@ export function SymbolsTab() {
                   path={`symbols.${symbol}.lastSellPrice`}
                   required
                   help={{ text: "Opening reference used to seed the book. Required.", cliFlag: "--seed-last-prices" }}
+                  defaultHint={seededHint(writtenLastPrices(draft, config).lastSellPrice, config.lastSellPrice)}
                 >
                   <NumberInput
                     aria-label="Last sell price"
                     value={config.lastSellPrice ?? undefined}
                     min={0}
-                    step={0.01}
+                    step={tickStep(config.tickDecimals)}
                     onChange={(v) => update((d) => (d.symbols[symbol]!.lastSellPrice = v ?? null))}
                   />
                 </FieldRow>
@@ -276,9 +295,13 @@ export function SymbolsTab() {
                 >
                   <Select
                     aria-label="Risk level"
-                    value={config.level ?? ""}
-                    onValueChange={(v) => update((d) => (d.symbols[symbol]!.level = v || undefined))}
-                    options={levelOptions}
+                    value={config.level ?? INHERIT}
+                    onValueChange={(v) => update((d) => (d.symbols[symbol]!.level = v === INHERIT ? undefined : v))}
+                    options={
+                      config.level && !levelOptions.some((o) => o.value === config.level)
+                        ? [...levelOptions, { value: config.level, label: `${config.level} (undefined)` }]
+                        : levelOptions
+                    }
                   />
                 </FieldRow>
                 <FieldRow
@@ -379,6 +402,8 @@ export function SymbolsTab() {
                   <p className="mb-2 text-sm text-fg-subtle">
                     Override the reference window and individual ladder levels for this symbol.
                     Blank fields inherit the global circuit-breaker defaults.
+                    {!draft.circuitBreakerDefaults.include &&
+                      " No exchange ladder is written (Circuit Breakers tab), so the engine's built-in L1/L2/L3 applies when this symbol sets no level of its own."}
                   </p>
                   <FieldRow
                     label="Reference window override (minutes)"
@@ -442,8 +467,24 @@ export function SymbolsTab() {
                         </tr>
                       </thead>
                       <tbody>
-                        {draft.circuitBreakerDefaults.levelOrder.map((name) => {
-                          const globalLevel = draft.circuitBreakerDefaults.levels[name];
+                        {[
+                          // The exchange ladder (when written), then any
+                          // levels only this symbol defines — the engine
+                          // merges both by name.
+                          ...(draft.circuitBreakerDefaults.include
+                            ? draft.circuitBreakerDefaults.levelOrder
+                            : []),
+                          ...Object.keys(config.circuitBreaker?.levels ?? {}).filter(
+                            (n) =>
+                              !(
+                                draft.circuitBreakerDefaults.include &&
+                                draft.circuitBreakerDefaults.levelOrder.includes(n)
+                              ),
+                          ),
+                        ].map((name) => {
+                          const globalLevel = draft.circuitBreakerDefaults.include
+                            ? draft.circuitBreakerDefaults.levels[name]
+                            : undefined;
                           const override = config.circuitBreaker?.levels[name];
                           const restOfDay = override?.haltDurationNs === null;
                           const globalShift = globalLevel
@@ -468,7 +509,12 @@ export function SymbolsTab() {
 
                           return (
                             <tr key={name} className="border-t border-border">
-                              <td className="px-3 py-1.5 font-medium">{name}</td>
+                              <td className="px-3 py-1.5 font-medium">
+                                {name}
+                                {!globalLevel && (
+                                  <span className="ml-1 text-xs text-fg-subtle">(this symbol only)</span>
+                                )}
+                              </td>
                               <td className="px-3 py-1.5">
                                 <NumberInput
                                   aria-label={`${name} shift override percent`}
@@ -503,8 +549,10 @@ export function SymbolsTab() {
                                   disabled={restOfDay}
                                   onChange={(v) =>
                                     mutateLevel((lvl) => {
+                                      // Rest of day is its own switch; a zero
+                                      // here must not turn it on silently.
                                       if (v === undefined) delete lvl.haltDurationNs;
-                                      else lvl.haltDurationNs = minutesToNs(v);
+                                      else if (v > 0) lvl.haltDurationNs = minutesToNs(v);
                                     })
                                   }
                                   className="w-24"
@@ -528,8 +576,40 @@ export function SymbolsTab() {
                       </tbody>
                     </table>
                   </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <TextInput
+                      aria-label="New symbol-only level name"
+                      value={newCbLevel}
+                      onChange={setNewCbLevel}
+                      placeholder="e.g. L4"
+                      className="w-28"
+                    />
+                    <button
+                      type="button"
+                      disabled={
+                        uppercaseId(newCbLevel) === "" ||
+                        uppercaseId(newCbLevel) in (config.circuitBreaker?.levels ?? {}) ||
+                        (draft.circuitBreakerDefaults.include &&
+                          uppercaseId(newCbLevel) in draft.circuitBreakerDefaults.levels)
+                      }
+                      onClick={() => {
+                        const name = uppercaseId(newCbLevel);
+                        update((d) => {
+                          const s = d.symbols[symbol]!;
+                          s.circuitBreaker = s.circuitBreaker ?? { levels: {} };
+                          s.circuitBreaker.levels[name] = { priceShiftPct: 0.25, haltDurationNs: null };
+                        });
+                        setNewCbLevel("");
+                      }}
+                      className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
+                    >
+                      + Add level for this symbol
+                    </button>
+                  </div>
                   <p className="mt-2 text-xs text-fg-subtle">
                     Blank cells inherit the global ladder value (shown as the greyed placeholder).
+                    A level only this symbol defines must set its own shift; clearing all of its
+                    cells removes it.
                   </p>
                 </Tabs.Content>
               )}
@@ -542,16 +622,16 @@ export function SymbolsTab() {
                 >
                   <Select
                     aria-label="Enforce MM obligation override"
-                    value={config.marketMaker?.enforceMmObligation === undefined ? "" : config.marketMaker.enforceMmObligation ? "true" : "false"}
+                    value={config.marketMaker?.enforceMmObligation === undefined ? INHERIT : config.marketMaker.enforceMmObligation ? "true" : "false"}
                     onValueChange={(v) =>
                       update((d) => {
                         const s = d.symbols[symbol]!;
                         s.marketMaker = s.marketMaker ?? {};
-                        s.marketMaker.enforceMmObligation = v === "" ? undefined : v === "true";
+                        s.marketMaker.enforceMmObligation = v === INHERIT ? undefined : v === "true";
                       })
                     }
                     options={[
-                      { value: "", label: "(inherit)" },
+                      { value: INHERIT, label: "(inherit)" },
                       { value: "true", label: "Enabled" },
                       { value: "false", label: "Disabled" },
                     ]}
@@ -609,6 +689,7 @@ export function SymbolsTab() {
                   <MmQuotesEditor
                     quotes={config.marketMakerQuotes ?? []}
                     mmGatewayIds={mmGatewayIds}
+                    tickDecimals={config.tickDecimals}
                     showQuoteId={canSee("E")}
                     onChange={(next: MmQuoteSeed[]) =>
                       update((d) => {

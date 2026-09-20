@@ -1,4 +1,5 @@
 import { TIF_VALUES, createMmQuoteSeed, type MmQuoteSeed, type Tif } from "@edumatcher/schema";
+import { tickStep } from "@/lib/format";
 import { NumberInput, TextInput } from "@/components/fields/inputs";
 import { Select } from "@/components/ui/Select";
 import { ColumnHead } from "@/components/ui/ColumnHead";
@@ -7,6 +8,8 @@ interface Props {
   quotes: MmQuoteSeed[];
   /** Configured MARKET_MAKER gateway ids; used to populate the gateway select. */
   mmGatewayIds: string[];
+  /** The symbol's tick decimals; sets the price inputs' step to one tick. */
+  tickDecimals: number;
   onChange: (next: MmQuoteSeed[]) => void;
   /** Show the optional quote_id column (expert). */
   showQuoteId?: boolean;
@@ -17,7 +20,8 @@ interface Props {
  * market makers per symbol. Each row's gateway must be a configured
  * MARKET_MAKER gateway (enforced by diagnostics on the draft).
  */
-export function MmQuotesEditor({ quotes, mmGatewayIds, onChange, showQuoteId }: Props) {
+export function MmQuotesEditor({ quotes, mmGatewayIds, tickDecimals, onChange, showQuoteId }: Props) {
+  const step = tickStep(tickDecimals);
   const patch = (index: number, next: Partial<MmQuoteSeed>) => {
     onChange(quotes.map((q, i) => (i === index ? { ...q, ...next } : q)));
   };
@@ -27,7 +31,9 @@ export function MmQuotesEditor({ quotes, mmGatewayIds, onChange, showQuoteId }: 
     onChange([...quotes, seed]);
   };
 
-  if (mmGatewayIds.length === 0) {
+  // Existing quotes stay visible (and removable) even with no MARKET_MAKER
+  // gateway left: they are still written, and diagnostics flag them.
+  if (mmGatewayIds.length === 0 && quotes.length === 0) {
     return (
       <p className="text-sm text-fg-subtle">
         Add a gateway with role <span className="font-medium">MARKET_MAKER</span> before defining
@@ -125,7 +131,7 @@ export function MmQuotesEditor({ quotes, mmGatewayIds, onChange, showQuoteId }: 
                     <NumberInput
                       aria-label={`Quote ${i + 1} bid price`}
                       value={q.bidPrice}
-                      step={0.01}
+                      step={step}
                       min={0}
                       onChange={(v) => patch(i, { bidPrice: v ?? null })}
                       className={invalidSpread ? "w-24 border-error" : "w-24"}
@@ -135,7 +141,7 @@ export function MmQuotesEditor({ quotes, mmGatewayIds, onChange, showQuoteId }: 
                     <NumberInput
                       aria-label={`Quote ${i + 1} ask price`}
                       value={q.askPrice}
-                      step={0.01}
+                      step={step}
                       min={0}
                       onChange={(v) => patch(i, { askPrice: v ?? null })}
                       className={invalidSpread ? "w-24 border-error" : "w-24"}
@@ -201,7 +207,8 @@ export function MmQuotesEditor({ quotes, mmGatewayIds, onChange, showQuoteId }: 
       <button
         type="button"
         onClick={add}
-        className="mt-2 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
+        disabled={mmGatewayIds.length === 0}
+        className="mt-2 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
       >
         + Add quote
       </button>

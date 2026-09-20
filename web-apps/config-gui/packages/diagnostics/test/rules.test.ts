@@ -33,10 +33,13 @@ describe("diagnostics rules", () => {
     expect(ids(draft)).not.toContain("undefined-risk-level");
   });
 
-  it("warns when an MM gateway has no mid-range seeding", () => {
+  it("errors when an MM gateway would get null-price quote stubs", () => {
+    // The engine loader refuses a quote seed without prices.
     const draft = base();
     draft.gateways.push(createGateway("MM01", "MARKET_MAKER"));
-    expect(ids(draft)).toContain("mm-gateway-needs-quote-seeds");
+    expect(ids(draft)).toContain("mm-quote-price-missing");
+    draft.requireMmSeedQuotes = false; // no stubs are written at all
+    expect(ids(draft)).not.toContain("mm-quote-price-missing");
   });
 
   it("errors when seed-from-mm is on but no range set", () => {
@@ -47,8 +50,8 @@ describe("diagnostics rules", () => {
 
   it("detects port collisions across enabled gateways", () => {
     const draft = base();
-    draft.postTradeGateway.enabled = true;
-    draft.marketDataGateway.enabled = true;
+    draft.postTradeGateway.include = true;
+    draft.marketDataGateway.include = true;
     draft.marketDataGateway.port = draft.postTradeGateway.port;
     expect(ids(draft)).toContain("port-collision");
   });
@@ -115,11 +118,12 @@ describe("diagnostics rules", () => {
     expect(hasErrors(evaluateDiagnostics(draft))).toBe(false);
   });
 
-  it("errors when a symbol is missing reference prices", () => {
+  it("warns (does not block export) when a symbol is missing reference prices", () => {
+    // Both prices are optional in the spec; the *-nomm examples omit them.
     const draft = base();
     delete draft.symbols.AAPL!.lastBuyPrice;
     expect(ids(draft)).toContain("symbol-missing-reference-prices");
-    expect(hasErrors(evaluateDiagnostics(draft))).toBe(true);
+    expect(hasErrors(evaluateDiagnostics(draft))).toBe(false);
   });
 
   it("is satisfied by MM mid-range seeding instead of explicit prices", () => {

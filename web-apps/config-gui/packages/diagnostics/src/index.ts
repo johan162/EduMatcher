@@ -11,6 +11,9 @@
 
 import {
   effectiveDefaultCollar,
+  engineConfigDraftSchema,
+  writtenLastPrices,
+  writtenMmQuotes,
   type Diagnostic,
   type EngineConfigDraft,
 } from "@edumatcher/schema";
@@ -23,10 +26,6 @@ function definedRiskLevels(draft: EngineConfigDraft): Set<string> {
   const levels = new Set<string>(Object.keys(draft.riskControls.levels));
   if (effectiveDefaultCollar(draft)) levels.add("DEFAULT");
   return levels;
-}
-
-function hasMarketMakerGateway(draft: EngineConfigDraft): boolean {
-  return draft.gateways.some((g) => g.role === "MARKET_MAKER");
 }
 
 // -- §8.1 baseline rules (mirror warnings.py / cli.py) -------------------------
@@ -50,27 +49,127 @@ const undefinedRiskLevel: Rule = (draft) => {
   return out;
 };
 
-/** warnings.py: MARKET_MAKER gateway requires quote seeds. */
-const mmGatewayNeedsSeeds: Rule = (draft) => {
-  if (!hasMarketMakerGateway(draft)) return [];
-  if (draft.seeding.mmMidRange) return [];
-  // No warning if every symbol already carries explicit quotes.
-  const allExplicit =
-    draft.symbolOrder.length > 0 &&
-    draft.symbolOrder.every(
-      (s) => (draft.symbols[s]?.marketMakerQuotes?.length ?? 0) > 0,
-    );
-  if (allExplicit) return [];
-  return [
-    {
-      id: "mm-gateway-needs-quote-seeds",
-      severity: "warning",
+/**
+ * Every written quote seed needs both prices: the engine loader refuses a
+ * `bid_price`/`ask_price` of null. Covers explicit quotes left blank and the
+ * null-price stubs written when no mid-range is set.
+ */
+const mmQuotePricesMissing: Rule = (draft) => {
+  const out: Diagnostic[] = [];
+  for (const symbol of draft.symbolOrder) {
+    const cfg = draft.symbols[symbol];
+    if (!cfg) continue;
+    writtenMmQuotes(draft, cfg).forEach((q, i) => {
+      if (q.bidPrice !== null && q.askPrice !== null) return;
+      const explicit = q.origin === "explicit";
+      out.push({
+        id: "mm-quote-price-missing",
+        severity: "error",
+        message: explicit
+          ? `Symbol ${symbol} quote #${i + 1} (${q.gatewayId}) has no ${q.bidPrice === null ? "bid" : "ask"} price. The engine refuses a quote seed without both prices.`
+          : `Symbol ${symbol} would get a quote stub for ${q.gatewayId} with null prices, which the engine refuses. Set a seed mid-range, add explicit quotes for the symbol, or turn off "Require MM seed quotes".`,
+        fieldPaths: explicit
+          ? [
+              `symbols.${symbol}.marketMakerQuotes.${i}.bidPrice`,
+              `symbols.${symbol}.marketMakerQuotes.${i}.askPrice`,
+            ]
+          : ["seeding.mmMidRange", "requireMmSeedQuotes"],
+        tab: explicit ? "symbols" : "market-maker",
+      });
+    });
+  }
+  return out;
+};
+
+/** CV1 / CV2 / CV14: the ALF allowlist. */
+const gatewayIdRules: Rule = (draft) => {
+  const out: Diagnostic[] = [];
+  if (draft.gateways.length === 0) {
+    out.push({
+      id: "no-gateways",
+      severity: "error",
+      message: "At least one ALF gateway is required (gateways.alf must not be empty).",
+      fieldPaths: ["gateways"],
+      tab: "basics",
+    });
+  }
+  const ids = draft.gateways.map((g) => g.id);
+  const seen = new Set<string>();
+  for (const id of ids) {
+    if (seen.has(id)) {
+      out.push({
+        id: "duplicate-gateway-id",
+        severity: "error",
+        message: `Gateway id ${id} is used more than once.`,
+        fieldPaths: ["gateways"],
+        tab: "basics",
+      });
+    }
+    seen.add(id);
+  }
+  const unique = [...seen].filter((id) => id.length > 0);
+  for (const a of unique) {
+    for (const b of unique) {
+      if (a !== b && b.startsWith(a)) {
+        out.push({
+          id: "gateway-id-prefix",
+          severity: "error",
+          message: `Gateway id ${a} is a prefix of ${b}. pm-alf-gwy and pm-balf-gwy refuse ids that prefix one another.`,
+          fieldPaths: ["gateways"],
+          tab: "basics",
+        });
+      }
+    }
+  }
+  return out;
+};
+
+/** CV7 and the DEFAULT-level clash. */
+const riskLevelRules: Rule = (draft) => {
+  const out: Diagnostic[] = [];
+  const rc = draft.riskControls;
+  if (rc.defaultLevel && !definedRiskLevels(draft).has(rc.defaultLevel)) {
+    out.push({
+      id: "undefined-default-level",
+      severity: "error",
+      message: `Default risk level ${rc.defaultLevel} is not defined. Define it or choose another default.`,
+      fieldPaths: ["riskControls.defaultLevel"],
+      tab: "risk",
+    });
+  }
+  if (effectiveDefaultCollar(draft) && rc.levels.DEFAULT !== undefined) {
+    out.push({
+      id: "default-level-clash",
+      severity: "error",
       message:
-        "A MARKET_MAKER gateway is configured but no mid-range seeding is set. Null bid/ask stubs will be emitted — set a seed mid-range, add explicit quotes, or fill in prices before starting the engine.",
-      fieldPaths: ["seeding.mmMidRange"],
-      tab: "market-maker",
-    },
-  ];
+        "A named risk level DEFAULT exists alongside the global collar, which is written as level DEFAULT too. Rename the named level or clear the global collar.",
+      fieldPaths: ["riskControls.levels", "riskControls.globalStaticBandPct"],
+      tab: "risk",
+    });
+  }
+  return out;
+};
+
+/** A symbol-only circuit-breaker level must set its own shift. */
+const symbolCbLevelShift: Rule = (draft) => {
+  const cb = draft.circuitBreakerDefaults;
+  const out: Diagnostic[] = [];
+  for (const symbol of draft.symbolOrder) {
+    const levels = draft.symbols[symbol]?.circuitBreaker?.levels ?? {};
+    for (const [name, lvl] of Object.entries(levels)) {
+      const inherited = cb.include && cb.levels[name] !== undefined;
+      if (!inherited && lvl.priceShiftPct === undefined) {
+        out.push({
+          id: "cb-level-shift-missing",
+          severity: "error",
+          message: `Symbol ${symbol} circuit-breaker level ${name} is not in the exchange ladder, so it must set its own shift %. The engine requires price_shift_pct.`,
+          fieldPaths: [`symbols.${symbol}.circuitBreaker.levels`],
+          tab: "symbols",
+        });
+      }
+    }
+  }
+  return out;
 };
 
 /** warnings.py: collars/CB disabled. */
@@ -188,6 +287,61 @@ const seedFromMmWithoutRange: Rule = (draft) =>
       ]
     : [];
 
+/**
+ * Field law from the Zod schema (spec §4–§6 ranges and enums), reported as
+ * diagnostics so it blocks export like every other error. Sections that are
+ * not written are skipped — their values never reach the file.
+ */
+const SECTION_TABS: Record<string, string> = {
+  symbols: "symbols",
+  gateways: "basics",
+  country: "basics",
+  tickDecimals: "symbols",
+  riskControls: "risk",
+  circuitBreakerDefaults: "circuit-breakers",
+  mmObligationDefaults: "market-maker",
+  seeding: "market-maker",
+  indices: "indices",
+  combos: "combos",
+  alfGateway: "gateways",
+  postTradeGateway: "gateways",
+  marketDataGateway: "gateways",
+  balfGateway: "gateways",
+  dcGateway: "gateways",
+  logServer: "gateways",
+  apiGateways: "gateways",
+  schedule: "sessions",
+  output: "review",
+};
+
+const schemaRule: Rule = (draft) => {
+  const result = engineConfigDraftSchema.safeParse(draft);
+  if (result.success) return [];
+  const omitted = new Set<string>();
+  if (!draft.alfGateway.include) omitted.add("alfGateway");
+  if (!draft.postTradeGateway.include) omitted.add("postTradeGateway");
+  if (!draft.marketDataGateway.include) omitted.add("marketDataGateway");
+  if (!draft.balfGateway.include) omitted.add("balfGateway");
+  if (!draft.dcGateway.include) omitted.add("dcGateway");
+  if (!draft.logServer.include) omitted.add("logServer");
+  if (!draft.circuitBreakerDefaults.include) omitted.add("circuitBreakerDefaults");
+  if (!draft.emitSchedule) omitted.add("schedule");
+  const out: Diagnostic[] = [];
+  for (const issue of result.error.issues) {
+    const head = String(issue.path[0] ?? "");
+    if (omitted.has(head)) continue;
+    const path = issue.path.map(String).join(".");
+    out.push({
+      id: "schema",
+      severity: "error",
+      message: `${path}: ${issue.message}`,
+      fieldPaths: [path],
+      tab: SECTION_TABS[head] ?? "engine-tuning",
+    });
+  }
+  return out;
+};
+
 const WILDCARD_ADDRESSES = new Set(["0.0.0.0", "::"]);
 
 function addressesCollide(a: string, b: string): boolean {
@@ -198,7 +352,15 @@ function addressesCollide(a: string, b: string): boolean {
 /** warnings.py: _port_collision_warnings. */
 const portCollision: Rule = (draft) => {
   const endpoints: Array<{ label: string; address: string; port: number; path: string }> = [];
-  if (draft.postTradeGateway.enabled) {
+  if (draft.alfGateway.include && draft.alfGateway.enabled) {
+    endpoints.push({
+      label: `alf_gateway '${draft.alfGateway.name}'`,
+      address: draft.alfGateway.bindAddress,
+      port: draft.alfGateway.port,
+      path: "alfGateway.port",
+    });
+  }
+  if (draft.postTradeGateway.include) {
     endpoints.push({
       label: `post_trade_gateway '${draft.postTradeGateway.name}'`,
       address: draft.postTradeGateway.bindAddress,
@@ -206,7 +368,7 @@ const portCollision: Rule = (draft) => {
       path: "postTradeGateway.port",
     });
   }
-  if (draft.marketDataGateway.enabled) {
+  if (draft.marketDataGateway.include && draft.marketDataGateway.enabled) {
     endpoints.push({
       label: `market_data_gateway '${draft.marketDataGateway.name}'`,
       address: draft.marketDataGateway.bindAddress,
@@ -214,7 +376,7 @@ const portCollision: Rule = (draft) => {
       path: "marketDataGateway.port",
     });
   }
-  if (draft.balfGateway.enabled) {
+  if (draft.balfGateway.include && draft.balfGateway.enabled) {
     endpoints.push({
       label: `balf_gateway '${draft.balfGateway.name}'`,
       address: draft.balfGateway.bindAddress,
@@ -222,7 +384,7 @@ const portCollision: Rule = (draft) => {
       path: "balfGateway.port",
     });
   }
-  if (draft.dcGateway.enabled) {
+  if (draft.dcGateway.include) {
     endpoints.push({
       label: `dc_gateway '${draft.dcGateway.name}'`,
       address: draft.dcGateway.bindAddress,
@@ -230,7 +392,7 @@ const portCollision: Rule = (draft) => {
       path: "dcGateway.port",
     });
   }
-  if (draft.logServer.enabled) {
+  if (draft.logServer.include && draft.logServer.enabled) {
     endpoints.push({
       label: `log_server '${draft.logServer.name}'`,
       address: draft.logServer.bindAddress,
@@ -302,7 +464,7 @@ const portCollision: Rule = (draft) => {
  */
 const logServerPubsubPorts: Rule = (draft) => {
   const g = draft.logServer;
-  if (!g.enabled || !g.pubsubEnabled) return [];
+  if (!g.include || !g.pubsubEnabled) return [];
 
   const named: Array<[string, string, number]> = [
     ["port", "LALF/TCP", g.port],
@@ -334,7 +496,7 @@ const logServerPubsubPorts: Rule = (draft) => {
  */
 const logServerLeaseBounds: Rule = (draft) => {
   const g = draft.logServer;
-  if (!g.enabled || !g.pubsubEnabled) return [];
+  if (!g.include || !g.pubsubEnabled) return [];
   if (g.maxLeaseSec >= g.leaseSec) return [];
   return [
     {
@@ -358,7 +520,7 @@ const logServerLeaseBounds: Rule = (draft) => {
  */
 const logServerNotifyVsLease: Rule = (draft) => {
   const g = draft.logServer;
-  if (!g.enabled || !g.pubsubEnabled) return [];
+  if (!g.include || !g.pubsubEnabled) return [];
   if (g.notifyIntervalMs <= g.leaseSec * 1000) return [];
   return [
     {
@@ -373,7 +535,8 @@ const logServerNotifyVsLease: Rule = (draft) => {
 
 /** cli.py: _validate_schedule_order (fatal in CLI). */
 const scheduleOrder: Rule = (draft) => {
-  if (!draft.sessionsEnabled || !draft.emitSchedule) return [];
+  // pm-scheduler reads a written schedule even with sessions disabled.
+  if (!draft.emitSchedule) return [];
   const s = draft.schedule;
   const ordered: Array<[string, string]> = [
     ["preOpen", s.preOpen],
@@ -430,10 +593,47 @@ const indexMissingConstituents: Rule = (draft) =>
       tab: "indices",
     }));
 
+/** CV10: at most 5 indices, unique ids. */
+const indexIdRules: Rule = (draft) => {
+  const out: Diagnostic[] = [];
+  if (draft.indices.length > 5) {
+    out.push({
+      id: "too-many-indices",
+      severity: "error",
+      message: `At most 5 indices are supported (has ${draft.indices.length}).`,
+      fieldPaths: ["indices"],
+      tab: "indices",
+    });
+  }
+  const seen = new Set<string>();
+  for (const idx of draft.indices) {
+    if (seen.has(idx.id)) {
+      out.push({
+        id: "duplicate-index-id",
+        severity: "error",
+        message: `Index id ${idx.id} is used more than once.`,
+        fieldPaths: [`indices.${idx.id}.id`],
+        tab: "indices",
+      });
+    }
+    seen.add(idx.id);
+  }
+  return out;
+};
+
 const indexConstituentNotInUniverse: Rule = (draft) => {
   const universe = new Set(draft.symbolOrder);
   const out: Diagnostic[] = [];
   for (const idx of draft.indices) {
+    if (new Set(idx.constituents).size !== idx.constituents.length) {
+      out.push({
+        id: "index-duplicate-constituent",
+        severity: "error",
+        message: `Index ${idx.id} lists a constituent more than once.`,
+        fieldPaths: [`indices.${idx.id}.constituents`],
+        tab: "indices",
+      });
+    }
     for (const symbol of idx.constituents) {
       if (!universe.has(symbol)) {
         out.push({
@@ -460,8 +660,8 @@ const outstandingSharesMissingForConstituent: Rule = (draft) => {
         seen.add(symbol);
         out.push({
           id: "outstanding-shares-missing-for-index-constituent",
-          severity: "warning",
-          message: `Symbol ${symbol} is an index constituent but has no outstanding_shares set (used for index weighting).`,
+          severity: "error",
+          message: `Symbol ${symbol} is an index constituent but has no outstanding_shares set. The engine refuses an index constituent without it.`,
           fieldPaths: [`symbols.${symbol}.outstandingShares`],
           tab: "symbols",
         });
@@ -506,35 +706,74 @@ const comboLegRules: Rule = (draft) => {
       }
       seen.add(leg.symbol);
     }
+    combo.legs.forEach((leg, li) => {
+      if (PRICED_ORDER_TYPES.has(leg.orderType) && (leg.price === null || leg.price === undefined)) {
+        out.push({
+          id: "combo-leg-price-missing",
+          severity: "error",
+          message: `Combo ${combo.comboId} leg ${li + 1} is a ${leg.orderType} order and needs a price.`,
+          fieldPaths: [`combos.${combo.comboId}.legs.${li}.price`],
+          tab: "combos",
+        });
+      }
+    });
   }
   return out;
 };
 
+/** Leg order types that carry a limit price (spec §4.5 ComboLegSpec.price). */
+const PRICED_ORDER_TYPES = new Set(["LIMIT", "FOK", "STOP_LIMIT", "ICEBERG"]);
+
+/** CV15 and the api_gateways loader's own checks. */
 const apiGatewayRules: Rule = (draft) => {
   const out: Diagnostic[] = [];
+  const names = new Set<string>();
   const owners = new Map<string, string>();
+  const alfIds = new Set(draft.gateways.map((g) => g.id));
   for (const gw of draft.apiGateways) {
-    for (const id of gw.gatewayIds) {
-      const existing = owners.get(id);
-      if (existing && existing !== gw.name) {
+    if (names.has(gw.name)) {
+      out.push({
+        id: "api-instance-name-duplicate",
+        severity: "error",
+        message: `API gateway instance name ${gw.name} is used more than once; only one would be written.`,
+        fieldPaths: [`apiGateways.${gw.name}.name`],
+        tab: "gateways",
+      });
+    }
+    names.add(gw.name);
+    const keys = new Set<string>();
+    for (const c of gw.credentials) {
+      if (keys.has(c.apiKey)) {
         out.push({
-          id: "api-gateway-id-overlap",
+          id: "api-key-duplicate",
           severity: "error",
-          message: `ALF gateway ${id} is assigned to more than one API gateway instance (${existing}, ${gw.name}).`,
-          fieldPaths: [`apiGateways.${existing}.gatewayIds`, `apiGateways.${gw.name}.gatewayIds`],
+          message: `API gateway ${gw.name} lists the same api_key more than once.`,
+          fieldPaths: [`apiGateways.${gw.name}.credentials`],
           tab: "gateways",
         });
       }
-      owners.set(id, gw.name);
-    }
-    if (gw.gatewayIds.length > 0 && gw.credentials.length > 0) {
-      out.push({
-        id: "api-instance-credentials-mode-conflict",
-        severity: "error",
-        message: `API gateway ${gw.name} mixes multi-instance scoping (gatewayIds) with explicit credentials. Use one mode.`,
-        fieldPaths: [`apiGateways.${gw.name}.gatewayIds`, `apiGateways.${gw.name}.credentials`],
-        tab: "gateways",
-      });
+      keys.add(c.apiKey);
+      if (c.gatewayId === null) continue;
+      if (!alfIds.has(c.gatewayId)) {
+        out.push({
+          id: "api-credential-gateway-unknown",
+          severity: "warning",
+          message: `API gateway ${gw.name} has a credential for ${c.gatewayId}, which is not a configured ALF gateway.`,
+          fieldPaths: [`apiGateways.${gw.name}.credentials`],
+          tab: "gateways",
+        });
+      }
+      const existing = owners.get(c.gatewayId);
+      if (existing !== undefined && existing !== gw.name) {
+        out.push({
+          id: "api-gateway-id-overlap",
+          severity: "error",
+          message: `ALF gateway ${c.gatewayId} has credentials in more than one API gateway instance (${existing}, ${gw.name}).`,
+          fieldPaths: [`apiGateways.${existing}.credentials`, `apiGateways.${gw.name}.credentials`],
+          tab: "gateways",
+        });
+      }
+      owners.set(c.gatewayId, gw.name);
     }
   }
   return out;
@@ -559,19 +798,21 @@ const largeSymbolUniverse: Rule = (draft) =>
  * when global MM mid-range seeding is enabled (the builder fills them in).
  */
 const symbolMissingReferencePrices: Rule = (draft) => {
-  const seededFromMm =
-    draft.seeding.seedLastPricesFromMm && draft.seeding.mmMidRange !== undefined;
-  if (seededFromMm) return [];
   const out: Diagnostic[] = [];
   for (const symbol of draft.symbolOrder) {
     const cfg = draft.symbols[symbol];
     if (!cfg) continue;
-    const missingBuy = cfg.lastBuyPrice === undefined || cfg.lastBuyPrice === null;
-    const missingSell = cfg.lastSellPrice === undefined || cfg.lastSellPrice === null;
+    // Judged on what is written, so mid-range seeding counts only where it
+    // actually fills the prices in.
+    const written = writtenLastPrices(draft, cfg);
+    const missingBuy = written.lastBuyPrice === undefined || written.lastBuyPrice === null;
+    const missingSell = written.lastSellPrice === undefined || written.lastSellPrice === null;
     if (missingBuy || missingSell) {
       out.push({
         id: "symbol-missing-reference-prices",
-        severity: "error",
+        // A warning, not an error: the spec makes both prices optional and
+        // the *-nomm example configs omit them on purpose (an empty book).
+        severity: "warning",
         message: `Symbol ${symbol} must set both last_buy_price and last_sell_price (reference prices for the opening book and collar). Enter them on the symbol, or enable MM mid-range seeding.`,
         fieldPaths: [
           `symbols.${symbol}.lastBuyPrice`,
@@ -775,9 +1016,14 @@ const priceTickGrid: Rule = (draft) => {
 };
 
 const RULES: Rule[] = [
+  schemaRule,
+  gatewayIdRules,
+  riskLevelRules,
+  symbolCbLevelShift,
+  indexIdRules,
   undefinedRiskLevel,
   gatewayMmObligationUnknownSymbol,
-  mmGatewayNeedsSeeds,
+  mmQuotePricesMissing,
   enforcementDisabled,
   tickDecimalsZero,
   singleGateway,

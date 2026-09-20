@@ -11,16 +11,26 @@ import {
   type Tif,
 } from "@edumatcher/schema";
 import { useDraftStore } from "@/store/draftStore";
-import { uppercaseId } from "@/lib/format";
+import { tickStep } from "@/lib/format";
 import { Panel } from "@/components/layout/Panel";
 import { FieldRow } from "@/components/fields/FieldRow";
 import { NumberInput, TextInput } from "@/components/fields/inputs";
 import { Select } from "@/components/ui/Select";
 
+/**
+ * "Use the seeding gateway's smp_action": the key is omitted from the leg.
+ * Distinct from NONE, which is written and overrides the gateway default.
+ */
+const SMP_GATEWAY_DEFAULT = "__gateway_default__";
+
 export function CombosTab() {
   const draft = useDraftStore((s) => s.draft);
   const update = useDraftStore((s) => s.update);
   const symbolOptions = draft.symbolOrder.map((s) => ({ value: s, label: s }));
+  const smpOptions = [
+    { value: SMP_GATEWAY_DEFAULT, label: "(gateway default)" },
+    ...SMP_ACTIONS.map((x) => ({ value: x, label: x })),
+  ];
 
   return (
     <Panel
@@ -59,7 +69,8 @@ export function CombosTab() {
                 aria-label="Combo ID"
                 value={combo.comboId}
                 onChange={(v) => update((d) => (d.combos[ci]!.comboId = v))}
-                onBlur={() => update((d) => (d.combos[ci]!.comboId = uppercaseId(d.combos[ci]!.comboId)))}
+                // combo_id is free text to the engine (stripped, not upper-cased).
+                onBlur={() => update((d) => (d.combos[ci]!.comboId = d.combos[ci]!.comboId.trim()))}
                 className="w-44"
               />
             </label>
@@ -106,14 +117,21 @@ export function CombosTab() {
                   </tr>
                 </thead>
                 <tbody>
-                  {combo.legs.map((leg, li) => (
+                  {combo.legs.map((leg, li) => {
+                    // The leg's own symbol grid, not the combo's first leg.
+                    const step = tickStep(draft.symbols[leg.symbol]?.tickDecimals ?? draft.tickDecimals);
+                    return (
                     <tr key={li}>
                       <td className="px-2 py-1">
                         <Select
                           aria-label={`Leg ${li + 1} symbol`}
                           value={leg.symbol}
                           onValueChange={(v) => update((d) => (d.combos[ci]!.legs[li]!.symbol = v))}
-                          options={symbolOptions}
+                          options={
+                            leg.symbol && !draft.symbols[leg.symbol]
+                              ? [{ value: leg.symbol, label: `${leg.symbol} (unknown)` }, ...symbolOptions]
+                              : symbolOptions
+                          }
                         />
                       </td>
                       <td className="px-2 py-1">
@@ -145,7 +163,7 @@ export function CombosTab() {
                         <NumberInput
                           aria-label={`Leg ${li + 1} price`}
                           value={leg.price ?? undefined}
-                          step={0.01}
+                          step={step}
                           onChange={(v) => update((d) => (d.combos[ci]!.legs[li]!.price = v ?? null))}
                           className="w-24"
                         />
@@ -154,7 +172,7 @@ export function CombosTab() {
                         <NumberInput
                           aria-label={`Leg ${li + 1} stop price`}
                           value={leg.stopPrice ?? undefined}
-                          step={0.01}
+                          step={step}
                           onChange={(v) => update((d) => (d.combos[ci]!.legs[li]!.stopPrice = v ?? null))}
                           className="w-24"
                         />
@@ -162,9 +180,15 @@ export function CombosTab() {
                       <td className="px-2 py-1">
                         <Select
                           aria-label={`Leg ${li + 1} SMP action`}
-                          value={leg.smpAction}
-                          onValueChange={(v) => update((d) => (d.combos[ci]!.legs[li]!.smpAction = v as SmpAction))}
-                          options={SMP_ACTIONS.map((x) => ({ value: x, label: x }))}
+                          value={leg.smpAction ?? SMP_GATEWAY_DEFAULT}
+                          onValueChange={(v) =>
+                            update((d) => {
+                              const target = d.combos[ci]!.legs[li]!;
+                              if (v === SMP_GATEWAY_DEFAULT) delete target.smpAction;
+                              else target.smpAction = v as SmpAction;
+                            })
+                          }
+                          options={smpOptions}
                         />
                       </td>
                       <td className="px-2 py-1 text-right">
@@ -178,7 +202,8 @@ export function CombosTab() {
                         </button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
               <button
@@ -193,7 +218,6 @@ export function CombosTab() {
                       quantity: 100,
                       price: null,
                       stopPrice: null,
-                      smpAction: "NONE",
                     }),
                   )
                 }

@@ -20,7 +20,7 @@ function draftWithLogServer(): EngineConfigDraft {
   draft.symbols = { AAPL: { tickDecimals: 2 } };
   draft.symbolOrder = ["AAPL"];
   draft.gateways = [createGateway("TRADER01"), createGateway("OPS01", "ADMIN")];
-  draft.logServer.enabled = true;
+  draft.logServer.include = true;
   return draft;
 }
 
@@ -55,7 +55,7 @@ describe("diagnostics — log_server LALF-PS", () => {
 
   it("warns when a LALF-PS port collides with another gateway", () => {
     const draft = draftWithLogServer();
-    draft.marketDataGateway.enabled = true;
+    draft.marketDataGateway.include = true;
     draft.marketDataGateway.port = draft.logServer.pubPort;
     const collision = evaluateDiagnostics(draft).find(
       (d) => d.id === "port-collision",
@@ -67,7 +67,7 @@ describe("diagnostics — log_server LALF-PS", () => {
   it("ignores LALF-PS ports for collisions once the interface is off", () => {
     const draft = draftWithLogServer();
     draft.logServer.pubsubEnabled = false;
-    draft.marketDataGateway.enabled = true;
+    draft.marketDataGateway.include = true;
     draft.marketDataGateway.port = draft.logServer.pubPort;
     expect(ids(draft)).not.toContain("port-collision");
   });
@@ -99,9 +99,11 @@ describe("diagnostics — log_server LALF-PS", () => {
     expect(diag?.severity).toBe("warning");
   });
 
-  it("says nothing about LALF-PS while the log server itself is disabled", () => {
+  it("says nothing about LALF-PS while the log_server section is not written", () => {
+    // `enabled: false` alone does not qualify: the section is still written
+    // and still validated by pm-log-srv's loader.
     const draft = draftWithLogServer();
-    draft.logServer.enabled = false;
+    draft.logServer.include = false;
     draft.logServer.pubPort = draft.logServer.port;
     draft.logServer.maxLeaseSec = 1;
     const found = ids(draft);

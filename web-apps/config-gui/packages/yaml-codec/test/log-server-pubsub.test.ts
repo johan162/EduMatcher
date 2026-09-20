@@ -43,7 +43,7 @@ function draftWithLogServer(): EngineConfigDraft {
   draft.symbols = { AAPL: { tickDecimals: 2 } };
   draft.symbolOrder = ["AAPL"];
   draft.gateways = [createGateway("TRADER01"), createGateway("OPS01", "ADMIN")];
-  draft.logServer.enabled = true;
+  draft.logServer.include = true;
   return draft;
 }
 
@@ -116,10 +116,18 @@ describe("buildConfigDocument — log_server LALF-PS", () => {
     expect(section.pub_port).toBe(7601);
   });
 
-  it("omits log_server entirely when the section is disabled", () => {
+  it("omits log_server entirely when the section is not included", () => {
+    const draft = draftWithLogServer();
+    draft.logServer.include = false;
+    expect(buildConfigDocument(draft)).not.toHaveProperty("log_server");
+  });
+
+  it("writes enabled: false rather than dropping the section", () => {
+    // Leaving the block out would make pm-log-srv run on its defaults, i.e.
+    // enabled — the opposite of what was asked for.
     const draft = draftWithLogServer();
     draft.logServer.enabled = false;
-    expect(buildConfigDocument(draft)).not.toHaveProperty("log_server");
+    expect(logServerSection(draft).enabled).toBe(false);
   });
 });
 
@@ -175,24 +183,13 @@ describe("engineConfigDraftSchema — log_server LALF-PS", () => {
     ).toBe(true);
   });
 
-  it("rejects two of the three ports sharing a number", () => {
-    const draft = draftWithLogServer();
-    draft.logServer.pubPort = draft.logServer.port;
-    expect(engineConfigDraftSchema.safeParse(draft).success).toBe(false);
-  });
-
+  // S102/S103 (distinct ports, lease ceiling) are cross-field rules owned by
+  // the diagnostics package — see diagnostics/test/log-server-pubsub.test.ts.
   it("allows a port clash while the interface is disabled", () => {
     const draft = draftWithLogServer();
     draft.logServer.pubsubEnabled = false;
     draft.logServer.pubPort = draft.logServer.port;
     expect(engineConfigDraftSchema.safeParse(draft).success).toBe(true);
-  });
-
-  it("rejects a max lease below the default lease", () => {
-    const draft = draftWithLogServer();
-    draft.logServer.leaseSec = 60;
-    draft.logServer.maxLeaseSec = 30;
-    expect(engineConfigDraftSchema.safeParse(draft).success).toBe(false);
   });
 
   it("rejects a non-positive limit", () => {

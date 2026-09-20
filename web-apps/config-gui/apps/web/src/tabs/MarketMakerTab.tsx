@@ -1,3 +1,4 @@
+import { writtenMmQuotes } from "@edumatcher/schema";
 import { useDraftStore } from "@/store/draftStore";
 import { usePersona } from "@/lib/usePersona";
 import { Panel, Section } from "@/components/layout/Panel";
@@ -16,18 +17,25 @@ export function MarketMakerTab() {
   const midRangeSet = seeding.mmMidRange !== undefined;
 
   /**
-   * Status of the seed quote for a given symbol × MM gateway:
-   * - "defined": an explicit quote with both prices set (highest precedence);
-   * - "seeded": no explicit quote, but the global mid-range will seed one;
-   * - "missing": neither — the exported stub has null prices to fill in.
+   * Status of the seed quote written for a given symbol × MM gateway, read
+   * from the codec's own output so it cannot disagree with the file:
+   * - "defined": an explicit quote with both prices set;
+   * - "seeded": a stub priced from the global mid-range;
+   * - "missing": a quote is written but without prices (the engine refuses it);
+   * - "none": no quote for this gateway — the symbol has explicit quotes for
+   *   other gateways only (explicit quotes replace all stubs), or seed quotes
+   *   are not required.
    */
-  const quoteStatus = (symbol: string, gatewayId: string): "defined" | "seeded" | "missing" => {
-    const explicit = draft.symbols[symbol]?.marketMakerQuotes?.find(
-      (q) => q.gatewayId === gatewayId,
-    );
-    if (explicit && explicit.bidPrice !== null && explicit.askPrice !== null) return "defined";
-    if (midRangeSet) return "seeded";
-    return "missing";
+  const quoteStatus = (
+    symbol: string,
+    gatewayId: string,
+  ): "defined" | "seeded" | "missing" | "none" => {
+    const cfg = draft.symbols[symbol];
+    if (!cfg) return "none";
+    const q = writtenMmQuotes(draft, cfg).find((x) => x.gatewayId === gatewayId);
+    if (!q) return "none";
+    if (q.bidPrice === null || q.askPrice === null) return "missing";
+    return q.origin === "explicit" ? "defined" : "seeded";
   };
 
   return (
@@ -58,7 +66,7 @@ export function MarketMakerTab() {
           label="Max spread (ticks)"
           path="mmObligationDefaults.mmMaxSpreadTicks"
           help={{ text: "Maximum allowed bid-ask spread in ticks for obligated quotes.", cliFlag: "--mm-spread-ticks" }}
-          defaultHint="Default: 20"
+          defaultHint="New configs: 20 (the engine's own default when the key is omitted is 10)"
         >
           <NumberInput
             aria-label="Max spread ticks"
@@ -87,6 +95,21 @@ export function MarketMakerTab() {
         title="Quote seeding"
         description="Set a mid-range and the builder seeds a bid/ask one tick around a midpoint for every symbol × MM gateway. Without it, quote stubs are emitted with null prices that must be filled in before starting the engine."
       >
+        <FieldRow
+          label="Require MM seed quotes"
+          path="requireMmSeedQuotes"
+          htmlFor="require-mm-seed"
+          help={{
+            text: "require_mm_seed_quotes. When on, every symbol must carry at least one market_maker_quotes entry if a MARKET_MAKER gateway exists, and stubs are written for symbols without explicit quotes. Turn off for a genuinely empty book at startup: no stubs are written.",
+          }}
+        >
+          <Switch
+            id="require-mm-seed"
+            aria-label="Require MM seed quotes"
+            checked={draft.requireMmSeedQuotes}
+            onCheckedChange={(checked) => update((d) => (d.requireMmSeedQuotes = checked))}
+          />
+        </FieldRow>
         <FieldRow
           label="Seed MM mid-range"
           path="seeding.mmMidRange"
@@ -167,27 +190,11 @@ export function MarketMakerTab() {
           </>
         )}
 
-        {canSee("E") && (
-          <FieldRow
-            label="Deterministic seed"
-            path="seeding.randomSeed"
-            help={{ text: "Fix the RNG seed for reproducible classroom runs.", cliFlag: "--seed" }}
-            defaultHint="Default: random"
-            isSet={seeding.randomSeed !== undefined}
-            onReset={() => update((d) => (d.seeding.randomSeed = undefined))}
-          >
-            <NumberInput
-              aria-label="Deterministic seed"
-              value={seeding.randomSeed}
-              onChange={(v) => update((d) => (d.seeding.randomSeed = v))}
-            />
-          </FieldRow>
-        )}
       </Section>
 
       <Section
         title="Quote stub review"
-        description="One seed quote per symbol × market-maker gateway. A row is satisfied by an explicit quote (edited per symbol) or by mid-range seeding; rows with neither must be filled in before starting the engine."
+        description="What is written for each symbol × market-maker gateway. A symbol's explicit quotes (edited per symbol) replace all of its stubs; otherwise each gateway gets a stub, priced from the mid-range when one is set."
       >
         {mmGateways.length === 0 || draft.symbolOrder.length === 0 ? (
           <p className="text-sm text-fg-subtle">Add a MARKET_MAKER gateway and at least one symbol to see quote stubs.</p>
@@ -214,9 +221,11 @@ export function MarketMakerTab() {
                             return <span className="text-success">✓ quote defined</span>;
                           if (status === "seeded")
                             return <span className="text-success">✓ seeded from mid-range</span>;
+                          if (status === "none")
+                            return <span className="text-fg-subtle">— no quote written</span>;
                           return (
-                            <span className="text-warning">
-                              ! fill in before starting the engine
+                            <span className="text-error">
+                              ✗ no prices — fill in before starting the engine
                             </span>
                           );
                         })()}
