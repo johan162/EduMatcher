@@ -5411,8 +5411,8 @@ class Engine:
             "symbol":     str,    # both legs must be on the same symbol
             "quantity":   int,
             "tif":        str,
-            "leg1": {"side": str, "order_type": str, "price": int|null, "stop_price": int|null},
-            "leg2": {"side": str, "order_type": str, "price": int|null, "stop_price": int|null},
+            "leg1": {"side": str, "order_type": str, "price_ticks": int|null, "stop_price_ticks": int|null, "trail_offset_ticks": int|null},
+            "leg2": {"side": str, "order_type": str, "price_ticks": int|null, "stop_price_ticks": int|null, "trail_offset_ticks": int|null},
           }
         """
         gateway_id = str(payload.get("gateway_id", "")).upper()

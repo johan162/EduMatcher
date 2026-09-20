@@ -11,6 +11,28 @@ Fully implemeted features are removed from this file.
 
 All referenced desig documents live under `docs-design/`
 
+## ~~ALF Gateway Combo bug~~
+
+**FIXED**
+
+"Known bug: OCO leg price/stop/trail fields are dropped on the wire"
+The ALF gateway builds each OCO leg's wire payload with the keys `price`,
+`stop_price`, and `trail_offset`, but the engine's OCO handler reads
+`price_ticks`, `stop_price_ticks`, and `trail_offset_ticks` from that same
+payload. The mismatch means any `LEG1_PRICE=`/`LEG1_STOP=`/`LEG1_TRAIL=`
+(or `LEG2_*`) value you supply is silently dropped before it reaches the
+engine, and the leg is then rejected as missing its required price/stop
+(e.g. `Leg 1 (LIMIT) requires price`). As of this writing, **every OCO
+example below that includes a leg price, stop, or trail offset will be
+rejected** — only an OCO pair whose legs need no such field (which none
+of the standard order types allow) would go through. This is a defect in
+the gateway/engine wire contract, not in how you invoke `NEW|TYPE=OCO`.
+
+- If any leg is cancelled or expires, all remaining legs are automatically
+  **cascade-cancelled** (unfilled quantities only — fills already ex
+
+
+
 ## Fix remaining known bugs in Trading Station GUI
 
 Target: Oct 2026

@@ -1100,6 +1100,35 @@ class TestGatewayPrintOrders:
         )
         assert gw.push_sock.send_multipart.called
 
+    def test_oco_leg_prices_are_ticks_on_the_wire(self) -> None:
+        """LEG1_PRICE/LEG1_STOP/LEG1_TRAIL must reach the engine as *_ticks.
+
+        The console converts each leg field with ``to_ticks_exact`` but used
+        to store the result under the display-value key (``price``,
+        ``stop_price``, ``trail_offset``) instead of the engine's expected
+        ``*_ticks`` key, so the leg's price/stop/trail was silently dropped.
+        """
+        from edumatcher.models.message import decode
+
+        gw = _make_gateway()
+        gw._parse_and_send(
+            "NEW|TYPE=OCO|OCO_ID=OCO04|SYM=AAPL|QTY=100|TIF=DAY"
+            "|LEG1_SIDE=SELL|LEG1_TYPE=STOP_LIMIT|LEG1_STOP=155.00|LEG1_PRICE=154.50"
+            "|LEG2_SIDE=SELL|LEG2_TYPE=TRAILING_STOP|LEG2_TRAIL=2.00"
+        )
+        assert gw.push_sock.send_multipart.called
+        frames = gw.push_sock.send_multipart.call_args[0][0]
+        _topic, payload = decode(frames)
+
+        leg1, leg2 = payload["leg1"], payload["leg2"]
+        assert leg1["price_ticks"] == 15450
+        assert leg1["stop_price_ticks"] == 15500
+        assert leg2["trail_offset_ticks"] == 200
+        for leg in (leg1, leg2):
+            assert "price" not in leg
+            assert "stop_price" not in leg
+            assert "trail_offset" not in leg
+
     def test_combo_sends_successfully(self) -> None:
         gw = _make_gateway()
         gw._parse_and_send(

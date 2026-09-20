@@ -1693,11 +1693,15 @@ class Gateway:
             }
             try:
                 if price_key in kv:
-                    leg["price"] = to_ticks_exact(float(kv[price_key]), symbol)
+                    leg["price_ticks"] = to_ticks_exact(float(kv[price_key]), symbol)
                 if stop_key in kv:
-                    leg["stop_price"] = to_ticks_exact(float(kv[stop_key]), symbol)
+                    leg["stop_price_ticks"] = to_ticks_exact(
+                        float(kv[stop_key]), symbol
+                    )
                 if trail_key in kv:
-                    leg["trail_offset"] = to_ticks_exact(float(kv[trail_key]), symbol)
+                    leg["trail_offset_ticks"] = to_ticks_exact(
+                        float(kv[trail_key]), symbol
+                    )
             except TickViolation as exc:
                 console.print(f"[red]{exc}[/red]")
                 return None
