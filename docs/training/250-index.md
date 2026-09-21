@@ -315,7 +315,7 @@ is adjusted to compensate so the index level is preserved.
 
 :material-checkbox-blank-outline: **Checkpoint:** index level preserved across dividend adjustment.
 
-??? note "Under the hood: `ExchangeCommandClient`"
+!!! note "Under the hood: `ExchangeCommandClient`"
     `pm-index-admin-cli` is a thin wrapper over the same
     `ExchangeCommandClient` class `pm-admin-cli` uses internally. If you ever
     need to script a corporate action directly (e.g. from a test harness),

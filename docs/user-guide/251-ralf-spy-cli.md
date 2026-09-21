@@ -116,7 +116,7 @@ aborting the whole session, so you can see exactly what was rejected.
 | `--raw` | off | Also echo the raw wire line under each formatted line (human format only) |
 | `--no-color` | off | Disable ANSI colour even on a terminal |
 | `--show-heartbeats` | off | Also print `HB` and `PONG` lines (suppressed by default to reduce noise) |
-| `--count N` | `0` | Exit after N data-carrying lines (`0` = run until Ctrl-C); heartbeats don't count |
+| `--count N` | `0` | Exit after N data-carrying lines (`0` = run until Ctrl-C); `HB` lines don't count, but `PONG` replies do |
 
 **Diagnostics:** `--log-level`, `-v`/`--verbose`, `-q`/`--quiet`, `--version`,
 `--help` — same conventions as every other `pm-*` process.

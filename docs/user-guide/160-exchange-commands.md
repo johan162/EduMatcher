@@ -518,8 +518,11 @@ SESSION  OPENING_AUCTION → CONTINUOUS
 |-----------------|----------|-------------------------------------------------------------------------------------------------------|
 | `--state STATE` | yes      | Target state (case-insensitive): `PRE_OPEN` `OPENING_AUCTION` `CONTINUOUS` `CLOSING_AUCTION` `CLOSED` |
 
-Invalid transitions are silently rejected by the engine.  Check the printed
-result to verify the transition was applied.
+Invalid transitions are rejected by the engine before anything is published,
+so no reply of any kind is sent back for a rejected transition — the CLI call
+times out (`Timeout: ...` on stderr, exit code 1) rather than printing a
+result to check. A successful transition, by contrast, is confirmed by the
+`session.state` broadcast.
 
 
 
@@ -743,8 +746,8 @@ pm-index-cli [--config PATH] [--data-dir DIR] [--format table|json|csv] [--no-he
 
 | Option                      | Default        | Description                                                                                              |
 |-----------------------------|----------------|----------------------------------------------------------------------------------------------------------|
-| `--config PATH` / `-c PATH` | unset          | Path to `engine_config.yaml`; used to discover history file paths and index IDs automatically            |
-| `--data-dir DIR`            | `data/indexes` | Directory containing history JSONL files; used when `--config` is not given or an index is not in config |
+| `--config PATH` / `-c PATH` | unset          | Path to `engine_config.yaml`; used to discover history file paths and index IDs automatically. Without it, the deployed compiled configuration is used instead |
+| `--data-dir DIR`            | `data/indexes` | Fallback directory for history JSONL files, used only once an index ID is already known and its `history_file` isn't in the config. It does **not** help discover *which* indices exist |
 | `--format table\|json\|csv` | `table`        | Output format                                                                                            |
 | `--no-header`               | off            | Suppress header row (CSV only)                                                                           |
 
@@ -752,19 +755,19 @@ pm-index-cli [--config PATH] [--data-dir DIR] [--format table|json|csv] [--no-he
 
 | Subcommand | Purpose                                                               |
 |------------|------------------------------------------------------------------------|
-| `events`   | Structural events: `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST` |
+| `events`   | Structural events: `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`, `REBALANCE` |
 | `indices`  | List configured indices from `engine_config.yaml`                     |
 
 The `events` subcommand accepts:
 
 | Option                    | Description                                                                                 |
 |---------------------------|-----------------------------------------------------------------------------------------------|
-| `--index ID` / `-i ID`    | Index ID to query (repeatable); defaults to all configured indices when `--config` is given |
+| `--index ID` / `-i ID`    | Index ID to query (repeatable); defaults to all indices in `--config`, or in the deployed compiled configuration if `--config` is omitted. If neither is available, `events` exits with an error (code 1) rather than falling back to `--data-dir` |
 | `--days N`                | Return records from the last N days (mutually exclusive with `--from`)                      |
 | `--from DATE_OR_TS`       | Start of time range: `YYYY-MM-DD` or ISO-8601 (mutually exclusive with `--days`)             |
 | `--to DATE_OR_TS`         | End of time range: `YYYY-MM-DD` or ISO-8601 (default: now)                                   |
 | `--limit N`               | Maximum rows per index                                                                        |
-| `--type TYPE` / `-t TYPE` | Filter to one event type (repeatable): `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`    |
+| `--type TYPE` / `-t TYPE` | Filter to one event type (repeatable): `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`, `REBALANCE` |
 
 ### Output columns
 
@@ -919,7 +922,9 @@ pm-index-admin-cli --id OPS01 COMMAND [options]
 | `delist`   | Remove a constituent (`--index`, `--sym`)                        |
 | `history`  | Show recent structural/corp-action history for an index          |
 
-Every subcommand takes `--index` and `--sym`. The global options below —
+Every mutating subcommand (`split`, `dividend`, `shares`, `add`, `delist`)
+takes `--index` and `--sym`; `history` takes `--index` but no `--sym` (it has
+its own `--from`/`--to`/`--types`/`--limit`). The global options below —
 `--id`, `--format`, `--dry-run`, `--yes`, `--push`, `--sub`, `--timeout` —
 belong to `pm-index-admin-cli` itself and must be given **before** the
 subcommand name:
@@ -1018,7 +1023,6 @@ with ExchangeCommandClient("GW_ADMIN") as client:
 | `halt_all()`                    | —                             | **ADMIN**        | `risk.circuit_breaker_halt_all`   | `risk.circuit_breaker_halt_all_ack.{GW}`   |
 | `resume_all()`                  | —                             | **ADMIN**        | `risk.circuit_breaker_resume_all` | `risk.circuit_breaker_resume_all_ack.{GW}` |
 | `kill_switch(target, symbol?)`  | target GW ID, optional symbol | Any connected GW | `risk.kill_switch`                | `risk.kill_switch_ack.{target}`            |
-| `mass_cancel(target, symbol)`   | target GW ID, symbol          | Any connected GW | `risk.kill_switch`                | `risk.kill_switch_ack.{target}`            |
 | `quote_cancel(target, symbol)`  | target GW ID, symbol          | Any connected GW | `quote.cancel`                    | `quote.ack.{target}`                       |
 | `gateway_kick(target, reason?)` | target GW ID, optional reason | Any connected GW | `system.gateway_disconnect`       | *(none)*                                   |
 | `book_depth(symbol)`            | symbol                        | Any connected GW | `book.snapshot_request`           | `book.{SYMBOL}`                            |
@@ -1033,6 +1037,17 @@ with ExchangeCommandClient("GW_ADMIN") as client:
 | `position_snapshot(target)`     | target GW ID                  | Any connected GW | `system.position_request`         | `system.position_snapshot.{target}`        |
 | `symbol_halt(symbol)`           | symbol                        | **ADMIN**        | `risk.symbol_halt`                | `risk.symbol_halt_ack.{GW}`                |
 | `symbol_resume(symbol)`         | symbol                        | **ADMIN**        | `risk.symbol_resume`              | `risk.symbol_resume_ack.{GW}`              |
+| `cancel_symbol(symbol)`         | symbol                        | Any connected GW | `system.cancel_symbol`            | `system.cancel_symbol_ack.{GW}`            |
+| `force_uncross(symbol)`         | symbol                        | **ADMIN**        | `risk.force_uncross`              | `risk.force_uncross_ack.{GW}`              |
+| `quote_bootstrap(target, symbol?)` | target GW ID, optional symbol | Any connected GW | `quote.bootstrap_request`     | `quote.bootstrap.{target}`                 |
+| `index_history(index, from, to, types?)` | index ID, time range, optional type filter | — (no auth on `pm-index`'s socket) | `index.history_request` | `index.history.{GW}` |
+| `index_corp_action(index, action, symbol, ...)` | index ID, action, symbol, action params | — | `index.corp_action` | `index.corp_action_ack.{GW}` |
+| `index_delist(index, symbol)`   | index ID, symbol              | —                | `index.constituent_change`        | `index.constituent_change_ack.{GW}`        |
+| `index_add_constituent(index, symbol, shares, price)` | index ID, symbol, shares, price | — | `index.constituent_change` | `index.constituent_change_ack.{GW}` |
+
+`mass_cancel(target, symbol)` is a convenience alias for `kill_switch(target, symbol=symbol)` — same message and ack, not a separate command.
+
+The four `index_*` methods talk to `pm-index`'s PUSH/PUB pair (ports 5559/5558), not the engine's — see [Index Admin CLI — Why there is no connect() step](152-index-admin-cli.md#why-there-is-no-connect-authentication-step) for why they carry no auth.
 | `cancel_symbol(symbol)`         | symbol                        | **ADMIN**        | `risk.cancel_symbol`              | `risk.cancel_symbol_ack.{GW}`              |
 
 !!! warning "PUSH socket has no authentication"
@@ -1206,10 +1221,14 @@ Frame 1:  {"symbol": "AAPL"}
 book = client.book_depth("AAPL")
 # book = {
 #   "symbol": "AAPL",
+#   "tick_decimals": 2,
+#   "ts_ns": 1784500215390000000,
 #   "bids": [{"price": 149.50, "qty": 300, "count": 2}, ...],
 #   "asks": [{"price": 150.00, "qty": 100, "count": 1}, ...],
 #   "last_price": 149.75,
 #   "last_qty": 200,
+#   "last_buy_price": 149.75,
+#   "last_sell_price": 149.50,
 #   "recent_trades": [...]
 # }
 
@@ -1347,9 +1366,12 @@ stateDiagram-v2
     CLOSED --> [*]
 ```
 
-Invalid transitions are silently rejected by the engine.  The ack is the
-`session.state` broadcast — it carries the *actual* new state, so you can
-verify the transition succeeded by checking `result["state"]`.
+An **accepted** transition is confirmed by the `session.state` broadcast,
+which carries the *actual* new state — check `result["state"]` to verify it.
+An **invalid** transition (one not allowed from the current state) gets no
+reply at all: the engine rejects it before publishing anything, so
+`session_advance()` blocks until `--timeout` and then raises
+`CommandTimeoutError`.
 
 
 

@@ -589,6 +589,13 @@ else
     print_success "Found Training Guide bundle: $(basename "$TRAINING_GUIDE_BUNDLE_ZIP")"
 fi
 
+TRAINING_GUIDE_EPUB="docs/dist/${PROGRAMNAME}_training-guide-${FILE_VERSION_NUMBER}.epub"
+if [[ ! -f "$TRAINING_GUIDE_EPUB" ]]; then
+    print_error "Training Guide EPUB not found: $TRAINING_GUIDE_EPUB"
+    exit 1
+else
+    print_success "Found Training Guide EPUB: $(basename "$TRAINING_GUIDE_EPUB")"
+fi
 
 # 4.5: Locate expected python artifacts
 print_sub_step "Locating artifacts with version $FILE_VERSION_NUMBER..."
@@ -615,12 +622,16 @@ if [[ -z "$SDIST_FILE" ]]; then
 fi
 print_success "Found sdist: $(basename "$SDIST_FILE")"
 print_success "Found user guide bundle: $(basename "$USER_GUIDE_BUNDLE_ZIP")"
+print_success "Found training guide bundle: $(basename "$TRAINING_GUIDE_BUNDLE_ZIP")"
+print_success "Found training guide EPUB: $(basename "$TRAINING_GUIDE_EPUB")"
 
 # 4.6: Validate artifact sizes
 print_sub_step "Validating artifact sizes..."
 WHEEL_SIZE=$(stat -f%z "$WHEEL_FILE" 2>/dev/null || stat -c%s "$WHEEL_FILE" 2>/dev/null)
 SDIST_SIZE=$(stat -f%z "$SDIST_FILE" 2>/dev/null || stat -c%s "$SDIST_FILE" 2>/dev/null)
 USER_GUIDE_BUNDLE_SIZE=$(stat -f%z "$USER_GUIDE_BUNDLE_ZIP" 2>/dev/null || stat -c%s "$USER_GUIDE_BUNDLE_ZIP" 2>/dev/null || echo 1)
+TRAINING_GUIDE_BUNDLE_SIZE=$(stat -f%z "$TRAINING_GUIDE_BUNDLE_ZIP" 2>/dev/null || stat -c%s "$TRAINING_GUIDE_BUNDLE_ZIP" 2>/dev/null || echo 1)
+TRAINING_GUIDE_EPUB_SIZE=$(stat -f%z "$TRAINING_GUIDE_EPUB" 2>/dev/null || stat -c%s "$TRAINING_GUIDE_EPUB" 2>/dev/null || echo 1)
 
 if [[ "$WHEEL_SIZE" -lt 1000 ]]; then
     print_error "Wheel file suspiciously small: $WHEEL_SIZE bytes"
@@ -638,10 +649,22 @@ if [[ "$USER_GUIDE_BUNDLE_SIZE" -lt 1000 ]]; then
     exit 1
 fi
 
+if [[ "$TRAINING_GUIDE_BUNDLE_SIZE" -lt 1000 ]]; then
+    print_error "Training guide bundle suspiciously small: $TRAINING_GUIDE_BUNDLE_SIZE bytes"
+    exit 1
+fi
+
+if [[ "$TRAINING_GUIDE_EPUB_SIZE" -lt 1000 ]]; then
+    print_error "Training guide EPUB suspiciously small: $TRAINING_GUIDE_EPUB_SIZE bytes"
+    exit 1
+fi
+
 
 print_success "Wheel size:  $(numfmt --to=iec-i --suffix=B "$WHEEL_SIZE" 2>/dev/null || echo "$WHEEL_SIZE bytes")"
 print_success "Sdist size:  $(numfmt --to=iec-i --suffix=B "$SDIST_SIZE" 2>/dev/null || echo "$SDIST_SIZE bytes")"
 print_success "User Guide size:  $(numfmt --to=iec-i --suffix=B "$USER_GUIDE_BUNDLE_SIZE" 2>/dev/null || echo "$USER_GUIDE_BUNDLE_SIZE bytes")"
+print_success "Training Guide bundle size:  $(numfmt --to=iec-i --suffix=B "$TRAINING_GUIDE_BUNDLE_SIZE" 2>/dev/null || echo "$TRAINING_GUIDE_BUNDLE_SIZE bytes")"
+print_success "Training Guide EPUB size:  $(numfmt --to=iec-i --suffix=B "$TRAINING_GUIDE_EPUB_SIZE" 2>/dev/null || echo "$TRAINING_GUIDE_EPUB_SIZE bytes")"
 
 # =====================================
 # PHASE 5: RELEASE NOTES PREPARATION
@@ -693,7 +716,8 @@ GH_RELEASE_CMD="gh release create \"$LATEST_TAG\" \
     \"$EXCHANGE_INTRO_PARTS_A4_BUNDLE_ZIP\" \
     \"$EXCHANGE_INTRO_QUIZZ_BUNDLE_ZIP\" \
     \"$USER_GUIDE_CHAPTERS_BUNDLE_ZIP\" \
-    \"$TRAINING_GUIDE_BUNDLE_ZIP\""
+    \"$TRAINING_GUIDE_BUNDLE_ZIP\" \
+    \"$TRAINING_GUIDE_EPUB\""
 
 if [[ "$IS_PRE_RELEASE" == "true" ]]; then
     GH_RELEASE_CMD="$GH_RELEASE_CMD --prerelease"

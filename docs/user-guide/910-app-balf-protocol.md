@@ -109,7 +109,10 @@ validated as zero when received.
 
 ### Identifier rules
 
-- `gateway_id` is a 16-byte ASCII field, zero-padded on the right.
+- `gateway_id` is a 16-byte ASCII field, zero-padded on the right. The
+  gateway uppercases both `gateway_id` (at `LOGON`) and `symbol` (at
+  `NEW_ORDER`) after decoding, so a lowercase value is silently normalized
+  rather than rejected or matched case-sensitively.
 - `client_order_id` is a client-assigned `u64`.
 - `order_id` is a gateway-assigned session-scoped `u64`.
 - `0` is reserved and must not be used as a valid accepted `order_id`.
@@ -351,9 +354,19 @@ Offset 27  |  reason           |  u8[25]  |  Rejection reason string (ASCII); ze
 | `0x08` | `RC_PHASE_REJECTION` | Rejected by the current session phase |
 | `0x09` | `RC_TRAILING_STOP_NO_PRICE` | TRAILING_STOP with no prior trade price |
 | `0x0A` | `RC_INSUFFICIENT_LIQUIDITY` | FOK could not be filled in full |
-| `0x0B` | `RC_PRICE_COLLAR` | Rejected by a price collar |
+| `0x0B` | `RC_PRICE_COLLAR` | Rejected by a price collar (defined, but not currently reachable — see note below) |
 | `0x0C` | `RC_INVALID_FIELD` | Invalid field — bad quantity, missing LIMIT price, or a price that is not on the instrument's tick grid (`reason` = `"price off tick grid"`) |
 | `0xFF` | `RC_OTHER` | Other; inspect the `reason` string |
+
+!!! bug "`RC_PRICE_COLLAR` is currently unreachable"
+    The gateway classifies a collar rejection by testing for the lowercase
+    substring `"collar"` in the engine's reason string, but the engine's real
+    collar-rejection reasons are `STATIC_COLLAR_BREACH: ...` and
+    `DYNAMIC_COLLAR_BREACH: ...` (uppercase). The match never succeeds, so a
+    price-collar rejection is classified as `0xFF` (`RC_OTHER`) today, not
+    `0x0B`. This is a source-level bug in the reason classifier, not
+    documented-vs-actual drift; noted here so a client author is not misled
+    into expecting `0x0B` for a collar breach.
 
 !!! warning "Prices must land on the tick grid"
     BALF carries prices as `i64` fixed point at scale 1e8, so a client can
@@ -379,7 +392,7 @@ Offset  8  |  order_id         |  u64 LE  |  Session-scoped BALF order ID to can
 Offset  0  |  client_order_id  |  u64 LE  |  Echoed from CANCEL_ORDER
 Offset  8  |  order_id         |  u64 LE  |  Order being cancelled
 Offset 16  |  accepted         |  u8      |  1 = cancelled, 0 = rejected
-Offset 17  |  cancel_reason    |  u8      |  0 = client request, 1 = SMP, 2 = session end, 3 = IOC/FOK expire
+Offset 17  |  cancel_reason    |  u8      |  0 = client request, 255 = system-originated (SMP, session-end, expiry)
 Offset 18  |  _reserved        |  u8[6]   |  Must be zero
 ```
 
@@ -519,25 +532,16 @@ sequenceDiagram
 ## Configuration reference
 
 BALF settings are part of the main engine configuration file
-(`engine_config.yaml`). They use two related blocks:
-
-- `gateways.balf` for BALF gateway identity allowlist and role metadata
-- `balf_gateway` for BALF TCP listener/runtime parameters
+(`engine_config.yaml`). BALF has no config block of its own for gateway
+identity — it reuses `gateways.alf` (the same allowlist ALF uses, see
+[ALF TCP Gateway](220-alf-gateway.md#configuration-reference)) for identity,
+role, and `disconnect_behaviour`, and adds only its own TCP listener/runtime
+parameters under `balf_gateway`.
 
 Path locations:
 
-- `engine_config.yaml` -> `gateways` -> `balf`
+- `engine_config.yaml` -> `gateways` -> `alf` (shared with ALF)
 - `engine_config.yaml` -> `balf_gateway`
-
-### `gateways.balf` fields
-
-| Field | Type / allowed range | Default | Description |
-|---|---|---|---|
-| `gateways.balf[].id` | Non-empty string | None (required) | BALF gateway identity used at `LOGON` and allowlist validation. |
-| `gateways.balf[].description` | String | Empty string | Human-readable operator description. |
-| `gateways.balf[].role` | Enum: `TRADER`, `MARKET_MAKER`, `ADMIN` | `TRADER` | Role attached to this BALF identity. |
-| `gateways.balf[].mm_max_spread_ticks` | Integer, `> 0` | `10` (common) | Market-maker max spread guard (when role/policy requires it). |
-| `gateways.balf[].mm_min_qty` | Integer, `> 0` | `100` (common) | Market-maker minimum displayed size guard (when role/policy requires it). |
 
 ### `balf_gateway` fields
 

@@ -78,9 +78,12 @@ a `pm-dc-gwy` connection does not "occupy" a trading identity.
 
 ## Configuration
 
-`pm-dc-gwy` reads an optional `dc_gateway:` section from `engine_config.yaml`.
-You can generate this section with `pm-config-gen --dc-gateway` (all fields are
-optional and default to the values shown below), or hand-edit it directly:
+`pm-dc-gwy` reads a `dc_gateway:` section from the **compiled** engine
+configuration — like every other process, it never reads `engine_config.yaml`
+directly (see [Config file location](#config-file-location) below). Author the
+section with `pm-config-gen --dc-gateway` (all fields are optional and default
+to the values shown below) or hand-edit the YAML, then install it with
+`pm-config-deploy` before `pm-dc-gwy` will see it:
 
 ```yaml
 dc_gateway:
@@ -137,6 +140,9 @@ CLI override options:
 | `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
 | `-q` / `--quiet` | off | Reduce output to warnings/errors |
+| `--log-target` | `server` | Where this process's own operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file PATH` | — | Operational log file path — required when `--log-target file` |
+| `--log-failover-timeout SECONDS` | `30` | Grace window before falling back to a local log file once `pm-log-srv` becomes unreachable |
 
 **Config file location**
 

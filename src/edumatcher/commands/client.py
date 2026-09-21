@@ -465,8 +465,10 @@ class ExchangeCommandClient:
 
         Returns
         -------
-        dict with keys: ``symbol``, ``bids``, ``asks``, ``last_price``,
-        ``last_qty``, ``recent_trades``.
+        dict with keys: ``symbol``, ``tick_decimals``, ``ts_ns``, ``bids``,
+        ``asks``, ``recent_trades``, ``last_price``, ``last_qty``,
+        ``last_buy_price``, ``last_sell_price``. The four ``last_*`` fields
+        are ``None`` on a book that has not traded.
         """
         self._send(make_book_snapshot_request_msg(symbol.upper()))
         return self._recv(topic_book_snapshot(symbol.upper()))

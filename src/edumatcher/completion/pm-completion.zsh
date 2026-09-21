@@ -503,7 +503,7 @@ _shtab_pm_alf_console_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "(- : *)--version[show program\'s version number and exit]"
   "--id[Unique gateway identifier, e.g. GW01]:GW_ID:"
-  "--drop-copy[Enable drop-copy relay on startup (equivalent to sending DC\|ON immediately after connecting). Default\: off. Can also be toggled at runtime with the DC\|ON \/ DC\|OFF command. See docs\/user-guide\/200-drop-copy.md]"
+  "--drop-copy[Enable drop-copy relay on startup (equivalent to sending DC\|STATE\=ON immediately after connecting). Default\: off. Can also be toggled at runtime with the DC\|STATE\=ON \/ DC\|STATE\=OFF command. See docs\/user-guide\/200-drop-copy.md]"
   "--log-level[Logging level override (default\: WARNING)]:log_level:(CRITICAL ERROR WARNING INFO DEBUG)"
   "*"{-v,--verbose}"[Increase log verbosity (-v\: INFO, -vv\: DEBUG)]"
   {-q,--quiet}"[Reduce output to warnings\/errors]"

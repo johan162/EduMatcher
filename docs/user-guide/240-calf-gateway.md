@@ -111,6 +111,7 @@ code.**
 | `IDX` | INDEX | Index level recalculation |
 | `DEPTH` | DEPTH | Full top-N ladder for the changed side(s) |
 | `AUCTION` | AUCTION | Auction uncross result (equilibrium price/qty, imbalance) |
+| `INDIC` | AUCTION | Indicative uncross price/qty while a call phase is still open — see [CALF protocol → `INDIC`](920-app-calf-protocol.md#indic) |
 | `CB` | CB | Circuit-breaker halt or resume detail for one symbol |
 | `HB` | — | Heartbeat while the stream is quiet |
 | `PONG` | — | Reply to `PING` |
@@ -225,6 +226,9 @@ CLI override options:
 | `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
 | `-q` / `--quiet` | off | Reduce output to warnings/errors |
+| `--log-target` | auto | Where operational log records go: `server` (default, auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file PATH` | — | Operational log file path — required when `--log-target file` |
+| `--log-failover-timeout SECONDS` | `30` | Grace window before falling back to a local log file once `pm-log-srv` becomes unreachable |
 | `--version` | — | Print the installed `pm-md-gwy` version and exit |
 
 The `--engine-pub`/`--index-pub` defaults themselves can be shifted for the
@@ -541,6 +545,10 @@ subscribing" below).
 equilibrium price, matched quantity, number of trades generated, and any
 remaining imbalance. There is **no baseline `SNAP`** — like `TRADE`, the
 stream starts from events that occur after the subscription becomes active.
+
+A subscription to `AUCTION` will also deliver `INDIC` lines during a call
+phase — indicative uncross updates before the phase actually closes. See
+[CALF protocol → `INDIC`](920-app-calf-protocol.md#indic).
 
 **When you get it:** Subscribe with `CH=AUCTION|SYM=<symbol>`, or `SYM=*` to
 receive every symbol's auction results on one subscription — useful for a

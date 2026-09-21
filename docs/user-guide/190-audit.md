@@ -70,7 +70,7 @@ persistent files:
 | Source checkout (`poetry run pm-audit`) | `<repo>/src/data/audit.log` |
 | Installed (`pm-audit` on PATH) | `~/.local/share/edumatcher/audit.log` |
 
-Override with `EDUMATCHER_DATA_DIR` or `--log-file`:
+Override with `EDUMATCHER_DATA_DIR` or `--audit-log-file`:
 
 ```bash
 export EDUMATCHER_DATA_DIR="$HOME/sessions/morning"
@@ -92,13 +92,16 @@ pm-audit [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--log-file PATH` | `data/audit.log` | Output log file path |
+| `--audit-log-file PATH` | `<DATA_DIR>/audit.log` | Audit-trail output log file path |
 | `--terminal` / `-t` | off | Also print each entry to stdout (useful during demos) |
 | `--buffer-size N` | `100` | Number of messages to buffer in memory before flushing to disk |
 | `--flush-interval SECONDS` | `10.0` | Maximum seconds to wait before flushing buffer regardless of size |
 | `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
 | `-q` / `--quiet` | off | No-op — the default level is already `WARNING`, so `--quiet` currently sets the same level and has no observable effect |
+| `--log-target` | `server` | Where this process's own operational log records go (not the audit trail): `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file PATH` | — | Operational log file path — required when `--log-target file`. Distinct from `--audit-log-file`, which is the audit-trail output |
+| `--log-failover-timeout SECONDS` | `30` | Grace window before falling back to a local log file once `pm-log-srv` becomes unreachable |
 
 `--log-level` takes priority over `-v`/`-q` when both are given.
 
@@ -486,7 +489,7 @@ pm-audit-cli orders [options]
 | `gateway` | Gateway ID |
 | `symbol` | Instrument symbol |
 | `side` | `BUY` or `SELL` |
-| `qty` | `quantity`, then `fill_qty`, then `remaining_qty` — whichever key is present first in the payload |
+| `qty` | `quantity or fill_qty or remaining_qty` — the first **truthy** value in that order (not merely the first present key; a legitimate `0` or `null` falls through to the next) |
 | `price` | Price (limit price or fill price depending on event type) |
 | `status` | Order status after the event |
 | `reason` | `reject_code` (from an `order.ack` rejection), `cancel_reason` (from `order.cancelled`), or a generic `reason` string — whichever the event carries |

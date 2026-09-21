@@ -141,7 +141,12 @@ Useful options:
 | `--instance NAME`    | auto-selected only when one entry exists | Select a named `api_gateways` entry              |
 | `--engine-host HOST` |                             config value | Override engine host for ZMQ ports `5555`/`5556` |
 | `--stats-db PATH`    |                             config value | SQLite database for `/history/*`                 |
-| `--log-level LEVEL`  |                             config value | `debug`, `info`, `warning`, or `error`           |
+| `--log-level LEVEL`  |                             `WARNING`    | `CRITICAL`, `ERROR`, `WARNING`, `INFO`, or `DEBUG` (uppercase; this is the CLI process's own log level, separate from the `log_level` config value that sets uvicorn's own logger) |
+| `-v` / `--verbose`   |                             off          | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
+| `-q` / `--quiet`     |                             off          | Reduce output to warnings/errors |
+| `--log-target`       |                             auto         | Where this process's own operational log records go: `server` (default, auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file PATH`    |                             —            | Operational log file path — required when `--log-target file` |
+| `--log-failover-timeout SECONDS` | `30`             | Grace window before falling back to a local log file once `pm-log-srv` becomes unreachable |
 
 Uvicorn writes access and application logs to stdout/stderr. Redirect them with
 your shell or service manager:
@@ -277,7 +282,7 @@ For strict endpoint-by-endpoint access rules, see
 | `AUTH` | `401` | Missing/malformed `Authorization` header, or an unrecognized API key |
 | `ENGINE_AUTH` | `403` | The credential's `gateway_id` isn't allowed by the engine's `gateways.alf` list |
 | `READ_ONLY` | `403` | A `gateway_id: null` credential called a trading-only endpoint |
-| `ROLE_DENIED` | `403` | Credential's gateway lacks the `ADMIN` role on an `/admin/*` call |
+| `ROLE_DENIED` | `403` | Credential's gateway lacks the `ADMIN` role on an `/admin/*` call. Also reused (same code, unrelated cause) when the engine itself rejects a circuit-breaker or kill-switch command — the ack carries `accepted: false` and the gateway surfaces the engine's `reason` under this same error code |
 | `RATE_LIMIT` | `429` | Per-key write rate limit exceeded |
 | `VALIDATION` | `422`/`400` | Malformed request body or query parameters. Includes a price that is not on the instrument's tick grid, which carries `reject_code: TICK_VIOLATION` — see [Tick precision](#tick-precision) |
 | `SYMBOLS_NOT_READY` | `503` | An order-entry request arrived before the engine's symbol metadata reached this gateway. Carries `reject_code: SYMBOL_NOT_READY`; retry shortly — see [Tick precision](#tick-precision) |
@@ -473,8 +478,9 @@ different from `client_tag`, which identifies the original order.
 | `GET /symbols` | `{ "symbols": [...] }` | Instrument metadata, round-tripped from the engine's `system.symbols_request` |
 | `GET /session` | Current `SessionState` and schedule info | Round-tripped from the engine's `system.session_status` reply |
 | `GET /quotes/bootstrap` | Active MM quote bootstrap state | Round-tripped from the engine |
-| `GET /quotes/legs` | `{ "legs": [...], "recent": [...], "show_requested":..., "complete":... }` | Served from the gateway's local quote-leg cache when populated, otherwise round-tripped from the engine. `legs` and `recent` are always present, empty when the requested half does not include them |
-| `GET /positions` | `{ "positions": [{"symbol", "net_qty", "last_price"}, ...] }` | Computed entirely from the gateway's local fill cache — no engine round-trip |
+| `GET /quotes/legs` | `{ "legs": [...], "recent": [...], "show_requested":..., "complete":... }` | Served from the gateway's local quote-leg cache when populated — in which case only `legs` is present, `recent`/`show_requested`/`complete` are omitted entirely — otherwise round-tripped from the engine, which returns all four fields |
+| `GET /positions` | `{ "positions": [{"symbol", "net_qty", "last_price"}, ...] }` | A genuine engine round trip on `system.position_request`/`system.position_snapshot.<gateway_id>` — the same pair `GET /admin/positions` uses for any gateway. Only `last_price` comes from this process's own local trade-price cache; `net_qty` always reflects the engine's live position, which survives a gateway restart |
+| `GET /halts` | `{ "halted": [{symbol, resume_at_ns?, level?, ...}] }` | Same engine query as `GET /admin/halts` (`system.halt_status_request`), without the ADMIN-role gate — any trading credential can call it. Used at bootstrap and on market-data reconnect |
 
 All of the round-tripped endpoints above return `503` with error code
 `ENGINE_TIMEOUT` if the engine doesn't reply within `timeouts.engine_reply_sec`.
@@ -495,7 +501,7 @@ reference data changes only when an admin reloads it.
 |---|---|---|
 | `GET /reference` | The full bundle: `symbols`, `risk`, `indexes`, `schedule`, `config_version` | One call for a client that wants everything |
 | `GET /reference/config-version` | `{ "config_version": "..." }` | A content hash — see below |
-| `GET /reference/symbols` | `{ "symbols": [{symbol, tick_decimals, level?, collar?, circuit_breaker?}], "config_version":... }` | A list, not a map: each entry carries its own `symbol`, so a client can iterate without knowing the keys. `collar`/`circuit_breaker` are omitted for a symbol with neither configured |
+| `GET /reference/symbols` | `{ "symbols": [{symbol, tick_decimals, level?, collar?, order_limits?, circuit_breaker?}], "config_version":... }` | A list, not a map: each entry carries its own `symbol`, so a client can iterate without knowing the keys. `collar`/`order_limits`/`circuit_breaker` are omitted for a symbol with none configured. `order_limits` is `{max_order_qty, max_order_value}` |
 | `GET /reference/risk` | `{ "default_level"?:..., "levels": [{name, collar?}], "config_version":... }` | Risk-band definitions referenced by each symbol's `level`. `collar` is omitted for a level that configures none |
 | `GET /reference/indexes` | `{ "indexes": [{id, description, base_value, constituents}], "config_version":... }` | Configured exchange indexes; empty list if none configured |
 | `GET /reference/schedule` | `{ "sessions_enabled":..., "country"?:..., "schedule": {pre_open, opening_auction_start, continuous_start, closing_auction_start, closing_auction_end} \| null, "config_version":... }` | The five clock times are nested under `schedule`, which is the same record `system.session_schedule` carries. `schedule: null` means no `schedule:` block is configured |
@@ -513,9 +519,10 @@ Authorization: Bearer key-readonly-demo
 
 ```json
 {
-  "symbols": {
-    "AAPL": {
-      "tick_size": 0.01,
+  "symbols": [
+    {
+      "symbol": "AAPL",
+      "tick_decimals": 2,
       "level": "STANDARD",
       "collar": { "static_band_pct": 0.20, "dynamic_band_pct": 0.02 },
       "circuit_breaker": {
@@ -527,7 +534,7 @@ Authorization: Bearer key-readonly-demo
         ]
       }
     }
-  },
+  ],
   "config_version": "3f2a9c1e7b0d4a5f"
 }
 ```
@@ -597,7 +604,7 @@ with no `gateway_id`.
 
 | Endpoint | Query parameters | Notes |
 |---|---|---|
-| `GET /history/orders` | `symbol`, `event_type`, `date`, `from`, `to`, `limit` (1–5000, default 500), `after` | Trading credential only; scoped to the caller's `gateway_id` |
+| `GET /history/orders` | `symbol`, `event_type` (one of `ACK`, `REJECT`, `FILL`, `AMEND`, `CANCEL`, `EXPIRE`, `COMBO_ACK`, `COMBO_REJECT`, `COMBO_STATUS`, `OCO_ACK`, `OCO_REJECT`, `OCO_CANCEL`, `QUOTE_ACK`, `QUOTE_REJECT`, `QUOTE_STATUS`, `UNKNOWN` — `422` on any other value), `date`, `from`, `to`, `limit` (1–5000, default 500), `after` | Trading credential only; scoped to the caller's `gateway_id` |
 | `GET /history/orders/{order_id}` | none (path parameter only) | Trading credential only; full lifecycle for one order, scoped to the caller's `gateway_id`; **unbounded and unpaginated** — see the Pagination exceptions note below |
 | `GET /history/fills` | `symbol`, `date`, `from`, `to`, `limit`, `after` | Trading credential only; `event_type=FILL` events for the caller's `gateway_id` |
 | `GET /history/trades` | `symbol`, `date`, `from`, `to`, `limit`, `after` | Public trade tape |
@@ -872,7 +879,7 @@ Callers without the ADMIN role receive `403` with error code `ROLE_DENIED`.
     caches the ADMIN role from the engine's gateway list reply, so the first
     admin call performs one extra engine round-trip.
 
-| Method | Path                              | Request body                                | Response                                        | Engine topic                |
+| Method | Path                              | Request body (POST) / query params (GET)    | Response                                        | Engine topic                |
 |--------|-----------------------------------|---------------------------------------------|-------------------------------------------------|-----------------------------|
 | `POST` | `/admin/session/transition`       | `{ "to_state": "CONTINUOUS" }`              | `{ "requested_state": ..., "status":"PENDING" }`| `session.transition`        |
 | `GET`  | `/admin/session/schedule`         | none                                        | `{ "sessions_enabled":..., "schedule":{...} }`  | `system.session_schedule_request` |
@@ -882,6 +889,7 @@ Callers without the ADMIN role receive `403` with error code `ROLE_DENIED`.
 | `POST` | `/admin/circuit-breaker/resume`   | `{ "symbol":"AAPL", "reason":null }`        | engine resume ack                               | `risk.symbol_resume`        |
 | `GET`  | `/admin/halts`                    | none                                        | `{ "halted":[{symbol,resume_at_ns?,level?,...}] }` | `system.halt_status_request` |
 | `GET`  | `/admin/risk/state`               | none                                        | `{ "symbols": [{symbol, collar_reference_price?, circuit_breaker?}] }` | `system.risk_state_request` |
+| `GET`  | `/admin/positions`                | `?gateway_id=`                              | `{ "gateway_id":..., "count":N, "positions":[{symbol,net_qty,avg_cost}] }` | `system.position_request` |
 | `GET`  | `/admin/orders`                   | `?symbol=&gateway_id=&status=`              | `{ "count":N, "orders":[...], "retention_sec":N }` | none — served from cache |
 | `GET`  | `/admin/orders/{order_id}`        | `?limit=`                                   | `{ "order_id":..., "count":N, "events":[...] }` | none — read from `audit_index.db` |
 | `POST` | `/admin/kill-switch/symbol`       | `{ "symbol":"AAPL", "reason":null }`        | engine cancel-symbol ack                        | `risk.cancel_symbol`        |
@@ -954,8 +962,9 @@ either configured, halted or not:
 
 ```json
 {
-  "symbols": {
-    "AAPL": {
+  "symbols": [
+    {
+      "symbol": "AAPL",
       "collar_reference_price": 150.25,
       "circuit_breaker": {
         "halted": false,
@@ -963,11 +972,13 @@ either configured, halted or not:
         "trigger_price": null,
         "triggered_level": null,
         "expansion_index": 0,
-        "corridor": { "corridor_low": null, "corridor_high": null, "expansion": null },
+        "corridor_low": null,
+        "corridor_high": null,
+        "corridor_expansion": null,
         "resume_at_ns": null
       }
     }
-  }
+  ]
 }
 ```
 
@@ -1925,6 +1936,7 @@ MARKET\_MAKER key for `/bootstrap/mm`; ADMIN role for `/bootstrap/admin`.
 | `POST /api/v1/kill-switch` | Alias of mass-cancel |
 | `GET /api/v1/symbols` | Instrument metadata |
 | `GET /api/v1/session` | Current session state |
+| `GET /api/v1/halts` | Currently-halted symbols (trading credential; same data as the admin endpoint, no role gate) |
 | `GET /api/v1/status` | Gateway cache summary |
 | `GET /api/v1/healthz` | Liveness probe |
 
@@ -1971,6 +1983,7 @@ MARKET\_MAKER key for `/bootstrap/mm`; ADMIN role for `/bootstrap/admin`.
 | `POST /api/v1/admin/circuit-breaker/trigger` | Halt a symbol |
 | `POST /api/v1/admin/circuit-breaker/resume` | Resume a symbol |
 | `GET /api/v1/admin/halts` | Active halts table |
+| `GET /api/v1/admin/positions` | Any gateway's positions (net qty + avg cost); distinct from `GET /positions`, which is own-gateway only and has no avg_cost |
 | `GET /api/v1/admin/risk/state` | Live risk state |
 | `GET /api/v1/admin/orders` | Cross-gateway active orders |
 | `GET /api/v1/admin/orders/{order_id}` | Cross-gateway order lifecycle |

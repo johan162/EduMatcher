@@ -386,22 +386,13 @@ print_step_colored ""
 print_step_colored "🧪 PHASE 2: STATIC ANALYSIS WITH FLAKE8, MYPY, AND BLACK"
 print_step_colored ""
 
-# # Step 2.1: Code formatting check with black
-# run_command "poetry run black --check --diff src/ tests/" "Checking code formatting with black"
+# Step 2.1: Generate shell completion scripts and update messages
+print_sub_step "Generating shell completion scripts and updating messages"
+run_command "make completion" "Generating shell completion scripts"
+run_command "make msgen" "Update messages and documentation"
 
-# # Step 2.2: Static analysis with flake8
-# run_command "poetry run flake8 src/${PROGRAMNAME} tests/" "Running flake8 static analysis"
-
-# # Step 2.3: Type checking with mypy
-# run_command "poetry run mypy src/ tests/ --strict --ignore-missing-imports" "Running mypy type checking"
-
-# # Step 2.4: Run pyright for additional static analysis (optional, can be added if pyright is set up)
-# if command -v pyright >/dev/null 2>&1; then
-#     run_command "poetry run pyright src/ tests/" "Running pyright static analysis"
-# else
-#     print_warning "Pyright not found, skipping pyright static analysis. Install with 'pip install pyright' for enhanced linting."
-# fi
-
+# Step 2.2: Run static analysis and formatting checks
+print_sub_step "Running static analysis and formatting checks"
 run_command "make check" "Running static analysis and formatting checks with Makefile"
 
 
@@ -543,10 +534,13 @@ if [ "$NO_DOCS" = false ]; then
             "make -C docs -j4 pdf-training" \
             "Building Training Guide PDFs (v${VERSION}) with Makefile"
 
-        run_parallel_commands3 \
-            "make -C docs -j16 chapters-pdf" "Building User Guide Chapters PDF bundle" \
-            "make -C docs epub-docs" "Building User Guide EPUB" \
+        run_parallel_commands2 \
+            "make -C docs -j20 chapters-pdf" "Building User Guide Chapters PDF bundle" \
             "make -C docs-exchange-intro epub-docs" "Building Exchange Intro EPUB"
+
+        run_parallel_commands2 \
+            "make -C docs epub-docs" "Building User Guide EPUB" \
+            "make -C docs epub-training" "Building Training Guide EPUB"
     else
         if [ "$BUILD_EXCHANGE_INTRO_PDF" = true ]; then
             print_sub_step "Building Exchange Intro Booklet"
@@ -561,8 +555,10 @@ if [ "$NO_DOCS" = false ]; then
                 "make -C docs -j4 pdf-training" \
                 "Building Training Guide PDFs (v${VERSION}) with Makefile"
 
-            run_command "make -C docs -j16 chapters-pdf" "Building User Guide Chapters PDF bundle"
-            run_command "make -C docs epub-docs" "Building User Guide EPUB"
+            run_command "make -C docs -j20 chapters-pdf" "Building User Guide Chapters PDF bundle"
+            run_parallel_commands2 \
+                "make -C docs epub-docs" "Building User Guide EPUB" \
+                "make -C docs epub-training" "Building Training Guide EPUB"
         fi
     fi
     

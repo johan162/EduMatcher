@@ -193,10 +193,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--drop-copy",
         action="store_true",
-        help="Enable drop-copy relay on startup (equivalent to sending DC|ON "
-        "immediately after connecting). Default: off. Can also be toggled "
-        "at runtime with the DC|ON / DC|OFF command. See "
-        "docs/user-guide/200-drop-copy.md",
+        help="Enable drop-copy relay on startup (equivalent to sending "
+        "DC|STATE=ON immediately after connecting). Default: off. Can also "
+        "be toggled at runtime with the DC|STATE=ON / DC|STATE=OFF command. "
+        "See docs/user-guide/200-drop-copy.md",
     )
     parser.add_argument(
         "--log-level",
@@ -391,7 +391,7 @@ class Gateway:
         # Separate SUB socket for the engine's drop-copy feed (:5557),
         # distinct from sub_sock (:5556) -- a different ZMQ PUB address, not
         # just a different topic namespace. No topic is subscribed until
-        # DC|ON (or --drop-copy at startup) -- see _set_drop_copy().
+        # DC|STATE=ON (or --drop-copy at startup) -- see _set_drop_copy().
         self._dc_sub_sock = make_subscriber(DROP_COPY_PUB_ADDR)
         self._dc_topic = topic_drop_copy_event(self.gateway_id).encode()
         self._auth_reason: str = ""

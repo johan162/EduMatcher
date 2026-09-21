@@ -48,23 +48,24 @@ admission-path controls:
 
 ```mermaid
 flowchart TD
-    A([Incoming order]) --> B{Symbol halted?}
-    B -- Yes --> C{Order type?}
-    C -- MARKET / FOK / IOC --> REJ1([Reject: SYM is halted —\nTYPE orders rejected during\ncircuit breaker halt])
-    C -- LIMIT / ICEBERG --> REST([Accept \u2014 rest on book,\nno matching sweep])
-    B -- No --> OL{Order limits\nconfigured?}
+    A([Incoming order]) --> OL{Order limits\nconfigured?}
     OL -- Yes --> OLQ{Qty within\nmax_order_qty?}
     OLQ -- No --> REJQ([Reject: MAX_ORDER_QTY])
     OLQ -- Yes --> OLV{Notional within\nmax_order_value?\npriced orders only}
     OLV -- No --> REJV([Reject: MAX_ORDER_VALUE])
-    OLV -- Yes --> D
-    OL -- No --> D
+    OLV -- Yes --> B
+    OL -- No --> B
+    B{Symbol halted?}
+    B -- Yes --> C{Order type?}
+    C -- MARKET / FOK / IOC --> REJ1([Reject: SYM is halted —\nTYPE orders rejected during\ncircuit breaker halt])
+    C -- LIMIT / ICEBERG --> REST([Accept \u2014 rest on book,\nno matching sweep])
+    B -- No --> D
     D{Collar\nconfigured?}
     D -- Yes --> E{Price within\nstatic band?}
-    E -- No --> REJ2([Reject: STATIC_COLLAR_BREACH])
+    E -- No --> REJ2([Reject: COLLAR_BREACH\nreason STATIC_COLLAR_BREACH: ...])
     E -- Yes --> F{Last trade\nprice known?}
     F -- Yes --> G{Price within\ndynamic band?}
-    G -- No --> REJ3([Reject: DYNAMIC_COLLAR_BREACH])
+    G -- No --> REJ3([Reject: COLLAR_BREACH\nreason DYNAMIC_COLLAR_BREACH: ...])
     G -- Yes --> MATCH
     F -- No --> MATCH
     D -- No --> MATCH([Accept \u2014 enter matching engine])
@@ -210,9 +211,11 @@ static band is checked first.
 validate_collar(price, collar, last_trade_price) → CollarResult
 ```
 
-1. If `price < static_lower` or `price > static_upper` → `STATIC_COLLAR_BREACH`
+1. If `price < static_lower` or `price > static_upper` → rejected with reject code
+   `COLLAR_BREACH` and a reason starting `STATIC_COLLAR_BREACH:`
 2. If `last_trade_price` is known and `price < dynamic_lower` or
-   `price > dynamic_upper` → `DYNAMIC_COLLAR_BREACH`
+   `price > dynamic_upper` → rejected with reject code `COLLAR_BREACH` and a
+   reason starting `DYNAMIC_COLLAR_BREACH:`
 3. Otherwise → accepted
 
 The dynamic check is skipped when `last_trade_price` is `None` (no trade has
@@ -544,7 +547,10 @@ same equilibrium-price algorithm used for scheduled auctions — and publishes
 an `auction.result.{symbol}` carrying `reason: "REOPEN"` before the resume
 event.
 
-This is unconditional and there is no setting that skips it. Crossed interest
+For a timed (circuit-breaker or level-named operator) halt this is
+unconditional and there is no setting that skips it. (A plain operator
+`risk.symbol_resume` / `risk.circuit_breaker_resume_all` only clears the halt
+and does not uncross.) Crossed interest
 accumulates for the whole halt, so resuming straight into continuous matching
 would begin on a crossed book. If nothing crossed, `compute_equilibrium()`
 finds no equilibrium price and the uncross is a no-op, indistinguishable from
@@ -657,8 +663,8 @@ ACE widens indefinitely, so on its own it never terminates — a symbol whose
 indicative price runs away could in principle extend past the close. The end
 of the trading day supplies the terminating condition.
 
-On the transition to `CLOSED`, `_run_closing_backstop()` forces every symbol
-still halted to resolve:
+On the transition to `CLOSED`, `_run_closing_backstop()` forces every halted symbol
+that has a circuit breaker configured to resolve:
 
 1. The indicative price is computed one final time.
 2. **Inside the corridor** → it prints there, as a normal reopen would.
@@ -698,7 +704,7 @@ CIRCUIT BREAKER RESUME ABC: after 2 ACE extension(s)
 and at the close:
 
 ```
-CLOSING BACKSTOP ABC: indicative=12200 ticks outside [9000, 11000] -> clamped to 11000 (BUY imbalance), after 1 ACE extension(s)
+CLOSING BACKSTOP ABC: indicative=12200 ticks outside [8000, 12000] -> clamped to 12000 (BUY imbalance), after 1 ACE extension(s)
 ```
 
 On the wire, `circuit_breaker.halt.{symbol}` and the new
@@ -754,7 +760,7 @@ symbols:
 For each trade, the engine computes:
 
 $$
-	ext{price\_shift} = \frac{|\text{trade\_price} - \text{reference\_price}|}{\text{reference\_price}}
+\text{price\_shift} = \frac{|\text{trade\_price} - \text{reference\_price}|}{\text{reference\_price}}
 $$
 
 The highest level where `price_shift >= price_shift_pct` fires.
@@ -763,7 +769,7 @@ The highest level where `price_shift >= price_shift_pct` fires.
 |---|---|---|---|
 | `reference_window_ns` | int | `300_000_000_000` | Lookback window for rolling reference price |
 | `levels.<L>.price_shift_pct` | float | required | Trigger threshold fraction in `(0, 1)` |
-| `levels.<L>.halt_duration_ns` | int or null | required | *Minimum* length of the reopening call phase in ns, or `null` for rest-of-day |
+| `levels.<L>.halt_duration_ns` | int or null | optional; omitted or `null` = rest of day | *Minimum* length of the reopening call phase in ns, or `null` for rest-of-day |
 | `reopening.enabled` | bool | `true` | Apply ACE. When false, a halt reopens at the equilibrium price uncollared |
 | `reopening.initial_band_pct` | float | `0.10` | Corridor half-width in `(0, 1)`, as a fraction of the reference price |
 | `reopening.expansions` | list | Nasdaq ladder | Rungs of `{widen_pct, min_duration_ns}`. **The last rung repeats indefinitely** |
@@ -818,7 +824,7 @@ different points in the flow and for different failure modes.
 | Trigger moment | Before matching (order admission) | After a trade is executed |
 | Data checked | Incoming order price vs static/dynamic bands | Trade price shift vs rolling reference |
 | Scope of effect | Single incoming order | Entire symbol |
-| Typical action | Reject offending order (`STATIC_COLLAR_BREACH` or `DYNAMIC_COLLAR_BREACH`) | Halt symbol, cancel MM quotes, schedule/manual resume |
+| Typical action | Reject offending order (code `COLLAR_BREACH`, reason `STATIC_COLLAR_BREACH: …` or `DYNAMIC_COLLAR_BREACH: …`) | Halt symbol, cancel MM quotes, schedule/manual resume |
 | Market state after trigger | Symbol keeps trading for other valid orders | Symbol is halted until resume condition is met |
 | Configuration anchor | `symbols.<SYM>.collar` (or inherited level defaults) | `circuit_breaker_defaults` + `symbols.<SYM>.circuit_breaker` overrides |
 | Primary objective | Prevent fat-finger / outlier order entry | Pause disorderly market after extreme realized move |
@@ -841,15 +847,20 @@ For field-level schema and merge precedence details, see
 
 ##  Interaction between mechanisms
 
-All three admission-path controls can be active simultaneously on the same
+All the admission-path controls can be active simultaneously on the same
 symbol.  The engine applies them in this order for every incoming order:
 
 ```
-1. Is the symbol halted?           → reject MARKET/FOK/IOC; suppress matching for LIMIT
-2. Is a collar configured?         → validate price against static and dynamic bands
-3. (After match) Did a trade fire
+1. Order size / notional limits    → reject MAX_ORDER_QTY / MAX_ORDER_VALUE
+2. Session state (if enabled)      → reject "Market is closed" outside order-accepting phases
+3. Is the symbol halted?           → reject MARKET/FOK/IOC; suppress matching for LIMIT
+4. Is a collar configured?         → validate price against static and dynamic bands
+5. (After match) Did a trade fire
    a circuit breaker?              → halt symbol, schedule resume
 ```
+
+Because limits run first, an oversized MARKET order on a halted symbol is
+rejected with `MAX_ORDER_QTY`, not with the halt reason.
 
 A circuit breaker halt feeds back into step 1: any subsequent orders on a
 circuit-breaker-halted symbol are subject to the same halt rules as an
@@ -861,13 +872,13 @@ operator-initiated halt.
 Opening reference price: 10000 ticks (100.00 in display)
   → also seeds the CB's rolling trade_history as a single baseline point
 Static collar:   ±20%  → [8000, 12000] ticks
-Dynamic collar:  ±2%   → depends on last trade
+Dynamic collar:  ±10%  → depends on last trade
 CB levels:       L1=7%, L2=13%, L3=20%
 
 A limit sell order arrives at price 7500 ticks:
   → Static collar: 7500 < 8000 → STATIC_COLLAR_BREACH → rejected
 
-A limit buy at 10100 ticks trades.
+A limit buy at 10100 ticks trades (no trade yet, so only the static band applies).
   → CB reference = history average BEFORE this trade = 10000 (seed only)
   → deviation = |10100 - 10000| / 10000 = 1.0% < L1 (7%) → no halt
   → history becomes [10000, 10100] (sum=20100, len=2)
@@ -881,10 +892,12 @@ A limit buy at 11000 ticks trades.
   → CB reference = 30800 // 3 = 10266 (floor division)
   → deviation = |11000 - 10266| / 10266 ≈ 7.1% ≥ L1 (7%)
   → L1 circuit breaker fires, symbol halted for L1 duration (5 min default);
-    resume always runs a reopening uncross for the symbol
+    the timed resume runs a reopening uncross for the symbol
 
-Separately, suppose a later session's rolling reference has settled at 10100
-and a limit buy at 12200 ticks trades:
+Separately, suppose the collars have been widened (say static ±30%, dynamic
+±25%) so that a 12200-tick order can reach the matching engine at all, and a
+later session's rolling reference has settled at 10100 when a limit buy at
+12200 ticks trades:
   → deviation = |12200 - 10100| / 10100 ≈ 20.8% ≥ L3 (20%)
   → L3 circuit breaker fires, symbol halted for rest of trading day
   → next order at this symbol: if MARKET → rejected; if LIMIT → accepted, no match
@@ -901,7 +914,7 @@ What the gateway operator sees when a collar rejects an order:
 
 ```text
 [TRADER01]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=75.00
-[14:02:00.301] ORDER REJECTED  reason="STATIC_COLLAR_BREACH"
+[14:02:00.301] REJECTED  <order-id> code=COLLAR_BREACH  STATIC_COLLAR_BREACH: price 7500 ticks is outside [8000, 12000] ticks (±20% from reference 10000)
 ```
 
 
@@ -1012,9 +1025,12 @@ for the full permissions matrix.
 !!! note "Not available from the ALF terminal"
     The ALF console (`pm-alf-console`) only exposes `KILL` for risk actions —
     it has no `HALT`/`RESUME`/`CANCEL_SYM` command. To trigger an exchange-wide
-    halt, a per-symbol halt/resume, or a symbol-level mass cancel, send the raw
-    ZMQ frames shown below directly, or use the REST admin endpoints described
-    in [API Gateway](260-api-gateway.md).
+    halt, a per-symbol halt/resume, or a symbol-level mass cancel, use the ADMIN
+    operator console `pm-admin --id GW_ADMIN` (`HALT`, `RESUME`,
+    `HALT_SYM|SYM=`, `RESUME_SYM|SYM=`, `CANCEL_SYM|SYM=`,
+    `REOPEN|SYM=[|PRICE=][|DRY_RUN=1]`, `KILL|GW=[|SYM=]`), send the raw ZMQ
+    frames shown below directly, or use the REST admin endpoints described in
+    [API Gateway](260-api-gateway.md).
 
 
 
@@ -1198,6 +1214,14 @@ Frame 0 (topic):   b"risk.symbol_halt"
 Frame 1 (payload): {"gateway_id": "GW_ADMIN", "symbol": "AAPL"}
 ```
 
+The payload accepts an optional `"level"` naming one of the symbol's configured
+circuit-breaker levels (e.g. `"L1"`). The halt then runs through the same state
+machine as a price-triggered halt: it gets a timed call phase and ACE corridor,
+`halt_source` stays `ADMIN`, and it ends with a reopening uncross. Without
+`level` the halt is indefinite (`ADMIN_SYMBOL`) and is cleared only by an
+explicit resume. Extra rejects for `level`: `"<SYMBOL> has no circuit breaker
+configured"` and `"Unknown circuit-breaker level for <SYMBOL>: <LEVEL>"`.
+
 What the engine does:
 
 1. Verifies `GW_ADMIN` is connected and carries role `ADMIN`; rejects with
@@ -1213,11 +1237,12 @@ What the engine does:
    `{"accepted": true, "symbol": "AAPL", "reason": "", "cancelled_quotes": <count>,
    "cancelled_quote_order_ids": [<the cancelled legs' order ids>]}`.
 
-`risk.symbol_resume` mirrors this: it requires `ADMIN` role (rejecting with
+`risk.symbol_resume` mirrors this (note that an operator resume does **not** run
+an uncross — use `REOPEN` in `pm-admin` to uncross and clear the halt in one
+step): it requires `ADMIN` role (rejecting with
 `"Per-symbol resume is only allowed for ADMIN participants"`), rejects with
 `"<SYMBOL> is not halted"` if the symbol isn't currently halted, otherwise
-clears the halt, deactivates the circuit breaker state, runs the same
-unconditional uncross as an automatic resume, publishes
+clears the halt, deactivates the circuit breaker state, publishes
 `circuit_breaker.resume.<SYMBOL>` with `"halt_source": "ADMIN"`, and acks on
 `risk.symbol_resume_ack.<GW_ADMIN>` with `{"accepted": true, "symbol": "AAPL", "reason": ""}`.
 
@@ -1322,14 +1347,18 @@ payload: {
 | Requires ADMIN role | No                      | No when auto-triggered by a circuit breaker; **Yes** for an operator-initiated halt, whether per-symbol (`risk.symbol_halt`) or exchange-wide (`risk.circuit_breaker_halt_all`) |
 | Auto-resume         | Not applicable          | Yes (CB) / Manual (operator)         |
 
-!!! note "No cross-gateway kill switch"
-    A kill switch always targets a single gateway.  There is no command to
-    cancel all orders across *all* gateways at once — use a per-symbol
+!!! note "Cross-gateway kill switches need ADMIN"
+    A gateway's own kill switch targets only that gateway.  An `ADMIN`
+    gateway can additionally cancel another gateway's exposure with
+    `risk.kill_switch_gateway` (REST: `POST /admin/kill-switch/gateway`), or
+    every resting order and quote on the exchange with
+    `risk.kill_switch_global` (REST: `POST /admin/kill-switch/global`); both
+    reject non-ADMIN callers. `pm-admin` exposes `KILL|GW=<gw>[|SYM=<sym>]`.
+    To stop trading rather than clear the book, use a per-symbol
     `risk.symbol_halt` or an exchange-wide `risk.circuit_breaker_halt_all`
-    (both require ADMIN role) to stop trading, or `risk.cancel_symbol`
-    (ADMIN role, see [Symbol-level mass cancel](#symbol-level-mass-cancel))
-    to clear resting interest for a symbol across every gateway without a
-    kill switch's single-gateway scope.
+    (both ADMIN), or `risk.cancel_symbol` (ADMIN, see
+    [Symbol-level mass cancel](#symbol-level-mass-cancel)) to clear resting
+    interest for a symbol across every gateway.
 
 
 
@@ -1438,9 +1467,10 @@ quantity that SMP would skip or cancel does not count as eligible liquidity:
    cannot fill completely. SMP is then resolved the same way a sweep would
    have resolved it — `CANCEL_RESTING`/`CANCEL_BOTH` cancel the conflicting
    resting orders; `CANCEL_AGGRESSOR`/`CANCEL_BOTH` cancel the FOK itself —
-   and the order is finalised as `CANCELLED` if a same-gateway conflict was
-   the cause, or plainly `REJECTED` if the shortfall is genuine (no
-   same-gateway liquidity involved).
+   and the FOK is finalised as `CANCELLED` (`SELF_MATCH_PREVENTED`) only for
+   `CANCEL_AGGRESSOR`/`CANCEL_BOTH` with a same-gateway conflict; otherwise —
+   including `CANCEL_RESTING`, and a genuine shortfall with no same-gateway
+   liquidity involved — it is `REJECTED`.
 3. Only if eligible liquidity is sufficient does the FOK proceed into the
    normal sweep, which then also enforces SMP level by level as above (a
    defensive safety net; the pre-check should already guarantee the sweep
@@ -1454,15 +1484,11 @@ never cause a partial fill.
 When SMP cancels a resting order, that order transitions to `CANCELLED` like
 any other cancellation and the owning gateway receives a normal
 `order.cancelled.{GW_ID}` message — there is no separate SMP-specific wire
-message. On the binary BALF protocol, a system-cancelled order additionally
-carries `cancel_reason = 1` ("SMP") in the `EXECUTION_REPORT` so a
-programmatic client can distinguish an SMP cancel from a plain client cancel
-or a session-end/expiry cancel without needing to correlate against its own
-`NEW` history — see
-[BALF Protocol Reference — `EXECUTION_REPORT`](910-app-balf-protocol.md#execution_report-0x20-server-client).
-ALF (text) and REST clients only see the resulting `order.cancelled` /
-`CANCELLED` event and infer the cause from context (a same-gateway order that
-was resting a moment earlier is now gone).
+message. On the binary BALF protocol, a system-originated cancel is delivered as a
+`CANCEL_ACK` with `cancel_reason = 255` (system); an SMP cancel cannot be
+distinguished there from a session-end or expiry cancel. ALF (text) clients
+receive `CANCEL_REASON=SELF_MATCH_PREVENTED` on the cancelled event, and REST
+WebSocket clients receive a `cancel_reason` field (see above).
 
 ### Two ways to specify `smp_action`
 
@@ -1547,7 +1573,7 @@ Not every order-entry path exposes its own `SMP=` field:
 | ALF `NEW` (single order) | Yes | Explicit value, else gateway default, else `NONE` |
 | ALF `NEW\|TYPE=COMBO` | Yes — but **one `SMP=` value for the whole combo**, applied identically to every leg (no `LEG<i>.SMP`) | Explicit value applied to all legs, else gateway default applied to all legs, else `NONE` |
 | BALF `NEW_ORDER` | Yes (`smp` byte is mandatory in the fixed frame — see note below) | Always the value on the wire — see [BALF Protocol Reference — `NEW_ORDER`](910-app-balf-protocol.md#new_order-0x10-client-server) |
-| REST `OrderRequest` / `ComboRequest` | Yes (JSON field, optional; `ComboRequest.legs[]` allows a **different value per leg**) | Explicit value, else gateway default, else `NONE` — resolved independently per leg for combos |
+| REST `OrderRequest` / `ComboRequest` | Yes (JSON field, optional; on a `ComboRequest` it is **one top-level `smp_action` for the whole combo**, applied to every leg) | Explicit value, else gateway default, else `NONE` |
 | Market-maker `QUOTE` (both `pm-mm-bot` and the REST quoting endpoint) | **No** — quotes have no per-request SMP field | Always `gateways.alf[].smp_action`, else `NONE` |
 | `market_maker_combos[].legs[]` config-seeded combo | Optional `smp_action` key, settable **per leg** | Explicit per-leg value, else gateway default, else `NONE` — resolved independently per leg |
 
@@ -1635,29 +1661,28 @@ per-leg `LEG<i>.SMP` — the parsed value (or, if `SMP=` is omitted entirely,
 the `None` sentinel) is applied identically to every leg's `ComboLeg`. Here
 `CANCEL_BOTH` applies to both `LEG0` and `LEG1`.
 
-**Example 5 — combo submitted via REST: per-leg override.**
+**Example 5 — combo submitted via REST: combo-level `smp_action`.**
 
-The REST `ComboRequest` schema and the `market_maker_combos[].legs[]` config
-seed path are less restrictive: each leg carries its own optional
-`smp_action`, resolved independently.
+The REST `ComboRequest` carries a single top-level `smp_action` (legs have no
+`smp_action` field; the schema rejects unknown keys), applied to every leg. Only
+the `market_maker_combos[].legs[]` config-seed path allows a per-leg value.
 
 ```json
 {
   "combo_id": "spread-1",
   "combo_type": "AON",
   "tif": "DAY",
+  "smp_action": "NONE",
   "legs": [
-    {"symbol": "AAPL", "side": "BUY",  "quantity": 100, "price": 150.00, "smp_action": "NONE"},
+    {"symbol": "AAPL", "side": "BUY",  "quantity": 100, "price": 150.00},
     {"symbol": "MSFT", "side": "SELL", "quantity": 50,  "price": 400.00}
   ]
 }
 ```
 
-`AAPL`'s leg explicitly sets `smp_action: "NONE"` and keeps it, regardless
-of `TRADER01`'s gateway default. `MSFT`'s leg omits `smp_action` entirely
-and falls back to `TRADER01`'s `gateways.alf[].smp_action` independently —
-each leg resolves on its own in this path, unlike the single combo-wide
-value on the ALF text protocol.
+`smp_action: "NONE"` applies to both legs, regardless of `TRADER01`'s gateway
+default. Omitting the field would make every leg fall back to `TRADER01`'s
+`gateways.alf[].smp_action` (else `NONE`).
 
 ### SMP and the other risk controls
 
@@ -1708,7 +1733,7 @@ When a symbol resumes, market makers are expected to submit fresh quotes at upda
 - [Configuration](010-configuration.md) — full `engine_config.yaml` reference including collar, CB ladder, and `smp_action` config
 - [Order Types](060-order-types.md) — how different order types behave under halt, and how SMP interacts with each type's sweep
 - [Drop Copy](200-drop-copy.md) — how fill events are forwarded to risk systems
-- [Auctions & Session Scheduling](080-session-scheduling.md) — the equilibrium-price uncross algorithm that circuit-breaker resumption always runs
+- [Auctions & Session Scheduling](080-session-scheduling.md) — the equilibrium-price uncross algorithm that timed circuit-breaker resumption always runs
 - [ALF Console](055-alf-console.md) — `KILL` command for triggering the kill switch via the ALF terminal, and the `NEW`/`COMBO` `SMP=` field
 - [Combos](070-combo-orders.md) — per-leg `SMP=` on multi-leg orders
 - [Market-Maker Bot](100-mm-bot.md) — why quoting gateways rely entirely on the `smp_action` gateway default

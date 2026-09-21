@@ -72,8 +72,12 @@ calling `run()` do not bind a ZMQ socket.
 | Engine PUB    | `tcp://127.0.0.1:5556` | Engine broadcasts book snapshots, trades, etc. |
 | Drop copy PUB | `tcp://127.0.0.1:5557` | Engine broadcasts fill events to risk systems  |
 
-The drop copy address is configurable via `DROP_COPY_PUB_ADDR` in
-`src/edumatcher/config.py`.
+The engine actually **binds** this socket to `DROP_COPY_PUB_BIND_ADDR` in
+`src/edumatcher/config.py` (driven by `EDUMATCHER_ENGINE_BIND_HOST`).
+`DROP_COPY_PUB_ADDR` is a separate, connect-side constant (driven by
+`EDUMATCHER_ENGINE_HOST`) that consumers such as `pm-dc-gwy` and `pm-dc-spy`
+use to *reach* the engine — editing it does not change where the engine
+listens.
 
 !!! warning "No authentication or entitlement checks"
     The drop copy PUB socket performs no authentication, and there is no
@@ -106,7 +110,7 @@ Payloads are serialized with `orjson` when it is installed (the normal case);
 | `gateway_id`         | str    | ID of the gateway that submitted the order                           |
 | `event_type`         | str    | Type of event (currently `"order.fill"`)                             |
 | `order_id`           | str    | The order this execution belongs to                                  |
-| `trade_ids`          | list[str] | Public `trade.executed` ID for this execution                       |
+| `trade_ids`          | list[str] | Public `trade.executed` ID(s) for this execution — one today, kept as a list for parity with coalesced `order.fill` messages |
 | `symbol`             | str    | Instrument ticker                                                    |
 | `fill_qty`           | int    | Executed quantity                                                    |
 | `fill_price`         | float  | Display money, not ticks                                             |
@@ -268,11 +272,14 @@ which releases the ZMQ socket cleanly.
 
 ```yaml
 # engine_config.yaml — no explicit drop copy section needed
-# The drop copy address is controlled in src/edumatcher/config.py:
-#   DROP_COPY_PUB_ADDR = "tcp://127.0.0.1:5557"
+# The engine's bind address is controlled in src/edumatcher/config.py:
+#   DROP_COPY_PUB_BIND_ADDR = "tcp://0.0.0.0:5557"  (via EDUMATCHER_ENGINE_BIND_HOST)
+# Consumers connect via the separate DROP_COPY_PUB_ADDR constant
+# (via EDUMATCHER_ENGINE_HOST), which must resolve to the same port.
 ```
 
-To change the drop copy port, edit `DROP_COPY_PUB_ADDR` in `config.py`.
+To change the drop copy port, edit `DROP_COPY_PUB_BIND_ADDR` (and keep
+`DROP_COPY_PUB_ADDR` in sync for consumers) in `config.py`.
 
 
 

@@ -121,7 +121,7 @@ can connect to `pm-alf-gwy`.
 | `port` | `5565` | TCP listen port |
 | `heartbeat_interval_sec` | `5` | Seconds between `HB` lines when no other outbound traffic |
 | `handshake_timeout_sec` | `10` | Disconnect a connection that hasn't sent `HELLO` within this many seconds |
-| `idle_timeout_sec` | `30` | Disconnect after this many seconds of inbound silence |
+| `idle_timeout_sec` | `30` | Disconnect after this many seconds of inbound silence. This default applies only when an `alf_gateway:` section is present but omits the key; if the section is absent entirely, the effective default is `3600` |
 | `max_connections` | `64` | Maximum simultaneous TCP connections |
 | `max_client_queue` | `10000` | Per-client outbound line buffer capacity |
 | `max_commands_per_second` | `100` | Token-bucket rate limit per client |
@@ -236,7 +236,7 @@ HELLO|CLIENT=mybot|PROTO=ALF1|ID=TRADER01
 |-------|----------|-------|
 | `CLIENT` | Yes | Free-text label for logging (max 32 chars) |
 | `PROTO` | Yes | Must be exactly `ALF1` |
-| `ID` | Yes | Gateway ID that must be in `gateways.alf` in config |
+| `ID` | Yes | Gateway ID that must be in `gateways.alf` in config; max 32 characters (connection closed with `INVALID_VALUE` if exceeded) |
 
 On any other first line the gateway sends `ERR|CODE=AUTH_REQUIRED|...` and closes
 the connection.
@@ -313,7 +313,7 @@ NEW|TYPE=COMBO|COMBO_ID=spread-1|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAP
 | `TRAIL` | conditional | Required for `TRAILING_STOP` |
 | `TIF` | optional | `DAY` (default), `GTC`, `ATO`, `ATC` |
 | `SMP` | optional | `NONE` (default), `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` |
-| `TAG` | optional | Client order tag, max 64 chars; echoed on order lifecycle responses |
+| `TAG` | optional | Client order tag, max 64 chars, characters limited to `A-Z0-9-_.`; echoed on order lifecycle responses |
 
 **Responses:** `ACK|ORDER_ID=...|ACCEPTED=TRUE|...` or `ACK|ORDER_ID=...|ACCEPTED=FALSE|REJECT_CODE=...|REASON=...`
 followed asynchronously by `FILL|...`, `CANCELLED|...`, or `EXPIRED|...`.
@@ -566,8 +566,8 @@ POS|GW=MM_AAPL_01
 |-------|----------|---------|----------------------------------------------------------------|
 | `GW`  | Yes      | —       | The `gateway_id` to ask about — any connected gateway, not just your own |
 
-A bare `POS` (no `GW=`) is rejected with `ERR|CODE=UNKNOWN_COMMAND` — see
-[What this is not](#what-this-is-not) above.
+A bare `POS` (no `GW=`) is rejected with `ERR|CODE=MISSING_FIELD` (`POS
+requires GW=<gateway_id>`).
 
 `POS|GW=` forwards `system.position_request` for the given `gateway_id` to
 the engine and renders the engine's `system.position_snapshot.{gateway_id}`
@@ -636,7 +636,7 @@ These messages arrive **unsolicited** on every authenticated session.
 |---|---|---|
 | `SESSION` | `STATE`, `PREV_STATE` | Session phase change (e.g. `CONTINUOUS`, `CLOSED`). Also sent (with `PREV_STATE` empty and an added `SESSIONS_ENABLED` field) as a direct reply to the [`SESSION` command](#session-query-current-trading-session-state) |
 | `HALT` | `SYMBOL`, `LEVEL` | Circuit-breaker halt on a symbol |
-| `RESUME` | `SYMBOL`, `MODE` | Circuit-breaker resume |
+| `RESUME` | `SYMBOL`, `SRC` | Circuit-breaker resume; `SRC` is the halt source that triggered the original halt |
 | `TRADE` | `SYMBOL`, `PRICE`, `QTY`, `SIDE` | Any matched trade on any symbol |
 | `HB` | `TS` | Periodic heartbeat when no other outbound activity |
 
@@ -704,13 +704,17 @@ CANCELLED|ORDER_ID=ORD-7f3a|TAG=ORDER-001|CANCEL_REASON=SELF_MATCH_PREVENTED
 |---|---|
 | `SELF_MATCH_PREVENTED` | The order would have traded against another order from your own gateway. Which order is cancelled — the aggressor, the resting one, or both — follows the `SMP` action in force |
 | `INSUFFICIENT_LIQUIDITY` | A `MARKET` or `IOC` order ran out of book. Whatever traded is reported by the preceding `FILL` lines; this cancels the remainder, which never rests |
+| `KILL_SWITCH` | A gateway kill switch cancelled this order |
+| `CIRCUIT_BREAKER_HALT` | Cancelled as part of a circuit-breaker halt |
+| `GATEWAY_DISCONNECT` | Cancelled because the owning gateway session disconnected |
+| `ADMIN_CANCEL_SYMBOL` | An administrator cancelled all resting orders on this symbol |
+| `QUOTE_REPLACED` | A market-maker quote leg was superseded by a newer quote |
+| `QUOTE_LEG_FILLED` | The sibling leg of a two-sided quote was auto-cancelled because this leg filled |
 
-The field is **omitted, not empty**, when you requested the cancel yourself, and
-also on exchange-initiated cancels whose cause is not yet classified — a kill
-switch, a halt cascade, an expiry. So an absent `RTAG` together with an absent
-`CANCEL_REASON` still means *the exchange did this, cause unstated*. Treat a
-value you do not recognise the same way: new members may be added, but existing
-ones are never removed or renamed.
+The field is **omitted, not empty**, when you requested the cancel yourself.
+Treat a value you do not recognise the same way `RTAG`/`CANCEL_REASON` both
+absent is treated: new members may be added, but existing ones are never
+removed or renamed.
 
 `CANCEL_REASON` deliberately does not share the `REJECT_CODE` vocabulary. A
 cancel is not a rejection — the order was accepted, and may well have traded.
@@ -729,6 +733,7 @@ When the rejected command carried `TAG` or `RTAG`, the gateway also echoes it as
 | `AUTH_FAILED` | Engine rejected the gateway ID | No |
 | `PROTO_MISMATCH` | `HELLO` with wrong `PROTO` value | No |
 | `GATEWAY_ALREADY_CONNECTED` | Same gateway ID already has an active session | No |
+| `HELLO_ALREADY_PENDING` | A second `HELLO` arrives while an earlier one is still awaiting the engine's auth result | Yes |
 | `BAD_MESSAGE` | Empty line, non-UTF-8, or line > 4096 bytes | Yes |
 | `UNKNOWN_COMMAND` | Unrecognised command verb | Yes |
 | `MISSING_FIELD` | Required field absent | Yes |
@@ -740,6 +745,7 @@ When the rejected command carried `TAG` or `RTAG`, the gateway also echoes it as
 | `SLOW_CLIENT` | Outbound queue full | No |
 | `IDLE_TIMEOUT` | No inbound traffic for `idle_timeout_sec` | No |
 | `MAX_ERRORS` | Too many errors in the sliding error window | No |
+| `ENGINE_UNAVAILABLE` | Command could not be forwarded to the engine (engine unreachable); retry shortly | Yes |
 | `INTERNAL_ERROR` | Unexpected gateway-internal exception | Yes |
 
 !!! tip "Error escalation"

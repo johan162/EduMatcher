@@ -121,7 +121,7 @@ listed in `gateways.alf` can connect to `pm-balf-gwy`.
 | `port` | `5560` | TCP listen port |
 | `heartbeat_interval_sec` | `1` | Seconds between server-initiated `HEARTBEAT` frames |
 | `heartbeat_timeout_sec` | `5` | Disconnect if no inbound traffic for this many seconds |
-| `idle_timeout_sec` | `30` | Additional idle-session cleanup guard |
+| `idle_timeout_sec` | `30` | Accepted but currently unused by the gateway runtime (only `heartbeat_timeout_sec` drives idle-session disconnects); reserved for future use |
 | `auth_timeout_sec` | `10` | Hard-close if `LOGON` is not answered within this window |
 | `max_connections` | `64` | Maximum simultaneous TCP connections |
 | `max_client_queue` | `10000` | Per-client outbound frame buffer capacity |
@@ -160,7 +160,11 @@ CLI override options:
 | `--engine-host HOST` | from config | Override engine host (sets `tcp://HOST:5555` and `tcp://HOST:5556`) |
 | `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
-| `-q` / `--quiet` | off | Reduce output to warnings/errors |
+| `-q` / `--quiet` | off | Reduce output to warnings/errors — currently a no-op: the default log level is already `WARNING`, so `-q` changes nothing observable (a codebase-wide quirk, not specific to this gateway) |
+| `--version` | — | Print the installed `pm-balf-gwy` version and exit |
+| `--log-target` | auto | Where operational log records go: `server` (default, auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file PATH` | — | Operational log file path — required when `--log-target file` |
+| `--log-failover-timeout SECONDS` | `30` | Grace window before falling back to a local log file once `pm-log-srv` becomes unreachable |
 
 **Config file location**
 
@@ -404,11 +408,11 @@ When `ORDER_ACK.accepted = 0`, the `reject_code` byte classifies the rejection.
 | `0x04` | Market is closed |
 | `0x05` | ATO order outside opening auction |
 | `0x06` | ATC order outside closing auction |
-| `0x07` | Halt rejection (MARKET / FOK / IOC during circuit-breaker halt) |
+| `0x07` | Halt rejection (MARKET / FOK / IOC while the symbol is halted, by a circuit breaker or by an administrator — BALF has one code for both) |
 | `0x08` | Session-phase rejection |
 | `0x09` | Trailing stop — no prior trade price and no explicit STOP= |
 | `0x0A` | Insufficient liquidity |
-| `0x0B` | Price collar rejection |
+| `0x0B` | Price collar rejection (defined, but not currently reachable — see note below) |
 | `0x0C` | Invalid field / gateway validation failure |
 | `0xFF` | Other — read the `reason` field for the engine detail text |
 
@@ -436,7 +440,7 @@ Header:
 Body:
   01 00 00 00  00 00 00 00  |  client_order_id = 1
   41 50 50 4C  00 00 00 00  |  symbol = "AAPL\0\0\0\0"
-  00 10 28 65  03 00 00 00  |  price = 15_025_000_000
+  40 4e 8f 7f  03 00 00 00  |  price = 15_025_000_000
   00 00 00 00  00 00 00 00  |  stop_price = 0
   00 00 00 00  00 00 00 00  |  trail_offset = 0
   64 00 00 00                |  quantity = 100
@@ -527,7 +531,7 @@ A `CANCEL_ACK` may arrive because:
 A `AMEND_ACK` may arrive because:
 
 1. **Amend confirmed** — `accepted = 1`; `new_price`, `new_quantity`, `remaining_qty`, and `priority_reset` reflect the post-amend state
-2. **Amend rejected** — `accepted = 0`; `AMEND_ORDER` failed (e.g. unknown order, price unchanged)
+2. **Amend rejected** — `accepted = 0`; `AMEND_ORDER` failed (e.g. unknown order, or the amended price fails the tick grid or a price collar)
 
 !!! note "Cancel and amend correlation"
     The gateway correlates `CANCEL_ORDER` and `AMEND_ORDER` requests with the
@@ -553,7 +557,7 @@ Disconnect trigger classes:
 - Graceful client `LOGOUT`
 - Heartbeat timeout (`heartbeat_timeout_sec` without inbound traffic)
 - Transport break (TCP FIN / RST, peer closed)
-- Protocol safety disconnect (bad framing, unknown `msg_type`, non-zero reserved fields, outbound queue overflow, repeated errors)
+- Protocol safety disconnect (bad framing, unknown `msg_type`, outbound queue overflow, repeated errors). A non-zero `flags` byte is currently tolerated (logged, not rejected), not a disconnect trigger
 
 
 ## Duplicate session policy
