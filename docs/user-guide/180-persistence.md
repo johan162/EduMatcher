@@ -93,8 +93,8 @@ dedicated query tool.
 | `clearing.db` (SQLite) | `pm-clearing` | Per trade · on gateway connect/disconnect · at EOD | Positions, VWAP cost, realized/unrealized P&L, daily summaries, trade events, sessions | **`pm-clearing-cli`** or SQL — see [P&L & Clearing](130-pnl-clearing.md) |
 | `audit.log` | `pm-audit` | Continuously (buffered flush); rotates at 10 MB × 5 backups | Full chronological trail of every message on the bus | **`pm-audit-cli`** — see [Audit Trail](190-audit.md) |
 | `audit_index.db` (SQLite) | `pm-audit-cli` | On demand, when you run an indexed query | Fast lookup index built over `audit.log` | **`pm-audit-cli`** |
-| `indexes/<ID>_history.jsonl` | `pm-index` (triggered by [`pm-index-admin-cli`](152-index-admin-cli.md) for `CORP_ACTION`/`ADD_CONSTITUENT`/`DELIST`) | On structural events only (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`) | Structural/corporate-action audit trail — **not** level or EOD history (that lives in `stats.db`, written by `pm-stats`) | **`pm-index-cli`** (read-only) — see [Market Index](150-market-index.md) |
-| `indexes/<ID>_state.json` | `pm-index` | On each update | Persisted divisor + last levels so the index resumes correctly after a restart | JSON; loaded by `pm-index` at startup |
+| `indexes/<ID>_history.jsonl` | `pm-index` (triggered by [`pm-index-admin-cli`](152-index-admin-cli.md) for `CORP_ACTION`/`ADD_CONSTITUENT`/`DELIST`, or the API gateway's rebalance endpoint for `REBALANCE`) | On structural events only (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`, `REBALANCE`) | Structural/corporate-action audit trail — **not** level or EOD history (that lives in `stats.db`, written by `pm-stats`) | **`pm-index-cli`** (read-only) — see [Market Index](150-market-index.md) |
+| `indexes/<ID>_state.json` | `pm-index` | On startup, every trade update, EOD finalization, and every corporate action/constituent change (EOD does **not** also append to `_history.jsonl`) | Divisor, constituent list, per-symbol last prices, day OHLC and last level, so the index resumes correctly after a restart | JSON; loaded by `pm-index` at startup — rejects a mismatched constituent list (use `--reset`); see [Market Index — State file](150-market-index.md#state-file) |
 
 !!! note "Reading the *When* column for accumulating stores"
     **Per trade** = on every `trade.executed` event. **EOD** (end of day) = when
@@ -335,7 +335,7 @@ Format: a JSON array of serialized `Order` objects.
 ```json
 [
   {
-    "id": "3f2a1b4c-...",
+    "id": "8f3a1b4c9d2e04f7a6b1c8d9e0f1a2b3",
     "symbol": "AAPL",
     "side": "BUY",
     "order_type": "LIMIT",
@@ -343,18 +343,33 @@ Format: a JSON array of serialized `Order` objects.
     "quantity": 100,
     "remaining_qty": 100,
     "gateway_id": "GW01",
-    "timestamp": 1714393921345678000,
+    "tick_decimals": 2,
+    "ts_ns": 1714393921345678000,
     "status": "NEW",
-    "price": 14800,
+    "price_ticks": 14800,
+    "stop_price_ticks": null,
+    "trail_offset_ticks": null,
+    "oco_group_id": null,
     ...
   }
 ]
 ```
 
+The real serialized keys are `price_ticks`, `stop_price_ticks`,
+`trail_offset_ticks` and `ts_ns` (`Order.to_dict()`) — not `price`,
+`stop_price`, `trail_offset` or `timestamp`. `Order.from_dict()` requires
+`ts_ns` to be present and raises `KeyError` otherwise, so a hand-edited file
+using the wrong key names fails to load (each bad entry is skipped with a
+CRITICAL log line, not a hard crash). The full record also carries
+`tick_decimals`, `oco_group_id`, `visible_qty`, `displayed_qty`,
+`smp_action`, `combo_parent_id`, `leg_index`, `origin`, `is_seed`,
+`quote_id`, `client_tag` and `arrival_seq`.
+
 !!! note "Internal representations in the JSON"
-    Prices (`price`, `stop_price`, `trail_offset`) are stored as **integer tick
-    values** — e.g. `14800` represents `148.00` for a symbol with `tick_decimals: 2`.
-    Timestamps are **nanoseconds** since the Unix epoch, not seconds.
+    Prices (`price_ticks`, `stop_price_ticks`, `trail_offset_ticks`) are
+    stored as **integer tick values** — e.g. `14800` represents `148.00` for
+    a symbol with `tick_decimals: 2`. Timestamps (`ts_ns`) are **nanoseconds**
+    since the Unix epoch, not seconds.
 
 You can inspect or edit this file between trading sessions. Since this file now
 also holds resting TIF=DAY orders (see [How It Works](#how-it-works) above),
@@ -497,9 +512,12 @@ already marked `CANCELLED`.
 
 ### Order ID Stability
 
-GTC order IDs are UUID4 strings generated at submission time by the gateway.
-They **do not change** across restarts. Gateways and the order monitor will see
-the same order ID in all events throughout the order's life.
+GTC order IDs are 32-character random hex strings (`os.urandom(16).hex()`),
+generated at submission time — **not** UUID4 strings; EduMatcher deliberately
+avoids the `uuid` module's formatting overhead while keeping the same 128
+bits of entropy (see `src/edumatcher/models/ids.py`). They **do not change**
+across restarts. Gateways and the order monitor will see the same order ID
+in all events throughout the order's life.
 
 
 
@@ -515,11 +533,11 @@ flowchart TD
     START([Engine start\nno gateways connected])
     RUNSEQ[Bump + save\nengine_run_seq.json]
     GTC1[Load gtc_orders.json]
-    GTC2[Load gtc_combos.json\nrebuild parent-child maps]
     DAYCHK{For each order:\nTIF=DAY and\norder-date < today?}
     DISCARD[Discard stale DAY order\nlog + debug counter\nno order.expired published]
     REINJ[Re-inject order\nwith original timestamp\nGTC always; DAY only if same-day]
     QIDX[Rebuild QuoteIndex from restored\nquote-origin orders, grouped by\ngateway_id + quote_id]
+    GTC2[Load gtc_combos.json\nrebuild parent-child maps]
     SNAP1{Any orders\nrestored?}
     BSTAT[Load book_stats.json\nrestore last_buy/sell prices + prev_close]
     MMQ{seed_once and active\nquote already in\nQuoteIndex?}
@@ -538,9 +556,10 @@ flowchart TD
     EOD[Publish system.eod\nfinal book snapshots]
     DONE([Shutdown])
 
-    START --> RUNSEQ --> GTC1 --> GTC2 --> DAYCHK
-    DAYCHK -->|yes| DISCARD --> SNAP1
-    DAYCHK -->|no| REINJ --> QIDX --> SNAP1
+    START --> RUNSEQ --> GTC1 --> DAYCHK
+    DAYCHK -->|yes| DISCARD --> GTC2
+    DAYCHK -->|no| REINJ --> QIDX --> GTC2
+    GTC2 --> SNAP1
     SNAP1 -->|yes| BSTAT
     SNAP1 -->|no| BSTAT
     BSTAT --> MMQ
@@ -579,11 +598,11 @@ appends every message as a single line:
 Example lines:
 
 ```
-[2026-04-29T14:30:00.123+00:00] [system.gateway_auth.GW01] {"accepted": true, "gateway_id": "GW01"}
-[2026-04-29T14:30:01.456+00:00] [order.ack.GW01] {"id": "3f2a1b4c-...", "symbol": "AAPL", "accepted": true, "status": "RESTING"}
-[2026-04-29T14:30:02.789+00:00] [trade.executed] {"id": "abc123", "symbol": "AAPL", "price": 150.05, "quantity": 200, "buy_gateway_id": "GW01", "sell_gateway_id": "MM01", "ts_ns": 1714399802789000000}
-[2026-04-29T14:30:02.791+00:00] [order.fill.GW01] {"id": "3f2a1b4c-...", "symbol": "AAPL", "side": "BUY", "fill_qty": 200, "fill_price": 150.05, "remaining_qty": 0, "status": "FILLED"}
-[2026-04-29T16:05:00.000+00:00] [session.state] {"state": "CLOSED"}
+[2026-04-29T14:30:00.123+00:00] [system.gateway_auth.GW01] [seq=1] {"accepted": true, "gateway_id": "GW01"}
+[2026-04-29T14:30:01.456+00:00] [order.ack.GW01] [seq=2] {"id": "8f3a1b4c9d2e04f7a6b1c8d9e0f1a2b3", "symbol": "AAPL", "accepted": true, "status": "RESTING"}
+[2026-04-29T14:30:02.789+00:00] [trade.executed] [seq=3] {"id": "abc123", "symbol": "AAPL", "price": 150.05, "quantity": 200, "buy_gateway_id": "GW01", "sell_gateway_id": "MM01", "ts_ns": 1714399802789000000}
+[2026-04-29T14:30:02.791+00:00] [order.fill.GW01] [seq=4] {"id": "8f3a1b4c9d2e04f7a6b1c8d9e0f1a2b3", "symbol": "AAPL", "side": "BUY", "fill_qty": 200, "fill_price": 150.05, "remaining_qty": 0, "status": "FILLED"}
+[2026-04-29T16:05:00.000+00:00] [session.state] [seq=5] {"state": "CLOSED"}
 ```
 
 **Format details**:
@@ -592,10 +611,12 @@ Example lines:
 |------------------|------------------------------------------------------------------------------------|
 | `TIMESTAMP`      | ISO 8601 UTC with millisecond precision (`2026-04-29T14:30:01.456+00:00`)          |
 | `TOPIC`          | The ZeroMQ topic string, e.g. `order.fill.GW01`, `trade.executed`, `session.state` |
+| `[META]`         | Present on almost every line: a bracketed `seq=`/`msg=`/`cause=`/`chain=` section built from the message's sequence and causal envelope; absent only for the rare message with no envelope at all — see [Audit](190-audit.md) |
 | `{JSON_PAYLOAD}` | The full message payload as compact JSON — no pretty-printing                      |
 
 The topic is **not** a JSON field inside the payload; it appears as a separate
-bracket-delimited token on the same line.
+bracket-delimited token on the same line, and the `[META]` section, when
+present, is a further bracketed token between the topic and the payload.
 
 **File rotation**: `RotatingFileHandler` — maximum 10 MB per file, 5 backup files
 (`audit.log.1` through `audit.log.5`). Oldest backup is deleted when a sixth

@@ -122,9 +122,15 @@ fields as `KEY=VALUE` pairs:
 
 ```text
 ◆ pm-dc-spy connected to 127.0.0.1:5557, subscribed to drop_copy.event.* (all gateways) (Ctrl-C to stop)
-10:02:17.512  FILL     TRADER01   AAPL       #1      100@150.05       TAKER  order_id=ord-001 remaining_qty=0
-10:02:17.520  FILL     TRADER02   AAPL       #2      100@150.05       MAKER  order_id=ord-104 remaining_qty=300
+10:02:17.512  FILL     TRADER01   AAPL       #1      100@150.05       TAKER  order_id=ord-001 trade_ids=['000042-000000001']
+10:02:17.520  FILL     TRADER02   AAPL       #2      100@150.05       MAKER  order_id=ord-104 trade_ids=['000042-000000001']
 ```
+
+There is no `remaining_qty` field — the drop-copy payload does not carry it
+(see [Drop Copy — `order.fill` event](200-drop-copy.md#orderfill-event)). The
+"remaining fields" here are `order_id` and `trade_ids`, the only two payload
+keys left over once the envelope fields (`seq`, `timestamp`, `gateway_id`,
+`symbol`, `fill_qty`, `fill_price`, `liquidity_flag`) are printed positionally.
 
 Recall that every trade produces **two** drop-copy events, one per
 counterparty — the pair above is a single matched trade, TAKER and MAKER
@@ -133,8 +139,8 @@ side by side.
 Pass `--raw` to also print the exact topic and JSON payload underneath:
 
 ```text
-10:02:17.512  FILL     TRADER01   AAPL       #1      100@150.05       TAKER  order_id=ord-001 remaining_qty=0
-  drop_copy.event.TRADER01|{"event_type": "order.fill", "fill_price": 150.05, "fill_qty": 100, "gateway_id": "TRADER01", "order_id": "ord-001", "remaining_qty": 0, "seq": 1, "symbol": "AAPL", "timestamp": 1700000000000000000}
+10:02:17.512  FILL     TRADER01   AAPL       #1      100@150.05       TAKER  order_id=ord-001 trade_ids=['000042-000000001']
+  drop_copy.event.TRADER01|{"event_type": "order.fill", "fill_price": 150.05, "fill_qty": 100, "gateway_id": "TRADER01", "order_id": "ord-001", "trade_ids": ["000042-000000001"], "seq": 1, "symbol": "AAPL", "timestamp": 1700000000000000000}
 ```
 
 
@@ -146,7 +152,7 @@ program. Every field from the drop-copy payload is preserved verbatim at
 the top level; `topic`, `recv_ts`, and a derived `replay` boolean are added:
 
 ```json
-{"recv_ts": 1784577849.634, "topic": "drop_copy.event.TRADER01", "replay": false, "seq": 1, "timestamp": 1700000000000000000, "gateway_id": "TRADER01", "event_type": "order.fill", "order_id": "ord-001", "symbol": "AAPL", "fill_qty": 100, "fill_price": 150.05, "liquidity_flag": "TAKER"}
+{"recv_ts": 1784577849.634, "topic": "drop_copy.event.TRADER01", "replay": false, "seq": 1, "timestamp": 1700000000000000000, "gateway_id": "TRADER01", "event_type": "order.fill", "order_id": "ord-001", "trade_ids": ["000042-000000001"], "symbol": "AAPL", "fill_qty": 100, "fill_price": 150.05, "liquidity_flag": "TAKER"}
 ```
 
 Typical uses:

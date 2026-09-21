@@ -263,7 +263,7 @@ process's own `config.py`.
 | `pm-md-gwy` | connects out to `5556`, `5558` | `5570` | CALF over TCP | External market-data gateway. Consumes engine and index PUB feeds internally and republishes top/book/trade/state channels to external CALF clients on `5570`. |
 | `pm-ralf-gwy` | connects out to `5556` | `5580` | RALF over TCP | External post-trade dissemination gateway for clearing, drop-copy, and audit consumers (role-gated). |
 | `pm-dc-gwy` | connects out to `5557` | `5590` | DC1 over TCP | Relays the engine's `5557` drop-copy feed as DC1 text lines to plain-TCP clients that don't speak ZeroMQ. |
-| `pm-api-gwy` | connects out to `5555`, `5556` | `8080` (`desk` instance) · `8081` (`dashboards` instance) | HTTP/REST + WebSocket | REST/WebSocket gateway; translates HTTP/WS requests into the same ZMQ order flow used by `pm-alf-console`. Each named `api_gateways` instance in config gets its own port. |
+| `pm-api-gwy` | connects out to `5555`, `5556` | `8080` (code default; example configs may assign additional instances other ports, e.g. `8081`) | HTTP/REST + WebSocket | REST/WebSocket gateway; translates HTTP/WS requests into the same ZMQ order flow used by `pm-alf-console`. Each named `api_gateways` instance in config gets its own port. |
 | `pm-alf-gwy` | connects out to `5555`, `5556`, `5557` | `5565` | ALF over TCP | External ALF order-entry gateway for bots/remote clients (same protocol as `pm-alf-console`, over TCP instead of stdin/stdout). |
 | `pm-balf-gwy` | connects out to `5555`, `5556` | `5560` | BALF (binary) over TCP | External binary order-entry gateway for low-latency programmatic clients. |
 | `pm-index` | `5558` PUB (bind) · `5559` PULL (bind); connects out to `5556` | – | ZeroMQ (PUB/PULL) | Real-time cap-weighted index calculation. `5558` broadcasts `index.update`; `5559` receives operator commands and history requests. No external protocol of its own — external consumers reach index data via `pm-md-gwy`/CALF. |
@@ -1563,7 +1563,12 @@ pm-mm-bot --symbol AAPL [options]
 
 | Flag                             | Default                | Description                                                      |
 |----------------------------------|------------------------|------------------------------------------------------------------|
-| `--symbol`                       | required               | Instrument to make a market in (e.g. `AAPL`)                     |
+| `--symbol`                       | required unless `--symbols`/`--config` supplies one | Instrument to make a market in (e.g. `AAPL`)  |
+| `--symbols`                      | unset                  | Comma-separated symbols to run from one process (e.g. `AAPL,MSFT`); mutually exclusive with `--symbol`, each symbol isolated from the others' failures |
+| `--label`                        | derived from symbol(s) | Override the gateway-ID symbol segment (default: the single `--symbol`, or `SYM1_SYM2_...` from `--symbols`) |
+| `--config`                       | unset                  | YAML file supplying any of these flags by long name (bot-level overrides, not the engine config) |
+| `--strategy`                     | `symmetric`            | Pricing strategy                                                 |
+| `--max-position`                 | unset                  | Net position at which inventory skewing saturates; required when `--strategy inventory_skew`, unused otherwise |
 | `--gap`                          | `0.10`                 | Total spread in price units (bid at mid−gap/2, ask at mid+gap/2) |
 | `--qty`                          | `500`                  | Quote size on each leg                                           |
 | `--id-suffix`                    | `01`                   | Running number for gateway ID (`MM_AAPL_01`)                     |
