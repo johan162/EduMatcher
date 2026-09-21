@@ -151,7 +151,7 @@ Per-symbol end-of-day marker, derived from the engine `system.eod` broadcast.
 | Field | Description |
 |-------|-------------|
 | `CH` `SYM` `SEQ` `TS` | envelope |
-| `TRADE_COUNT` | trades seen for the symbol this session |
+| `TRADE_COUNT` | trades executed for the symbol since the previous `EOD` (the counter resets to zero at every `EOD`, not just once per session) |
 | `EXEC_COUNT` | execution count — **identical to `TRADE_COUNT`** in `RALF1` |
 
 `EOD` is emitted once per symbol on all three channels:

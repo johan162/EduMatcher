@@ -9,7 +9,7 @@
     - how to start the gateway and verify connectivity from a terminal
     - how to subscribe and receive post-trade events
     - how replay and reconnect behavior works and when to use `LASTSEQ`
-    - how to write a working Python subscriber using the library in `examples/ralf/`
+    - how to write a working Python subscriber using the library in `docs/examples/ralf/`
     - which operational checks to use when debugging connectivity problems
 
 
@@ -51,7 +51,8 @@ flowchart TB
 Responsibilities of `pm-ralf-gwy`:
 
 - translates engine events into RALF lines per channel
-- assigns **per-stream sequence numbers** on each `(channel, symbol)` pair
+- assigns **per-channel sequence numbers** — one counter per channel,
+  shared across every symbol on that channel
 - keeps a **time-bounded replay journal** so reconnecting clients can recover
   missed messages without reprocessing raw engine logs
 - sends an automatic **baseline snapshot** (`SNAP`) when a client subscribes
@@ -121,13 +122,15 @@ pm-ralf-gwy --bind 127.0.0.1 --port 5580 --engine-pub tcp://127.0.0.1:5556
 
 | Option | Default | Description |
 |---|---|---|
-| `--config` / `-c` | `engine_config.yaml` | Engine config YAML path |
 | `--bind ADDR` | from config / `0.0.0.0` | Override TCP bind address |
 | `--port PORT` | from config / `5580` | Override TCP listen port |
 | `--engine-pub ADDR` | from config / `tcp://127.0.0.1:5556` | Override engine PUB socket address |
 | `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
 | `-q` / `--quiet` | off | Reduce output to warnings/errors |
+| `--log-target` | auto | Where operational log records go: `server` (default, auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file PATH` | — | Operational log file path — required when `--log-target file` |
+| `--log-failover-timeout SECONDS` | `30` | Grace window before falling back to a local log file once `pm-log-srv` becomes unreachable |
 
 
 ## Generate config with `pm-config-gen`
@@ -325,8 +328,9 @@ who may subscribe to any channel.  Multiple `SUB` lines are cumulative.
 
 ### Step 3 — Receive the snapshot
 
-For each new `(channel, symbol)` subscription the gateway sends an immediate
-`SNAP`.  Store the `SEQ` — it is your baseline sequence number for that stream.
+For each `SUB` line, the gateway sends **one** immediate `SNAP` covering the
+whole requested channel/symbol set (not one per `(channel, symbol)` pair).
+Store the `SEQ` — it is your baseline sequence number for that channel.
 
 ### Step 4 — Cancel subscriptions
 
@@ -351,8 +355,9 @@ EXIT
 
 ## Gap detection and replay
 
-Every stream has an independent, monotonically increasing `SEQ` starting at 1.
-Track `last_seq[(CH, SYM)]` on every received message and check:
+Every **channel** has an independent, monotonically increasing `SEQ` starting
+at 1 — shared across all symbols on that channel, not scoped per symbol.
+Track `last_seq[CH]` on every received message and check:
 
 ```
 gap detected when:  received_seq != last_seq + 1
@@ -413,10 +418,10 @@ Expected response pattern:
 
 ## Python subscriber example
 
-The `examples/ralf/` directory contains ready-to-run Python and C libraries.
+The `docs/examples/ralf/` directory contains ready-to-run Python and C libraries.
 
 ```
-examples/ralf/
+docs/examples/ralf/
 ├── ralf_parser.py        # parser + serializer library
 ├── ralf_subscriber.py    # full working subscriber example
 ├── ralf_parser.h         # C parser library
@@ -456,7 +461,7 @@ while True:
 
 ### Using the `ralf_parser.py` library
 
-`ralf_parser.py` in `examples/ralf/` provides `parse_ralf_line` and
+`ralf_parser.py` in `docs/examples/ralf/` provides `parse_ralf_line` and
 `build_ralf_line`:
 
 ```python
@@ -519,8 +524,9 @@ with socket.create_connection(("127.0.0.1", 5580), timeout=5) as sock:
     # Subscribe — role must match allowed channels
     send(sock, "SUB", {"CH": "CLEARING", "SYM": "*"})
 
-    # Per-stream sequence tracking
-    last_seq: dict[tuple[str, str], int] = {}   # (CH, SYM) → last seen SEQ
+    # Per-channel sequence tracking — SEQ is shared across all symbols on
+    # one channel, not scoped per (channel, symbol) pair.
+    last_seq: dict[str, int] = {}   # CH → last seen SEQ
 
     while True:
         msg = parse_ralf_line(reader.recv_line())
@@ -531,10 +537,10 @@ with socket.create_connection(("127.0.0.1", 5580), timeout=5) as sock:
             seq = int(msg.fields.get("SEQ", "0"))
 
             # Gap check — reconnect with LASTSEQ={prev} to recover
-            prev = last_seq.get((ch, sym))
+            prev = last_seq.get(ch)
             if prev is not None and seq != prev + 1:
-                print(f"GAP on ({ch},{sym}): expected {prev + 1}, got {seq}")
-            last_seq[(ch, sym)] = seq
+                print(f"GAP on {ch}: expected {prev + 1}, got {seq}")
+            last_seq[ch] = seq
 
             if msg.msg_type == "SNAP":
                 print(f"SNAP  {ch}/{sym}: baseline SEQ={seq}")
@@ -593,13 +599,12 @@ cd docs/examples/ralf && make
 
 | Error code           | Typical cause                                      | Action                                             |
 |----------------------|----------------------------------------------------|---------------------------------------------------|
-| `AUTH_REQUIRED`      | `SUB` sent before `HELLO`                         | Send `HELLO` first                                 |
-| `PROTO_MISMATCH`     | Wrong or missing `PROTO`                          | Use `PROTO=RALF1`                                  |
+| `AUTH_REQUIRED`      | Any message before a successful `HELLO`, or `HELLO` itself missing `CLIENT`/`PROTO`/`ROLE` | Send a well-formed `HELLO` first |
 | `ENTITLEMENT_DENIED` | Role not permitted for that channel               | Use the channel matching your role; `AUDIT` may access all |
 | `INVALID_CHANNEL`    | Unknown `CH` value                                | Use `CLEARING`, `DROP_COPY`, or `AUDIT`            |
 | `REPLAY_MISS`        | Requested `LASTSEQ` is outside the journal window | Accept the recovery `SNAP` and reset local baseline |
 | `SLOW_CLIENT`        | Client cannot drain the outbound stream fast enough | Reconnect and process faster; terminal error      |
-| `BAD_MESSAGE`        | Malformed or oversized line (> 4096 bytes)        | Fix line syntax/framing                            |
+| `BAD_MESSAGE`        | Malformed line (parse failure, unsupported message type, or non-integer `LASTSEQ`) | Fix line syntax/framing |
 
 
 ## Operational notes
@@ -673,8 +678,7 @@ Outcomes:
 
 | Error code           | Typical cause                   | Action                                    |
 |----------------------|---------------------------------|-------------------------------------------|
-| `AUTH_REQUIRED`      | `SUB` before successful `HELLO` | Authenticate first                        |
-| `PROTO_MISMATCH`     | Wrong/missing protocol value    | Use `PROTO=RALF1`                         |
+| `AUTH_REQUIRED`      | Any message before successful `HELLO`, or an incomplete `HELLO` | Authenticate first |
 | `ENTITLEMENT_DENIED` | Role blocked by policy          | Use an allowed role or update config      |
 | `INVALID_CHANNEL`    | Unsupported `CH` value          | Use `CLEARING`, `DROP_COPY`, `AUDIT`      |
 | `REPLAY_MISS`        | Replay point outside retention  | Accept `SNAP` and reset local baseline    |

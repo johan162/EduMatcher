@@ -95,7 +95,7 @@ explicit symbols for `INDEX`/`DEPTH`/`CB` rather than relying on `*`.
 | `--raw` | off | Also echo the raw wire line under each formatted line (human format only) |
 | `--no-color` | off | Disable ANSI colour even on a terminal |
 | `--show-heartbeats` | off | Also print `HB` and `PONG` lines (suppressed by default to reduce noise) |
-| `--count N` | `0` | Exit after N data-carrying lines (`0` = run until Ctrl-C); heartbeats don't count |
+| `--count N` | `0` | Exit after N data-carrying lines (`0` = run until Ctrl-C); `HB` lines don't count, but `PONG` replies do |
 
 **Diagnostics:** `--log-level`, `-v`/`--verbose`, `-q`/`--quiet`, `--version`,
 `--help` — same conventions as every other `pm-*` process (see
@@ -137,8 +137,8 @@ distinct), the symbol, the sequence number, and the remaining fields as
 10:02:17.048  SNAP     TOP      AAPL       #1      ASK=150.12 ASKSZ=900 BID=150.10 BIDSZ=1200 LAST=150.11 LASTSZ=300
 10:02:17.512  MD       TOP      AAPL       #2      BID=150.11 BIDSZ=1400
 10:02:18.203  TRADE    TRADE    AAPL       #44     PX=150.12 QTY=200 SIDE=BUY
-10:02:20.001  CB       CB       AAPL       #4      CORRHI=165.11 CORRLO=135.09 EXP=0 LEVEL=L2 SRC=CB REFPX=150.10 RESUMEAT=2026-07-20T10:20:00.000Z STATUS=HALTED TRIGGERPX=148.20
-10:20:00.010  CB       CB       AAPL       #5      CORRHI=180.12 CORRLO=120.08 EXP=1 IMB=BUY INDICPX=182.00 INDICQTY=500 LEVEL=L2 SRC=CB REFPX=150.10 RESUMEAT=2026-07-20T10:25:00.000Z STATUS=HALTED TRIGGERPX=148.20
+10:02:20.001  CB       CB       AAPL       #4      CORRHI=165.11 CORRLO=135.09 EXP=0 LEVEL=L2 REFPX=150.10 RESUMEAT=2026-07-20T10:20:00.000Z SRC=CB STATUS=HALTED TRIGGERPX=148.20
+10:20:00.010  CB       CB       AAPL       #5      CORRHI=180.12 CORRLO=120.08 EXP=1 IMB=BUY INDICPX=182.00 INDICQTY=500 LEVEL=L2 REFPX=150.10 RESUMEAT=2026-07-20T10:25:00.000Z SRC=CB STATUS=HALTED TRIGGERPX=148.20
 ```
 
 Session-level messages that carry no channel/symbol of their own (`WELCOME`,
@@ -160,9 +160,13 @@ the rendering against the actual bytes:
 
 ## JSON output
 
-`--format json` prints one JSON object per line — no banner, no colour,
+`--format json` prints one JSON object per line for market-data records,
 straightforward to pipe into `jq`, log to a file, or feed into another
-program. The envelope fields (`CH`, `SYM`, `SEQ`) are lifted to top-level
+program. It does **not** suppress the connect banner or the closing
+"connection closed" line — both still print to the same stdout stream in
+every `--format`, so a strict line-oriented JSON consumer (e.g. `jq -R`
+reading raw lines, or a `.jsonl` file written via shell redirection) will
+see one non-JSON line at the start and one at the end. The envelope fields (`CH`, `SYM`, `SEQ`) are lifted to top-level
 keys for easy filtering; every field, including the envelope ones, is also
 kept verbatim under `fields` so nothing is lost relative to the raw line:
 
@@ -209,7 +213,9 @@ same gateway — `pm-md-gwy` fans out independently per session.
   `pm-calf-spy` prints `pm-calf-spy: could not connect to HOST:PORT: ...`
   and exits `1` — no retry loop.
 - If the gateway rejects the handshake itself (`ERR|CODE=PROTO_MISMATCH`),
-  that is also reported and the process exits `1`.
+  the client currently does not catch this case cleanly: it surfaces as an
+  unhandled Python traceback rather than a `pm-calf-spy: ...` message, though
+  the process does still exit non-zero.
 - Once connected, any `ERR` the gateway sends in response to `SUB` (bad
   channel, bad symbol, wildcard misuse, subscription limit) is printed like
   any other line — the session stays open so you can see the rejection

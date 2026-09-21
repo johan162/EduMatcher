@@ -136,7 +136,10 @@ NEW | SYM=AAPL | SIDE=BUY
 ### Case handling
 
 ALF is effectively **case-insensitive** for command verbs, field names, enum
-values, and symbols, because the gateway normalizes parsed values to uppercase.
+values, and symbols, because the gateway normalizes parsed *inbound* values to
+uppercase. This is inbound-only: values the gateway sends back out (order
+IDs, `REASON`/`DETAIL` text, and similar) are not case-normalized and keep
+their original case.
 
 These are treated the same:
 
@@ -725,7 +728,7 @@ NEW|TYPE=OCO|OCO_ID=EXIT-TRAIL|SYM=AAPL|QTY=100|TIF=GTC|LEG1_SIDE=SELL|LEG1_TYPE
 
 - both legs share the same `SYM`, `QTY`, `TIF`, and gateway identity
 - each leg receives its own engine-generated order ID
-- the gateway first receives an `OCO ACK`
+- the gateway first receives an `OCO_ACK`
 - each leg is then posted and acknowledged as a normal order
 - when one leg fills or is cancelled in a way that completes the OCO action, the
   sibling is auto-cancelled
@@ -937,12 +940,15 @@ acknowledgement instead of cancelling anything.
 
 ### Acknowledgement behavior
 
-The gateway receives a `KILL ACK` or `KILL REJ`.
+The gateway receives a `KILL_ACK` message.
 
 On success, the acknowledgement includes:
 
-- `cancelled_orders` - number of cancelled non-quote resting orders
-- `cancelled_quotes` - number of cancelled quote legs
+- `ORDERS` - number of cancelled non-quote resting orders
+- `QUOTES` - number of cancelled quote legs
+
+(`pm-alf-console` labels these `cancelled_orders`/`cancelled_quotes` in its
+own on-screen rendering; those are display labels, not wire field names.)
 
 Important detail: `cancelled_quotes` counts **legs**, not quote records. One
 two-sided quote typically contributes up to **2** to this count.
@@ -1170,7 +1176,10 @@ Field behavior (same in both clients):
 - `SYM` (optional): limit output to one symbol.
 - `SHOW` (optional): controls filtering mode; defaults to `ACTIVE`.
   - `ACTIVE`: quote legs that are currently live or still have remaining size.
-  - `RECENT`: completed/cancelled legs with no remaining size.
+  - `RECENT`: legs belonging to a quote that has been inactivated (removed
+    from the active index) — by cancel, kill switch, disconnect, halt, or
+    replacement. A recent leg can still carry a non-zero remaining size; it
+    is the quote, not the leg's size, that determines `RECENT` vs `ACTIVE`.
   - `ALL`: union of active and recent rows.
 
 Typical output columns:
@@ -1230,7 +1239,10 @@ EXIT
 QUIT
 ```
 
-Stops the gateway process.
+Closes this session's connection. `pm-alf-gwy` is a multi-client server: this
+only ends the current TCP session, it does not stop the gateway process
+itself. (For the single-session `pm-alf-console`, ending the one session is
+equivalent to exiting the program.)
 
 
 

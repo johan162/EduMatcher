@@ -1086,6 +1086,8 @@ Normative error codes:
 
 Terminal behavior:
 
+- `AUTH_REQUIRED` is terminal: any non-`HELLO` message before a successful
+  handshake gets this error and the connection is closed immediately.
 - `SLOW_CLIENT` is terminal for the current TCP session; gateway disconnects.
 - `BAD_MESSAGE` may be terminal when parsing cannot continue safely.
 - `RATE_LIMITED` is non-terminal; the offending message is dropped and the
