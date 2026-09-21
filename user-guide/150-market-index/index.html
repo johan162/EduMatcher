@@ -4529,7 +4529,7 @@
 <ul>
 <li>What <code>pm-index</code> does and how it fits into the EduMatcher process model</li>
 <li>How to start <code>pm-index</code> and which CLI options are available</li>
-<li>How to configure one or more indices in <code>engine_config.yaml</code></li>
+<li>How to configure one or more indices in the engine config (<code>engine_config.yaml</code>)</li>
 <li>How cap-weighted index calculation and divisor normalisation work</li>
 <li>How to apply corporate actions without disrupting the index level</li>
 <li>How to query the current index value, structural/audit records, and
@@ -4554,8 +4554,10 @@ order or session commands to the engine — it only listens and publishes.</p>
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li><code>pm-engine</code> running</li>
-<li>At least one index defined in <code>engine_config.yaml</code></li>
-<li>Every constituent symbol listed in <code>symbols:</code> with <code>outstanding_shares</code> set</li>
+<li>At least one index defined in <code>engine_config.yaml</code>, compiled and installed
+  with <code>pm-config-deploy</code> (see <a href="../010-configuration/#compile-configs-with-pm-config-deploy">Engine Configuration</a>)</li>
+<li>Every constituent symbol listed in <code>symbols:</code> with <code>outstanding_shares</code> set
+  and at least one of <code>last_buy_price</code> / <code>last_sell_price</code> (its reference price)</li>
 </ul>
 <p><code>pm-index</code> can start before or after <code>pm-engine</code>; the ZMQ subscriber will
 reconnect automatically. Order only matters for the first few seconds of a fresh
@@ -4564,14 +4566,18 @@ used as fallback until real trades arrive.</p>
 <h2 id="starting-pm-index">Starting <code>pm-index</code><a class="headerlink" href="#starting-pm-index" title="Permanent link">&para;</a></h2>
 <p>Installed mode:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-index
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pm-index
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>pm-index<span class="w"> </span>--reset
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pm-index<span class="w"> </span>--reset
 </code></pre></div>
 <p>Developer / Poetry mode:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-index
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-index
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-index<span class="w"> </span>--reset
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-index<span class="w"> </span>--reset
 </code></pre></div>
+<p><code>pm-index</code> takes no config-file argument. Like the engine, it reads the
+compiled configuration that <code>pm-config-deploy</code> installed
+(<code>&lt;DATA_DIR&gt;/ref_data/engine_config.json</code>), so it always agrees with the running
+engine about constituents and reference prices. If no compiled configuration is
+deployed it logs a warning (<code>no compiled configuration at ... — no indices will
+be calculated. Run pm-config-deploy to install one.</code>) and calculates nothing.</p>
 <h3 id="cli-options">CLI options<a class="headerlink" href="#cli-options" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -4583,14 +4589,14 @@ used as fallback until real trades arrive.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>--config FILE</code> / <code>-c FILE</code></td>
-<td><code>engine_config.yaml</code></td>
-<td>Path to the engine config YAML file</td>
-</tr>
-<tr>
 <td><code>--reset</code></td>
 <td>off</td>
 <td>Delete persisted state files and re-initialise all indices from config</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print the version and exit</td>
 </tr>
 <tr>
 <td><code>--log-level</code></td>
@@ -4605,7 +4611,22 @@ used as fallback until real trades arrive.</p>
 <tr>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Accepted for symmetry with the other processes; <code>WARNING</code> is already the default</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where this process's own log records go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>—</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout</code></td>
+<td><code>30</code></td>
+<td>Grace window in seconds before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable</td>
 </tr>
 </tbody>
 </table>
@@ -4624,7 +4645,7 @@ deleted; only the small state JSON file is removed.</p>
 </div>
 <h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
 <p>All index configuration lives in the top-level <code>indices:</code> section of
-<code>engine_config.yaml</code>. See
+<code>engine_config.yaml</code> (deployed with <code>pm-config-deploy</code>). See
 <a href="../010-configuration/#configuring-pm-index">Engine Configuration</a>
 for the full field reference; a complete YAML example is shown below.</p>
 <h3 id="minimal-example">Minimal example<a class="headerlink" href="#minimal-example" title="Permanent link">&para;</a></h3>
@@ -4678,19 +4699,19 @@ for the full field reference; a complete YAML example is shown below.</p>
 <td><code>description</code></td>
 <td>string</td>
 <td>—</td>
-<td>Human-readable label emitted in index events</td>
+<td>Human-readable label emitted in index events; required, non-empty</td>
 </tr>
 <tr>
 <td><code>base_value</code></td>
 <td>float</td>
 <td><code>1000.0</code></td>
-<td>Starting index level on first launch</td>
+<td>Starting index level on first launch; must be <code>&gt; 0</code></td>
 </tr>
 <tr>
 <td><code>publish_interval_sec</code></td>
 <td>float</td>
 <td><code>1.0</code></td>
-<td>Throttle on how often <code>index.update</code> is broadcast</td>
+<td>Throttle on how often <code>index.update</code> is broadcast; must be <code>&gt; 0</code></td>
 </tr>
 <tr>
 <td><code>history_file</code></td>
@@ -4715,8 +4736,11 @@ for the full field reference; a complete YAML example is shown below.</p>
 <p>Constraints:</p>
 <ul>
 <li>Maximum <strong>5</strong> indices per config file</li>
-<li>Every constituent symbol must appear in <code>symbols:</code> with <code>outstanding_shares &gt; 0</code></li>
-<li><code>id</code> values must be unique</li>
+<li><code>id</code> must be alphanumeric, and <code>id</code> values must be unique</li>
+<li><code>constituents</code> must be a non-empty list with no duplicates</li>
+<li>Every constituent symbol must appear in <code>symbols:</code> with <code>outstanding_shares</code> set</li>
+<li>Relative <code>history_file</code> / <code>state_file</code> paths (including a leading <code>data/</code>) are
+  resolved inside the data directory (<code>EDUMATCHER_DATA_DIR</code>); absolute paths are used as given</li>
 </ul>
 <div class="admonition note">
 <p class="admonition-title">Index eligibility is set at listing (IPO)</p>
@@ -4742,6 +4766,15 @@ rejected at startup. Share counts change only through corporate actions
 </code></pre></div>
 <p>File paths are derived from the index ID automatically when <code>--index-history-file</code>
 and <code>--index-state-file</code> are not specified.</p>
+<div class="admonition warning">
+<p class="admonition-title">The generated file has no reference prices yet</p>
+<p><code>pm-index</code> refuses a constituent that has neither <code>last_buy_price</code> nor
+<code>last_sell_price</code>, and <code>pm-config-gen</code> does not invent them. Either pass
+<code>--seed-last-prices</code> (emits <code>null</code> placeholders you then fill in by hand) or
+<code>--seed-mm-mid-range MIN:MAX --seed-last-prices-from-mm</code> (needs at least one
+<code>MARKET_MAKER</code> gateway), or add the two fields to each symbol yourself. Then
+install the result with <code>pm-config-deploy engine_config.yaml</code>.</p>
+</div>
 <h2 id="how-calculation-works">How Calculation Works<a class="headerlink" href="#how-calculation-works" title="Permanent link">&para;</a></h2>
 <h3 id="cap-weighted-formula">Cap-weighted formula<a class="headerlink" href="#cap-weighted-formula" title="Permanent link">&para;</a></h3>
 <p>Each index uses <strong>market-capitalisation weighting</strong>. A constituent's influence
@@ -4820,9 +4853,10 @@ replaced by the actual trade price.</p>
 <code>publish_interval_sec</code> (default 1 s). The internal level is always up to date;
 the throttle controls only how often <code>index.update</code> messages are broadcast.</p>
 <h3 id="intraday-ohlc">Intraday OHLC<a class="headerlink" href="#intraday-ohlc" title="Permanent link">&para;</a></h3>
-<p><code>pm-index</code> tracks day open, high, and low internally. They are reset at
-<code>OPENING_AUCTION</code> or <code>CONTINUOUS</code> session transitions and finalised with a
-closing value when the session reaches <code>CLOSED</code>.</p>
+<p><code>pm-index</code> tracks day open, high, and low internally. They are cleared at every
+<code>OPENING_AUCTION</code> or <code>CONTINUOUS</code> session transition and start again from the
+next level update; the day is finalised with a closing value when the session
+reaches <code>CLOSED</code>.</p>
 <h2 id="corporate-actions">Corporate Actions<a class="headerlink" href="#corporate-actions" title="Permanent link">&para;</a></h2>
 <p>Corporate actions change a company's share structure without destroying value.
 Without divisor adjustment, a 2-for-1 stock split would make the index drop by
@@ -4874,8 +4908,9 @@ to a running <code>pm-index</code> process:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>split<span class="w">    </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--sym<span class="w"> </span>AAPL<span class="w"> </span>--ratio<span class="w"> </span><span class="m">2</span>:1
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>dividend<span class="w"> </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--sym<span class="w"> </span>MSFT<span class="w"> </span>--amount<span class="w"> </span><span class="m">2</span>.50
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>shares<span class="w">   </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--sym<span class="w"> </span>TSLA<span class="w"> </span>--new-shares<span class="w"> </span><span class="m">3500000000</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>shares<span class="w">   </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--sym<span class="w"> </span>TSLA<span class="w"> </span>--delta<span class="w"> </span>-200000000<span class="w">   </span><span class="c1"># buy-back</span>
 </code></pre></div>
-<p>Each subcommand prints a confirmation prompt before sending (skip it with
+<p>Each mutating subcommand prints a confirmation prompt before sending (skip it with
 <code>-y</code>/<code>--yes</code>), supports <code>--dry-run</code> to preview the outbound payload without
 sending it, and blocks for the <code>index.corp_action_ack.{gateway_id}</code> response.
 <code>pm-index</code> applies the action in-process, immediately publishes an updated
@@ -4889,40 +4924,39 @@ starts for the day. Applying them during continuous trading means the index
 will have a brief moment where the pre-adjustment divisor is used for one
 more trade before the action takes effect.</p>
 </div>
-<p>??? note "Under the hood: <code>ExchangeCommandClient</code>"
-    <code>pm-index-admin-cli</code> is a thin wrapper over the <code>ExchangeCommandClient</code>
-    class (<code>edumatcher.commands.client</code>) — the same class <code>pm-admin-cli</code> uses
-    internally for its engine commands. The CLI calls its
-    <code>index_corp_action()</code> method directly:</p>
-<div class="highlight"><pre><span></span><code>```python
-from edumatcher.commands import ExchangeCommandClient
-
-client = ExchangeCommandClient("GW_ADMIN")
-
-client.index_corp_action(
-    "EDU100", "SPLIT", "AAPL",
-    ratio_numerator=2, ratio_denominator=1,
-)
-client.index_corp_action(
-    "EDU100", "CASH_DIVIDEND", "MSFT",
-    dividend_per_share=2.50,
-)
-client.index_corp_action(
-    "EDU100", "SHARES_ISSUANCE", "TSLA",
-    new_shares_outstanding=3500000000,
-)
-
-client.close()
-```
-
-Unlike the engine's PUSH socket, `pm-index`'s PULL socket has no
-`connect()`/auth handshake — see
-[Index Admin CLI — Why there is no connect() step](152-index-admin-cli.md#why-there-is-no-connect-authentication-step).
-Writing a script against this class directly still works and is how
-`pm-index-admin-cli` itself is implemented, but the CLI adds validation,
-a confirmation prompt, and `--dry-run`, so it's the preferred path for
-interactive/manual use.
+<div class="admonition note">
+<p class="admonition-title">Under the hood: <code>ExchangeCommandClient</code></p>
+<p><code>pm-index-admin-cli</code> is a thin wrapper over the <code>ExchangeCommandClient</code>
+class (<code>edumatcher.commands.client</code>) — the same class <code>pm-admin-cli</code> uses
+internally for its engine commands. The CLI calls its
+<code>index_corp_action()</code> method directly:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">edumatcher.commands</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExchangeCommandClient</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">client</span> <span class="o">=</span> <span class="n">ExchangeCommandClient</span><span class="p">(</span><span class="s2">"GW_ADMIN"</span><span class="p">)</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">client</span><span class="o">.</span><span class="n">index_corp_action</span><span class="p">(</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="s2">"EDU100"</span><span class="p">,</span> <span class="s2">"SPLIT"</span><span class="p">,</span> <span class="s2">"AAPL"</span><span class="p">,</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="n">ratio_numerator</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">ratio_denominator</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="p">)</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="n">client</span><span class="o">.</span><span class="n">index_corp_action</span><span class="p">(</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>    <span class="s2">"EDU100"</span><span class="p">,</span> <span class="s2">"CASH_DIVIDEND"</span><span class="p">,</span> <span class="s2">"MSFT"</span><span class="p">,</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>    <span class="n">dividend_per_share</span><span class="o">=</span><span class="mf">2.50</span><span class="p">,</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="p">)</span>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="n">client</span><span class="o">.</span><span class="n">index_corp_action</span><span class="p">(</span>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>    <span class="s2">"EDU100"</span><span class="p">,</span> <span class="s2">"SHARES_ISSUANCE"</span><span class="p">,</span> <span class="s2">"TSLA"</span><span class="p">,</span>
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>    <span class="n">new_shares_outstanding</span><span class="o">=</span><span class="mi">3500000000</span><span class="p">,</span>
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a><span class="p">)</span>
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>
+<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a><span class="n">client</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </code></pre></div>
+<p>Unlike the engine's PUSH socket, <code>pm-index</code>'s PULL socket has no
+<code>connect()</code>/auth handshake — see
+<a href="../152-index-admin-cli/#why-there-is-no-connect-authentication-step">Index Admin CLI — Why there is no connect() step</a>.
+Writing a script against this class directly still works and is how
+<code>pm-index-admin-cli</code> itself is implemented, but the CLI adds validation,
+a confirmation prompt, and <code>--dry-run</code>, so it's the preferred path for
+interactive/manual use.</p>
+</div>
 <h3 id="constituent-changes">Constituent changes<a class="headerlink" href="#constituent-changes" title="Permanent link">&para;</a></h3>
 <p>Constituents can be added or removed without restarting <code>pm-index</code>, also via
 <a href="../152-index-admin-cli/"><code>pm-index-admin-cli</code></a>:</p>
@@ -4946,21 +4980,25 @@ corporate action or constituent change (add/delist):</p>
 <a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">  </span><span class="nt">"divisor"</span><span class="p">:</span><span class="w"> </span><span class="mf">7007100000.0</span><span class="p">,</span>
 <a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">  </span><span class="nt">"constituents"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"AAPL"</span><span class="p">,</span><span class="w"> </span><span class="s2">"MSFT"</span><span class="p">,</span><span class="w"> </span><span class="s2">"TSLA"</span><span class="p">],</span>
 <a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">  </span><span class="nt">"last_prices"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">    </span><span class="nt">"AAPL"</span><span class="p">:</span><span class="w"> </span><span class="mf">211.30</span><span class="p">,</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">    </span><span class="nt">"MSFT"</span><span class="p">:</span><span class="w"> </span><span class="mf">418.50</span><span class="p">,</span>
-<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">    </span><span class="nt">"TSLA"</span><span class="p">:</span><span class="w"> </span><span class="mf">251.00</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">    </span><span class="nt">"AAPL"</span><span class="p">:</span><span class="w"> </span><span class="mf">211.3</span><span class="p">,</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">    </span><span class="nt">"MSFT"</span><span class="p">:</span><span class="w"> </span><span class="mf">418.5</span><span class="p">,</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">    </span><span class="nt">"TSLA"</span><span class="p">:</span><span class="w"> </span><span class="mf">251.0</span>
 <a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="w">  </span><span class="p">},</span>
-<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="w">  </span><span class="nt">"day_open"</span><span class="p">:</span><span class="w"> </span><span class="mf">1042.10</span><span class="p">,</span>
-<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="w">  </span><span class="nt">"day_high"</span><span class="p">:</span><span class="w"> </span><span class="mf">1056.30</span><span class="p">,</span>
-<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="w">  </span><span class="nt">"day_low"</span><span class="p">:</span><span class="w"> </span><span class="mf">1040.05</span><span class="p">,</span>
-<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="w">  </span><span class="nt">"last_level"</span><span class="p">:</span><span class="w"> </span><span class="mf">1051.20</span><span class="p">,</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="w">  </span><span class="nt">"day_open"</span><span class="p">:</span><span class="w"> </span><span class="mf">1002.45</span><span class="p">,</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="w">  </span><span class="nt">"day_high"</span><span class="p">:</span><span class="w"> </span><span class="mf">1012.35</span><span class="p">,</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="w">  </span><span class="nt">"day_low"</span><span class="p">:</span><span class="w"> </span><span class="mf">998.4</span><span class="p">,</span>
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="w">  </span><span class="nt">"last_level"</span><span class="p">:</span><span class="w"> </span><span class="mf">1008.9195</span><span class="p">,</span>
 <a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="w">  </span><span class="nt">"last_updated"</span><span class="p">:</span><span class="w"> </span><span class="mf">1749760800.0</span>
 <a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="p">}</span>
 </code></pre></div>
 <p>On restart, this file is loaded to restore the divisor and last prices.
-If the <code>index_id</code> or constituent list in the file does not match the current
-config, <code>pm-index</code> exits with an error. Use <code>--reset</code> to clear the state and
-reinitialise from config.</p>
+If the <code>index_id</code> in the file does not match, or the persisted constituent list
+differs from the configured one, <code>pm-index</code> exits with an error telling you to
+use <code>--reset</code>. The persisted list is stored <strong>sorted alphabetically</strong> and is
+compared in order with the configured <code>constituents</code>, so list constituents
+alphabetically in the config. After an <code>add</code> or <code>delist</code> made through
+<code>pm-index-admin-cli</code>, update the config to match, deploy it, and start with
+<code>--reset</code> (the change is otherwise lost or trips this check on the next start).</p>
 <h3 id="history-file">History file<a class="headerlink" href="#history-file" title="Permanent link">&para;</a></h3>
 <p>The JSONL history file is a <strong>structural/corporate-action audit log</strong>, not a
 level-history store. Only events that change an index's composition or
@@ -4989,11 +5027,17 @@ divisor are appended (one JSON object per line):</p>
 <td><code>DELIST</code></td>
 <td>After a symbol is removed from the index</td>
 </tr>
+<tr>
+<td><code>REBALANCE</code></td>
+<td>After a batch share-outstanding update</td>
+</tr>
 </tbody>
 </table>
-<p>Example history file extract:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>{"type": "INIT", "timestamp": 1749733100.0, "index_id": "EDU100", "base_value": 1000.0, "divisor": 7007100000.0, "constituents": ["AAPL", "MSFT", "TSLA"], "level": 1000.0}
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>{"type": "CORP_ACTION", "timestamp": 1749847200.0, "index_id": "EDU100", "symbol": "AAPL", "action": "SPLIT", "detail": "2:1", "old_divisor": 7007100000.0, "new_divisor": 7007100000.0, "level": 1051.20}
+<p>Every record carries <code>type</code>, <code>ts_ns</code> (epoch <strong>nanoseconds</strong>), <code>index_id</code> and
+<code>level</code>. Records are written as compact JSON (no spaces after <code>:</code> or <code>,</code>).
+Example history file extract:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>{"type":"INIT","ts_ns":1749733100000000000,"index_id":"EDU100","base_value":1000.0,"divisor":7007100000.0,"constituents":["AAPL","MSFT","TSLA"],"level":1000.0}
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>{"type":"CORP_ACTION","ts_ns":1749847200000000000,"index_id":"EDU100","symbol":"AAPL","action":"SPLIT","detail":"2:1","old_divisor":7007100000.0,"new_divisor":7007100000.0,"level":1051.2}
 </code></pre></div>
 <p>History files are not deleted by <code>--reset</code>. They accumulate across sessions and
 provide a permanent structural audit trail.</p>
@@ -5019,7 +5063,7 @@ ends or <code>close_session_state</code> reads <code>CLOSED</code> — see
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>INDEX
 </code></pre></div>
 <p>Sample output:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[10:15:23.411] EDU100  1048.73  +6.63  +0.64%  O=1042.10 H=1056.30 L=1040.05  CONTINUOUS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[10:15:23.411] EDU100 1048.73 +6.63 +0.64% O=1042.10 H=1056.30 L=1040.05 CONTINUOUS
 </code></pre></div>
 <div class="admonition note">
 <p><code>pm-index</code> must be running. If it is not, the gateway prints
@@ -5034,12 +5078,18 @@ index's ID is used as the default and <code>INDEX=</code> may be omitted. Withou
 the console prints <code>INDEX|HISTORY requires INDEX=&lt;id&gt; or prior index.update.</code>
 and sends nothing.</p>
 <p>Returns the last 30 days of structural/audit records (<code>INIT</code>, <code>CORP_ACTION</code>,
-<code>ADD_CONSTITUENT</code>, <code>DELIST</code>) — corporate actions and constituent changes, not
-level ticks.</p>
+<code>ADD_CONSTITUENT</code>, <code>DELIST</code>, <code>REBALANCE</code>) — corporate actions and constituent
+changes, not level ticks. The result is printed as a table titled
+<em>Index structural history</em> with the columns Type, Time (local), Symbol, Detail
+and Level; when nothing matches it prints a "No structural index history
+records returned" hint instead.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>INDEX|HISTORY|INDEX=EDU100|FROM=2026-06-01|TO=2026-06-12
 </code></pre></div>
-<p>Returns records within the given date range (inclusive). The response includes
-one line per record, newest last.</p>
+<p>Returns records within the given date range, oldest first. <code>FROM</code> and <code>TO</code>
+are dates (<code>YYYY-MM-DD</code>) read as <strong>local midnight at the start of that day</strong>,
+so <code>TO=2026-06-12</code> stops at the start of 12 June and does not include that
+day's records — use the following day to include it. An unparseable date is
+silently ignored and the default (30 days back / now) is used.</p>
 <div class="admonition tip">
 <p class="admonition-title">Level/EOD history is a different tool</p>
 <p><code>INDEX|HISTORY</code> only returns structural/audit events. For index level or
@@ -5060,9 +5110,13 @@ subscribe via the CALF <code>INDEX</code> channel:</p>
 <a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>SUB|CH=INDEX|SYM=EDU100
 </code></pre></div>
 <p>The gateway sends an initial <code>SNAP</code> and then live <code>IDX</code> messages:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>SNAP|CH=INDEX|SYM=EDU100|SEQ=1|TS=2026-06-12T10:15:23.000Z|LEVEL=1048.73|OPEN=1042.10|HIGH=1056.30|LOW=1040.05|SESSION=CONTINUOUS
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>IDX|CH=INDEX|SYM=EDU100|SEQ=2|TS=2026-06-12T10:15:24.411Z|LEVEL=1051.20|CHG=+9.10|PCTCHG=+0.87|OPEN=1042.10|HIGH=1056.30|LOW=1040.05|AGGCAP=7368000000000|SESSION=CONTINUOUS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>SNAP|CH=INDEX|SYM=EDU100|SEQ=1|TS=2026-06-12T10:15:23.000Z|LEVEL=1048.73|SESSION=CONTINUOUS|OPEN=1042.1|CHG=+6.63|PCTCHG=+0.64|HIGH=1056.3|LOW=1040.05|AGGCAP=7348555983000
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>IDX|CH=INDEX|SYM=EDU100|SEQ=2|TS=2026-06-12T10:15:24.411Z|LEVEL=1051.2|SESSION=CONTINUOUS|OPEN=1042.1|CHG=+9.10|PCTCHG=+0.87|HIGH=1056.3|LOW=1040.05|AGGCAP=7365863520000
 </code></pre></div>
+<p>The <code>SNAP</code> carries the same fields as the most recent <code>IDX</code>. <code>LEVEL</code>, <code>OPEN</code>,
+<code>HIGH</code> and <code>LOW</code> are the raw numbers (no fixed decimal places — <code>1042.1</code>, not
+<code>1042.10</code>); <code>CHG</code> and <code>PCTCHG</code> are rounded to two places. The field order on
+the wire is as shown, but clients should parse by key.</p>
 <h4 id="idx-message-fields"><code>IDX</code> message fields<a class="headerlink" href="#idx-message-fields" title="Permanent link">&para;</a></h4>
 <table>
 <thead>
@@ -5111,17 +5165,17 @@ subscribe via the CALF <code>INDEX</code> channel:</p>
 <tr>
 <td><code>OPEN</code></td>
 <td>decimal</td>
-<td>Day open level; omitted during <code>PRE_OPEN</code> and <code>OPENING_AUCTION</code></td>
+<td>Day open level; omitted until the first level update after the day's open/high/low were last cleared (each <code>OPENING_AUCTION</code> / <code>CONTINUOUS</code> transition)</td>
 </tr>
 <tr>
 <td><code>HIGH</code></td>
 <td>decimal</td>
-<td>Day high</td>
+<td>Day high; omitted together with <code>OPEN</code></td>
 </tr>
 <tr>
 <td><code>LOW</code></td>
 <td>decimal</td>
-<td>Day low</td>
+<td>Day low; omitted together with <code>OPEN</code></td>
 </tr>
 <tr>
 <td><code>AGGCAP</code></td>
@@ -5162,9 +5216,10 @@ the subcommand is a parse error since only the top-level parser defines them.</p
 <a id="__codelineno-16-18" name="__codelineno-16-18" href="#__codelineno-16-18"></a><span class="c1"># List all configured indices</span>
 <a id="__codelineno-16-19" name="__codelineno-16-19" href="#__codelineno-16-19"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>indices
 <a id="__codelineno-16-20" name="__codelineno-16-20" href="#__codelineno-16-20"></a>
-<a id="__codelineno-16-21" name="__codelineno-16-21" href="#__codelineno-16-21"></a><span class="c1"># Read history files directly from a directory without a config file</span>
-<a id="__codelineno-16-22" name="__codelineno-16-22" href="#__codelineno-16-22"></a><span class="c1"># (defaults to ./data/indexes when --data-dir is omitted)</span>
-<a id="__codelineno-16-23" name="__codelineno-16-23" href="#__codelineno-16-23"></a>pm-index-cli<span class="w"> </span>--data-dir<span class="w"> </span>/custom/path/indexes<span class="w"> </span>events<span class="w"> </span>--index<span class="w"> </span>EDU100
+<a id="__codelineno-16-21" name="__codelineno-16-21" href="#__codelineno-16-21"></a><span class="c1"># --config is optional: without it the deployed (compiled) configuration is used.</span>
+<a id="__codelineno-16-22" name="__codelineno-16-22" href="#__codelineno-16-22"></a><span class="c1"># --data-dir is only a fallback for indices the configuration does not know</span>
+<a id="__codelineno-16-23" name="__codelineno-16-23" href="#__codelineno-16-23"></a><span class="c1"># (default data/indexes, inside the data directory); a configured history_file wins.</span>
+<a id="__codelineno-16-24" name="__codelineno-16-24" href="#__codelineno-16-24"></a>pm-index-cli<span class="w"> </span>--data-dir<span class="w"> </span>/custom/path/indexes<span class="w"> </span>events<span class="w"> </span>--index<span class="w"> </span>EDU100
 </code></pre></div>
 <p>See the <a href="../160-exchange-commands/">pm-index-cli reference</a> for all subcommands, column
 descriptions, and output-format options.</p>
@@ -5211,7 +5266,7 @@ time series over HTTP, under <code>/api/v1/history</code>:</p>
 </tr>
 <tr>
 <td><code>GET /history/index-events</code></td>
-<td>Structural/audit records (<code>INIT</code>, <code>CORP_ACTION</code>, <code>ADD_CONSTITUENT</code>, <code>DELIST</code>)</td>
+<td>Structural/audit records (<code>INIT</code>, <code>CORP_ACTION</code>, <code>ADD_CONSTITUENT</code>, <code>DELIST</code>, <code>REBALANCE</code>)</td>
 <td>Live round-trip to <code>pm-index</code>, not <code>pm-stats</code></td>
 </tr>
 </tbody>
@@ -5232,7 +5287,7 @@ for quick one-off inspections or when <code>pm-index-cli</code> is not available
 <div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>tail<span class="w"> </span>-20<span class="w"> </span>data/indexes/EDU100_history.jsonl
 <a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>
 <a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="c1"># Corporate action records only</span>
-<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>grep<span class="w"> </span><span class="s1">'"type": "CORP_ACTION"'</span><span class="w"> </span>data/indexes/EDU100_history.jsonl<span class="w"> </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>json.tool
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>grep<span class="w"> </span><span class="s1">'"type":"CORP_ACTION"'</span><span class="w"> </span>data/indexes/EDU100_history.jsonl<span class="w"> </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>json.tool
 <a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>
 <a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a><span class="c1"># Structural records between two timestamps</span>
 <a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>python3<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;'EOF'</span>
@@ -5242,11 +5297,15 @@ for quick one-off inspections or when <code>pm-index-cli</code> is not available
 <a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a><span class="s">with open("data/indexes/EDU100_history.jsonl") as f:</span>
 <a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a><span class="s">    for line in f:</span>
 <a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a><span class="s">        rec = json.loads(line)</span>
-<a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a><span class="s">        if from_ts &lt;= rec["timestamp"] &lt;= to_ts:</span>
-<a id="__codelineno-19-15" name="__codelineno-19-15" href="#__codelineno-19-15"></a><span class="s">            print(f"{rec['timestamp']:.0f}  {rec['type']}  {rec.get('symbol', '')}")</span>
-<a id="__codelineno-19-16" name="__codelineno-19-16" href="#__codelineno-19-16"></a><span class="s">EOF</span>
+<a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a><span class="s">        ts = rec["ts_ns"] / 1e9          # epoch nanoseconds -&gt; seconds</span>
+<a id="__codelineno-19-15" name="__codelineno-19-15" href="#__codelineno-19-15"></a><span class="s">        if from_ts &lt;= ts &lt;= to_ts:</span>
+<a id="__codelineno-19-16" name="__codelineno-19-16" href="#__codelineno-19-16"></a><span class="s">            print(f"{ts:.0f}  {rec['type']}  {rec.get('symbol', '')}")</span>
+<a id="__codelineno-19-17" name="__codelineno-19-17" href="#__codelineno-19-17"></a><span class="s">EOF</span>
 </code></pre></div>
 <h2 id="example-configurations">Example Configurations<a class="headerlink" href="#example-configurations" title="Permanent link">&para;</a></h2>
+<p>The <code>pm-config-gen</code> commands below need the reference prices described in the
+<a href="#generating-with-pm-config-gen">warning above</a> (for example <code>--seed-last-prices</code>)
+before <code>pm-index</code> will accept the result.</p>
 <h3 id="single-index-three-constituents">Single index, three constituents<a class="headerlink" href="#single-index-three-constituents" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>

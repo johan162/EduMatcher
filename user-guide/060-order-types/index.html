@@ -5463,12 +5463,13 @@ a small slice while preserving the same total parent quantity.</p>
 <p>Only <code>VISIBLE=</code> quantity is published to the order book</p>
 </li>
 <li>Once the visible peak is fully consumed, a <strong>new peak</strong> is replenished from the hidden quantity</li>
-<li>
-<p>Each new peak gets a <strong>new <code>arrival_seq</code></strong> → goes to the back of the queue at
+<li>Each new peak gets a <strong>new <code>arrival_seq</code></strong> → goes to the back of the queue at
   that price level (because the book uses price-time priority: among orders at
   the same price, the order with the lowest <code>arrival_seq</code> — i.e. the one the
   engine admitted first — gets filled first; a fresh <code>arrival_seq</code> means this
-  peak waits behind all other orders already resting at that price)</p>
+  peak waits behind all other orders already resting at that price)</li>
+<li>The total hidden size is <strong>never visible</strong> to other market participants</li>
+</ul>
 <div class="admonition info">
 <p class="admonition-title">Priority is keyed on <code>arrival_seq</code>, not the order's <code>timestamp</code></p>
 <p><code>arrival_seq</code> is a monotonic counter the <strong>engine</strong> assigns when it
@@ -5477,11 +5478,6 @@ admits an order into the book — it is not the client-supplied
 below and <a href="../900-app-alf-protocol/#priority-rules">Order Amendment — AMEND</a>
 for the full explanation of why this distinction matters.</p>
 </div>
-<ul>
-<li>The total hidden size is <strong>never visible</strong> to other market participants</li>
-</ul>
-</li>
-</ul>
 <h3 id="gateway-syntax_4">Gateway Syntax<a class="headerlink" href="#gateway-syntax_4" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=ICEBERG|QTY=1000|PRICE=150.00|VISIBLE=100
 </code></pre></div>
@@ -5511,22 +5507,6 @@ the matching system keeps lifecycle and cancellation coupling explicit.</p>
 <p>Each leg is a standard LIMIT order posted to its respective symbol book</p>
 </li>
 <li>All legs are tracked together under a parent combo ID</li>
-</ul>
-<div class="admonition warning">
-<p class="admonition-title">Known bug: OCO leg price/stop/trail fields are dropped on the wire</p>
-<p>The ALF gateway builds each OCO leg's wire payload with the keys <code>price</code>,
-<code>stop_price</code>, and <code>trail_offset</code>, but the engine's OCO handler reads
-<code>price_ticks</code>, <code>stop_price_ticks</code>, and <code>trail_offset_ticks</code> from that same
-payload. The mismatch means any <code>LEG1_PRICE=</code>/<code>LEG1_STOP=</code>/<code>LEG1_TRAIL=</code>
-(or <code>LEG2_*</code>) value you supply is silently dropped before it reaches the
-engine, and the leg is then rejected as missing its required price/stop
-(e.g. <code>Leg 1 (LIMIT) requires price</code>). As of this writing, <strong>every OCO
-example below that includes a leg price, stop, or trail offset will be
-rejected</strong> — only an OCO pair whose legs need no such field (which none
-of the standard order types allow) would go through. This is a defect in
-the gateway/engine wire contract, not in how you invoke <code>NEW|TYPE=OCO</code>.</p>
-</div>
-<ul>
 <li>If any leg is cancelled or expires, all remaining legs are automatically
   <strong>cascade-cancelled</strong> (unfilled quantities only — fills already executed
   are not reversed)</li>

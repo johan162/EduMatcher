@@ -4989,26 +4989,25 @@ as Exercise 5, no gateway command:</p>
 <p>A cash dividend reduces the effective price by the dividend amount. The divisor
 is adjusted to compensate so the index level is preserved.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> index level preserved across dividend adjustment.</p>
-<p>??? note "Under the hood: <code>ExchangeCommandClient</code>"
-    <code>pm-index-admin-cli</code> is a thin wrapper over the same
-    <code>ExchangeCommandClient</code> class <code>pm-admin-cli</code> uses internally. If you ever
-    need to script a corporate action directly (e.g. from a test harness),
-    the equivalent code is:</p>
-<div class="highlight"><pre><span></span><code>```python
-from edumatcher.commands import ExchangeCommandClient
-
-client = ExchangeCommandClient("OPS01")
-result = client.index_corp_action(
-    "EDU100", "CASH_DIVIDEND", "MSFT",
-    dividend_per_share=2.50,
-)
-print("CORP_ACTION result:", result)
-client.close()
-```
-
-Note `pm-index`'s PULL socket has no `connect()`/auth handshake, unlike
-the engine socket `pm-admin-cli` talks to.
+<div class="admonition note">
+<p class="admonition-title">Under the hood: <code>ExchangeCommandClient</code></p>
+<p><code>pm-index-admin-cli</code> is a thin wrapper over the same
+<code>ExchangeCommandClient</code> class <code>pm-admin-cli</code> uses internally. If you ever
+need to script a corporate action directly (e.g. from a test harness),
+the equivalent code is:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">edumatcher.commands</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExchangeCommandClient</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="n">client</span> <span class="o">=</span> <span class="n">ExchangeCommandClient</span><span class="p">(</span><span class="s2">"OPS01"</span><span class="p">)</span>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">index_corp_action</span><span class="p">(</span>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>    <span class="s2">"EDU100"</span><span class="p">,</span> <span class="s2">"CASH_DIVIDEND"</span><span class="p">,</span> <span class="s2">"MSFT"</span><span class="p">,</span>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>    <span class="n">dividend_per_share</span><span class="o">=</span><span class="mf">2.50</span><span class="p">,</span>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="p">)</span>
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="nb">print</span><span class="p">(</span><span class="s2">"CORP_ACTION result:"</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span>
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="n">client</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </code></pre></div>
+<p>Note <code>pm-index</code>'s PULL socket has no <code>connect()</code>/auth handshake, unlike
+the engine socket <code>pm-admin-cli</code> talks to.</p>
+</div>
 <h2 id="exercise-7-add-and-remove-a-constituent">Exercise 7: Add and Remove a Constituent<a class="headerlink" href="#exercise-7-add-and-remove-a-constituent" title="Permanent link">&para;</a></h2>
 <p>Constituent changes also use <a href="../../user-guide/152-index-admin-cli/"><code>pm-index-admin-cli</code></a>
 — no gateway command exists for these either.</p>

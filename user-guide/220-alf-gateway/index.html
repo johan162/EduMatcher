@@ -4650,7 +4650,7 @@ can connect to <code>pm-alf-gwy</code>.</p>
 <tr>
 <td><code>idle_timeout_sec</code></td>
 <td><code>30</code></td>
-<td>Disconnect after this many seconds of inbound silence</td>
+<td>Disconnect after this many seconds of inbound silence. This default applies only when an <code>alf_gateway:</code> section is present but omits the key; if the section is absent entirely, the effective default is <code>3600</code></td>
 </tr>
 <tr>
 <td><code>max_connections</code></td>
@@ -4810,7 +4810,7 @@ as shown in the Python example below.</p>
 <tr>
 <td><code>ID</code></td>
 <td>Yes</td>
-<td>Gateway ID that must be in <code>gateways.alf</code> in config</td>
+<td>Gateway ID that must be in <code>gateways.alf</code> in config; max 32 characters (connection closed with <code>INVALID_VALUE</code> if exceeded)</td>
 </tr>
 </tbody>
 </table>
@@ -4915,7 +4915,7 @@ uppercase before parsing.</p>
 <tr>
 <td><code>TAG</code></td>
 <td>optional</td>
-<td>Client order tag, max 64 chars; echoed on order lifecycle responses</td>
+<td>Client order tag, max 64 chars, characters limited to <code>A-Z0-9-_.</code>; echoed on order lifecycle responses</td>
 </tr>
 </tbody>
 </table>
@@ -5134,8 +5134,8 @@ gateway ID, it simply has nothing to report.</p>
 </tr>
 </tbody>
 </table>
-<p>A bare <code>POS</code> (no <code>GW=</code>) is rejected with <code>ERR|CODE=UNKNOWN_COMMAND</code> — see
-<a href="#what-this-is-not">What this is not</a> above.</p>
+<p>A bare <code>POS</code> (no <code>GW=</code>) is rejected with <code>ERR|CODE=MISSING_FIELD</code> (<code>POS
+requires GW=&lt;gateway_id&gt;</code>).</p>
 <p><code>POS|GW=</code> forwards <code>system.position_request</code> for the given <code>gateway_id</code> to
 the engine and renders the engine's <code>system.position_snapshot.{gateway_id}</code>
 reply: net quantity and average cost, per symbol, for every symbol that
@@ -5201,8 +5201,8 @@ changes to also handle the queried response.</p>
 </tr>
 <tr>
 <td><code>RESUME</code></td>
-<td><code>SYMBOL</code>, <code>MODE</code></td>
-<td>Circuit-breaker resume</td>
+<td><code>SYMBOL</code>, <code>SRC</code></td>
+<td>Circuit-breaker resume; <code>SRC</code> is the halt source that triggered the original halt</td>
 </tr>
 <tr>
 <td><code>TRADE</code></td>
@@ -5345,14 +5345,36 @@ close. Two fields tell you which happened:</p>
 <td><code>INSUFFICIENT_LIQUIDITY</code></td>
 <td>A <code>MARKET</code> or <code>IOC</code> order ran out of book. Whatever traded is reported by the preceding <code>FILL</code> lines; this cancels the remainder, which never rests</td>
 </tr>
+<tr>
+<td><code>KILL_SWITCH</code></td>
+<td>A gateway kill switch cancelled this order</td>
+</tr>
+<tr>
+<td><code>CIRCUIT_BREAKER_HALT</code></td>
+<td>Cancelled as part of a circuit-breaker halt</td>
+</tr>
+<tr>
+<td><code>GATEWAY_DISCONNECT</code></td>
+<td>Cancelled because the owning gateway session disconnected</td>
+</tr>
+<tr>
+<td><code>ADMIN_CANCEL_SYMBOL</code></td>
+<td>An administrator cancelled all resting orders on this symbol</td>
+</tr>
+<tr>
+<td><code>QUOTE_REPLACED</code></td>
+<td>A market-maker quote leg was superseded by a newer quote</td>
+</tr>
+<tr>
+<td><code>QUOTE_LEG_FILLED</code></td>
+<td>The sibling leg of a two-sided quote was auto-cancelled because this leg filled</td>
+</tr>
 </tbody>
 </table>
-<p>The field is <strong>omitted, not empty</strong>, when you requested the cancel yourself, and
-also on exchange-initiated cancels whose cause is not yet classified — a kill
-switch, a halt cascade, an expiry. So an absent <code>RTAG</code> together with an absent
-<code>CANCEL_REASON</code> still means <em>the exchange did this, cause unstated</em>. Treat a
-value you do not recognise the same way: new members may be added, but existing
-ones are never removed or renamed.</p>
+<p>The field is <strong>omitted, not empty</strong>, when you requested the cancel yourself.
+Treat a value you do not recognise the same way <code>RTAG</code>/<code>CANCEL_REASON</code> both
+absent is treated: new members may be added, but existing ones are never
+removed or renamed.</p>
 <p><code>CANCEL_REASON</code> deliberately does not share the <code>REJECT_CODE</code> vocabulary. A
 cancel is not a rejection — the order was accepted, and may well have traded.</p>
 <h2 id="error-codes">Error codes<a class="headerlink" href="#error-codes" title="Permanent link">&para;</a></h2>
@@ -5392,6 +5414,11 @@ When the rejected command carried <code>TAG</code> or <code>RTAG</code>, the gat
 <td><code>GATEWAY_ALREADY_CONNECTED</code></td>
 <td>Same gateway ID already has an active session</td>
 <td>No</td>
+</tr>
+<tr>
+<td><code>HELLO_ALREADY_PENDING</code></td>
+<td>A second <code>HELLO</code> arrives while an earlier one is still awaiting the engine's auth result</td>
+<td>Yes</td>
 </tr>
 <tr>
 <td><code>BAD_MESSAGE</code></td>
@@ -5447,6 +5474,11 @@ When the rejected command carried <code>TAG</code> or <code>RTAG</code>, the gat
 <td><code>MAX_ERRORS</code></td>
 <td>Too many errors in the sliding error window</td>
 <td>No</td>
+</tr>
+<tr>
+<td><code>ENGINE_UNAVAILABLE</code></td>
+<td>Command could not be forwarded to the engine (engine unreachable); retry shortly</td>
+<td>Yes</td>
 </tr>
 <tr>
 <td><code>INTERNAL_ERROR</code></td>

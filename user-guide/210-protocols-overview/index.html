@@ -1703,6 +1703,50 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#lalf-log-alf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LALF (Log ALF)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#restwebsocket-pm-api-gwy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        REST/WebSocket (pm-api-gwy)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#drop-copy-and-dc1-pm-dc-gwy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Drop copy and DC1 (pm-dc-gwy)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#internal-zeromq-message-bus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Internal ZeroMQ message bus
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#quick-selection-guide" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4111,13 +4155,20 @@
 </ul>
 </div>
 <h2 id="why-this-page-exists">Why this page exists<a class="headerlink" href="#why-this-page-exists" title="Permanent link">&para;</a></h2>
-<p>EduMatcher exposes and documents four external protocol families:</p>
+<p>EduMatcher exposes and documents six external protocol families, plus the
+internal ZeroMQ message bus that ties its own processes together:</p>
 <ol>
-<li>ALF</li>
-<li>BALF</li>
-<li>CALF</li>
-<li>RALF</li>
+<li>ALF — order entry</li>
+<li>BALF — binary order entry</li>
+<li>CALF — market data</li>
+<li>RALF — post-trade dissemination</li>
+<li>LALF — centralized process logging</li>
+<li>REST/WebSocket (<code>pm-api-gwy</code>) — HTTP access to order entry and history</li>
 </ol>
+<p>A seventh, narrower wire format, DC1 (spoken by <code>pm-dc-gwy</code>), gives plain-TCP
+clients a text-line view of the same fill data RALF's <code>DROP_COPY</code> role and the
+engine's own drop-copy PUB socket already carry — see
+<a href="../200-drop-copy/">Drop Copy</a> for how the three relate.</p>
 <p>They serve different connectivity purposes. This page is the quick map that
 connects each protocol to:</p>
 <ul>
@@ -4134,6 +4185,7 @@ connects each protocol to:</p>
 <th>Protocol</th>
 <th>Primary purpose</th>
 <th>Transport/format</th>
+<th>Prices on the wire</th>
 <th>Runtime status</th>
 <th>Typical gateway/process</th>
 </tr>
@@ -4143,6 +4195,7 @@ connects each protocol to:</p>
 <td><strong>ALF</strong></td>
 <td>Human-readable order entry and gateway control</td>
 <td>Text line protocol (<code>FIELD=VALUE|...</code>)</td>
+<td>Decimal display price</td>
 <td>Implemented and active</td>
 <td><code>pm-alf-console</code> (interactive) · <code>pm-alf-gwy</code> (TCP)</td>
 </tr>
@@ -4150,13 +4203,15 @@ connects each protocol to:</p>
 <td><strong>BALF</strong></td>
 <td>Low-latency binary order entry for programmatic clients</td>
 <td>Binary framed protocol</td>
+<td><code>i64</code> fixed-point, scale 1e8</td>
 <td>Implemented and active</td>
 <td><code>pm-balf-gwy</code></td>
 </tr>
 <tr>
 <td><strong>CALF</strong></td>
 <td>External market-data dissemination (top/book/trade/state style channels)</td>
-<td>Text line protocol over TCP</td>
+<td>Text line protocol over TCP (<code>CALF1</code>)</td>
+<td>Decimal display price</td>
 <td>Implemented and active</td>
 <td><code>pm-md-gwy</code></td>
 </tr>
@@ -4164,11 +4219,31 @@ connects each protocol to:</p>
 <td><strong>RALF</strong></td>
 <td>External post-trade dissemination for clearing, drop-copy, and audit consumers</td>
 <td>Text line protocol over TCP (<code>RALF1</code>)</td>
+<td>Decimal display price</td>
 <td>Implemented and active</td>
 <td><code>pm-ralf-gwy</code></td>
 </tr>
+<tr>
+<td><strong>LALF</strong></td>
+<td>Centralized process logging</td>
+<td>Text line protocol over TCP</td>
+<td>n/a</td>
+<td>Implemented and active</td>
+<td><code>pm-log-srv</code></td>
+</tr>
+<tr>
+<td><strong>REST/WebSocket</strong></td>
+<td>HTTP/WS access to order entry and history, for browser UIs and dashboards</td>
+<td>JSON over HTTP + WebSocket</td>
+<td>Decimal display price</td>
+<td>Implemented and active</td>
+<td><code>pm-api-gwy</code></td>
+</tr>
 </tbody>
 </table>
+<p>BALF is the one protocol here whose wire encoding of price actually differs —
+a scaled 64-bit integer, not a decimal string — so a client written against
+ALF/CALF/RALF/REST needs a different price parser for BALF.</p>
 <h2 id="alf-almost-fix">ALF (Almost FIX)<a class="headerlink" href="#alf-almost-fix" title="Permanent link">&para;</a></h2>
 <p>ALF is EduMatcher's active, user-facing order-entry protocol. It is used by
 interactive participant gateways and is the primary way traders submit and
@@ -4205,8 +4280,9 @@ manage orders in current deployments.</p>
 <p>Where to read more:</p>
 <ul>
 <li>ALF TCP gateway operational guide: <a href="../220-alf-gateway/">ALF TCP Gateway</a></li>
-<li>Gateway behavior and operator workflow: <a href="../055-alf-console/">ALF Console</a></li>
-<li>Process-level role of both ALF processes: <a href="../170-processes/#pm-alf-gwy-alf-tcp-gateway">Processes</a></li>
+<li>Interactive client behavior and operator workflow (<code>pm-alf-console</code> is a client, not a gateway): <a href="../055-alf-console/">ALF Console</a></li>
+<li>Process-level role of <code>pm-alf-console</code>: <a href="../170-processes/#pm-alf-console-user-gateway">Processes</a></li>
+<li>Process-level role of <code>pm-alf-gwy</code>: <a href="../170-processes/#pm-alf-gwy-alf-tcp-gateway">Processes</a></li>
 <li>Engine configuration of allowed ALF IDs/roles: <a href="../010-configuration/#alf-gateway-allowlist">Configuration</a></li>
 <li>Formal wire syntax and semantics: <a href="../900-app-alf-protocol/">Appendix - ALF Protocol</a></li>
 </ul>
@@ -4266,6 +4342,53 @@ drop-copy, and audit consumers.</p>
 <li>RALF gateway configuration details: <a href="../010-configuration/#configuring-pm-ralf-gwy">Configuration</a></li>
 <li>Formal wire protocol reference: <a href="../930-app-ralf-protocol/">Appendix - RALF Protocol</a></li>
 </ul>
+<h2 id="lalf-log-alf">LALF (Log ALF)<a class="headerlink" href="#lalf-log-alf" title="Permanent link">&para;</a></h2>
+<p>LALF is the protocol <code>pm-log-srv</code> speaks to collect operational log lines from
+every other <code>pm-*</code> process, and to distribute them live to log viewers. It
+carries no trading data.</p>
+<p>Where to read more:</p>
+<ul>
+<li>Operational guide: <a href="../280-log-srv/">Log Server</a></li>
+<li>Formal wire protocol reference: <a href="../940-app-lalf-protocol/">Appendix - LALF Protocol</a></li>
+</ul>
+<h2 id="restwebsocket-pm-api-gwy">REST/WebSocket (<code>pm-api-gwy</code>)<a class="headerlink" href="#restwebsocket-pm-api-gwy" title="Permanent link">&para;</a></h2>
+<p>The REST API is EduMatcher's HTTP-native external interface, intended for
+browser UIs, dashboards, and simple bots that would rather speak JSON over
+HTTP than a text-line protocol. It translates requests into the same order
+flow and history queries the other gateways use, and exposes a WebSocket for
+live updates.</p>
+<p>Use REST/WebSocket when you need:</p>
+<ul>
+<li>a browser-based UI or dashboard</li>
+<li>a scripting language with an easy HTTP client but no ZeroMQ bindings</li>
+<li>JSON request/response instead of a line protocol</li>
+</ul>
+<p>Where to read more:</p>
+<ul>
+<li>Operational guide and endpoint reference: <a href="../260-api-gateway/">API Gateway</a></li>
+<li>Formal reference: <a href="../950-app-REST-API-reference/">Appendix - REST API Reference</a></li>
+</ul>
+<h2 id="drop-copy-and-dc1-pm-dc-gwy">Drop copy and DC1 (<code>pm-dc-gwy</code>)<a class="headerlink" href="#drop-copy-and-dc1-pm-dc-gwy" title="Permanent link">&para;</a></h2>
+<p>Drop copy is not a separate protocol family in the sense of the six above —
+it is a second way to reach the same fill data RALF's <code>DROP_COPY</code> role
+already carries. The engine publishes fills directly on its own dedicated
+ZMQ PUB socket (port <code>5557</code>); <code>pm-dc-gwy</code> relays that feed as a lightweight
+text-line protocol ("DC1") for plain-TCP clients that don't speak ZeroMQ or
+RALF.</p>
+<p>Where to read more:</p>
+<ul>
+<li>Engine-side feed and wire format: <a href="../200-drop-copy/">Drop Copy</a></li>
+<li>The DC1 gateway and protocol: <a href="../201-dc-gateway/">Drop-Copy Gateway</a></li>
+<li>A ready-made DC1 client for testing: <a href="../202-dc-spy-cli/">dc-spy CLI</a></li>
+</ul>
+<h2 id="internal-zeromq-message-bus">Internal ZeroMQ message bus<a class="headerlink" href="#internal-zeromq-message-bus" title="Permanent link">&para;</a></h2>
+<p>Everything above is the <em>external</em> surface. Internally, every EduMatcher
+process talks to every other one over a shared ZeroMQ bus of topic-tagged
+messages — the catalogue the protocols above are themselves built from.</p>
+<p>Where to read more:</p>
+<ul>
+<li>Message framing, topics, and the full message catalogue: <a href="../270-message-reference/">Message Reference</a></li>
+</ul>
 <h2 id="quick-selection-guide">Quick selection guide<a class="headerlink" href="#quick-selection-guide" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -4295,20 +4418,38 @@ drop-copy, and audit consumers.</p>
 <td>Consume post-trade/clearing/audit streams externally</td>
 <td><strong>RALF</strong> (<code>pm-ralf-gwy</code>)</td>
 </tr>
+<tr>
+<td>Give a plain-TCP client just the fill stream</td>
+<td><strong>DC1</strong> (<code>pm-dc-gwy</code>)</td>
+</tr>
+<tr>
+<td>Collect operational logs centrally</td>
+<td><strong>LALF</strong> (<code>pm-log-srv</code>)</td>
+</tr>
+<tr>
+<td>Build a browser UI, dashboard, or simple HTTP bot</td>
+<td><strong>REST/WebSocket</strong> (<code>pm-api-gwy</code>)</td>
+</tr>
 </tbody>
 </table>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../000-getting-started/">Getting Started</a></li>
 <li><a href="../170-processes/">Processes</a></li>
+<li><a href="../270-message-reference/">Message Reference</a></li>
 <li><a href="../220-alf-gateway/">ALF TCP Gateway</a></li>
 <li><a href="../230-balf-gateway/">BALF TCP Gateway</a></li>
 <li><a href="../240-calf-gateway/">Market Data Feed (CALF)</a></li>
 <li><a href="../250-ralf-gateway/">Post-Trade Dissemination (RALF)</a></li>
+<li><a href="../200-drop-copy/">Drop Copy</a> · <a href="../201-dc-gateway/">Drop-Copy Gateway</a></li>
+<li><a href="../280-log-srv/">Log Server</a></li>
+<li><a href="../260-api-gateway/">API Gateway</a></li>
 <li><a href="../900-app-alf-protocol/">Appendix - ALF Protocol</a></li>
 <li><a href="../910-app-balf-protocol/">Appendix - BALF Protocol</a></li>
 <li><a href="../920-app-calf-protocol/">Appendix - CALF Protocol</a></li>
 <li><a href="../930-app-ralf-protocol/">Appendix - RALF Protocol</a></li>
+<li><a href="../940-app-lalf-protocol/">Appendix - LALF Protocol</a></li>
+<li><a href="../950-app-REST-API-reference/">Appendix - REST API Reference</a></li>
 </ul>
 
 

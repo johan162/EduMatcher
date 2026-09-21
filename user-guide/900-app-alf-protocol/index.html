@@ -5091,7 +5091,10 @@ It does <strong>not</strong> trim spaces around individual fields. Write:</p>
 </code></pre></div>
 <h3 id="case-handling">Case handling<a class="headerlink" href="#case-handling" title="Permanent link">&para;</a></h3>
 <p>ALF is effectively <strong>case-insensitive</strong> for command verbs, field names, enum
-values, and symbols, because the gateway normalizes parsed values to uppercase.</p>
+values, and symbols, because the gateway normalizes parsed <em>inbound</em> values to
+uppercase. This is inbound-only: values the gateway sends back out (order
+IDs, <code>REASON</code>/<code>DETAIL</code> text, and similar) are not case-normalized and keep
+their original case.</p>
 <p>These are treated the same:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>new|sym=aapl|side=buy|type=limit|qty=100|price=150.25
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.25
@@ -5744,7 +5747,7 @@ cancelled.</p>
 <ul>
 <li>both legs share the same <code>SYM</code>, <code>QTY</code>, <code>TIF</code>, and gateway identity</li>
 <li>each leg receives its own engine-generated order ID</li>
-<li>the gateway first receives an <code>OCO ACK</code></li>
+<li>the gateway first receives an <code>OCO_ACK</code></li>
 <li>each leg is then posted and acknowledged as a normal order</li>
 <li>when one leg fills or is cancelled in a way that completes the OCO action, the
   sibling is auto-cancelled</li>
@@ -5974,12 +5977,14 @@ other gateways' orders.</p>
 <p>If the gateway is not allowed to perform the action, the engine sends a reject
 acknowledgement instead of cancelling anything.</p>
 <h3 id="acknowledgement-behavior">Acknowledgement behavior<a class="headerlink" href="#acknowledgement-behavior" title="Permanent link">&para;</a></h3>
-<p>The gateway receives a <code>KILL ACK</code> or <code>KILL REJ</code>.</p>
+<p>The gateway receives a <code>KILL_ACK</code> message.</p>
 <p>On success, the acknowledgement includes:</p>
 <ul>
-<li><code>cancelled_orders</code> - number of cancelled non-quote resting orders</li>
-<li><code>cancelled_quotes</code> - number of cancelled quote legs</li>
+<li><code>ORDERS</code> - number of cancelled non-quote resting orders</li>
+<li><code>QUOTES</code> - number of cancelled quote legs</li>
 </ul>
+<p>(<code>pm-alf-console</code> labels these <code>cancelled_orders</code>/<code>cancelled_quotes</code> in its
+own on-screen rendering; those are display labels, not wire field names.)</p>
 <p>Important detail: <code>cancelled_quotes</code> counts <strong>legs</strong>, not quote records. One
 two-sided quote typically contributes up to <strong>2</strong> to this count.</p>
 <h3 id="examples_4">Examples<a class="headerlink" href="#examples_4" title="Permanent link">&para;</a></h3>
@@ -6141,7 +6146,10 @@ answer it differently</strong>:</p>
 <li><code>SYM</code> (optional): limit output to one symbol.</li>
 <li><code>SHOW</code> (optional): controls filtering mode; defaults to <code>ACTIVE</code>.</li>
 <li><code>ACTIVE</code>: quote legs that are currently live or still have remaining size.</li>
-<li><code>RECENT</code>: completed/cancelled legs with no remaining size.</li>
+<li><code>RECENT</code>: legs belonging to a quote that has been inactivated (removed
+    from the active index) — by cancel, kill switch, disconnect, halt, or
+    replacement. A recent leg can still carry a non-zero remaining size; it
+    is the quote, not the leg's size, that determines <code>RECENT</code> vs <code>ACTIVE</code>.</li>
 <li><code>ALL</code>: union of active and recent rows.</li>
 </ul>
 <p>Typical output columns:</p>
@@ -6191,7 +6199,10 @@ answer it differently</strong>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-65-1" name="__codelineno-65-1" href="#__codelineno-65-1"></a>EXIT
 <a id="__codelineno-65-2" name="__codelineno-65-2" href="#__codelineno-65-2"></a>QUIT
 </code></pre></div>
-<p>Stops the gateway process.</p>
+<p>Closes this session's connection. <code>pm-alf-gwy</code> is a multi-client server: this
+only ends the current TCP session, it does not stop the gateway process
+itself. (For the single-session <code>pm-alf-console</code>, ending the one session is
+equivalent to exiting the program.)</p>
 <h2 id="configuration-reference">Configuration reference<a class="headerlink" href="#configuration-reference" title="Permanent link">&para;</a></h2>
 <p>ALF gateway authorization and behavior are configured in the main engine
 configuration file (<code>engine_config.yaml</code>), under the <code>gateways.alf</code> list.</p>

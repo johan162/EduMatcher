@@ -4364,9 +4364,12 @@ a <code>pm-dc-gwy</code> connection does not "occupy" a trading identity.</p>
   port and limits.</li>
 </ul>
 <h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
-<p><code>pm-dc-gwy</code> reads an optional <code>dc_gateway:</code> section from <code>engine_config.yaml</code>.
-You can generate this section with <code>pm-config-gen --dc-gateway</code> (all fields are
-optional and default to the values shown below), or hand-edit it directly:</p>
+<p><code>pm-dc-gwy</code> reads a <code>dc_gateway:</code> section from the <strong>compiled</strong> engine
+configuration — like every other process, it never reads <code>engine_config.yaml</code>
+directly (see <a href="#config-file-location">Config file location</a> below). Author the
+section with <code>pm-config-gen --dc-gateway</code> (all fields are optional and default
+to the values shown below) or hand-edit the YAML, then install it with
+<code>pm-config-deploy</code> before <code>pm-dc-gwy</code> will see it:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">dc_gateway</span><span class="p">:</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">"dc-gwy01"</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">bind_address</span><span class="p">:</span><span class="w"> </span><span class="s">"0.0.0.0"</span>
@@ -4473,6 +4476,21 @@ a reverse proxy (nginx, stunnel, or similar).</p>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
 <td>Reduce output to warnings/errors</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where this process's own operational log records go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file PATH</code></td>
+<td>—</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout SECONDS</code></td>
+<td><code>30</code></td>
+<td>Grace window before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable</td>
 </tr>
 </tbody>
 </table>

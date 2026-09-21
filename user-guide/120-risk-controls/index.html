@@ -4940,23 +4940,24 @@ cross against a specific resting order — see
 <p>The following diagram shows the order admission path through those four
 admission-path controls:</p>
 <pre class="mermaid"><code>flowchart TD
-    A([Incoming order]) --&gt; B{Symbol halted?}
-    B -- Yes --&gt; C{Order type?}
-    C -- MARKET / FOK / IOC --&gt; REJ1([Reject: SYM is halted —\nTYPE orders rejected during\ncircuit breaker halt])
-    C -- LIMIT / ICEBERG --&gt; REST([Accept \u2014 rest on book,\nno matching sweep])
-    B -- No --&gt; OL{Order limits\nconfigured?}
+    A([Incoming order]) --&gt; OL{Order limits\nconfigured?}
     OL -- Yes --&gt; OLQ{Qty within\nmax_order_qty?}
     OLQ -- No --&gt; REJQ([Reject: MAX_ORDER_QTY])
     OLQ -- Yes --&gt; OLV{Notional within\nmax_order_value?\npriced orders only}
     OLV -- No --&gt; REJV([Reject: MAX_ORDER_VALUE])
-    OLV -- Yes --&gt; D
-    OL -- No --&gt; D
+    OLV -- Yes --&gt; B
+    OL -- No --&gt; B
+    B{Symbol halted?}
+    B -- Yes --&gt; C{Order type?}
+    C -- MARKET / FOK / IOC --&gt; REJ1([Reject: SYM is halted —\nTYPE orders rejected during\ncircuit breaker halt])
+    C -- LIMIT / ICEBERG --&gt; REST([Accept \u2014 rest on book,\nno matching sweep])
+    B -- No --&gt; D
     D{Collar\nconfigured?}
     D -- Yes --&gt; E{Price within\nstatic band?}
-    E -- No --&gt; REJ2([Reject: STATIC_COLLAR_BREACH])
+    E -- No --&gt; REJ2([Reject: COLLAR_BREACH\nreason STATIC_COLLAR_BREACH: ...])
     E -- Yes --&gt; F{Last trade\nprice known?}
     F -- Yes --&gt; G{Price within\ndynamic band?}
-    G -- No --&gt; REJ3([Reject: DYNAMIC_COLLAR_BREACH])
+    G -- No --&gt; REJ3([Reject: COLLAR_BREACH\nreason DYNAMIC_COLLAR_BREACH: ...])
     G -- Yes --&gt; MATCH
     F -- No --&gt; MATCH
     D -- No --&gt; MATCH([Accept \u2014 enter matching engine])
@@ -5135,9 +5136,11 @@ display prices.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>validate_collar(price, collar, last_trade_price) → CollarResult
 </code></pre></div>
 <ol>
-<li>If <code>price &lt; static_lower</code> or <code>price &gt; static_upper</code> → <code>STATIC_COLLAR_BREACH</code></li>
+<li>If <code>price &lt; static_lower</code> or <code>price &gt; static_upper</code> → rejected with reject code
+   <code>COLLAR_BREACH</code> and a reason starting <code>STATIC_COLLAR_BREACH:</code></li>
 <li>If <code>last_trade_price</code> is known and <code>price &lt; dynamic_lower</code> or
-   <code>price &gt; dynamic_upper</code> → <code>DYNAMIC_COLLAR_BREACH</code></li>
+   <code>price &gt; dynamic_upper</code> → rejected with reject code <code>COLLAR_BREACH</code> and a
+   reason starting <code>DYNAMIC_COLLAR_BREACH:</code></li>
 <li>Otherwise → accepted</li>
 </ol>
 <p>The dynamic check is skipped when <code>last_trade_price</code> is <code>None</code> (no trade has
@@ -5470,7 +5473,10 @@ ends, <code>_flush_circuit_breakers()</code> calls <code>_run_uncross()</code> f
 same equilibrium-price algorithm used for scheduled auctions — and publishes
 an <code>auction.result.{symbol}</code> carrying <code>reason: "REOPEN"</code> before the resume
 event.</p>
-<p>This is unconditional and there is no setting that skips it. Crossed interest
+<p>For a timed (circuit-breaker or level-named operator) halt this is
+unconditional and there is no setting that skips it. (A plain operator
+<code>risk.symbol_resume</code> / <code>risk.circuit_breaker_resume_all</code> only clears the halt
+and does not uncross.) Crossed interest
 accumulates for the whole halt, so resuming straight into continuous matching
 would begin on a crossed book. If nothing crossed, <code>compute_equilibrium()</code>
 finds no equilibrium price and the uncross is a no-op, indistinguishable from
@@ -5600,8 +5606,8 @@ instead fall somewhere in 13:35:00–13:35:30, 13:37:00–13:37:30 and
 <p>ACE widens indefinitely, so on its own it never terminates — a symbol whose
 indicative price runs away could in principle extend past the close. The end
 of the trading day supplies the terminating condition.</p>
-<p>On the transition to <code>CLOSED</code>, <code>_run_closing_backstop()</code> forces every symbol
-still halted to resolve:</p>
+<p>On the transition to <code>CLOSED</code>, <code>_run_closing_backstop()</code> forces every halted symbol
+that has a circuit breaker configured to resolve:</p>
 <ol>
 <li>The indicative price is computed one final time.</li>
 <li><strong>Inside the corridor</strong> → it prints there, as a normal reopen would.</li>
@@ -5632,7 +5638,7 @@ can be watched as it happens:</p>
 <a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>CIRCUIT BREAKER RESUME ABC: after 2 ACE extension(s)
 </code></pre></div>
 <p>and at the close:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>CLOSING BACKSTOP ABC: indicative=12200 ticks outside [9000, 11000] -&gt; clamped to 11000 (BUY imbalance), after 1 ACE extension(s)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>CLOSING BACKSTOP ABC: indicative=12200 ticks outside [8000, 12000] -&gt; clamped to 12000 (BUY imbalance), after 1 ACE extension(s)
 </code></pre></div>
 <p>On the wire, <code>circuit_breaker.halt.{symbol}</code> and the new
 <code>circuit_breaker.extend.{symbol}</code> both carry <code>corridor_low</code>, <code>corridor_high</code>
@@ -5681,7 +5687,7 @@ per symbol only where needed:</p>
 </code></pre></div>
 <p>For each trade, the engine computes:</p>
 <div class="arithmatex">\[
-    ext{price\_shift} = \frac{|\text{trade\_price} - \text{reference\_price}|}{\text{reference\_price}}
+\text{price\_shift} = \frac{|\text{trade\_price} - \text{reference\_price}|}{\text{reference\_price}}
 \]</div>
 <p>The highest level where <code>price_shift &gt;= price_shift_pct</code> fires.</p>
 <table>
@@ -5709,7 +5715,7 @@ per symbol only where needed:</p>
 <tr>
 <td><code>levels.&lt;L&gt;.halt_duration_ns</code></td>
 <td>int or null</td>
-<td>required</td>
+<td>optional; omitted or <code>null</code> = rest of day</td>
 <td><em>Minimum</em> length of the reopening call phase in ns, or <code>null</code> for rest-of-day</td>
 </tr>
 <tr>
@@ -5814,7 +5820,7 @@ different points in the flow and for different failure modes.</p>
 </tr>
 <tr>
 <td>Typical action</td>
-<td>Reject offending order (<code>STATIC_COLLAR_BREACH</code> or <code>DYNAMIC_COLLAR_BREACH</code>)</td>
+<td>Reject offending order (code <code>COLLAR_BREACH</code>, reason <code>STATIC_COLLAR_BREACH: …</code> or <code>DYNAMIC_COLLAR_BREACH: …</code>)</td>
 <td>Halt symbol, cancel MM quotes, schedule/manual resume</td>
 </tr>
 <tr>
@@ -5848,13 +5854,17 @@ circuit breakers contain fast market dislocations.</p>
 <a href="../010-configuration/#circuit-breakers">Configuration - Circuit Breakers</a> and
 <a href="../010-configuration/#risk-controls-and-collars">Configuration - Risk Controls and Collars</a>.</p>
 <h2 id="interaction-between-mechanisms">Interaction between mechanisms<a class="headerlink" href="#interaction-between-mechanisms" title="Permanent link">&para;</a></h2>
-<p>All three admission-path controls can be active simultaneously on the same
+<p>All the admission-path controls can be active simultaneously on the same
 symbol.  The engine applies them in this order for every incoming order:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>1. Is the symbol halted?           → reject MARKET/FOK/IOC; suppress matching for LIMIT
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>2. Is a collar configured?         → validate price against static and dynamic bands
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>3. (After match) Did a trade fire
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>   a circuit breaker?              → halt symbol, schedule resume
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>1. Order size / notional limits    → reject MAX_ORDER_QTY / MAX_ORDER_VALUE
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>2. Session state (if enabled)      → reject "Market is closed" outside order-accepting phases
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>3. Is the symbol halted?           → reject MARKET/FOK/IOC; suppress matching for LIMIT
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>4. Is a collar configured?         → validate price against static and dynamic bands
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>5. (After match) Did a trade fire
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>   a circuit breaker?              → halt symbol, schedule resume
 </code></pre></div>
+<p>Because limits run first, an oversized MARKET order on a halted symbol is
+rejected with <code>MAX_ORDER_QTY</code>, not with the halt reason.</p>
 <p>A circuit breaker halt feeds back into step 1: any subsequent orders on a
 circuit-breaker-halted symbol are subject to the same halt rules as an
 operator-initiated halt.</p>
@@ -5862,13 +5872,13 @@ operator-initiated halt.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>Opening reference price: 10000 ticks (100.00 in display)
 <a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>  → also seeds the CB's rolling trade_history as a single baseline point
 <a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>Static collar:   ±20%  → [8000, 12000] ticks
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>Dynamic collar:  ±2%   → depends on last trade
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>Dynamic collar:  ±10%  → depends on last trade
 <a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>CB levels:       L1=7%, L2=13%, L3=20%
 <a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>
 <a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>A limit sell order arrives at price 7500 ticks:
 <a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>  → Static collar: 7500 &lt; 8000 → STATIC_COLLAR_BREACH → rejected
 <a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>
-<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>A limit buy at 10100 ticks trades.
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>A limit buy at 10100 ticks trades (no trade yet, so only the static band applies).
 <a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a>  → CB reference = history average BEFORE this trade = 10000 (seed only)
 <a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a>  → deviation = |10100 - 10000| / 10000 = 1.0% &lt; L1 (7%) → no halt
 <a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a>  → history becomes [10000, 10100] (sum=20100, len=2)
@@ -5882,13 +5892,15 @@ operator-initiated halt.</p>
 <a id="__codelineno-13-21" name="__codelineno-13-21" href="#__codelineno-13-21"></a>  → CB reference = 30800 // 3 = 10266 (floor division)
 <a id="__codelineno-13-22" name="__codelineno-13-22" href="#__codelineno-13-22"></a>  → deviation = |11000 - 10266| / 10266 ≈ 7.1% ≥ L1 (7%)
 <a id="__codelineno-13-23" name="__codelineno-13-23" href="#__codelineno-13-23"></a>  → L1 circuit breaker fires, symbol halted for L1 duration (5 min default);
-<a id="__codelineno-13-24" name="__codelineno-13-24" href="#__codelineno-13-24"></a>    resume always runs a reopening uncross for the symbol
+<a id="__codelineno-13-24" name="__codelineno-13-24" href="#__codelineno-13-24"></a>    the timed resume runs a reopening uncross for the symbol
 <a id="__codelineno-13-25" name="__codelineno-13-25" href="#__codelineno-13-25"></a>
-<a id="__codelineno-13-26" name="__codelineno-13-26" href="#__codelineno-13-26"></a>Separately, suppose a later session's rolling reference has settled at 10100
-<a id="__codelineno-13-27" name="__codelineno-13-27" href="#__codelineno-13-27"></a>and a limit buy at 12200 ticks trades:
-<a id="__codelineno-13-28" name="__codelineno-13-28" href="#__codelineno-13-28"></a>  → deviation = |12200 - 10100| / 10100 ≈ 20.8% ≥ L3 (20%)
-<a id="__codelineno-13-29" name="__codelineno-13-29" href="#__codelineno-13-29"></a>  → L3 circuit breaker fires, symbol halted for rest of trading day
-<a id="__codelineno-13-30" name="__codelineno-13-30" href="#__codelineno-13-30"></a>  → next order at this symbol: if MARKET → rejected; if LIMIT → accepted, no match
+<a id="__codelineno-13-26" name="__codelineno-13-26" href="#__codelineno-13-26"></a>Separately, suppose the collars have been widened (say static ±30%, dynamic
+<a id="__codelineno-13-27" name="__codelineno-13-27" href="#__codelineno-13-27"></a>±25%) so that a 12200-tick order can reach the matching engine at all, and a
+<a id="__codelineno-13-28" name="__codelineno-13-28" href="#__codelineno-13-28"></a>later session's rolling reference has settled at 10100 when a limit buy at
+<a id="__codelineno-13-29" name="__codelineno-13-29" href="#__codelineno-13-29"></a>12200 ticks trades:
+<a id="__codelineno-13-30" name="__codelineno-13-30" href="#__codelineno-13-30"></a>  → deviation = |12200 - 10100| / 10100 ≈ 20.8% ≥ L3 (20%)
+<a id="__codelineno-13-31" name="__codelineno-13-31" href="#__codelineno-13-31"></a>  → L3 circuit breaker fires, symbol halted for rest of trading day
+<a id="__codelineno-13-32" name="__codelineno-13-32" href="#__codelineno-13-32"></a>  → next order at this symbol: if MARKET → rejected; if LIMIT → accepted, no match
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Reference price is an integer-tick rolling average</p>
@@ -5900,7 +5912,7 @@ only added to the rolling history <em>after</em> the deviation check.</p>
 </div>
 <p>What the gateway operator sees when a collar rejects an order:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=75.00
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>[14:02:00.301] ORDER REJECTED  reason="STATIC_COLLAR_BREACH"
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>[14:02:00.301] REJECTED  &lt;order-id&gt; code=COLLAR_BREACH  STATIC_COLLAR_BREACH: price 7500 ticks is outside [8000, 12000] ticks (±20% from reference 10000)
 </code></pre></div>
 <h2 id="zeromq-messages">ZeroMQ messages<a class="headerlink" href="#zeromq-messages" title="Permanent link">&para;</a></h2>
 <p>Risk events are broadcast on the engine's PUB socket (port 5556).</p>
@@ -5985,9 +5997,12 @@ for the full permissions matrix.</p>
 <p class="admonition-title">Not available from the ALF terminal</p>
 <p>The ALF console (<code>pm-alf-console</code>) only exposes <code>KILL</code> for risk actions —
 it has no <code>HALT</code>/<code>RESUME</code>/<code>CANCEL_SYM</code> command. To trigger an exchange-wide
-halt, a per-symbol halt/resume, or a symbol-level mass cancel, send the raw
-ZMQ frames shown below directly, or use the REST admin endpoints described
-in <a href="../260-api-gateway/">API Gateway</a>.</p>
+halt, a per-symbol halt/resume, or a symbol-level mass cancel, use the ADMIN
+operator console <code>pm-admin --id GW_ADMIN</code> (<code>HALT</code>, <code>RESUME</code>,
+<code>HALT_SYM|SYM=</code>, <code>RESUME_SYM|SYM=</code>, <code>CANCEL_SYM|SYM=</code>,
+<code>REOPEN|SYM=[|PRICE=][|DRY_RUN=1]</code>, <code>KILL|GW=[|SYM=]</code>), send the raw ZMQ
+frames shown below directly, or use the REST admin endpoints described in
+<a href="../260-api-gateway/">API Gateway</a>.</p>
 </div>
 <h3 id="triggering-an-exchange-wide-halt">Triggering an exchange-wide halt<a class="headerlink" href="#triggering-an-exchange-wide-halt" title="Permanent link">&para;</a></h3>
 <p>Send the following frame to the engine's PUSH socket (port <strong>5555</strong>):</p>
@@ -6160,6 +6175,13 @@ the "Per-symbol operator halt" row in the
 <div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>Frame 0 (topic):   b"risk.symbol_halt"
 <a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>Frame 1 (payload): {"gateway_id": "GW_ADMIN", "symbol": "AAPL"}
 </code></pre></div>
+<p>The payload accepts an optional <code>"level"</code> naming one of the symbol's configured
+circuit-breaker levels (e.g. <code>"L1"</code>). The halt then runs through the same state
+machine as a price-triggered halt: it gets a timed call phase and ACE corridor,
+<code>halt_source</code> stays <code>ADMIN</code>, and it ends with a reopening uncross. Without
+<code>level</code> the halt is indefinite (<code>ADMIN_SYMBOL</code>) and is cleared only by an
+explicit resume. Extra rejects for <code>level</code>: <code>"&lt;SYMBOL&gt; has no circuit breaker
+configured"</code> and <code>"Unknown circuit-breaker level for &lt;SYMBOL&gt;: &lt;LEVEL&gt;"</code>.</p>
 <p>What the engine does:</p>
 <ol>
 <li>Verifies <code>GW_ADMIN</code> is connected and carries role <code>ADMIN</code>; rejects with
@@ -6175,11 +6197,12 @@ the "Per-symbol operator halt" row in the
    <code>{"accepted": true, "symbol": "AAPL", "reason": "", "cancelled_quotes": &lt;count&gt;,
    "cancelled_quote_order_ids": [&lt;the cancelled legs' order ids&gt;]}</code>.</li>
 </ol>
-<p><code>risk.symbol_resume</code> mirrors this: it requires <code>ADMIN</code> role (rejecting with
+<p><code>risk.symbol_resume</code> mirrors this (note that an operator resume does <strong>not</strong> run
+an uncross — use <code>REOPEN</code> in <code>pm-admin</code> to uncross and clear the halt in one
+step): it requires <code>ADMIN</code> role (rejecting with
 <code>"Per-symbol resume is only allowed for ADMIN participants"</code>), rejects with
 <code>"&lt;SYMBOL&gt; is not halted"</code> if the symbol isn't currently halted, otherwise
-clears the halt, deactivates the circuit breaker state, runs the same
-unconditional uncross as an automatic resume, publishes
+clears the halt, deactivates the circuit breaker state, publishes
 <code>circuit_breaker.resume.&lt;SYMBOL&gt;</code> with <code>"halt_source": "ADMIN"</code>, and acks on
 <code>risk.symbol_resume_ack.&lt;GW_ADMIN&gt;</code> with <code>{"accepted": true, "symbol": "AAPL", "reason": ""}</code>.</p>
 <p>Both <code>symbol_halt</code> and <code>symbol_resume</code> also reject with <code>"symbol required"</code>
@@ -6289,14 +6312,18 @@ its own orders.</p>
 </tbody>
 </table>
 <div class="admonition note">
-<p class="admonition-title">No cross-gateway kill switch</p>
-<p>A kill switch always targets a single gateway.  There is no command to
-cancel all orders across <em>all</em> gateways at once — use a per-symbol
+<p class="admonition-title">Cross-gateway kill switches need ADMIN</p>
+<p>A gateway's own kill switch targets only that gateway.  An <code>ADMIN</code>
+gateway can additionally cancel another gateway's exposure with
+<code>risk.kill_switch_gateway</code> (REST: <code>POST /admin/kill-switch/gateway</code>), or
+every resting order and quote on the exchange with
+<code>risk.kill_switch_global</code> (REST: <code>POST /admin/kill-switch/global</code>); both
+reject non-ADMIN callers. <code>pm-admin</code> exposes <code>KILL|GW=&lt;gw&gt;[|SYM=&lt;sym&gt;]</code>.
+To stop trading rather than clear the book, use a per-symbol
 <code>risk.symbol_halt</code> or an exchange-wide <code>risk.circuit_breaker_halt_all</code>
-(both require ADMIN role) to stop trading, or <code>risk.cancel_symbol</code>
-(ADMIN role, see <a href="#symbol-level-mass-cancel">Symbol-level mass cancel</a>)
-to clear resting interest for a symbol across every gateway without a
-kill switch's single-gateway scope.</p>
+(both ADMIN), or <code>risk.cancel_symbol</code> (ADMIN, see
+<a href="#symbol-level-mass-cancel">Symbol-level mass cancel</a>) to clear resting
+interest for a symbol across every gateway.</p>
 </div>
 <h2 id="self-match-prevention-smp">Self-Match Prevention (SMP)<a class="headerlink" href="#self-match-prevention-smp" title="Permanent link">&para;</a></h2>
 <h3 id="motivation_3">Motivation<a class="headerlink" href="#motivation_3" title="Permanent link">&para;</a></h3>
@@ -6416,9 +6443,10 @@ quantity that SMP would skip or cancel does not count as eligible liquidity:</p>
    cannot fill completely. SMP is then resolved the same way a sweep would
    have resolved it — <code>CANCEL_RESTING</code>/<code>CANCEL_BOTH</code> cancel the conflicting
    resting orders; <code>CANCEL_AGGRESSOR</code>/<code>CANCEL_BOTH</code> cancel the FOK itself —
-   and the order is finalised as <code>CANCELLED</code> if a same-gateway conflict was
-   the cause, or plainly <code>REJECTED</code> if the shortfall is genuine (no
-   same-gateway liquidity involved).</li>
+   and the FOK is finalised as <code>CANCELLED</code> (<code>SELF_MATCH_PREVENTED</code>) only for
+   <code>CANCEL_AGGRESSOR</code>/<code>CANCEL_BOTH</code> with a same-gateway conflict; otherwise —
+   including <code>CANCEL_RESTING</code>, and a genuine shortfall with no same-gateway
+   liquidity involved — it is <code>REJECTED</code>.</li>
 <li>Only if eligible liquidity is sufficient does the FOK proceed into the
    normal sweep, which then also enforces SMP level by level as above (a
    defensive safety net; the pre-check should already guarantee the sweep
@@ -6430,15 +6458,11 @@ never cause a partial fill.</p>
 <p>When SMP cancels a resting order, that order transitions to <code>CANCELLED</code> like
 any other cancellation and the owning gateway receives a normal
 <code>order.cancelled.{GW_ID}</code> message — there is no separate SMP-specific wire
-message. On the binary BALF protocol, a system-cancelled order additionally
-carries <code>cancel_reason = 1</code> ("SMP") in the <code>EXECUTION_REPORT</code> so a
-programmatic client can distinguish an SMP cancel from a plain client cancel
-or a session-end/expiry cancel without needing to correlate against its own
-<code>NEW</code> history — see
-<a href="../910-app-balf-protocol/#execution_report-0x20-server-client">BALF Protocol Reference — <code>EXECUTION_REPORT</code></a>.
-ALF (text) and REST clients only see the resulting <code>order.cancelled</code> /
-<code>CANCELLED</code> event and infer the cause from context (a same-gateway order that
-was resting a moment earlier is now gone).</p>
+message. On the binary BALF protocol, a system-originated cancel is delivered as a
+<code>CANCEL_ACK</code> with <code>cancel_reason = 255</code> (system); an SMP cancel cannot be
+distinguished there from a session-end or expiry cancel. ALF (text) clients
+receive <code>CANCEL_REASON=SELF_MATCH_PREVENTED</code> on the cancelled event, and REST
+WebSocket clients receive a <code>cancel_reason</code> field (see above).</p>
 <h3 id="two-ways-to-specify-smp_action">Two ways to specify <code>smp_action</code><a class="headerlink" href="#two-ways-to-specify-smp_action" title="Permanent link">&para;</a></h3>
 <p>SMP can be set in two places, and they serve different purposes:</p>
 <ol>
@@ -6553,8 +6577,8 @@ state and needs no special-casing for it.</p>
 </tr>
 <tr>
 <td>REST <code>OrderRequest</code> / <code>ComboRequest</code></td>
-<td>Yes (JSON field, optional; <code>ComboRequest.legs[]</code> allows a <strong>different value per leg</strong>)</td>
-<td>Explicit value, else gateway default, else <code>NONE</code> — resolved independently per leg for combos</td>
+<td>Yes (JSON field, optional; on a <code>ComboRequest</code> it is <strong>one top-level <code>smp_action</code> for the whole combo</strong>, applied to every leg)</td>
+<td>Explicit value, else gateway default, else <code>NONE</code></td>
 </tr>
 <tr>
 <td>Market-maker <code>QUOTE</code> (both <code>pm-mm-bot</code> and the REST quoting endpoint)</td>
@@ -6633,25 +6657,24 @@ pattern applied to a market maker.</p>
 per-leg <code>LEG&lt;i&gt;.SMP</code> — the parsed value (or, if <code>SMP=</code> is omitted entirely,
 the <code>None</code> sentinel) is applied identically to every leg's <code>ComboLeg</code>. Here
 <code>CANCEL_BOTH</code> applies to both <code>LEG0</code> and <code>LEG1</code>.</p>
-<p><strong>Example 5 — combo submitted via REST: per-leg override.</strong></p>
-<p>The REST <code>ComboRequest</code> schema and the <code>market_maker_combos[].legs[]</code> config
-seed path are less restrictive: each leg carries its own optional
-<code>smp_action</code>, resolved independently.</p>
+<p><strong>Example 5 — combo submitted via REST: combo-level <code>smp_action</code>.</strong></p>
+<p>The REST <code>ComboRequest</code> carries a single top-level <code>smp_action</code> (legs have no
+<code>smp_action</code> field; the schema rejects unknown keys), applied to every leg. Only
+the <code>market_maker_combos[].legs[]</code> config-seed path allows a per-leg value.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a><span class="p">{</span>
 <a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a><span class="w">  </span><span class="nt">"combo_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spread-1"</span><span class="p">,</span>
 <a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a><span class="w">  </span><span class="nt">"combo_type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AON"</span><span class="p">,</span>
 <a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a><span class="w">  </span><span class="nt">"tif"</span><span class="p">:</span><span class="w"> </span><span class="s2">"DAY"</span><span class="p">,</span>
-<a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a><span class="w">  </span><span class="nt">"legs"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-39-6" name="__codelineno-39-6" href="#__codelineno-39-6"></a><span class="w">    </span><span class="p">{</span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AAPL"</span><span class="p">,</span><span class="w"> </span><span class="nt">"side"</span><span class="p">:</span><span class="w"> </span><span class="s2">"BUY"</span><span class="p">,</span><span class="w">  </span><span class="nt">"quantity"</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="nt">"price"</span><span class="p">:</span><span class="w"> </span><span class="mf">150.00</span><span class="p">,</span><span class="w"> </span><span class="nt">"smp_action"</span><span class="p">:</span><span class="w"> </span><span class="s2">"NONE"</span><span class="p">},</span>
-<a id="__codelineno-39-7" name="__codelineno-39-7" href="#__codelineno-39-7"></a><span class="w">    </span><span class="p">{</span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"MSFT"</span><span class="p">,</span><span class="w"> </span><span class="nt">"side"</span><span class="p">:</span><span class="w"> </span><span class="s2">"SELL"</span><span class="p">,</span><span class="w"> </span><span class="nt">"quantity"</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span><span class="w">  </span><span class="nt">"price"</span><span class="p">:</span><span class="w"> </span><span class="mf">400.00</span><span class="p">}</span>
-<a id="__codelineno-39-8" name="__codelineno-39-8" href="#__codelineno-39-8"></a><span class="w">  </span><span class="p">]</span>
-<a id="__codelineno-39-9" name="__codelineno-39-9" href="#__codelineno-39-9"></a><span class="p">}</span>
+<a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a><span class="w">  </span><span class="nt">"smp_action"</span><span class="p">:</span><span class="w"> </span><span class="s2">"NONE"</span><span class="p">,</span>
+<a id="__codelineno-39-6" name="__codelineno-39-6" href="#__codelineno-39-6"></a><span class="w">  </span><span class="nt">"legs"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-39-7" name="__codelineno-39-7" href="#__codelineno-39-7"></a><span class="w">    </span><span class="p">{</span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AAPL"</span><span class="p">,</span><span class="w"> </span><span class="nt">"side"</span><span class="p">:</span><span class="w"> </span><span class="s2">"BUY"</span><span class="p">,</span><span class="w">  </span><span class="nt">"quantity"</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="nt">"price"</span><span class="p">:</span><span class="w"> </span><span class="mf">150.00</span><span class="p">},</span>
+<a id="__codelineno-39-8" name="__codelineno-39-8" href="#__codelineno-39-8"></a><span class="w">    </span><span class="p">{</span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"MSFT"</span><span class="p">,</span><span class="w"> </span><span class="nt">"side"</span><span class="p">:</span><span class="w"> </span><span class="s2">"SELL"</span><span class="p">,</span><span class="w"> </span><span class="nt">"quantity"</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span><span class="w">  </span><span class="nt">"price"</span><span class="p">:</span><span class="w"> </span><span class="mf">400.00</span><span class="p">}</span>
+<a id="__codelineno-39-9" name="__codelineno-39-9" href="#__codelineno-39-9"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-39-10" name="__codelineno-39-10" href="#__codelineno-39-10"></a><span class="p">}</span>
 </code></pre></div>
-<p><code>AAPL</code>'s leg explicitly sets <code>smp_action: "NONE"</code> and keeps it, regardless
-of <code>TRADER01</code>'s gateway default. <code>MSFT</code>'s leg omits <code>smp_action</code> entirely
-and falls back to <code>TRADER01</code>'s <code>gateways.alf[].smp_action</code> independently —
-each leg resolves on its own in this path, unlike the single combo-wide
-value on the ALF text protocol.</p>
+<p><code>smp_action: "NONE"</code> applies to both legs, regardless of <code>TRADER01</code>'s gateway
+default. Omitting the field would make every leg fall back to <code>TRADER01</code>'s
+<code>gateways.alf[].smp_action</code> (else <code>NONE</code>).</p>
 <h3 id="smp-and-the-other-risk-controls">SMP and the other risk controls<a class="headerlink" href="#smp-and-the-other-risk-controls" title="Permanent link">&para;</a></h3>
 <p>SMP is orthogonal to the four admission-path/exposure controls described
 above: it does not reject orders at admission time, does not halt a symbol,
@@ -6732,7 +6755,7 @@ reference: <a href="../055-alf-console/#new-submit-an-order">ALF Console — <co
 <li><a href="../010-configuration/">Configuration</a> — full <code>engine_config.yaml</code> reference including collar, CB ladder, and <code>smp_action</code> config</li>
 <li><a href="../060-order-types/">Order Types</a> — how different order types behave under halt, and how SMP interacts with each type's sweep</li>
 <li><a href="../200-drop-copy/">Drop Copy</a> — how fill events are forwarded to risk systems</li>
-<li><a href="../080-session-scheduling/">Auctions &amp; Session Scheduling</a> — the equilibrium-price uncross algorithm that circuit-breaker resumption always runs</li>
+<li><a href="../080-session-scheduling/">Auctions &amp; Session Scheduling</a> — the equilibrium-price uncross algorithm that timed circuit-breaker resumption always runs</li>
 <li><a href="../055-alf-console/">ALF Console</a> — <code>KILL</code> command for triggering the kill switch via the ALF terminal, and the <code>NEW</code>/<code>COMBO</code> <code>SMP=</code> field</li>
 <li><a href="../070-combo-orders/">Combos</a> — per-leg <code>SMP=</code> on multi-leg orders</li>
 <li><a href="../100-mm-bot/">Market-Maker Bot</a> — why quoting gateways rely entirely on the <code>smp_action</code> gateway default</li>

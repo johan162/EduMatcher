@@ -4254,7 +4254,7 @@
 <p><strong>Prerequisites</strong>: <a href="../040-running-the-exchange/">Running the Engine</a> — the engine must be running
 before AI traders can connect.
 <a href="../010-configuration/">Configuration</a> — AI traders connect as regular gateways; their IDs
-must be listed in <code>engine_config.yaml</code> (or the engine must be in unrestricted mode).</p>
+must be listed in the deployed engine configuration (or the engine must be in unrestricted mode).</p>
 </div>
 <hr />
 <h2 id="what-are-the-ai-trader-processes">What are the AI trader processes?<a class="headerlink" href="#what-are-the-ai-trader-processes" title="Permanent link">&para;</a></h2>
@@ -4276,7 +4276,7 @@ must be listed in <code>engine_config.yaml</code> (or the engine must be in unre
 <tr>
 <td><code>pm-ai-swarm</code></td>
 <td><code>poetry run pm-ai-swarm</code></td>
-<td>A <strong>swarm launcher</strong> — spawns <code>N</code> bots in one command, distributes profiles and symbols across them</td>
+<td>A <strong>swarm launcher</strong> — spawns <code>N</code> bots in one command, assigns each a profile and exactly one symbol (round-robin)</td>
 </tr>
 </tbody>
 </table>
@@ -4297,8 +4297,8 @@ decision loop:</p>
     PAUSE{Risk pause\nactive?}
     STALE{Market data\nfresh?}
     PICK[Pick a symbol\ncheck position limit]
-    PRICE[Calculate order price\nbest_bid / best_ask ± offset]
-    SIDE[Choose side\ncross_probability → BUY or SELL]
+    SIDE[Choose side\n50/50 BUY or SELL, forced at the position limit]
+    PRICE[Calculate order price\ncross_probability → best opposite price,\nelse best price ± offset]
     SUBMIT[Submit LIMIT DAY order]
     EVENTS[Handle events\nfill, ack, reject, book, trade]
     REJECT{Reject count\n≥ max_rejects\nin window?}
@@ -4310,7 +4310,7 @@ decision loop:</p>
     PAUSE --&gt;|no| STALE
     STALE --&gt;|stale or no data| LOOP
     STALE --&gt;|fresh| PICK
-    PICK --&gt; PRICE --&gt; SIDE --&gt; SUBMIT
+    PICK --&gt; SIDE --&gt; PRICE --&gt; SUBMIT
     SUBMIT --&gt; EVENTS
     EVENTS --&gt; REJECT
     REJECT --&gt;|yes| BREAKER --&gt; LOOP
@@ -4374,10 +4374,11 @@ aggressively it crosses the spread. The four built-in profiles are:</p>
 </tbody>
 </table>
 <p><strong>cross_probability</strong> is the probability that the bot places a <strong>marketable
-limit order</strong> (price ≥ best ask for a buy, price <span class="arithmatex">\(\leq\)</span> best bid for a sell) rather
-than a passive limit order beyond the spread.</p>
-<p><strong>passive_offset_ticks</strong> is how many ticks <em>inside</em> the spread the passive
-order is placed. Offset = 0 means posting at the best bid/ask; offset = 2 means
+limit order</strong>, priced exactly at the opposite best price (a buy at the best
+ask, a sell at the best bid), rather than a passive limit order.</p>
+<p><strong>passive_offset_ticks</strong> is how many ticks <em>behind</em> its own side's best price a
+passive order is placed (a buy at best bid − offset, a sell at best ask +
+offset). Offset = 0 means posting at the best bid/ask; offset = 2 means
 posting 2 ticks behind the best price.</p>
 <h3 id="size-distributions">Size distributions<a class="headerlink" href="#size-distributions" title="Permanent link">&para;</a></h3>
 <pre class="mermaid"><code>flowchart LR
@@ -4389,15 +4390,20 @@ posting 2 ticks behind the best price.</p>
 <p>Each bot has two built-in safety mechanisms:</p>
 <h3 id="position-limit">Position limit<a class="headerlink" href="#position-limit" title="Permanent link">&para;</a></h3>
 <p>The bot tracks its own <code>position</code> per symbol (net quantity of shares held).
-Once <code>|position|</code> reaches <code>max_position</code> (default: 1000), it stops adding to
-the position in that direction. A long bot that is at +1000 will only submit
-sell orders; a short bot at −1000 will only submit buy orders.</p>
+Each order's quantity is capped so that <code>|position|</code> cannot exceed
+<code>max_position</code> (default: 1000). Once the limit is reached the bot forces the
+opposite side: a long bot at +1000 will only submit sell orders; a short bot at
+−1000 will only submit buy orders. Positions are tracked from fills within the
+current run only.</p>
 <h3 id="reject-breaker">Reject breaker<a class="headerlink" href="#reject-breaker" title="Permanent link">&para;</a></h3>
 <p>If the engine rejects <code>max_rejects</code> orders within <code>reject_window_sec</code>, the bot
 pauses for <code>reject_cooldown_sec</code> before submitting again. This prevents a
 misconfigured bot from flooding the engine with invalid orders.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>[AI:AI01 14:30:05] reject breaker tripped; pausing submissions for 5.0s
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>2026-09-20 14:30:05,120 WARNING edumatcher.ai_trader.main - reject breaker tripped gateway_id=AI01 cooldown=5.0s
 </code></pre></div>
+<p>The tripped warning is visible at the default log level. The bot also logs
+<code>[AI01] reject breaker tripped; pausing submissions for 5.0s</code> at <code>INFO</code>
+(shown with <code>-v</code>).</p>
 <hr />
 <h2 id="launching-a-single-bot">Launching a single bot<a class="headerlink" href="#launching-a-single-bot" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-ai-trader<span class="w"> </span>--id<span class="w"> </span>AI01<span class="w"> </span>--profile<span class="w"> </span>aggressive
@@ -4415,7 +4421,7 @@ misconfigured bot from flooding the engine with invalid orders.</p>
 <tr>
 <td><code>--id</code></td>
 <td>required</td>
-<td>Gateway ID — must match an entry in <code>engine_config.yaml</code> or engine must be unrestricted</td>
+<td>Gateway ID — must be listed under <code>gateways.alf</code> in the deployed engine configuration (or the engine must be unrestricted)</td>
 </tr>
 <tr>
 <td><code>--profile</code></td>
@@ -4465,7 +4471,7 @@ misconfigured bot from flooding the engine with invalid orders.</p>
 <tr>
 <td><code>--stale-data</code></td>
 <td><code>4.0</code></td>
-<td>Seconds before market data is considered too old to trade on</td>
+<td>Seconds before a symbol's market data is considered too old to trade on (0 disables the check)</td>
 </tr>
 <tr>
 <td><code>--log-level</code></td>
@@ -4480,7 +4486,22 @@ misconfigured bot from flooding the engine with invalid orders.</p>
 <tr>
 <td><code>-q</code>, <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors</td>
+<td>Reduce output to warnings/errors (the default level already, so currently a no-op)</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where operational logs go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file PATH</code></td>
+<td>—</td>
+<td>Log file path; required with <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout SECONDS</code></td>
+<td><code>30</code></td>
+<td>Grace window before falling back to a local log file when <code>pm-log-srv</code> is unreachable</td>
 </tr>
 </tbody>
 </table>
@@ -4493,8 +4514,9 @@ misconfigured bot from flooding the engine with invalid orders.</p>
 <a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">  </span>--duration<span class="w"> </span><span class="m">120</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">  </span>--max-position<span class="w"> </span><span class="m">500</span>
 </code></pre></div>
-<p>The bot prints a summary on exit:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[AI:AI01 14:32:01] stopped submitted=284 acked=281 rejected=3 fills=68
+<p>When the run ends by reaching <code>--duration</code>, the bot logs a summary at <code>INFO</code>
+(visible with <code>-v</code>, or <code>--log-target stdout -v</code> to see it in the terminal):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>2026-09-20 14:32:01,004 INFO edumatcher.ai_trader.main - [AI01] stopped submitted=284 acked=281 rejected=3 fills=68
 </code></pre></div>
 <hr />
 <h2 id="launching-a-swarm">Launching a swarm<a class="headerlink" href="#launching-a-swarm" title="Permanent link">&para;</a></h2>
@@ -4537,13 +4559,8 @@ order</strong>: <code>aggressive</code>, <code>cautious</code>, <code>few-large<
 </tr>
 <tr>
 <td><code>--symbols</code></td>
-<td>all from config</td>
-<td>Comma-separated symbols to trade</td>
-</tr>
-<tr>
-<td><code>--config</code></td>
-<td><code>engine_config.yaml</code></td>
-<td>Path to config file used to discover symbols</td>
+<td>all from the engine config</td>
+<td>Comma-separated symbols to trade; when omitted, the symbols in <code>&lt;DATA_DIR&gt;/ref_data/engine_config.yaml</code> are used (the path is fixed — there is no <code>--config</code> option)</td>
 </tr>
 <tr>
 <td><code>--seed-base</code></td>
@@ -4578,7 +4595,22 @@ order</strong>: <code>aggressive</code>, <code>cautious</code>, <code>few-large<
 <tr>
 <td><code>-q</code>, <code>--quiet</code></td>
 <td>off</td>
-<td>Reduce output to warnings/errors; forwarded to child bots</td>
+<td>Reduce output to warnings/errors (the default level already); forwarded to child bots</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where operational logs go: <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file PATH</code></td>
+<td>—</td>
+<td>Log file path; required with <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout SECONDS</code></td>
+<td><code>30</code></td>
+<td>Grace window before falling back to a local log file when <code>pm-log-srv</code> is unreachable</td>
 </tr>
 </tbody>
 </table>
@@ -4598,15 +4630,21 @@ order</strong>: <code>aggressive</code>, <code>cautious</code>, <code>few-large<
 bot's output is interleaved in the terminal.</p>
 <div class="admonition tip">
 <p class="admonition-title">Graceful shutdown</p>
-<p>Pressing Ctrl-C sends SIGINT to the swarm process, which forwards it to all
-child bots.  Each bot cancels pending orders, prints its summary line, and
-disconnects cleanly.  A second Ctrl-C force-kills immediately.</p>
+<p>Pressing Ctrl-C makes the swarm send SIGTERM to all child bots, wait up to
+2 seconds, and then kill any that remain. Bots do <strong>not</strong> cancel their
+resting orders and do not log the <code>stopped</code> summary when interrupted;
+resting DAY orders stay on the book until they fill or expire at the
+<code>CLOSED</code> transition. Use <code>--duration</code> for a clean exit that logs the summary.</p>
 </div>
 <hr />
 <h2 id="configuring-gateway-ids">Configuring gateway IDs<a class="headerlink" href="#configuring-gateway-ids" title="Permanent link">&para;</a></h2>
 <h3 id="unrestricted-mode-no-config-file">Unrestricted mode (no config file)<a class="headerlink" href="#unrestricted-mode-no-config-file" title="Permanent link">&para;</a></h3>
-<p>If you start the engine with no <code>engine_config.yaml</code>, any gateway ID can
-connect and trade any symbol. This is the easiest way to test:</p>
+<p>Unrestricted mode applies only when the engine finds no configuration at all
+(neither a deployed compiled artifact nor <code>&lt;DATA_DIR&gt;/ref_data/engine_config.yaml</code>).
+In that case any gateway ID can connect and trade any symbol. If a
+configuration is deployed, every bot ID must be listed under <code>gateways.alf</code>
+and the engine reads only the deployed artifact (<code>pm-config-deploy</code>). This is the
+easiest way to test:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine<span class="w">               </span><span class="c1"># unrestricted</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-ai-swarm<span class="w"> </span>--count<span class="w"> </span><span class="m">5</span>
 </code></pre></div>
@@ -4699,54 +4737,68 @@ must react to.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Terminal 1: matching engine</span>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="c1"># Terminal 2: session scheduler (opens at 09:30, closes at 16:00)</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="c1"># Terminal 3: clearing and stats</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-clearing<span class="w"> </span><span class="p">&amp;</span>
-<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-stats<span class="w"> </span><span class="p">&amp;</span>
-<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>
-<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="c1"># Terminal 4: market maker for AAPL (optional — omit if you skipped the</span>
-<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="c1"># MM_AAPL_01 gateway entry above)</span>
-<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL
-<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>
-<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="c1"># Terminal 5: AI swarm (30 bots, all 4 profiles, run for 30 minutes)</span>
-<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-ai-swarm<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a><span class="w">  </span>--count<span class="w"> </span><span class="m">30</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="w">  </span>--duration<span class="w"> </span><span class="m">1800</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a><span class="w">  </span>--profiles<span class="w"> </span>aggressive,cautious,many-small,few-large
-<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a>
-<a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a><span class="c1"># Students connect individually</span>
-<a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>ST01
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="c1"># Terminal 2: session scheduler (default schedule: PRE_OPEN 09:00, OPENING_AUCTION 09:25,</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="c1"># CONTINUOUS 09:30, CLOSING_AUCTION 16:00, CLOSED 16:05). With sessions enabled the</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="c1"># engine starts CLOSED and rejects orders ("Market is closed") until the scheduler</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="c1"># opens it — start the swarm only after that, or use `pm-scheduler --now`.</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="c1"># Terminal 3: clearing and stats</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-clearing<span class="w"> </span><span class="p">&amp;</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-stats<span class="w"> </span><span class="p">&amp;</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="c1"># Terminal 4: market maker for AAPL (optional — omit if you skipped the</span>
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="c1"># MM_AAPL_01 gateway entry above)</span>
+<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL
+<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>
+<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="c1"># Terminal 5: AI swarm (30 bots, all 4 profiles, run for 30 minutes)</span>
+<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-ai-swarm<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a><span class="w">  </span>--count<span class="w"> </span><span class="m">30</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a><span class="w">  </span>--duration<span class="w"> </span><span class="m">1800</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a><span class="w">  </span>--profiles<span class="w"> </span>aggressive,cautious,many-small,few-large
+<a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a>
+<a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a><span class="c1"># Students connect individually</span>
+<a id="__codelineno-8-25" name="__codelineno-8-25" href="#__codelineno-8-25"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>ST01
 </code></pre></div>
 <p>For a quick demo without scheduling, use the launch script:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>./tools/launch_all.sh
 </code></pre></div>
 <hr />
 <h2 id="understanding-bot-output">Understanding bot output<a class="headerlink" href="#understanding-bot-output" title="Permanent link">&para;</a></h2>
-<p>Each bot prefixes every log line with its gateway ID and time. At default
-verbosity the bot logs milestones and a startup summary of its own
-configuration, but not individual order submissions:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[AI:AI01 14:30:00] starting: profile=aggressive symbols=all duration=120s run_id=botrun-...
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>[AI:AI01 14:30:00] authenticated
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>[AI:AI01 14:30:01] reject breaker tripped; pausing submissions for 5.0s
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>[AI:AI01 14:30:06] reject breaker cooldown ended; resuming submissions
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>[AI:AI01 14:31:59] stopped submitted=312 acked=308 rejected=4 (PRICE_OUTSIDE_COLLAR=3, STALE_SYMBOL=1) fills=72
+<p>Bots log through the standard EduMatcher logger
+(<code>&lt;timestamp&gt; &lt;LEVEL&gt; &lt;logger&gt; - &lt;message&gt;</code>), and every bot message is tagged
+with the gateway ID in brackets. Records go to <code>pm-log-srv</code> by default; add
+<code>--log-target stdout</code> to see them in the terminal. The default level is
+<code>WARNING</code>, so the bot's milestone lines (all <code>INFO</code>) appear only with <code>-v</code>
+(or <code>--log-level INFO</code>); at the default level you see just the reject-breaker
+warning. With <code>-v</code> you get the milestones and a startup summary of the bot's
+own configuration, but not individual order submissions:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>2026-09-20 14:30:00,001 INFO edumatcher.ai_trader.main - [AI01] starting: profile=aggressive symbols=all duration=120s run_id=botrun-...
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>2026-09-20 14:30:00,050 INFO edumatcher.ai_trader.main - [AI01] authenticated
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>2026-09-20 14:30:01,200 INFO edumatcher.ai_trader.main - [AI01] reject breaker tripped; pausing submissions for 5.0s
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>2026-09-20 14:30:06,201 INFO edumatcher.ai_trader.main - [AI01] reject breaker cooldown ended; resuming submissions
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>2026-09-20 14:31:59,900 INFO edumatcher.ai_trader.main - [AI01] stopped submitted=312 acked=308 rejected=4 (Market is closed=3, Gateway not configured: AI01=1) fills=72
 </code></pre></div>
-<p>The <code>rejected</code> count typically reflects orders at prices outside the
-collar or submitted during a halt; a count of 3–5 per 300 submissions is
-normal. If the count is very high, check that the bot's gateway IDs are
-configured in the engine. The <code>stopped</code> line's parenthetical breaks the
+<p>(<code>symbols=all</code> is what a single bot without <code>--symbols</code> logs; a swarm child is
+assigned one symbol and logs e.g. <code>symbols=['AAPL']</code>.)</p>
+<p>Rejects normally come from submitting while the market is closed (sessions
+enabled and the scheduler has not opened it yet), from a gateway ID that is not
+in the engine configuration, or from price-collar breaches. A halted symbol
+does not reject the bot's LIMIT orders — they rest without matching. If the
+count is very high, check that the bot's gateway IDs are configured in the
+engine and that the market is open. The <code>stopped</code> line's parenthetical breaks the
 rejects down by reason, taken directly from the engine's <code>order.ack</code>
 rejection payloads.</p>
 <p>With <code>--verbose</code> (<code>-v</code>), the bot additionally logs every order submission,
 fill, individual rejection, and reasons for skipping a trading decision
-(stale market data, position limit reached):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[AI:AI01 14:30:01] order SUBMIT BUY 45@149.97 AAPL
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>[AI:AI01 14:30:01] order REJECTED: PRICE_OUTSIDE_COLLAR
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>[AI:AI01 14:30:05] fill: BUY 45@149.97 AAPL pos=45
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>[AI:AI01 14:30:12] position limit reached on AAPL (pos=1000); forcing SELL
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>[AI:AI01 14:30:18] skip AAPL: stale market data (4.2s &gt; 4.0s)
+(stale market data, position limit reached). The <code>SUBMIT</code> price is in
+<strong>ticks</strong> (with <code>tick_decimals: 2</code>, <code>14997</code> means 149.97); fill prices are
+shown in display money:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>2026-09-20 14:30:01,010 INFO edumatcher.ai_trader.main - [AI01] order SUBMIT BUY 45@14997 AAPL
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>2026-09-20 14:30:01,020 INFO edumatcher.ai_trader.main - [AI01] order REJECTED: Market is closed
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>2026-09-20 14:30:05,030 INFO edumatcher.ai_trader.main - [AI01] fill: BUY 45@149.97 AAPL pos=45
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>2026-09-20 14:30:12,040 INFO edumatcher.ai_trader.main - [AI01] position limit reached on AAPL (pos=1000); forcing SELL
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>2026-09-20 14:30:18,050 INFO edumatcher.ai_trader.main - [AI01] skip AAPL: stale market data (4.2s &gt; 4.0s)
 </code></pre></div>
 <hr />
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>

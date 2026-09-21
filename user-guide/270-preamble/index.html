@@ -4118,28 +4118,51 @@ the audit trail would be written by a Kafka consumer (guaranteed delivery,
 infinite replay), and the matching engine would use a persisted queue for order
 intake.</p>
 <h2 id="message-structure">Message structure<a class="headerlink" href="#message-structure" title="Permanent link">&para;</a></h2>
-<p>Every inter-process communication in EduMatcher is a two-frame ZeroMQ
-multipart message.  ZeroMQ (ZMQ) is a high-performance messaging library;
-a "multipart message" is simply an ordered list of byte-array frames sent
-and received atomically:</p>
+<p>Every inter-process communication in EduMatcher is a ZeroMQ multipart
+message — an ordered list of byte-array frames sent and received atomically.
+ZeroMQ (ZMQ) is a high-performance messaging library; the application, not
+ZMQ, decides what the frames mean.</p>
+<p>The first two frames are the message itself. Behind them ride the
+<strong>envelope</strong>: metadata <em>about</em> the message — a delivery sequence and a causal
+trace — rather than content of it:</p>
 <table>
 <thead>
 <tr>
 <th>Frame</th>
-<th>Content</th>
+<th>PUB (engine → subscribers)</th>
+<th>PUSH (client → engine)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>frame[0]</code></td>
 <td>Topic string (UTF-8) — used for PUB/SUB prefix filtering</td>
+<td>Topic string</td>
 </tr>
 <tr>
 <td><code>frame[1]</code></td>
 <td>JSON payload (UTF-8)</td>
+<td>JSON payload</td>
+</tr>
+<tr>
+<td><code>frame[2]</code></td>
+<td>Per-topic sequence number, so a subscriber can detect a drop</td>
+<td>Causal envelope</td>
+</tr>
+<tr>
+<td><code>frame[3]</code></td>
+<td>Causal envelope: <code>msg_id</code> / <code>causation_id</code> / <code>correlation_id</code></td>
+<td>—</td>
 </tr>
 </tbody>
 </table>
+<p>The causal envelope is what lets <code>pm-audit-replay</code> (and <code>pm-audit-cli</code>'s
+<code>[seq=… msg=… cause=… chain=…]</code> log annotation) state <em>which submission caused
+which fill</em>, rather than inferring it from timing. <code>decode()</code> reads only
+<code>frame[0]</code> and <code>frame[1]</code>, so this extension cost nothing on the hot path and
+every existing subscriber kept working unchanged. The full wire layout, why it
+is frames rather than payload fields, and how to read it programmatically are
+covered in the <a href="../../architecture/02-architecture-guide/#message-format">architecture guide</a>.</p>
 <h2 id="transport-channels">Transport channels<a class="headerlink" href="#transport-channels" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

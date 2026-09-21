@@ -4690,6 +4690,11 @@ code.</strong></p>
 <td>Auction uncross result (equilibrium price/qty, imbalance)</td>
 </tr>
 <tr>
+<td><code>INDIC</code></td>
+<td>AUCTION</td>
+<td>Indicative uncross price/qty while a call phase is still open — see <a href="../920-app-calf-protocol/#indic">CALF protocol → <code>INDIC</code></a></td>
+</tr>
+<tr>
 <td><code>CB</code></td>
 <td>CB</td>
 <td>Circuit-breaker halt or resume detail for one symbol</td>
@@ -4971,6 +4976,21 @@ misconfiguration to fix, not a supported mode.</p>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
 <td>Reduce output to warnings/errors</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td>auto</td>
+<td>Where operational log records go: <code>server</code> (default, auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file PATH</code></td>
+<td>—</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout SECONDS</code></td>
+<td><code>30</code></td>
+<td>Grace window before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable</td>
 </tr>
 <tr>
 <td><code>--version</code></td>
@@ -5354,6 +5374,9 @@ subscribing" below).</p>
 equilibrium price, matched quantity, number of trades generated, and any
 remaining imbalance. There is <strong>no baseline <code>SNAP</code></strong> — like <code>TRADE</code>, the
 stream starts from events that occur after the subscription becomes active.</p>
+<p>A subscription to <code>AUCTION</code> will also deliver <code>INDIC</code> lines during a call
+phase — indicative uncross updates before the phase actually closes. See
+<a href="../920-app-calf-protocol/#indic">CALF protocol → <code>INDIC</code></a>.</p>
 <p><strong>When you get it:</strong> Subscribe with <code>CH=AUCTION|SYM=&lt;symbol&gt;</code>, or <code>SYM=*</code> to
 receive every symbol's auction results on one subscription — useful for a
 market-wide auction monitor without enumerating tickers. Expect events around

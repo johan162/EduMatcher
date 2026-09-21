@@ -4513,7 +4513,7 @@ persistent files:</p>
 </tr>
 </tbody>
 </table>
-<p>Override with <code>EDUMATCHER_DATA_DIR</code> or <code>--log-file</code>:</p>
+<p>Override with <code>EDUMATCHER_DATA_DIR</code> or <code>--audit-log-file</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/sessions/morning"</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pm-audit<span class="w">  </span><span class="c1"># writes to $HOME/sessions/morning/audit.log</span>
 </code></pre></div>
@@ -4533,9 +4533,9 @@ every message as a single JSON line to the configured log file.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>--log-file PATH</code></td>
-<td><code>data/audit.log</code></td>
-<td>Output log file path</td>
+<td><code>--audit-log-file PATH</code></td>
+<td><code>&lt;DATA_DIR&gt;/audit.log</code></td>
+<td>Audit-trail output log file path</td>
 </tr>
 <tr>
 <td><code>--terminal</code> / <code>-t</code></td>
@@ -4566,6 +4566,21 @@ every message as a single JSON line to the configured log file.</p>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
 <td>No-op — the default level is already <code>WARNING</code>, so <code>--quiet</code> currently sets the same level and has no observable effect</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where this process's own operational log records go (not the audit trail): <code>server</code> (auto-detected <code>pm-log-srv</code>), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file PATH</code></td>
+<td>—</td>
+<td>Operational log file path — required when <code>--log-target file</code>. Distinct from <code>--audit-log-file</code>, which is the audit-trail output</td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout SECONDS</code></td>
+<td><code>30</code></td>
+<td>Grace window before falling back to a local log file once <code>pm-log-srv</code> becomes unreachable</td>
 </tr>
 </tbody>
 </table>
@@ -5189,7 +5204,7 @@ symbol to reconstruct an order's full journey through the engine.</p>
 </tr>
 <tr>
 <td><code>qty</code></td>
-<td><code>quantity</code>, then <code>fill_qty</code>, then <code>remaining_qty</code> — whichever key is present first in the payload</td>
+<td><code>quantity or fill_qty or remaining_qty</code> — the first <strong>truthy</strong> value in that order (not merely the first present key; a legitimate <code>0</code> or <code>null</code> falls through to the next)</td>
 </tr>
 <tr>
 <td><code>price</code></td>

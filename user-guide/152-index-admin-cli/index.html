@@ -4228,7 +4228,7 @@ every action that script could perform is now a documented subcommand with
 specifically its <code>index_corp_action()</code>, <code>index_delist()</code>,
 <code>index_add_constituent()</code>, and <code>index_history()</code> methods. No engine-side or
 <code>pm-index</code>-side code changes were needed to add this tool; it is a pure
-client addition. See</p>
+client addition.</p>
 <h2 id="why-not-pm-index-cli">Why not <code>pm-index-cli</code>?<a class="headerlink" href="#why-not-pm-index-cli" title="Permanent link">&para;</a></h2>
 <p><a href="../160-exchange-commands/"><code>pm-index-cli</code></a> already exists as a <strong>read-only</strong> query
 tool over <code>pm-index</code>'s history/state JSONL files — it never touches the live
@@ -4356,7 +4356,7 @@ consistent with every other rejection:</p>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="o">{</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="s2">"accepted"</span>:<span class="w"> </span>false,
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="s2">"reason"</span>:<span class="w"> </span><span class="s2">"Unknown index_id 'NOPE'"</span>,
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="s2">"timestamp"</span>:<span class="w"> </span><span class="m">1784500215</span>.39
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="s2">"ts_ns"</span>:<span class="w"> </span><span class="m">1784500215390000000</span>
 <a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="o">}</span>
 </code></pre></div>
 <p>Under the hood, this is implemented as an <code>error_prefix</code> parameter on
@@ -4378,11 +4378,15 @@ unaffected and still produces the original timeout message:</p>
 <p>Every mutating subcommand (<code>split</code>, <code>dividend</code>, <code>shares</code>, <code>add</code>, <code>delist</code>)
 prints a description of the action and asks <code>Continue? [y/N]</code> before sending
 anything. <code>-y</code>/<code>--yes</code> skips the prompt for scripted use. If stdin is not a
-TTY and <code>--yes</code> was not passed, the tool prints an error and exits <code>1</code> rather
-than hanging — this matters for CI/cron use.</p>
+TTY and <code>--yes</code> was not passed, the tool prints the prompt followed by
+<code>REJECTED  stdin is not a TTY; pass --yes/-y to confirm non-interactively.</code> to
+stderr and exits <code>1</code> rather than hanging — this matters for CI/cron use.</p>
 <p><code>--dry-run</code> prints the exact outbound topic and JSON payload and exits <code>0</code>
-without sending anything or prompting. Use it to check a <code>--ratio</code> parse or a
-<code>--delta</code>-resolved share count before committing:</p>
+without sending the command or prompting (the payload carries no <code>command_id</code>;
+that is added only when a command is really sent). Use it to check a <code>--ratio</code>
+parse or a <code>--delta</code>-resolved share count before committing — note that
+<code>shares --delta --dry-run</code> still queries <code>pm-index</code> for the current share count,
+so <code>pm-index</code> must be running for it:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>$<span class="w"> </span>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>split<span class="w"> </span>--index<span class="w"> </span>TECH10<span class="w"> </span>--sym<span class="w"> </span>AAPL<span class="w"> </span>--ratio<span class="w"> </span><span class="m">4</span>:1<span class="w"> </span>--dry-run
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>DRY<span class="w"> </span>RUN<span class="w"> </span>—<span class="w"> </span>would<span class="w"> </span>send<span class="w"> </span><span class="nv">topic</span><span class="o">=</span><span class="s1">'index.corp_action'</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="o">{</span>
@@ -4459,7 +4463,7 @@ without sending anything or prompting. Use it to check a <code>--ratio</code> pa
 </tbody>
 </table>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>$<span class="w"> </span>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>--yes<span class="w"> </span>dividend<span class="w"> </span>--index<span class="w"> </span>TECH10<span class="w"> </span>--sym<span class="w"> </span>MSFT<span class="w"> </span>--amount<span class="w"> </span><span class="m">500</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>REJECTED<span class="w">  </span>Resulting<span class="w"> </span>price<span class="w"> </span><span class="k">for</span><span class="w"> </span>MSFT<span class="w"> </span>would<span class="w"> </span>be<span class="w"> </span>non-positive<span class="w"> </span><span class="o">(</span>-88.50<span class="o">)</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>REJECTED<span class="w">  </span>Dividend<span class="w"> </span>would<span class="w"> </span>make<span class="w"> </span>price<span class="w"> </span>non-positive
 </code></pre></div>
 <h3 id="shares-set-shares-outstanding-issuance-or-buy-back"><code>shares</code> — Set shares outstanding (issuance or buy-back)<a class="headerlink" href="#shares-set-shares-outstanding-issuance-or-buy-back" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>shares<span class="w"> </span>--index<span class="w"> </span>TECH10<span class="w"> </span>--sym<span class="w"> </span>AAPL<span class="w"> </span>--new-shares<span class="w"> </span><span class="m">15200000000</span>
@@ -4498,13 +4502,16 @@ without sending anything or prompting. Use it to check a <code>--ratio</code> pa
 <p><code>pm-index</code> has no dedicated <code>BUYBACK</code> action — only <code>SHARES_ISSUANCE</code>, which
 always sets an absolute share count regardless of direction (see
 <a href="../150-market-index/#supported-corporate-actions">Market Index — Supported corporate actions</a>).
-<code>--delta</code> is a CLI-side convenience: it looks up the constituent's last
-recorded <code>SHARES_ISSUANCE</code> value via <code>history</code>, applies the signed delta, and
-shows the computed absolute value before sending. If no prior share count is
-on record for that symbol (for example, right after <code>add</code>, before any
-<code>SHARES_ISSUANCE</code> has ever been applied), <code>--delta</code> cannot resolve and the
-command fails with a clear message telling you to use <code>--new-shares</code>
-instead.</p>
+<code>--delta</code> is a CLI-side convenience: it queries the index's whole history and
+takes the most recent share count recorded for that symbol — either an
+<code>ADD_CONSTITUENT</code> record's <code>shares_outstanding</code> or a <code>SHARES_ISSUANCE</code>
+corporate action — applies the signed delta, and shows the computed absolute
+value before sending. So it works right after <code>add</code>. Two caveats: a <code>SPLIT</code>
+recorded since then is <strong>not</strong> reflected (the share count it starts from is the
+pre-split one), and <code>ADD_CONSTITUENT</code> records written by older versions carry no
+<code>shares_outstanding</code>. If no share count can be found, the command prints
+<code>REJECTED  no prior shares_outstanding found for SYM in index IDX — pass --new-shares instead.</code>
+to stderr and exits <code>1</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>$<span class="w"> </span>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>shares<span class="w"> </span>--index<span class="w"> </span>TECH10<span class="w"> </span>--sym<span class="w"> </span>AAPL<span class="w"> </span>--delta<span class="w"> </span>-800000000
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>Last<span class="w"> </span>known<span class="w"> </span>shares_outstanding<span class="w"> </span><span class="k">for</span><span class="w"> </span>AAPL:<span class="w"> </span><span class="m">16</span>,000,000,000
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>This<span class="w"> </span>will<span class="w"> </span><span class="nb">set</span><span class="w"> </span>shares_outstanding<span class="w"> </span>to<span class="w"> </span><span class="m">15</span>,200,000,000<span class="w"> </span><span class="o">(</span>delta<span class="w"> </span>-800,000,000,<span class="w"> </span>a<span class="w"> </span>buy-back<span class="o">)</span>.<span class="w"> </span>Continue?<span class="w"> </span><span class="o">[</span>y/N<span class="o">]</span><span class="w"> </span>y
@@ -4551,7 +4558,10 @@ symbol in <code>engine_config.yaml</code> — it only tracks it as an index
 constituent. If the symbol doesn't exist elsewhere in the config, it
 will be added to the index but never receive live price updates. The
 confirmation prompt states this requirement, but <code>pm-index-admin-cli</code>
-has no <code>--config</code> flag and cannot verify it for you.</p>
+has no <code>--config</code> flag and cannot verify it for you. A change made this
+way also lives only in <code>pm-index</code>'s state and history — see
+<a href="../150-market-index/#state-file">Market Index — State file</a> for what to do
+to the config afterwards.</p>
 </div>
 <h3 id="delist-remove-a-constituent"><code>delist</code> — Remove a constituent<a class="headerlink" href="#delist-remove-a-constituent" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>delist<span class="w"> </span>--index<span class="w"> </span>TECH10<span class="w"> </span>--sym<span class="w"> </span>XYZ
@@ -4580,7 +4590,7 @@ has no <code>--config</code> flag and cannot verify it for you.</p>
 <p>Delisting the last remaining constituent of an index is rejected by
 <code>pm-index</code> (it would zero out the index's aggregate market cap):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>$<span class="w"> </span>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>--yes<span class="w"> </span>delist<span class="w"> </span>--index<span class="w"> </span>TECH10<span class="w"> </span>--sym<span class="w"> </span>AAPL
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>REJECTED<span class="w">  </span>Cannot<span class="w"> </span>delist<span class="w"> </span>AAPL:<span class="w"> </span>index<span class="w"> </span>TECH10<span class="w"> </span>would<span class="w"> </span>have<span class="w"> </span>no<span class="w"> </span>remaining<span class="w"> </span>constituents
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>REJECTED<span class="w">  </span>Delisting<span class="w"> </span>last<span class="w"> </span>constituent<span class="w"> </span>would<span class="w"> </span>make<span class="w"> </span>aggregate<span class="w"> </span>cap<span class="w"> </span>zero
 </code></pre></div>
 <p><code>delist</code> has no undo. Re-adding a delisted symbol requires supplying
 <code>--shares</code>/<code>--price</code> again via <code>add</code> — the confirmation prompt calls this
@@ -4607,26 +4617,26 @@ out explicitly.</p>
 <tr>
 <td><code>--from</code></td>
 <td>No</td>
-<td>24h ago</td>
-<td>Start of range, as a Unix timestamp</td>
+<td><code>--to</code> minus 24 h</td>
+<td>Start of range, as a Unix timestamp (seconds)</td>
 </tr>
 <tr>
 <td><code>--to</code></td>
 <td>No</td>
 <td>now</td>
-<td>End of range, as a Unix timestamp</td>
+<td>End of range, as a Unix timestamp (seconds)</td>
 </tr>
 <tr>
 <td><code>--types</code></td>
 <td>No</td>
 <td>all</td>
-<td>Comma-separated filter: <code>INIT</code>, <code>CORP_ACTION</code>, <code>DELIST</code>, <code>ADD_CONSTITUENT</code></td>
+<td>Comma-separated filter: <code>INIT</code>, <code>CORP_ACTION</code>, <code>DELIST</code>, <code>ADD_CONSTITUENT</code>, <code>REBALANCE</code></td>
 </tr>
 <tr>
 <td><code>--limit</code></td>
 <td>No</td>
 <td><code>50</code></td>
-<td>Maximum rows shown</td>
+<td>Maximum rows shown — the oldest <code>N</code> of the matching, oldest-first list</td>
 </tr>
 </tbody>
 </table>
@@ -4637,28 +4647,34 @@ wrapped here so you can confirm an action landed without switching tools.
 Unlike <code>pm-index-cli events</code>, which reads the JSONL file directly from disk
 and needs no running process, <code>history</code> here round-trips through the live
 <code>pm-index</code> process.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>$<span class="w"> </span>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span><span class="nb">history</span><span class="w"> </span>--index<span class="w"> </span>TECH10<span class="w"> </span>--limit<span class="w"> </span><span class="m">3</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="m">2026</span>-07-19T09:15:02Z<span class="w">  </span>CORP_ACTION<span class="w">     </span>AAPL<span class="w">     </span>SPLIT<span class="w"> </span><span class="m">4</span>:1<span class="w"> </span>-&gt;<span class="w"> </span><span class="nv">level</span><span class="o">=</span><span class="m">8452</span>.17
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">  </span><span class="m">2026</span>-07-18T14:02:11Z<span class="w">  </span>CORP_ACTION<span class="w">     </span>AAPL<span class="w">     </span>SHARES_ISSUANCE<span class="w"> </span><span class="m">16000000000</span><span class="w"> </span>-&gt;<span class="w"> </span><span class="nv">level</span><span class="o">=</span><span class="m">8390</span>.02
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">  </span><span class="m">2026</span>-07-15T09:30:00Z<span class="w">  </span>ADD_CONSTITUENT<span class="w"> </span>NVDA<span class="w">     </span><span class="nv">shares</span><span class="o">=</span><span class="m">2</span>,470,000,000<span class="w"> </span><span class="nv">price</span><span class="o">=</span><span class="m">118</span>.50
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>$<span class="w"> </span>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span><span class="nb">history</span><span class="w"> </span>--index<span class="w"> </span>TECH10<span class="w"> </span>--from<span class="w"> </span><span class="m">1784000000</span><span class="w"> </span>--limit<span class="w"> </span><span class="m">3</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="m">1784106000000000000</span><span class="w">  </span>ADD_CONSTITUENT<span class="w"> </span>NVDA<span class="w">     </span><span class="nv">shares</span><span class="o">=</span><span class="m">2</span>,470,000,000<span class="w"> </span><span class="nv">price</span><span class="o">=</span><span class="m">118</span>.5
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">  </span><span class="m">1784365200000000000</span><span class="w">  </span>CORP_ACTION<span class="w">     </span>AAPL<span class="w">     </span>SHARES_ISSUANCE<span class="w"> </span><span class="nv">shares</span><span class="o">=</span><span class="m">16000000000</span><span class="w"> </span>-&gt;<span class="w"> </span><span class="nv">level</span><span class="o">=</span><span class="m">8390</span>.02
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">  </span><span class="m">1784451302000000000</span><span class="w">  </span>CORP_ACTION<span class="w">     </span>AAPL<span class="w">     </span>SPLIT<span class="w"> </span><span class="m">4</span>:1<span class="w"> </span>-&gt;<span class="w"> </span><span class="nv">level</span><span class="o">=</span><span class="m">8452</span>.17
 </code></pre></div>
-<p><code>--format json</code> prints the raw record list instead:</p>
+<p>The first column is the record's raw <code>ts_ns</code> (epoch nanoseconds), and records
+are listed oldest first. An empty result prints <code>No history records found.</code>
+<code>--format json</code> prints the raw record list instead:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="nb">history</span><span class="w"> </span>--index<span class="w"> </span>TECH10<span class="w"> </span>--limit<span class="w"> </span><span class="m">3</span>
 </code></pre></div>
 <h2 id="output-formats">Output formats<a class="headerlink" href="#output-formats" title="Permanent link">&para;</a></h2>
 <p>Default (<code>--format table</code>) output is a single-line
-<code>&lt;COMMAND&gt; OK   &lt;fields&gt;</code> summary on success, or a <code>REJECTED   &lt;reason&gt;</code> line
-on failure — the same convention <code>pm-admin-cli</code> uses. <code>--format json</code> prints
-the raw ack payload (or, for <code>history</code>, a JSON array of records) instead,
-for scripting:</p>
+<code>&lt;COMMAND&gt; OK   &lt;fields&gt;</code> summary on success, or a <code>REJECTED  &lt;reason&gt;</code> line
+on failure — the same convention <code>pm-admin-cli</code> uses. <code>new_level</code> and
+<code>new_divisor</code> are printed exactly as <code>pm-index</code> computed them (unrounded
+floats). <code>--format json</code> prints the raw ack payload (or, for <code>history</code>, a JSON
+array of records) instead, for scripting:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>$<span class="w"> </span>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>--yes<span class="w"> </span>split<span class="w"> </span>--index<span class="w"> </span>TECH10<span class="w"> </span>--sym<span class="w"> </span>AAPL<span class="w"> </span>--ratio<span class="w"> </span><span class="m">4</span>:1
 <a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="o">{</span>
 <a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">  </span><span class="s2">"accepted"</span>:<span class="w"> </span>true,
-<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="w">  </span><span class="s2">"divisor"</span>:<span class="w"> </span><span class="m">118</span>.3352,
-<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="w">  </span><span class="s2">"index_id"</span>:<span class="w"> </span><span class="s2">"TECH10"</span>,
-<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="w">  </span><span class="s2">"level"</span>:<span class="w"> </span><span class="m">8452</span>.17,
-<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="w">  </span><span class="s2">"reason"</span>:<span class="w"> </span><span class="s2">""</span>
-<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="o">}</span>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="w">  </span><span class="s2">"command_id"</span>:<span class="w"> </span><span class="s2">"cmd-3f9a1c0b7d2e4a65b81e0c94d7a2f356"</span>,
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="w">  </span><span class="s2">"divisor"</span>:<span class="w"> </span><span class="m">118</span>.3352,
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="w">  </span><span class="s2">"index_id"</span>:<span class="w"> </span><span class="s2">"TECH10"</span>,
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="w">  </span><span class="s2">"level"</span>:<span class="w"> </span><span class="m">8452</span>.17,
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="w">  </span><span class="s2">"old_divisor"</span>:<span class="w"> </span><span class="m">118</span>.3352,
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="w">  </span><span class="s2">"reason"</span>:<span class="w"> </span><span class="s2">""</span>,
+<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="w">  </span><span class="s2">"ts_ns"</span>:<span class="w"> </span><span class="m">1784451302000000000</span>
+<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a><span class="o">}</span>
 </code></pre></div>
 <h2 id="typical-operator-workflow">Typical operator workflow<a class="headerlink" href="#typical-operator-workflow" title="Permanent link">&para;</a></h2>
 <p>A full pre-market corporate-action sequence, applied before <code>PRE_OPEN</code> ends

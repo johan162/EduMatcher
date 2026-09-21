@@ -2574,17 +2574,6 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#gatewaysbalf-fields" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        gateways.balf fields
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#balf_gateway-fields" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4585,7 +4574,10 @@ active in <code>1.0.0</code>.</p>
 validated as zero when received.</p>
 <h3 id="identifier-rules">Identifier rules<a class="headerlink" href="#identifier-rules" title="Permanent link">&para;</a></h3>
 <ul>
-<li><code>gateway_id</code> is a 16-byte ASCII field, zero-padded on the right.</li>
+<li><code>gateway_id</code> is a 16-byte ASCII field, zero-padded on the right. The
+  gateway uppercases both <code>gateway_id</code> (at <code>LOGON</code>) and <code>symbol</code> (at
+  <code>NEW_ORDER</code>) after decoding, so a lowercase value is silently normalized
+  rather than rejected or matched case-sensitively.</li>
 <li><code>client_order_id</code> is a client-assigned <code>u64</code>.</li>
 <li><code>order_id</code> is a gateway-assigned session-scoped <code>u64</code>.</li>
 <li><code>0</code> is reserved and must not be used as a valid accepted <code>order_id</code>.</li>
@@ -5055,7 +5047,7 @@ order.</p>
 <tr>
 <td><code>0x0B</code></td>
 <td><code>RC_PRICE_COLLAR</code></td>
-<td>Rejected by a price collar</td>
+<td>Rejected by a price collar (defined, but not currently reachable — see note below)</td>
 </tr>
 <tr>
 <td><code>0x0C</code></td>
@@ -5069,6 +5061,17 @@ order.</p>
 </tr>
 </tbody>
 </table>
+<div class="admonition bug">
+<p class="admonition-title"><code>RC_PRICE_COLLAR</code> is currently unreachable</p>
+<p>The gateway classifies a collar rejection by testing for the lowercase
+substring <code>"collar"</code> in the engine's reason string, but the engine's real
+collar-rejection reasons are <code>STATIC_COLLAR_BREACH: ...</code> and
+<code>DYNAMIC_COLLAR_BREACH: ...</code> (uppercase). The match never succeeds, so a
+price-collar rejection is classified as <code>0xFF</code> (<code>RC_OTHER</code>) today, not
+<code>0x0B</code>. This is a source-level bug in the reason classifier, not
+documented-vs-actual drift; noted here so a client author is not misled
+into expecting <code>0x0B</code> for a collar breach.</p>
+</div>
 <div class="admonition warning">
 <p class="admonition-title">Prices must land on the tick grid</p>
 <p>BALF carries prices as <code>i64</code> fixed point at scale 1e8, so a client can
@@ -5087,7 +5090,7 @@ you never sent. <code>tick_decimals</code> per symbol comes from the reference d
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>Offset  0  |  client_order_id  |  u64 LE  |  Echoed from CANCEL_ORDER
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>Offset  8  |  order_id         |  u64 LE  |  Order being cancelled
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>Offset 16  |  accepted         |  u8      |  1 = cancelled, 0 = rejected
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>Offset 17  |  cancel_reason    |  u8      |  0 = client request, 1 = SMP, 2 = session end, 3 = IOC/FOK expire
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>Offset 17  |  cancel_reason    |  u8      |  0 = client request, 255 = system-originated (SMP, session-end, expiry)
 <a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>Offset 18  |  _reserved        |  u8[6]   |  Must be zero
 </code></pre></div>
 <h3 id="amend_order-0x14-client-server"><code>AMEND_ORDER</code> (0x14) - Client -&gt; Server<a class="headerlink" href="#amend_order-0x14-client-server" title="Permanent link">&para;</a></h3>
@@ -5189,59 +5192,16 @@ any pending outbound messages and then close the connection on its side.</p>
 </ul>
 <h2 id="configuration-reference">Configuration reference<a class="headerlink" href="#configuration-reference" title="Permanent link">&para;</a></h2>
 <p>BALF settings are part of the main engine configuration file
-(<code>engine_config.yaml</code>). They use two related blocks:</p>
-<ul>
-<li><code>gateways.balf</code> for BALF gateway identity allowlist and role metadata</li>
-<li><code>balf_gateway</code> for BALF TCP listener/runtime parameters</li>
-</ul>
+(<code>engine_config.yaml</code>). BALF has no config block of its own for gateway
+identity — it reuses <code>gateways.alf</code> (the same allowlist ALF uses, see
+<a href="../220-alf-gateway/#configuration-reference">ALF TCP Gateway</a>) for identity,
+role, and <code>disconnect_behaviour</code>, and adds only its own TCP listener/runtime
+parameters under <code>balf_gateway</code>.</p>
 <p>Path locations:</p>
 <ul>
-<li><code>engine_config.yaml</code> -&gt; <code>gateways</code> -&gt; <code>balf</code></li>
+<li><code>engine_config.yaml</code> -&gt; <code>gateways</code> -&gt; <code>alf</code> (shared with ALF)</li>
 <li><code>engine_config.yaml</code> -&gt; <code>balf_gateway</code></li>
 </ul>
-<h3 id="gatewaysbalf-fields"><code>gateways.balf</code> fields<a class="headerlink" href="#gatewaysbalf-fields" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Type / allowed range</th>
-<th>Default</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>gateways.balf[].id</code></td>
-<td>Non-empty string</td>
-<td>None (required)</td>
-<td>BALF gateway identity used at <code>LOGON</code> and allowlist validation.</td>
-</tr>
-<tr>
-<td><code>gateways.balf[].description</code></td>
-<td>String</td>
-<td>Empty string</td>
-<td>Human-readable operator description.</td>
-</tr>
-<tr>
-<td><code>gateways.balf[].role</code></td>
-<td>Enum: <code>TRADER</code>, <code>MARKET_MAKER</code>, <code>ADMIN</code></td>
-<td><code>TRADER</code></td>
-<td>Role attached to this BALF identity.</td>
-</tr>
-<tr>
-<td><code>gateways.balf[].mm_max_spread_ticks</code></td>
-<td>Integer, <code>&gt; 0</code></td>
-<td><code>10</code> (common)</td>
-<td>Market-maker max spread guard (when role/policy requires it).</td>
-</tr>
-<tr>
-<td><code>gateways.balf[].mm_min_qty</code></td>
-<td>Integer, <code>&gt; 0</code></td>
-<td><code>100</code> (common)</td>
-<td>Market-maker minimum displayed size guard (when role/policy requires it).</td>
-</tr>
-</tbody>
-</table>
 <h3 id="balf_gateway-fields"><code>balf_gateway</code> fields<a class="headerlink" href="#balf_gateway-fields" title="Permanent link">&para;</a></h3>
 <table>
 <thead>

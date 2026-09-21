@@ -5317,7 +5317,7 @@ process's own <code>config.py</code>.</p>
 <tr>
 <td><code>pm-api-gwy</code></td>
 <td>connects out to <code>5555</code>, <code>5556</code></td>
-<td><code>8080</code> (<code>desk</code> instance) · <code>8081</code> (<code>dashboards</code> instance)</td>
+<td><code>8080</code> (code default; example configs may assign additional instances other ports, e.g. <code>8081</code>)</td>
 <td>HTTP/REST + WebSocket</td>
 <td>REST/WebSocket gateway; translates HTTP/WS requests into the same ZMQ order flow used by <code>pm-alf-console</code>. Each named <code>api_gateways</code> instance in config gets its own port.</td>
 </tr>
@@ -8195,8 +8195,33 @@ on fills, mid-price drift, and session transitions.</p>
 <tbody>
 <tr>
 <td><code>--symbol</code></td>
-<td>required</td>
+<td>required unless <code>--symbols</code>/<code>--config</code> supplies one</td>
 <td>Instrument to make a market in (e.g. <code>AAPL</code>)</td>
+</tr>
+<tr>
+<td><code>--symbols</code></td>
+<td>unset</td>
+<td>Comma-separated symbols to run from one process (e.g. <code>AAPL,MSFT</code>); mutually exclusive with <code>--symbol</code>, each symbol isolated from the others' failures</td>
+</tr>
+<tr>
+<td><code>--label</code></td>
+<td>derived from symbol(s)</td>
+<td>Override the gateway-ID symbol segment (default: the single <code>--symbol</code>, or <code>SYM1_SYM2_...</code> from <code>--symbols</code>)</td>
+</tr>
+<tr>
+<td><code>--config</code></td>
+<td>unset</td>
+<td>YAML file supplying any of these flags by long name (bot-level overrides, not the engine config)</td>
+</tr>
+<tr>
+<td><code>--strategy</code></td>
+<td><code>symmetric</code></td>
+<td>Pricing strategy</td>
+</tr>
+<tr>
+<td><code>--max-position</code></td>
+<td>unset</td>
+<td>Net position at which inventory skewing saturates; required when <code>--strategy inventory_skew</code>, unused otherwise</td>
 </tr>
 <tr>
 <td><code>--gap</code></td>

@@ -4341,8 +4341,12 @@ calling <code>run()</code> do not bind a ZMQ socket.</p>
 </tr>
 </tbody>
 </table>
-<p>The drop copy address is configurable via <code>DROP_COPY_PUB_ADDR</code> in
-<code>src/edumatcher/config.py</code>.</p>
+<p>The engine actually <strong>binds</strong> this socket to <code>DROP_COPY_PUB_BIND_ADDR</code> in
+<code>src/edumatcher/config.py</code> (driven by <code>EDUMATCHER_ENGINE_BIND_HOST</code>).
+<code>DROP_COPY_PUB_ADDR</code> is a separate, connect-side constant (driven by
+<code>EDUMATCHER_ENGINE_HOST</code>) that consumers such as <code>pm-dc-gwy</code> and <code>pm-dc-spy</code>
+use to <em>reach</em> the engine — editing it does not change where the engine
+listens.</p>
 <div class="admonition warning">
 <p class="admonition-title">No authentication or entitlement checks</p>
 <p>The drop copy PUB socket performs no authentication, and there is no
@@ -4399,7 +4403,7 @@ below), which does enforce per-connection role entitlement.</p>
 <tr>
 <td><code>trade_ids</code></td>
 <td>list[str]</td>
-<td>Public <code>trade.executed</code> ID for this execution</td>
+<td>Public <code>trade.executed</code> ID(s) for this execution — one today, kept as a list for parity with coalesced <code>order.fill</code> messages</td>
 </tr>
 <tr>
 <td><code>symbol</code></td>
@@ -4553,10 +4557,13 @@ from operating.</p>
 which releases the ZMQ socket cleanly.</p>
 <h2 id="configuration-reference">Configuration reference<a class="headerlink" href="#configuration-reference" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># engine_config.yaml — no explicit drop copy section needed</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="c1"># The drop copy address is controlled in src/edumatcher/config.py:</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="c1">#   DROP_COPY_PUB_ADDR = "tcp://127.0.0.1:5557"</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="c1"># The engine's bind address is controlled in src/edumatcher/config.py:</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="c1">#   DROP_COPY_PUB_BIND_ADDR = "tcp://0.0.0.0:5557"  (via EDUMATCHER_ENGINE_BIND_HOST)</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Consumers connect via the separate DROP_COPY_PUB_ADDR constant</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># (via EDUMATCHER_ENGINE_HOST), which must resolve to the same port.</span>
 </code></pre></div>
-<p>To change the drop copy port, edit <code>DROP_COPY_PUB_ADDR</code> in <code>config.py</code>.</p>
+<p>To change the drop copy port, edit <code>DROP_COPY_PUB_BIND_ADDR</code> (and keep
+<code>DROP_COPY_PUB_ADDR</code> in sync for consumers) in <code>config.py</code>.</p>
 <h2 id="subscribing-to-the-drop-copy-feed">Subscribing to the drop copy feed<a class="headerlink" href="#subscribing-to-the-drop-copy-feed" title="Permanent link">&para;</a></h2>
 <div class="admonition tip">
 <p class="admonition-title">Quick observability: pm-dc-spy</p>

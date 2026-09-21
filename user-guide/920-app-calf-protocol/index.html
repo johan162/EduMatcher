@@ -6429,6 +6429,8 @@ the third is the resume that follows the first halt (<code>STATUS=ACTIVE</code>,
 </table>
 <p>Terminal behavior:</p>
 <ul>
+<li><code>AUTH_REQUIRED</code> is terminal: any non-<code>HELLO</code> message before a successful
+  handshake gets this error and the connection is closed immediately.</li>
 <li><code>SLOW_CLIENT</code> is terminal for the current TCP session; gateway disconnects.</li>
 <li><code>BAD_MESSAGE</code> may be terminal when parsing cannot continue safely.</li>
 <li><code>RATE_LIMITED</code> is non-terminal; the offending message is dropped and the

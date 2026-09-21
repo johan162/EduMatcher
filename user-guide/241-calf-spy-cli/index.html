@@ -4259,7 +4259,7 @@ explicit symbols for <code>INDEX</code>/<code>DEPTH</code>/<code>CB</code> rathe
 <tr>
 <td><code>--count N</code></td>
 <td><code>0</code></td>
-<td>Exit after N data-carrying lines (<code>0</code> = run until Ctrl-C); heartbeats don't count</td>
+<td>Exit after N data-carrying lines (<code>0</code> = run until Ctrl-C); <code>HB</code> lines don't count, but <code>PONG</code> replies do</td>
 </tr>
 </tbody>
 </table>
@@ -4295,8 +4295,8 @@ distinct), the symbol, the sequence number, and the remaining fields as
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>10:02:17.048  SNAP     TOP      AAPL       #1      ASK=150.12 ASKSZ=900 BID=150.10 BIDSZ=1200 LAST=150.11 LASTSZ=300
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>10:02:17.512  MD       TOP      AAPL       #2      BID=150.11 BIDSZ=1400
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>10:02:18.203  TRADE    TRADE    AAPL       #44     PX=150.12 QTY=200 SIDE=BUY
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>10:02:20.001  CB       CB       AAPL       #4      CORRHI=165.11 CORRLO=135.09 EXP=0 LEVEL=L2 SRC=CB REFPX=150.10 RESUMEAT=2026-07-20T10:20:00.000Z STATUS=HALTED TRIGGERPX=148.20
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>10:20:00.010  CB       CB       AAPL       #5      CORRHI=180.12 CORRLO=120.08 EXP=1 IMB=BUY INDICPX=182.00 INDICQTY=500 LEVEL=L2 SRC=CB REFPX=150.10 RESUMEAT=2026-07-20T10:25:00.000Z STATUS=HALTED TRIGGERPX=148.20
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>10:02:20.001  CB       CB       AAPL       #4      CORRHI=165.11 CORRLO=135.09 EXP=0 LEVEL=L2 REFPX=150.10 RESUMEAT=2026-07-20T10:20:00.000Z SRC=CB STATUS=HALTED TRIGGERPX=148.20
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>10:20:00.010  CB       CB       AAPL       #5      CORRHI=180.12 CORRLO=120.08 EXP=1 IMB=BUY INDICPX=182.00 INDICQTY=500 LEVEL=L2 REFPX=150.10 RESUMEAT=2026-07-20T10:25:00.000Z SRC=CB STATUS=HALTED TRIGGERPX=148.20
 </code></pre></div>
 <p>Session-level messages that carry no channel/symbol of their own (<code>WELCOME</code>,
 <code>HB</code>, <code>PONG</code>) are rendered without the channel/symbol/sequence columns.
@@ -4309,9 +4309,13 @@ the rendering against the actual bytes:</p>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>  MD|CH=TOP|SYM=AAPL|SEQ=2|TS=2026-06-30T09:30:00.500Z|BID=150.11|BIDSZ=1400
 </code></pre></div>
 <h2 id="json-output">JSON output<a class="headerlink" href="#json-output" title="Permanent link">&para;</a></h2>
-<p><code>--format json</code> prints one JSON object per line — no banner, no colour,
+<p><code>--format json</code> prints one JSON object per line for market-data records,
 straightforward to pipe into <code>jq</code>, log to a file, or feed into another
-program. The envelope fields (<code>CH</code>, <code>SYM</code>, <code>SEQ</code>) are lifted to top-level
+program. It does <strong>not</strong> suppress the connect banner or the closing
+"connection closed" line — both still print to the same stdout stream in
+every <code>--format</code>, so a strict line-oriented JSON consumer (e.g. <code>jq -R</code>
+reading raw lines, or a <code>.jsonl</code> file written via shell redirection) will
+see one non-JSON line at the start and one at the end. The envelope fields (<code>CH</code>, <code>SYM</code>, <code>SEQ</code>) are lifted to top-level
 keys for easy filtering; every field, including the envelope ones, is also
 kept verbatim under <code>fields</code> so nothing is lost relative to the raw line:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span><span class="nt">"recv_ts"</span><span class="p">:</span><span class="w"> </span><span class="mf">1784576040.335</span><span class="p">,</span><span class="w"> </span><span class="nt">"msg_type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"SNAP"</span><span class="p">,</span><span class="w"> </span><span class="nt">"ch"</span><span class="p">:</span><span class="w"> </span><span class="s2">"TOP"</span><span class="p">,</span><span class="w"> </span><span class="nt">"sym"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AAPL"</span><span class="p">,</span><span class="w"> </span><span class="nt">"seq"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">"ts"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-07-20T10:02:17.048Z"</span><span class="p">,</span><span class="w"> </span><span class="nt">"fields"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"CH"</span><span class="p">:</span><span class="w"> </span><span class="s2">"TOP"</span><span class="p">,</span><span class="w"> </span><span class="nt">"SYM"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AAPL"</span><span class="p">,</span><span class="w"> </span><span class="nt">"SEQ"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1"</span><span class="p">,</span><span class="w"> </span><span class="nt">"TS"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-07-20T10:02:17.048Z"</span><span class="p">,</span><span class="w"> </span><span class="nt">"BID"</span><span class="p">:</span><span class="w"> </span><span class="s2">"150.10"</span><span class="p">,</span><span class="w"> </span><span class="nt">"BIDSZ"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1200"</span><span class="p">,</span><span class="w"> </span><span class="nt">"ASK"</span><span class="p">:</span><span class="w"> </span><span class="s2">"150.12"</span><span class="p">,</span><span class="w"> </span><span class="nt">"ASKSZ"</span><span class="p">:</span><span class="w"> </span><span class="s2">"900"</span><span class="p">,</span><span class="w"> </span><span class="nt">"LAST"</span><span class="p">:</span><span class="w"> </span><span class="s2">"150.11"</span><span class="p">,</span><span class="w"> </span><span class="nt">"LASTSZ"</span><span class="p">:</span><span class="w"> </span><span class="s2">"300"</span><span class="p">}}</span>
@@ -4345,7 +4349,9 @@ same gateway — <code>pm-md-gwy</code> fans out independently per session.</p>
   <code>pm-calf-spy</code> prints <code>pm-calf-spy: could not connect to HOST:PORT: ...</code>
   and exits <code>1</code> — no retry loop.</li>
 <li>If the gateway rejects the handshake itself (<code>ERR|CODE=PROTO_MISMATCH</code>),
-  that is also reported and the process exits <code>1</code>.</li>
+  the client currently does not catch this case cleanly: it surfaces as an
+  unhandled Python traceback rather than a <code>pm-calf-spy: ...</code> message, though
+  the process does still exit non-zero.</li>
 <li>Once connected, any <code>ERR</code> the gateway sends in response to <code>SUB</code> (bad
   channel, bad symbol, wildcard misuse, subscription limit) is printed like
   any other line — the session stays open so you can see the rejection

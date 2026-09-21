@@ -5439,8 +5439,11 @@ table.</p>
 </tr>
 </tbody>
 </table>
-<p>Invalid transitions are silently rejected by the engine.  Check the printed
-result to verify the transition was applied.</p>
+<p>Invalid transitions are rejected by the engine before anything is published,
+so no reply of any kind is sent back for a rejected transition — the CLI call
+times out (<code>Timeout: ...</code> on stderr, exit code 1) rather than printing a
+result to check. A successful transition, by contrast, is confirmed by the
+<code>session.state</code> broadcast.</p>
 <h4 id="session-status-show-current-session-state-read-only"><code>session-status</code> — Show current session state (read-only)<a class="headerlink" href="#session-status-show-current-session-state-read-only" title="Permanent link">&para;</a></h4>
 <p><div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session-status
 </code></pre></div>
@@ -5620,12 +5623,12 @@ pm-stats' SQLite database. See
 <tr>
 <td><code>--config PATH</code> / <code>-c PATH</code></td>
 <td>unset</td>
-<td>Path to <code>engine_config.yaml</code>; used to discover history file paths and index IDs automatically</td>
+<td>Path to <code>engine_config.yaml</code>; used to discover history file paths and index IDs automatically. Without it, the deployed compiled configuration is used instead</td>
 </tr>
 <tr>
 <td><code>--data-dir DIR</code></td>
 <td><code>data/indexes</code></td>
-<td>Directory containing history JSONL files; used when <code>--config</code> is not given or an index is not in config</td>
+<td>Fallback directory for history JSONL files, used only once an index ID is already known and its <code>history_file</code> isn't in the config. It does <strong>not</strong> help discover <em>which</em> indices exist</td>
 </tr>
 <tr>
 <td><code>--format table\|json\|csv</code></td>
@@ -5650,7 +5653,7 @@ pm-stats' SQLite database. See
 <tbody>
 <tr>
 <td><code>events</code></td>
-<td>Structural events: <code>INIT</code>, <code>CORP_ACTION</code>, <code>ADD_CONSTITUENT</code>, <code>DELIST</code></td>
+<td>Structural events: <code>INIT</code>, <code>CORP_ACTION</code>, <code>ADD_CONSTITUENT</code>, <code>DELIST</code>, <code>REBALANCE</code></td>
 </tr>
 <tr>
 <td><code>indices</code></td>
@@ -5669,7 +5672,7 @@ pm-stats' SQLite database. See
 <tbody>
 <tr>
 <td><code>--index ID</code> / <code>-i ID</code></td>
-<td>Index ID to query (repeatable); defaults to all configured indices when <code>--config</code> is given</td>
+<td>Index ID to query (repeatable); defaults to all indices in <code>--config</code>, or in the deployed compiled configuration if <code>--config</code> is omitted. If neither is available, <code>events</code> exits with an error (code 1) rather than falling back to <code>--data-dir</code></td>
 </tr>
 <tr>
 <td><code>--days N</code></td>
@@ -5689,7 +5692,7 @@ pm-stats' SQLite database. See
 </tr>
 <tr>
 <td><code>--type TYPE</code> / <code>-t TYPE</code></td>
-<td>Filter to one event type (repeatable): <code>INIT</code>, <code>CORP_ACTION</code>, <code>ADD_CONSTITUENT</code>, <code>DELIST</code></td>
+<td>Filter to one event type (repeatable): <code>INIT</code>, <code>CORP_ACTION</code>, <code>ADD_CONSTITUENT</code>, <code>DELIST</code>, <code>REBALANCE</code></td>
 </tr>
 </tbody>
 </table>
@@ -5902,7 +5905,9 @@ handshake is involved, since <code>pm-index</code>'s socket has no authenticatio
 </tr>
 </tbody>
 </table>
-<p>Every subcommand takes <code>--index</code> and <code>--sym</code>. The global options below —
+<p>Every mutating subcommand (<code>split</code>, <code>dividend</code>, <code>shares</code>, <code>add</code>, <code>delist</code>)
+takes <code>--index</code> and <code>--sym</code>; <code>history</code> takes <code>--index</code> but no <code>--sym</code> (it has
+its own <code>--from</code>/<code>--to</code>/<code>--types</code>/<code>--limit</code>). The global options below —
 <code>--id</code>, <code>--format</code>, <code>--dry-run</code>, <code>--yes</code>, <code>--push</code>, <code>--sub</code>, <code>--timeout</code> —
 belong to <code>pm-index-admin-cli</code> itself and must be given <strong>before</strong> the
 subcommand name:</p>
@@ -6096,13 +6101,6 @@ sockets are closed on exit.</p>
 <td><code>risk.kill_switch_ack.{target}</code></td>
 </tr>
 <tr>
-<td><code>mass_cancel(target, symbol)</code></td>
-<td>target GW ID, symbol</td>
-<td>Any connected GW</td>
-<td><code>risk.kill_switch</code></td>
-<td><code>risk.kill_switch_ack.{target}</code></td>
-</tr>
-<tr>
 <td><code>quote_cancel(target, symbol)</code></td>
 <td>target GW ID, symbol</td>
 <td>Any connected GW</td>
@@ -6203,12 +6201,57 @@ sockets are closed on exit.</p>
 <tr>
 <td><code>cancel_symbol(symbol)</code></td>
 <td>symbol</td>
+<td>Any connected GW</td>
+<td><code>system.cancel_symbol</code></td>
+<td><code>system.cancel_symbol_ack.{GW}</code></td>
+</tr>
+<tr>
+<td><code>force_uncross(symbol)</code></td>
+<td>symbol</td>
 <td><strong>ADMIN</strong></td>
-<td><code>risk.cancel_symbol</code></td>
-<td><code>risk.cancel_symbol_ack.{GW}</code></td>
+<td><code>risk.force_uncross</code></td>
+<td><code>risk.force_uncross_ack.{GW}</code></td>
+</tr>
+<tr>
+<td><code>quote_bootstrap(target, symbol?)</code></td>
+<td>target GW ID, optional symbol</td>
+<td>Any connected GW</td>
+<td><code>quote.bootstrap_request</code></td>
+<td><code>quote.bootstrap.{target}</code></td>
+</tr>
+<tr>
+<td><code>index_history(index, from, to, types?)</code></td>
+<td>index ID, time range, optional type filter</td>
+<td>— (no auth on <code>pm-index</code>'s socket)</td>
+<td><code>index.history_request</code></td>
+<td><code>index.history.{GW}</code></td>
+</tr>
+<tr>
+<td><code>index_corp_action(index, action, symbol, ...)</code></td>
+<td>index ID, action, symbol, action params</td>
+<td>—</td>
+<td><code>index.corp_action</code></td>
+<td><code>index.corp_action_ack.{GW}</code></td>
+</tr>
+<tr>
+<td><code>index_delist(index, symbol)</code></td>
+<td>index ID, symbol</td>
+<td>—</td>
+<td><code>index.constituent_change</code></td>
+<td><code>index.constituent_change_ack.{GW}</code></td>
+</tr>
+<tr>
+<td><code>index_add_constituent(index, symbol, shares, price)</code></td>
+<td>index ID, symbol, shares, price</td>
+<td>—</td>
+<td><code>index.constituent_change</code></td>
+<td><code>index.constituent_change_ack.{GW}</code></td>
 </tr>
 </tbody>
 </table>
+<p><code>mass_cancel(target, symbol)</code> is a convenience alias for <code>kill_switch(target, symbol=symbol)</code> — same message and ack, not a separate command.</p>
+<p>The four <code>index_*</code> methods talk to <code>pm-index</code>'s PUSH/PUB pair (ports 5559/5558), not the engine's — see <a href="../152-index-admin-cli/#why-there-is-no-connect-authentication-step">Index Admin CLI — Why there is no connect() step</a> for why they carry no auth.
+| <code>cancel_symbol(symbol)</code>         | symbol                        | <strong>ADMIN</strong>        | <code>risk.cancel_symbol</code>              | <code>risk.cancel_symbol_ack.{GW}</code>              |</p>
 <div class="admonition warning">
 <p class="admonition-title">PUSH socket has no authentication</p>
 <p>The engine does not verify <em>who</em> placed a message on the PUSH socket — it
@@ -6343,16 +6386,20 @@ also remove non-quote limit orders.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-81-1" name="__codelineno-81-1" href="#__codelineno-81-1"></a><span class="n">book</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">book_depth</span><span class="p">(</span><span class="s2">"AAPL"</span><span class="p">)</span>
 <a id="__codelineno-81-2" name="__codelineno-81-2" href="#__codelineno-81-2"></a><span class="c1"># book = {</span>
 <a id="__codelineno-81-3" name="__codelineno-81-3" href="#__codelineno-81-3"></a><span class="c1">#   "symbol": "AAPL",</span>
-<a id="__codelineno-81-4" name="__codelineno-81-4" href="#__codelineno-81-4"></a><span class="c1">#   "bids": [{"price": 149.50, "qty": 300, "count": 2}, ...],</span>
-<a id="__codelineno-81-5" name="__codelineno-81-5" href="#__codelineno-81-5"></a><span class="c1">#   "asks": [{"price": 150.00, "qty": 100, "count": 1}, ...],</span>
-<a id="__codelineno-81-6" name="__codelineno-81-6" href="#__codelineno-81-6"></a><span class="c1">#   "last_price": 149.75,</span>
-<a id="__codelineno-81-7" name="__codelineno-81-7" href="#__codelineno-81-7"></a><span class="c1">#   "last_qty": 200,</span>
-<a id="__codelineno-81-8" name="__codelineno-81-8" href="#__codelineno-81-8"></a><span class="c1">#   "recent_trades": [...]</span>
-<a id="__codelineno-81-9" name="__codelineno-81-9" href="#__codelineno-81-9"></a><span class="c1"># }</span>
-<a id="__codelineno-81-10" name="__codelineno-81-10" href="#__codelineno-81-10"></a>
-<a id="__codelineno-81-11" name="__codelineno-81-11" href="#__codelineno-81-11"></a><span class="n">best_bid</span> <span class="o">=</span> <span class="n">book</span><span class="p">[</span><span class="s2">"bids"</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">book</span><span class="p">[</span><span class="s2">"bids"</span><span class="p">]</span> <span class="k">else</span> <span class="kc">None</span>
-<a id="__codelineno-81-12" name="__codelineno-81-12" href="#__codelineno-81-12"></a><span class="n">best_ask</span> <span class="o">=</span> <span class="n">book</span><span class="p">[</span><span class="s2">"asks"</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">book</span><span class="p">[</span><span class="s2">"asks"</span><span class="p">]</span> <span class="k">else</span> <span class="kc">None</span>
-<a id="__codelineno-81-13" name="__codelineno-81-13" href="#__codelineno-81-13"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"AAPL  </span><span class="si">{</span><span class="n">best_bid</span><span class="p">[</span><span class="s1">'price'</span><span class="p">]</span><span class="si">}</span><span class="s2"> x </span><span class="si">{</span><span class="n">best_bid</span><span class="p">[</span><span class="s1">'qty'</span><span class="p">]</span><span class="si">}</span><span class="s2">  /  </span><span class="si">{</span><span class="n">best_ask</span><span class="p">[</span><span class="s1">'price'</span><span class="p">]</span><span class="si">}</span><span class="s2"> x </span><span class="si">{</span><span class="n">best_ask</span><span class="p">[</span><span class="s1">'qty'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<a id="__codelineno-81-4" name="__codelineno-81-4" href="#__codelineno-81-4"></a><span class="c1">#   "tick_decimals": 2,</span>
+<a id="__codelineno-81-5" name="__codelineno-81-5" href="#__codelineno-81-5"></a><span class="c1">#   "ts_ns": 1784500215390000000,</span>
+<a id="__codelineno-81-6" name="__codelineno-81-6" href="#__codelineno-81-6"></a><span class="c1">#   "bids": [{"price": 149.50, "qty": 300, "count": 2}, ...],</span>
+<a id="__codelineno-81-7" name="__codelineno-81-7" href="#__codelineno-81-7"></a><span class="c1">#   "asks": [{"price": 150.00, "qty": 100, "count": 1}, ...],</span>
+<a id="__codelineno-81-8" name="__codelineno-81-8" href="#__codelineno-81-8"></a><span class="c1">#   "last_price": 149.75,</span>
+<a id="__codelineno-81-9" name="__codelineno-81-9" href="#__codelineno-81-9"></a><span class="c1">#   "last_qty": 200,</span>
+<a id="__codelineno-81-10" name="__codelineno-81-10" href="#__codelineno-81-10"></a><span class="c1">#   "last_buy_price": 149.75,</span>
+<a id="__codelineno-81-11" name="__codelineno-81-11" href="#__codelineno-81-11"></a><span class="c1">#   "last_sell_price": 149.50,</span>
+<a id="__codelineno-81-12" name="__codelineno-81-12" href="#__codelineno-81-12"></a><span class="c1">#   "recent_trades": [...]</span>
+<a id="__codelineno-81-13" name="__codelineno-81-13" href="#__codelineno-81-13"></a><span class="c1"># }</span>
+<a id="__codelineno-81-14" name="__codelineno-81-14" href="#__codelineno-81-14"></a>
+<a id="__codelineno-81-15" name="__codelineno-81-15" href="#__codelineno-81-15"></a><span class="n">best_bid</span> <span class="o">=</span> <span class="n">book</span><span class="p">[</span><span class="s2">"bids"</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">book</span><span class="p">[</span><span class="s2">"bids"</span><span class="p">]</span> <span class="k">else</span> <span class="kc">None</span>
+<a id="__codelineno-81-16" name="__codelineno-81-16" href="#__codelineno-81-16"></a><span class="n">best_ask</span> <span class="o">=</span> <span class="n">book</span><span class="p">[</span><span class="s2">"asks"</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">book</span><span class="p">[</span><span class="s2">"asks"</span><span class="p">]</span> <span class="k">else</span> <span class="kc">None</span>
+<a id="__codelineno-81-17" name="__codelineno-81-17" href="#__codelineno-81-17"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"AAPL  </span><span class="si">{</span><span class="n">best_bid</span><span class="p">[</span><span class="s1">'price'</span><span class="p">]</span><span class="si">}</span><span class="s2"> x </span><span class="si">{</span><span class="n">best_bid</span><span class="p">[</span><span class="s1">'qty'</span><span class="p">]</span><span class="si">}</span><span class="s2">  /  </span><span class="si">{</span><span class="n">best_ask</span><span class="p">[</span><span class="s1">'price'</span><span class="p">]</span><span class="si">}</span><span class="s2"> x </span><span class="si">{</span><span class="n">best_ask</span><span class="p">[</span><span class="s1">'qty'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 </code></pre></div>
 <p>Returns the same payload as the live <code>book.{SYMBOL}</code> subscription but on demand
 rather than waiting for the next change.  Useful for a one-shot dashboard or
@@ -6445,9 +6492,12 @@ drive iteration over all instruments (e.g. request a book snapshot for each).</p
     CONTINUOUS --&gt; CLOSING_AUCTION
     CLOSING_AUCTION --&gt; CLOSED
     CLOSED --&gt; [*]</code></pre>
-<p>Invalid transitions are silently rejected by the engine.  The ack is the
-<code>session.state</code> broadcast — it carries the <em>actual</em> new state, so you can
-verify the transition succeeded by checking <code>result["state"]</code>.</p>
+<p>An <strong>accepted</strong> transition is confirmed by the <code>session.state</code> broadcast,
+which carries the <em>actual</em> new state — check <code>result["state"]</code> to verify it.
+An <strong>invalid</strong> transition (one not allowed from the current state) gets no
+reply at all: the engine rejects it before publishing anything, so
+<code>session_advance()</code> blocks until <code>--timeout</code> and then raises
+<code>CommandTimeoutError</code>.</p>
 <h2 id="full-admin-operator-workflow">Full ADMIN operator workflow<a class="headerlink" href="#full-admin-operator-workflow" title="Permanent link">&para;</a></h2>
 <p>The example below shows a complete emergency halt-and-resume sequence using
 the command client:</p>

@@ -4506,17 +4506,17 @@ dedicated query tool.</p>
 </tr>
 <tr>
 <td><code>indexes/&lt;ID&gt;_history.jsonl</code></td>
-<td><code>pm-index</code> (triggered by <a href="../152-index-admin-cli/"><code>pm-index-admin-cli</code></a> for <code>CORP_ACTION</code>/<code>ADD_CONSTITUENT</code>/<code>DELIST</code>)</td>
-<td>On structural events only (<code>INIT</code>, <code>CORP_ACTION</code>, <code>ADD_CONSTITUENT</code>, <code>DELIST</code>)</td>
+<td><code>pm-index</code> (triggered by <a href="../152-index-admin-cli/"><code>pm-index-admin-cli</code></a> for <code>CORP_ACTION</code>/<code>ADD_CONSTITUENT</code>/<code>DELIST</code>, or the API gateway's rebalance endpoint for <code>REBALANCE</code>)</td>
+<td>On structural events only (<code>INIT</code>, <code>CORP_ACTION</code>, <code>ADD_CONSTITUENT</code>, <code>DELIST</code>, <code>REBALANCE</code>)</td>
 <td>Structural/corporate-action audit trail — <strong>not</strong> level or EOD history (that lives in <code>stats.db</code>, written by <code>pm-stats</code>)</td>
 <td><strong><code>pm-index-cli</code></strong> (read-only) — see <a href="../150-market-index/">Market Index</a></td>
 </tr>
 <tr>
 <td><code>indexes/&lt;ID&gt;_state.json</code></td>
 <td><code>pm-index</code></td>
-<td>On each update</td>
-<td>Persisted divisor + last levels so the index resumes correctly after a restart</td>
-<td>JSON; loaded by <code>pm-index</code> at startup</td>
+<td>On startup, every trade update, EOD finalization, and every corporate action/constituent change (EOD does <strong>not</strong> also append to <code>_history.jsonl</code>)</td>
+<td>Divisor, constituent list, per-symbol last prices, day OHLC and last level, so the index resumes correctly after a restart</td>
+<td>JSON; loaded by <code>pm-index</code> at startup — rejects a mismatched constituent list (use <code>--reset</code>); see <a href="../150-market-index/#state-file">Market Index — State file</a></td>
 </tr>
 </tbody>
 </table>
@@ -4739,7 +4739,7 @@ file-by-file; for command syntax to submit or cancel a GTC order, see
 <p>Format: a JSON array of serialized <code>Order</code> objects.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">[</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="p">{</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"3f2a1b4c-..."</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"8f3a1b4c9d2e04f7a6b1c8d9e0f1a2b3"</span><span class="p">,</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AAPL"</span><span class="p">,</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="nt">"side"</span><span class="p">:</span><span class="w"> </span><span class="s2">"BUY"</span><span class="p">,</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span><span class="nt">"order_type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"LIMIT"</span><span class="p">,</span>
@@ -4747,18 +4747,32 @@ file-by-file; for command syntax to submit or cancel a GTC order, see
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">    </span><span class="nt">"quantity"</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span>
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">    </span><span class="nt">"remaining_qty"</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span>
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">    </span><span class="nt">"gateway_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"GW01"</span><span class="p">,</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">    </span><span class="nt">"timestamp"</span><span class="p">:</span><span class="w"> </span><span class="mi">1714393921345678000</span><span class="p">,</span>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">    </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"NEW"</span><span class="p">,</span>
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">    </span><span class="nt">"price"</span><span class="p">:</span><span class="w"> </span><span class="mi">14800</span><span class="p">,</span>
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">    </span><span class="err">...</span>
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">  </span><span class="p">}</span>
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="p">]</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">    </span><span class="nt">"tick_decimals"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">    </span><span class="nt">"ts_ns"</span><span class="p">:</span><span class="w"> </span><span class="mi">1714393921345678000</span><span class="p">,</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">    </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"NEW"</span><span class="p">,</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">    </span><span class="nt">"price_ticks"</span><span class="p">:</span><span class="w"> </span><span class="mi">14800</span><span class="p">,</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">    </span><span class="nt">"stop_price_ticks"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">    </span><span class="nt">"trail_offset_ticks"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">    </span><span class="nt">"oco_group_id"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="w">    </span><span class="err">...</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="p">]</span>
 </code></pre></div>
+<p>The real serialized keys are <code>price_ticks</code>, <code>stop_price_ticks</code>,
+<code>trail_offset_ticks</code> and <code>ts_ns</code> (<code>Order.to_dict()</code>) — not <code>price</code>,
+<code>stop_price</code>, <code>trail_offset</code> or <code>timestamp</code>. <code>Order.from_dict()</code> requires
+<code>ts_ns</code> to be present and raises <code>KeyError</code> otherwise, so a hand-edited file
+using the wrong key names fails to load (each bad entry is skipped with a
+CRITICAL log line, not a hard crash). The full record also carries
+<code>tick_decimals</code>, <code>oco_group_id</code>, <code>visible_qty</code>, <code>displayed_qty</code>,
+<code>smp_action</code>, <code>combo_parent_id</code>, <code>leg_index</code>, <code>origin</code>, <code>is_seed</code>,
+<code>quote_id</code>, <code>client_tag</code> and <code>arrival_seq</code>.</p>
 <div class="admonition note">
 <p class="admonition-title">Internal representations in the JSON</p>
-<p>Prices (<code>price</code>, <code>stop_price</code>, <code>trail_offset</code>) are stored as <strong>integer tick
-values</strong> — e.g. <code>14800</code> represents <code>148.00</code> for a symbol with <code>tick_decimals: 2</code>.
-Timestamps are <strong>nanoseconds</strong> since the Unix epoch, not seconds.</p>
+<p>Prices (<code>price_ticks</code>, <code>stop_price_ticks</code>, <code>trail_offset_ticks</code>) are
+stored as <strong>integer tick values</strong> — e.g. <code>14800</code> represents <code>148.00</code> for
+a symbol with <code>tick_decimals: 2</code>. Timestamps (<code>ts_ns</code>) are <strong>nanoseconds</strong>
+since the Unix epoch, not seconds.</p>
 </div>
 <p>You can inspect or edit this file between trading sessions. Since this file now
 also holds resting TIF=DAY orders (see <a href="#how-it-works">How It Works</a> above),
@@ -4870,9 +4884,12 @@ already marked <code>CANCELLED</code>.</p>
 <p>To find the full order ID, type <code>ORDERS</code> in your gateway terminal or check the audit log.</p>
 </div>
 <h3 id="order-id-stability">Order ID Stability<a class="headerlink" href="#order-id-stability" title="Permanent link">&para;</a></h3>
-<p>GTC order IDs are UUID4 strings generated at submission time by the gateway.
-They <strong>do not change</strong> across restarts. Gateways and the order monitor will see
-the same order ID in all events throughout the order's life.</p>
+<p>GTC order IDs are 32-character random hex strings (<code>os.urandom(16).hex()</code>),
+generated at submission time — <strong>not</strong> UUID4 strings; EduMatcher deliberately
+avoids the <code>uuid</code> module's formatting overhead while keeping the same 128
+bits of entropy (see <code>src/edumatcher/models/ids.py</code>). They <strong>do not change</strong>
+across restarts. Gateways and the order monitor will see the same order ID
+in all events throughout the order's life.</p>
 <h2 id="general-startup-shutdown-sequence">General Startup / Shutdown Sequence<a class="headerlink" href="#general-startup-shutdown-sequence" title="Permanent link">&para;</a></h2>
 <p>The diagram below shows the full mechanical sequence for every restart — the
 same steps run whichever branch of
@@ -4882,11 +4899,11 @@ only the <code>DAYCHK</code> decision differs between them.</p>
     START([Engine start\nno gateways connected])
     RUNSEQ[Bump + save\nengine_run_seq.json]
     GTC1[Load gtc_orders.json]
-    GTC2[Load gtc_combos.json\nrebuild parent-child maps]
     DAYCHK{For each order:\nTIF=DAY and\norder-date &lt; today?}
     DISCARD[Discard stale DAY order\nlog + debug counter\nno order.expired published]
     REINJ[Re-inject order\nwith original timestamp\nGTC always; DAY only if same-day]
     QIDX[Rebuild QuoteIndex from restored\nquote-origin orders, grouped by\ngateway_id + quote_id]
+    GTC2[Load gtc_combos.json\nrebuild parent-child maps]
     SNAP1{Any orders\nrestored?}
     BSTAT[Load book_stats.json\nrestore last_buy/sell prices + prev_close]
     MMQ{seed_once and active\nquote already in\nQuoteIndex?}
@@ -4905,9 +4922,10 @@ only the <code>DAYCHK</code> decision differs between them.</p>
     EOD[Publish system.eod\nfinal book snapshots]
     DONE([Shutdown])
 
-    START --&gt; RUNSEQ --&gt; GTC1 --&gt; GTC2 --&gt; DAYCHK
-    DAYCHK --&gt;|yes| DISCARD --&gt; SNAP1
-    DAYCHK --&gt;|no| REINJ --&gt; QIDX --&gt; SNAP1
+    START --&gt; RUNSEQ --&gt; GTC1 --&gt; DAYCHK
+    DAYCHK --&gt;|yes| DISCARD --&gt; GTC2
+    DAYCHK --&gt;|no| REINJ --&gt; QIDX --&gt; GTC2
+    GTC2 --&gt; SNAP1
     SNAP1 --&gt;|yes| BSTAT
     SNAP1 --&gt;|no| BSTAT
     BSTAT --&gt; MMQ
@@ -4932,11 +4950,11 @@ appends every message as a single line:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[TIMESTAMP] [TOPIC] {JSON_PAYLOAD}
 </code></pre></div>
 <p>Example lines:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[2026-04-29T14:30:00.123+00:00] [system.gateway_auth.GW01] {"accepted": true, "gateway_id": "GW01"}
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>[2026-04-29T14:30:01.456+00:00] [order.ack.GW01] {"id": "3f2a1b4c-...", "symbol": "AAPL", "accepted": true, "status": "RESTING"}
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>[2026-04-29T14:30:02.789+00:00] [trade.executed] {"id": "abc123", "symbol": "AAPL", "price": 150.05, "quantity": 200, "buy_gateway_id": "GW01", "sell_gateway_id": "MM01", "ts_ns": 1714399802789000000}
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>[2026-04-29T14:30:02.791+00:00] [order.fill.GW01] {"id": "3f2a1b4c-...", "symbol": "AAPL", "side": "BUY", "fill_qty": 200, "fill_price": 150.05, "remaining_qty": 0, "status": "FILLED"}
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>[2026-04-29T16:05:00.000+00:00] [session.state] {"state": "CLOSED"}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[2026-04-29T14:30:00.123+00:00] [system.gateway_auth.GW01] [seq=1] {"accepted": true, "gateway_id": "GW01"}
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>[2026-04-29T14:30:01.456+00:00] [order.ack.GW01] [seq=2] {"id": "8f3a1b4c9d2e04f7a6b1c8d9e0f1a2b3", "symbol": "AAPL", "accepted": true, "status": "RESTING"}
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>[2026-04-29T14:30:02.789+00:00] [trade.executed] [seq=3] {"id": "abc123", "symbol": "AAPL", "price": 150.05, "quantity": 200, "buy_gateway_id": "GW01", "sell_gateway_id": "MM01", "ts_ns": 1714399802789000000}
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>[2026-04-29T14:30:02.791+00:00] [order.fill.GW01] [seq=4] {"id": "8f3a1b4c9d2e04f7a6b1c8d9e0f1a2b3", "symbol": "AAPL", "side": "BUY", "fill_qty": 200, "fill_price": 150.05, "remaining_qty": 0, "status": "FILLED"}
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>[2026-04-29T16:05:00.000+00:00] [session.state] [seq=5] {"state": "CLOSED"}
 </code></pre></div>
 <p><strong>Format details</strong>:</p>
 <table>
@@ -4956,13 +4974,18 @@ appends every message as a single line:</p>
 <td>The ZeroMQ topic string, e.g. <code>order.fill.GW01</code>, <code>trade.executed</code>, <code>session.state</code></td>
 </tr>
 <tr>
+<td><code>[META]</code></td>
+<td>Present on almost every line: a bracketed <code>seq=</code>/<code>msg=</code>/<code>cause=</code>/<code>chain=</code> section built from the message's sequence and causal envelope; absent only for the rare message with no envelope at all — see <a href="../190-audit/">Audit</a></td>
+</tr>
+<tr>
 <td><code>{JSON_PAYLOAD}</code></td>
 <td>The full message payload as compact JSON — no pretty-printing</td>
 </tr>
 </tbody>
 </table>
 <p>The topic is <strong>not</strong> a JSON field inside the payload; it appears as a separate
-bracket-delimited token on the same line.</p>
+bracket-delimited token on the same line, and the <code>[META]</code> section, when
+present, is a further bracketed token between the topic and the payload.</p>
 <p><strong>File rotation</strong>: <code>RotatingFileHandler</code> — maximum 10 MB per file, 5 backup files
 (<code>audit.log.1</code> through <code>audit.log.5</code>). Oldest backup is deleted when a sixth
 would be created.</p>
