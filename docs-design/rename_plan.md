@@ -176,7 +176,7 @@ regardless.
 
 ### G. Things that should NOT be hand-edited
 - `dist/*.whl`, `dist/*.tar.gz` — build output, currently
-  `edumatcher-0.40.5rc1-py3-none-any.whl`. Delete and rebuild after the
+  `edumatcher-0.40.5-py3-none-any.whl`. Delete and rebuild after the
   package rename; don't try to rename these in place.
 - `site/` — mkdocs build output, regenerate via `mkdocs build` after
   `mkdocs.yml` is updated.

@@ -162,15 +162,29 @@ intake.
 
 ## Message structure
 
-Every inter-process communication in EduMatcher is a two-frame ZeroMQ
-multipart message.  ZeroMQ (ZMQ) is a high-performance messaging library;
-a "multipart message" is simply an ordered list of byte-array frames sent
-and received atomically:
+Every inter-process communication in EduMatcher is a ZeroMQ multipart
+message — an ordered list of byte-array frames sent and received atomically.
+ZeroMQ (ZMQ) is a high-performance messaging library; the application, not
+ZMQ, decides what the frames mean.
 
-| Frame | Content |
-|---|---|
-| `frame[0]` | Topic string (UTF-8) — used for PUB/SUB prefix filtering |
-| `frame[1]` | JSON payload (UTF-8) |
+The first two frames are the message itself. Behind them ride the
+**envelope**: metadata *about* the message — a delivery sequence and a causal
+trace — rather than content of it:
+
+| Frame | PUB (engine → subscribers) | PUSH (client → engine) |
+|---|---|---|
+| `frame[0]` | Topic string (UTF-8) — used for PUB/SUB prefix filtering | Topic string |
+| `frame[1]` | JSON payload (UTF-8) | JSON payload |
+| `frame[2]` | Per-topic sequence number, so a subscriber can detect a drop | Causal envelope |
+| `frame[3]` | Causal envelope: `msg_id` / `causation_id` / `correlation_id` | — |
+
+The causal envelope is what lets `pm-audit-replay` (and `pm-audit-cli`'s
+`[seq=… msg=… cause=… chain=…]` log annotation) state *which submission caused
+which fill*, rather than inferring it from timing. `decode()` reads only
+`frame[0]` and `frame[1]`, so this extension cost nothing on the hot path and
+every existing subscriber kept working unchanged. The full wire layout, why it
+is frames rather than payload fields, and how to read it programmatically are
+covered in the [architecture guide](../architecture/02-architecture-guide.md#message-format).
 
 ## Transport channels
 
