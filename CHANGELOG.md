@@ -1,3 +1,24 @@
+## [v0.40.5] - 2026-09-21
+
+Release Type: patch
+
+### 📋 Summary
+This patch release updates the user and architecture documentation to match the current implementation, adds EPUB training-material output, and corrects stale client help text.
+
+### 🚀 Improvements
+- Improved documentation coverage for sequence handling, causal-envelope frames, and current source behavior
+- Improved training-material publishing by rendering and including the EPUB artifact
+
+### 🐛 Bug Fixes
+- Fixed stale `DC|ON` help text and the `book_depth()` client docstring
+
+### 📚 Documentation
+- Reviewed and corrected user-guide chapters across the current source and protocol behavior
+- Added documentation for sequence and causal-envelope frames
+
+### 🛠 Internal
+- Added EPUB admonition rendering for both EPUB and PDF documentation builds
+
 ## [v0.40.4] - 2026-09-20
 
 Release Type: patch
