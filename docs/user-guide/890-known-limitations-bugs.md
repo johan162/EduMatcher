@@ -253,17 +253,18 @@ path and reuses data the engine already produces.
 !!! warning "Performance sensitivity"
     Both options send **more** `order.fill` messages for sweeping orders (N
     instead of 1). For deep sweeps this increases publish volume and message
-    bandwidth. Benchmark against the throughput targets in
+    bandwidth. We need to benchmark against the throughput targets in
     [Running the Engine](040-running-the-exchange.md) before adopting a fix.
 
 ---
 
 ## Impact on the test suite
 
-The project ships with roughly **1,200** tests. The fix changes an
-externally-observable contract — the **number, quantity, and price** of
+The fix changes an externally-observable contract — the **number, quantity, and price** of
 `order.fill` messages for any order that sweeps multiple levels — so a subset of
-tests will need to be updated. The categories are:
+tests will need to be updated. Especially that we added audit reply will need careful
+consideration as it affirms correct behavior through event chains which now will be
+altered. The categories are:
 
 | Test category | Effect of the fix | Action required |
 |---------------|-------------------|-----------------|

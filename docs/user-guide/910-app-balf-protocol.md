@@ -354,19 +354,9 @@ Offset 27  |  reason           |  u8[25]  |  Rejection reason string (ASCII); ze
 | `0x08` | `RC_PHASE_REJECTION` | Rejected by the current session phase |
 | `0x09` | `RC_TRAILING_STOP_NO_PRICE` | TRAILING_STOP with no prior trade price |
 | `0x0A` | `RC_INSUFFICIENT_LIQUIDITY` | FOK could not be filled in full |
-| `0x0B` | `RC_PRICE_COLLAR` | Rejected by a price collar (defined, but not currently reachable — see note below) |
+| `0x0B` | `RC_PRICE_COLLAR` | Rejected by a price collar |
 | `0x0C` | `RC_INVALID_FIELD` | Invalid field — bad quantity, missing LIMIT price, or a price that is not on the instrument's tick grid (`reason` = `"price off tick grid"`) |
 | `0xFF` | `RC_OTHER` | Other; inspect the `reason` string |
-
-!!! bug "`RC_PRICE_COLLAR` is currently unreachable"
-    The gateway classifies a collar rejection by testing for the lowercase
-    substring `"collar"` in the engine's reason string, but the engine's real
-    collar-rejection reasons are `STATIC_COLLAR_BREACH: ...` and
-    `DYNAMIC_COLLAR_BREACH: ...` (uppercase). The match never succeeds, so a
-    price-collar rejection is classified as `0xFF` (`RC_OTHER`) today, not
-    `0x0B`. This is a source-level bug in the reason classifier, not
-    documented-vs-actual drift; noted here so a client author is not misled
-    into expecting `0x0B` for a collar breach.
 
 !!! warning "Prices must land on the tick grid"
     BALF carries prices as `i64` fixed point at scale 1e8, so a client can

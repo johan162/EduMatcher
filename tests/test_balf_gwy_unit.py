@@ -681,7 +681,8 @@ class TestLoadBalfGatewayConfig:
             RC_TRAILING_STOP_NO_PRICE,
         ),
         ("Insufficient liquidity", RC_INSUFFICIENT_LIQUIDITY),
-        ("price collar breach detected", RC_PRICE_COLLAR),
+        ("STATIC_COLLAR_BREACH: price 15025 ticks is outside band", RC_PRICE_COLLAR),
+        ("DYNAMIC_COLLAR_BREACH: price 15025 ticks is outside band", RC_PRICE_COLLAR),
         ("some unknown error xyz", RC_OTHER),
     ],
 )
