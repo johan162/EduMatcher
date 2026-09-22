@@ -27,26 +27,28 @@ class RalfGatewayConfig:
 
 def _as_int(raw: object, field: str) -> int:
     if isinstance(raw, bool):
-        raise ValueError(f"post_trade_gateway.{field} must be an integer")
+        raise ValueError(f"ralf_gateway.{field} must be an integer")
     if not isinstance(raw, (int, float, str, bytes, bytearray)):
-        raise ValueError(f"post_trade_gateway.{field} must be an integer")
+        raise ValueError(f"ralf_gateway.{field} must be an integer")
     try:
         val = int(raw)
     except (TypeError, ValueError) as exc:
-        raise ValueError(f"post_trade_gateway.{field} must be an integer") from exc
+        raise ValueError(f"ralf_gateway.{field} must be an integer") from exc
     return val
 
 
 def _load_ralf_gateway_config_from_raw(raw: dict[str, Any]) -> RalfGatewayConfig:
-    pg = raw.get("post_trade_gateway")
+    pg = raw.get("ralf_gateway")
     if pg is None:
         return RalfGatewayConfig()
     if not isinstance(pg, dict):
-        raise ValueError("post_trade_gateway must be a mapping")
+        raise ValueError("ralf_gateway must be a mapping")
 
     name = str(pg.get("name", "ralf-gwy01"))
     bind_address = resolve_gateway_bind_host(pg.get("bind_address"))
     port = _as_int(pg.get("port", 5580), "port")
+    if port <= 0 or port > 65535:
+        raise ValueError("ralf_gateway.port must be in 1-65535")
     replay_retention_sec = _as_int(
         pg.get("replay_retention_sec", 86_400), "replay_retention_sec"
     )
@@ -58,19 +60,19 @@ def _load_ralf_gateway_config_from_raw(raw: dict[str, Any]) -> RalfGatewayConfig
 
     allowed_roles_raw = pg.get("allowed_roles", ["CLEARING", "DROP_COPY", "AUDIT"])
     if not isinstance(allowed_roles_raw, list):
-        raise ValueError("post_trade_gateway.allowed_roles must be a list")
+        raise ValueError("ralf_gateway.allowed_roles must be a list")
     allowed_roles = tuple(str(x).upper() for x in allowed_roles_raw)
 
     if port <= 0:
-        raise ValueError("post_trade_gateway.port must be > 0")
+        raise ValueError("ralf_gateway.port must be > 0")
     if replay_retention_sec <= 0:
-        raise ValueError("post_trade_gateway.replay_retention_sec must be > 0")
+        raise ValueError("ralf_gateway.replay_retention_sec must be > 0")
     if heartbeat_interval_sec <= 0:
-        raise ValueError("post_trade_gateway.heartbeat_interval_sec must be > 0")
+        raise ValueError("ralf_gateway.heartbeat_interval_sec must be > 0")
     if idle_timeout_sec <= 0:
-        raise ValueError("post_trade_gateway.idle_timeout_sec must be > 0")
+        raise ValueError("ralf_gateway.idle_timeout_sec must be > 0")
     if max_client_queue <= 0:
-        raise ValueError("post_trade_gateway.max_client_queue must be > 0")
+        raise ValueError("ralf_gateway.max_client_queue must be > 0")
 
     return RalfGatewayConfig(
         name=name,
@@ -88,7 +90,7 @@ def _load_ralf_gateway_config_from_raw(raw: dict[str, Any]) -> RalfGatewayConfig
 
 
 def load_ralf_gateway_config(path: Path) -> RalfGatewayConfig:
-    """Load optional post_trade_gateway section from engine_config.yaml."""
+    """Load optional ralf_gateway section from engine_config.yaml."""
     if not path.exists():
         return RalfGatewayConfig()
 
@@ -100,7 +102,7 @@ def load_ralf_gateway_config(path: Path) -> RalfGatewayConfig:
 
 
 def validate_ralf_gateway_section(raw: dict[str, Any]) -> None:
-    """Validate post_trade_gateway section using runtime loader semantics."""
+    """Validate ralf_gateway section using runtime loader semantics."""
 
     _load_ralf_gateway_config_from_raw(raw)
 

@@ -65,6 +65,8 @@ def _load_market_data_gateway_config_from_raw(
     name = str(md_raw.get("name", "md-gwy01"))
     bind_address = resolve_gateway_bind_host(md_raw.get("bind_address"))
     port = _as_int(md_raw.get("port", 5570), "port")
+    if port <= 0 or port > 65535:
+        raise ValueError("market_data_gateway.port must be in 1-65535")
     heartbeat_interval_sec = _as_int(
         md_raw.get("heartbeat_interval_sec", 1),
         "heartbeat_interval_sec",
