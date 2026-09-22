@@ -9,8 +9,8 @@ governs. For worked examples, recipes, and rationale, see
 The schema described here is derived from and MUST match the runtime loaders:
 `engine/config_loader.py`, `alf_gwy/config.py`, `balf_gwy/config.py`,
 `ralf_gateway/config.py`, `md_gateway/config.py`, `api_gateway/config.py`,
-`log_srv/config.py`, and `scheduler/main.py` (`schedule` and `country` only).
-`pm-cverifier` is the reference validator.
+`dc_gateway/config.py`, `log_srv/config.py`, and `scheduler/main.py`
+(`schedule` and `country` only). `pm-cverifier` is the reference validator.
 
 ---
 
@@ -116,14 +116,16 @@ sessions_enabled:           ? Bool = true
 enforce_collars:            ? Bool = true
 enforce_circuit_breakers:   ? Bool = true
 require_mm_seed_quotes:     ? Bool = true
-snapshot_interval_sec:      ? Float = 0.5     ∈ > 0
+snapshot_interval_sec:      ? Float = 0.5     ∈ > 0            # overridden by engine_tuning.snapshot_interval_sec, if set
+auction_indicative_interval_sec: ? Float = 1.0  ∈ > 0
+engine_tuning:               ? EngineTuningSpec
 mm_obligation_defaults:     ? MMObligationDefaultsSpec
 risk_controls:              ? RiskControlsSpec
 circuit_breaker_defaults:   ? CircuitBreakerSpec
 market_maker_combos:        ? List<ComboSeedSpec>              # each: 2..10 legs
 indices:                    ? List<IndexSpec>                  # ≤ 5
 schedule:                   ? ScheduleSpec
-country:                    ? Country = "Sweden"               # read by pm-scheduler only
+country:                    ? Country = "Sweden"               # read by pm-scheduler for holiday gating; pm-engine reads it only for an outbound wire field
 
 # ── AUXILIARY GATEWAY BLOCKS (each read by its own process) ─────────────────
 alf_gateway:                ? AlfGwyProcSpec        # pm-alf-gwy
@@ -305,6 +307,23 @@ gateway's orders **when the order itself doesn't specify one**:
 > is omitted from a *present* file. (A completely absent config file runs
 > unrestricted with sessions disabled — see [Auctions & Scheduling](080-session-scheduling.md).)
 
+### 5.3a `auction_indicative_interval_sec` and `engine_tuning` (OPTIONAL)
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `auction_indicative_interval_sec` | `Float` | – | `1.0` | `> 0`; throttle for indicative-uncross republishing during auction call phases |
+
+`engine_tuning` (`EngineTuningSpec`) groups low-level runtime tuning knobs not
+expected to need adjustment in normal use:
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `snapshot_interval_sec` | `Float` | – | `0.5` | `> 0`; when present, **overrides** the top-level `snapshot_interval_sec` (§5.3) |
+| `quote_history_maxlen` | `Int` | – | `30` | `> 0` |
+| `drop_copy_buffer_size` | `Int` | – | `10000` | `> 0` |
+| `recent_trades_maxlen` | `Int` | – | `20` | `> 0` |
+| `depth_snapshot_tolerance_ticks` | `Int` | – | `100` | `> 0` |
+
 ### 5.4 `mm_obligation_defaults` (OPTIONAL) — `MMObligationDefaultsSpec`
 
 | Field | Type | Req | Default | Constraints |
@@ -388,13 +407,19 @@ independently, by `pm-scheduler`.
 
 `country` is a top-level key, a sibling of `schedule` rather than nested under
 it. Unlike every other field in this document, an invalid `country` value does
-**not** abort loading (contrast §1.4's general rule and CV16 below) — the
-loader logs a warning and substitutes `"Sweden"`.
+**not** abort loading (contrast §1.4's general rule and CV16 below). The two
+consumers handle an invalid value differently: `engine/config_loader.py`
+substitutes `"Sweden"` silently, with no `python-holidays` recognition check
+and no log message; `pm-scheduler` (`scheduler/main.py`) separately validates
+the value against `python-holidays`, logs a warning, and substitutes
+`"Sweden"` if it is unrecognised (CV16).
 
-Consumed **only** by `pm-scheduler` (`scheduler/main.py`); `pm-engine` never
-reads this key. `pm-scheduler` uses it to resolve the bank-holiday calendar
-(via `python-holidays`) that gates whether the daily `schedule` (§5.9) runs at
-all on a given calendar day — see
+`pm-engine` reads this key — `engine/main.py` uses it to derive the ISO
+alpha-2 country code reported in outbound reference messages — but does
+**not** use it for schedule or holiday gating. Only `pm-scheduler` uses
+`country` to resolve the bank-holiday calendar (via `python-holidays`) that
+gates whether the daily `schedule` (§5.9) runs at all on a given calendar
+day — see
 [Session Scheduling → Bank holidays and weekends](080-session-scheduling.md#bank-holidays-and-weekends).
 
 ---
@@ -414,7 +439,7 @@ See [Configuration → Which Process Reads What](010-configuration.md#which-proc
 | `port` | `Port` | – | `5565` | `> 0` |
 | `heartbeat_interval_sec` | `Int` | – | `5` | `> 0` |
 | `handshake_timeout_sec` | `Int` | – | `10` | `> 0` |
-| `idle_timeout_sec` | `Int` | – | `30` | `> 0` |
+| `idle_timeout_sec` | `Int` | – | `30` | `> 0`; **KNOWN BUG** — only `30` when the `alf_gateway:` section is present; if the section is omitted entirely, the loader falls back to a dataclass default of `3600`. See the review notes in `docs-design/reviews/config-doc-review.md`. |
 | `max_connections` | `Int` | – | `64` | `> 0` |
 | `max_client_queue` | `Int` | – | `10000` | `> 0` |
 | `max_commands_per_second` | `Int` | – | `100` | `> 0` |
@@ -433,7 +458,7 @@ Also consumes `gateways.alf` for identity/role.
 | `port` | `Port` | – | `5560` | `1..65535` |
 | `heartbeat_interval_sec` | `Secs` | – | `1.0` | `> 0` |
 | `heartbeat_timeout_sec` | `Secs` | – | `5.0` | `> 0` |
-| `idle_timeout_sec` | `Secs` | – | `30.0` | `> 0` |
+| `idle_timeout_sec` | `Secs` | – | `30.0` | `> 0`; **KNOWN BUG** — only `30.0` when the `balf_gateway:` section is present; if the section is omitted entirely, the loader falls back to a dataclass default of `300.0`. See the review notes in `docs-design/reviews/config-doc-review.md`. |
 | `auth_timeout_sec` | `Secs` | – | `10.0` | `> 0` |
 | `max_connections` | `Int` | – | `64` | `> 0` |
 | `max_client_queue` | `Int` | – | `10000` | `> 0` |
@@ -494,6 +519,8 @@ be rejected.
 | `stats_db` | `Path` | – | resolved `stats.db` | `~` expanded |
 | `audit_db` | `Path` | – | resolved `audit_index.db` | `~` expanded. Read-only; only `GET /admin/orders/{order_id}` uses it, and that endpoint returns 503 when the file is absent |
 | `order_retention_sec` | `Int` | – | `3600` | `>= 0`. Seconds a terminal order stays in the in-memory cache; `0` disables eviction |
+| `market_data_cache_sec` | `Int` | – | `60` | `>= 0`. TTL for cached market-data reads served by this instance |
+| `session_timezone` | `Str` | – | `null` | IANA timezone name (e.g. `"Europe/Stockholm"`) used to resolve which trading day a date-only query refers to; overrides the timezone recorded in the stats database. An unrecognised value is rejected. |
 | `credentials` | `List<ApiCredentialSpec>` | – | `[]` | api keys unique within instance |
 | `rate_limit` | `RateLimitSpec` | – | see below | |
 | `timeouts` | `TimeoutSpec` | – | see below | |
@@ -516,7 +543,7 @@ be rejected.
 |-------|------|:---:|---------|-------------|
 | `name` | `Str` | – | `"dc-gwy01"` | non-empty; echoed in `WELCOME` |
 | `bind_address` | `Str` | – | `"0.0.0.0"` | non-empty |
-| `port` | `Port` | – | `5590` | `1..65535` |
+| `port` | `Port` | – | `5590` | `> 0` |
 | `heartbeat_interval_sec` | `Secs` | – | `5` | `> 0`; interval between `HB` lines |
 | `idle_timeout_sec` | `Secs` | – | `30` | `> 0`; inbound silence disconnect threshold |
 | `max_client_queue` | `Int` | – | `10000` | `> 0`; per-client outbound buffer before slow-client disconnect |
