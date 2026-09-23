@@ -554,6 +554,131 @@ state which of the two blocks startup and which only warns.
 
  
 
+## Exercise 13: Weekday / Weekend / Holiday Scheduling
+
+Exercise 2's `--sessions-enabled` config used the built-in default
+schedule — the same five times every day, Monday through Friday, with
+Saturday, Sunday and bank holidays all `CLOSED`. Real exchanges are rarely
+that uniform: some run a short Friday, some trade weekends, and all of them
+close (or shorten hours) on bank holidays that fall on an otherwise-ordinary
+weekday. `pm-config-gen` can generate all three variations, and this
+exercise walks through each.
+
+Resolving which schedule applies to a given calendar day always happens in
+this order:
+
+1. If the day is a bank holiday in the configured `country`, the
+   `holidays:` block applies — or `CLOSED`, if no `--holidays` block was
+   generated.
+2. Otherwise, the day's own entry applies: `mon`..`fri` (from `weekdays:`,
+   unless overridden by `--weekend`) or `sat`/`sun` (from `weekend:`, only
+   if `--weekend` was passed).
+
+Any day left with no resolved entry — including Saturday and Sunday by
+default — is `CLOSED` all day, exactly like today's config already leaves
+them.
+
+**Add a weekend session.**
+
+By default `pm-config-gen` leaves Saturday and Sunday `CLOSED`. Pass
+`--weekend` to give them their own (shorter) session:
+
+```bash
+pm-config-gen \
+  --symbols AAPL MSFT TSLA \
+  --symbol-opts AAPL:tick_decimals=2 \
+  --symbol-opts MSFT:tick_decimals=2 \
+  --symbol-opts TSLA:tick_decimals=2 \
+  --gateways TRADER01:TRADER TRADER02:TRADER GW_ADMIN:ADMIN \
+  --static-band 0.10 \
+  --dynamic-band 0.05 \
+  --sessions-enabled \
+  --weekend \
+  --weekend-pre-open 10:00 \
+  --weekend-opening-auction 10:25 \
+  --weekend-continuous 10:30 \
+  --weekend-closing-auction 14:00 \
+  --weekend-closing-end 14:05 \
+  --output engine_config.yaml --force
+```
+
+Inspect the generated `schedule:` block — Saturday and Sunday now carry
+their own five transition times instead of being absent.
+
+**Add a holiday session, and set the country.**
+
+Pass `--holidays` to give bank holidays a schedule of their own instead of
+`CLOSED` (a common real-world case is a reduced half-day rather than a full
+close):
+
+```bash
+pm-config-gen \
+  --symbols AAPL MSFT TSLA \
+  --symbol-opts AAPL:tick_decimals=2 \
+  --symbol-opts MSFT:tick_decimals=2 \
+  --symbol-opts TSLA:tick_decimals=2 \
+  --gateways TRADER01:TRADER TRADER02:TRADER GW_ADMIN:ADMIN \
+  --static-band 0.10 \
+  --dynamic-band 0.05 \
+  --sessions-enabled \
+  --holidays \
+  --holidays-pre-open 10:00 \
+  --holidays-opening-auction 10:25 \
+  --holidays-continuous 10:30 \
+  --holidays-closing-auction 13:00 \
+  --holidays-closing-end 13:05 \
+  --country DE \
+  --output engine_config.yaml --force
+```
+
+`--country` is what tells `pm-scheduler` *which* calendar of bank holidays
+to check a date against before it decides whether the `holidays:` block
+even applies. It accepts a country name (`"Sweden"`) or an ISO 3166-1
+alpha-2 code (`"DE"`), and it does **only** that — it has no effect on the
+session timezone (that is the separate `--timezone` flag on `pm-stats` /
+`pm-clearing`, out of scope here). Get it wrong and the consequence is
+silent, not a crash: an unrecognised value makes `pm-cverifier` raise a
+`M026` warning, and at runtime `pm-scheduler` logs a warning and falls back
+to `"Sweden"` — so a Germany-based deployment left at the default, or given
+a typo'd country name, will silently follow the Swedish holiday calendar
+instead, trading straight through a local bank holiday it should have been
+closed for (or vice versa). There is no separate validation step for this —
+run `pm-cverifier` (Exercise 3) after any change to `country` or the
+schedule and read its output, don't just deploy.
+
+Verify the country was picked up:
+
+```bash
+pm-cverifier engine_config.yaml
+```
+
+Deploy and confirm the resolved schedule end-to-end:
+
+```bash
+pm-config-deploy engine_config.yaml
+```
+
+Restart `pm-scheduler` (Exercise 7) and, from a gateway console
+(Exercise 8/10), query `SESSION` — or check the engine's own wire replies —
+to see the resolved weekly table, including today's entry and whether today
+is currently flagged as a holiday.
+
+!!! tip "`weekend:` and `sat:`/`sun:` are mutually exclusive"
+    `--weekend` generates a single shared block for both days. There is no
+    `pm-config-gen` flag for giving Saturday and Sunday *different* hours —
+    that requires hand-editing the generated `sat:`/`sun:` keys directly in
+    `engine_config.yaml` (see [Session Scheduling — Configuring the
+    schedule](../user-guide/080-session-scheduling.md#configuring-the-schedule)).
+    A config that sets both `weekend:` and an individual `sat:`/`sun:` block
+    is rejected at load — they say two different things about the same day.
+
+:material-checkbox-blank-outline: **Checkpoint:** generated config has a
+`weekend:` block, a `holidays:` block, and `country: DE`; `pm-cverifier`
+reports no `M026` warning; the deployed schedule reflects all three when
+queried from a running engine.
+
+ 
+
 ## Summary
 
 You now have:
@@ -566,6 +691,9 @@ You now have:
 - Confirmation that all symbols accept orders.
 - Firsthand experience of the artifact's content-digest error and
   source-staleness warning, and which fix (`pm-config-deploy`) clears both.
+- A schedule with weekend trading, a bank-holiday session, and the correct
+  `country` for its holiday calendar — and the ability to tell, from
+  `pm-cverifier`, when `country` isn't one.
 
 ## Reflection
 
@@ -584,11 +712,20 @@ start, the other only warns. Why is a hand-edited *artifact* treated as more
 serious than a stale *source* file, given that both mean the running
 configuration is not what `engine_config.yaml` currently says?
 
+An unrecognised `country` doesn't stop the config from deploying — it only
+warns, both from `pm-cverifier` (M026) and from `pm-scheduler` at runtime,
+then silently falls back to Sweden's holiday calendar. Why might a design
+choose "warn and fall back" here instead of refusing to deploy, the way an
+invalid or incomplete schedule block does? What's different about getting
+`country` wrong versus getting the schedule times wrong?
+
 ## Further Reading
 
 - [Configuration](../user-guide/010-configuration.md)
 - [Configuration — Verifying the Deployed Artifact](../user-guide/010-configuration.md#verifying-the-deployed-artifact)
 - [Config Verifier (`pm-cverifier`)](../user-guide/020-config-verifier.md)
+- [Session Scheduling and Auctions](../user-guide/080-session-scheduling.md)
+- [Session Scheduling — Bank holidays and weekends](../user-guide/080-session-scheduling.md#bank-holidays-and-weekends)
 - [Running the Engine](../user-guide/040-running-the-exchange.md)
 - [Gateway Concepts](../user-guide/051-gateway-intro.md)
 - [ALF Console (pm-alf-console)](../user-guide/055-alf-console.md)
