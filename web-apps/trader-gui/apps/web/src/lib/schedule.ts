@@ -1,11 +1,14 @@
 /**
  * Session-schedule arithmetic for the top-bar countdown (§9.2).
  *
- * `GET /reference/schedule` returns five wall-clock **strings** ("09:00",
- * "17:30:00") plus `sessions_enabled`, nested as `{sessions_enabled, country,
- * schedule}`. The engine only announces `session.next` on a scheduler-driven
- * transition, so the countdown needs a second source to survive an
- * admin-forced transition — that is what this module derives.
+ * `GET /reference/schedule` returns `{sessions_enabled, country, schedule}`,
+ * where `schedule` is the fully-resolved weekly table (`mon`..`sun`,
+ * `holidays`, plus the server-resolved `today`/`today_is_holiday`
+ * convenience fields) — see `WeeklySchedule` below. Each day is either a
+ * `SessionTimes` (five wall-clock **strings**, e.g. "09:00", "17:30:00") or
+ * null for CLOSED. The engine only announces `session.next` on a
+ * scheduler-driven transition, so the countdown needs a second source to
+ * survive an admin-forced transition — that is what this module derives.
  *
  * Deliberately local-time: the clock times are the venue operator's own
  * wall-clock as written in their config, and the terminal runs beside the
@@ -14,7 +17,7 @@
  */
 import type { SessionState } from "@/types/index.js";
 
-/** The five clock times, as returned nested under `schedule`. */
+/** One resolved day's five clock times. */
 export interface SessionTimes {
   pre_open?: string | null;
   opening_auction_start?: string | null;
@@ -23,10 +26,25 @@ export interface SessionTimes {
   closing_auction_end?: string | null;
 }
 
+/** The fully-resolved weekly table, as returned nested under `schedule`. */
+export interface WeeklySchedule {
+  mon?: SessionTimes | null;
+  tue?: SessionTimes | null;
+  wed?: SessionTimes | null;
+  thu?: SessionTimes | null;
+  fri?: SessionTimes | null;
+  sat?: SessionTimes | null;
+  sun?: SessionTimes | null;
+  holidays?: SessionTimes | null;
+  /** The entry actually in effect today — already holiday-resolved. */
+  today?: SessionTimes | null;
+  today_is_holiday?: boolean;
+}
+
 export interface ScheduleInfo {
   sessions_enabled: boolean;
   country?: string | null;
-  schedule?: SessionTimes | null;
+  schedule?: WeeklySchedule | null;
 }
 
 export interface ScheduledTransition {
@@ -44,10 +62,22 @@ const BOUNDARIES: { key: keyof SessionTimes; toState: SessionState }[] = [
   { key: "closing_auction_end", toState: "CLOSED" },
 ];
 
+/** `Date#getDay()` (0 = Sunday) indexed to the matching `WeeklySchedule` key. */
+const WEEKDAY_KEY_BY_JS_DAY: (keyof WeeklySchedule)[] = [
+  "sun",
+  "mon",
+  "tue",
+  "wed",
+  "thu",
+  "fri",
+  "sat",
+];
+
 /**
  * Parse "HH:MM" or "HH:MM:SS" into seconds past midnight, or null if the
- * value is absent or malformed. A partial `schedule:` block is legal config,
- * so a missing time is an ordinary outcome, not an error.
+ * value is absent or malformed. A day that is scheduled at all always
+ * carries all five times — the config loader rejects a partial day block —
+ * so a missing/malformed value here just means that boundary doesn't fire.
  */
 export function parseClockTime(value: string | null | undefined): number | null {
   if (!value) return null;
@@ -66,35 +96,58 @@ function atLocalTime(now: Date, secondsPastMidnight: number, dayOffset = 0): num
   return d.getTime() + secondsPastMidnight * 1000;
 }
 
+/** `times`' boundaries, parsed and sorted — config order is the day's order, but
+ * sorting guards a mis-ordered config rather than trusting it. */
+function boundariesFor(
+  times: SessionTimes | null | undefined,
+): { toState: SessionState; sec: number }[] {
+  if (!times) return [];
+  const parsed: { toState: SessionState; sec: number }[] = [];
+  for (const { key, toState } of BOUNDARIES) {
+    const sec = parseClockTime(times[key]);
+    if (sec !== null) parsed.push({ toState, sec });
+  }
+  parsed.sort((a, b) => a.sec - b.sec);
+  return parsed;
+}
+
 /**
  * The next scheduled boundary strictly after `nowMs`, or null when sessions
- * are disabled or no clock times are configured. Rolls to tomorrow's first
- * boundary once the day's last one has passed.
+ * are disabled, there is no schedule, or today (and tomorrow) turn out to
+ * have nothing left.
+ *
+ * Uses the server-resolved `schedule.today` for today's boundaries — already
+ * holiday-aware, so no client-side holiday calendar is needed. Rolling past
+ * today's last boundary (or finding today CLOSED outright) looks at
+ * tomorrow's plain weekday entry in the full table; this is the one place
+ * this module reads `mon`..`sun` directly instead of `today`, because the
+ * wire payload only resolves "is this a holiday" for *today*. If tomorrow
+ * itself turns out to be a bank holiday, this uses tomorrow's ordinary
+ * weekday entry instead of its holidays entry until the browser re-polls
+ * after midnight and gets a fresh `today`/`today_is_holiday` — an accepted
+ * small gap, matching how `session.next` countdowns already only ever carry
+ * one known-good boundary rather than a full lookahead. Likewise, if
+ * tomorrow is itself CLOSED (e.g. a weekend-only exchange on a weekday),
+ * this does not search further ahead and returns null.
  */
 export function nextScheduledTransition(
   info: ScheduleInfo | null | undefined,
   nowMs: number,
 ): ScheduledTransition | null {
   if (!info?.sessions_enabled) return null;
-  const times = info.schedule;
-  if (!times) return null;
+  const schedule = info.schedule;
+  if (!schedule) return null;
 
   const now = new Date(nowMs);
-  const parsed: { toState: SessionState; sec: number }[] = [];
-  for (const { key, toState } of BOUNDARIES) {
-    const sec = parseClockTime(times[key]);
-    if (sec !== null) parsed.push({ toState, sec });
-  }
-  if (parsed.length === 0) return null;
 
-  // Config order is the day's order; sorting guards a mis-ordered config
-  // rather than trusting it.
-  parsed.sort((a, b) => a.sec - b.sec);
-
-  for (const b of parsed) {
+  for (const b of boundariesFor(schedule.today)) {
     const at = atLocalTime(now, b.sec);
     if (at > nowMs) return { toState: b.toState, at };
   }
-  const first = parsed[0]!;
+
+  const tomorrowKey = WEEKDAY_KEY_BY_JS_DAY[(now.getDay() + 1) % 7]!;
+  const tomorrow = boundariesFor(schedule[tomorrowKey] as SessionTimes | null | undefined);
+  if (tomorrow.length === 0) return null;
+  const first = tomorrow[0]!;
   return { toState: first.toState, at: atLocalTime(now, first.sec, 1) };
 }

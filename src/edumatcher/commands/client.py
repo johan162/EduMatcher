@@ -698,8 +698,10 @@ class ExchangeCommandClient:
 
         Returns
         -------
-        dict with keys: ``sessions_enabled`` (bool), ``schedule`` (dict of
-        phase → ``HH:MM`` time strings, or empty dict if scheduling is off).
+        dict with keys: ``sessions_enabled`` (bool), ``schedule`` (the
+        resolved weekly table -- ``mon``..``sun`` and ``holidays``, each a
+        dict of phase -> ``HH:MM`` or ``None`` for CLOSED -- or ``None`` if
+        no ``schedule:`` block is configured).
         """
         self._send(make_session_schedule_request_msg(self._gw_id))
         return self._recv(topic_session_schedule(self._gw_id))

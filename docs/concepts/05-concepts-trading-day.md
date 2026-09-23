@@ -78,23 +78,26 @@ order-accepting phase.
 ## Specifying time for the daily session
 
 Phase transition times are configured in `engine_config.yaml` under a `schedule`
-section, which is read by `pm-scheduler` (not by the engine itself):
+section, which is read by `pm-scheduler` (not by the engine itself). Each day
+of the week gets its own five-time block; `weekdays:` is a shortcut for
+Monday-Friday:
 
 ```yaml
 sessions_enabled: true
 
 schedule:
-  pre_open:              "09:00"
-  opening_auction_start: "09:25"
-  continuous_start:      "09:30"
-  closing_auction_start: "16:00"
-  closing_auction_end:   "16:05"
+  weekdays:
+    pre_open:              "09:00"
+    opening_auction_start: "09:25"
+    continuous_start:      "09:30"
+    closing_auction_start: "16:00"
+    closing_auction_end:   "16:05"
 ```
 
 All values are `HH:MM` in the **local time of the machine running the
 scheduler**.
 
-| Key | Phase triggered | Default |
+| Key | Phase triggered | Default (as `weekdays:`) |
 |-----|----------------|---------|
 | `pre_open` | `PRE_OPEN` | `09:00` |
 | `opening_auction_start` | `OPENING_AUCTION` | `09:25` |
@@ -103,10 +106,16 @@ scheduler**.
 | `closing_auction_end` | `CLOSED` | `16:05` |
 
 **If the `schedule` section is absent entirely**, the scheduler falls back to
-the built-in defaults shown above.  If it is present but a key is missing,
-that specific transition is **never sent** that day — there is no per-key
-fallback.  So if you define `schedule:` but omit `closing_auction_end`, the
-market will never transition to `CLOSED` automatically.
+the built-in defaults shown above, applied Monday-Friday (weekends and bank
+holidays default to CLOSED). If a block such as `weekdays:` *is* present, it
+must define all five keys — a block missing one, e.g. `closing_auction_end`,
+is rejected when the config loads rather than silently skipping that one
+transition.
+
+Saturday, Sunday and bank holidays can each be given their own block too
+(`weekend:`/`sat:`/`sun:`/`holidays:`) instead of defaulting to CLOSED — see
+[Session Scheduling → Configuring the schedule](../user-guide/080-session-scheduling.md#configuring-the-schedule)
+for the full set of keys and worked examples.
 
 `sessions_enabled` must be `true` for the scheduler-driven schedule to take
 effect.  With it set to `false`, the engine ignores all `session.transition`

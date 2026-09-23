@@ -870,7 +870,12 @@ export interface RiskConfig {
   config_version?: string | null;
 }
 
-/** Five wall-clock times; each is individually nullable (partial config is legal). */
+/**
+ * One resolved day's five wall-clock times. Individually nullable at the
+ * wire level for structural uniformity, though in practice all five are
+ * always populated together — the config loader rejects a `schedule:` day
+ * block that defines some of the five keys but not all.
+ */
 export interface SessionTimesDTO {
   pre_open?: string | null;
   opening_auction_start?: string | null;
@@ -879,11 +884,32 @@ export interface SessionTimesDTO {
   closing_auction_end?: string | null;
 }
 
+/**
+ * pm-msgen WeeklySchedule — the fully-resolved weekly table (`weekdays`/
+ * `weekend` shortcuts already expanded). Each day is a `SessionTimesDTO` or
+ * null for CLOSED. `today`/`today_is_holiday` are server-resolved: the
+ * engine already runs the holiday calendar for pm-scheduler, so it answers
+ * "which entry applies right now" once rather than making every client
+ * carry its own.
+ */
+export interface WeeklyScheduleDTO {
+  mon?: SessionTimesDTO | null;
+  tue?: SessionTimesDTO | null;
+  wed?: SessionTimesDTO | null;
+  thu?: SessionTimesDTO | null;
+  fri?: SessionTimesDTO | null;
+  sat?: SessionTimesDTO | null;
+  sun?: SessionTimesDTO | null;
+  holidays?: SessionTimesDTO | null;
+  today?: SessionTimesDTO | null;
+  today_is_holiday: boolean;
+}
+
 /** pm-msgen ReferenceSchedule — note `schedule` is nested, not flattened. */
 export interface ReferenceScheduleDTO {
   sessions_enabled: boolean;
   country?: string | null;
-  schedule?: SessionTimesDTO | null;
+  schedule?: WeeklyScheduleDTO | null;
 }
 
 export interface ReferenceBundle {

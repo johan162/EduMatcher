@@ -18,6 +18,7 @@ from edumatcher.models.message import (
     decode,
     make_session_status_msg,
 )
+from edumatcher.engine.config_loader import DaySchedule, ScheduleConfig
 from edumatcher.models.session import SessionState
 from edumatcher.scheduler.main import (
     _Step,
@@ -34,6 +35,29 @@ _FULL = [
     ("16:00", "CLOSING_AUCTION"),
     ("16:05", "CLOSED"),
 ]
+
+# _run_scheduled now takes a resolved ScheduleConfig rather than a flat
+# transitions list; this is _FULL applied to every weekday (2024-01-09,
+# used below, is a Tuesday).
+_FULL_DAY = DaySchedule(
+    pre_open="09:00",
+    opening_auction_start="09:25",
+    continuous_start="09:30",
+    closing_auction_start="16:00",
+    closing_auction_end="16:05",
+)
+_FULL_SCHEDULE_CFG = ScheduleConfig(
+    days={
+        "mon": _FULL_DAY,
+        "tue": _FULL_DAY,
+        "wed": _FULL_DAY,
+        "thu": _FULL_DAY,
+        "fri": _FULL_DAY,
+        "sat": None,
+        "sun": None,
+    },
+    holidays=None,
+)
 
 
 def _sent(sock: MagicMock) -> list[tuple[str, dict[str, object]]]:
@@ -150,8 +174,16 @@ class TestA2ClosedLoopCatchUp:
             "SCHEDULER", "CONTINUOUS", True
         )
 
+        # No catch-up transitions are expected (the engine already reports
+        # CONTINUOUS), so the run is stopped after the state query and
+        # before the loop would reach the two still-future entries
+        # (CLOSING_AUCTION, CLOSED) -- "now" is frozen, so waiting on them
+        # would otherwise spin forever.
         _run_scheduled(
-            fake_push, _FULL[:3], confirm_sock=fake_sub, is_running=lambda: True
+            fake_push,
+            _FULL_SCHEDULE_CFG,
+            confirm_sock=fake_sub,
+            is_running=lambda: False,
         )
 
         topics = [topic for topic, _payload in _sent(fake_push)]
@@ -175,8 +207,19 @@ class TestA2ClosedLoopCatchUp:
             "SCHEDULER", "PRE_OPEN", True
         )
 
+        # Exactly 2 catch-up transitions are expected (OPENING_AUCTION,
+        # CONTINUOUS); is_running stops the run right after those, before
+        # the loop would reach the two still-future entries (CLOSING_AUCTION,
+        # CLOSED) -- "now" is frozen, so waiting on them would otherwise
+        # spin forever.
+        calls = {"n": 0}
+
+        def is_running() -> bool:
+            calls["n"] += 1
+            return calls["n"] <= 2
+
         _run_scheduled(
-            fake_push, _FULL[:3], confirm_sock=fake_sub, is_running=lambda: True
+            fake_push, _FULL_SCHEDULE_CFG, confirm_sock=fake_sub, is_running=is_running
         )
 
         transition_states = [

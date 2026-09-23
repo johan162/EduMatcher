@@ -58,7 +58,14 @@ from edumatcher.engine.order_limits import (
     OrderLimitsConfig,
     validate_order_limits,
 )
-from edumatcher.engine.config_loader import EngineConfig, load_engine_config
+from edumatcher.engine.config_loader import (
+    DAY_KEYS,
+    DaySchedule,
+    EngineConfig,
+    ScheduleConfig,
+    load_engine_config,
+)
+from edumatcher.engine.schedule_resolve import is_bank_holiday, resolve_day
 from edumatcher.engine.drop_copy import DropCopyPublisher
 from edumatcher.engine.order_book import OrderBook
 from edumatcher.engine.persistence import (
@@ -243,6 +250,40 @@ def _country_wire_code(country: str | None) -> str | None:
         return str(holidays.country_holidays(country).country)
     except Exception:
         return country[:2].upper()
+
+
+def _weekly_schedule_wire(
+    schedule: "ScheduleConfig | None", country: str
+) -> dict[str, Any] | None:
+    """Serialize a resolved ScheduleConfig into the WeeklySchedule wire shape.
+
+    Includes the engine-resolved ``today``/``today_is_holiday`` convenience
+    fields (see the ``WeeklySchedule`` doc in spec/messages/system.yaml) so a
+    client -- in particular a browser, e.g. trader-gui's countdown widget --
+    never needs its own holiday calendar; the engine already runs the same
+    ``python-holidays`` lookup for pm-scheduler and resolves "which entry
+    applies right now" once, here.
+    """
+    if schedule is None:
+        return None
+
+    def _day(ds: "DaySchedule | None") -> dict[str, str] | None:
+        if ds is None:
+            return None
+        return {
+            "pre_open": ds.pre_open,
+            "opening_auction_start": ds.opening_auction_start,
+            "continuous_start": ds.continuous_start,
+            "closing_auction_start": ds.closing_auction_start,
+            "closing_auction_end": ds.closing_auction_end,
+        }
+
+    today = datetime.now().date()
+    result: dict[str, Any] = {key: _day(schedule.days[key]) for key in DAY_KEYS}
+    result["holidays"] = _day(schedule.holidays)
+    result["today"] = _day(resolve_day(schedule, today, country))
+    result["today_is_holiday"] = is_bank_holiday(today, country)
+    return result
 
 
 _CLIENT_NAME = "pm-engine"
@@ -2019,17 +2060,7 @@ class Engine:
             "schedule": {
                 "sessions_enabled": engine_cfg.sessions_enabled,
                 "country": country,
-                "schedule": (
-                    {
-                        "pre_open": schedule.pre_open,
-                        "opening_auction_start": schedule.opening_auction_start,
-                        "continuous_start": schedule.continuous_start,
-                        "closing_auction_start": schedule.closing_auction_start,
-                        "closing_auction_end": schedule.closing_auction_end,
-                    }
-                    if schedule
-                    else None
-                ),
+                "schedule": _weekly_schedule_wire(schedule, engine_cfg.country),
             },
         }
         digest = hashlib.sha256(
@@ -2356,16 +2387,11 @@ class Engine:
     def _handle_session_schedule_request(self, payload: dict[str, Any]) -> None:
         """Return the session schedule configuration from the loaded engine config."""
         gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
-        schedule: dict[str, str] | None = None
+        schedule: dict[str, Any] | None = None
         if self._engine_config and self._engine_config.schedule:
-            s = self._engine_config.schedule
-            schedule = {
-                "pre_open": s.pre_open,
-                "opening_auction_start": s.opening_auction_start,
-                "continuous_start": s.continuous_start,
-                "closing_auction_start": s.closing_auction_start,
-                "closing_auction_end": s.closing_auction_end,
-            }
+            schedule = _weekly_schedule_wire(
+                self._engine_config.schedule, self._engine_config.country
+            )
         self.pub_sock.send_multipart(
             make_session_schedule_msg(gateway_id, self._sessions_enabled, schedule)
         )

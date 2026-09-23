@@ -16,7 +16,9 @@ import {
   writtenLastPrices,
   writtenMmQuotes,
   type EngineConfigDraft,
+  type Schedule,
   type SymbolConfig,
+  type WeeklyScheduleDraft,
 } from "@edumatcher/schema";
 
 export type PlainConfig = Record<string, unknown>;
@@ -25,6 +27,80 @@ function marketMakerGatewayIds(draft: EngineConfigDraft): string[] {
   return draft.gateways
     .filter((g) => g.role === "MARKET_MAKER")
     .map((g) => g.id);
+}
+
+type Weekday = "mon" | "tue" | "wed" | "thu" | "fri";
+const WEEKDAYS: Weekday[] = ["mon", "tue", "wed", "thu", "fri"];
+
+function scheduleBlockYaml(s: Schedule): PlainConfig {
+  return {
+    pre_open: s.preOpen,
+    opening_auction_start: s.openingAuction,
+    continuous_start: s.continuous,
+    closing_auction_start: s.closingAuction,
+    closing_auction_end: s.closingEnd,
+  };
+}
+
+function daySchedulesEqual(a: Schedule, b: Schedule): boolean {
+  return (
+    a.preOpen === b.preOpen &&
+    a.openingAuction === b.openingAuction &&
+    a.continuous === b.continuous &&
+    a.closingAuction === b.closingAuction &&
+    a.closingEnd === b.closingEnd
+  );
+}
+
+/**
+ * Collapses the draft's schedule (shortcuts and overrides, as written) back
+ * to `weekdays:`/`weekend:` shorthand wherever the five/two underlying days
+ * resolve to the same block, and spells the days out individually otherwise
+ * -- mirrors how config_loader would resolve either form, so both round-trip
+ * to the same meaning. An unset day/group stays CLOSED (omitted).
+ *
+ * This always collapses a uniform block to shorthand, even when the source
+ * YAML spelled it out day-by-day (design choice, not just a passthrough): a
+ * `weekdays:` block plus one individual override (e.g. a short Friday) is
+ * the one shape this does not preserve losslessly -- it re-emits all five
+ * days explicitly instead of keeping the shortcut-plus-override form. The
+ * GUI's own editor never produces that shape (it only ever sets
+ * `weekdays`/`weekend`/`holidays`), so this only affects a hand-edited
+ * import that used an individual-day override, and the resolved meaning is
+ * unchanged either way.
+ */
+function buildScheduleSection(schedule: WeeklyScheduleDraft): PlainConfig {
+  const out: PlainConfig = {};
+
+  const effectiveWeekday = (day: Weekday): Schedule | undefined =>
+    schedule[day] ?? schedule.weekdays;
+  const effectiveWeekdays = WEEKDAYS.map(effectiveWeekday);
+  if (effectiveWeekdays.every((s): s is Schedule => s !== undefined)) {
+    const first = effectiveWeekdays[0]!;
+    if (effectiveWeekdays.every((s) => daySchedulesEqual(s, first))) {
+      out.weekdays = scheduleBlockYaml(first);
+    } else {
+      for (const day of WEEKDAYS) out[day] = scheduleBlockYaml(effectiveWeekday(day)!);
+    }
+  } else {
+    for (const day of WEEKDAYS) {
+      const s = effectiveWeekday(day);
+      if (s) out[day] = scheduleBlockYaml(s);
+    }
+  }
+
+  const sat = schedule.sat ?? schedule.weekend;
+  const sun = schedule.sun ?? schedule.weekend;
+  if (sat && sun && daySchedulesEqual(sat, sun)) {
+    out.weekend = scheduleBlockYaml(sat);
+  } else {
+    if (sat) out.sat = scheduleBlockYaml(sat);
+    if (sun) out.sun = scheduleBlockYaml(sun);
+  }
+
+  if (schedule.holidays) out.holidays = scheduleBlockYaml(schedule.holidays);
+
+  return out;
 }
 
 function shouldEmitMmDefaults(draft: EngineConfigDraft): boolean {
@@ -434,13 +510,7 @@ export function buildConfigDocument(draft: EngineConfigDraft): PlainConfig {
   // pm-scheduler reads `schedule` whatever sessions_enabled says, so the
   // block is written whenever it is switched on (an imported one included).
   if (draft.emitSchedule) {
-    cfg.schedule = {
-      pre_open: draft.schedule.preOpen,
-      opening_auction_start: draft.schedule.openingAuction,
-      continuous_start: draft.schedule.continuous,
-      closing_auction_start: draft.schedule.closingAuction,
-      closing_auction_end: draft.schedule.closingEnd,
-    };
+    cfg.schedule = buildScheduleSection(draft.schedule);
   }
 
   // Re-attach any imported YAML the GUI does not model (design §9).

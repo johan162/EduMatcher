@@ -33,6 +33,7 @@ from edumatcher.config_show.model import (
     Combo,
     ConfigView,
     Credential,
+    DaySchedule,
     Index,
     Listener,
     Participant,
@@ -367,6 +368,52 @@ def _circuit_breakers(
     )
 
 
+def _day_schedule(raw: Any) -> DaySchedule:
+    """Best-effort ``DaySchedule`` from one raw schedule-block value.
+
+    Tolerant like the rest of this module: a non-dict value or a missing
+    field just leaves that field (or all of them) unset rather than
+    raising -- completeness/order checks are pm-cverify's job, not this
+    viewer's.
+    """
+    block = raw if isinstance(raw, dict) else {}
+    return DaySchedule(
+        pre_open=block.get("pre_open"),
+        opening_auction_start=block.get("opening_auction_start"),
+        continuous_start=block.get("continuous_start"),
+        closing_auction_start=block.get("closing_auction_start"),
+        closing_auction_end=block.get("closing_auction_end"),
+    )
+
+
+def _schedule_view(schedule: dict[str, Any]) -> Schedule:
+    """Resolve ``weekdays``/``weekend``/individual-day/``holidays`` shortcuts.
+
+    Mirrors ``engine.config_loader``'s precedence -- an individually
+    specified day wins over the ``weekdays``/``weekend`` default, and it is
+    the key's *presence* that counts, not its value -- but never raises: an
+    unknown key, a ``weekend``+``sat`` conflict or an incomplete day block
+    just renders whatever is there.
+    """
+    weekdays_default = (
+        _day_schedule(schedule["weekdays"]) if "weekdays" in schedule else None
+    )
+    weekend_default = (
+        _day_schedule(schedule["weekend"]) if "weekend" in schedule else None
+    )
+
+    days: dict[str, DaySchedule | None] = {}
+    for key in ("mon", "tue", "wed", "thu", "fri"):
+        days[key] = (
+            _day_schedule(schedule[key]) if key in schedule else weekdays_default
+        )
+    for key in ("sat", "sun"):
+        days[key] = _day_schedule(schedule[key]) if key in schedule else weekend_default
+
+    holidays = _day_schedule(schedule["holidays"]) if "holidays" in schedule else None
+    return Schedule(days=days, holidays=holidays)
+
+
 # ---------------------------------------------------------------------------
 def build_view(raw: Any, source: Source) -> ConfigView:
     """Turn a parsed YAML document into the read-only view model."""
@@ -427,13 +474,7 @@ def build_view(raw: Any, source: Source) -> ConfigView:
             for i in _as_list(raw.get("indices"))
             if isinstance(i, dict)
         ),
-        schedule=Schedule(
-            pre_open=schedule.get("pre_open"),
-            opening_auction_start=schedule.get("opening_auction_start"),
-            continuous_start=schedule.get("continuous_start"),
-            closing_auction_start=schedule.get("closing_auction_start"),
-            closing_auction_end=schedule.get("closing_auction_end"),
-        ),
+        schedule=_schedule_view(schedule),
         tuning=_as_dict(raw.get("engine_tuning")),
         gateway_sections={
             spec.key: _as_dict(raw[spec.key])

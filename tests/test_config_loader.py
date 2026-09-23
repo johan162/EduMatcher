@@ -194,17 +194,24 @@ class TestConfigLoaderHappyPath:
           alf:
             - id: GW01
         schedule:
-          pre_open: "08:00"
-          opening_auction_start: "09:00"
-          continuous_start: "09:30"
-          closing_auction_start: "15:50"
-          closing_auction_end: "16:00"
+          weekdays:
+            pre_open: "08:00"
+            opening_auction_start: "09:00"
+            continuous_start: "09:30"
+            closing_auction_start: "15:50"
+            closing_auction_end: "16:00"
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
         assert cfg.schedule is not None
         assert isinstance(cfg.schedule, ScheduleConfig)
-        assert cfg.schedule.pre_open == "08:00"
-        assert cfg.schedule.continuous_start == "09:30"
+        weekday = cfg.schedule.days["mon"]
+        assert weekday is not None
+        assert weekday.pre_open == "08:00"
+        assert weekday.continuous_start == "09:30"
+        # weekdays: applies to every Mon-Fri day identically.
+        assert cfg.schedule.days["fri"] == weekday
+        assert cfg.schedule.days["sat"] is None
+        assert cfg.schedule.holidays is None
 
     def test_no_schedule_section(self, tmp_path: Path) -> None:
         cfg = load_engine_config(_write_yaml(tmp_path, MINIMAL_YAML))

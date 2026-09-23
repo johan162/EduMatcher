@@ -307,11 +307,13 @@ export function createBlankDraft(): EngineConfigDraft {
     enforceCollars: true,
     enforceCircuitBreakers: true,
     schedule: {
-      preOpen: DEFAULT_SCHEDULE.preOpen,
-      openingAuction: DEFAULT_SCHEDULE.openingAuction,
-      continuous: DEFAULT_SCHEDULE.continuous,
-      closingAuction: DEFAULT_SCHEDULE.closingAuction,
-      closingEnd: DEFAULT_SCHEDULE.closingEnd,
+      weekdays: {
+        preOpen: DEFAULT_SCHEDULE.preOpen,
+        openingAuction: DEFAULT_SCHEDULE.openingAuction,
+        continuous: DEFAULT_SCHEDULE.continuous,
+        closingAuction: DEFAULT_SCHEDULE.closingAuction,
+        closingEnd: DEFAULT_SCHEDULE.closingEnd,
+      },
     },
     tickDecimals: DEFAULT_TICK_DECIMALS,
     symbols: {},

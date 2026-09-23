@@ -900,20 +900,51 @@ class TestSchedulerRunScheduled:
         # (which would leave the engine stuck in its startup state).
         from datetime import datetime as _dt
         from edumatcher.models.message import decode
+        from edumatcher.engine.config_loader import DaySchedule, ScheduleConfig
         from edumatcher.scheduler.main import _run_scheduled
 
         fake_sock = MagicMock()
-        schedule = [("00:00", "PRE_OPEN"), ("01:00", "OPENING_AUCTION")]
-        # Pin "now" to noon so both schedule entries are always in the past.
+        # DaySchedule always carries all five times; the later three are
+        # pinned well after "now" (below) so they fall into the scheduler's
+        # "upcoming" (wait) bucket rather than "catch-up" -- an is_running
+        # callback then stops the run right after the two catch-up steps
+        # (PRE_OPEN, OPENING_AUCTION), before the loop would wait on them.
+        day = DaySchedule(
+            pre_open="00:00",
+            opening_auction_start="01:00",
+            continuous_start="18:00",
+            closing_auction_start="19:00",
+            closing_auction_end="20:00",
+        )
+        schedule_cfg = ScheduleConfig(
+            days={
+                "mon": day,
+                "tue": day,
+                "wed": day,
+                "thu": day,
+                "fri": day,
+                "sat": None,
+                "sun": None,
+            },
+            holidays=None,
+        )
+        # Pin "now" to noon so the first two schedule entries are in the past.
         # 2024-01-09 is a plain Tuesday (a working day in the default
         # country, Sweden) so the working-day gate does not short-circuit.
         fixed_now = _dt(2024, 1, 9, 12, 0, 0)
+
+        calls = {"n": 0}
+
+        def is_running() -> bool:
+            calls["n"] += 1
+            return calls["n"] <= 2
+
         with (
             patch("edumatcher.scheduler.main.time.sleep"),
             patch("edumatcher.scheduler.main.datetime") as mock_dt,
         ):
             mock_dt.now.return_value = fixed_now
-            _run_scheduled(fake_sock, schedule)
+            _run_scheduled(fake_sock, schedule_cfg, is_running=is_running)
 
         # The engine must be caught up to the most-recent-past state rather
         # than left untouched.
@@ -1216,9 +1247,32 @@ class TestStatsStop:
 class TestSchedulerRunScheduledFuture:
     def test_sends_transition_for_future_time(self) -> None:
         from datetime import datetime
+        from edumatcher.engine.config_loader import DaySchedule, ScheduleConfig
         from edumatcher.scheduler.main import _run_scheduled
 
         fake_sock = MagicMock()
+        # _time_today is fully mocked below (every entry resolves to the
+        # same future_time), so the actual time strings here are unused --
+        # only DaySchedule's five-field shape matters.
+        day = DaySchedule(
+            pre_open="12:00",
+            opening_auction_start="12:00",
+            continuous_start="12:00",
+            closing_auction_start="12:00",
+            closing_auction_end="12:00",
+        )
+        schedule_cfg = ScheduleConfig(
+            days={
+                "mon": day,
+                "tue": day,
+                "wed": day,
+                "thu": day,
+                "fri": day,
+                "sat": None,
+                "sun": None,
+            },
+            holidays=None,
+        )
         # Mock _time_today to return a time 1 second in the future, pinned to
         # a fixed Tuesday (a working day in the default country, Sweden) so
         # this test is not flaky depending on which day it happens to run.
@@ -1250,7 +1304,7 @@ class TestSchedulerRunScheduledFuture:
             from datetime import timedelta
 
             mock_dt.now.return_value = future_time - timedelta(seconds=1)
-            _run_scheduled(fake_sock, [("12:00", "CONTINUOUS")])
+            _run_scheduled(fake_sock, schedule_cfg)
 
         assert fake_sock.send_multipart.called
 

@@ -96,6 +96,31 @@ export interface Schedule {
   closingEnd: string;
 }
 
+/**
+ * The schedule section as the user actually wrote it -- shortcuts held
+ * separately from overrides, not pre-resolved, so the editor and the
+ * yaml-codec round-trip can tell a `weekdays:` shortcut apart from five
+ * identical explicit day blocks. `weekdays`/`weekend` are convenience
+ * shortcuts for Mon-Fri / Sat+Sun; an individual day key overrides its
+ * shortcut when both are present. `weekend` and an individual `sat`/`sun`
+ * are mutually exclusive (CV20 in the app-config spec). Any day/holidays
+ * left unset defaults to CLOSED. The GUI's own Schedule editor only
+ * exposes `weekdays`/`weekend`/`holidays`; individual day overrides can
+ * still arrive via import and are preserved on export.
+ */
+export interface WeeklyScheduleDraft {
+  weekdays?: Schedule;
+  mon?: Schedule;
+  tue?: Schedule;
+  wed?: Schedule;
+  thu?: Schedule;
+  fri?: Schedule;
+  sat?: Schedule;
+  sun?: Schedule;
+  weekend?: Schedule;
+  holidays?: Schedule;
+}
+
 export interface CbLevel {
   priceShiftPct: number;
   /**
@@ -448,7 +473,7 @@ export interface EngineConfigDraft {
   depthSnapshotToleranceTicks: number;
   enforceCollars: boolean;
   enforceCircuitBreakers: boolean;
-  schedule: Schedule;
+  schedule: WeeklyScheduleDraft;
 
   /**
    * Tick decimals given to newly created symbols. GUI-only: there is no

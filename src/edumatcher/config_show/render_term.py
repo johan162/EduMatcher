@@ -89,7 +89,7 @@ def build_panels(
                 grow=True,
             )
         )
-    if view.schedule.phases:
+    if view.schedule.groups:
         panels.append(
             Panel(
                 "schedule",

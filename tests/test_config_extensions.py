@@ -804,30 +804,44 @@ class TestScheduleTimesAreCanonical:
                     - id: TRADER01
                       role: TRADER
                 schedule:
-                  continuous_start: 9:30
+                  weekdays:
+                    pre_open: "09:00"
+                    opening_auction_start: "09:25"
+                    continuous_start: 9:30
+                    closing_auction_start: "16:00"
+                    closing_auction_end: "16:05"
                 """,
             )
         )
         assert cfg.schedule is not None
-        assert cfg.schedule.continuous_start == "09:30"
+        weekday = cfg.schedule.days["mon"]
+        assert weekday is not None
+        assert weekday.continuous_start == "09:30"
 
-    def test_an_unusable_time_falls_back_to_its_documented_default(
-        self, tmp_path
-    ) -> None:
-        cfg = load_engine_config(
-            _write_yaml(
-                tmp_path,
-                """
-                symbols:
-                  AAPL: {tick_decimals: 2}
-                gateways:
-                  alf:
-                    - id: TRADER01
-                      role: TRADER
-                schedule:
-                  pre_open: "not a time"
-                """,
+    def test_an_unusable_time_is_rejected_at_load(self, tmp_path) -> None:
+        # A partial or malformed day block used to fall back to its
+        # documented default, per-key. It is a hard load-time error now --
+        # every schedule block present must define all five transition
+        # times, and every value must be a valid "HH:MM" (see
+        # config_loader._parse_day_schedule).
+        with pytest.raises(ValueError, match="not a valid"):
+            load_engine_config(
+                _write_yaml(
+                    tmp_path,
+                    """
+                    symbols:
+                      AAPL: {tick_decimals: 2}
+                    gateways:
+                      alf:
+                        - id: TRADER01
+                          role: TRADER
+                    schedule:
+                      weekdays:
+                        pre_open: "not a time"
+                        opening_auction_start: "09:25"
+                        continuous_start: "09:30"
+                        closing_auction_start: "16:00"
+                        closing_auction_end: "16:05"
+                    """,
+                )
             )
-        )
-        assert cfg.schedule is not None
-        assert cfg.schedule.pre_open == "09:00"

@@ -846,18 +846,32 @@ class TestSessionStatus:
 
 class TestSessionSchedule:
     def test_returns_schedule_fields(self) -> None:
-        sched = {
+        mon = {
             "pre_open": "08:00",
             "opening_auction_start": "09:00",
             "continuous_start": "09:30",
             "closing_auction_start": "16:00",
             "closing_auction_end": "16:15",
         }
+        sched = {
+            "mon": mon,
+            "tue": mon,
+            "wed": mon,
+            "thu": mon,
+            "fri": mon,
+            "sat": None,
+            "sun": None,
+            "holidays": None,
+            "today": mon,
+            "today_is_holiday": False,
+        }
         ack = make_session_schedule_msg("GW_ADMIN", True, sched)
         client, push = _client(recv_queue=_q(ack))
         result = client.session_schedule()
         assert result["sessions_enabled"] is True
-        assert result["schedule"]["continuous_start"] == "09:30"
+        assert result["schedule"]["mon"]["continuous_start"] == "09:30"
+        assert result["schedule"]["today"]["continuous_start"] == "09:30"
+        assert result["schedule"]["today_is_holiday"] is False
 
     def test_sends_correct_topic(self) -> None:
         ack = make_session_schedule_msg("GW_ADMIN", False, None)

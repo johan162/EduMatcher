@@ -447,9 +447,31 @@ def _print_session_status(result: dict[str, Any]) -> None:
     )
 
 
+#: (wire key, column header) for every day slot a WeeklySchedule carries.
+_SCHEDULE_DAY_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("mon", "Mon"),
+    ("tue", "Tue"),
+    ("wed", "Wed"),
+    ("thu", "Thu"),
+    ("fri", "Fri"),
+    ("sat", "Sat"),
+    ("sun", "Sun"),
+    ("holidays", "Holidays"),
+)
+
+#: (wire key, row label) for the 5 transition times of one day.
+_SCHEDULE_PHASES: tuple[tuple[str, str], ...] = (
+    ("pre_open", "Pre-Open"),
+    ("opening_auction_start", "Opening Auction Start"),
+    ("continuous_start", "Continuous Trading Start"),
+    ("closing_auction_start", "Closing Auction Start"),
+    ("closing_auction_end", "Closing Auction End"),
+)
+
+
 def _print_schedule(result: dict[str, Any]) -> None:
     enabled = result.get("sessions_enabled", False)
-    schedule: dict[str, str] = result.get("schedule", {})
+    schedule: dict[str, Any] | None = result.get("schedule")
 
     if not enabled:
         console.print(
@@ -464,18 +486,17 @@ def _print_schedule(result: dict[str, Any]) -> None:
         header_style="bold magenta",
     )
     t.add_column("Phase", style="bold", min_width=24)
-    t.add_column("Time (HH:MM)", justify="right", min_width=14)
+    for _, day_label in _SCHEDULE_DAY_COLUMNS:
+        t.add_column(day_label, justify="right")
 
-    phase_labels = [
-        ("pre_open", "Pre-Open"),
-        ("opening_auction_start", "Opening Auction Start"),
-        ("continuous_start", "Continuous Trading Start"),
-        ("closing_auction_start", "Closing Auction Start"),
-        ("closing_auction_end", "Closing Auction End"),
-    ]
-    for key, label in phase_labels:
-        val = schedule.get(key, "") if schedule else ""
-        t.add_row(label, val if val else "[dim]—[/dim]")
+    schedule = schedule or {}
+    for phase_key, phase_label in _SCHEDULE_PHASES:
+        row = [phase_label]
+        for day_key, _ in _SCHEDULE_DAY_COLUMNS:
+            day = schedule.get(day_key)
+            val = day.get(phase_key) if day else None
+            row.append(val if val else "[dim]—[/dim]")
+        t.add_row(*row)
     console.print(t)
 
 

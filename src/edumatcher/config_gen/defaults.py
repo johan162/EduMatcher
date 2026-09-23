@@ -92,6 +92,19 @@ DEFAULT_SCHEDULE = {
     "closing_auction_end": "16:05",
 }
 
+# Defaults for the optional --weekend and --holidays blocks (see
+# --weekend-* / --holidays-* flags). Later start, earlier close than the
+# weekdays default -- a shorter session, which is the common shape for a
+# reduced-hours day.
+DEFAULT_WEEKEND_SCHEDULE = {
+    "pre_open": "10:00",
+    "opening_auction_start": "10:25",
+    "continuous_start": "10:30",
+    "closing_auction_start": "14:00",
+    "closing_auction_end": "14:05",
+}
+DEFAULT_HOLIDAYS_SCHEDULE = dict(DEFAULT_WEEKEND_SCHEDULE)
+
 DEFAULT_INDEX_BASE_VALUE = 1000.0
 DEFAULT_INDEX_PUBLISH_INTERVAL_SEC = 1.0
 DEFAULT_INDEX_DATA_DIR = "data/indexes"

@@ -32,6 +32,26 @@ export const scheduleSchema = z.object({
   closingEnd: timeString,
 });
 
+/**
+ * The schedule section as written -- shortcuts and overrides both optional,
+ * not resolved. The weekend/sat/sun mutual-exclusion rule (CV20) is a
+ * cross-field diagnostic, not a shape check, so it is not enforced here --
+ * same split as the indices-count limit (CV10), which also lives only in
+ * diagnostics.
+ */
+export const weeklyScheduleDraftSchema = z.object({
+  weekdays: scheduleSchema.optional(),
+  mon: scheduleSchema.optional(),
+  tue: scheduleSchema.optional(),
+  wed: scheduleSchema.optional(),
+  thu: scheduleSchema.optional(),
+  fri: scheduleSchema.optional(),
+  sat: scheduleSchema.optional(),
+  sun: scheduleSchema.optional(),
+  weekend: scheduleSchema.optional(),
+  holidays: scheduleSchema.optional(),
+});
+
 export const expansionRungSchema = z.object({
   widenPct: z.number().gt(0).lt(1),
   minDurationNs: z.number().int().positive(),
@@ -295,7 +315,7 @@ export const engineConfigDraftSchema = z.object({
   depthSnapshotToleranceTicks: z.number().int().positive(),
   enforceCollars: z.boolean(),
   enforceCircuitBreakers: z.boolean(),
-  schedule: scheduleSchema,
+  schedule: weeklyScheduleDraftSchema,
   tickDecimals: z.number().int().min(0).max(8),
   symbols: z.record(z.string(), symbolConfigSchema),
   symbolOrder: z.array(z.string()),

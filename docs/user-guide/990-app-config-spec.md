@@ -124,7 +124,7 @@ risk_controls:              ? RiskControlsSpec
 circuit_breaker_defaults:   ? CircuitBreakerSpec
 market_maker_combos:        ? List<ComboSeedSpec>              # each: 2..10 legs
 indices:                    ? List<IndexSpec>                  # ≤ 5
-schedule:                   ? ScheduleSpec
+schedule:                   ? WeeklyScheduleSpec
 country:                    ? Country = "Sweden"               # read by pm-scheduler for holiday gating; pm-engine reads it only for an outbound wire field
 
 # ── AUXILIARY GATEWAY BLOCKS (each read by its own process) ─────────────────
@@ -255,15 +255,38 @@ entering small and amending up.
 | `state_file` | `Path` | – | `data/indexes/<id>_state.json` | non-empty |
 | `constituents` | `List<Symbol>` | ✔ | — | non-empty; each MUST exist in `symbols` **and** define `outstanding_shares`; no duplicates |
 
-### 4.7 `ScheduleSpec` — `schedule`
+### 4.7 `WeeklyScheduleSpec` — `schedule`, and `DayScheduleSpec` — one day block
+
+`WeeklyScheduleSpec` is a mapping of shortcut and day keys, each an optional
+`DayScheduleSpec`:
+
+| Field | Type | Req | Applies to |
+|-------|------|:---:|---|
+| `weekdays` | `DayScheduleSpec` | – | `mon`..`fri`, for any not given its own key below |
+| `mon`, `tue`, `wed`, `thu`, `fri` | `DayScheduleSpec` | – | one weekday; overrides `weekdays` for that day |
+| `weekend` | `DayScheduleSpec` | – | `sat`+`sun`, for either not given its own key below; ∈ mutually exclusive with `sat`/`sun` (CV20) |
+| `sat`, `sun` | `DayScheduleSpec` | – | one weekend day; overrides `weekend` for that day; ∈ mutually exclusive with `weekend` (CV20) |
+| `holidays` | `DayScheduleSpec` | – | days the configured `country` observes as a bank holiday |
+
+A key absent from `schedule` (and, for `mon`..`sun`, not covered by
+`weekdays`/`weekend` either) resolves to CLOSED for that day/holiday-set — no
+transitions are sent and the engine never leaves `CLOSED` on it. No other
+keys are permitted under `schedule` (CV21).
+
+`DayScheduleSpec` — the value of any key above:
 
 | Field | Type | Req | Default |
 |-------|------|:---:|---------|
-| `pre_open` | `HHMM` | – | `"09:00"` |
-| `opening_auction_start` | `HHMM` | – | `"09:25"` |
-| `continuous_start` | `HHMM` | – | `"09:30"` |
-| `closing_auction_start` | `HHMM` | – | `"16:00"` |
-| `closing_auction_end` | `HHMM` | – | `"16:05"` |
+| `pre_open` | `HHMM` | ✔, if the block is present | — |
+| `opening_auction_start` | `HHMM` | ✔, if the block is present | — |
+| `continuous_start` | `HHMM` | ✔, if the block is present | — |
+| `closing_auction_start` | `HHMM` | ✔, if the block is present | — |
+| `closing_auction_end` | `HHMM` | ✔, if the block is present | — |
+
+Unlike every other REQUIRED marking in this document, "required" here is
+conditional on the block appearing at all: a `DayScheduleSpec` that is
+present but omits any of the five fields MUST be rejected (CV21) — there is
+no per-field default once a block exists.
 
 ---
 
@@ -396,8 +419,12 @@ which need not share a tick size.
 
 ### 5.9 `schedule` (OPTIONAL)
 
-`ScheduleSpec` — see §4.7. Consumed by `pm-engine` (when `sessions_enabled`) and,
-independently, by `pm-scheduler`.
+`WeeklyScheduleSpec` — see §4.7. Resolved once at load time into a plain
+per-day table (`mon`..`sun`, plus `holidays`) that every consumer reads
+without re-implementing the `weekdays`/`weekend` shortcut rules: `pm-engine`
+(when `sessions_enabled`, to publish it on `system.reference` and
+`system.session_schedule`) and, independently, `pm-scheduler` (to decide
+which transitions to send today).
 
 ### 5.10 `country` (OPTIONAL)
 
@@ -414,12 +441,14 @@ and no log message; `pm-scheduler` (`scheduler/main.py`) separately validates
 the value against `python-holidays`, logs a warning, and substitutes
 `"Sweden"` if it is unrecognised (CV16).
 
-`pm-engine` reads this key — `engine/main.py` uses it to derive the ISO
-alpha-2 country code reported in outbound reference messages — but does
-**not** use it for schedule or holiday gating. Only `pm-scheduler` uses
-`country` to resolve the bank-holiday calendar (via `python-holidays`) that
-gates whether the daily `schedule` (§5.9) runs at all on a given calendar
-day — see
+`pm-engine` reads this key for two purposes: it derives the ISO alpha-2
+country code reported in outbound reference messages, and it uses the same
+`python-holidays` lookup `pm-scheduler` does to resolve the `today`/
+`today_is_holiday` convenience fields on `system.reference` and
+`system.session_schedule` (§4.7, §5.9) — which of `holidays` or the
+calendar day's own entry applies right now. `pm-scheduler` uses `country`
+for the same bank-holiday lookup to decide which block of the resolved
+`schedule` (§5.9) — if any — to run today — see
 [Session Scheduling → Bank holidays and weekends](080-session-scheduling.md#bank-holidays-and-weekends).
 
 ---
@@ -614,10 +643,12 @@ rejected at load.
 | CV13 | `circuit_breaker.reopening.initial_band_pct` and every `expansions[].widen_pct` ∈ (0,1); `expansions` is non-empty; `expansions[].min_duration_ns` is `> 0`; `random_end_max_ns` is `>= 0`; `random_seed` and `expansions` appear only under `circuit_breaker_defaults`. |
 | CV14 | (`pm-alf-gwy`, `pm-balf-gwy`) No `gateways.alf` id may be a prefix of another id. |
 | CV15 | (`pm-api-gwy`) The singular `api_gateway` key is not supported; a `gateway_id` credential MUST NOT be shared across two `api_gateways` instances. |
-| CV16 | (`pm-scheduler`) An unrecognised `country` value is the **sole exception** to the "MUST be rejected" rule in this section — the loader substitutes the default (`"Sweden"`) and logs a warning instead of aborting. `pm-scheduler` treats a calendar day as non-trading (and sends no `schedule` transitions) when it is a Saturday, a Sunday, or a `country` bank holiday. |
+| CV16 | (`pm-scheduler`) An unrecognised `country` value is the **sole exception** to the "MUST be rejected" rule in this section — the loader substitutes the default (`"Sweden"`) and logs a warning instead of aborting. `pm-scheduler` sends no `schedule` transitions on a calendar day whose resolved entry (§4.7 — a `country` bank holiday resolves to `holidays`, otherwise the day's own `mon`..`sun` entry) is CLOSED; weekends are not treated specially, only whatever their resolved entry says. |
 | CV17 | (`pm-log-srv`) `log_server.retention_days`, when present, MUST be `>= 0` or `null`; `port`, `max_message_bytes`, `max_client_queue`, `write_batch_size`, `write_batch_interval_ms`, and `heartbeat_interval_sec` MUST each be `> 0`. |
 | CV18 | Every `Price` in the file is a whole multiple of its symbol's tick size — `symbols.<S>.last_buy_price`/`last_sell_price`, `market_maker_quotes[].bid_price`/`ask_price`, and `market_maker_combos[].legs[].price`/`stop_price`. The scale is the owning symbol's `tick_decimals`; for a combo leg that is the **leg's** symbol, not the combo's first. An off-grid price is rejected, not rounded. |
 | CV19 | `symbols.<S>.tick_decimals` ∈ 0..8; `outstanding_shares`, when present, `> 0`. |
+| CV20 | `schedule.weekend` and an individual `schedule.sat`/`schedule.sun` key MUST NOT both be present. |
+| CV21 | Every `DayScheduleSpec` present anywhere under `schedule` (`weekdays`, `weekend`, `holidays`, or an individual `mon`..`sun` key) MUST define all five of `pre_open`, `opening_auction_start`, `continuous_start`, `closing_auction_start`, `closing_auction_end`; a partial block is rejected, not filled from a default. |
 
 ---
 

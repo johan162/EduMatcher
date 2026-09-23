@@ -127,8 +127,24 @@ class Index:
     constituents: tuple[str, ...] = ()
 
 
+#: Resolution order for the weekly table -- also the display order.
+DAY_KEYS: tuple[str, ...] = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+
+_DAY_LABELS: dict[str, str] = {
+    "mon": "Mon",
+    "tue": "Tue",
+    "wed": "Wed",
+    "thu": "Thu",
+    "fri": "Fri",
+    "sat": "Sat",
+    "sun": "Sun",
+}
+
+
 @dataclass(frozen=True)
-class Schedule:
+class DaySchedule:
+    """One resolved day's timeline (was ``Schedule``)."""
+
     pre_open: str | None = None
     opening_auction_start: str | None = None
     continuous_start: str | None = None
@@ -146,6 +162,38 @@ class Schedule:
             ("Close", self.closing_auction_end),
         )
         return tuple((a, b) for a, b in pairs if isinstance(b, str) and b)
+
+
+@dataclass(frozen=True)
+class Schedule:
+    """Resolved weekly schedule: one optional :class:`DaySchedule` per day,
+    plus an optional override for bank holidays.  ``None`` means CLOSED.
+    """
+
+    days: dict[str, DaySchedule | None] = field(default_factory=dict)
+    holidays: DaySchedule | None = None
+
+    @property
+    def groups(self) -> tuple[tuple[str, DaySchedule], ...]:
+        """Distinct day timelines, each labelled with what shares it.
+
+        Identical ``DaySchedule``s (e.g. every weekday sharing one
+        ``weekdays:`` block) render as a single group rather than once per
+        day, in ``DAY_KEYS`` order with ``Holidays`` last.
+        """
+        labelled: list[tuple[str, DaySchedule]] = [
+            (_DAY_LABELS[key], ds)
+            for key in DAY_KEYS
+            if (ds := self.days.get(key)) is not None
+        ]
+        if self.holidays is not None:
+            labelled.append(("Holidays", self.holidays))
+
+        by_schedule: dict[DaySchedule, list[str]] = {}
+        for label, ds in labelled:
+            by_schedule.setdefault(ds, []).append(label)
+
+        return tuple((", ".join(labels), ds) for ds, labels in by_schedule.items())
 
 
 @dataclass(frozen=True)

@@ -31,6 +31,8 @@ import {
   type SmpAction,
   type SymbolConfig,
   type Tif,
+  type WeeklyScheduleDraft,
+  DEFAULT_SCHEDULE,
 } from "@edumatcher/schema";
 
 const KNOWN_TOP_LEVEL_KEYS = new Set([
@@ -709,17 +711,46 @@ function parseCombos(node: unknown, draft: EngineConfigDraft): void {
   draft.combos = combos;
 }
 
+/** The ten keys `schedule:` recognises -- mirrors config_loader's own set. */
+const SCHEDULE_BLOCK_KEYS = [
+  "weekdays",
+  "mon",
+  "tue",
+  "wed",
+  "thu",
+  "fri",
+  "sat",
+  "sun",
+  "weekend",
+  "holidays",
+] as const;
+
+/**
+ * One day block, tolerantly. A missing/malformed field falls back to
+ * `DEFAULT_SCHEDULE` rather than rejecting the import -- config_loader
+ * itself hard-errors on an incomplete block, but this is a best-effort GUI
+ * import; diagnostics (not the parser) tell the user something is wrong.
+ */
+function asDaySchedule(node: unknown): NonNullable<WeeklyScheduleDraft["weekdays"]> {
+  const block = isDict(node) ? node : {};
+  return {
+    preOpen: asHhmm(block.pre_open) ?? DEFAULT_SCHEDULE.preOpen,
+    openingAuction:
+      asHhmm(block.opening_auction_start) ?? DEFAULT_SCHEDULE.openingAuction,
+    continuous: asHhmm(block.continuous_start) ?? DEFAULT_SCHEDULE.continuous,
+    closingAuction:
+      asHhmm(block.closing_auction_start) ?? DEFAULT_SCHEDULE.closingAuction,
+    closingEnd: asHhmm(block.closing_auction_end) ?? DEFAULT_SCHEDULE.closingEnd,
+  };
+}
+
 function parseSchedule(node: unknown, draft: EngineConfigDraft): void {
   // Presence decides emission both ways: an absent block must stay absent.
   draft.emitSchedule = isDict(node);
   if (!isDict(node)) return;
-  draft.schedule = {
-    preOpen: asHhmm(node.pre_open) ?? draft.schedule.preOpen,
-    openingAuction:
-      asHhmm(node.opening_auction_start) ?? draft.schedule.openingAuction,
-    continuous: asHhmm(node.continuous_start) ?? draft.schedule.continuous,
-    closingAuction:
-      asHhmm(node.closing_auction_start) ?? draft.schedule.closingAuction,
-    closingEnd: asHhmm(node.closing_auction_end) ?? draft.schedule.closingEnd,
-  };
+  const schedule: WeeklyScheduleDraft = {};
+  for (const key of SCHEDULE_BLOCK_KEYS) {
+    if (isDict(node[key])) schedule[key] = asDaySchedule(node[key]);
+  }
+  draft.schedule = schedule;
 }

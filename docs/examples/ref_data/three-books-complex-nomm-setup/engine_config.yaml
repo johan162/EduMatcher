@@ -942,11 +942,12 @@ market_maker_combos:
 # -- Session schedule --
 # session schedule
 schedule:
-  pre_open: 08:45
-  opening_auction_start: 08:55
-  continuous_start: 09:00
-  closing_auction_start: '16:00'
-  closing_auction_end: '16:10'
+  weekdays:
+    pre_open: 08:45
+    opening_auction_start: 08:55
+    continuous_start: 09:00
+    closing_auction_start: '16:00'
+    closing_auction_end: '16:10'
 
 # -- Additional fields --
 require_mm_seed_quotes: false

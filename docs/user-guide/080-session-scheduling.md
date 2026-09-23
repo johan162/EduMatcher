@@ -215,7 +215,7 @@ stdout (the engine's `logging` output stream, not stderr).
 
 The scheduler is a standalone process that sends `session.transition`
 messages to the engine at configured wall-clock times over a ZeroMQ PUSH
-socket. It only does so on working days — see
+socket. It only does so on days that resolve to a schedule — see
 [Bank holidays and weekends](#bank-holidays-and-weekends) below.
 
 ### Starting the scheduler
@@ -254,22 +254,132 @@ poetry run pm-scheduler
 
 ### Configuring the schedule
 
-Add a `schedule` section to `engine_config.yaml`:
+A `schedule` section resolves to one schedule per day of the week — Monday
+through Sunday — plus an optional override for bank holidays. Each day (or
+the holidays entry) is either a block of all five transition times, or
+unconfigured, which means **CLOSED** that day: no transitions are sent and
+the market never leaves `CLOSED`.
+
+Two shortcuts avoid repeating the same five times for every day:
+
+- `weekdays:` — applies to Monday-Friday, for any of the five that isn't
+  individually overridden by a `mon:`..`fri:` block.
+- `weekend:` — applies to Saturday and Sunday, for either that isn't
+  individually overridden by `sat:`/`sun:`. `weekend:` and `sat:`/`sun:` are
+  **mutually exclusive** — specify one or the other, not both.
+
+Every block that *is* present — `weekdays`, `weekend`, an individual
+`mon`..`sun`, or `holidays` — MUST define all five transition times
+(`pre_open`, `opening_auction_start`, `continuous_start`,
+`closing_auction_start`, `closing_auction_end`). There is no per-key
+fallback: a partial block is a config error, not a partially-applied
+schedule.
+
+#### Typical exchange: same hours Monday-Friday, closed on weekends
 
 ```yaml
 schedule:
-  pre_open: "09:00"
-  opening_auction_start: "09:25"
-  continuous_start: "09:30"
-  closing_auction_start: "16:00"
-  closing_auction_end: "16:05"
+  weekdays:
+    pre_open: "09:00"
+    opening_auction_start: "09:25"
+    continuous_start: "09:30"
+    closing_auction_start: "16:00"
+    closing_auction_end: "16:05"
 ```
 
-Times are `HH:MM` in local time.
+Saturday, Sunday and bank holidays are all unconfigured here, so they default
+to CLOSED.
 
-The schedule only runs on working days for the configured `country` — a
-sibling top-level key, not nested under `schedule:`. See
-[Bank holidays and weekends](#bank-holidays-and-weekends) below.
+#### Short Friday, a shared weekend schedule, and a holiday half-day
+
+```yaml
+schedule:
+  weekdays:
+    pre_open: "09:00"
+    opening_auction_start: "09:25"
+    continuous_start: "09:30"
+    closing_auction_start: "16:00"
+    closing_auction_end: "16:05"
+  fri:                       # overrides weekdays: for Friday only
+    pre_open: "09:00"
+    opening_auction_start: "09:25"
+    continuous_start: "09:30"
+    closing_auction_start: "13:00"
+    closing_auction_end: "13:05"
+  weekend:                   # same hours for both Saturday and Sunday
+    pre_open: "10:00"
+    opening_auction_start: "10:25"
+    continuous_start: "10:30"
+    closing_auction_start: "14:00"
+    closing_auction_end: "14:05"
+  holidays:                  # bank holidays get a reduced session too
+    pre_open: "10:00"
+    opening_auction_start: "10:25"
+    continuous_start: "10:30"
+    closing_auction_start: "13:00"
+    closing_auction_end: "13:05"
+```
+
+An individually-specified day always wins over `weekdays`/`weekend` for that
+day: `fri:` here overrides the `weekdays:` hours for Friday only, while
+Monday through Thursday still run on the `weekdays:` block.
+
+#### Weekend-only exchange
+
+A schedule doesn't have to run Monday-Friday at all. Omitting `weekdays` (and
+every individual `mon`..`fri` key) leaves those five days CLOSED:
+
+```yaml
+schedule:
+  weekend:
+    pre_open: "10:00"
+    opening_auction_start: "10:25"
+    continuous_start: "10:30"
+    closing_auction_start: "14:00"
+    closing_auction_end: "14:05"
+```
+
+#### Invalid: `weekend` and `sat`/`sun` combined
+
+```yaml
+schedule:
+  weekend:
+    pre_open: "10:00"
+    opening_auction_start: "10:25"
+    continuous_start: "10:30"
+    closing_auction_start: "14:00"
+    closing_auction_end: "14:05"
+  sat:
+    pre_open: "11:00"
+    opening_auction_start: "11:25"
+    continuous_start: "11:30"
+    closing_auction_start: "13:00"
+    closing_auction_end: "13:05"
+```
+
+Rejected at load: `weekend` and an individual `sat`/`sun` key say two
+different things about the same day, so the config MUST pick one.
+
+#### Invalid: an incomplete day block
+
+```yaml
+schedule:
+  weekdays:
+    pre_open: "09:00"
+    opening_auction_start: "09:25"
+    continuous_start: "09:30"
+    closing_auction_start: "16:00"
+    # closing_auction_end missing
+```
+
+Rejected at load: `weekdays` is present but doesn't define all five
+transition times.
+
+Times are `HH:MM` in local time. Any day left with no resolved schedule —
+not covered by `weekdays`/`weekend` and not individually specified —
+defaults to **CLOSED**, exactly like an omitted `holidays:` block. See
+[Bank holidays and weekends](#bank-holidays-and-weekends) below for how the
+`holidays:` entry and the `country` key interact.
 
 ### Session handling toggle
 
@@ -298,11 +408,16 @@ time-based session control.
 
 ### Bank holidays and weekends
 
-`pm-scheduler` only drives the daily schedule on **working days**. Before
-running (or repeating, under `--daily`) today's timeline, it checks whether
-today is a weekend (Saturday/Sunday) or a bank holiday for a configured
-`country`, using the [`python-holidays`](https://pypi.org/project/holidays/)
-package:
+Which block of the resolved weekly table applies to a given calendar day is
+decided in two steps, using the
+[`python-holidays`](https://pypi.org/project/holidays/) package:
+
+1. If the day is a bank holiday for the configured `country`, the
+   `holidays:` entry applies — or CLOSED, if no `holidays:` block is
+   configured.
+2. Otherwise, the day's own entry from the weekly table applies (`mon`..`sun`,
+   already resolved from `weekdays`/`weekend`/individual overrides as
+   described above) — or CLOSED, if that day has no resolved entry.
 
 ```yaml
 country: Sweden
@@ -315,16 +430,18 @@ country: Sweden
   under [The trading date](#the-trading-date).
 - If omitted, or if the value is not a country `python-holidays` recognizes,
   it **falls back to `"Sweden"`** and logs a warning.
-- Weekends are always treated as non-working days, regardless of what the
-  holiday calendar itself lists.
+- Weekends are no longer forced CLOSED — a `weekend:` or `sat:`/`sun:` block
+  gives Saturday and/or Sunday their own schedule, the same as any weekday.
+  Only a day with no resolved entry at all (weekday, weekend day, or holiday)
+  is CLOSED.
 
-Behavior on a non-working day depends on the run mode:
+Behavior when today resolves to CLOSED depends on the run mode:
 
-| Mode                     | Behavior on a non-working day                                                             |
+| Mode                     | Behavior on a CLOSED day                                                             |
 |---------------------------|---------------------------------------------------------------------------------------------|
 | Single-shot (default)     | Sends no transitions and exits immediately — today's schedule is skipped entirely.         |
-| `--daily`                 | Skips today, then sleeps through to the **next working day** (not just the next calendar day) before running the schedule again. |
-| `--now`                   | Unaffected — `--now` ignores wall-clock scheduling (and therefore the working-day check) entirely, since it's intended for testing/demos. |
+| `--daily`                 | Skips today, then sleeps through to the **next day that resolves to a schedule** (not just the next calendar day) before running the schedule again. |
+| `--now`                   | Unaffected — `--now` ignores wall-clock scheduling (and therefore schedule resolution) entirely, since it's intended for testing/demos. |
 
 ```yaml
 # Germany's holiday calendar instead of the default (Sweden)
@@ -332,17 +449,18 @@ country: DE
 ```
 
 ```text
-2026-12-25 is not a working day for Sweden (weekend or bank holiday); skipping today's schedule
+2026-12-25 is CLOSED today (bank holiday in Sweden); skipping today's schedule
 ```
 
 (shown with `-v`/`--verbose`, since it's an `INFO`-level log line)
 
 !!! note "Why this matters for `--daily`"
-    Before this check existed, a scheduler left running continuously with
-    `--daily` would happily drive `CLOSED → PRE_OPEN → … → CLOSED` on a
-    Sunday or on Christmas Day. With `country` configured, those days are
-    skipped and the engine simply stays `CLOSED` until the next working day's
-    schedule starts.
+    Before per-day schedules existed, a scheduler left running continuously
+    with `--daily` would happily drive `CLOSED → PRE_OPEN → … → CLOSED` on a
+    Sunday or on Christmas Day. A day with no resolved schedule — a weekend
+    with no `weekend:`/`sat:`/`sun:` block, or a bank holiday with no
+    `holidays:` block — is skipped, and the engine simply stays `CLOSED`
+    until the next day that does resolve to a schedule.
 
 ### Wall-clock re-checking
 
@@ -357,7 +475,8 @@ finally elapses.
 
 ### Built-in default schedule
 
-If no config file provides a `schedule` section, `pm-scheduler` uses:
+If no config file provides a `schedule` section, `pm-scheduler` uses these
+times as `weekdays:` (Saturday, Sunday and bank holidays default to CLOSED):
 
 | Time  | Transition target |
 |-------|-------------------|

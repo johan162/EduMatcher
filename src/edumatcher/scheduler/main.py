@@ -34,12 +34,14 @@ Typical daily sequence:
   PRE_OPEN → OPENING_AUCTION → CONTINUOUS → CLOSING_AUCTION → CLOSED
 
 Working days:
-  The scheduler only drives the daily schedule on working days — weekends and
-  bank holidays for the configured ``country`` (top-level ``country:`` field in
-  the config YAML, default ``"Sweden"``) are skipped entirely via the
-  ``python-holidays`` package. ``--daily`` mode waits through non-working days
-  and resumes on the next one; a single-shot run started on a non-working day
-  does nothing.
+  The scheduler drives whatever schedule resolves for *today*: each weekday
+  (mon..sun) can carry its own independent schedule, and a bank holiday for
+  the configured ``country`` (top-level ``country:`` field in the config
+  YAML, default ``"Sweden"``) resolves to the ``holidays:`` entry instead,
+  via the ``python-holidays`` package. A day that resolves to no schedule at
+  all is CLOSED. ``--daily`` mode waits through CLOSED days and resumes on
+  the next day that has a schedule; a single-shot run started on a CLOSED
+  day does nothing.
 
 Wall-clock re-checking:
   Long waits (until a scheduled time, or overnight between trading days) are
@@ -81,7 +83,13 @@ from edumatcher.models.message import (
     make_session_state_request_msg,
     make_session_transition_msg,
 )
-from edumatcher.engine.config_loader import DEFAULT_COUNTRY, ScheduleConfig
+from edumatcher.engine.config_loader import (
+    DAY_KEYS,
+    DEFAULT_COUNTRY,
+    DaySchedule,
+    ScheduleConfig,
+)
+from edumatcher.engine.schedule_resolve import is_bank_holiday, resolve_day
 from edumatcher.models.session import VALID_TRANSITIONS, SessionState
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 from edumatcher.models.generated.system import (
@@ -96,14 +104,28 @@ _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 # (mirrors the engine's setup — review finding L3).
 log = logging.getLogger(__name__)
 
-# Default schedule (HH:MM) — used when no config file provides one
-DEFAULT_SCHEDULE: list[tuple[str, str]] = [
-    ("09:00", SessionState.PRE_OPEN.value),
-    ("09:25", SessionState.OPENING_AUCTION.value),
-    ("09:30", SessionState.CONTINUOUS.value),
-    ("16:00", SessionState.CLOSING_AUCTION.value),
-    ("16:05", SessionState.CLOSED.value),
-]
+# Default schedule — used when no config file provides one. Mon-Fri run the
+# historical default times; weekends and holidays are CLOSED, matching this
+# scheduler's behavior before per-day schedules existed.
+_DEFAULT_DAY_SCHEDULE = DaySchedule(
+    pre_open="09:00",
+    opening_auction_start="09:25",
+    continuous_start="09:30",
+    closing_auction_start="16:00",
+    closing_auction_end="16:05",
+)
+DEFAULT_SCHEDULE = ScheduleConfig(
+    days={
+        "mon": _DEFAULT_DAY_SCHEDULE,
+        "tue": _DEFAULT_DAY_SCHEDULE,
+        "wed": _DEFAULT_DAY_SCHEDULE,
+        "thu": _DEFAULT_DAY_SCHEDULE,
+        "fri": _DEFAULT_DAY_SCHEDULE,
+        "sat": None,
+        "sun": None,
+    },
+    holidays=None,
+)
 
 # Rapid-fire delays for --now mode (seconds between transitions)
 NOW_MODE_DELAY = 3.0
@@ -150,19 +172,19 @@ def _hhmm_to_minutes(hhmm: str) -> int:
     return int(h) * 60 + int(m)
 
 
-def _schedule_from_config(cfg: ScheduleConfig) -> list[tuple[str, str]]:
-    """Map a compiled ScheduleConfig onto the engine's transition sequence.
+def _transitions_for_day_schedule(ds: DaySchedule) -> list[tuple[str, str]]:
+    """Map one resolved day's DaySchedule onto the engine's transition sequence.
 
     The times are already canonical ``HH:MM`` — ``load_engine_config`` runs
     them through ``normalize_hhmm`` — so there is nothing left to validate or
     recover here.
     """
     return [
-        (cfg.pre_open, SessionState.PRE_OPEN.value),
-        (cfg.opening_auction_start, SessionState.OPENING_AUCTION.value),
-        (cfg.continuous_start, SessionState.CONTINUOUS.value),
-        (cfg.closing_auction_start, SessionState.CLOSING_AUCTION.value),
-        (cfg.closing_auction_end, SessionState.CLOSED.value),
+        (ds.pre_open, SessionState.PRE_OPEN.value),
+        (ds.opening_auction_start, SessionState.OPENING_AUCTION.value),
+        (ds.continuous_start, SessionState.CONTINUOUS.value),
+        (ds.closing_auction_start, SessionState.CLOSING_AUCTION.value),
+        (ds.closing_auction_end, SessionState.CLOSED.value),
     ]
 
 
@@ -218,6 +240,36 @@ def _validate_schedule(schedule: list[tuple[str, str]]) -> list[str]:
     return errors
 
 
+def _validate_schedule_config(cfg: ScheduleConfig) -> list[str]:
+    """Validate every distinct DaySchedule in a resolved ScheduleConfig.
+
+    Each present day (mon..sun) and the holidays entry must independently
+    form a legal transition chain from CLOSED, in strictly increasing time
+    order — see :func:`_validate_schedule`. Identical DaySchedule objects
+    (e.g. every weekday sharing one ``weekdays:`` block) are validated once;
+    an error is reported against every label that shares the bad entry
+    rather than being repeated once per day.
+    """
+    labelled: list[tuple[str, DaySchedule]] = [
+        (f"schedule.{key}", ds)
+        for key, ds in ((k, cfg.days[k]) for k in DAY_KEYS)
+        if ds is not None
+    ]
+    if cfg.holidays is not None:
+        labelled.append(("schedule.holidays", cfg.holidays))
+
+    by_schedule: dict[DaySchedule, list[str]] = {}
+    for label, ds in labelled:
+        by_schedule.setdefault(ds, []).append(label)
+
+    errors: list[str] = []
+    for ds, labels in by_schedule.items():
+        transitions = _transitions_for_day_schedule(ds)
+        for err in _validate_schedule(transitions):
+            errors.append(f"{err} ({', '.join(labels)})")
+    return errors
+
+
 def _time_today(hhmm: str) -> datetime:
     """Parse a validated ``"HH:MM"`` string into a naive datetime for today.
 
@@ -253,36 +305,21 @@ def _seconds_until_local(target: datetime) -> float:
     return time.mktime(tm) - time.time()
 
 
-def _holiday_calendar(country: str) -> holidays.HolidayBase:
-    """Return the ``python-holidays`` calendar for ``country``.
+def _next_scheduled_day(cfg: ScheduleConfig, day: date, country: str) -> date:
+    """Return the next date strictly after ``day`` that resolves to a
+    schedule (not CLOSED) under ``cfg``/``country``.
 
-    Callers should pass a country already validated by
-    :func:`_is_supported_country` (``main`` guarantees this) —
-    unrecognised countries raise ``NotImplementedError`` here.
+    Uses the same day-resolution rule as everywhere else (see
+    :func:`edumatcher.engine.schedule_resolve.resolve_day`), so a scheduler
+    left running under ``--daily`` skips CLOSED days exactly the way a
+    single-shot run would if started on one.
     """
-    return holidays.country_holidays(country)
-
-
-def _is_working_day(day: date, country: str) -> bool:
-    """Return ``True`` if ``day`` is neither a weekend nor a bank holiday.
-
-    Weekends (Saturday/Sunday) are always excluded regardless of whether the
-    country's calendar also lists them as observances. Bank holidays are
-    looked up in the ``python-holidays`` calendar for ``country``.
-    """
-    if day.weekday() >= 5:  # Saturday=5, Sunday=6
-        return False
-    return day not in _holiday_calendar(country)
-
-
-def _next_working_day(day: date, country: str) -> date:
-    """Return the next working day strictly after ``day`` for ``country``."""
     candidate = day + timedelta(days=1)
     # Bounded: a bank-holiday calendar can never plausibly cover an entire
-    # year of consecutive non-working days, so this loop always terminates
-    # well before the guard trips.
+    # year of consecutive CLOSED days, so this loop always terminates well
+    # before the guard trips.
     for _ in range(366):
-        if _is_working_day(candidate, country):
+        if resolve_day(cfg, candidate, country) is not None:
             return candidate
         candidate += timedelta(days=1)
     return candidate
@@ -562,7 +599,7 @@ def _dispatch_transition(
 
 def _run_scheduled(
     push_sock: PushSocket,
-    schedule: list[tuple[str, str]],
+    schedule_cfg: ScheduleConfig,
     *,
     confirm_sock: zmq.Socket[bytes] | None = None,
     is_running: Callable[[], bool] | None = None,
@@ -578,20 +615,26 @@ def _run_scheduled(
     When a confirmation socket is available the scheduler first asks the engine
     for its current state so it only replays what is actually missing (A2).
 
-    Does nothing (no transitions sent) if today is a weekend or a bank
-    holiday for ``country`` — the exchange does not open on non-working days.
+    Does nothing (no transitions sent) if today resolves to no schedule at
+    all under ``schedule_cfg`` (a CLOSED weekday entry, or a bank holiday for
+    ``country`` with no ``holidays:`` entry) — the exchange does not open.
     """
     running = is_running or (lambda: True)
 
     today = datetime.now().date()
-    if not _is_working_day(today, country):
+    today_schedule = resolve_day(schedule_cfg, today, country)
+    if today_schedule is None:
+        if is_bank_holiday(today, country):
+            reason = f"bank holiday in {country}"
+        else:
+            reason = f"no schedule entry for {today.strftime('%A').lower()}"
         log.info(
-            "%s is not a working day for %s (weekend or bank holiday); "
-            "skipping today's schedule",
+            "%s is CLOSED today (%s); skipping today's schedule",
             today.isoformat(),
-            country,
+            reason,
         )
         return
+    schedule = _transitions_for_day_schedule(today_schedule)
 
     log.debug("Schedule for today:")
     for hhmm, state in schedule:
@@ -643,18 +686,19 @@ def _run_scheduled(
 
 def _run_forever(
     push_sock: PushSocket,
-    schedule: list[tuple[str, str]],
+    schedule_cfg: ScheduleConfig,
     confirm_sock: zmq.Socket[bytes] | None,
     is_running: Callable[[], bool],
     country: str = DEFAULT_COUNTRY,
 ) -> None:
-    """Run the daily schedule repeatedly, once per working day (``--daily``).
+    """Run the daily schedule repeatedly, once per day that has one (``--daily``).
 
-    Weekends and bank holidays for ``country`` are skipped: ``_run_scheduled``
-    itself is a no-op on a non-working day, and the overnight wait is
-    extended to land on the next working day instead of just the next
-    calendar day. The overnight wait re-derives its remaining duration from
-    the wall clock at least every ``WALLCLOCK_RECHECK_SEC`` seconds (via
+    A CLOSED day (a weekday/weekend with no entry, or a bank holiday for
+    ``country`` with none) is skipped: ``_run_scheduled`` itself is a no-op
+    on a CLOSED day, and the overnight wait is extended to land on the next
+    day that resolves to a schedule instead of just the next calendar day.
+    The overnight wait re-derives its remaining duration from the wall clock
+    at least every ``WALLCLOCK_RECHECK_SEC`` seconds (via
     ``_sleep_until_wallclock``) instead of trusting a single monotonic
     deadline computed once, so a server time adjustment during the (possibly
     many-hour) overnight wait is picked up promptly.
@@ -662,7 +706,7 @@ def _run_forever(
     while is_running():
         _run_scheduled(
             push_sock,
-            schedule,
+            schedule_cfg,
             confirm_sock=confirm_sock,
             is_running=is_running,
             country=country,
@@ -670,10 +714,10 @@ def _run_forever(
         if not is_running():
             break
 
-        target_day = _next_working_day(datetime.now().date(), country)
+        target_day = _next_scheduled_day(schedule_cfg, datetime.now().date(), country)
         target_midnight = datetime.combine(target_day, datetime.min.time())
         log.info(
-            "Day complete; sleeping until the next working day (%s)",
+            "Day complete; sleeping until the next scheduled day (%s)",
             target_day.isoformat(),
         )
         _sleep_until_wallclock(_wait_until(target_midnight), is_running)
@@ -890,10 +934,8 @@ def main() -> None:
                 sys.exit(1)
 
             engine_cfg = compiled.engine
-            schedule = (
-                DEFAULT_SCHEDULE
-                if engine_cfg.schedule is None
-                else _schedule_from_config(engine_cfg.schedule)
+            schedule_cfg = (
+                DEFAULT_SCHEDULE if engine_cfg.schedule is None else engine_cfg.schedule
             )
             country = engine_cfg.country
             if not _is_supported_country(country):
@@ -906,7 +948,7 @@ def main() -> None:
             log.info("Using country %r for working-day/holiday calendar", country)
 
             # Refuse to start on a schedule the engine could never follow (M1).
-            errors = _validate_schedule(schedule)
+            errors = _validate_schedule_config(schedule_cfg)
             if errors:
                 for err in errors:
                     log.error("FATAL: invalid schedule: %s", err)
@@ -935,7 +977,7 @@ def main() -> None:
                 if args.daily:
                     _run_forever(
                         push_sock,
-                        schedule,
+                        schedule_cfg,
                         confirm_sock,
                         _is_running,
                         country=country,
@@ -943,7 +985,7 @@ def main() -> None:
                 else:
                     _run_scheduled(
                         push_sock,
-                        schedule,
+                        schedule_cfg,
                         confirm_sock=confirm_sock,
                         is_running=_is_running,
                         country=country,

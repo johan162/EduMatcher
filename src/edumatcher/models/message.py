@@ -697,9 +697,11 @@ def make_session_schedule_msg(
 ) -> list[bytes]:
     """Engine → operator: reply with the session schedule configuration.
 
-    ``schedule`` is the same ``SessionTimes`` record ``system.reference``
-    carries. It is ``None`` — not ``{}`` — when no ``schedule:`` block is
-    configured: one spelling of the absence rather than two.
+    ``schedule`` is the same ``WeeklySchedule`` record ``system.reference``
+    carries -- the resolved ``mon``..``sun``/``holidays`` table plus the
+    engine-resolved ``today``/``today_is_holiday`` convenience fields. It is
+    ``None`` — not ``{}`` — when no ``schedule:`` block is configured: one
+    spelling of the absence rather than two.
     """
     return _gen_system.make_session_schedule(
         gateway_id=gateway_id,

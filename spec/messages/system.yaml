@@ -22,9 +22,9 @@
 #   `reference.risk.levels`         -> list of records, key as a field (19.2)
 #   `risk_state.symbols`            -> the same
 #   `volume.symbols`                -> the same
-#   `session_schedule.schedule`     -> a fixed five-key record. Never a map;
-#                                      only the `dict[str, str]` annotation
-#                                      ever said otherwise.
+#   `session_schedule.schedule`     -> a fixed per-day record (`WeeklySchedule`).
+#                                      Never a map; only the `dict[str, str]`
+#                                      annotation ever said otherwise.
 #   `symbols.symbol_meta`           -> folded away entirely. See below.
 #
 # THE ONE THAT DID NOT SURVIVE BEING NAMED. `system.symbols` carried
@@ -53,11 +53,12 @@
 # `system.eod`, and `tick_size` is gone from the wire.
 #
 # ONE SCHEDULE RECORD, NOT TWO. `session_schedule.schedule` and
-# `reference.schedule` are the same five keys off `engine_cfg.schedule`;
-# `reference` adds `sessions_enabled` and `country` beside them. Describing
-# that shape twice is the drift section 1 exists to stop, so `ReferenceSchedule`
-# nests `SessionTimes` rather than restating it. `GET /reference/schedule`
-# moves from seven flat keys to three as a result -- see design section 28.3.
+# `reference.schedule` are the same resolved weekly table off
+# `engine_cfg.schedule`; `reference` adds `sessions_enabled` and `country`
+# beside it. Describing that shape twice is the drift section 1 exists to
+# stop, so `ReferenceSchedule` nests `WeeklySchedule` rather than restating
+# it. `GET /reference/schedule` moves from seven flat keys to three as a
+# result -- see design section 28.3.
 #
 # THE LADDER IS SHARED WITH `circuit_breaker`. A level `name` here is the same
 # string `circuit_breaker.halt.level` carries onward, which 6.1c bounded at 32
@@ -282,8 +283,10 @@ types:
       declarations that can drift apart.
 
       The values are strings because that is what the config file holds and
-      what every consumer renders. Nullable individually because a partial
-      `schedule:` block is a legal config.
+      what every consumer renders. Individually nullable at the wire level
+      for structural uniformity, though in practice all five are always
+      populated together: `config_loader` rejects a `schedule:` day block
+      that defines some of the five keys but not all.
     fields:
       - { name: pre_open, type: string, required: false, nullable: true,
           validate: { max_len: 32 } }
@@ -296,15 +299,53 @@ types:
       - { name: closing_auction_end, type: string, required: false,
           nullable: true, validate: { max_len: 32 } }
 
+  WeeklySchedule:
+    doc: >
+      A fully-resolved weekly session schedule: one `SessionTimes` per
+      weekday (mon..sun, any of which may be null for CLOSED) plus a
+      separate holidays entry, mirroring
+      `edumatcher.engine.config_loader.ScheduleConfig`. The `weekdays`/
+      `weekend` shortcuts and per-day overrides in the YAML are already
+      resolved by the time this is built -- every field here is one
+      concrete day, never a shortcut.
+
+      `today`/`today_is_holiday` are a server-computed convenience: the
+      engine already runs the same `python-holidays` lookup for
+      pm-scheduler, so it resolves "which entry applies right now" once and
+      publishes the answer, rather than making every client (in particular
+      a browser) carry its own holiday calendar just to answer that one
+      question. `today` is still `SessionTimes | null` -- null means CLOSED
+      today, exactly like any other day slot.
+    fields:
+      - { name: mon, type: nested, ref: SessionTimes, required: false, nullable: true }
+      - { name: tue, type: nested, ref: SessionTimes, required: false, nullable: true }
+      - { name: wed, type: nested, ref: SessionTimes, required: false, nullable: true }
+      - { name: thu, type: nested, ref: SessionTimes, required: false, nullable: true }
+      - { name: fri, type: nested, ref: SessionTimes, required: false, nullable: true }
+      - { name: sat, type: nested, ref: SessionTimes, required: false, nullable: true }
+      - { name: sun, type: nested, ref: SessionTimes, required: false, nullable: true }
+      - { name: holidays, type: nested, ref: SessionTimes, required: false,
+          nullable: true,
+          doc: "Applied instead of the weekday's own entry on a bank
+                holiday. Null means CLOSED on holidays." }
+      - { name: today, type: nested, ref: SessionTimes, required: false,
+          nullable: true,
+          doc: "The entry actually in effect today (holidays entry if today
+                is a bank holiday, else today's weekday entry). Null means
+                CLOSED today." }
+      - { name: today_is_holiday, type: bool,
+          doc: "True only when `today` came from the holidays entry rather
+                than the weekday's own entry." }
+
   ReferenceSchedule:
     doc: >
       The venue's calendar configuration: whether sessions run at all, which
-      country's holidays they observe, and the clock itself.
+      country's holidays they observe, and the resolved weekly clock.
 
       `schedule` is nested rather than flattened beside its two siblings,
       which is a change to `GET /reference/schedule`. The alternative was
-      declaring `SessionTimes`'s five fields a second time inline, and a
-      shape described twice is the drift section 1 is about.
+      declaring `WeeklySchedule`'s fields a second time inline, and a shape
+      described twice is the drift section 1 is about.
     fields:
       - { name: sessions_enabled, type: bool }
       - name: country
@@ -316,7 +357,7 @@ types:
         doc: "ISO 3166-1 alpha-2, for the holiday calendar. Absent when unset."
       - name: schedule
         type: nested
-        ref: SessionTimes
+        ref: WeeklySchedule
         required: false
         nullable: true
         doc: >
@@ -1112,7 +1153,7 @@ messages:
       - { name: gateway_id, type: string, validate: { max_len: 32 },
           doc: "Topic-only; dropped from the body by the default projection." }
       - { name: sessions_enabled, type: bool }
-      - { name: schedule, type: nested, ref: SessionTimes, required: false,
+      - { name: schedule, type: nested, ref: WeeklySchedule, required: false,
           nullable: true,
           doc: "Null when no `schedule:` block is configured." }
     encoding:

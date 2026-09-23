@@ -3,7 +3,7 @@ Tests for process helper functions and classes that don't require live ZMQ:
   - stats.main._DayAccum
   - ticker.main._build_line
   - viewer.main._build_display
-  - scheduler.main._schedule_from_config / _time_today
+  - scheduler.main._transitions_for_day_schedule / _time_today
 """
 
 from __future__ import annotations
@@ -23,7 +23,8 @@ from edumatcher.ticker.main import _build_line
 from edumatcher.viewer.main import _build_display
 from edumatcher.scheduler.main import (
     DEFAULT_SCHEDULE,
-    _schedule_from_config,
+    _DEFAULT_DAY_SCHEDULE,
+    _transitions_for_day_schedule,
     _time_today,
 )
 
@@ -261,14 +262,23 @@ class TestSchedulerHelpers:
         # `_load_schedule` is gone: YAML parsing moved to load_engine_config,
         # and its tolerance for a missing or malformed file is now the compile
         # step's job.
-        from edumatcher.engine.config_loader import ScheduleConfig
-
-        assert _schedule_from_config(ScheduleConfig()) == DEFAULT_SCHEDULE
+        assert DEFAULT_SCHEDULE.days["mon"] == _DEFAULT_DAY_SCHEDULE
+        assert _transitions_for_day_schedule(_DEFAULT_DAY_SCHEDULE)[0] == (
+            "09:00",
+            "PRE_OPEN",
+        )
 
     def test_schedule_from_config_carries_configured_times(self) -> None:
-        from edumatcher.engine.config_loader import ScheduleConfig
+        from edumatcher.engine.config_loader import DaySchedule
 
-        result = _schedule_from_config(ScheduleConfig(closing_auction_end="16:10"))
+        ds = DaySchedule(
+            pre_open="09:00",
+            opening_auction_start="09:25",
+            continuous_start="09:30",
+            closing_auction_start="16:00",
+            closing_auction_end="16:10",
+        )
+        result = _transitions_for_day_schedule(ds)
         assert result[-1] == ("16:10", "CLOSED")
 
 

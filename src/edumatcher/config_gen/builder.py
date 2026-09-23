@@ -150,6 +150,18 @@ class ConfigSpec:
     continuous: str = "09:30"
     closing_auction: str = "16:00"
     closing_end: str = "16:05"
+    emit_weekend: bool = False
+    weekend_pre_open: str = "10:00"
+    weekend_opening_auction: str = "10:25"
+    weekend_continuous: str = "10:30"
+    weekend_closing_auction: str = "14:00"
+    weekend_closing_end: str = "14:05"
+    emit_holidays: bool = False
+    holidays_pre_open: str = "10:00"
+    holidays_opening_auction: str = "10:25"
+    holidays_continuous: str = "10:30"
+    holidays_closing_auction: str = "14:00"
+    holidays_closing_end: str = "14:05"
     symbol_overrides: dict[str, SymbolOverride] = field(default_factory=dict)
     outstanding_shares: dict[str, int] = field(default_factory=dict)
     post_trade_gateway: PostTradeGatewaySpec | None = None
@@ -362,13 +374,38 @@ class ConfigBuilder:
             cfg["indices"] = self._build_indices()
 
         if self.spec.sessions_enabled and self.spec.emit_schedule:
-            cfg["schedule"] = {
-                "pre_open": self.spec.pre_open,
-                "opening_auction_start": self.spec.opening_auction,
-                "continuous_start": self.spec.continuous,
-                "closing_auction_start": self.spec.closing_auction,
-                "closing_auction_end": self.spec.closing_end,
+            # --pre-open etc. populate the `weekdays:` shorthand -- the
+            # common case of one schedule for every Mon-Fri session. Weekend
+            # and holiday overrides are opt-in (--weekend / --holidays);
+            # per-individual-weekday overrides have no CLI flags of their
+            # own and are left for hand-editing the generated YAML (see
+            # docs/user-guide/080-session-scheduling.md).
+            schedule: dict[str, Any] = {
+                "weekdays": {
+                    "pre_open": self.spec.pre_open,
+                    "opening_auction_start": self.spec.opening_auction,
+                    "continuous_start": self.spec.continuous,
+                    "closing_auction_start": self.spec.closing_auction,
+                    "closing_auction_end": self.spec.closing_end,
+                }
             }
+            if self.spec.emit_weekend:
+                schedule["weekend"] = {
+                    "pre_open": self.spec.weekend_pre_open,
+                    "opening_auction_start": self.spec.weekend_opening_auction,
+                    "continuous_start": self.spec.weekend_continuous,
+                    "closing_auction_start": self.spec.weekend_closing_auction,
+                    "closing_auction_end": self.spec.weekend_closing_end,
+                }
+            if self.spec.emit_holidays:
+                schedule["holidays"] = {
+                    "pre_open": self.spec.holidays_pre_open,
+                    "opening_auction_start": self.spec.holidays_opening_auction,
+                    "continuous_start": self.spec.holidays_continuous,
+                    "closing_auction_start": self.spec.holidays_closing_auction,
+                    "closing_auction_end": self.spec.holidays_closing_end,
+                }
+            cfg["schedule"] = schedule
 
         return cfg
 

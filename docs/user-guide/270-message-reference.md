@@ -3131,7 +3131,7 @@ The risk-control ladder as configured, and which rung is the default.
 
 #### `SessionTimes`
 
-The trading day's clock, as five wall-clock times. Carried by `system.session_schedule` and, nested inside `ReferenceSchedule`, by `system.reference` -- one shape declared once rather than two declarations that can drift apart. The values are strings because that is what the config file holds and what every consumer renders. Nullable individually because a partial `schedule:` block is a legal config.
+The trading day's clock, as five wall-clock times. Carried by `system.session_schedule` and, nested inside `ReferenceSchedule`, by `system.reference` -- one shape declared once rather than two declarations that can drift apart. The values are strings because that is what the config file holds and what every consumer renders. Individually nullable at the wire level for structural uniformity, though in practice all five are always populated together: `config_loader` rejects a `schedule:` day block that defines some of the five keys but not all.
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
@@ -3141,15 +3141,32 @@ The trading day's clock, as five wall-clock times. Carried by `system.session_sc
 | `closing_auction_start` | `string` | `null` when unset | max_len 32 |  |
 | `closing_auction_end` | `string` | `null` when unset | max_len 32 |  |
 
+#### `WeeklySchedule`
+
+A fully-resolved weekly session schedule: one `SessionTimes` per weekday (mon..sun, any of which may be null for CLOSED) plus a separate holidays entry, mirroring `edumatcher.engine.config_loader.ScheduleConfig`. The `weekdays`/ `weekend` shortcuts and per-day overrides in the YAML are already resolved by the time this is built -- every field here is one concrete day, never a shortcut. `today`/`today_is_holiday` are a server-computed convenience: the engine already runs the same `python-holidays` lookup for pm-scheduler, so it resolves "which entry applies right now" once and publishes the answer, rather than making every client (in particular a browser) carry its own holiday calendar just to answer that one question. `today` is still `SessionTimes \| null` -- null means CLOSED today, exactly like any other day slot.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `mon` | [`SessionTimes`](#sessiontimes) | `null` when unset | — |  |
+| `tue` | [`SessionTimes`](#sessiontimes) | `null` when unset | — |  |
+| `wed` | [`SessionTimes`](#sessiontimes) | `null` when unset | — |  |
+| `thu` | [`SessionTimes`](#sessiontimes) | `null` when unset | — |  |
+| `fri` | [`SessionTimes`](#sessiontimes) | `null` when unset | — |  |
+| `sat` | [`SessionTimes`](#sessiontimes) | `null` when unset | — |  |
+| `sun` | [`SessionTimes`](#sessiontimes) | `null` when unset | — |  |
+| `holidays` | [`SessionTimes`](#sessiontimes) | `null` when unset | — | Applied instead of the weekday's own entry on a bank holiday. Null means CLOSED on holidays. |
+| `today` | [`SessionTimes`](#sessiontimes) | `null` when unset | — | The entry actually in effect today (holidays entry if today is a bank holiday, else today's weekday entry). Null means CLOSED today. |
+| `today_is_holiday` | `bool` | required | — | True only when `today` came from the holidays entry rather than the weekday's own entry. |
+
 #### `ReferenceSchedule`
 
-The venue's calendar configuration: whether sessions run at all, which country's holidays they observe, and the clock itself. `schedule` is nested rather than flattened beside its two siblings, which is a change to `GET /reference/schedule`. The alternative was declaring `SessionTimes`'s five fields a second time inline, and a shape described twice is the drift section 1 is about.
+The venue's calendar configuration: whether sessions run at all, which country's holidays they observe, and the resolved weekly clock. `schedule` is nested rather than flattened beside its two siblings, which is a change to `GET /reference/schedule`. The alternative was declaring `WeeklySchedule`'s fields a second time inline, and a shape described twice is the drift section 1 is about.
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
 | `sessions_enabled` | `bool` | required | — |  |
 | `country` | `string` | omitted when unset | max_len 2 | ISO 3166-1 alpha-2, for the holiday calendar. Absent when unset. |
-| `schedule` | [`SessionTimes`](#sessiontimes) | `null` when unset | — | Null when the deployment configures no `schedule:` block. Regime 2 rather than 3: both readers pass the bundle through verbatim to a caller, and a key that is sometimes absent is harder to consume than one that is sometimes null. |
+| `schedule` | [`WeeklySchedule`](#weeklyschedule) | `null` when unset | — | Null when the deployment configures no `schedule:` block. Regime 2 rather than 3: both readers pass the bundle through verbatim to a caller, and a key that is sometimes absent is harder to consume than one that is sometimes null. |
 
 #### `IndexDefinition`
 
@@ -3716,7 +3733,7 @@ Engine to operator: the trading day's clock as configured. The same `SessionTime
 |---|---|---|---|---|
 | `gateway_id` | `string` | required | max_len 32 | Topic-only; dropped from the body by the default projection. |
 | `sessions_enabled` | `bool` | required | — |  |
-| `schedule` | [`SessionTimes`](#sessiontimes) | `null` when unset | — | Null when no `schedule:` block is configured. |
+| `schedule` | [`WeeklySchedule`](#weeklyschedule) | `null` when unset | — | Null when no `schedule:` block is configured. |
 
 !!! note
 

@@ -420,8 +420,8 @@ describe("renderYaml", () => {
     expect(text).toContain("# -- Session control --");
     // Schedule times must round-trip as strings, not sexagesimal numbers.
     const parsed = yaml.load(text, { json: true }) as any;
-    expect(parsed.schedule.pre_open).toBe("09:00");
-    expect(parsed.schedule.closing_auction_end).toBe("16:05");
+    expect(parsed.schedule.weekdays.pre_open).toBe("09:00");
+    expect(parsed.schedule.weekdays.closing_auction_end).toBe("16:05");
     expect(parsed.sessions_enabled).toBe(true);
   });
 

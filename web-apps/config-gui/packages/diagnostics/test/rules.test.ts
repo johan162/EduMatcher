@@ -59,8 +59,26 @@ describe("diagnostics rules", () => {
   it("errors on an out-of-order schedule", () => {
     const draft = base();
     draft.sessionsEnabled = true;
-    draft.schedule.continuous = "08:00"; // before opening auction
+    draft.schedule.weekdays!.continuous = "08:00"; // before opening auction
     expect(ids(draft)).toContain("schedule-out-of-order");
+  });
+
+  it("errors when weekend and an individual sat/sun block are both set", () => {
+    const draft = base();
+    draft.schedule.weekend = { ...draft.schedule.weekdays! };
+    draft.schedule.sat = { ...draft.schedule.weekdays! };
+    expect(ids(draft)).toContain("schedule-weekend-conflict");
+  });
+
+  it("does not flag weekend alone, or sat/sun alone, as a conflict", () => {
+    const draft = base();
+    draft.schedule.weekend = { ...draft.schedule.weekdays! };
+    expect(ids(draft)).not.toContain("schedule-weekend-conflict");
+
+    const draft2 = base();
+    draft2.schedule.sat = { ...draft2.schedule.weekdays! };
+    draft2.schedule.sun = { ...draft2.schedule.weekdays! };
+    expect(ids(draft2)).not.toContain("schedule-weekend-conflict");
   });
 
   it("errors on an index with unknown constituents and missing constituents", () => {

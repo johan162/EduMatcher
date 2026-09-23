@@ -217,6 +217,39 @@ def normalize_hhmm(raw: object) -> str | None:
     return None
 
 
+def _parse_day_schedule(raw: Any, label: str) -> DaySchedule:
+    """Parse one schedule block (``weekdays``/``weekend``/a single day/
+    ``holidays``) into a :class:`DaySchedule`.
+
+    All five transition-time keys are required on any block that is present
+    at all -- a partial block would send the engine an out-of-sequence
+    transition, so this is a hard error rather than a default-fill (same
+    strict-parsing style used throughout this module, e.g. the tick-price
+    checks).
+    """
+    if not isinstance(raw, dict):
+        raise ValueError(
+            f"Engine config 'schedule.{label}' must be a mapping of the five "
+            "transition-time fields"
+        )
+    missing = [key for key in _SCHEDULE_TIME_KEYS if key not in raw]
+    if missing:
+        raise ValueError(
+            f"Engine config 'schedule.{label}' is missing required field(s): "
+            f"{', '.join(missing)} (all five transition times are required)"
+        )
+    values: dict[str, str] = {}
+    for key in _SCHEDULE_TIME_KEYS:
+        normalized = normalize_hhmm(raw[key])
+        if normalized is None:
+            raise ValueError(
+                f"Engine config 'schedule.{label}.{key}' is not a valid "
+                f'"HH:MM" time: {raw[key]!r}'
+            )
+        values[key] = normalized
+    return DaySchedule(**values)
+
+
 @dataclass
 class MMObligationPolicy:
     enforce_mm_obligation: bool = False
@@ -303,15 +336,54 @@ class FixGatewayConfig:
     mm_obligation_policies: dict[str, MMObligationPolicy] = field(default_factory=dict)
 
 
+# The seven weekday keys, in week order. Shared by every consumer that
+# needs to enumerate a resolved schedule (scheduler, engine wire replies,
+# config_show, console) so nothing else re-declares this ordering.
+DAY_KEYS: tuple[str, ...] = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+_WEEKDAY_KEYS: tuple[str, ...] = ("mon", "tue", "wed", "thu", "fri")
+_WEEKEND_KEYS: tuple[str, ...] = ("sat", "sun")
+
+_SCHEDULE_TIME_KEYS: tuple[str, ...] = (
+    "pre_open",
+    "opening_auction_start",
+    "continuous_start",
+    "closing_auction_start",
+    "closing_auction_end",
+)
+
+
+@dataclass(frozen=True)
+class DaySchedule:
+    """One resolved day's session timeline -- all five transition times."""
+
+    pre_open: str
+    opening_auction_start: str
+    continuous_start: str
+    closing_auction_start: str
+    closing_auction_end: str
+
+
 @dataclass
 class ScheduleConfig:
-    """Optional daily session schedule (HH:MM times)."""
+    """Fully-resolved weekly session schedule.
 
-    pre_open: str = "09:00"
-    opening_auction_start: str = "09:25"
-    continuous_start: str = "09:30"
-    closing_auction_start: str = "16:00"
-    closing_auction_end: str = "16:05"
+    The ``weekdays``/``weekend`` shortcuts and individual per-day overrides
+    in the YAML are all resolved right here, at parse time, into a plain
+    7-day table (``days``, keyed by :data:`DAY_KEYS`) plus a separate
+    ``holidays`` entry. Every consumer -- pm-scheduler, the engine's wire
+    replies, pm-cverify, config_show, the console, both GUIs -- reads this
+    resolved shape and never re-implements the shortcut-resolution rules
+    itself (the same "resolve once" philosophy ``normalize_hhmm`` already
+    applies to individual time values).
+
+    A ``None`` entry (for a day or for ``holidays``) means the venue is
+    CLOSED all day.
+    """
+
+    days: dict[str, "DaySchedule | None"] = field(
+        default_factory=lambda: {key: None for key in DAY_KEYS}
+    )
+    holidays: "DaySchedule | None" = None
 
 
 @dataclass
@@ -1420,26 +1492,54 @@ def load_engine_config(path: Path) -> EngineConfig:
     if not isinstance(enforce_cb_raw, bool):
         raise ValueError("Engine config 'enforce_circuit_breakers' must be a boolean")
 
-    # Optional schedule section
+    # Optional schedule section. ``weekdays``/``weekend`` shortcuts and
+    # individual mon..sun/holidays overrides are all resolved here into a
+    # plain 7-day table (see ScheduleConfig) -- downstream consumers read
+    # that resolved shape rather than re-implementing shortcut resolution.
     schedule_cfg: ScheduleConfig | None = None
     schedule_raw = raw.get("schedule")
     if isinstance(schedule_raw, dict):
-        defaults = ScheduleConfig()
+        known_schedule_keys = {"weekdays", "weekend", "holidays", *DAY_KEYS}
+        unknown_schedule_keys = set(schedule_raw) - known_schedule_keys
+        if unknown_schedule_keys:
+            raise ValueError(
+                "Engine config 'schedule' has unknown field(s): "
+                f"{', '.join(sorted(unknown_schedule_keys))}"
+            )
 
-        def _time(key: str) -> str:
-            """Canonical HH:MM for one schedule key, or its documented default."""
-            fallback: str = getattr(defaults, key)
-            if key not in schedule_raw:
-                return fallback
-            return normalize_hhmm(schedule_raw[key]) or fallback
+        has_weekend_block = "weekend" in schedule_raw
+        has_individual_weekend_day = any(key in schedule_raw for key in _WEEKEND_KEYS)
+        if has_weekend_block and has_individual_weekend_day:
+            raise ValueError(
+                "Engine config 'schedule' specifies both 'weekend' and "
+                "'sat'/'sun' -- use one or the other, not both"
+            )
 
-        schedule_cfg = ScheduleConfig(
-            pre_open=_time("pre_open"),
-            opening_auction_start=_time("opening_auction_start"),
-            continuous_start=_time("continuous_start"),
-            closing_auction_start=_time("closing_auction_start"),
-            closing_auction_end=_time("closing_auction_end"),
-        )
+        weekdays_default: DaySchedule | None = None
+        if "weekdays" in schedule_raw:
+            weekdays_default = _parse_day_schedule(schedule_raw["weekdays"], "weekdays")
+
+        weekend_default: DaySchedule | None = None
+        if "weekend" in schedule_raw:
+            weekend_default = _parse_day_schedule(schedule_raw["weekend"], "weekend")
+
+        resolved_days: dict[str, DaySchedule | None] = {}
+        for key in _WEEKDAY_KEYS:
+            if key in schedule_raw:
+                resolved_days[key] = _parse_day_schedule(schedule_raw[key], key)
+            else:
+                resolved_days[key] = weekdays_default
+        for key in _WEEKEND_KEYS:
+            if key in schedule_raw:
+                resolved_days[key] = _parse_day_schedule(schedule_raw[key], key)
+            else:
+                resolved_days[key] = weekend_default
+
+        holidays_cfg: DaySchedule | None = None
+        if "holidays" in schedule_raw:
+            holidays_cfg = _parse_day_schedule(schedule_raw["holidays"], "holidays")
+
+        schedule_cfg = ScheduleConfig(days=resolved_days, holidays=holidays_cfg)
 
     country_raw = raw.get("country")
     country = DEFAULT_COUNTRY

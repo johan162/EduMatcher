@@ -30,21 +30,38 @@ import pytest
 import zmq
 
 from edumatcher.models.message import decode
-from edumatcher.engine.config_loader import load_engine_config
+from edumatcher.engine.config_loader import (
+    DaySchedule,
+    ScheduleConfig,
+    load_engine_config,
+)
 from edumatcher.scheduler.main import (
     _run_scheduled,
-    _schedule_from_config,
+    _transitions_for_day_schedule,
     _time_today,
 )
 
-# Full, valid, in-order daily schedule (a legal CLOSED→…→CLOSED chain).
-_FULL_SCHEDULE = [
-    ("09:00", "PRE_OPEN"),
-    ("09:25", "OPENING_AUCTION"),
-    ("09:30", "CONTINUOUS"),
-    ("16:00", "CLOSING_AUCTION"),
-    ("16:05", "CLOSED"),
-]
+# Full, valid, in-order daily schedule (a legal CLOSED→…→CLOSED chain),
+# applied to every weekday -- 2024-01-09 (used below) is a Tuesday.
+_FULL_DAY_SCHEDULE = DaySchedule(
+    pre_open="09:00",
+    opening_auction_start="09:25",
+    continuous_start="09:30",
+    closing_auction_start="16:00",
+    closing_auction_end="16:05",
+)
+_FULL_SCHEDULE_CFG = ScheduleConfig(
+    days={
+        "mon": _FULL_DAY_SCHEDULE,
+        "tue": _FULL_DAY_SCHEDULE,
+        "wed": _FULL_DAY_SCHEDULE,
+        "thu": _FULL_DAY_SCHEDULE,
+        "fri": _FULL_DAY_SCHEDULE,
+        "sat": None,
+        "sun": None,
+    },
+    holidays=None,
+)
 
 
 def _sent_states(sock: MagicMock) -> list[str]:
@@ -81,7 +98,7 @@ class TestH1PastTransitionsDesync:
             patch("edumatcher.scheduler.main.datetime") as mock_dt,
         ):
             mock_dt.now.return_value = fixed_now
-            _run_scheduled(fake_sock, _FULL_SCHEDULE)
+            _run_scheduled(fake_sock, _FULL_SCHEDULE_CFG)
 
         # DEFECT (H1): current code prints "already past, skipping" for every
         # entry and sends nothing, so the engine never leaves CLOSED.
@@ -103,16 +120,24 @@ class TestH1PastTransitionsDesync:
         # country, Sweden) so the working-day gate does not short-circuit.
         fixed_now = datetime(2024, 1, 9, 10, 0, 0)
 
-        # Only the already-past portion of the day, to avoid waiting on future
-        # entries (the point here is the catch-up, not the timed waits).
-        past_only = _FULL_SCHEDULE[:3]  # through CONTINUOUS
+        # DaySchedule always carries all five times now, so instead of
+        # trimming the schedule to the already-past portion, an is_running
+        # callback stops the run right after the 3 catch-up steps
+        # (PRE_OPEN, OPENING_AUCTION, CONTINUOUS) -- before the loop would
+        # wait on the two still-future entries. The point here is the
+        # catch-up, not the timed waits.
+        calls = {"n": 0}
+
+        def is_running() -> bool:
+            calls["n"] += 1
+            return calls["n"] <= 3
 
         with (
             patch("edumatcher.scheduler.main.time.sleep"),
             patch("edumatcher.scheduler.main.datetime") as mock_dt,
         ):
             mock_dt.now.return_value = fixed_now
-            _run_scheduled(fake_sock, past_only)
+            _run_scheduled(fake_sock, _FULL_SCHEDULE_CFG, is_running=is_running)
 
         assert fake_sock.send_multipart.called, (
             "scheduler skipped past transitions on a late start — "
@@ -184,17 +209,20 @@ class TestH3MalformedScheduleTimesCrash:
             "symbols:\n  AAPL: {tick_decimals: 2, last_buy_price: 150.0}\n"
             "gateways:\n  alf: [{id: TRADER01, role: TRADER}]\n"
             "schedule:\n"
-            "  pre_open: 9:00\n"
-            "  opening_auction_start: 9:25\n"
-            "  continuous_start: 9:30\n"
-            "  closing_auction_start: 16:00\n"
-            "  closing_auction_end: 16:05\n"
+            "  weekdays:\n"
+            "    pre_open: 9:00\n"
+            "    opening_auction_start: 9:25\n"
+            "    continuous_start: 9:30\n"
+            "    closing_auction_start: 16:00\n"
+            "    closing_auction_end: 16:05\n"
         )
 
         # Loading must not raise ...
         loaded = load_engine_config(config).schedule
         assert loaded is not None, "the fixture defines a schedule block"
-        schedule = _schedule_from_config(loaded)
+        weekday = loaded.days["mon"]
+        assert weekday is not None
+        schedule = _transitions_for_day_schedule(weekday)
 
         # ... and every time it hands downstream must be parseable without an
         # unhandled exception (DEFECT H3: values like "570" blow up here).
@@ -206,27 +234,24 @@ class TestH3MalformedScheduleTimesCrash:
                     f"scheduler crashed on unquoted schedule time {hhmm!r}: {exc!r}"
                 )
 
-    def test_out_of_range_and_malformed_times_do_not_crash(
+    def test_out_of_range_and_malformed_times_are_rejected_at_load(
         self, tmp_path: Path
     ) -> None:
-        """Quoted-but-invalid times must be rejected/normalised, not fatal."""
+        """Quoted-but-invalid times are rejected with a clear error at load
+        time, rather than reaching the scheduler where they used to risk an
+        unhandled crash (DEFECT H3)."""
         config = tmp_path / "malformed.yaml"
         config.write_text(
             "symbols:\n  AAPL: {tick_decimals: 2, last_buy_price: 150.0}\n"
             "gateways:\n  alf: [{id: TRADER01, role: TRADER}]\n"
             "schedule:\n"
-            '  pre_open: "25:00"\n'  # hour out of range
-            '  continuous_start: "16:5:00"\n'  # too many components
+            "  weekdays:\n"
+            '    pre_open: "25:00"\n'  # hour out of range
+            '    opening_auction_start: "09:25"\n'
+            '    continuous_start: "16:5:00"\n'  # too many components
+            '    closing_auction_start: "16:00"\n'
+            '    closing_auction_end: "16:05"\n'
         )
 
-        loaded = load_engine_config(config).schedule
-        assert loaded is not None, "the fixture defines a schedule block"
-        schedule = _schedule_from_config(loaded)
-
-        for hhmm, _state in schedule:
-            try:
-                _time_today(hhmm)
-            except Exception as exc:  # noqa: BLE001
-                pytest.fail(
-                    f"scheduler crashed on malformed schedule time {hhmm!r}: {exc!r}"
-                )
+        with pytest.raises(ValueError, match="not a valid"):
+            load_engine_config(config)

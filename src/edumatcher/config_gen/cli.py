@@ -381,21 +381,10 @@ def _parse_hhmm_to_minutes(value: str, flag_name: str) -> int:
     return hours * 60 + minutes
 
 
-def _validate_schedule_order(args: argparse.Namespace) -> None:
-    """Ensure the five schedule times are well-formed and strictly increasing.
-
-    A schedule where e.g. --continuous is before --opening-auction would let
-    the engine reach an inconsistent session state, so this is validated
-    regardless of whether --sessions-enabled/--schedule end up emitting the
-    section, matching the treatment of other argument sanity checks above.
+def _validate_ordered_times(ordered_flags: tuple[tuple[str, str], ...]) -> None:
+    """Ensure a block of five schedule flags is well-formed and strictly
+    increasing. Shared by the weekdays/weekend/holidays blocks below.
     """
-    ordered_flags = (
-        ("--pre-open", args.pre_open),
-        ("--opening-auction", args.opening_auction),
-        ("--continuous", args.continuous),
-        ("--closing-auction", args.closing_auction),
-        ("--closing-end", args.closing_end),
-    )
     parsed = [
         (flag_name, raw_value, _parse_hhmm_to_minutes(raw_value, flag_name))
         for flag_name, raw_value in ordered_flags
@@ -408,6 +397,50 @@ def _validate_schedule_order(args: argparse.Namespace) -> None:
                 f"Schedule times must be strictly increasing: {flag_a} ({value_a}) "
                 f"must be earlier than {flag_b} ({value_b})"
             )
+
+
+def _validate_schedule_order(args: argparse.Namespace) -> None:
+    """Ensure every schedule block's five times are well-formed and
+    strictly increasing.
+
+    A block where e.g. --continuous is before --opening-auction would let
+    the engine reach an inconsistent session state, so the weekdays block is
+    validated regardless of whether --sessions-enabled/--schedule end up
+    emitting the section, matching the treatment of other argument sanity
+    checks above. --weekend-*/--holidays-* are validated only when their
+    block will actually be emitted (--weekend / --holidays) -- their flags
+    carry defaults even when unused, and those defaults have nothing to be
+    inconsistent with if the block never reaches the YAML.
+    """
+    _validate_ordered_times(
+        (
+            ("--pre-open", args.pre_open),
+            ("--opening-auction", args.opening_auction),
+            ("--continuous", args.continuous),
+            ("--closing-auction", args.closing_auction),
+            ("--closing-end", args.closing_end),
+        )
+    )
+    if getattr(args, "weekend", False):
+        _validate_ordered_times(
+            (
+                ("--weekend-pre-open", args.weekend_pre_open),
+                ("--weekend-opening-auction", args.weekend_opening_auction),
+                ("--weekend-continuous", args.weekend_continuous),
+                ("--weekend-closing-auction", args.weekend_closing_auction),
+                ("--weekend-closing-end", args.weekend_closing_end),
+            )
+        )
+    if getattr(args, "holidays", False):
+        _validate_ordered_times(
+            (
+                ("--holidays-pre-open", args.holidays_pre_open),
+                ("--holidays-opening-auction", args.holidays_opening_auction),
+                ("--holidays-continuous", args.holidays_continuous),
+                ("--holidays-closing-auction", args.holidays_closing_auction),
+                ("--holidays-closing-end", args.holidays_closing_end),
+            )
+        )
 
 
 def _validate_country(country: str) -> None:
@@ -1795,6 +1828,18 @@ def main() -> None:
             continuous=str(args.continuous),
             closing_auction=str(args.closing_auction),
             closing_end=str(args.closing_end),
+            emit_weekend=bool(args.weekend),
+            weekend_pre_open=str(args.weekend_pre_open),
+            weekend_opening_auction=str(args.weekend_opening_auction),
+            weekend_continuous=str(args.weekend_continuous),
+            weekend_closing_auction=str(args.weekend_closing_auction),
+            weekend_closing_end=str(args.weekend_closing_end),
+            emit_holidays=bool(args.holidays),
+            holidays_pre_open=str(args.holidays_pre_open),
+            holidays_opening_auction=str(args.holidays_opening_auction),
+            holidays_continuous=str(args.holidays_continuous),
+            holidays_closing_auction=str(args.holidays_closing_auction),
+            holidays_closing_end=str(args.holidays_closing_end),
             symbol_overrides=symbol_overrides,
             outstanding_shares=outstanding_shares,
             post_trade_gateway=_build_post_trade_gateway_spec(args),

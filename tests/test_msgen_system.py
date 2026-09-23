@@ -187,23 +187,35 @@ class TestTheScheduleRecordIsDeclaredOnce:
     drift section 1 exists to stop.
     """
 
-    TIMES = {
+    MON = {
         "pre_open": "08:00",
         "opening_auction_start": "09:00",
         "continuous_start": "09:05",
         "closing_auction_start": "17:20",
         "closing_auction_end": "17:30",
     }
+    WEEK = {
+        "mon": MON,
+        "tue": MON,
+        "wed": MON,
+        "thu": MON,
+        "fri": MON,
+        "sat": None,
+        "sun": None,
+        "holidays": None,
+        "today": MON,
+        "today_is_holiday": False,
+    }
 
     def test_both_messages_carry_the_same_record(self) -> None:
-        standalone = _payload(M.make_session_schedule_msg("GW1", True, self.TIMES))
+        standalone = _payload(M.make_session_schedule_msg("GW1", True, self.WEEK))
         bundled = _payload(
             M.make_reference_msg(
                 **_reference(
                     schedule={
                         "sessions_enabled": True,
                         "country": "SE",
-                        "schedule": self.TIMES,
+                        "schedule": self.WEEK,
                     }
                 )
             )

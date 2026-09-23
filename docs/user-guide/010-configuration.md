@@ -1796,11 +1796,12 @@ gateways:
       disconnect_behaviour: LEAVE_ALL
 
 schedule:
-  pre_open: "09:00"
-  opening_auction_start: "09:25"
-  continuous_start: "09:30"
-  closing_auction_start: "16:00"
-  closing_auction_end: "16:05"
+  weekdays:
+    pre_open: "09:00"
+    opening_auction_start: "09:25"
+    continuous_start: "09:30"
+    closing_auction_start: "16:00"
+    closing_auction_end: "16:05"
 ```
 
 This still avoids market-maker seed quotes. Students can supply liquidity
@@ -1994,11 +1995,12 @@ market_maker_combos:
         smp_action: NONE
 
 schedule:
-  pre_open: "09:00"
-  opening_auction_start: "09:25"
-  continuous_start: "09:30"
-  closing_auction_start: "16:00"
-  closing_auction_end: "16:05"
+  weekdays:
+    pre_open: "09:00"
+    opening_auction_start: "09:25"
+    continuous_start: "09:30"
+    closing_auction_start: "16:00"
+    closing_auction_end: "16:05"
 ```
 
 !!! important "Every price in this file is display money"
@@ -2713,30 +2715,41 @@ are not managing persistence deliberately.
 
 ## Session Schedule
 
-The scheduler reads `schedule` and sends transitions to the engine.
+The scheduler reads `schedule` and sends transitions to the engine. Every
+weekday (`mon`..`sun`) resolves to its own five-time block, or CLOSED if
+unconfigured; `weekdays:`/`weekend:` are shortcuts for repeating one block
+across Monday-Friday or Saturday+Sunday, and `holidays:` gives bank holidays
+their own schedule instead of defaulting to CLOSED. See
+[Session Scheduling → Configuring the schedule](080-session-scheduling.md#configuring-the-schedule)
+for the full set of keys, precedence rules, and worked examples.
 
 ```yaml
 schedule:
-  pre_open: "09:00"
-  opening_auction_start: "09:25"
-  continuous_start: "09:30"
-  closing_auction_start: "16:00"
-  closing_auction_end: "16:05"
+  weekdays:
+    pre_open: "09:00"
+    opening_auction_start: "09:25"
+    continuous_start: "09:30"
+    closing_auction_start: "16:00"
+    closing_auction_end: "16:05"
 ```
 
-| Key                     | Required | Default |
-|-------------------------|---------:|---------|
-| `pre_open`              |       No | `09:00` |
-| `opening_auction_start` |       No | `09:25` |
-| `continuous_start`      |       No | `09:30` |
-| `closing_auction_start` |       No | `16:00` |
-| `closing_auction_end`   |       No | `16:05` |
+| Key         | Required | Applies to                                    |
+|-------------|---------:|------------------------------------------------|
+| `weekdays`  |       No | Monday-Friday, for any day not overridden below |
+| `mon`..`fri`|       No | One weekday, overriding `weekdays` for that day |
+| `weekend`   |       No | Saturday and Sunday — mutually exclusive with `sat`/`sun` |
+| `sat`, `sun`|       No | One weekend day, overriding `weekend` for that day |
+| `holidays`  |       No | Bank holidays for the configured `country`     |
 
-Schedule values are read as strings and should be local server `HH:MM` values.
-The scheduler uses any provided subset in trading-day order. If no usable
-schedule is present, it uses built-in defaults. With `pm-scheduler --now`, the
-wall-clock values are ignored and transitions are sent immediately with short
-delays.
+Every block that is present MUST define all five transition times
+(`pre_open`, `opening_auction_start`, `continuous_start`,
+`closing_auction_start`, `closing_auction_end`) — there is no per-key
+fallback for a partial block. A day with nothing resolved for it (not
+`weekdays`/`weekend` and not individually specified) is CLOSED. If no usable
+`schedule` section is present at all, `pm-scheduler` uses built-in defaults
+(the times shown above, applied as `weekdays`; weekends and holidays CLOSED).
+With `pm-scheduler --now`, the wall-clock values are ignored and transitions
+are sent immediately with short delays.
 
 The default session path is:
 
@@ -2751,22 +2764,22 @@ country: Sweden
 ```
 
 `country` is a top-level key — a sibling of `schedule`, not nested under it.
-`pm-scheduler` uses it to decide which calendar days are trading days: it
-will not run the daily schedule on a weekend or on that country's bank
-holidays, using the [`python-holidays`](https://pypi.org/project/holidays/)
-package to resolve the holiday calendar.
+`pm-scheduler` uses it to decide, for a given calendar day, whether the
+`holidays:` block applies (see the table above), using the
+[`python-holidays`](https://pypi.org/project/holidays/) package to resolve
+the holiday calendar.
 
 | Aspect | Value |
 |---|---|
 | Accepted forms | Country name (`"Sweden"`) or ISO 3166-1 alpha-2 code (`"SE"`) |
 | Default when omitted | `"Sweden"` |
 | Behavior on an unrecognized value | Falls back to `"Sweden"` and logs a warning |
-| Weekends | Always treated as non-working days, regardless of the holiday calendar |
+| Weekends | No longer forced CLOSED — `weekend:`/`sat:`/`sun:` can give them their own schedule, same as any weekday |
 
-Under `--daily`, a non-working day is skipped and the scheduler sleeps
-through to the next working day rather than the next calendar day. In
-single-shot mode (the default, no `--daily`), the scheduler simply sends no
-transitions and exits if started on a non-working day. See
+Under `--daily`, a CLOSED day is skipped and the scheduler sleeps through to
+the next day that resolves to a schedule, rather than the next calendar day.
+In single-shot mode (the default, no `--daily`), the scheduler simply sends
+no transitions and exits if today is CLOSED. See
 [Session Scheduling → Bank holidays and weekends](080-session-scheduling.md#bank-holidays-and-weekends)
 for the full behavior breakdown by run mode.
 
@@ -3095,13 +3108,31 @@ symbol has no breaker):
 
 ### `schedule` fields
 
-| Field | Type | Required | Default | Allowed values / range | Constraint |
-|---|---|---:|---|---|---|
-| `pre_open` | str | No | `"09:00"` | `"HH:MM"` (local server time) | Any provided subset is used in order |
-| `opening_auction_start` | str | No | `"09:25"` | `"HH:MM"` (local server time) | — |
-| `continuous_start` | str | No | `"09:30"` | `"HH:MM"` (local server time) | — |
-| `closing_auction_start` | str | No | `"16:00"` | `"HH:MM"` (local server time) | — |
-| `closing_auction_end` | str | No | `"16:05"` | `"HH:MM"` (local server time) | — |
+Top level:
+
+| Field | Type | Required | Applies to | Constraint |
+|---|---|---:|---|---|
+| `weekdays` | day block | No | Mon-Fri, for any day not overridden below | mutually exclusive with nothing; see individual-day override rule below |
+| `mon`, `tue`, `wed`, `thu`, `fri` | day block | No | one weekday | overrides `weekdays` for that day only |
+| `weekend` | day block | No | Sat+Sun, for either day not overridden below | mutually exclusive with `sat`/`sun` |
+| `sat`, `sun` | day block | No | one weekend day | overrides `weekend` for that day only; mutually exclusive with `weekend` |
+| `holidays` | day block | No | bank holidays for `country` | applies instead of the calendar day's own entry |
+
+Each **day block** (the value of `weekdays`, `weekend`, `holidays`, or any
+individual `mon`..`sun` key) is:
+
+| Field | Type | Required | Default | Allowed values / range |
+|---|---|---:|---|---|
+| `pre_open` | str | Yes, if the block is present | — | `"HH:MM"` (local server time) |
+| `opening_auction_start` | str | Yes, if the block is present | — | `"HH:MM"` (local server time) |
+| `continuous_start` | str | Yes, if the block is present | — | `"HH:MM"` (local server time) |
+| `closing_auction_start` | str | Yes, if the block is present | — | `"HH:MM"` (local server time) |
+| `closing_auction_end` | str | Yes, if the block is present | — | `"HH:MM"` (local server time) |
+
+A day block with any of the five keys missing is rejected — there is no
+per-key default once a block is present at all. A day (or `holidays`) with no
+block resolved for it is CLOSED. `weekend` and an individual `sat`/`sun` key
+present together is also rejected.
 
 ---
 
