@@ -838,11 +838,12 @@ symbols:
 # -- Session schedule --
 # session schedule
 schedule:
-  pre_open: 09:00
-  opening_auction_start: 09:25
-  continuous_start: 09:30
-  closing_auction_start: '16:00'
-  closing_auction_end: '16:05'
+  weekdays:
+    pre_open: 09:00
+    opening_auction_start: 09:25
+    continuous_start: 09:30
+    closing_auction_start: '16:00'
+    closing_auction_end: '16:05'
 
 # -- Additional fields --
 require_mm_seed_quotes: true

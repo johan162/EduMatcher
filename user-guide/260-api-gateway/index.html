@@ -5674,8 +5674,8 @@ reference data changes only when an admin reloads it.</p>
 </tr>
 <tr>
 <td><code>GET /reference/schedule</code></td>
-<td><code>{ "sessions_enabled":..., "country"?:..., "schedule": {pre_open, opening_auction_start, continuous_start, closing_auction_start, closing_auction_end} \| null, "config_version":... }</code></td>
-<td>The five clock times are nested under <code>schedule</code>, which is the same record <code>system.session_schedule</code> carries. <code>schedule: null</code> means no <code>schedule:</code> block is configured</td>
+<td><code>{ "sessions_enabled":..., "country"?:..., "schedule": {mon, tue, wed, thu, fri, sat, sun, holidays: {pre_open, opening_auction_start, continuous_start, closing_auction_start, closing_auction_end} \| null, today: {...} \| null, today_is_holiday: bool} \| null, "config_version":... }</code></td>
+<td>The resolved weekly table is nested under <code>schedule</code>, which is the same record <code>system.session_schedule</code> carries; each day (or <code>holidays</code>) is <code>null</code> for CLOSED. <code>today</code>/<code>today_is_holiday</code> are the engine's own resolution of which entry applies right now, so a client never needs its own holiday calendar. <code>schedule: null</code> means no <code>schedule:</code> block is configured</td>
 </tr>
 </tbody>
 </table>

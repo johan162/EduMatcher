@@ -3578,6 +3578,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#weeklyschedule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WeeklySchedule
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#referenceschedule" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -15016,7 +15027,7 @@ wire-format specification in the
 </tbody>
 </table>
 <h4 id="sessiontimes"><code>SessionTimes</code><a class="headerlink" href="#sessiontimes" title="Permanent link">&para;</a></h4>
-<p>The trading day's clock, as five wall-clock times. Carried by <code>system.session_schedule</code> and, nested inside <code>ReferenceSchedule</code>, by <code>system.reference</code> -- one shape declared once rather than two declarations that can drift apart. The values are strings because that is what the config file holds and what every consumer renders. Nullable individually because a partial <code>schedule:</code> block is a legal config.</p>
+<p>The trading day's clock, as five wall-clock times. Carried by <code>system.session_schedule</code> and, nested inside <code>ReferenceSchedule</code>, by <code>system.reference</code> -- one shape declared once rather than two declarations that can drift apart. The values are strings because that is what the config file holds and what every consumer renders. Individually nullable at the wire level for structural uniformity, though in practice all five are always populated together: <code>config_loader</code> rejects a <code>schedule:</code> day block that defines some of the five keys but not all.</p>
 <table>
 <thead>
 <tr>
@@ -15065,8 +15076,93 @@ wire-format specification in the
 </tr>
 </tbody>
 </table>
+<h4 id="weeklyschedule"><code>WeeklySchedule</code><a class="headerlink" href="#weeklyschedule" title="Permanent link">&para;</a></h4>
+<p>A fully-resolved weekly session schedule: one <code>SessionTimes</code> per weekday (mon..sun, any of which may be null for CLOSED) plus a separate holidays entry, mirroring <code>edumatcher.engine.config_loader.ScheduleConfig</code>. The <code>weekdays</code>/ <code>weekend</code> shortcuts and per-day overrides in the YAML are already resolved by the time this is built -- every field here is one concrete day, never a shortcut. <code>today</code>/<code>today_is_holiday</code> are a server-computed convenience: the engine already runs the same <code>python-holidays</code> lookup for pm-scheduler, so it resolves "which entry applies right now" once and publishes the answer, rather than making every client (in particular a browser) carry its own holiday calendar just to answer that one question. <code>today</code> is still <code>SessionTimes \| null</code> -- null means CLOSED today, exactly like any other day slot.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Presence</th>
+<th>Rules</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mon</code></td>
+<td><a href="#sessiontimes"><code>SessionTimes</code></a></td>
+<td><code>null</code> when unset</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>tue</code></td>
+<td><a href="#sessiontimes"><code>SessionTimes</code></a></td>
+<td><code>null</code> when unset</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>wed</code></td>
+<td><a href="#sessiontimes"><code>SessionTimes</code></a></td>
+<td><code>null</code> when unset</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>thu</code></td>
+<td><a href="#sessiontimes"><code>SessionTimes</code></a></td>
+<td><code>null</code> when unset</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>fri</code></td>
+<td><a href="#sessiontimes"><code>SessionTimes</code></a></td>
+<td><code>null</code> when unset</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sat</code></td>
+<td><a href="#sessiontimes"><code>SessionTimes</code></a></td>
+<td><code>null</code> when unset</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sun</code></td>
+<td><a href="#sessiontimes"><code>SessionTimes</code></a></td>
+<td><code>null</code> when unset</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>holidays</code></td>
+<td><a href="#sessiontimes"><code>SessionTimes</code></a></td>
+<td><code>null</code> when unset</td>
+<td>—</td>
+<td>Applied instead of the weekday's own entry on a bank holiday. Null means CLOSED on holidays.</td>
+</tr>
+<tr>
+<td><code>today</code></td>
+<td><a href="#sessiontimes"><code>SessionTimes</code></a></td>
+<td><code>null</code> when unset</td>
+<td>—</td>
+<td>The entry actually in effect today (holidays entry if today is a bank holiday, else today's weekday entry). Null means CLOSED today.</td>
+</tr>
+<tr>
+<td><code>today_is_holiday</code></td>
+<td><code>bool</code></td>
+<td>required</td>
+<td>—</td>
+<td>True only when <code>today</code> came from the holidays entry rather than the weekday's own entry.</td>
+</tr>
+</tbody>
+</table>
 <h4 id="referenceschedule"><code>ReferenceSchedule</code><a class="headerlink" href="#referenceschedule" title="Permanent link">&para;</a></h4>
-<p>The venue's calendar configuration: whether sessions run at all, which country's holidays they observe, and the clock itself. <code>schedule</code> is nested rather than flattened beside its two siblings, which is a change to <code>GET /reference/schedule</code>. The alternative was declaring <code>SessionTimes</code>'s five fields a second time inline, and a shape described twice is the drift section 1 is about.</p>
+<p>The venue's calendar configuration: whether sessions run at all, which country's holidays they observe, and the resolved weekly clock. <code>schedule</code> is nested rather than flattened beside its two siblings, which is a change to <code>GET /reference/schedule</code>. The alternative was declaring <code>WeeklySchedule</code>'s fields a second time inline, and a shape described twice is the drift section 1 is about.</p>
 <table>
 <thead>
 <tr>
@@ -15094,7 +15190,7 @@ wire-format specification in the
 </tr>
 <tr>
 <td><code>schedule</code></td>
-<td><a href="#sessiontimes"><code>SessionTimes</code></a></td>
+<td><a href="#weeklyschedule"><code>WeeklySchedule</code></a></td>
 <td><code>null</code> when unset</td>
 <td>—</td>
 <td>Null when the deployment configures no <code>schedule:</code> block. Regime 2 rather than 3: both readers pass the bundle through verbatim to a caller, and a key that is sometimes absent is harder to consume than one that is sometimes null.</td>
@@ -16586,7 +16682,7 @@ wire-format specification in the
 </tr>
 <tr>
 <td><code>schedule</code></td>
-<td><a href="#sessiontimes"><code>SessionTimes</code></a></td>
+<td><a href="#weeklyschedule"><code>WeeklySchedule</code></a></td>
 <td><code>null</code> when unset</td>
 <td>—</td>
 <td>Null when no <code>schedule:</code> block is configured.</td>

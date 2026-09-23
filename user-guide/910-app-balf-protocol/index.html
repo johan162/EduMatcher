@@ -5047,7 +5047,7 @@ order.</p>
 <tr>
 <td><code>0x0B</code></td>
 <td><code>RC_PRICE_COLLAR</code></td>
-<td>Rejected by a price collar (defined, but not currently reachable — see note below)</td>
+<td>Rejected by a price collar</td>
 </tr>
 <tr>
 <td><code>0x0C</code></td>
@@ -5061,17 +5061,6 @@ order.</p>
 </tr>
 </tbody>
 </table>
-<div class="admonition bug">
-<p class="admonition-title"><code>RC_PRICE_COLLAR</code> is currently unreachable</p>
-<p>The gateway classifies a collar rejection by testing for the lowercase
-substring <code>"collar"</code> in the engine's reason string, but the engine's real
-collar-rejection reasons are <code>STATIC_COLLAR_BREACH: ...</code> and
-<code>DYNAMIC_COLLAR_BREACH: ...</code> (uppercase). The match never succeeds, so a
-price-collar rejection is classified as <code>0xFF</code> (<code>RC_OTHER</code>) today, not
-<code>0x0B</code>. This is a source-level bug in the reason classifier, not
-documented-vs-actual drift; noted here so a client author is not misled
-into expecting <code>0x0B</code> for a collar breach.</p>
-</div>
 <div class="admonition warning">
 <p class="admonition-title">Prices must land on the tick grid</p>
 <p>BALF carries prices as <code>i64</code> fixed point at scale 1e8, so a client can

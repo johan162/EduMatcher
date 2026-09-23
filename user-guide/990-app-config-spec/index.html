@@ -2464,10 +2464,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#47-schedulespec-schedule" class="md-nav__link">
+  <a href="#47-weeklyschedulespec-schedule-and-dayschedulespec-one-day-block" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4.7 ScheduleSpec — schedule
+        4.7 WeeklyScheduleSpec — schedule, and DayScheduleSpec — one day block
       
     </span>
   </a>
@@ -2518,6 +2518,17 @@
     <span class="md-ellipsis">
       
         5.3 Engine behaviour flags
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#53a-auction_indicative_interval_sec-and-engine_tuning-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3a auction_indicative_interval_sec and engine_tuning (OPTIONAL)
       
     </span>
   </a>
@@ -4484,8 +4495,8 @@ governs. For worked examples, recipes, and rationale, see
 <p>The schema described here is derived from and MUST match the runtime loaders:
 <code>engine/config_loader.py</code>, <code>alf_gwy/config.py</code>, <code>balf_gwy/config.py</code>,
 <code>ralf_gateway/config.py</code>, <code>md_gateway/config.py</code>, <code>api_gateway/config.py</code>,
-<code>log_srv/config.py</code>, and <code>scheduler/main.py</code> (<code>schedule</code> and <code>country</code> only).
-<code>pm-cverifier</code> is the reference validator.</p>
+<code>dc_gateway/config.py</code>, <code>log_srv/config.py</code>, and <code>scheduler/main.py</code>
+(<code>schedule</code> and <code>country</code> only). <code>pm-cverifier</code> is the reference validator.</p>
 <hr />
 <h2 id="1-conventions">1. Conventions<a class="headerlink" href="#1-conventions" title="Permanent link">&para;</a></h2>
 <h3 id="11-requirement-keywords">1.1 Requirement keywords<a class="headerlink" href="#11-requirement-keywords" title="Permanent link">&para;</a></h3>
@@ -4701,46 +4712,48 @@ This tree is normative for <em>shape</em>; §4–§6 are normative for <em>field
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>enforce_collars:            ? Bool = true
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>enforce_circuit_breakers:   ? Bool = true
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>require_mm_seed_quotes:     ? Bool = true
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>snapshot_interval_sec:      ? Float = 0.5     ∈ &gt; 0
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>mm_obligation_defaults:     ? MMObligationDefaultsSpec
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>risk_controls:              ? RiskControlsSpec
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>circuit_breaker_defaults:   ? CircuitBreakerSpec
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>market_maker_combos:        ? List&lt;ComboSeedSpec&gt;              # each: 2..10 legs
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>indices:                    ? List&lt;IndexSpec&gt;                  # ≤ 5
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>schedule:                   ? ScheduleSpec
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>country:                    ? Country = "Sweden"               # read by pm-scheduler only
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a># ── AUXILIARY GATEWAY BLOCKS (each read by its own process) ─────────────────
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>alf_gateway:                ? AlfGwyProcSpec        # pm-alf-gwy
-<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>balf_gateway:               ? BalfGwyProcSpec       # pm-balf-gwy
-<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>market_data_gateway:        ? MdGwyProcSpec         # pm-md-gwy   (CALF)
-<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>post_trade_gateway:         ? RalfGwyProcSpec       # pm-ralf-gwy (RALF)
-<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>dc_gateway:                 ? DcGwyProcSpec         # pm-dc-gwy   (drop-copy TCP relay)
-<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>api_gateways:               ? Map&lt;Str, ApiGwyProcSpec&gt;   # pm-api-gwy (named instances)
-<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>log_server:                 ? LogSrvProcSpec        # pm-log-srv  (centralized LALF log collector)
-<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>
-<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>SymbolSpec:
-<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>  level:                    ? Str          ∈ key of risk_controls.levels
-<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>  tick_decimals:            ? Int = 2      ∈ 0..8
-<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>  outstanding_shares:       ? Int          ∈ &gt; 0        # REQUIRED for index constituents
-<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>  last_buy_price:           ? Price
-<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>  last_sell_price:          ? Price
-<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a>  market_maker_quotes:      ? List&lt;MMQuoteSeedSpec&gt;
-<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a>  collar:                   ? CollarSpec
-<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a>  order_limits:             ? OrderLimitsSpec            # per-symbol override
-<a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a>  circuit_breaker:          ? CircuitBreakerSpec         # per-symbol override
-<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a>
-<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a>AlfGatewaySpec:                              # one entry of gateways.alf
-<a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a>  id:                       ! GatewayId
-<a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a>  description:              ? Str = ""
-<a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a>  role:                    ? Enum&lt;Role&gt; = TRADER
-<a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a>  disconnect_behaviour:    ? Enum&lt;DisconnectBehaviour&gt; = CANCEL_QUOTES_ONLY
-<a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a>  quote_refresh_policy:    ? Enum&lt;QuoteRefreshPolicy&gt; = INACTIVATE_ON_ANY_FILL
-<a id="__codelineno-0-44" name="__codelineno-0-44" href="#__codelineno-0-44"></a>  enforce_mm_obligation:   ? Bool  = &lt;mm_obligation_defaults.enforce_mm_obligation | false&gt;
-<a id="__codelineno-0-45" name="__codelineno-0-45" href="#__codelineno-0-45"></a>  mm_max_spread_ticks:     ? Ticks = &lt;mm_obligation_defaults.mm_max_spread_ticks | 10&gt;
-<a id="__codelineno-0-46" name="__codelineno-0-46" href="#__codelineno-0-46"></a>  mm_min_qty:              ? Qty   = &lt;mm_obligation_defaults.mm_min_qty | 100&gt;
-<a id="__codelineno-0-47" name="__codelineno-0-47" href="#__codelineno-0-47"></a>  mm_obligations:          ? Map&lt;Symbol, MMObligationSpec&gt;
-<a id="__codelineno-0-48" name="__codelineno-0-48" href="#__codelineno-0-48"></a>  smp_action:              ? Enum&lt;SmpAction&gt; = NONE
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>snapshot_interval_sec:      ? Float = 0.5     ∈ &gt; 0            # overridden by engine_tuning.snapshot_interval_sec, if set
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>auction_indicative_interval_sec: ? Float = 1.0  ∈ &gt; 0
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>engine_tuning:               ? EngineTuningSpec
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>mm_obligation_defaults:     ? MMObligationDefaultsSpec
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>risk_controls:              ? RiskControlsSpec
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>circuit_breaker_defaults:   ? CircuitBreakerSpec
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>market_maker_combos:        ? List&lt;ComboSeedSpec&gt;              # each: 2..10 legs
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>indices:                    ? List&lt;IndexSpec&gt;                  # ≤ 5
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>schedule:                   ? WeeklyScheduleSpec
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>country:                    ? Country = "Sweden"               # read by pm-scheduler for holiday gating; pm-engine reads it only for an outbound wire field
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a># ── AUXILIARY GATEWAY BLOCKS (each read by its own process) ─────────────────
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>alf_gateway:                ? AlfGwyProcSpec        # pm-alf-gwy
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>balf_gateway:               ? BalfGwyProcSpec       # pm-balf-gwy
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>market_data_gateway:        ? MdGwyProcSpec         # pm-md-gwy   (CALF)
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>post_trade_gateway:         ? RalfGwyProcSpec       # pm-ralf-gwy (RALF)
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>dc_gateway:                 ? DcGwyProcSpec         # pm-dc-gwy   (drop-copy TCP relay)
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>api_gateways:               ? Map&lt;Str, ApiGwyProcSpec&gt;   # pm-api-gwy (named instances)
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>log_server:                 ? LogSrvProcSpec        # pm-log-srv  (centralized LALF log collector)
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>SymbolSpec:
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>  level:                    ? Str          ∈ key of risk_controls.levels
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>  tick_decimals:            ? Int = 2      ∈ 0..8
+<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>  outstanding_shares:       ? Int          ∈ &gt; 0        # REQUIRED for index constituents
+<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a>  last_buy_price:           ? Price
+<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a>  last_sell_price:          ? Price
+<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a>  market_maker_quotes:      ? List&lt;MMQuoteSeedSpec&gt;
+<a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a>  collar:                   ? CollarSpec
+<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a>  order_limits:             ? OrderLimitsSpec            # per-symbol override
+<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a>  circuit_breaker:          ? CircuitBreakerSpec         # per-symbol override
+<a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a>
+<a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a>AlfGatewaySpec:                              # one entry of gateways.alf
+<a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a>  id:                       ! GatewayId
+<a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a>  description:              ? Str = ""
+<a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a>  role:                    ? Enum&lt;Role&gt; = TRADER
+<a id="__codelineno-0-44" name="__codelineno-0-44" href="#__codelineno-0-44"></a>  disconnect_behaviour:    ? Enum&lt;DisconnectBehaviour&gt; = CANCEL_QUOTES_ONLY
+<a id="__codelineno-0-45" name="__codelineno-0-45" href="#__codelineno-0-45"></a>  quote_refresh_policy:    ? Enum&lt;QuoteRefreshPolicy&gt; = INACTIVATE_ON_ANY_FILL
+<a id="__codelineno-0-46" name="__codelineno-0-46" href="#__codelineno-0-46"></a>  enforce_mm_obligation:   ? Bool  = &lt;mm_obligation_defaults.enforce_mm_obligation | false&gt;
+<a id="__codelineno-0-47" name="__codelineno-0-47" href="#__codelineno-0-47"></a>  mm_max_spread_ticks:     ? Ticks = &lt;mm_obligation_defaults.mm_max_spread_ticks | 10&gt;
+<a id="__codelineno-0-48" name="__codelineno-0-48" href="#__codelineno-0-48"></a>  mm_min_qty:              ? Qty   = &lt;mm_obligation_defaults.mm_min_qty | 100&gt;
+<a id="__codelineno-0-49" name="__codelineno-0-49" href="#__codelineno-0-49"></a>  mm_obligations:          ? Map&lt;Symbol, MMObligationSpec&gt;
+<a id="__codelineno-0-50" name="__codelineno-0-50" href="#__codelineno-0-50"></a>  smp_action:              ? Enum&lt;SmpAction&gt; = NONE
 </code></pre></div>
 <hr />
 <h2 id="4-domain-sub-structures">4. Domain sub-structures<a class="headerlink" href="#4-domain-sub-structures" title="Permanent link">&para;</a></h2>
@@ -5092,7 +5105,56 @@ entering small and amending up.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="47-schedulespec-schedule">4.7 <code>ScheduleSpec</code> — <code>schedule</code><a class="headerlink" href="#47-schedulespec-schedule" title="Permanent link">&para;</a></h3>
+<h3 id="47-weeklyschedulespec-schedule-and-dayschedulespec-one-day-block">4.7 <code>WeeklyScheduleSpec</code> — <code>schedule</code>, and <code>DayScheduleSpec</code> — one day block<a class="headerlink" href="#47-weeklyschedulespec-schedule-and-dayschedulespec-one-day-block" title="Permanent link">&para;</a></h3>
+<p><code>WeeklyScheduleSpec</code> is a mapping of shortcut and day keys, each an optional
+<code>DayScheduleSpec</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th style="text-align: center;">Req</th>
+<th>Applies to</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>weekdays</code></td>
+<td><code>DayScheduleSpec</code></td>
+<td style="text-align: center;">–</td>
+<td><code>mon</code>..<code>fri</code>, for any not given its own key below</td>
+</tr>
+<tr>
+<td><code>mon</code>, <code>tue</code>, <code>wed</code>, <code>thu</code>, <code>fri</code></td>
+<td><code>DayScheduleSpec</code></td>
+<td style="text-align: center;">–</td>
+<td>one weekday; overrides <code>weekdays</code> for that day</td>
+</tr>
+<tr>
+<td><code>weekend</code></td>
+<td><code>DayScheduleSpec</code></td>
+<td style="text-align: center;">–</td>
+<td><code>sat</code>+<code>sun</code>, for either not given its own key below; ∈ mutually exclusive with <code>sat</code>/<code>sun</code> (CV20)</td>
+</tr>
+<tr>
+<td><code>sat</code>, <code>sun</code></td>
+<td><code>DayScheduleSpec</code></td>
+<td style="text-align: center;">–</td>
+<td>one weekend day; overrides <code>weekend</code> for that day; ∈ mutually exclusive with <code>weekend</code> (CV20)</td>
+</tr>
+<tr>
+<td><code>holidays</code></td>
+<td><code>DayScheduleSpec</code></td>
+<td style="text-align: center;">–</td>
+<td>days the configured <code>country</code> observes as a bank holiday</td>
+</tr>
+</tbody>
+</table>
+<p>A key absent from <code>schedule</code> (and, for <code>mon</code>..<code>sun</code>, not covered by
+<code>weekdays</code>/<code>weekend</code> either) resolves to CLOSED for that day/holiday-set — no
+transitions are sent and the engine never leaves <code>CLOSED</code> on it. No other
+keys are permitted under <code>schedule</code> (CV21).</p>
+<p><code>DayScheduleSpec</code> — the value of any key above:</p>
 <table>
 <thead>
 <tr>
@@ -5106,35 +5168,39 @@ entering small and amending up.</p>
 <tr>
 <td><code>pre_open</code></td>
 <td><code>HHMM</code></td>
-<td style="text-align: center;">–</td>
-<td><code>"09:00"</code></td>
+<td style="text-align: center;">✔, if the block is present</td>
+<td>—</td>
 </tr>
 <tr>
 <td><code>opening_auction_start</code></td>
 <td><code>HHMM</code></td>
-<td style="text-align: center;">–</td>
-<td><code>"09:25"</code></td>
+<td style="text-align: center;">✔, if the block is present</td>
+<td>—</td>
 </tr>
 <tr>
 <td><code>continuous_start</code></td>
 <td><code>HHMM</code></td>
-<td style="text-align: center;">–</td>
-<td><code>"09:30"</code></td>
+<td style="text-align: center;">✔, if the block is present</td>
+<td>—</td>
 </tr>
 <tr>
 <td><code>closing_auction_start</code></td>
 <td><code>HHMM</code></td>
-<td style="text-align: center;">–</td>
-<td><code>"16:00"</code></td>
+<td style="text-align: center;">✔, if the block is present</td>
+<td>—</td>
 </tr>
 <tr>
 <td><code>closing_auction_end</code></td>
 <td><code>HHMM</code></td>
-<td style="text-align: center;">–</td>
-<td><code>"16:05"</code></td>
+<td style="text-align: center;">✔, if the block is present</td>
+<td>—</td>
 </tr>
 </tbody>
 </table>
+<p>Unlike every other REQUIRED marking in this document, "required" here is
+conditional on the block appearing at all: a <code>DayScheduleSpec</code> that is
+present but omits any of the five fields MUST be rejected (CV21) — there is
+no per-field default once a block exists.</p>
 <hr />
 <h2 id="5-engine-sections">5. Engine sections<a class="headerlink" href="#5-engine-sections" title="Permanent link">&para;</a></h2>
 <h3 id="51-symbols-required">5.1 <code>symbols</code> (REQUIRED)<a class="headerlink" href="#51-symbols-required" title="Permanent link">&para;</a></h3>
@@ -5211,6 +5277,77 @@ gateway's orders <strong>when the order itself doesn't specify one</strong>:</p>
 is omitted from a <em>present</em> file. (A completely absent config file runs
 unrestricted with sessions disabled — see <a href="../080-session-scheduling/">Auctions &amp; Scheduling</a>.)</p>
 </blockquote>
+<h3 id="53a-auction_indicative_interval_sec-and-engine_tuning-optional">5.3a <code>auction_indicative_interval_sec</code> and <code>engine_tuning</code> (OPTIONAL)<a class="headerlink" href="#53a-auction_indicative_interval_sec-and-engine_tuning-optional" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th style="text-align: center;">Req</th>
+<th>Default</th>
+<th>Constraints</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>auction_indicative_interval_sec</code></td>
+<td><code>Float</code></td>
+<td style="text-align: center;">–</td>
+<td><code>1.0</code></td>
+<td><code>&gt; 0</code>; throttle for indicative-uncross republishing during auction call phases</td>
+</tr>
+</tbody>
+</table>
+<p><code>engine_tuning</code> (<code>EngineTuningSpec</code>) groups low-level runtime tuning knobs not
+expected to need adjustment in normal use:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th style="text-align: center;">Req</th>
+<th>Default</th>
+<th>Constraints</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>snapshot_interval_sec</code></td>
+<td><code>Float</code></td>
+<td style="text-align: center;">–</td>
+<td><code>0.5</code></td>
+<td><code>&gt; 0</code>; when present, <strong>overrides</strong> the top-level <code>snapshot_interval_sec</code> (§5.3)</td>
+</tr>
+<tr>
+<td><code>quote_history_maxlen</code></td>
+<td><code>Int</code></td>
+<td style="text-align: center;">–</td>
+<td><code>30</code></td>
+<td><code>&gt; 0</code></td>
+</tr>
+<tr>
+<td><code>drop_copy_buffer_size</code></td>
+<td><code>Int</code></td>
+<td style="text-align: center;">–</td>
+<td><code>10000</code></td>
+<td><code>&gt; 0</code></td>
+</tr>
+<tr>
+<td><code>recent_trades_maxlen</code></td>
+<td><code>Int</code></td>
+<td style="text-align: center;">–</td>
+<td><code>20</code></td>
+<td><code>&gt; 0</code></td>
+</tr>
+<tr>
+<td><code>depth_snapshot_tolerance_ticks</code></td>
+<td><code>Int</code></td>
+<td style="text-align: center;">–</td>
+<td><code>100</code></td>
+<td><code>&gt; 0</code></td>
+</tr>
+</tbody>
+</table>
 <h3 id="54-mm_obligation_defaults-optional-mmobligationdefaultsspec">5.4 <code>mm_obligation_defaults</code> (OPTIONAL) — <code>MMObligationDefaultsSpec</code><a class="headerlink" href="#54-mm_obligation_defaults-optional-mmobligationdefaultsspec" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -5437,8 +5574,12 @@ which need not share a tick size.</p>
 <h3 id="58-indices-optional">5.8 <code>indices</code> (OPTIONAL)<a class="headerlink" href="#58-indices-optional" title="Permanent link">&para;</a></h3>
 <p><code>List&lt;IndexSpec&gt;</code>, <strong>at most 5</strong> entries — see §4.6.</p>
 <h3 id="59-schedule-optional">5.9 <code>schedule</code> (OPTIONAL)<a class="headerlink" href="#59-schedule-optional" title="Permanent link">&para;</a></h3>
-<p><code>ScheduleSpec</code> — see §4.7. Consumed by <code>pm-engine</code> (when <code>sessions_enabled</code>) and,
-independently, by <code>pm-scheduler</code>.</p>
+<p><code>WeeklyScheduleSpec</code> — see §4.7. Resolved once at load time into a plain
+per-day table (<code>mon</code>..<code>sun</code>, plus <code>holidays</code>) that every consumer reads
+without re-implementing the <code>weekdays</code>/<code>weekend</code> shortcut rules: <code>pm-engine</code>
+(when <code>sessions_enabled</code>, to publish it on <code>system.reference</code> and
+<code>system.session_schedule</code>) and, independently, <code>pm-scheduler</code> (to decide
+which transitions to send today).</p>
 <h3 id="510-country-optional">5.10 <code>country</code> (OPTIONAL)<a class="headerlink" href="#510-country-optional" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -5462,12 +5603,20 @@ independently, by <code>pm-scheduler</code>.</p>
 </table>
 <p><code>country</code> is a top-level key, a sibling of <code>schedule</code> rather than nested under
 it. Unlike every other field in this document, an invalid <code>country</code> value does
-<strong>not</strong> abort loading (contrast §1.4's general rule and CV16 below) — the
-loader logs a warning and substitutes <code>"Sweden"</code>.</p>
-<p>Consumed <strong>only</strong> by <code>pm-scheduler</code> (<code>scheduler/main.py</code>); <code>pm-engine</code> never
-reads this key. <code>pm-scheduler</code> uses it to resolve the bank-holiday calendar
-(via <code>python-holidays</code>) that gates whether the daily <code>schedule</code> (§5.9) runs at
-all on a given calendar day — see
+<strong>not</strong> abort loading (contrast §1.4's general rule and CV16 below). The two
+consumers handle an invalid value differently: <code>engine/config_loader.py</code>
+substitutes <code>"Sweden"</code> silently, with no <code>python-holidays</code> recognition check
+and no log message; <code>pm-scheduler</code> (<code>scheduler/main.py</code>) separately validates
+the value against <code>python-holidays</code>, logs a warning, and substitutes
+<code>"Sweden"</code> if it is unrecognised (CV16).</p>
+<p><code>pm-engine</code> reads this key for two purposes: it derives the ISO alpha-2
+country code reported in outbound reference messages, and it uses the same
+<code>python-holidays</code> lookup <code>pm-scheduler</code> does to resolve the <code>today</code>/
+<code>today_is_holiday</code> convenience fields on <code>system.reference</code> and
+<code>system.session_schedule</code> (§4.7, §5.9) — which of <code>holidays</code> or the
+calendar day's own entry applies right now. <code>pm-scheduler</code> uses <code>country</code>
+for the same bank-holiday lookup to decide which block of the resolved
+<code>schedule</code> (§5.9) — if any — to run today — see
 <a href="../080-session-scheduling/#bank-holidays-and-weekends">Session Scheduling → Bank holidays and weekends</a>.</p>
 <hr />
 <h2 id="6-auxiliary-gateway-blocks">6. Auxiliary gateway blocks<a class="headerlink" href="#6-auxiliary-gateway-blocks" title="Permanent link">&para;</a></h2>
@@ -5532,7 +5681,7 @@ See <a href="../010-configuration/#which-process-reads-what">Configuration → W
 <td><code>Int</code></td>
 <td style="text-align: center;">–</td>
 <td><code>30</code></td>
-<td><code>&gt; 0</code></td>
+<td><code>&gt; 0</code>; <strong>KNOWN BUG</strong> — only <code>30</code> when the <code>alf_gateway:</code> section is present; if the section is omitted entirely, the loader falls back to a dataclass default of <code>3600</code>. See the review notes in <code>docs-design/reviews/config-doc-review.md</code>.</td>
 </tr>
 <tr>
 <td><code>max_connections</code></td>
@@ -5631,7 +5780,7 @@ See <a href="../010-configuration/#which-process-reads-what">Configuration → W
 <td><code>Secs</code></td>
 <td style="text-align: center;">–</td>
 <td><code>30.0</code></td>
-<td><code>&gt; 0</code></td>
+<td><code>&gt; 0</code>; <strong>KNOWN BUG</strong> — only <code>30.0</code> when the <code>balf_gateway:</code> section is present; if the section is omitted entirely, the loader falls back to a dataclass default of <code>300.0</code>. See the review notes in <code>docs-design/reviews/config-doc-review.md</code>.</td>
 </tr>
 <tr>
 <td><code>auth_timeout_sec</code></td>
@@ -5927,6 +6076,20 @@ be rejected.</p>
 <td><code>&gt;= 0</code>. Seconds a terminal order stays in the in-memory cache; <code>0</code> disables eviction</td>
 </tr>
 <tr>
+<td><code>market_data_cache_sec</code></td>
+<td><code>Int</code></td>
+<td style="text-align: center;">–</td>
+<td><code>60</code></td>
+<td><code>&gt;= 0</code>. TTL for cached market-data reads served by this instance</td>
+</tr>
+<tr>
+<td><code>session_timezone</code></td>
+<td><code>Str</code></td>
+<td style="text-align: center;">–</td>
+<td><code>null</code></td>
+<td>IANA timezone name (e.g. <code>"Europe/Stockholm"</code>) used to resolve which trading day a date-only query refers to; overrides the timezone recorded in the stats database. An unrecognised value is rejected.</td>
+</tr>
+<tr>
 <td><code>credentials</code></td>
 <td><code>List&lt;ApiCredentialSpec&gt;</code></td>
 <td style="text-align: center;">–</td>
@@ -6018,7 +6181,7 @@ be rejected.</p>
 <td><code>Port</code></td>
 <td style="text-align: center;">–</td>
 <td><code>5590</code></td>
-<td><code>1..65535</code></td>
+<td><code>&gt; 0</code></td>
 </tr>
 <tr>
 <td><code>heartbeat_interval_sec</code></td>
@@ -6303,7 +6466,7 @@ rejected at load.</p>
 </tr>
 <tr>
 <td>CV16</td>
-<td>(<code>pm-scheduler</code>) An unrecognised <code>country</code> value is the <strong>sole exception</strong> to the "MUST be rejected" rule in this section — the loader substitutes the default (<code>"Sweden"</code>) and logs a warning instead of aborting. <code>pm-scheduler</code> treats a calendar day as non-trading (and sends no <code>schedule</code> transitions) when it is a Saturday, a Sunday, or a <code>country</code> bank holiday.</td>
+<td>(<code>pm-scheduler</code>) An unrecognised <code>country</code> value is the <strong>sole exception</strong> to the "MUST be rejected" rule in this section — the loader substitutes the default (<code>"Sweden"</code>) and logs a warning instead of aborting. <code>pm-scheduler</code> sends no <code>schedule</code> transitions on a calendar day whose resolved entry (§4.7 — a <code>country</code> bank holiday resolves to <code>holidays</code>, otherwise the day's own <code>mon</code>..<code>sun</code> entry) is CLOSED; weekends are not treated specially, only whatever their resolved entry says.</td>
 </tr>
 <tr>
 <td>CV17</td>
@@ -6316,6 +6479,14 @@ rejected at load.</p>
 <tr>
 <td>CV19</td>
 <td><code>symbols.&lt;S&gt;.tick_decimals</code> ∈ 0..8; <code>outstanding_shares</code>, when present, <code>&gt; 0</code>.</td>
+</tr>
+<tr>
+<td>CV20</td>
+<td><code>schedule.weekend</code> and an individual <code>schedule.sat</code>/<code>schedule.sun</code> key MUST NOT both be present.</td>
+</tr>
+<tr>
+<td>CV21</td>
+<td>Every <code>DayScheduleSpec</code> present anywhere under <code>schedule</code> (<code>weekdays</code>, <code>weekend</code>, <code>holidays</code>, or an individual <code>mon</code>..<code>sun</code> key) MUST define all five of <code>pre_open</code>, <code>opening_auction_start</code>, <code>continuous_start</code>, <code>closing_auction_start</code>, <code>closing_auction_end</code>; a partial block is rejected, not filled from a default.</td>
 </tr>
 </tbody>
 </table>

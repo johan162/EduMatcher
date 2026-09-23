@@ -1370,6 +1370,67 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Configuring the schedule">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#typical-exchange-same-hours-monday-friday-closed-on-weekends" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Typical exchange: same hours Monday-Friday, closed on weekends
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#short-friday-a-shared-weekend-schedule-and-a-holiday-half-day" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Short Friday, a shared weekend schedule, and a holiday half-day
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#weekend-only-exchange" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Weekend-only exchange
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#invalid-weekend-and-satsun-combined" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Invalid: weekend and sat/sun combined
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#invalid-an-incomplete-day-block" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Invalid: an incomplete day block
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -4710,7 +4771,7 @@ stdout (the engine's <code>logging</code> output stream, not stderr).</p>
 <h2 id="the-session-scheduler-pm-scheduler">The session scheduler (<code>pm-scheduler</code>)<a class="headerlink" href="#the-session-scheduler-pm-scheduler" title="Permanent link">&para;</a></h2>
 <p>The scheduler is a standalone process that sends <code>session.transition</code>
 messages to the engine at configured wall-clock times over a ZeroMQ PUSH
-socket. It only does so on working days — see
+socket. It only does so on days that resolve to a schedule — see
 <a href="#bank-holidays-and-weekends">Bank holidays and weekends</a> below.</p>
 <h3 id="starting-the-scheduler">Starting the scheduler<a class="headerlink" href="#starting-the-scheduler" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Use times from engine_config.yaml (or built-in defaults); run today's</span>
@@ -4779,21 +4840,113 @@ socket. It only does so on working days — see
 </tbody>
 </table>
 <h3 id="configuring-the-schedule">Configuring the schedule<a class="headerlink" href="#configuring-the-schedule" title="Permanent link">&para;</a></h3>
-<p>Add a <code>schedule</code> section to <code>engine_config.yaml</code>:</p>
+<p>A <code>schedule</code> section resolves to one schedule per day of the week — Monday
+through Sunday — plus an optional override for bank holidays. Each day (or
+the holidays entry) is either a block of all five transition times, or
+unconfigured, which means <strong>CLOSED</strong> that day: no transitions are sent and
+the market never leaves <code>CLOSED</code>.</p>
+<p>Two shortcuts avoid repeating the same five times for every day:</p>
+<ul>
+<li><code>weekdays:</code> — applies to Monday-Friday, for any of the five that isn't
+  individually overridden by a <code>mon:</code>..<code>fri:</code> block.</li>
+<li><code>weekend:</code> — applies to Saturday and Sunday, for either that isn't
+  individually overridden by <code>sat:</code>/<code>sun:</code>. <code>weekend:</code> and <code>sat:</code>/<code>sun:</code> are
+  <strong>mutually exclusive</strong> — specify one or the other, not both.</li>
+</ul>
+<p>Every block that <em>is</em> present — <code>weekdays</code>, <code>weekend</code>, an individual
+<code>mon</code>..<code>sun</code>, or <code>holidays</code> — MUST define all five transition times
+(<code>pre_open</code>, <code>opening_auction_start</code>, <code>continuous_start</code>,
+<code>closing_auction_start</code>, <code>closing_auction_end</code>). There is no per-key
+fallback: a partial block is a config error, not a partially-applied
+schedule.</p>
+<h4 id="typical-exchange-same-hours-monday-friday-closed-on-weekends">Typical exchange: same hours Monday-Friday, closed on weekends<a class="headerlink" href="#typical-exchange-same-hours-monday-friday-closed-on-weekends" title="Permanent link">&para;</a></h4>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">schedule</span><span class="p">:</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">pre_open</span><span class="p">:</span><span class="w"> </span><span class="s">"09:00"</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">opening_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"09:25"</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nt">continuous_start</span><span class="p">:</span><span class="w"> </span><span class="s">"09:30"</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="nt">closing_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"16:00"</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="nt">closing_auction_end</span><span class="p">:</span><span class="w"> </span><span class="s">"16:05"</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">weekdays</span><span class="p">:</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="nt">pre_open</span><span class="p">:</span><span class="w"> </span><span class="s">"09:00"</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="nt">opening_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"09:25"</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span><span class="nt">continuous_start</span><span class="p">:</span><span class="w"> </span><span class="s">"09:30"</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">    </span><span class="nt">closing_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"16:00"</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">    </span><span class="nt">closing_auction_end</span><span class="p">:</span><span class="w"> </span><span class="s">"16:05"</span>
 </code></pre></div>
-<p>Times are <code>HH:MM</code> in local time.</p>
-<p>The schedule only runs on working days for the configured <code>country</code> — a
-sibling top-level key, not nested under <code>schedule:</code>. See
-<a href="#bank-holidays-and-weekends">Bank holidays and weekends</a> below.</p>
+<p>Saturday, Sunday and bank holidays are all unconfigured here, so they default
+to CLOSED.</p>
+<h4 id="short-friday-a-shared-weekend-schedule-and-a-holiday-half-day">Short Friday, a shared weekend schedule, and a holiday half-day<a class="headerlink" href="#short-friday-a-shared-weekend-schedule-and-a-holiday-half-day" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nt">schedule</span><span class="p">:</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">weekdays</span><span class="p">:</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">    </span><span class="nt">pre_open</span><span class="p">:</span><span class="w"> </span><span class="s">"09:00"</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">    </span><span class="nt">opening_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"09:25"</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">    </span><span class="nt">continuous_start</span><span class="p">:</span><span class="w"> </span><span class="s">"09:30"</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">    </span><span class="nt">closing_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"16:00"</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">    </span><span class="nt">closing_auction_end</span><span class="p">:</span><span class="w"> </span><span class="s">"16:05"</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">  </span><span class="nt">fri</span><span class="p">:</span><span class="w">                       </span><span class="c1"># overrides weekdays: for Friday only</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">    </span><span class="nt">pre_open</span><span class="p">:</span><span class="w"> </span><span class="s">"09:00"</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">    </span><span class="nt">opening_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"09:25"</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">    </span><span class="nt">continuous_start</span><span class="p">:</span><span class="w"> </span><span class="s">"09:30"</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="w">    </span><span class="nt">closing_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"13:00"</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="w">    </span><span class="nt">closing_auction_end</span><span class="p">:</span><span class="w"> </span><span class="s">"13:05"</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="w">  </span><span class="nt">weekend</span><span class="p">:</span><span class="w">                   </span><span class="c1"># same hours for both Saturday and Sunday</span>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="w">    </span><span class="nt">pre_open</span><span class="p">:</span><span class="w"> </span><span class="s">"10:00"</span>
+<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="w">    </span><span class="nt">opening_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"10:25"</span>
+<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a><span class="w">    </span><span class="nt">continuous_start</span><span class="p">:</span><span class="w"> </span><span class="s">"10:30"</span>
+<a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a><span class="w">    </span><span class="nt">closing_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"14:00"</span>
+<a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a><span class="w">    </span><span class="nt">closing_auction_end</span><span class="p">:</span><span class="w"> </span><span class="s">"14:05"</span>
+<a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a><span class="w">  </span><span class="nt">holidays</span><span class="p">:</span><span class="w">                  </span><span class="c1"># bank holidays get a reduced session too</span>
+<a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a><span class="w">    </span><span class="nt">pre_open</span><span class="p">:</span><span class="w"> </span><span class="s">"10:00"</span>
+<a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a><span class="w">    </span><span class="nt">opening_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"10:25"</span>
+<a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a><span class="w">    </span><span class="nt">continuous_start</span><span class="p">:</span><span class="w"> </span><span class="s">"10:30"</span>
+<a id="__codelineno-5-24" name="__codelineno-5-24" href="#__codelineno-5-24"></a><span class="w">    </span><span class="nt">closing_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"13:00"</span>
+<a id="__codelineno-5-25" name="__codelineno-5-25" href="#__codelineno-5-25"></a><span class="w">    </span><span class="nt">closing_auction_end</span><span class="p">:</span><span class="w"> </span><span class="s">"13:05"</span>
+</code></pre></div>
+<p>An individually-specified day always wins over <code>weekdays</code>/<code>weekend</code> for that
+day: <code>fri:</code> here overrides the <code>weekdays:</code> hours for Friday only, while
+Monday through Thursday still run on the <code>weekdays:</code> block.</p>
+<h4 id="weekend-only-exchange">Weekend-only exchange<a class="headerlink" href="#weekend-only-exchange" title="Permanent link">&para;</a></h4>
+<p>A schedule doesn't have to run Monday-Friday at all. Omitting <code>weekdays</code> (and
+every individual <code>mon</code>..<code>fri</code> key) leaves those five days CLOSED:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">schedule</span><span class="p">:</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">weekend</span><span class="p">:</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span><span class="nt">pre_open</span><span class="p">:</span><span class="w"> </span><span class="s">"10:00"</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span><span class="nt">opening_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"10:25"</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">    </span><span class="nt">continuous_start</span><span class="p">:</span><span class="w"> </span><span class="s">"10:30"</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">    </span><span class="nt">closing_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"14:00"</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">    </span><span class="nt">closing_auction_end</span><span class="p">:</span><span class="w"> </span><span class="s">"14:05"</span>
+</code></pre></div>
+<h4 id="invalid-weekend-and-satsun-combined">Invalid: <code>weekend</code> and <code>sat</code>/<code>sun</code> combined<a class="headerlink" href="#invalid-weekend-and-satsun-combined" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nt">schedule</span><span class="p">:</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">weekend</span><span class="p">:</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">    </span><span class="nt">pre_open</span><span class="p">:</span><span class="w"> </span><span class="s">"10:00"</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">    </span><span class="nt">opening_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"10:25"</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">    </span><span class="nt">continuous_start</span><span class="p">:</span><span class="w"> </span><span class="s">"10:30"</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">    </span><span class="nt">closing_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"14:00"</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">    </span><span class="nt">closing_auction_end</span><span class="p">:</span><span class="w"> </span><span class="s">"14:05"</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">  </span><span class="nt">sat</span><span class="p">:</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="w">    </span><span class="nt">pre_open</span><span class="p">:</span><span class="w"> </span><span class="s">"11:00"</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="w">    </span><span class="nt">opening_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"11:25"</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="w">    </span><span class="nt">continuous_start</span><span class="p">:</span><span class="w"> </span><span class="s">"11:30"</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="w">    </span><span class="nt">closing_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"13:00"</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="w">    </span><span class="nt">closing_auction_end</span><span class="p">:</span><span class="w"> </span><span class="s">"13:05"</span>
+</code></pre></div>
+<p>Rejected at load: <code>weekend</code> and an individual <code>sat</code>/<code>sun</code> key say two
+different things about the same day, so the config MUST pick one.</p>
+<h4 id="invalid-an-incomplete-day-block">Invalid: an incomplete day block<a class="headerlink" href="#invalid-an-incomplete-day-block" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nt">schedule</span><span class="p">:</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">weekdays</span><span class="p">:</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">    </span><span class="nt">pre_open</span><span class="p">:</span><span class="w"> </span><span class="s">"09:00"</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">    </span><span class="nt">opening_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"09:25"</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">    </span><span class="nt">continuous_start</span><span class="p">:</span><span class="w"> </span><span class="s">"09:30"</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">    </span><span class="nt">closing_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"16:00"</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">    </span><span class="c1"># closing_auction_end missing</span>
+</code></pre></div>
+<p>Rejected at load: <code>weekdays</code> is present but doesn't define all five
+transition times.</p>
+<p>Times are <code>HH:MM</code> in local time. Any day left with no resolved schedule —
+not covered by <code>weekdays</code>/<code>weekend</code> and not individually specified —
+defaults to <strong>CLOSED</strong>, exactly like an omitted <code>holidays:</code> block. See
+<a href="#bank-holidays-and-weekends">Bank holidays and weekends</a> below for how the
+<code>holidays:</code> entry and the <code>country</code> key interact.</p>
 <h3 id="session-handling-toggle">Session handling toggle<a class="headerlink" href="#session-handling-toggle" title="Permanent link">&para;</a></h3>
 <p>Session gating in the engine is controlled by <code>sessions_enabled</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nt">sessions_enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">sessions_enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </code></pre></div>
 <ul>
 <li><code>true</code> (the default when a config file is present but omits the field):
@@ -4814,12 +4967,18 @@ file. See <a href="../010-configuration/#sessions_enabled">Configuration → <co
 for the full scenario table.</p>
 </div>
 <h3 id="bank-holidays-and-weekends">Bank holidays and weekends<a class="headerlink" href="#bank-holidays-and-weekends" title="Permanent link">&para;</a></h3>
-<p><code>pm-scheduler</code> only drives the daily schedule on <strong>working days</strong>. Before
-running (or repeating, under <code>--daily</code>) today's timeline, it checks whether
-today is a weekend (Saturday/Sunday) or a bank holiday for a configured
-<code>country</code>, using the <a href="https://pypi.org/project/holidays/"><code>python-holidays</code></a>
-package:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">country</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Sweden</span>
+<p>Which block of the resolved weekly table applies to a given calendar day is
+decided in two steps, using the
+<a href="https://pypi.org/project/holidays/"><code>python-holidays</code></a> package:</p>
+<ol>
+<li>If the day is a bank holiday for the configured <code>country</code>, the
+   <code>holidays:</code> entry applies — or CLOSED, if no <code>holidays:</code> block is
+   configured.</li>
+<li>Otherwise, the day's own entry from the weekly table applies (<code>mon</code>..<code>sun</code>,
+   already resolved from <code>weekdays</code>/<code>weekend</code>/individual overrides as
+   described above) — or CLOSED, if that day has no resolved entry.</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">country</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Sweden</span>
 </code></pre></div>
 <ul>
 <li><code>country</code> accepts either a country name (<code>"Sweden"</code>) or an ISO 3166-1
@@ -4829,15 +4988,17 @@ package:</p>
   under <a href="#the-trading-date">The trading date</a>.</li>
 <li>If omitted, or if the value is not a country <code>python-holidays</code> recognizes,
   it <strong>falls back to <code>"Sweden"</code></strong> and logs a warning.</li>
-<li>Weekends are always treated as non-working days, regardless of what the
-  holiday calendar itself lists.</li>
+<li>Weekends are no longer forced CLOSED — a <code>weekend:</code> or <code>sat:</code>/<code>sun:</code> block
+  gives Saturday and/or Sunday their own schedule, the same as any weekday.
+  Only a day with no resolved entry at all (weekday, weekend day, or holiday)
+  is CLOSED.</li>
 </ul>
-<p>Behavior on a non-working day depends on the run mode:</p>
+<p>Behavior when today resolves to CLOSED depends on the run mode:</p>
 <table>
 <thead>
 <tr>
 <th>Mode</th>
-<th>Behavior on a non-working day</th>
+<th>Behavior on a CLOSED day</th>
 </tr>
 </thead>
 <tbody>
@@ -4847,27 +5008,28 @@ package:</p>
 </tr>
 <tr>
 <td><code>--daily</code></td>
-<td>Skips today, then sleeps through to the <strong>next working day</strong> (not just the next calendar day) before running the schedule again.</td>
+<td>Skips today, then sleeps through to the <strong>next day that resolves to a schedule</strong> (not just the next calendar day) before running the schedule again.</td>
 </tr>
 <tr>
 <td><code>--now</code></td>
-<td>Unaffected — <code>--now</code> ignores wall-clock scheduling (and therefore the working-day check) entirely, since it's intended for testing/demos.</td>
+<td>Unaffected — <code>--now</code> ignores wall-clock scheduling (and therefore schedule resolution) entirely, since it's intended for testing/demos.</td>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Germany's holiday calendar instead of the default (Sweden)</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nt">country</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DE</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Germany's holiday calendar instead of the default (Sweden)</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="nt">country</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DE</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>2026-12-25 is not a working day for Sweden (weekend or bank holiday); skipping today's schedule
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>2026-12-25 is CLOSED today (bank holiday in Sweden); skipping today's schedule
 </code></pre></div>
 <p>(shown with <code>-v</code>/<code>--verbose</code>, since it's an <code>INFO</code>-level log line)</p>
 <div class="admonition note">
 <p class="admonition-title">Why this matters for <code>--daily</code></p>
-<p>Before this check existed, a scheduler left running continuously with
-<code>--daily</code> would happily drive <code>CLOSED → PRE_OPEN → … → CLOSED</code> on a
-Sunday or on Christmas Day. With <code>country</code> configured, those days are
-skipped and the engine simply stays <code>CLOSED</code> until the next working day's
-schedule starts.</p>
+<p>Before per-day schedules existed, a scheduler left running continuously
+with <code>--daily</code> would happily drive <code>CLOSED → PRE_OPEN → … → CLOSED</code> on a
+Sunday or on Christmas Day. A day with no resolved schedule — a weekend
+with no <code>weekend:</code>/<code>sat:</code>/<code>sun:</code> block, or a bank holiday with no
+<code>holidays:</code> block — is skipped, and the engine simply stays <code>CLOSED</code>
+until the next day that does resolve to a schedule.</p>
 </div>
 <h3 id="wall-clock-re-checking">Wall-clock re-checking<a class="headerlink" href="#wall-clock-re-checking" title="Permanent link">&para;</a></h3>
 <p>Long waits — whether counting down to a scheduled transition time or sleeping
@@ -4879,7 +5041,8 @@ while the scheduler is waiting is picked up within 30 seconds, rather than
 only being noticed after a long sleep computed under now-stale assumptions
 finally elapses.</p>
 <h3 id="built-in-default-schedule">Built-in default schedule<a class="headerlink" href="#built-in-default-schedule" title="Permanent link">&para;</a></h3>
-<p>If no config file provides a <code>schedule</code> section, <code>pm-scheduler</code> uses:</p>
+<p>If no config file provides a <code>schedule</code> section, <code>pm-scheduler</code> uses these
+times as <code>weekdays:</code> (Saturday, Sunday and bank holidays default to CLOSED):</p>
 <table>
 <thead>
 <tr>
@@ -4915,19 +5078,19 @@ finally elapses.</p>
 default sequence with a short configurable delay between each.  This is
 useful for integration testing and demos where you want to exercise the full
 auction lifecycle in seconds rather than hours.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler<span class="w"> </span>--now<span class="w"> </span>--delay<span class="w"> </span><span class="m">2</span><span class="w"> </span>-v
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler<span class="w"> </span>--now<span class="w"> </span>--delay<span class="w"> </span><span class="m">2</span><span class="w"> </span>-v
 </code></pre></div>
 <p><code>-v</code> is needed to see the transition log below — like every other <code>pm-</code>
 process, <code>pm-scheduler</code> is quiet by default (<code>WARNING</code> and above only); <code>-v</code>
 raises the level to <code>INFO</code>.</p>
 <p>Output:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>2026-07-23 09:30:00,001 INFO edumatcher.scheduler.main - --now mode: sending all transitions with 2.0s delays
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>2026-07-23 09:30:00,001 INFO edumatcher.scheduler.main - -&gt; PRE_OPEN
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>2026-07-23 09:30:02,003 INFO edumatcher.scheduler.main - -&gt; OPENING_AUCTION
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>2026-07-23 09:30:04,005 INFO edumatcher.scheduler.main - -&gt; CONTINUOUS
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>2026-07-23 09:30:06,007 INFO edumatcher.scheduler.main - -&gt; CLOSING_AUCTION
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>2026-07-23 09:30:08,009 INFO edumatcher.scheduler.main - -&gt; CLOSED
-<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>2026-07-23 09:30:08,009 INFO edumatcher.scheduler.main - Done.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>2026-07-23 09:30:00,001 INFO edumatcher.scheduler.main - --now mode: sending all transitions with 2.0s delays
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>2026-07-23 09:30:00,001 INFO edumatcher.scheduler.main - -&gt; PRE_OPEN
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>2026-07-23 09:30:02,003 INFO edumatcher.scheduler.main - -&gt; OPENING_AUCTION
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>2026-07-23 09:30:04,005 INFO edumatcher.scheduler.main - -&gt; CONTINUOUS
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>2026-07-23 09:30:06,007 INFO edumatcher.scheduler.main - -&gt; CLOSING_AUCTION
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>2026-07-23 09:30:08,009 INFO edumatcher.scheduler.main - -&gt; CLOSED
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>2026-07-23 09:30:08,009 INFO edumatcher.scheduler.main - Done.
 </code></pre></div>
 <h2 id="equilibrium-price">Equilibrium price<a class="headerlink" href="#equilibrium-price" title="Permanent link">&para;</a></h2>
 <p>The <strong>equilibrium price</strong> (also called the <strong>auction price</strong> or <strong>uncross
@@ -5148,19 +5311,19 @@ improvement or slippage during the uncross.</p>
 runs <code>pm-admin --id OPS01</code> (a gateway configured with <code>role: ADMIN</code>) — the
 <code>SESSION|STATE=</code> command that advances the session is only available there, not
 in <code>pm-alf-console</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a># Terminal 1 — ADMIN gateway (pm-admin --id OPS01)
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>[OPS01|ADMIN]&gt; SESSION|STATE=OPENING_AUCTION
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>SESSION  PRE_OPEN → OPENING_AUCTION
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a># Terminal 2 — trader submits orders during auction
-<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=ATO
-<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.50|TIF=ATO
-<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>
-<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a># Terminal 1 — trigger the uncross
-<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>[OPS01|ADMIN]&gt; SESSION|STATE=CONTINUOUS
-<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>SESSION  OPENING_AUCTION → CONTINUOUS
-<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a># Engine logs: UNCROSS AAPL: 1 trade(s) @ 149.5, qty=100, surplus=0 (...)
-<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a># and publishes an auction.result.AAPL message with the same fields.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a># Terminal 1 — ADMIN gateway (pm-admin --id OPS01)
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>[OPS01|ADMIN]&gt; SESSION|STATE=OPENING_AUCTION
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>SESSION  PRE_OPEN → OPENING_AUCTION
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a># Terminal 2 — trader submits orders during auction
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=ATO
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.50|TIF=ATO
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a># Terminal 1 — trigger the uncross
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a>[OPS01|ADMIN]&gt; SESSION|STATE=CONTINUOUS
+<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a>SESSION  OPENING_AUCTION → CONTINUOUS
+<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a># Engine logs: UNCROSS AAPL: 1 trade(s) @ 149.5, qty=100, surplus=0 (...)
+<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a># and publishes an auction.result.AAPL message with the same fields.
 </code></pre></div>
 <p>Both ATO orders fill at the equilibrium price.  The <code>TIF=ATO</code> orders are
 expired if they did <em>not</em> fill.</p>
