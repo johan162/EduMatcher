@@ -693,7 +693,7 @@ pdf-training: check-latex-engine  cover-training-guide ## Build the training gui
 
 # If the VERSION have already before been injectyed in the cover-user-guide.html we avoid rebuilding the image
 cover-user-guide:  ## Build the cover images for all User Guide PDF variants (A4 light/dark, B5 light/dark)
-	@if [ -f "$(ASSETS_DIR)/cover-user-guide.html" ] && grep -q "v$(VERSION)" "$(ASSETS_DIR)/cover-user-guide.html"; then \
+	@if [ -f "$(ASSETS_DIR)/cover-user-guide.png" ] && [ -f "$(ASSETS_DIR)/cover-user-guide.html" ] && grep -q "v$(VERSION)" "$(ASSETS_DIR)/cover-user-guide.html"; then \
 		echo -e "$(GREEN)✓ Cover image for user-guide already up-to-date$(NC)"; \
 	else \
 		echo -e "$(DARKYELLOW)- Building cover images for user-guide PDF variants...$(NC)" && \
@@ -703,7 +703,7 @@ cover-user-guide:  ## Build the cover images for all User Guide PDF variants (A4
 	fi
 
 cover-training-guide:  ## Build the cover images for all Training Guide PDF variants (A4 light/dark, B5 light/dark)
-	@if [ -f "$(ASSETS_DIR)/cover-training-guide.html" ] && grep -q "v$(VERSION)" "$(ASSETS_DIR)/cover-training-guide.html"; then \
+	@if [ -f "$(ASSETS_DIR)/cover-training-guide.png" ] && [ -f "$(ASSETS_DIR)/cover-training-guide.html" ] && grep -q "v$(VERSION)" "$(ASSETS_DIR)/cover-training-guide.html"; then \
 		echo -e "$(GREEN)✓ Cover image for training-guide already up-to-date$(NC)"; \
 	else \
 		echo -e "$(DARKYELLOW)- Building cover images for training-guide PDF variants...$(NC)" && \

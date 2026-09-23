@@ -13,6 +13,32 @@ _DEFAULT_CB_LEVELS = {
 }
 _NS_PER_MIN = 60_000_000_000
 
+_WEEKDAY_KEYS = ("mon", "tue", "wed", "thu", "fri")
+_WEEKEND_KEYS = ("sat", "sun")
+
+
+def _summarize_schedule(schedule: dict[str, Any]) -> str:
+    """One-line summary of which days have a schedule, for the risk report.
+
+    Reads the raw (possibly invalid) YAML the same way the rest of this
+    module does -- this is a best-effort summary for a human, not
+    validation, so it tolerates a malformed block rather than erroring (the
+    cverifier checks in layer3_semantic are what actually validates it).
+    """
+    has_weekdays = isinstance(schedule.get("weekdays"), dict)
+    has_weekend = isinstance(schedule.get("weekend"), dict)
+    scheduled_days = sum(
+        1
+        for key in (*_WEEKDAY_KEYS, *_WEEKEND_KEYS)
+        if isinstance(schedule.get(key), dict)
+        or (has_weekdays and key in _WEEKDAY_KEYS)
+        or (has_weekend and key in _WEEKEND_KEYS)
+    )
+    parts = [f"{scheduled_days} of 7 days scheduled"]
+    if isinstance(schedule.get("holidays"), dict):
+        parts.append("holidays overridden")
+    return ", ".join(parts)
+
 
 def build(raw: dict[str, Any]) -> RiskSummary:
     summary = RiskSummary()
@@ -39,10 +65,7 @@ def build(raw: dict[str, Any]) -> RiskSummary:
     summary.sessions_enabled = bool(raw.get("sessions_enabled", False))
     schedule = raw.get("schedule")
     if summary.sessions_enabled and isinstance(schedule, dict):
-        pre = schedule.get("pre_open", "?")
-        cont = schedule.get("continuous_start", "?")
-        close = schedule.get("closing_auction_end", "?")
-        summary.schedule_summary = f"pre-open {pre}, continuous {cont}, close {close}"
+        summary.schedule_summary = _summarize_schedule(schedule)
     elif summary.sessions_enabled:
         summary.schedule_summary = "enabled (no schedule)"
     else:

@@ -16,6 +16,7 @@ import {
   writtenMmQuotes,
   type Diagnostic,
   type EngineConfigDraft,
+  type Schedule,
 } from "@edumatcher/schema";
 
 type Rule = (draft: EngineConfigDraft) => Diagnostic[];
@@ -248,12 +249,24 @@ const noAdminGateway: Rule = (draft) =>
 
 function scheduleIsDefault(draft: EngineConfigDraft): boolean {
   const s = draft.schedule;
+  const isDefaultBlock = (block: Schedule | undefined): boolean =>
+    !!block &&
+    block.preOpen === "09:00" &&
+    block.openingAuction === "09:25" &&
+    block.continuous === "09:30" &&
+    block.closingAuction === "16:00" &&
+    block.closingEnd === "16:05";
   return (
-    s.preOpen === "09:00" &&
-    s.openingAuction === "09:25" &&
-    s.continuous === "09:30" &&
-    s.closingAuction === "16:00" &&
-    s.closingEnd === "16:05"
+    isDefaultBlock(s.weekdays) &&
+    !s.mon &&
+    !s.tue &&
+    !s.wed &&
+    !s.thu &&
+    !s.fri &&
+    !s.sat &&
+    !s.sun &&
+    !s.weekend &&
+    !s.holidays
   );
 }
 
@@ -533,51 +546,93 @@ const logServerNotifyVsLease: Rule = (draft) => {
   ];
 };
 
-/** cli.py: _validate_schedule_order (fatal in CLI). */
+const SCHEDULE_BLOCK_KEYS = [
+  "weekdays",
+  "mon",
+  "tue",
+  "wed",
+  "thu",
+  "fri",
+  "sat",
+  "sun",
+  "weekend",
+  "holidays",
+] as const;
+
+/**
+ * cli.py: _validate_schedule_order (fatal in CLI), and layer3_semantic.py's
+ * M006/M021 -- run once per present block now that each
+ * weekdays/day/weekend/holidays block is independently a full day's
+ * timeline, not once against one flat dict. Completeness (M024) has no
+ * equivalent here: a `Schedule` in the draft always carries all five
+ * fields by type, so an incomplete block cannot occur.
+ */
 const scheduleOrder: Rule = (draft) => {
   // pm-scheduler reads a written schedule even with sessions disabled.
   if (!draft.emitSchedule) return [];
+  const out: Diagnostic[] = [];
+  for (const key of SCHEDULE_BLOCK_KEYS) {
+    const block = draft.schedule[key];
+    if (!block) continue;
+    const ordered: Array<[string, string]> = [
+      ["preOpen", block.preOpen],
+      ["openingAuction", block.openingAuction],
+      ["continuous", block.continuous],
+      ["closingAuction", block.closingAuction],
+      ["closingEnd", block.closingEnd],
+    ];
+    const paths = ordered.map(([k]) => `schedule.${key}.${k}`);
+    const invalid = ordered.find(([, v]) => !TIME_RE.test(v));
+    if (invalid) {
+      out.push({
+        id: "schedule-out-of-order",
+        severity: "error",
+        message: `Invalid schedule time '${invalid[1]}' in '${key}'. Expected HH:MM (24-hour).`,
+        fieldPaths: paths,
+        tab: "sessions",
+      });
+      continue;
+    }
+    const minutes = ordered.map(([, v]) => {
+      const [h, m] = v.split(":").map(Number);
+      return h! * 60 + m!;
+    });
+    for (let i = 1; i < minutes.length; i += 1) {
+      if (minutes[i]! <= minutes[i - 1]!) {
+        out.push({
+          id: "schedule-out-of-order",
+          severity: "error",
+          message: `Schedule times in '${key}' must be strictly increasing: pre_open < opening_auction < continuous < closing_auction < closing_end.`,
+          fieldPaths: paths,
+          tab: "sessions",
+        });
+        break;
+      }
+    }
+  }
+  return out;
+};
+
+/**
+ * cverifier M028 / config_loader: 'weekend' and an individual 'sat'/'sun'
+ * are mutually exclusive. The GUI's own Schedule editor never sets sat/sun
+ * individually (it only exposes weekdays/weekend/holidays), so this is only
+ * reachable via an imported file -- but import is tolerant (it does not
+ * reject the file), so this is what actually flags the conflict.
+ */
+const scheduleWeekendConflict: Rule = (draft) => {
   const s = draft.schedule;
-  const ordered: Array<[string, string]> = [
-    ["preOpen", s.preOpen],
-    ["openingAuction", s.openingAuction],
-    ["continuous", s.continuous],
-    ["closingAuction", s.closingAuction],
-    ["closingEnd", s.closingEnd],
+  if (!s.weekend || !(s.sat || s.sun)) return [];
+  return [
+    {
+      id: "schedule-weekend-conflict",
+      severity: "error",
+      message:
+        "'weekend' and 'sat'/'sun' are mutually exclusive -- use one or the other, not both.",
+      fieldPaths: ["schedule.weekend", "schedule.sat", "schedule.sun"],
+      tab: "sessions",
+    },
   ];
-  const paths = ordered.map(([k]) => `schedule.${k}`);
-  for (const [, value] of ordered) {
-    if (!TIME_RE.test(value)) {
-      return [
-        {
-          id: "schedule-out-of-order",
-          severity: "error",
-          message: `Invalid schedule time '${value}'. Expected HH:MM (24-hour).`,
-          fieldPaths: paths,
-          tab: "sessions",
-        },
-      ];
-    }
-  }
-  const minutes = ordered.map(([, v]) => {
-    const [h, m] = v.split(":").map(Number);
-    return h! * 60 + m!;
-  });
-  for (let i = 1; i < minutes.length; i += 1) {
-    if (minutes[i]! <= minutes[i - 1]!) {
-      return [
-        {
-          id: "schedule-out-of-order",
-          severity: "error",
-          message:
-            "Schedule times must be strictly increasing: pre_open < opening_auction < continuous < closing_auction < closing_end.",
-          fieldPaths: paths,
-          tab: "sessions",
-        },
-      ];
-    }
-  }
-  return [];
 };
 
 // -- §8.2 new GUI-only rules ---------------------------------------------------
@@ -1035,6 +1090,7 @@ const RULES: Rule[] = [
   logServerLeaseBounds,
   logServerNotifyVsLease,
   scheduleOrder,
+  scheduleWeekendConflict,
   indexMissingConstituents,
   indexConstituentNotInUniverse,
   outstandingSharesMissingForConstituent,

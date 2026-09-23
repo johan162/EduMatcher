@@ -10,6 +10,7 @@ from edumatcher.config_gen.defaults import (
     DEFAULT_CB_WINDOW_NS,
     DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS,
     DEFAULT_DROP_COPY_BUFFER_SIZE,
+    DEFAULT_HOLIDAYS_SCHEDULE,
     DEFAULT_MM_MIN_QTY,
     DEFAULT_MM_SPREAD_TICKS,
     DEFAULT_QUOTE_HISTORY_MAXLEN,
@@ -17,6 +18,7 @@ from edumatcher.config_gen.defaults import (
     DEFAULT_SCHEDULE,
     DEFAULT_SNAPSHOT_INTERVAL_SEC,
     DEFAULT_TICK_DECIMALS,
+    DEFAULT_WEEKEND_SCHEDULE,
 )
 
 
@@ -992,6 +994,85 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--closing-end",
         default=DEFAULT_SCHEDULE["closing_auction_end"],
+        metavar="HH:MM",
+    )
+
+    parser.add_argument(
+        "--weekend",
+        action="store_true",
+        default=False,
+        help=(
+            "Also emit a weekend: block (Sat+Sun) using the --weekend-* "
+            "times below. Without this flag, weekends are CLOSED."
+        ),
+    )
+    parser.add_argument(
+        "--weekend-pre-open",
+        default=DEFAULT_WEEKEND_SCHEDULE["pre_open"],
+        metavar="HH:MM",
+    )
+    parser.add_argument(
+        "--weekend-opening-auction",
+        default=DEFAULT_WEEKEND_SCHEDULE["opening_auction_start"],
+        metavar="HH:MM",
+    )
+    parser.add_argument(
+        "--weekend-continuous",
+        default=DEFAULT_WEEKEND_SCHEDULE["continuous_start"],
+        metavar="HH:MM",
+    )
+    parser.add_argument(
+        "--weekend-closing-auction",
+        default=DEFAULT_WEEKEND_SCHEDULE["closing_auction_start"],
+        metavar="HH:MM",
+    )
+    parser.add_argument(
+        "--weekend-closing-end",
+        default=DEFAULT_WEEKEND_SCHEDULE["closing_auction_end"],
+        metavar="HH:MM",
+    )
+
+    holidays_group = parser.add_mutually_exclusive_group()
+    holidays_group.add_argument(
+        "--holidays",
+        dest="holidays",
+        action="store_true",
+        default=False,
+        help=(
+            "Also emit a holidays: block using the --holidays-* times "
+            "below. Without this flag, bank holidays are CLOSED."
+        ),
+    )
+    holidays_group.add_argument(
+        "--no-holidays",
+        dest="holidays",
+        action="store_false",
+        default=False,
+        help="Suppress the holidays: block (the default).",
+    )
+    parser.add_argument(
+        "--holidays-pre-open",
+        default=DEFAULT_HOLIDAYS_SCHEDULE["pre_open"],
+        metavar="HH:MM",
+    )
+    parser.add_argument(
+        "--holidays-opening-auction",
+        default=DEFAULT_HOLIDAYS_SCHEDULE["opening_auction_start"],
+        metavar="HH:MM",
+    )
+    parser.add_argument(
+        "--holidays-continuous",
+        default=DEFAULT_HOLIDAYS_SCHEDULE["continuous_start"],
+        metavar="HH:MM",
+    )
+    parser.add_argument(
+        "--holidays-closing-auction",
+        default=DEFAULT_HOLIDAYS_SCHEDULE["closing_auction_start"],
+        metavar="HH:MM",
+    )
+    parser.add_argument(
+        "--holidays-closing-end",
+        default=DEFAULT_HOLIDAYS_SCHEDULE["closing_auction_end"],
         metavar="HH:MM",
     )
 

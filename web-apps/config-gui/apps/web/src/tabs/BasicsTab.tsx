@@ -62,7 +62,7 @@ export function BasicsTab() {
           path="country"
           htmlFor="country"
           help={{
-            text: "Country pm-scheduler uses for its bank-holiday and weekend calendar: the scheduler will not run the daily schedule on a weekend or on that country's bank holidays. Type a country name or ISO code -- suggestions appear after 3 characters.",
+            text: "Country pm-scheduler uses for its bank-holiday calendar and local wall-clock. Weekday, weekend and holiday schedules are each configured independently on the Sessions & Schedule tab and default to CLOSED if not set. Type a country name or ISO code -- suggestions appear after 3 characters.",
             cliFlag: "--country",
             docHref: "../docs/user-guide/080-session-scheduling.md",
           }}

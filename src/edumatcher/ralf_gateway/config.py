@@ -47,6 +47,8 @@ def _load_ralf_gateway_config_from_raw(raw: dict[str, Any]) -> RalfGatewayConfig
     name = str(pg.get("name", "ralf-gwy01"))
     bind_address = resolve_gateway_bind_host(pg.get("bind_address"))
     port = _as_int(pg.get("port", 5580), "port")
+    if port <= 0 or port > 65535:
+        raise ValueError("post_trade_gateway.port must be in 1-65535")
     replay_retention_sec = _as_int(
         pg.get("replay_retention_sec", 86_400), "replay_retention_sec"
     )

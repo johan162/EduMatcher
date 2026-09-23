@@ -36,6 +36,17 @@ _TIME_FIELDS = (
     "closing_auction_end",
 )
 
+# The schedule blocks a `schedule:` section may carry, mirroring
+# edumatcher.engine.config_loader's weekdays/weekend/holidays resolution.
+# Every one of these, when present, is independently a full day's timeline
+# and gets the same four checks (value types / order / completeness / chain)
+# run against it.
+_WEEKDAY_KEYS = ("mon", "tue", "wed", "thu", "fri")
+_WEEKEND_KEYS = ("sat", "sun")
+_DAY_KEYS = _WEEKDAY_KEYS + _WEEKEND_KEYS
+_SCHEDULE_BLOCK_KEYS = ("weekdays", *_DAY_KEYS, "weekend", "holidays")
+_KNOWN_SCHEDULE_KEYS = frozenset(_SCHEDULE_BLOCK_KEYS)
+
 # Schedule field -> the session state it transitions the engine into. Mirrors
 # edumatcher.scheduler.main._load_schedule's mapping, so the chain check below
 # validates the same path the scheduler will actually drive at runtime.
@@ -274,17 +285,74 @@ def _check_sessions_schedule(raw: dict[str, Any], results: list[CheckResult]) ->
             )
         )
 
-    if isinstance(schedule, dict):
+    if not isinstance(schedule, dict):
+        return
+
+    # M027: unknown top-level schedule key. Mirrors the hard ValueError
+    # edumatcher.engine.config_loader raises for the same input.
+    unknown_keys = set(schedule) - _KNOWN_SCHEDULE_KEYS
+    if unknown_keys:
+        results.append(
+            CheckResult(
+                code="M027",
+                severity=Severity.ERROR,
+                message=(
+                    "'schedule' has unknown field(s): "
+                    f"{', '.join(sorted(unknown_keys))}."
+                ),
+                suggestion=(
+                    "Valid schedule keys are: weekdays, mon, tue, wed, thu, fri, "
+                    "sat, sun, weekend, holidays."
+                ),
+                path="schedule",
+            )
+        )
+
+    # M028: 'weekend' and an individual 'sat'/'sun' block are mutually
+    # exclusive. Mirrors the hard ValueError config_loader raises.
+    has_weekend_block = "weekend" in schedule
+    has_individual_weekend_day = any(key in schedule for key in _WEEKEND_KEYS)
+    if has_weekend_block and has_individual_weekend_day:
+        results.append(
+            CheckResult(
+                code="M028",
+                severity=Severity.ERROR,
+                message=(
+                    "'schedule' specifies both 'weekend' and 'sat'/'sun' -- use "
+                    "one or the other, not both."
+                ),
+                suggestion=(
+                    "Remove 'weekend', or remove the individual 'sat'/'sun' "
+                    "block(s)."
+                ),
+                path="schedule",
+            )
+        )
+
+    # Every present block (weekdays, each individual day, weekend, holidays)
+    # is independently a full day's timeline now, so each gets the same four
+    # checks run against it -- not just once against one flat dict.
+    #
+    # Completeness (M024) and the transition-chain check (M025) run
+    # unconditionally, not only when sessions_enabled is true: a specified
+    # block is either a legal DaySchedule or it is a config error, whether or
+    # not anything currently reads it (mirrors config_loader's own
+    # unconditional strictness -- a missing field there is a hard load-time
+    # error regardless of sessions_enabled).
+    for key in _SCHEDULE_BLOCK_KEYS:
+        block = schedule.get(key)
+        if not isinstance(block, dict):
+            continue
+        path_prefix = f"schedule.{key}"
         # M021/M023: values must be quoted "HH:MM" strings, not unquoted
         # times that YAML mis-parses as sexagesimal integers.
-        _check_schedule_value_types(schedule, results)
+        _check_schedule_value_types(block, results, path_prefix)
         # M006: schedule times out of order
-        _check_schedule_order(schedule, results)
-        if sessions_enabled:
-            # M024: schedule must define every phase
-            _check_schedule_completeness(schedule, results)
-            # M025: present phases must form a legal transition chain from CLOSED
-            _check_schedule_chain(schedule, results)
+        _check_schedule_order(block, results, path_prefix)
+        # M024: block must define every phase
+        _check_schedule_completeness(block, results, path_prefix)
+        # M025: present phases must form a legal transition chain from CLOSED
+        _check_schedule_chain(block, results, path_prefix)
 
 
 # ---------------------------------------------------------------------------
@@ -343,7 +411,9 @@ def _parse_hhmm(t: Any) -> int | None:
     return None
 
 
-def _check_schedule_order(schedule: dict[str, Any], results: list[CheckResult]) -> None:
+def _check_schedule_order(
+    schedule: dict[str, Any], results: list[CheckResult], path_prefix: str = "schedule"
+) -> None:
     times = []
     for field in _TIME_FIELDS:
         val = schedule.get(field)
@@ -360,20 +430,22 @@ def _check_schedule_order(schedule: dict[str, Any], results: list[CheckResult]) 
                     code="M006",
                     severity=Severity.WARN,
                     message=(
-                        f"Schedule times are out of order: "
+                        f"Schedule times are out of order in '{path_prefix}': "
                         f"{name_a}={v_a} >= {name_b}={v_b}."
                     ),
                     suggestion=(
                         "Expected order: pre_open < opening_auction_start < "
                         "continuous_start < closing_auction_start < closing_auction_end."
                     ),
-                    path="schedule",
+                    path=path_prefix,
                 )
             )
 
 
 def _check_schedule_value_types(
-    schedule: dict[str, Any], results: list[CheckResult]
+    schedule: dict[str, Any],
+    results: list[CheckResult],
+    path_prefix: str = "schedule",
 ) -> None:
     """Flag schedule time values that are not valid quoted ``"HH:MM"`` strings.
 
@@ -395,13 +467,13 @@ def _check_schedule_value_types(
                         code="M023",
                         severity=Severity.ERROR,
                         message=(
-                            f"'schedule.{field}' value '{val}' is not a valid "
+                            f"'{path_prefix}.{field}' value '{val}' is not a valid "
                             '24-hour "HH:MM" time.'
                         ),
                         suggestion=(
                             f"Use a zero-padded 24-hour time, e.g. {field}: '09:30'."
                         ),
-                        path=f"schedule.{field}",
+                        path=f"{path_prefix}.{field}",
                     )
                 )
             continue
@@ -411,13 +483,14 @@ def _check_schedule_value_types(
                 f"Quote the value, e.g. {field}: '{val // 60:02d}:{val % 60:02d}'."
             )
             detail = (
-                f"'schedule.{field}' is {val!r} — an unquoted time that YAML parsed "
-                "as a base-60 integer (sexagesimal) instead of a string."
+                f"'{path_prefix}.{field}' is {val!r} — an unquoted time that YAML "
+                "parsed as a base-60 integer (sexagesimal) instead of a string."
             )
         else:
             suggestion = f"Set {field} to a quoted 24-hour time, e.g. '09:30'."
             detail = (
-                f"'schedule.{field}' must be a quoted \"HH:MM\" string. Got {val!r}."
+                f"'{path_prefix}.{field}' must be a quoted \"HH:MM\" string. "
+                f"Got {val!r}."
             )
 
         results.append(
@@ -426,19 +499,25 @@ def _check_schedule_value_types(
                 severity=Severity.ERROR,
                 message=detail,
                 suggestion=suggestion,
-                path=f"schedule.{field}",
+                path=f"{path_prefix}.{field}",
             )
         )
 
 
 def _check_schedule_completeness(
-    schedule: dict[str, Any], results: list[CheckResult]
+    schedule: dict[str, Any],
+    results: list[CheckResult],
+    path_prefix: str = "schedule",
 ) -> None:
-    """M024: sessions_enabled requires all five schedule phases to be set.
+    """M024: every present schedule block must define all five phases.
 
-    A partial schedule sends the engine an out-of-sequence transition (e.g.
-    ``CONTINUOUS`` first), which it rejects since session transitions are
-    sequential and dependent.
+    A block that defines some phases and not others would send the engine
+    an out-of-sequence transition (e.g. ``CONTINUOUS`` first) once it
+    reaches the missing one, and ``edumatcher.engine.config_loader`` refuses
+    to load a config with such a block at all -- unconditionally, not only
+    when ``sessions_enabled`` is true, since a schedule block is either a
+    legal DaySchedule or a config error regardless of whether anything
+    currently reads it.
     """
     missing = [f for f in _TIME_FIELDS if schedule.get(f) is None]
     if missing:
@@ -447,27 +526,29 @@ def _check_schedule_completeness(
                 code="M024",
                 severity=Severity.ERROR,
                 message=(
-                    "sessions_enabled is true but 'schedule' is missing: "
-                    f"{', '.join(missing)}. Engine session transitions are "
-                    "sequential, so a partial schedule will be rejected at "
-                    "runtime once it reaches the missing phase."
+                    f"'{path_prefix}' is missing required field(s): "
+                    f"{', '.join(missing)}. All five transition times are "
+                    "required on any schedule block that is present at all."
                 ),
-                suggestion=(
-                    "Add the missing schedule field(s), or set "
-                    "sessions_enabled: false if partial scheduling is intended."
-                ),
-                path="schedule",
+                suggestion=f"Add the missing field(s) to '{path_prefix}'.",
+                path=path_prefix,
             )
         )
 
 
-def _check_schedule_chain(schedule: dict[str, Any], results: list[CheckResult]) -> None:
+def _check_schedule_chain(
+    schedule: dict[str, Any],
+    results: list[CheckResult],
+    path_prefix: str = "schedule",
+) -> None:
     """M025: present schedule phases must form a legal path through
     ``VALID_TRANSITIONS``, starting from the engine's boot state (CLOSED).
 
-    Mirrors ``edumatcher.scheduler.main._validate_schedule`` so a schedule
-    that would desync the engine is caught statically, not just at scheduler
-    runtime.
+    Mirrors ``edumatcher.scheduler.main._validate_schedule`` (run there
+    against every distinct resolved DaySchedule) so a block that would
+    desync the engine is caught statically, not just at scheduler runtime.
+    Runs unconditionally, like that runtime check -- pm-scheduler validates
+    every configured day's chain at startup regardless of ``sessions_enabled``.
     """
     prev_state = SessionState.CLOSED
     for field in _TIME_FIELDS:
@@ -485,17 +566,17 @@ def _check_schedule_chain(schedule: dict[str, Any], results: list[CheckResult]) 
                     severity=Severity.ERROR,
                     message=(
                         f"Schedule transition {prev_state.value} -> {state.value} "
-                        f"(schedule.{field}) is not a legal transition. The engine "
-                        "will reject it and remain in its current state."
+                        f"({path_prefix}.{field}) is not a legal transition. The "
+                        "engine will reject it and remain in its current state."
                     ),
                     suggestion=(
                         "A schedule must be a valid path through the session "
                         "lifecycle starting from CLOSED: CLOSED -> PRE_OPEN -> "
                         "OPENING_AUCTION -> CONTINUOUS -> CLOSING_AUCTION -> "
                         f"CLOSED. Add the missing intermediate phase, or remove "
-                        f"schedule.{field}."
+                        f"{path_prefix}.{field}."
                     ),
-                    path=f"schedule.{field}",
+                    path=f"{path_prefix}.{field}",
                 )
             )
         prev_state = state

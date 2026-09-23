@@ -91,7 +91,7 @@ def classify_engine_reason(reason: str) -> int:
         return RC_TRAILING_STOP_NO_PRICE
     if reason == "Insufficient liquidity":
         return RC_INSUFFICIENT_LIQUIDITY
-    if "collar" in reason:
+    if "COLLAR_BREACH" in reason:
         return RC_PRICE_COLLAR
     return RC_OTHER
 

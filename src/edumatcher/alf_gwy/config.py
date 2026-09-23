@@ -29,7 +29,7 @@ class AlfGatewayConfig:
     drop_copy_pub_addr: str = DROP_COPY_PUB_ADDR
     heartbeat_interval_sec: int = 5
     handshake_timeout_sec: int = 10
-    idle_timeout_sec: int = 3600
+    idle_timeout_sec: int = 30
     max_connections: int = 64
     max_client_queue: int = 10_000
     max_commands_per_second: int = 100
@@ -93,6 +93,8 @@ def _load_alf_gateway_config_from_raw(raw: dict[str, Any]) -> AlfGatewayConfig:
     name = str(section.get("name", "alf-gwy01"))
     bind_address = resolve_gateway_bind_host(section.get("bind_address"))
     port = _as_int(section.get("port", 5565), "port")
+    if port <= 0 or port > 65535:
+        raise ValueError("alf_gateway.port must be in 1-65535")
     heartbeat_interval_sec = _as_int(
         section.get("heartbeat_interval_sec", 5), "heartbeat_interval_sec"
     )

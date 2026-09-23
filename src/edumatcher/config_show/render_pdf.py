@@ -309,17 +309,21 @@ def _page_overview(view: ConfigView) -> list[Any]:
         )
     )
 
-    if view.schedule.phases:
+    if view.schedule.groups:
         flow.append(Paragraph("Session schedule", H2))
-        phases = view.schedule.phases
-        flow.append(
-            _table(
-                [[label for label, _ in phases], [hhmm for _, hhmm in phases]],
-                [CONTENT_WIDTH / len(phases)] * len(phases),
-                zebra_from=2,
-                mono_columns=tuple(range(len(phases))),
+        for day_label, day in view.schedule.groups:
+            phases = day.phases
+            if not phases:
+                continue
+            flow.append(Paragraph(f"<b>{day_label}</b>", BODY))
+            flow.append(
+                _table(
+                    [[label for label, _ in phases], [hhmm for _, hhmm in phases]],
+                    [CONTENT_WIDTH / len(phases)] * len(phases),
+                    zebra_from=2,
+                    mono_columns=tuple(range(len(phases))),
+                )
             )
-        )
     return flow
 
 

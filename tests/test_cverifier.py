@@ -1225,11 +1225,12 @@ class TestLayer3Sessions:
             "gateways:\n  alf:\n    - id: GW01\n"
             "sessions_enabled: true\n"
             "schedule:\n"
-            "  pre_open: '09:30'\n"
-            "  opening_auction_start: '09:25'\n"
-            "  continuous_start: '09:30'\n"
-            "  closing_auction_start: '16:00'\n"
-            "  closing_auction_end: '16:05'\n"
+            "  weekdays:\n"
+            "    pre_open: '09:30'\n"
+            "    opening_auction_start: '09:25'\n"
+            "    continuous_start: '09:30'\n"
+            "    closing_auction_start: '16:00'\n"
+            "    closing_auction_end: '16:05'\n"
         )
         results = layer3_semantic.check(raw, Path("x.yaml"))
         assert "M006" in _codes(results)
@@ -1240,11 +1241,12 @@ class TestLayer3Sessions:
             "gateways:\n  alf:\n    - id: GW01\n"
             "sessions_enabled: true\n"
             "schedule:\n"
-            "  pre_open: '09:00'\n"
-            "  opening_auction_start: '09:25'\n"
-            "  continuous_start: '09:30'\n"
-            "  closing_auction_start: '16:00'\n"
-            "  closing_auction_end: '16:05'\n"
+            "  weekdays:\n"
+            "    pre_open: '09:00'\n"
+            "    opening_auction_start: '09:25'\n"
+            "    continuous_start: '09:30'\n"
+            "    closing_auction_start: '16:00'\n"
+            "    closing_auction_end: '16:05'\n"
         )
         results = layer3_semantic.check(raw, Path("x.yaml"))
         assert "M006" not in _codes(results)
@@ -1731,13 +1733,16 @@ class TestRiskSummary:
             "gateways:\n  alf:\n    - id: GW01\n"
             "sessions_enabled: true\n"
             "schedule:\n"
-            "  pre_open: '09:00'\n"
-            "  continuous_start: '09:30'\n"
-            "  closing_auction_end: '16:05'\n"
+            "  weekdays:\n"
+            "    pre_open: '09:00'\n"
+            "    opening_auction_start: '09:25'\n"
+            "    continuous_start: '09:30'\n"
+            "    closing_auction_start: '16:00'\n"
+            "    closing_auction_end: '16:05'\n"
         )
         rs = risk_summary_mod.build(raw)
         assert rs.sessions_enabled is True
-        assert "09:00" in rs.schedule_summary
+        assert "5 of 7 days scheduled" in rs.schedule_summary
 
     def test_collar_description_configured(self) -> None:
         raw = _raw(

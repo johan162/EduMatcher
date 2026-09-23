@@ -15,7 +15,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from edumatcher.engine.config_loader import DEFAULT_COUNTRY, ScheduleConfig
+from edumatcher.engine.config_loader import DaySchedule, DEFAULT_COUNTRY, ScheduleConfig
 from edumatcher.models.message import make_session_state_msg
 from edumatcher.scheduler.main import (
     DEFAULT_SCHEDULE,
@@ -23,6 +23,7 @@ from edumatcher.scheduler.main import (
     _dispatch_transition,
     _run_forever,
     _validate_schedule,
+    _validate_schedule_config,
 )
 
 # ---------------------------------------------------------------------------
@@ -32,7 +33,7 @@ from edumatcher.scheduler.main import (
 
 class TestM1ValidateSchedule:
     def test_default_schedule_is_valid(self) -> None:
-        assert _validate_schedule(DEFAULT_SCHEDULE) == []
+        assert _validate_schedule_config(DEFAULT_SCHEDULE) == []
 
     def test_out_of_order_times_are_rejected(self) -> None:
         schedule = [("09:30", "PRE_OPEN"), ("09:00", "OPENING_AUCTION")]
@@ -53,31 +54,44 @@ class TestM1ValidateSchedule:
 
     @patch("edumatcher.scheduler.main.make_pusher", return_value=MagicMock())
     @patch("edumatcher.scheduler.main.time.sleep")
-    @patch(
-        "edumatcher.scheduler.main._schedule_from_config",
-        return_value=[("09:30", "CONTINUOUS")],
-    )
     @patch("edumatcher.config_artifact.load_compiled_config")
     def test_main_refuses_to_start_on_invalid_schedule(
         self,
         mock_compiled: MagicMock,
-        mock_load: MagicMock,
         mock_sleep: MagicMock,
         mock_pusher: MagicMock,
     ) -> None:
         from edumatcher.scheduler.main import main
 
-        # `main` takes the mocked `_schedule_from_config` branch only when
-        # the compiled config actually has a schedule (`engine.schedule is
-        # not None`); a real deployment's schedule may or may not be set
-        # (e.g. the "basic" example profiles ship with sessions disabled and
-        # schedule=None), so this cannot rely on whatever happens to be
-        # deployed to $EDUMATCHER_DATA_DIR while the suite runs. Without this
-        # mock, a schedule=None deployment sends `main` down the
-        # DEFAULT_SCHEDULE path, `_validate_schedule` finds nothing wrong
-        # with it, `sys.exit` is never called, and the test hangs inside the
-        # real `_run_forever` loop instead of failing.
-        mock_compiled.return_value.engine.schedule = ScheduleConfig()
+        # A DaySchedule always maps onto the fixed PRE_OPEN->...->CLOSED
+        # chain now, so the chain itself can no longer be illegal -- the way
+        # to make _validate_schedule_config reject this schedule is
+        # out-of-order times (M1's other check). Setting it directly on the
+        # compiled config (rather than relying on whatever happens to be
+        # deployed to $EDUMATCHER_DATA_DIR while the suite runs) is what
+        # makes this deterministic: a schedule=None deployment would instead
+        # send `main` down the DEFAULT_SCHEDULE path, which is valid, and
+        # the test would hang inside the real `_run_forever` loop instead of
+        # failing.
+        illegal_day = DaySchedule(
+            pre_open="09:30",
+            opening_auction_start="09:00",  # before pre_open -- out of order
+            continuous_start="09:35",
+            closing_auction_start="16:00",
+            closing_auction_end="16:05",
+        )
+        mock_compiled.return_value.engine.schedule = ScheduleConfig(
+            days={
+                "mon": illegal_day,
+                "tue": None,
+                "wed": None,
+                "thu": None,
+                "fri": None,
+                "sat": None,
+                "sun": None,
+            },
+            holidays=None,
+        )
         mock_compiled.return_value.engine.country = DEFAULT_COUNTRY
 
         with patch("sys.argv", ["pm-scheduler"]):
@@ -96,10 +110,10 @@ class TestM1ValidateSchedule:
 class TestM2DailyRollover:
     def test_seconds_until_next_working_day_is_bounded(self) -> None:
         from datetime import datetime as _datetime
-        from edumatcher.scheduler.main import _next_working_day, _seconds_until_local
+        from edumatcher.scheduler.main import _next_scheduled_day, _seconds_until_local
 
         today = _datetime.now().date()
-        next_day = _next_working_day(today, "Sweden")
+        next_day = _next_scheduled_day(DEFAULT_SCHEDULE, today, "Sweden")
         target_midnight = _datetime.combine(next_day, _datetime.min.time())
         secs = _seconds_until_local(target_midnight)
         # Upper bound allows for a run of a few non-working days (a long
@@ -108,7 +122,7 @@ class TestM2DailyRollover:
         assert 0 < secs <= 8 * 24 * 60 * 60
 
     @patch(
-        "edumatcher.scheduler.main._next_working_day",
+        "edumatcher.scheduler.main._next_scheduled_day",
         return_value=date(2000, 1, 2),
     )
     @patch("edumatcher.scheduler.main._sleep_until_wallclock")

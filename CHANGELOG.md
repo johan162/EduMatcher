@@ -1,3 +1,32 @@
+## [v0.41.0] - 2026-09-23
+
+Release Type: major
+
+### 📋 Summary
+This major release adds explicit per-weekday session schedules and holiday overrides and tightens config defaults and validation across the engine and gateways.
+
+### ⚠️ Breaking Changes
+- Session schedules now use explicit `weekdays`/`weekend` shortcuts and per-day or holiday overrides, and config generation/spec output reflects the canonical schedule form; configs that relied on the older schedule layout need to be updated
+
+### ✨ Additions
+- Added per-weekday session scheduling with `weekdays`/`weekend` shortcuts and holiday overrides
+- Added config-generation and schema support for the updated schedule and gateway defaults
+
+### 🚀 Improvements
+- Improved config validation and diagnostics so runtime defaults, generated config, and schema output stay aligned
+- Improved gateway config consistency across raw-reading, dataclass defaults, and generated output
+
+### 🐛 Bug Fixes
+- Fixed mismatched gateway default values between dataclasses and raw config loading
+- Fixed config generation and GUI output to honor symbol-local tick defaults instead of global defaults
+- Fixed BALF gateway reject classification to match the real engine collar-breach reason
+
+### 📚 Documentation
+- Reviewed and updated the configuration specification and user-guide chapters for session scheduling, gateway config, and current runtime behavior
+
+### 🛠 Internal
+- Expanded config semantic validation and generator coverage for schedule and gateway settings
+
 ## [v0.40.5] - 2026-09-21
 
 Release Type: patch

@@ -139,9 +139,9 @@ async def reference_schedule(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
     bundle = await fetch_reference_bundle(request, session)
-    # `sessions_enabled`, `country` and a nested `schedule` — the five clock
-    # times moved inside the last of those in 6.1e, so that one record could be
-    # declared once and carried by `system.session_schedule` too.
+    # `sessions_enabled`, `country` and a nested `schedule` — the resolved
+    # weekly table moved inside the last of those in 6.1e, so that one record
+    # could be declared once and carried by `system.session_schedule` too.
     schedule = cast(dict[str, Any], bundle["schedule"])
     return {**schedule, "config_version": bundle["config_version"]}
 

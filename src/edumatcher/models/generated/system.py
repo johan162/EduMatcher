@@ -501,8 +501,10 @@ class SessionTimes:
     `system.session_schedule` and, nested inside `ReferenceSchedule`, by
     `system.reference` -- one shape declared once rather than two declarations
     that can drift apart. The values are strings because that is what the config
-    file holds and what every consumer renders. Nullable individually because a
-    partial `schedule:` block is a legal config.
+    file holds and what every consumer renders. Individually nullable at the wire
+    level for structural uniformity, though in practice all five are always
+    populated together: `config_loader` rejects a `schedule:` day block that
+    defines some of the five keys but not all.
     """
 
     pre_open: str | None = None
@@ -588,18 +590,114 @@ class SessionTimes:
 
 
 @dataclass(frozen=True, slots=True)
+class WeeklySchedule:
+    """A fully-resolved weekly session schedule: one `SessionTimes` per weekday
+    (mon..sun, any of which may be null for CLOSED) plus a separate holidays
+    entry, mirroring `edumatcher.engine.config_loader.ScheduleConfig`. The
+    `weekdays`/ `weekend` shortcuts and per-day overrides in the YAML are already
+    resolved by the time this is built -- every field here is one concrete day,
+    never a shortcut. `today`/`today_is_holiday` are a server-computed
+    convenience: the engine already runs the same `python-holidays` lookup for pm-
+    scheduler, so it resolves "which entry applies right now" once and publishes
+    the answer, rather than making every client (in particular a browser) carry
+    its own holiday calendar just to answer that one question. `today` is still
+    `SessionTimes | null` -- null means CLOSED today, exactly like any other day
+    slot.
+    """
+
+    today_is_holiday: bool
+    mon: SessionTimes | None = None
+    tue: SessionTimes | None = None
+    wed: SessionTimes | None = None
+    thu: SessionTimes | None = None
+    fri: SessionTimes | None = None
+    sat: SessionTimes | None = None
+    sun: SessionTimes | None = None
+    holidays: SessionTimes | None = None
+    today: SessionTimes | None = None
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if self.mon is not None:
+            self.mon.validate()
+        if self.tue is not None:
+            self.tue.validate()
+        if self.wed is not None:
+            self.wed.validate()
+        if self.thu is not None:
+            self.thu.validate()
+        if self.fri is not None:
+            self.fri.validate()
+        if self.sat is not None:
+            self.sat.validate()
+        if self.sun is not None:
+            self.sun.validate()
+        if self.holidays is not None:
+            self.holidays.validate()
+        if self.today is not None:
+            self.today.validate()
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "WeeklySchedule":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            mon=None if p.get("mon") is None else SessionTimes.from_dict(p["mon"]),
+            tue=None if p.get("tue") is None else SessionTimes.from_dict(p["tue"]),
+            wed=None if p.get("wed") is None else SessionTimes.from_dict(p["wed"]),
+            thu=None if p.get("thu") is None else SessionTimes.from_dict(p["thu"]),
+            fri=None if p.get("fri") is None else SessionTimes.from_dict(p["fri"]),
+            sat=None if p.get("sat") is None else SessionTimes.from_dict(p["sat"]),
+            sun=None if p.get("sun") is None else SessionTimes.from_dict(p["sun"]),
+            holidays=(
+                None
+                if p.get("holidays") is None
+                else SessionTimes.from_dict(p["holidays"])
+            ),
+            today=(
+                None if p.get("today") is None else SessionTimes.from_dict(p["today"])
+            ),
+            today_is_holiday=bool(p["today_is_holiday"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "mon": None if self.mon is None else self.mon.to_dict(),
+            "tue": None if self.tue is None else self.tue.to_dict(),
+            "wed": None if self.wed is None else self.wed.to_dict(),
+            "thu": None if self.thu is None else self.thu.to_dict(),
+            "fri": None if self.fri is None else self.fri.to_dict(),
+            "sat": None if self.sat is None else self.sat.to_dict(),
+            "sun": None if self.sun is None else self.sun.to_dict(),
+            "holidays": None if self.holidays is None else self.holidays.to_dict(),
+            "today": None if self.today is None else self.today.to_dict(),
+            "today_is_holiday": self.today_is_holiday,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class ReferenceSchedule:
     """The venue's calendar configuration: whether sessions run at all, which
-    country's holidays they observe, and the clock itself. `schedule` is nested
-    rather than flattened beside its two siblings, which is a change to `GET
-    /reference/schedule`. The alternative was declaring `SessionTimes`'s five
+    country's holidays they observe, and the resolved weekly clock. `schedule` is
+    nested rather than flattened beside its two siblings, which is a change to
+    `GET /reference/schedule`. The alternative was declaring `WeeklySchedule`'s
     fields a second time inline, and a shape described twice is the drift section
     1 is about.
     """
 
     sessions_enabled: bool
     country: str | None = None
-    schedule: SessionTimes | None = None
+    schedule: WeeklySchedule | None = None
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -630,7 +728,7 @@ class ReferenceSchedule:
             schedule=(
                 None
                 if p.get("schedule") is None
-                else SessionTimes.from_dict(p["schedule"])
+                else WeeklySchedule.from_dict(p["schedule"])
             ),
         )
 
@@ -4178,7 +4276,7 @@ class SessionSchedule:
 
     gateway_id: str
     sessions_enabled: bool
-    schedule: SessionTimes | None = None
+    schedule: WeeklySchedule | None = None
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -4208,7 +4306,7 @@ class SessionSchedule:
             schedule=(
                 None
                 if p.get("schedule") is None
-                else SessionTimes.from_dict(p["schedule"])
+                else WeeklySchedule.from_dict(p["schedule"])
             ),
         )
 

@@ -47,6 +47,8 @@ def _load_dc_gateway_config_from_raw(raw: dict[str, Any]) -> DcGatewayConfig:
     name = str(section.get("name", "dc-gwy01"))
     bind_address = resolve_gateway_bind_host(section.get("bind_address"))
     port = _as_int(section.get("port", 5590), "port")
+    if port <= 0 or port > 65535:
+        raise ValueError("dc_gateway.port must be in 1-65535")
     heartbeat_interval_sec = _as_int(
         section.get("heartbeat_interval_sec", 5), "heartbeat_interval_sec"
     )

@@ -226,30 +226,21 @@ def build_ports(view: ConfigView, width: int) -> RenderableType:
 MIN_SEGMENT = 10
 
 
-def build_schedule(view: ConfigView, width: int) -> RenderableType:
-    """Equal-width phase segments.
+def _schedule_block(phases: Sequence[tuple[str, str]], inner: int) -> RenderableType:
+    """One day-group's phase bar, or a stacked grid when too narrow to carry
+    a legible label.
 
     A *proportional* time axis is useless here: pre-open, both auctions and
     the close cluster into two or three columns while the continuous session
     eats the rest.  Equal segments show the sequence and the clock times,
     which is what a reader actually needs.
     """
-    phases = view.schedule.phases
-    inner = width - CHROME
-
-    if not phases:
-        return boxed(
-            "SESSION SCHEDULE",
-            Text("no schedule: section — continuous trading only", style=T.S_DEFAULTED),
-            width,
-        )
-
     nseg = max(1, len(phases) - 1)
     if inner < 30 or len(phases) < 2 or (inner - 6) // nseg < MIN_SEGMENT:
         grid = label_grid(0, 0)
         for label, hhmm in phases:
             grid.add_row(Text(hhmm, style=T.S_PORT), Text(label, style=T.S_VALUE))
-        return boxed("SESSION SCHEDULE", grid, width)
+        return grid
 
     seg = (inner - 6) // nseg
 
@@ -280,15 +271,34 @@ def build_schedule(view: ConfigView, width: int) -> RenderableType:
         label = label[: seg - 1]
         blit(names, i * seg + (seg - len(label)) // 2, label)
 
-    return boxed(
-        "SESSION SCHEDULE",
-        Group(
-            Text("".join(times), style=T.S_PORT, no_wrap=True),
-            bar,
-            Text("".join(names), style=T.S_LABEL, no_wrap=True),
-        ),
-        width,
+    return Group(
+        Text("".join(times), style=T.S_PORT, no_wrap=True),
+        bar,
+        Text("".join(names), style=T.S_LABEL, no_wrap=True),
     )
+
+
+def build_schedule(view: ConfigView, width: int) -> RenderableType:
+    """One phase bar per distinct day-schedule group (``view.schedule.groups``
+    already dedupes identical days, e.g. a shared ``weekdays:`` block)."""
+    groups = view.schedule.groups
+    inner = width - CHROME
+
+    if not groups:
+        return boxed(
+            "SESSION SCHEDULE",
+            Text("no schedule: section — continuous trading only", style=T.S_DEFAULTED),
+            width,
+        )
+
+    blocks: list[RenderableType] = []
+    for i, (label, day) in enumerate(groups):
+        if i:
+            blocks.append(Text(""))
+        blocks.append(Text(label, style=T.S_LABEL))
+        blocks.append(_schedule_block(day.phases, inner))
+
+    return boxed("SESSION SCHEDULE", Group(*blocks), width)
 
 
 # ---------------------------------------------------------------------------

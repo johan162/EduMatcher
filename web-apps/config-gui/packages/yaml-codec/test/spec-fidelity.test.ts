@@ -103,9 +103,85 @@ describe("nothing is dropped or invented", () => {
 
   it("keeps a schedule when sessions are disabled (pm-scheduler still reads it)", () => {
     const doc = roundTrip(
-      MINIMAL + "sessions_enabled: false\nschedule:\n  pre_open: '08:00'\n",
+      MINIMAL + "sessions_enabled: false\nschedule:\n  weekdays:\n    pre_open: '08:00'\n",
     );
-    expect(doc.schedule.pre_open).toBe("08:00");
+    expect(doc.schedule.weekdays.pre_open).toBe("08:00");
+  });
+
+  it("round-trips a weekdays-only shortcut byte-for-byte", () => {
+    const doc = roundTrip(
+      MINIMAL +
+        "schedule:\n  weekdays:\n    pre_open: '09:00'\n    opening_auction_start: '09:25'\n    continuous_start: '09:30'\n    closing_auction_start: '16:00'\n    closing_auction_end: '16:05'\n",
+    );
+    expect(doc.schedule).toEqual({
+      weekdays: {
+        pre_open: "09:00",
+        opening_auction_start: "09:25",
+        continuous_start: "09:30",
+        closing_auction_start: "16:00",
+        closing_auction_end: "16:05",
+      },
+    });
+  });
+
+  it("collapses five identical explicit day blocks back to weekdays", () => {
+    const day =
+      "    pre_open: '09:00'\n    opening_auction_start: '09:25'\n    continuous_start: '09:30'\n    closing_auction_start: '16:00'\n    closing_auction_end: '16:05'\n";
+    const doc = roundTrip(
+      MINIMAL +
+        `schedule:\n  mon:\n${day}  tue:\n${day}  wed:\n${day}  thu:\n${day}  fri:\n${day}`,
+    );
+    expect(doc.schedule).toEqual({
+      weekdays: {
+        pre_open: "09:00",
+        opening_auction_start: "09:25",
+        continuous_start: "09:30",
+        closing_auction_start: "16:00",
+        closing_auction_end: "16:05",
+      },
+    });
+  });
+
+  it("keeps days explicit when one of them diverges", () => {
+    const short =
+      "    pre_open: '09:00'\n    opening_auction_start: '09:25'\n    continuous_start: '09:30'\n    closing_auction_start: '16:00'\n    closing_auction_end: '16:05'\n";
+    const fri =
+      "    pre_open: '09:00'\n    opening_auction_start: '09:25'\n    continuous_start: '09:30'\n    closing_auction_start: '13:00'\n    closing_auction_end: '13:05'\n";
+    const doc = roundTrip(
+      MINIMAL +
+        `schedule:\n  mon:\n${short}  tue:\n${short}  wed:\n${short}  thu:\n${short}  fri:\n${fri}`,
+    );
+    expect(doc.schedule).not.toHaveProperty("weekdays");
+    expect(Object.keys(doc.schedule).sort()).toEqual(["fri", "mon", "thu", "tue", "wed"]);
+    expect(doc.schedule.fri.closing_auction_start).toBe("13:00");
+    expect(doc.schedule.mon.closing_auction_start).toBe("16:00");
+  });
+
+  it("collapses identical sat/sun blocks back to weekend", () => {
+    const day =
+      "    pre_open: '10:00'\n    opening_auction_start: '10:25'\n    continuous_start: '10:30'\n    closing_auction_start: '14:00'\n    closing_auction_end: '14:05'\n";
+    const doc = roundTrip(MINIMAL + `schedule:\n  sat:\n${day}  sun:\n${day}`);
+    expect(doc.schedule).toEqual({
+      weekend: {
+        pre_open: "10:00",
+        opening_auction_start: "10:25",
+        continuous_start: "10:30",
+        closing_auction_start: "14:00",
+        closing_auction_end: "14:05",
+      },
+    });
+  });
+
+  it("keeps a holidays block alongside weekdays", () => {
+    const weekdays =
+      "    pre_open: '09:00'\n    opening_auction_start: '09:25'\n    continuous_start: '09:30'\n    closing_auction_start: '16:00'\n    closing_auction_end: '16:05'\n";
+    const holidays =
+      "    pre_open: '10:00'\n    opening_auction_start: '10:25'\n    continuous_start: '10:30'\n    closing_auction_start: '13:00'\n    closing_auction_end: '13:05'\n";
+    const doc = roundTrip(
+      MINIMAL + `schedule:\n  weekdays:\n${weekdays}  holidays:\n${holidays}`,
+    );
+    expect(Object.keys(doc.schedule).sort()).toEqual(["holidays", "weekdays"]);
+    expect(doc.schedule.holidays.closing_auction_start).toBe("13:00");
   });
 
   it("keeps a DEFAULT level that is not the default level as a plain named level", () => {
@@ -218,9 +294,9 @@ describe("case normalisation (spec §1.6)", () => {
 
   it("normalises an unquoted H:MM schedule time the way the loader does", () => {
     const { draft } = parseYamlToDraft(
-      MINIMAL + "schedule:\n  pre_open: 8:00\n",
+      MINIMAL + "schedule:\n  weekdays:\n    pre_open: 8:00\n",
     );
-    expect(draft.schedule.preOpen).toBe("08:00");
+    expect(draft.schedule.weekdays!.preOpen).toBe("08:00");
   });
 });
 

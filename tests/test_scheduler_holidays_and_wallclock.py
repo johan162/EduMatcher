@@ -19,16 +19,40 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from edumatcher.engine.config_loader import DaySchedule, ScheduleConfig
+from edumatcher.engine.schedule_resolve import resolve_day
 from edumatcher.scheduler.main import (
+    DEFAULT_SCHEDULE,
     WALLCLOCK_RECHECK_SEC,
     _fixed_wait,
     _is_supported_country,
-    _is_working_day,
-    _next_working_day,
+    _next_scheduled_day,
     _run_forever,
     _run_scheduled,
     _sleep_until_wallclock,
     _wait_until,
+)
+
+#: A weekdays-only schedule, used wherever a test just needs "some schedule
+#: config" and doesn't care about the exact times.
+_TEST_DAY_SCHEDULE = DaySchedule(
+    pre_open="09:00",
+    opening_auction_start="09:15",
+    continuous_start="09:30",
+    closing_auction_start="16:00",
+    closing_auction_end="16:05",
+)
+_TEST_SCHEDULE_CFG = ScheduleConfig(
+    days={
+        "mon": _TEST_DAY_SCHEDULE,
+        "tue": _TEST_DAY_SCHEDULE,
+        "wed": _TEST_DAY_SCHEDULE,
+        "thu": _TEST_DAY_SCHEDULE,
+        "fri": _TEST_DAY_SCHEDULE,
+        "sat": None,
+        "sun": None,
+    },
+    holidays=None,
 )
 
 # ---------------------------------------------------------------------------
@@ -100,35 +124,41 @@ class TestIsSupportedCountry:
 # ---------------------------------------------------------------------------
 
 
+def _resolves_to_a_schedule(day: date, country: str) -> bool:
+    """A day "works" under the built-in DEFAULT_SCHEDULE (weekdays only,
+    weekends/holidays CLOSED) if it resolves to a non-None entry."""
+    return resolve_day(DEFAULT_SCHEDULE, day, country) is not None
+
+
 class TestIsWorkingDay:
     def test_plain_weekday_is_working(self) -> None:
         # 2024-01-09 is a Tuesday, not a Swedish holiday.
-        assert _is_working_day(date(2024, 1, 9), "Sweden") is True
+        assert _resolves_to_a_schedule(date(2024, 1, 9), "Sweden") is True
 
     def test_saturday_is_not_working(self) -> None:
         # 2024-01-06 is a Saturday (also Epiphany, but weekend alone excludes it).
-        assert _is_working_day(date(2024, 1, 6), "Sweden") is False
+        assert _resolves_to_a_schedule(date(2024, 1, 6), "Sweden") is False
 
     def test_sunday_is_not_working(self) -> None:
-        assert _is_working_day(date(2024, 1, 7), "Sweden") is False
+        assert _resolves_to_a_schedule(date(2024, 1, 7), "Sweden") is False
 
     def test_bank_holiday_on_a_weekday_is_not_working(self) -> None:
         # 2026-01-06 (Epiphany / Trettondedag jul) is a Tuesday in 2026.
         assert date(2026, 1, 6).weekday() < 5
-        assert _is_working_day(date(2026, 1, 6), "Sweden") is False
+        assert _resolves_to_a_schedule(date(2026, 1, 6), "Sweden") is False
 
     def test_christmas_day_is_not_working(self) -> None:
         # 2026-12-25 is a Friday.
         assert date(2026, 12, 25).weekday() < 5
-        assert _is_working_day(date(2026, 12, 25), "Sweden") is False
+        assert _resolves_to_a_schedule(date(2026, 12, 25), "Sweden") is False
 
     def test_holiday_calendar_differs_by_country(self) -> None:
         # July 4th, 2024 (Thursday) is a US holiday but an ordinary Swedish
         # working day.
         july_4 = date(2024, 7, 4)
         assert july_4.weekday() < 5
-        assert _is_working_day(july_4, "US") is False
-        assert _is_working_day(july_4, "Sweden") is True
+        assert _resolves_to_a_schedule(july_4, "US") is False
+        assert _resolves_to_a_schedule(july_4, "Sweden") is True
 
 
 class TestNextWorkingDay:
@@ -136,7 +166,7 @@ class TestNextWorkingDay:
         # Friday -> next working day is Monday.
         friday = date(2024, 1, 5)
         assert friday.weekday() == 4
-        result = _next_working_day(friday, "Sweden")
+        result = _next_scheduled_day(DEFAULT_SCHEDULE, friday, "Sweden")
         assert result == date(2024, 1, 8)
         assert result.weekday() == 0
 
@@ -144,12 +174,12 @@ class TestNextWorkingDay:
         # 2026-01-01 (New Year's Day) is a Thursday; 2026-01-03/04 is a
         # weekend; 2026-01-05 (Monday) is the next working day for Sweden.
         new_years_eve = date(2025, 12, 31)
-        result = _next_working_day(new_years_eve, "Sweden")
+        result = _next_scheduled_day(DEFAULT_SCHEDULE, new_years_eve, "Sweden")
         assert result == date(2026, 1, 2)  # Jan 1 is a holiday, Jan 2 is Friday
 
     def test_returns_tomorrow_when_already_a_working_day_run(self) -> None:
         tuesday = date(2024, 1, 9)
-        result = _next_working_day(tuesday, "Sweden")
+        result = _next_scheduled_day(DEFAULT_SCHEDULE, tuesday, "Sweden")
         assert result == date(2024, 1, 10)
 
 
@@ -166,11 +196,7 @@ class TestRunScheduledSkipsNonWorkingDays:
     ) -> None:
         mock_dt.now.return_value = datetime(2024, 1, 6, 12, 0, 0)  # Saturday
         fake_sock = MagicMock()
-        _run_scheduled(
-            fake_sock,
-            [("09:00", "PRE_OPEN"), ("09:30", "CONTINUOUS")],
-            country="Sweden",
-        )
+        _run_scheduled(fake_sock, _TEST_SCHEDULE_CFG, country="Sweden")
         fake_sock.send_multipart.assert_not_called()
 
     @patch("edumatcher.scheduler.main.time.sleep")
@@ -181,11 +207,7 @@ class TestRunScheduledSkipsNonWorkingDays:
         # 2026-12-25 is a Friday and Christmas Day.
         mock_dt.now.return_value = datetime(2026, 12, 25, 12, 0, 0)
         fake_sock = MagicMock()
-        _run_scheduled(
-            fake_sock,
-            [("09:00", "PRE_OPEN"), ("09:30", "CONTINUOUS")],
-            country="Sweden",
-        )
+        _run_scheduled(fake_sock, _TEST_SCHEDULE_CFG, country="Sweden")
         fake_sock.send_multipart.assert_not_called()
 
     @patch("edumatcher.scheduler.main.time.sleep")
@@ -195,11 +217,7 @@ class TestRunScheduledSkipsNonWorkingDays:
     ) -> None:
         mock_dt.now.return_value = datetime(2024, 1, 9, 23, 59, 0)  # Tuesday
         fake_sock = MagicMock()
-        _run_scheduled(
-            fake_sock,
-            [("09:00", "PRE_OPEN"), ("09:30", "CONTINUOUS")],
-            country="Sweden",
-        )
+        _run_scheduled(fake_sock, _TEST_SCHEDULE_CFG, country="Sweden")
         fake_sock.send_multipart.assert_called()
 
     @patch("edumatcher.scheduler.main.time.sleep")
@@ -212,11 +230,11 @@ class TestRunScheduledSkipsNonWorkingDays:
         mock_dt.now.return_value = datetime(2024, 7, 4, 23, 59, 0)
 
         us_sock = MagicMock()
-        _run_scheduled(us_sock, [("09:00", "PRE_OPEN")], country="US")
+        _run_scheduled(us_sock, _TEST_SCHEDULE_CFG, country="US")
         us_sock.send_multipart.assert_not_called()
 
         se_sock = MagicMock()
-        _run_scheduled(se_sock, [("09:00", "PRE_OPEN")], country="Sweden")
+        _run_scheduled(se_sock, _TEST_SCHEDULE_CFG, country="Sweden")
         se_sock.send_multipart.assert_called()
 
 
@@ -250,7 +268,7 @@ class TestRunForeverSkipsToNextWorkingDay:
             # doesn't spin forever.
             return state["n"] <= 2
 
-        _run_forever(MagicMock(), [("09:00", "PRE_OPEN")], None, is_running, "Sweden")
+        _run_forever(MagicMock(), _TEST_SCHEDULE_CFG, None, is_running, "Sweden")
 
         assert mock_sleep.called
         target_wait_fn = mock_sleep.call_args.args[0]
