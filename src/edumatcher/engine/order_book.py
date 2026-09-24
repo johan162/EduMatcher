@@ -1279,6 +1279,7 @@ class OrderBook:
                         iceberg.gateway_id,
                     )
                     iceberg.status = OrderStatus.CANCELLED
+                    iceberg.cancel_reason = "SELF_MATCH_PREVENTED"
                     events.append(iceberg)
                     return
                 elif _smp_action == SmpAction.CANCEL_RESTING:
@@ -1294,6 +1295,7 @@ class OrderBook:
                     )
                     self._smp_cancel_resting(best, events)
                     iceberg.status = OrderStatus.CANCELLED
+                    iceberg.cancel_reason = "SELF_MATCH_PREVENTED"
                     events.append(iceberg)
                     return
 
