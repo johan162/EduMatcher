@@ -109,15 +109,22 @@ news announcement, a technology incident at a venue, a regulatory instruction).
 
 ### State model
 
+The two states are represented as:
+
 ```python
 class InstrumentState(str, Enum):
     ACTIVE = "ACTIVE"
     HALTED = "HALTED"
 ```
 
-The engine maintains a `_halted_symbols` dictionary (keyed on symbol name) that
-records which symbols are currently halted.  Any key not present in the
-dictionary is implicitly `ACTIVE`.
+but the halt/resume request path does not read this enum at all. What
+actually gates order and quote acceptance is `self._halted_symbols: dict[str,
+bool]` on the engine — a plain boolean flag per symbol, checked with
+`.get(symbol)`. A symbol can appear in the dictionary with value `False` (an
+operator resumed it, but the entry was never removed) as well as be absent
+entirely; both read as `ACTIVE`. Only the boolean value is ever consulted, so
+the distinction is invisible to a client — but a reader inspecting engine
+state directly should not expect "key present" to mean "halted."
 
 ### Halt behaviour by order type
 
@@ -273,9 +280,12 @@ symbols:
       dynamic_band_pct: 0.06
 ```
 
-Resolution precedence is:
+Resolution is **per field**, not per whole block: a symbol's `collar` fields
+are merged on top of its level's `collar` fields, so a symbol can override
+just one of the two percentages and still inherit the other from its level.
+For a single field, the precedence is:
 
-1. `symbols.<symbol>.collar` (symbol override)
+1. `symbols.<symbol>.collar.<field>` (symbol override)
 2. `symbols.<symbol>.level` profile from `risk_controls.levels`
 3. `risk_controls.default_level` profile
 4. built-in defaults (`static_band_pct=0.20`, `dynamic_band_pct=0.02`)
@@ -1028,9 +1038,13 @@ for the full permissions matrix.
     halt, a per-symbol halt/resume, or a symbol-level mass cancel, use the ADMIN
     operator console `pm-admin --id GW_ADMIN` (`HALT`, `RESUME`,
     `HALT_SYM|SYM=`, `RESUME_SYM|SYM=`, `CANCEL_SYM|SYM=`,
-    `REOPEN|SYM=[|PRICE=][|DRY_RUN=1]`, `KILL|GW=[|SYM=]`), send the raw ZMQ
-    frames shown below directly, or use the REST admin endpoints described in
-    [API Gateway](260-api-gateway.md).
+    `REOPEN|SYM=[|PRICE=][|DRY_RUN=1]`, `KILL|GW=[|SYM=]`), or send the raw
+    ZMQ frames shown below directly. The per-symbol halt/resume and the
+    symbol-level mass cancel are also reachable over REST (see
+    [API Gateway](260-api-gateway.md)); the **exchange-wide**
+    `risk.circuit_breaker_halt_all` / `risk.circuit_breaker_resume_all` have
+    no REST endpoint — `pm-admin` or a raw ZMQ frame are the only ways to
+    reach them.
 
 
 
@@ -1204,8 +1218,8 @@ sequenceDiagram
 Alongside the exchange-wide `risk.circuit_breaker_halt_all` / `risk.circuit_breaker_resume_all`
 pair, an `ADMIN` gateway can halt or resume **one symbol at a time** using
 `risk.symbol_halt` / `risk.symbol_resume`. This is the command used by the
-`/api/v1/admin/circuit-breaker/trigger` and `/circuit-breaker/resume` REST
-endpoints (see [API Gateway](260-api-gateway.md)) and is the mechanism behind
+`/api/v1/admin/circuit-breaker/trigger` and `/api/v1/admin/circuit-breaker/resume`
+REST endpoints (see [API Gateway](260-api-gateway.md)) and is the mechanism behind
 the "Per-symbol operator halt" row in the
 [Market-maker interaction](#market-maker-interaction) table below.
 
@@ -1350,10 +1364,10 @@ payload: {
 !!! note "Cross-gateway kill switches need ADMIN"
     A gateway's own kill switch targets only that gateway.  An `ADMIN`
     gateway can additionally cancel another gateway's exposure with
-    `risk.kill_switch_gateway` (REST: `POST /admin/kill-switch/gateway`), or
-    every resting order and quote on the exchange with
-    `risk.kill_switch_global` (REST: `POST /admin/kill-switch/global`); both
-    reject non-ADMIN callers. `pm-admin` exposes `KILL|GW=<gw>[|SYM=<sym>]`.
+    `risk.kill_switch_gateway` (REST: `POST /api/v1/admin/kill-switch/gateway`),
+    or every resting order and quote on the exchange with
+    `risk.kill_switch_global` (REST: `POST /api/v1/admin/kill-switch/global`);
+    both reject non-ADMIN callers. `pm-admin` exposes `KILL|GW=<gw>[|SYM=<sym>]`.
     To stop trading rather than clear the book, use a per-symbol
     `risk.symbol_halt` or an exchange-wide `risk.circuit_breaker_halt_all`
     (both ADMIN), or `risk.cancel_symbol` (ADMIN, see
