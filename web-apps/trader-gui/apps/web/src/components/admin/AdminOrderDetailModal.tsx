@@ -48,14 +48,14 @@ export function AdminOrderDetailModal({ orderId, onClose }: AdminOrderDetailModa
 
   return (
     <Modal title={`Order ${orderId}`} onClose={onClose}>
-      {query.isLoading && <p className="text-xs text-[#9090b0]">Loading audit trail…</p>}
+      {query.isLoading && <p className="text-xs text-fg-dim">Loading audit trail…</p>}
 
       {is503 && (
-        <p className="text-xs text-[#9090b0]">
+        <p className="text-xs text-fg-dim">
           Audit trail unavailable — pm-audit is not running or its index has not been built.
         </p>
       )}
-      {is404 && <p className="text-xs text-[#9090b0]">No audited events for this order.</p>}
+      {is404 && <p className="text-xs text-fg-dim">No audited events for this order.</p>}
       {err && !is503 && !is404 && (
         <p className="text-xs text-ask">
           {err instanceof ApiError ? `${err.code}: ${err.message}` : "Failed to load lifecycle"}
@@ -66,20 +66,20 @@ export function AdminOrderDetailModal({ orderId, onClose }: AdminOrderDetailModa
         <ol className="flex max-h-[60vh] flex-col gap-1 overflow-auto">
           {query.data.events.map((e, i) => (
             <li key={`${e.timestamp}-${i}`} className="flex items-start gap-2 text-[11px]">
-              <span className="font-mono text-[#505070] whitespace-nowrap">{timeLabel(e.timestamp)}</span>
-              <span className="rounded bg-[#20203a] px-1.5 py-0.5 font-mono text-[#9090b0]">
+              <span className="font-mono text-fg-faint whitespace-nowrap">{timeLabel(e.timestamp)}</span>
+              <span className="rounded bg-elevated px-1.5 py-0.5 font-mono text-fg-dim">
                 {e.topic}
               </span>
               <div className="flex flex-col">
-                <span className="font-mono text-[#9090b0]">{e.gateway_id}</span>
+                <span className="font-mono text-fg-dim">{e.gateway_id}</span>
                 {payloadSummary(e.payload) && (
-                  <span className="text-[#9090b0]">{payloadSummary(e.payload)}</span>
+                  <span className="text-fg-dim">{payloadSummary(e.payload)}</span>
                 )}
               </div>
             </li>
           ))}
           {query.data.events.length === 0 && (
-            <li className="text-xs text-[#9090b0]">No events.</li>
+            <li className="text-xs text-fg-dim">No events.</li>
           )}
         </ol>
       )}

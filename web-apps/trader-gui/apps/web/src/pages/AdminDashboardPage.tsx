@@ -14,9 +14,9 @@ import { formatPrice, formatQty } from "@/lib/formatters.js";
 
 function KpiCard({ label, value, tone }: { label: string; value: string; tone?: string }) {
   return (
-    <div className="flex flex-col gap-1 rounded border border-[#2a2a45] bg-[#0d0d14] p-3">
-      <span className="text-[10px] uppercase tracking-wide text-[#707090]">{label}</span>
-      <span className={`text-lg font-semibold ${tone ?? "text-[#e8e8f0]"}`}>{value}</span>
+    <div className="flex flex-col gap-1 rounded border border-line bg-deep p-3">
+      <span className="text-[10px] uppercase tracking-wide text-fg-mute">{label}</span>
+      <span className={`text-lg font-semibold ${tone ?? "text-fg"}`}>{value}</span>
     </div>
   );
 }
@@ -64,7 +64,7 @@ export function AdminDashboardPage() {
   return (
     <div className="flex flex-col gap-4 p-4">
       <div className="flex items-center gap-3">
-        <h1 className="text-lg font-semibold text-[#e8e8f0]">System Dashboard</h1>
+        <h1 className="text-lg font-semibold text-fg">System Dashboard</h1>
         {health.adminMonitor && health.adminMonitor !== "connected" && (
           <span className="text-[11px] text-amber-400">Monitor feed {health.adminMonitor}</span>
         )}
@@ -78,17 +78,17 @@ export function AdminDashboardPage() {
         <KpiCard
           label="Active CB Halts"
           value={formatQty(haltCount)}
-          tone={haltCount > 0 ? "text-halt" : "text-[#e8e8f0]"}
+          tone={haltCount > 0 ? "text-halt" : "text-fg"}
         />
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         {/* Per-symbol summary (§15.1.2) */}
         <section aria-label="Per-symbol summary" className="xl:col-span-2 flex flex-col gap-1">
-          <h2 className="text-[11px] font-semibold uppercase tracking-wide text-[#9090b0]">Symbols</h2>
-          <div className="overflow-auto rounded border border-[#2a2a45]">
+          <h2 className="text-[11px] font-semibold uppercase tracking-wide text-fg-dim">Symbols</h2>
+          <div className="overflow-auto rounded border border-line">
             <table className="w-full border-collapse text-xs">
-              <thead className="sticky top-0 z-10 bg-[#12121a] text-[#9090b0]">
+              <thead className="sticky top-0 z-10 bg-panel text-fg-dim">
                 <tr>
                   <th className="px-2 py-1.5 text-left font-medium">Symbol</th>
                   <th className="px-2 py-1.5 text-right font-medium">Bid</th>
@@ -101,7 +101,7 @@ export function AdminDashboardPage() {
               </thead>
               <tbody>
                 {rows.map((r) => (
-                  <tr key={r.symbol} className="border-b border-[#1a1a28]">
+                  <tr key={r.symbol} className="border-b border-raised">
                     <td className="px-2 py-1 font-mono font-medium">{r.symbol}</td>
                     <td className="px-2 py-1 text-right font-mono text-bid">
                       {formatPrice(r.bid, r.tickDecimals)}
@@ -112,7 +112,7 @@ export function AdminDashboardPage() {
                     <td className="px-2 py-1 text-right font-mono">
                       {formatPrice(r.last, r.tickDecimals)}
                     </td>
-                    <td className="px-2 py-1 text-right font-mono text-[#9090b0]">
+                    <td className="px-2 py-1 text-right font-mono text-fg-dim">
                       {r.volume === null ? "—" : formatQty(r.volume)}
                     </td>
                     <td className="px-2 py-1 text-right font-mono">{ordersBySymbol[r.symbol] ?? 0}</td>
@@ -122,14 +122,14 @@ export function AdminDashboardPage() {
                           {r.haltLevel ? `HALT ${r.haltLevel}` : "HALT"}
                         </span>
                       ) : (
-                        <span className="text-[10px] text-[#505070]">ok</span>
+                        <span className="text-[10px] text-fg-faint">ok</span>
                       )}
                     </td>
                   </tr>
                 ))}
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-2 py-6 text-center text-[#505070]">
+                    <td colSpan={7} className="px-2 py-6 text-center text-fg-faint">
                       No symbols.
                     </td>
                   </tr>
@@ -141,12 +141,12 @@ export function AdminDashboardPage() {
 
         {/* Recent events feed (§15.1.3) */}
         <section aria-label="Recent events" className="flex flex-col gap-1">
-          <h2 className="text-[11px] font-semibold uppercase tracking-wide text-[#9090b0]">
+          <h2 className="text-[11px] font-semibold uppercase tracking-wide text-fg-dim">
             Recent Events
           </h2>
-          <div className="overflow-auto rounded border border-[#2a2a45]">
+          <div className="overflow-auto rounded border border-line">
             {events.length === 0 ? (
-              <p className="p-6 text-center text-xs text-[#505070]">
+              <p className="p-6 text-center text-xs text-fg-faint">
                 No cross-gateway activity yet.
               </p>
             ) : (
@@ -157,13 +157,13 @@ export function AdminDashboardPage() {
                     <li
                       key={e.id}
                       onClick={linkable ? () => setDetailId(e.order_id!) : undefined}
-                      className={`flex items-center gap-2 border-b border-[#1a1a28] px-2 py-1 ${
-                        linkable ? "cursor-pointer hover:bg-[#1a1a28]" : ""
+                      className={`flex items-center gap-2 border-b border-raised px-2 py-1 ${
+                        linkable ? "cursor-pointer hover:bg-raised" : ""
                       }`}
                     >
                       <MonitorKindBadge kind={e.kind} />
                       {e.symbol && <span className="font-mono text-[11px]">{e.symbol}</span>}
-                      <span className="flex-1 truncate text-[11px] text-[#9090b0]">{e.detail}</span>
+                      <span className="flex-1 truncate text-[11px] text-fg-dim">{e.detail}</span>
                     </li>
                   );
                 })}

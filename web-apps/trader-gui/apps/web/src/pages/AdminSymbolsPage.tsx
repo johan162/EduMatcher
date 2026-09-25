@@ -24,20 +24,20 @@ export function AdminSymbolsPage() {
   return (
     <div className="flex flex-col gap-3 p-4">
       <div className="flex items-center gap-3">
-        <h1 className="text-lg font-semibold text-[#e8e8f0]">Symbol Management</h1>
-        <span className="rounded bg-[#20203a] px-1.5 py-0.5 text-[10px] text-[#9090b0]">Read-only</span>
+        <h1 className="text-lg font-semibold text-fg">Symbol Management</h1>
+        <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] text-fg-dim">Read-only</span>
         <button
           type="button"
           disabled
           title={WRITE_PREREQ}
           aria-label="Add symbol (unsupported)"
-          className="ml-auto cursor-not-allowed rounded border border-[#2a2a45] px-2 py-1 text-[11px] text-[#505070] opacity-60"
+          className="ml-auto cursor-not-allowed rounded border border-line px-2 py-1 text-[11px] text-fg-faint opacity-60"
         >
           Add symbol
         </button>
       </div>
 
-      <p className="rounded border border-[#2a2a45] bg-[#12121a] px-2 py-1.5 text-[11px] text-[#9090b0]">
+      <p className="rounded border border-line bg-panel px-2 py-1.5 text-[11px] text-fg-dim">
         {WRITE_PREREQ}
       </p>
 
@@ -45,9 +45,9 @@ export function AdminSymbolsPage() {
         <p className="text-xs text-ask">Could not load symbols from the engine.</p>
       )}
 
-      <div className="overflow-auto rounded border border-[#2a2a45]">
+      <div className="overflow-auto rounded border border-line">
         <table className="w-full border-collapse text-xs">
-          <thead className="bg-[#12121a] text-[#9090b0]">
+          <thead className="bg-panel text-fg-dim">
             <tr>
               <th className={th}>Symbol</th>
               <th className={thr}>Tick Dec.</th>
@@ -67,13 +67,13 @@ export function AdminSymbolsPage() {
               const ask = book?.asks[0]?.price ?? null;
               const cbCount = s.circuit_breaker?.levels?.length ?? 0;
               return (
-                <tr key={s.symbol} className="border-b border-[#1a1a28]">
+                <tr key={s.symbol} className="border-b border-raised">
                   <td className="px-2 py-1 font-mono font-medium">{s.symbol}</td>
                   <td className="px-2 py-1 text-right font-mono">{s.tick_decimals}</td>
-                  <td className="px-2 py-1 text-[#9090b0]">{s.level ?? "(default)"}</td>
+                  <td className="px-2 py-1 text-fg-dim">{s.level ?? "(default)"}</td>
                   <td className="px-2 py-1 text-right font-mono">{formatPct(s.collar?.static_band_pct)}</td>
                   <td className="px-2 py-1 text-right font-mono">{formatPct(s.collar?.dynamic_band_pct)}</td>
-                  <td className="px-2 py-1 text-right font-mono text-[#9090b0]">{cbCount || "—"}</td>
+                  <td className="px-2 py-1 text-right font-mono text-fg-dim">{cbCount || "—"}</td>
                   <td className="px-2 py-1 text-right font-mono text-bid">
                     {formatPrice(bid, s.tick_decimals)}
                   </td>
@@ -86,7 +86,7 @@ export function AdminSymbolsPage() {
                       disabled
                       title={WRITE_PREREQ}
                       aria-label={`Edit ${s.symbol} (unsupported)`}
-                      className="cursor-not-allowed rounded border border-[#2a2a45] px-2 py-0.5 text-[11px] text-[#505070] opacity-60"
+                      className="cursor-not-allowed rounded border border-line px-2 py-0.5 text-[11px] text-fg-faint opacity-60"
                     >
                       Edit
                     </button>
@@ -96,7 +96,7 @@ export function AdminSymbolsPage() {
             })}
             {symbols.length === 0 && !referenceQuery.isLoading && (
               <tr>
-                <td colSpan={9} className="px-2 py-6 text-center text-[#505070]">No symbols.</td>
+                <td colSpan={9} className="px-2 py-6 text-center text-fg-faint">No symbols.</td>
               </tr>
             )}
           </tbody>

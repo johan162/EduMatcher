@@ -4,7 +4,7 @@ import { SHORTCUTS } from "@/lib/shortcuts.js";
 export function ShortcutsTable() {
   return (
     <table className="w-full border-collapse text-xs">
-      <thead className="text-[#9090b0]">
+      <thead className="text-fg-dim">
         <tr>
           <th scope="col" className="px-2 py-1.5 text-left font-medium">Shortcut</th>
           <th scope="col" className="px-2 py-1.5 text-left font-medium">Scope</th>
@@ -13,14 +13,14 @@ export function ShortcutsTable() {
       </thead>
       <tbody>
         {SHORTCUTS.map((s) => (
-          <tr key={`${s.keys}-${s.action}`} className="border-t border-[#1a1a28]">
+          <tr key={`${s.keys}-${s.action}`} className="border-t border-raised">
             <td className="px-2 py-1 whitespace-nowrap">
-              <kbd className="rounded border border-[#2a2a45] bg-[#1a1a28] px-1.5 py-0.5 font-mono text-[10px] text-[#e8e8f0]">
+              <kbd className="rounded border border-line bg-raised px-1.5 py-0.5 font-mono text-[10px] text-fg">
                 {s.keys}
               </kbd>
             </td>
-            <td className="px-2 py-1 text-[#9090b0]">{s.scope}</td>
-            <td className="px-2 py-1 text-[#c8c8e0]">{s.action}</td>
+            <td className="px-2 py-1 text-fg-dim">{s.scope}</td>
+            <td className="px-2 py-1 text-fg-soft">{s.action}</td>
           </tr>
         ))}
       </tbody>

@@ -65,8 +65,8 @@ function SidebarLink({ to, label, Icon }: NavItem) {
       className={({ isActive }) =>
         `flex items-center gap-2 px-3 py-1.5 rounded text-sm transition-colors ${
           isActive
-            ? "bg-[#1a1a28] text-[#e8e8f0]"
-            : "text-[#9090b0] hover:text-[#e8e8f0] hover:bg-[#1a1a28]"
+            ? "bg-raised text-fg"
+            : "text-fg-dim hover:text-fg hover:bg-raised"
         }`
       }
     >
@@ -90,7 +90,7 @@ export function Sidebar() {
 
   return (
     <nav
-      className="w-56 flex-shrink-0 bg-[#12121a] border-r border-[#2a2a45] overflow-y-auto py-3"
+      className="w-56 flex-shrink-0 bg-panel border-r border-line overflow-y-auto py-3"
       aria-label="Main navigation"
     >
       <div className="px-2 space-y-0.5">
@@ -98,7 +98,7 @@ export function Sidebar() {
           <SidebarLink key={item.to} {...item} />
         ))}
 
-        {roleItems.length > 0 && <div className="border-t border-[#2a2a45] my-2" />}
+        {roleItems.length > 0 && <div className="border-t border-line my-2" />}
 
         {roleItems.map((item) => (
           <SidebarLink key={item.to} {...item} />

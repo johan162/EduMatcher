@@ -1,49 +1,47 @@
 import type { Config } from "tailwindcss";
 
 /**
- * Dark trading-terminal palette (§22.3 of the design).
- * All values are hard-coded here (not CSS variables) to keep shadcn/ui
- * compatibility straightforward; colours can be migrated to CSS variables
- * later if a light-mode variant is needed.
+ * Colours are CSS variables holding space-separated RGB channels (see
+ * src/index.css), so the same class names produce the dark or light palette
+ * depending on the `.dark` class on <html> -- and opacity modifiers such as
+ * `bg-bid/15` keep working. Same mechanism as terminal-gui.
  */
+const channel = (name: string) => `rgb(var(--${name}) / <alpha-value>)`;
+
 const config: Config = {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   darkMode: "class",
   theme: {
     extend: {
       colors: {
-        // ── Backgrounds ────────────────────────────────────────────────────
-        bg: {
-          primary: "#0a0a0f", // near-black main background
-          secondary: "#12121a", // panel background
-          tertiary: "#1a1a28", // table row / input background
-          elevated: "#20203a", // modal / dialog background
-        },
-        // ── Borders ────────────────────────────────────────────────────────
-        border: {
-          subtle: "#2a2a45",
-          strong: "#3a3a60",
-        },
+        // ── Surfaces, darkest to lightest in the dark palette ──────────────
+        app: channel("app"), // page background
+        deep: channel("deep"), // order ticket / recessed areas
+        panel: channel("panel"), // top bar, sidebar, cards, popovers
+        raised: channel("raised"), // inputs, hovered rows
+        elevated: channel("elevated"), // active tab / selected row
+        elevated2: channel("elevated2"), // hover on an elevated surface
+        line: channel("line"), // borders and dividers
         // ── Text ───────────────────────────────────────────────────────────
-        text: {
-          primary: "#e8e8f0",
-          secondary: "#9090b0",
-          muted: "#505070",
-        },
+        fg: channel("fg"),
+        "fg-soft": channel("fg-soft"),
+        "fg-dim": channel("fg-dim"),
+        "fg-mute": channel("fg-mute"),
+        "fg-faint": channel("fg-faint"),
+        link: channel("link"),
         // ── Semantic trading colours ───────────────────────────────────────
-        bid: "#22c55e", // green — buy/bid / BUY action button
-        ask: "#ef4444", // red   — sell/ask / SELL action button
+        bid: channel("bid"), // buy/bid / BUY action button
+        ask: channel("ask"), // sell/ask / SELL action button
         flash: {
           up: "rgba(34, 197, 94, 0.4)",
           down: "rgba(239, 68, 68, 0.4)",
         },
-        // ── Status colours (re-used from design) ──────────────────────────
-        up: "#22c55e",
-        down: "#ef4444",
-        halt: "#f59e0b",
-        auction: "#f59e0b",
-        live: "#22c55e",
-        offline: "#ef4444",
+        up: channel("bid"),
+        down: channel("ask"),
+        halt: channel("halt"),
+        auction: channel("halt"),
+        live: channel("bid"),
+        offline: channel("ask"),
       },
       // ── Typography ────────────────────────────────────────────────────────
       fontFamily: {

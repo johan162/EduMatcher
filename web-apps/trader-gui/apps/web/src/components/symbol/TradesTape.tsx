@@ -61,7 +61,7 @@ export function TradesTape({ symbol, tickDecimals }: TradesTapeProps) {
 
   if (rows.length === 0) {
     return (
-      <p className="text-xs text-[#505070] py-4 text-center">
+      <p className="text-xs text-fg-faint py-4 text-center">
         {historyQuery.isLoading ? "Loading trades…" : `No trades yet for ${symbol}.`}
       </p>
     );
@@ -70,7 +70,7 @@ export function TradesTape({ symbol, tickDecimals }: TradesTapeProps) {
   return (
     <div className="overflow-auto max-h-[420px]">
       <table className="w-full text-xs font-mono border-collapse">
-        <thead className="sticky top-0 bg-[#12121a] text-[10px] text-[#505070]">
+        <thead className="sticky top-0 bg-panel text-[10px] text-fg-faint">
           <tr>
             <th scope="col" className="text-left font-medium px-2 py-1">Time</th>
             <th scope="col" className="text-right font-medium px-2 py-1">Price</th>
@@ -83,23 +83,23 @@ export function TradesTape({ symbol, tickDecimals }: TradesTapeProps) {
             const buy = r.aggressor === "BUY";
             const sell = r.aggressor === "SELL";
             return (
-              <tr key={r.id} className="border-b border-[#1a1a28]">
-                <td className="px-2 py-0.5 text-[#9090b0]">{formatTime(r.epochSec)}</td>
+              <tr key={r.id} className="border-b border-raised">
+                <td className="px-2 py-0.5 text-fg-dim">{formatTime(r.epochSec)}</td>
                 <td
                   className={`px-2 py-0.5 text-right ${
-                    buy ? "text-bid" : sell ? "text-ask" : "text-[#9090b0]"
+                    buy ? "text-bid" : sell ? "text-ask" : "text-fg-dim"
                   }`}
                 >
                   {formatPrice(r.price, tickDecimals)}
                 </td>
-                <td className="px-2 py-0.5 text-right text-[#9090b0]">{formatQty(r.quantity)}</td>
+                <td className="px-2 py-0.5 text-right text-fg-dim">{formatQty(r.quantity)}</td>
                 <td className="px-2 py-0.5">
                   <span className="flex items-center justify-center">
                     {buy && <ArrowUp size={11} className="text-bid" aria-label="buy aggressor" />}
                     {sell && (
                       <ArrowDown size={11} className="text-ask" aria-label="sell aggressor" />
                     )}
-                    {!buy && !sell && <span className="text-[#505070]">A</span>}
+                    {!buy && !sell && <span className="text-fg-faint">A</span>}
                   </span>
                 </td>
               </tr>

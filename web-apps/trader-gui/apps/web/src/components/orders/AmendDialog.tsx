@@ -12,7 +12,7 @@ interface AmendDialogProps {
 }
 
 const field =
-  "bg-[#1a1a28] border border-[#2a2a45] rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#3a3a60] disabled:opacity-40";
+  "bg-raised border border-line rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#3a3a60] disabled:opacity-40";
 
 /**
  * Amend (in-place) dialog (§13.2) — a same-price size reduction preserves queue
@@ -82,8 +82,8 @@ export function AmendDialog({ orderId, onClose }: AmendDialogProps) {
 
   const ro = (label: string, value: string) => (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[10px] text-[#505070]">{label}</span>
-      <span className="font-mono text-xs text-[#9090b0]">{value}</span>
+      <span className="text-[10px] text-fg-faint">{label}</span>
+      <span className="font-mono text-xs text-fg-dim">{value}</span>
     </div>
   );
 
@@ -101,7 +101,7 @@ export function AmendDialog({ orderId, onClose }: AmendDialogProps) {
       <div className="mt-3 grid grid-cols-2 gap-2">
         {hasPrice && (
           <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] text-[#505070]">Price</span>
+            <span className="text-[10px] text-fg-faint">Price</span>
             <input
               type="number"
               step="any"
@@ -113,7 +113,7 @@ export function AmendDialog({ orderId, onClose }: AmendDialogProps) {
           </label>
         )}
         <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-[#505070]">Quantity</span>
+          <span className="text-[10px] text-fg-faint">Quantity</span>
           <input
             type="number"
             min={1}
@@ -125,7 +125,7 @@ export function AmendDialog({ orderId, onClose }: AmendDialogProps) {
         </label>
       </div>
 
-      <p className="mt-3 text-[10px] leading-snug text-[#707090]">
+      <p className="mt-3 text-[10px] leading-snug text-fg-mute">
         Reducing quantity at the same price keeps your queue priority. A price change or a
         quantity increase resets priority — consider Replace instead.
       </p>
@@ -136,7 +136,7 @@ export function AmendDialog({ orderId, onClose }: AmendDialogProps) {
         <button
           type="button"
           onClick={onClose}
-          className="rounded border border-[#2a2a45] px-3 py-1.5 text-xs text-[#9090b0] hover:text-[#e8e8f0]"
+          className="rounded border border-line px-3 py-1.5 text-xs text-fg-dim hover:text-fg"
         >
           Cancel
         </button>

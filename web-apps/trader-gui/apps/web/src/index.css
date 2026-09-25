@@ -2,6 +2,70 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Theme tokens ─────────────────────────────────────────────────────────
+ * RGB channels swapped by a `.dark` class on <html> (see useThemeStore), so one
+ * set of Tailwind class names renders either palette. Dark is the original
+ * trading-terminal palette (§22.3); light follows terminal-gui's. */
+:root,
+html.dark {
+  --app: 10 10 15;
+  --deep: 13 13 20;
+  --panel: 18 18 26;
+  --raised: 26 26 40;
+  --elevated: 32 32 58;
+  --elevated2: 34 34 58;
+  --line: 42 42 69;
+  --thumb: 58 58 96;
+  --fg: 232 232 240;
+  --fg-soft: 200 200 224;
+  --fg-dim: 144 144 176;
+  --fg-mute: 112 112 144;
+  --fg-faint: 80 80 112;
+  --link: 110 168 254;
+  --bid: 34 197 94;
+  --ask: 239 68 68;
+  --halt: 245 158 11;
+}
+
+html:not(.dark) {
+  --app: 255 255 255;
+  --deep: 240 243 247;
+  --panel: 245 247 250;
+  --raised: 234 238 243;
+  --elevated: 221 227 236;
+  --elevated2: 211 218 229;
+  --line: 213 219 227;
+  --thumb: 179 188 201;
+  --fg: 16 20 28;
+  --fg-soft: 47 56 70;
+  --fg-dim: 85 96 111;
+  --fg-mute: 106 117 135;
+  --fg-faint: 128 139 156;
+  --link: 11 95 206;
+  --bid: 21 128 61;
+  --ask: 220 38 38;
+  --halt: 180 83 9;
+}
+
+/* Text-only uses of Tailwind's default palette are tuned for a dark page; give
+ * them darker shades on the light one. Solid badges (bg-* + text-white) read
+ * fine on both and are left alone. */
+html:not(.dark) .text-emerald-400,
+html:not(.dark) .hover\:text-emerald-400:hover {
+  color: #047857;
+}
+html:not(.dark) .text-amber-400,
+html:not(.dark) .text-amber-300 {
+  color: #b45309;
+}
+html:not(.dark) .text-red-300,
+html:not(.dark) .text-red-500 {
+  color: #b91c1c;
+}
+html:not(.dark) .text-sky-400 {
+  color: #0369a1;
+}
+
 /* ── Base reset ──────────────────────────────────────────────────────────── */
 *,
 *::before,
@@ -17,8 +81,8 @@ html {
 
 body {
   margin: 0;
-  background-color: #0a0a0f;
-  color: #e8e8f0;
+  background-color: rgb(var(--app));
+  color: rgb(var(--fg));
   font-family: Inter, system-ui, sans-serif;
   min-height: 100vh;
   min-width: 1440px; /* desktop-only — §3.2 non-goal */
@@ -37,14 +101,14 @@ body {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #12121a;
+  background: rgb(var(--panel));
 }
 ::-webkit-scrollbar-thumb {
-  background: #3a3a60;
+  background: rgb(var(--thumb));
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #505070;
+  background: rgb(var(--fg-faint));
 }
 
 /* ── Flash cell animations (§17.3.3) ─────────────────────────────────────── */

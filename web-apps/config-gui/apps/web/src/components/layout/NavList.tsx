@@ -9,7 +9,7 @@ import {
   type EngineConfigDraft,
 } from "@edumatcher/schema";
 import { useDraftStore } from "@/store/draftStore";
-import { visibleTabs, type TabDef } from "@/lib/tabs";
+import { isTabDisabled, visibleTabs, type TabDef } from "@/lib/tabs";
 
 type Glyph = "error" | "warning" | "ok" | "none";
 
@@ -87,6 +87,20 @@ export function NavList() {
   return (
     <nav aria-label="Configuration sections" className="flex flex-col gap-0.5 p-3">
       {tabs.map((tab) => {
+        const disabled = isTabDisabled(tab, draft);
+        if (disabled) {
+          return (
+            <span
+              key={tab.id}
+              aria-disabled="true"
+              title={tab.disabledHint}
+              className="flex cursor-not-allowed items-center justify-between rounded-md px-3 py-2 text-sm text-fg-subtle opacity-50"
+            >
+              {tab.label}
+            </span>
+          );
+        }
+
         const glyph = glyphFor(draft, tab, diagnostics);
         const meta = GLYPH_META[glyph];
         return (

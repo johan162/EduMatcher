@@ -559,6 +559,10 @@ def build_market_making(view: ConfigView, width: int) -> RenderableType:
         Text(f"{quoted}/{len(view.symbols)} symbols", style=T.S_VALUE),
     )
     grid.add_row(
+        Text("require seed quotes", style=T.S_LABEL),
+        onoff(view.flags.get("require_mm_seed_quotes")),
+    )
+    grid.add_row(
         Text("makers", style=T.S_LABEL),
         Text(
             ", ".join(makers) or "—", style=T.S_PROC, overflow="ellipsis", no_wrap=True

@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
 vi.mock("lightweight-charts", () => {
-  const series = { setData: vi.fn(), update: vi.fn() };
+  const series = { setData: vi.fn(), update: vi.fn(), applyOptions: vi.fn() };
   const chart = {
     addSeries: vi.fn(() => series),
     removeSeries: vi.fn(),

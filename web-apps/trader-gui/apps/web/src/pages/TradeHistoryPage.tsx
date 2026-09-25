@@ -69,13 +69,13 @@ export function TradeHistoryPage() {
     2;
 
   const inputCls =
-    "bg-[#1a1a28] border border-[#2a2a45] rounded px-2 py-1 text-xs focus:outline-none focus:border-[#3a3a60]";
+    "bg-raised border border-line rounded px-2 py-1 text-xs focus:outline-none focus:border-[#3a3a60]";
 
   return (
     <div className="flex flex-col gap-3 p-4 h-full">
       <div className="flex items-center gap-3">
-        <h1 className="text-lg font-semibold text-[#e8e8f0]">Trade History</h1>
-        <span className="text-[11px] text-[#505070]">
+        <h1 className="text-lg font-semibold text-fg">Trade History</h1>
+        <span className="text-[11px] text-fg-faint">
           {rows.length} {rows.length === 1 ? "fill" : "fills"}
           {fills.isFetching ? " · loading…" : ""}
         </span>
@@ -84,7 +84,7 @@ export function TradeHistoryPage() {
       {/* Filter bar (§13.5.3) */}
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-[#505070]">Symbol</span>
+          <span className="text-[10px] text-fg-faint">Symbol</span>
           <input
             list="fills-symbols"
             value={symbol}
@@ -100,7 +100,7 @@ export function TradeHistoryPage() {
           </datalist>
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-[#505070]">Side</span>
+          <span className="text-[10px] text-fg-faint">Side</span>
           <select
             value={side}
             onChange={(e) => setSide(e.target.value as Side | "ALL")}
@@ -113,7 +113,7 @@ export function TradeHistoryPage() {
           </select>
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-[#505070]">Date</span>
+          <span className="text-[10px] text-fg-faint">Date</span>
           <input
             type="date"
             value={date}
@@ -126,7 +126,7 @@ export function TradeHistoryPage() {
           <button
             type="button"
             onClick={() => setSymbol("")}
-            className="rounded border border-[#2a2a45] px-2 py-1 text-[11px] text-[#9090b0] hover:text-[#e8e8f0]"
+            className="rounded border border-line px-2 py-1 text-[11px] text-fg-dim hover:text-fg"
           >
             Clear symbol
           </button>
@@ -138,13 +138,13 @@ export function TradeHistoryPage() {
       )}
 
       {rows.length === 0 && !fills.isFetching ? (
-        <div className="border border-[#2a2a45] rounded p-8 text-center text-sm text-[#9090b0]">
+        <div className="border border-line rounded p-8 text-center text-sm text-fg-dim">
           No fills for the selected filters.
         </div>
       ) : (
-        <div className="overflow-auto border border-[#2a2a45] rounded">
+        <div className="overflow-auto border border-line rounded">
           <table className="w-full text-xs border-collapse">
-            <thead className="sticky top-0 z-10 bg-[#12121a] text-[#9090b0]">
+            <thead className="sticky top-0 z-10 bg-panel text-fg-dim">
               <tr>
                 <th scope="col" className="px-2 py-1.5 text-left font-medium">Time</th>
                 <th scope="col" className="px-2 py-1.5 text-left font-medium">Symbol</th>
@@ -158,26 +158,26 @@ export function TradeHistoryPage() {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.key} className="border-b border-[#1a1a28] hover:bg-[#1a1a28]">
-                  <td className="px-2 py-1 font-mono text-[#9090b0] whitespace-nowrap">
+                <tr key={r.key} className="border-b border-raised hover:bg-raised">
+                  <td className="px-2 py-1 font-mono text-fg-dim whitespace-nowrap">
                     {r.ts ? formatIsoTime(r.ts) : "—"}
                     {r.live && <span className="ml-1 text-[9px] text-emerald-400">live</span>}
                   </td>
                   <td className="px-2 py-1 font-mono font-medium">{r.symbol || "—"}</td>
-                  <td className={`px-2 py-1 ${r.side === "BUY" ? "text-bid" : r.side === "SELL" ? "text-ask" : "text-[#505070]"}`}>
+                  <td className={`px-2 py-1 ${r.side === "BUY" ? "text-bid" : r.side === "SELL" ? "text-ask" : "text-fg-faint"}`}>
                     {r.side ?? "—"}
                   </td>
                   <td className="px-2 py-1 text-right font-mono">{formatQty(r.fillQty)}</td>
                   <td className="px-2 py-1 text-right font-mono">
                     {r.fillPrice === null ? "—" : formatPrice(r.fillPrice, tickFor(r.symbol))}
                   </td>
-                  <td className="px-2 py-1 text-right font-mono text-[#9090b0]">
+                  <td className="px-2 py-1 text-right font-mono text-fg-dim">
                     {formatQty(r.remaining)}
                   </td>
-                  <td className="px-2 py-1 font-mono text-[#9090b0]" title={r.tradeId ?? undefined}>
+                  <td className="px-2 py-1 font-mono text-fg-dim" title={r.tradeId ?? undefined}>
                     {r.tradeId ? shortId(r.tradeId) : "—"}
                     {r.extraTradeCount > 0 && (
-                      <span className="ml-1 rounded bg-[#20203a] px-1 text-[9px] text-[#9090b0]">
+                      <span className="ml-1 rounded bg-elevated px-1 text-[9px] text-fg-dim">
                         +{r.extraTradeCount}
                       </span>
                     )}

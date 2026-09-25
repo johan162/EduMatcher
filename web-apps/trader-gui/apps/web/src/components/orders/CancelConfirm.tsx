@@ -20,12 +20,12 @@ export function CancelConfirm({
 }: CancelConfirmProps) {
   return (
     <Modal title={title} onClose={onClose}>
-      <p className="text-xs text-[#c8c8e0]">{message}</p>
+      <p className="text-xs text-fg-soft">{message}</p>
       <div className="mt-4 flex justify-end gap-2">
         <button
           type="button"
           onClick={onClose}
-          className="rounded border border-[#2a2a45] px-3 py-1.5 text-xs text-[#9090b0] hover:text-[#e8e8f0]"
+          className="rounded border border-line px-3 py-1.5 text-xs text-fg-dim hover:text-fg"
         >
           Keep order
         </button>

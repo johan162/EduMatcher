@@ -7,7 +7,7 @@ import { PositionPanel } from "@/components/orders/PositionPanel.js";
 export function PositionsPage() {
   return (
     <div className="p-4">
-      <h1 className="text-lg font-semibold text-[#e8e8f0] mb-3">Positions</h1>
+      <h1 className="text-lg font-semibold text-fg mb-3">Positions</h1>
       <PositionPanel />
     </div>
   );

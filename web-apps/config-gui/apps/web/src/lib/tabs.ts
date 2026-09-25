@@ -6,8 +6,14 @@ export interface TabDef {
   path: string;
   label: string;
   minPersona: MinPersona;
-  /** Optional predicate; tab is only shown when this returns true. */
-  showWhen?: (draft: EngineConfigDraft) => boolean;
+  /**
+   * Optional predicate; when it returns true the tab still appears in the
+   * nav (once the persona qualifies) but is shown greyed out and disabled
+   * rather than hidden, with `disabledHint` explaining why.
+   */
+  disabledWhen?: (draft: EngineConfigDraft) => boolean;
+  /** Shown as the disabled tab's tooltip / a11y label when disabledWhen is true. */
+  disabledHint?: string;
 }
 
 export const TABS: TabDef[] = [
@@ -20,7 +26,8 @@ export const TABS: TabDef[] = [
     path: "/market-maker",
     label: "Market Maker",
     minPersona: "B",
-    showWhen: (draft) => draft.gateways.some((g) => g.role === "MARKET_MAKER"),
+    disabledWhen: (draft) => !draft.gateways.some((g) => g.role === "MARKET_MAKER"),
+    disabledHint: "Add a MARKET_MAKER gateway to configure market-maker obligations and quote seeding.",
   },
   { id: "symbols", path: "/symbols", label: "Symbols", minPersona: "I" },
   { id: "indices", path: "/indices", label: "Indices", minPersona: "I" },
@@ -31,9 +38,11 @@ export const TABS: TabDef[] = [
 ];
 
 export function visibleTabs(persona: Persona, draft: EngineConfigDraft): TabDef[] {
-  return TABS.filter(
-    (tab) => personaMeets(persona, tab.minPersona) && (tab.showWhen?.(draft) ?? true),
-  );
+  return TABS.filter((tab) => personaMeets(persona, tab.minPersona));
+}
+
+export function isTabDisabled(tab: TabDef, draft: EngineConfigDraft): boolean {
+  return tab.disabledWhen?.(draft) ?? false;
 }
 
 export function tabById(id: string): TabDef | undefined {

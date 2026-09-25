@@ -39,10 +39,10 @@ export function AdminRiskPage() {
   return (
     <div className="flex flex-col gap-4 p-4">
       <div className="flex items-center gap-3">
-        <h1 className="text-lg font-semibold text-[#e8e8f0]">Risk Controls</h1>
-        <span className="rounded bg-[#20203a] px-1.5 py-0.5 text-[10px] text-[#9090b0]">Read-only</span>
+        <h1 className="text-lg font-semibold text-fg">Risk Controls</h1>
+        <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] text-fg-dim">Read-only</span>
         {defaultLevel && (
-          <span className="text-[11px] text-[#505070]">Default level: {defaultLevel}</span>
+          <span className="text-[11px] text-fg-faint">Default level: {defaultLevel}</span>
         )}
       </div>
 
@@ -52,10 +52,10 @@ export function AdminRiskPage() {
       {/* Named risk levels */}
       {levels.length > 0 && (
         <section aria-label="Risk levels" className="flex flex-col gap-1">
-          <h2 className="text-[11px] font-semibold uppercase tracking-wide text-[#9090b0]">Risk Levels</h2>
-          <div className="overflow-auto rounded border border-[#2a2a45]">
+          <h2 className="text-[11px] font-semibold uppercase tracking-wide text-fg-dim">Risk Levels</h2>
+          <div className="overflow-auto rounded border border-line">
             <table className="w-full border-collapse text-xs">
-              <thead className="bg-[#12121a] text-[#9090b0]">
+              <thead className="bg-panel text-fg-dim">
                 <tr>
                   <th className={th}>Level</th>
                   <th className={thr}>Static Band</th>
@@ -64,11 +64,11 @@ export function AdminRiskPage() {
               </thead>
               <tbody>
                 {levels.map((l) => (
-                  <tr key={l.name} className="border-b border-[#1a1a28]">
+                  <tr key={l.name} className="border-b border-raised">
                     <td className="px-2 py-1 font-mono font-medium">
                       {l.name}
                       {l.name === defaultLevel && (
-                        <span className="ml-1 rounded bg-[#20203a] px-1 text-[9px] text-[#9090b0]">default</span>
+                        <span className="ml-1 rounded bg-elevated px-1 text-[9px] text-fg-dim">default</span>
                       )}
                     </td>
                     <td className="px-2 py-1 text-right font-mono">{formatPct(l.collar?.static_band_pct)}</td>
@@ -84,12 +84,12 @@ export function AdminRiskPage() {
       {/* Per-symbol collar settings (§15.5.1) */}
       {!loading && (
       <section aria-label="Collar settings" className="flex flex-col gap-1">
-        <h2 className="text-[11px] font-semibold uppercase tracking-wide text-[#9090b0]">
+        <h2 className="text-[11px] font-semibold uppercase tracking-wide text-fg-dim">
           Collar Settings (per symbol)
         </h2>
-        <div className="overflow-auto rounded border border-[#2a2a45]">
+        <div className="overflow-auto rounded border border-line">
           <table className="w-full border-collapse text-xs">
-            <thead className="bg-[#12121a] text-[#9090b0]">
+            <thead className="bg-panel text-fg-dim">
               <tr>
                 <th className={th}>Symbol</th>
                 <th className={thr}>Static Band</th>
@@ -101,17 +101,17 @@ export function AdminRiskPage() {
               {symbols.map((s) => {
                 const { collar, source } = effectiveCollar(s, levels, defaultLevel);
                 return (
-                  <tr key={s.symbol} className="border-b border-[#1a1a28]">
+                  <tr key={s.symbol} className="border-b border-raised">
                     <td className="px-2 py-1 font-mono font-medium">{s.symbol}</td>
                     <td className="px-2 py-1 text-right font-mono">{formatPct(collar?.static_band_pct)}</td>
                     <td className="px-2 py-1 text-right font-mono">{formatPct(collar?.dynamic_band_pct)}</td>
-                    <td className="px-2 py-1 text-[#9090b0]">{source}</td>
+                    <td className="px-2 py-1 text-fg-dim">{source}</td>
                   </tr>
                 );
               })}
               {symbols.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={4} className="px-2 py-6 text-center text-[#505070]">No symbols.</td>
+                  <td colSpan={4} className="px-2 py-6 text-center text-fg-faint">No symbols.</td>
                 </tr>
               )}
             </tbody>
@@ -124,16 +124,16 @@ export function AdminRiskPage() {
       {/* Per-symbol circuit-breaker ladder (§15.5.2) */}
       {!loading && (
       <section aria-label="Circuit breaker ladder" className="flex flex-col gap-1">
-        <h2 className="text-[11px] font-semibold uppercase tracking-wide text-[#9090b0]">
+        <h2 className="text-[11px] font-semibold uppercase tracking-wide text-fg-dim">
           Circuit Breaker Ladder (per symbol)
         </h2>
-        <p className="text-[10px] text-[#505070]">
+        <p className="text-[10px] text-fg-faint">
           The ladder is configured per symbol. Every halt reopens via a call auction — there is no
           per-level resumption mode.
         </p>
-        <div className="overflow-auto rounded border border-[#2a2a45]">
+        <div className="overflow-auto rounded border border-line">
           <table className="w-full border-collapse text-xs">
-            <thead className="bg-[#12121a] text-[#9090b0]">
+            <thead className="bg-panel text-fg-dim">
               <tr>
                 <th className={th}>Symbol</th>
                 <th className={th}>Level</th>
@@ -144,7 +144,7 @@ export function AdminRiskPage() {
             <tbody>
               {symbols.flatMap((s) =>
                 (s.circuit_breaker?.levels ?? []).map((lvl, i) => (
-                  <tr key={`${s.symbol}-${lvl.name}-${i}`} className="border-b border-[#1a1a28]">
+                  <tr key={`${s.symbol}-${lvl.name}-${i}`} className="border-b border-raised">
                     <td className="px-2 py-1 font-mono font-medium">{i === 0 ? s.symbol : ""}</td>
                     <td className="px-2 py-1 font-mono">{lvl.name}</td>
                     <td className="px-2 py-1 text-right font-mono">{formatPct(lvl.price_shift_pct)}</td>
@@ -154,7 +154,7 @@ export function AdminRiskPage() {
               )}
               {symbols.every((s) => !s.circuit_breaker?.levels?.length) && !loading && (
                 <tr>
-                  <td colSpan={4} className="px-2 py-6 text-center text-[#505070]">
+                  <td colSpan={4} className="px-2 py-6 text-center text-fg-faint">
                     No circuit breakers configured.
                   </td>
                 </tr>

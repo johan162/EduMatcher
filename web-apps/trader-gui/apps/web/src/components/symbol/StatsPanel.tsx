@@ -10,9 +10,9 @@ interface StatCardProps {
 
 function StatCard({ label, value }: StatCardProps) {
   return (
-    <div className="rounded border border-[#2a2a45] bg-[#12121a] px-3 py-2">
-      <div className="text-[10px] uppercase tracking-wide text-[#505070]">{label}</div>
-      <div className="text-sm font-mono text-[#e8e8f0]">{value}</div>
+    <div className="rounded border border-line bg-panel px-3 py-2">
+      <div className="text-[10px] uppercase tracking-wide text-fg-faint">{label}</div>
+      <div className="text-sm font-mono text-fg">{value}</div>
     </div>
   );
 }
@@ -41,10 +41,10 @@ export function StatsPanel({ symbol, tickDecimals }: StatsPanelProps) {
 
   return (
     <div className="flex flex-col gap-3">
-      {dailyQuery.isLoading && <p className="text-xs text-[#9090b0]">Loading statistics…</p>}
+      {dailyQuery.isLoading && <p className="text-xs text-fg-dim">Loading statistics…</p>}
 
       {!dailyQuery.isLoading && !row && (
-        <p className="text-xs text-[#505070]">
+        <p className="text-xs text-fg-faint">
           No daily statistics for {symbol} yet — they appear after the first trade of the session.
         </p>
       )}

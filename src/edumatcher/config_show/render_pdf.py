@@ -503,6 +503,12 @@ def _page_risk(view: ConfigView) -> list[Any]:
             ]
         )
     flow.append(_table(rows, [40 * mm, 26 * mm, 42 * mm, 34 * mm]))
+    flow.append(
+        Paragraph(
+            "require seed quotes " + _flag(view.flags.get("require_mm_seed_quotes")),
+            NOTE,
+        )
+    )
 
     if view.combos:
         flow.append(Paragraph("Seed combos", H2))

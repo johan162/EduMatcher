@@ -13,7 +13,7 @@ import { ApiError } from "@/api/apiFetch.js";
 
 const th = "px-2 py-1.5 text-left font-medium";
 const fieldCls =
-  "bg-[#1a1a28] border border-[#2a2a45] rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#3a3a60]";
+  "bg-raised border border-line rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#3a3a60]";
 
 /**
  * Circuit Breaker Management (§15.6) — the live operational view: active halts
@@ -88,14 +88,14 @@ export function AdminCircuitBreakersPage() {
 
   return (
     <div className="flex flex-col gap-4 p-4">
-      <h1 className="text-lg font-semibold text-[#e8e8f0]">Circuit Breakers</h1>
+      <h1 className="text-lg font-semibold text-fg">Circuit Breakers</h1>
 
       {/* Manual trigger (§15.6.2) */}
-      <section aria-label="Manual trigger" className="flex flex-col gap-2 rounded border border-[#2a2a45] bg-[#0d0d14] p-3">
-        <h2 className="text-xs font-semibold text-[#e8e8f0]">Manual halt</h2>
+      <section aria-label="Manual trigger" className="flex flex-col gap-2 rounded border border-line bg-deep p-3">
+        <h2 className="text-xs font-semibold text-fg">Manual halt</h2>
         <div className="flex flex-wrap items-end gap-2">
           <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] text-[#505070]">Symbol</span>
+            <span className="text-[10px] text-fg-faint">Symbol</span>
             <input
               list="cb-symbols"
               value={symbol}
@@ -114,7 +114,7 @@ export function AdminCircuitBreakersPage() {
             </datalist>
           </label>
           <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] text-[#505070]">Level</span>
+            <span className="text-[10px] text-fg-faint">Level</span>
             <select
               value={level}
               onChange={(e) => setLevel(e.target.value)}
@@ -140,7 +140,7 @@ export function AdminCircuitBreakersPage() {
             Halt symbol
           </button>
         </div>
-        <p className="text-[10px] text-[#505070]">
+        <p className="text-[10px] text-fg-faint">
           A level (from the symbol's ladder) runs the real breaker with auto-resume; no level halts
           indefinitely until cleared.
         </p>
@@ -148,12 +148,12 @@ export function AdminCircuitBreakersPage() {
 
       {/* Active halts (§15.6.1) */}
       <section aria-label="Active halts" className="flex flex-col gap-1">
-        <h2 className="text-[11px] font-semibold uppercase tracking-wide text-[#9090b0]">
+        <h2 className="text-[11px] font-semibold uppercase tracking-wide text-fg-dim">
           Active Halts ({activeHalts.length})
         </h2>
-        <div className="overflow-auto rounded border border-[#2a2a45]">
+        <div className="overflow-auto rounded border border-line">
           <table className="w-full border-collapse text-xs">
-            <thead className="bg-[#12121a] text-[#9090b0]">
+            <thead className="bg-panel text-fg-dim">
               <tr>
                 <th className={th}>Symbol</th>
                 <th className={th}>Level</th>
@@ -166,26 +166,26 @@ export function AdminCircuitBreakersPage() {
             </thead>
             <tbody>
               {activeHalts.map((h) => (
-                <tr key={h.symbol} className="border-b border-[#1a1a28]">
+                <tr key={h.symbol} className="border-b border-raised">
                   <td className="px-2 py-1 font-mono font-medium">{h.symbol}</td>
                   <td className="px-2 py-1 font-mono">{h.level ?? "—"}</td>
-                  <td className="px-2 py-1 text-right font-mono text-[#9090b0]">
+                  <td className="px-2 py-1 text-right font-mono text-fg-dim">
                     {h.trigger_price ?? "—"}
                   </td>
-                  <td className="px-2 py-1 text-right font-mono text-[#9090b0]">
+                  <td className="px-2 py-1 text-right font-mono text-fg-dim">
                     {h.reference_price ?? "—"}
                   </td>
-                  <td className="px-2 py-1 font-mono text-[#9090b0]">
+                  <td className="px-2 py-1 font-mono text-fg-dim">
                     {h.resume_at_ns ? formatNsTimestamp(h.resume_at_ns) : "indefinite"}
                   </td>
-                  <td className="px-2 py-1 text-[#9090b0]">{h.halt_source ?? "—"}</td>
+                  <td className="px-2 py-1 text-fg-dim">{h.halt_source ?? "—"}</td>
                   <td className="px-2 py-1 text-right">
                     <button
                       type="button"
                       onClick={() => setResumeTarget(h.symbol)}
                       disabled={resume.isPending}
                       aria-label={`Clear halt ${h.symbol}`}
-                      className="rounded border border-[#2a2a45] px-2 py-0.5 text-[11px] text-[#9090b0] hover:text-emerald-400 disabled:opacity-40"
+                      className="rounded border border-line px-2 py-0.5 text-[11px] text-fg-dim hover:text-emerald-400 disabled:opacity-40"
                     >
                       Clear
                     </button>
@@ -194,7 +194,7 @@ export function AdminCircuitBreakersPage() {
               ))}
               {activeHalts.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-2 py-6 text-center text-[#505070]">
+                  <td colSpan={7} className="px-2 py-6 text-center text-fg-faint">
                     No active halts.
                   </td>
                 </tr>
@@ -202,7 +202,7 @@ export function AdminCircuitBreakersPage() {
             </tbody>
           </table>
         </div>
-        <p className="text-[10px] text-[#505070]">
+        <p className="text-[10px] text-fg-faint">
           Trigger/Reference price populate only for halts seen live on the circuit_breaker channel;
           rows restored from the bootstrap leave them blank until the symbol re-halts.
         </p>

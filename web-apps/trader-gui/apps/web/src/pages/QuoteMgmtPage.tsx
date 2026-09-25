@@ -50,12 +50,12 @@ export function QuoteMgmtPage() {
   return (
     <div className="flex flex-col gap-3 p-4">
       <div className="flex items-center gap-3">
-        <h1 className="text-lg font-semibold text-[#e8e8f0]">Quote Management</h1>
-        <span className="text-[11px] text-[#505070]">
+        <h1 className="text-lg font-semibold text-fg">Quote Management</h1>
+        <span className="text-[11px] text-fg-faint">
           {activeCount} active {activeCount === 1 ? "quote" : "quotes"}
           {bootstrap.isFetching ? " · syncing…" : ""}
         </span>
-        <span className="ml-auto text-[10px] text-[#505070]">Press F2 to quote the active symbol</span>
+        <span className="ml-auto text-[10px] text-fg-faint">Press F2 to quote the active symbol</span>
       </div>
 
       {bootstrap.isError && (
@@ -63,7 +63,7 @@ export function QuoteMgmtPage() {
       )}
 
       {symbols.length === 0 ? (
-        <div className="rounded border border-[#2a2a45] p-8 text-center text-sm text-[#9090b0]">
+        <div className="rounded border border-line p-8 text-center text-sm text-fg-dim">
           No configured symbols.
         </div>
       ) : (

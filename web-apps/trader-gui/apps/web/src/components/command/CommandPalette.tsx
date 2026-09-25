@@ -127,11 +127,11 @@ export function CommandPalette() {
       <div
         role="dialog"
         aria-label="Command palette"
-        className="w-[560px] max-w-[92vw] overflow-hidden rounded border border-[#2a2a45] bg-[#0d0d14] shadow-2xl"
+        className="w-[560px] max-w-[92vw] overflow-hidden rounded border border-line bg-deep shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-2 border-b border-[#2a2a45] px-3 py-2">
-          <Search size={14} className="text-[#505070]" />
+        <div className="flex items-center gap-2 border-b border-line px-3 py-2">
+          <Search size={14} className="text-fg-faint" />
           <input
             ref={inputRef}
             value={query}
@@ -142,13 +142,13 @@ export function CommandPalette() {
             onKeyDown={onKeyDown}
             aria-label="Search symbols and actions"
             placeholder="Search symbols, actions…"
-            className="w-full bg-transparent text-sm text-[#e8e8f0] placeholder:text-[#505070] focus:outline-none"
+            className="w-full bg-transparent text-sm text-fg placeholder:text-fg-faint focus:outline-none"
           />
         </div>
 
         <ul role="listbox" aria-label="Results" className="max-h-[50vh] overflow-auto py-1">
           {items.length === 0 && (
-            <li className="px-3 py-6 text-center text-xs text-[#505070]">No matches.</li>
+            <li className="px-3 py-6 text-center text-xs text-fg-faint">No matches.</li>
           )}
           {items.map((item, i) => {
             const active = i === activeIndex;
@@ -157,12 +157,12 @@ export function CommandPalette() {
             return (
               <div key={item.id}>
                 {showSymbolsHeader && (
-                  <li className="px-3 pb-0.5 pt-1 text-[9px] font-semibold uppercase tracking-wide text-[#505070]">
+                  <li className="px-3 pb-0.5 pt-1 text-[9px] font-semibold uppercase tracking-wide text-fg-faint">
                     Symbols
                   </li>
                 )}
                 {showActionsHeader && (
-                  <li className="px-3 pb-0.5 pt-1 text-[9px] font-semibold uppercase tracking-wide text-[#505070]">
+                  <li className="px-3 pb-0.5 pt-1 text-[9px] font-semibold uppercase tracking-wide text-fg-faint">
                     Actions
                   </li>
                 )}
@@ -172,7 +172,7 @@ export function CommandPalette() {
                   onMouseEnter={() => setActiveIndex(i)}
                   onClick={() => run(item)}
                   className={`flex cursor-pointer items-center gap-2 px-3 py-1.5 text-xs ${
-                    active ? "bg-[#20203a] text-[#e8e8f0]" : "text-[#c8c8e0] hover:bg-[#1a1a28]"
+                    active ? "bg-elevated text-fg" : "text-fg-soft hover:bg-raised"
                   }`}
                 >
                   {item.kind === "symbol" ? (
@@ -185,12 +185,12 @@ export function CommandPalette() {
                           e.stopPropagation();
                           toggleWatch(item.symbol);
                         }}
-                        className={item.watched ? "text-amber-400" : "text-[#505070] hover:text-[#9090b0]"}
+                        className={item.watched ? "text-amber-400" : "text-fg-faint hover:text-fg-dim"}
                       >
                         <Star size={12} fill={item.watched ? "currentColor" : "none"} />
                       </button>
                       <span className="font-mono font-medium">{item.symbol}</span>
-                      <span className="ml-auto font-mono text-[#9090b0]">
+                      <span className="ml-auto font-mono text-fg-dim">
                         {item.last === null ? "—" : formatPrice(item.last, item.tickDecimals)}
                       </span>
                     </>
@@ -198,7 +198,7 @@ export function CommandPalette() {
                     <>
                       <span>{item.command.label}</span>
                       {item.command.keys && (
-                        <kbd className="ml-auto rounded border border-[#2a2a45] bg-[#1a1a28] px-1 py-0.5 font-mono text-[9px] text-[#9090b0]">
+                        <kbd className="ml-auto rounded border border-line bg-raised px-1 py-0.5 font-mono text-[9px] text-fg-dim">
                           {item.command.keys}
                         </kbd>
                       )}
@@ -210,7 +210,7 @@ export function CommandPalette() {
           })}
         </ul>
 
-        <div className="border-t border-[#2a2a45] px-3 py-1.5 text-[9px] text-[#505070]">
+        <div className="border-t border-line px-3 py-1.5 text-[9px] text-fg-faint">
           ↑↓ navigate · ↵ select · esc close
         </div>
       </div>

@@ -40,10 +40,10 @@ export function AdminSessionPage() {
 
   return (
     <div className="flex flex-col gap-4 p-4 max-w-xl">
-      <h1 className="text-lg font-semibold text-[#e8e8f0]">Session Control</h1>
+      <h1 className="text-lg font-semibold text-fg">Session Control</h1>
 
       <div className="flex items-center gap-2">
-        <span className="text-[11px] uppercase tracking-wide text-[#707090]">Current phase</span>
+        <span className="text-[11px] uppercase tracking-wide text-fg-mute">Current phase</span>
         <span
           className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${SESSION_PHASE_META[phase].bgClass} ${SESSION_PHASE_META[phase].textClass}`}
         >
@@ -51,10 +51,10 @@ export function AdminSessionPage() {
         </span>
       </div>
 
-      <section className="flex flex-col gap-2 rounded border border-[#2a2a45] bg-[#0d0d14] p-3">
-        <h2 className="text-xs font-semibold text-[#e8e8f0]">Transition to</h2>
+      <section className="flex flex-col gap-2 rounded border border-line bg-deep p-3">
+        <h2 className="text-xs font-semibold text-fg">Transition to</h2>
         {nextStates.length === 0 ? (
-          <p className="text-[11px] text-[#505070]">No transitions available from {phase}.</p>
+          <p className="text-[11px] text-fg-faint">No transitions available from {phase}.</p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {nextStates.map((s) => (
@@ -70,7 +70,7 @@ export function AdminSessionPage() {
             ))}
           </div>
         )}
-        <p className="text-[10px] text-[#505070]">
+        <p className="text-[10px] text-fg-faint">
           Only transitions valid from the current phase are offered. The engine has final say and may
           reject (e.g. sessions disabled).
         </p>

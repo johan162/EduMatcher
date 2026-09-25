@@ -9,7 +9,7 @@ import { formatPrice } from "@/lib/formatters.js";
 import { ApiError } from "@/api/apiFetch.js";
 
 const fieldCls =
-  "bg-[#1a1a28] border border-[#2a2a45] rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#3a3a60]";
+  "bg-raised border border-line rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#3a3a60]";
 
 export interface QuoteFormInitial {
   quote_id?: string;
@@ -114,9 +114,9 @@ export function NewQuoteForm({ symbol, tickDecimals, initial, onDone }: NewQuote
   };
 
   return (
-    <div className="mt-2 flex flex-col gap-2 border-t border-[#2a2a45] pt-2">
+    <div className="mt-2 flex flex-col gap-2 border-t border-line pt-2">
       <label className="flex flex-col gap-0.5">
-        <span className="text-[10px] text-[#505070]">Quote ID</span>
+        <span className="text-[10px] text-fg-faint">Quote ID</span>
         <input
           ref={quoteIdRef}
           value={quoteId}
@@ -180,7 +180,7 @@ export function NewQuoteForm({ symbol, tickDecimals, initial, onDone }: NewQuote
 
       <div className="flex items-center justify-between">
         <label className="flex items-center gap-1">
-          <span className="text-[10px] text-[#505070]">TIF</span>
+          <span className="text-[10px] text-fg-faint">TIF</span>
           <select
             value={tif}
             onChange={(e) => setTif(e.target.value as "DAY" | "GTC")}
@@ -191,7 +191,7 @@ export function NewQuoteForm({ symbol, tickDecimals, initial, onDone }: NewQuote
             <option value="GTC">GTC</option>
           </select>
         </label>
-        <span className="text-[10px] text-[#9090b0]" aria-label="spread indicator">
+        <span className="text-[10px] text-fg-dim" aria-label="spread indicator">
           {spread
             ? `Spread: ${formatPrice(spread.currency, tickDecimals)} (${spread.ticks} ticks)`
             : "Spread: —"}
@@ -202,7 +202,7 @@ export function NewQuoteForm({ symbol, tickDecimals, initial, onDone }: NewQuote
         <button
           type="button"
           onClick={onDone}
-          className="rounded border border-[#2a2a45] px-2 py-1 text-[11px] text-[#9090b0] hover:text-[#e8e8f0]"
+          className="rounded border border-line px-2 py-1 text-[11px] text-fg-dim hover:text-fg"
         >
           Cancel
         </button>

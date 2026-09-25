@@ -66,7 +66,7 @@ export function WatchStar({
       }}
       aria-pressed={watched}
       aria-label={watched ? `Remove ${symbol} from watchlist` : `Add ${symbol} to watchlist`}
-      className={watched ? "text-amber-400" : "text-[#505070] hover:text-[#9090b0]"}
+      className={watched ? "text-amber-400" : "text-fg-faint hover:text-fg-dim"}
     >
       <Star size={12} fill={watched ? "currentColor" : "none"} />
     </button>
@@ -75,8 +75,8 @@ export function WatchStar({
 
 /** Signed change-% cell, coloured by direction (§10.2 ChangeCell). */
 export function ChangeCell({ pct }: { pct: number | null }) {
-  if (pct === null) return <span className="price-cell text-[#505070]">—</span>;
-  const cls = pct > 0 ? "text-up" : pct < 0 ? "text-down" : "text-[#9090b0]";
+  if (pct === null) return <span className="price-cell text-fg-faint">—</span>;
+  const cls = pct > 0 ? "text-up" : pct < 0 ? "text-down" : "text-fg-dim";
   return (
     <span className={`price-cell ${cls}`}>
       {pct > 0 ? "+" : ""}

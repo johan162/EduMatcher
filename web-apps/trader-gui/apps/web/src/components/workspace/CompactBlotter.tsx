@@ -32,19 +32,19 @@ export function CompactBlotter({ symbol, tickDecimals }: CompactBlotterProps) {
   return (
     <div className="flex flex-col gap-1 h-full">
       <div className="flex items-center gap-2">
-        <span className="text-xs text-[#9090b0]">Working orders</span>
-        <span className="text-[10px] text-[#505070]">{symbol}</span>
-        <span className="ml-auto text-[10px] text-[#505070]">
+        <span className="text-xs text-fg-dim">Working orders</span>
+        <span className="text-[10px] text-fg-faint">{symbol}</span>
+        <span className="ml-auto text-[10px] text-fg-faint">
           {rows.length} {rows.length === 1 ? "order" : "orders"}
         </span>
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-[11px] text-[#505070] py-2">No working orders for {symbol}.</p>
+        <p className="text-[11px] text-fg-faint py-2">No working orders for {symbol}.</p>
       ) : (
         <div className="overflow-auto">
           <table className="w-full text-xs font-mono border-collapse">
-            <thead className="text-[10px] text-[#505070]">
+            <thead className="text-[10px] text-fg-faint">
               <tr>
                 <th scope="col" className="text-left font-medium px-2 py-1">Side</th>
                 <th scope="col" className="text-left font-medium px-2 py-1">Type</th>
@@ -57,26 +57,26 @@ export function CompactBlotter({ symbol, tickDecimals }: CompactBlotterProps) {
             </thead>
             <tbody>
               {rows.map((o) => (
-                <tr key={o.order_id} className="border-b border-[#1a1a28]">
+                <tr key={o.order_id} className="border-b border-raised">
                   <td className={`px-2 py-0.5 ${o.side === "BUY" ? "text-bid" : "text-ask"}`}>
                     {o.side}
                   </td>
-                  <td className="px-2 py-0.5 text-[#9090b0]">{o.order_type}</td>
-                  <td className="px-2 py-0.5 text-right text-[#9090b0]">{formatQty(o.quantity)}</td>
-                  <td className="px-2 py-0.5 text-right text-[#9090b0]">
+                  <td className="px-2 py-0.5 text-fg-dim">{o.order_type}</td>
+                  <td className="px-2 py-0.5 text-right text-fg-dim">{formatQty(o.quantity)}</td>
+                  <td className="px-2 py-0.5 text-right text-fg-dim">
                     {formatQty(o.remaining_qty)}
                   </td>
-                  <td className="px-2 py-0.5 text-right text-[#e8e8f0]">
+                  <td className="px-2 py-0.5 text-right text-fg">
                     {o.price === null ? "MKT" : formatPrice(o.price, tickDecimals)}
                   </td>
-                  <td className="px-2 py-0.5 text-[#9090b0]">{o.status}</td>
+                  <td className="px-2 py-0.5 text-fg-dim">{o.status}</td>
                   <td className="px-2 py-0.5 text-right">
                     <button
                       type="button"
                       onClick={() => requestCancel(o)}
                       disabled={busy}
                       aria-label={`Cancel order ${o.order_id}`}
-                      className="text-[#9090b0] hover:text-ask disabled:opacity-50"
+                      className="text-fg-dim hover:text-ask disabled:opacity-50"
                     >
                       <X size={12} />
                     </button>

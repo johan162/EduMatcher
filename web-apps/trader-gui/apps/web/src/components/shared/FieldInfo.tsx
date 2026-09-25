@@ -28,7 +28,7 @@ export function FieldInfo({ label, lines }: FieldInfoProps) {
         onMouseLeave={() => setOpen(false)}
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
-        className="text-[#505070] hover:text-[#9090b0] focus:text-[#9090b0] focus:outline-none"
+        className="text-fg-faint hover:text-fg-dim focus:text-fg-dim focus:outline-none"
       >
         <Info size={12} />
       </button>
@@ -36,9 +36,9 @@ export function FieldInfo({ label, lines }: FieldInfoProps) {
         <span
           role="tooltip"
           id={id}
-          className="absolute left-4 top-0 z-50 w-56 rounded border border-[#2a2a45] bg-[#12121a] p-2 text-[10px] leading-snug text-[#c8c8e0] shadow-xl"
+          className="absolute left-4 top-0 z-50 w-56 rounded border border-line bg-panel p-2 text-[10px] leading-snug text-fg-soft shadow-xl"
         >
-          <span className="mb-0.5 block font-semibold text-[#e8e8f0]">{label}</span>
+          <span className="mb-0.5 block font-semibold text-fg">{label}</span>
           {lines.map((l, i) => (
             <span key={i} className="block">
               {l}

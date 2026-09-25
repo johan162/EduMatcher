@@ -21,7 +21,7 @@ export function SettingsPopover() {
         onClick={() => setOpen((v) => !v)}
         aria-label="Settings"
         aria-expanded={open}
-        className="text-[#9090b0] hover:text-[#e8e8f0]"
+        className="text-fg-dim hover:text-fg"
       >
         <Settings size={16} />
       </button>
@@ -33,9 +33,9 @@ export function SettingsPopover() {
           <div
             role="menu"
             aria-label="Settings"
-            className="absolute right-0 top-7 z-50 w-72 rounded border border-[#2a2a45] bg-[#12121a] p-3 shadow-2xl"
+            className="absolute right-0 top-7 z-50 w-72 rounded border border-line bg-panel p-3 shadow-2xl"
           >
-            <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#707090]">
+            <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-fg-mute">
               Settings
             </h3>
             <label className="flex cursor-pointer items-start gap-2">
@@ -47,8 +47,8 @@ export function SettingsPopover() {
                 className="mt-0.5"
               />
               <span className="flex flex-col">
-                <span className="text-xs text-[#e8e8f0]">Confirm cancellations</span>
-                <span className="text-[10px] text-[#9090b0]">
+                <span className="text-xs text-fg">Confirm cancellations</span>
+                <span className="text-[10px] text-fg-dim">
                   When off (power-user), single-order cancels fire immediately with an undo-toast.
                   Flatten All and kill switches always confirm.
                 </span>

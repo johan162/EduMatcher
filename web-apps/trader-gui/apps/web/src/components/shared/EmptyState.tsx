@@ -20,10 +20,10 @@ interface EmptyStateProps {
  */
 export function EmptyState({ title, hint, icon: Icon = Inbox, action }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 rounded border border-[#2a2a45] p-8 text-center">
-      <Icon size={24} className="text-[#505070]" aria-hidden="true" />
-      <p className="text-sm text-[#9090b0]">{title}</p>
-      {hint && <p className="max-w-sm text-xs text-[#505070]">{hint}</p>}
+    <div className="flex flex-col items-center justify-center gap-2 rounded border border-line p-8 text-center">
+      <Icon size={24} className="text-fg-faint" aria-hidden="true" />
+      <p className="text-sm text-fg-dim">{title}</p>
+      {hint && <p className="max-w-sm text-xs text-fg-faint">{hint}</p>}
       {action && <div className="mt-1">{action}</div>}
     </div>
   );

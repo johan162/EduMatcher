@@ -16,7 +16,7 @@ interface KillSwitchPanelProps {
 }
 
 const fieldCls =
-  "bg-[#1a1a28] border border-[#2a2a45] rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#3a3a60]";
+  "bg-raised border border-line rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#3a3a60]";
 
 /** Shared error handling for the three kill-switch scopes. */
 function killSwitchError(err: unknown): void {
@@ -94,10 +94,10 @@ export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {
   };
 
   return (
-    <section aria-label="Kill switch" className="flex flex-col gap-3 rounded border border-[#2a2a45] bg-[#0d0d14] p-3">
+    <section aria-label="Kill switch" className="flex flex-col gap-3 rounded border border-line bg-deep p-3">
       <div>
-        <h2 className="text-xs font-semibold text-[#e8e8f0]">Kill Switch</h2>
-        <p className="text-[10px] text-[#505070]">
+        <h2 className="text-xs font-semibold text-fg">Kill Switch</h2>
+        <p className="text-[10px] text-fg-faint">
           Cancel resting orders and quotes. Does not halt trading — participants may re-submit.
         </p>
       </div>
@@ -105,7 +105,7 @@ export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {
       {/* By Symbol */}
       <div className="flex items-end gap-2">
         <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-[#505070]">By Symbol</span>
+          <span className="text-[10px] text-fg-faint">By Symbol</span>
           <input
             list="ks-symbols"
             value={symbol}
@@ -124,7 +124,7 @@ export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {
           type="button"
           onClick={() => setConfirmSymbol(true)}
           disabled={!symbol.trim() || symbolKs.isPending}
-          className="rounded border border-[#2a2a45] px-2 py-1 text-[11px] text-[#9090b0] hover:text-ask disabled:opacity-40"
+          className="rounded border border-line px-2 py-1 text-[11px] text-fg-dim hover:text-ask disabled:opacity-40"
         >
           Cancel symbol
         </button>
@@ -133,7 +133,7 @@ export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {
       {/* By Gateway */}
       <div className="flex items-end gap-2">
         <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-[#505070]">By Gateway</span>
+          <span className="text-[10px] text-fg-faint">By Gateway</span>
           <select
             value={gatewayId}
             onChange={(e) => setGatewayId(e.target.value)}
@@ -152,17 +152,17 @@ export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {
           type="button"
           onClick={() => setConfirmGateway(true)}
           disabled={!gatewayId || gatewayKs.isPending}
-          className="rounded border border-[#2a2a45] px-2 py-1 text-[11px] text-[#9090b0] hover:text-ask disabled:opacity-40"
+          className="rounded border border-line px-2 py-1 text-[11px] text-fg-dim hover:text-ask disabled:opacity-40"
         >
           Cancel gateway
         </button>
       </div>
 
       {/* Global */}
-      <div className="flex items-end gap-2 border-t border-[#2a2a45] pt-3">
+      <div className="flex items-end gap-2 border-t border-line pt-3">
         <div className="flex flex-col">
           <span className="text-[10px] text-ask">Global (all gateways)</span>
-          <span className="text-[10px] text-[#505070]">Full-market emergency stop.</span>
+          <span className="text-[10px] text-fg-faint">Full-market emergency stop.</span>
         </div>
         <button
           type="button"

@@ -7,7 +7,7 @@ import { DepthLadder } from "@/components/symbol/DepthLadder.js";
 import { OrderTicket } from "@/components/orders/OrderTicket.js";
 import { CompactBlotter } from "@/components/workspace/CompactBlotter.js";
 
-const PANEL = "border border-[#2a2a45] rounded bg-[#0d0d14] p-3 overflow-auto";
+const PANEL = "border border-line rounded bg-deep p-3 overflow-auto";
 
 /**
  * Trading Workspace (§11) — the default TRADER cockpit. Four panels (chart,
@@ -34,9 +34,9 @@ export function TradingWorkspacePage() {
 
   if (!activeSymbol) {
     return (
-      <div className="flex flex-col items-start gap-2 border border-[#2a2a45] rounded p-6">
-        <h1 className="text-sm font-semibold text-[#e8e8f0]">Trading Workspace</h1>
-        <p className="text-xs text-[#9090b0]">
+      <div className="flex flex-col items-start gap-2 border border-line rounded p-6">
+        <h1 className="text-sm font-semibold text-fg">Trading Workspace</h1>
+        <p className="text-xs text-fg-dim">
           No symbols available yet — is pm-api-gwy running?
         </p>
       </div>
@@ -49,14 +49,14 @@ export function TradingWorkspacePage() {
     <div className="flex flex-col h-full gap-3">
       {/* Header: symbol picker */}
       <div className="flex items-center gap-2">
-        <h1 className="text-sm font-semibold text-[#e8e8f0]">Workspace</h1>
+        <h1 className="text-sm font-semibold text-fg">Workspace</h1>
         <label className="flex items-center gap-1 ml-2">
-          <span className="text-[10px] text-[#505070]">Symbol</span>
+          <span className="text-[10px] text-fg-faint">Symbol</span>
           <select
             value={activeSymbol}
             onChange={(e) => setActiveSymbol(e.target.value)}
             aria-label="Active symbol"
-            className="bg-[#1a1a28] border border-[#2a2a45] rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#3a3a60]"
+            className="bg-raised border border-line rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#3a3a60]"
           >
             {symbols.map((s) => (
               <option key={s.symbol} value={s.symbol}>

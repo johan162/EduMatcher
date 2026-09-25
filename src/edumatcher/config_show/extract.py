@@ -56,6 +56,7 @@ KNOWN_TOP_LEVEL: frozenset[str] = frozenset(
         "snapshot_interval_sec",
         "engine_tuning",
         "mm_obligation_defaults",
+        "require_mm_seed_quotes",
         "risk_controls",
         "circuit_breaker_defaults",
         "gateways",
@@ -438,6 +439,7 @@ def build_view(raw: Any, source: Source) -> ConfigView:
             "enforce_mm_obligation": mm_defaults.get(
                 "enforce_mm_obligation", raw.get("enforce_mm_obligation")
             ),
+            "require_mm_seed_quotes": raw.get("require_mm_seed_quotes"),
             "country": raw.get("country"),
         },
         listeners=_listeners(raw),

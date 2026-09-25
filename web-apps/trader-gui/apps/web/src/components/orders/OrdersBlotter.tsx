@@ -93,8 +93,8 @@ export function OrdersBlotter({
           </span>
         ),
       },
-      { accessorKey: "order_type", header: "Type", cell: (c) => <span className="text-[#9090b0]">{c.row.original.order_type}</span> },
-      { accessorKey: "tif", header: "TIF", cell: (c) => <span className="text-[#9090b0]">{c.row.original.tif}</span> },
+      { accessorKey: "order_type", header: "Type", cell: (c) => <span className="text-fg-dim">{c.row.original.order_type}</span> },
+      { accessorKey: "tif", header: "TIF", cell: (c) => <span className="text-fg-dim">{c.row.original.tif}</span> },
       { accessorKey: "quantity", header: "Qty", cell: (c) => <span className="price-cell">{formatQty(c.row.original.quantity)}</span> },
       {
         accessorKey: "remaining_qty",
@@ -121,14 +121,14 @@ export function OrdersBlotter({
         cell: (c) => {
           const g = c.row.original.oco_group_id ?? c.row.original.combo_parent_id;
           return g ? (
-            <span className="rounded bg-[#20203a] px-1 text-[10px] text-[#9090b0]">{g}</span>
+            <span className="rounded bg-elevated px-1 text-[10px] text-fg-dim">{g}</span>
           ) : (
-            <span className="text-[#505070]">—</span>
+            <span className="text-fg-faint">—</span>
           );
         },
       },
       { id: "status", accessorKey: "status", header: "Status", cell: (c) => <StatusPill status={c.row.original.status} /> },
-      { id: "updated", accessorKey: "updated_at", header: "Updated", cell: (c) => <span className="text-[#9090b0] text-[10px]">{formatTime(c.row.original.updated_at)}</span> },
+      { id: "updated", accessorKey: "updated_at", header: "Updated", cell: (c) => <span className="text-fg-dim text-[10px]">{formatTime(c.row.original.updated_at)}</span> },
       {
         id: "actions",
         header: "",
@@ -144,7 +144,7 @@ export function OrdersBlotter({
                 disabled={done}
                 aria-label={`Amend order ${o.order_id}`}
                 title="Amend (same-price size reduction keeps priority)"
-                className="text-[#9090b0] hover:text-[#e8e8f0] disabled:opacity-30"
+                className="text-fg-dim hover:text-fg disabled:opacity-30"
               >
                 <Pencil size={12} />
               </button>
@@ -154,7 +154,7 @@ export function OrdersBlotter({
                 disabled={done}
                 aria-label={`Replace order ${o.order_id}`}
                 title="Cancel-replace"
-                className="text-[#9090b0] hover:text-[#e8e8f0] disabled:opacity-30"
+                className="text-fg-dim hover:text-fg disabled:opacity-30"
               >
                 <Repeat size={12} />
               </button>
@@ -164,7 +164,7 @@ export function OrdersBlotter({
                 disabled={done}
                 aria-label={`Cancel order ${o.order_id}`}
                 title="Cancel"
-                className="text-[#9090b0] hover:text-ask disabled:opacity-30"
+                className="text-fg-dim hover:text-ask disabled:opacity-30"
               >
                 <X size={13} />
               </button>
@@ -258,21 +258,21 @@ export function OrdersBlotter({
 
   if (orders.length === 0) {
     return (
-      <div className="border border-[#2a2a45] rounded p-8 text-center text-sm text-[#9090b0]">
-        No active orders — press <kbd className="rounded bg-[#1a1a28] px-1">F1</kbd> to enter an order
+      <div className="border border-line rounded p-8 text-center text-sm text-fg-dim">
+        No active orders — press <kbd className="rounded bg-raised px-1">F1</kbd> to enter an order
       </div>
     );
   }
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-[10px] text-[#505070]">
+      <p className="text-[10px] text-fg-faint">
         Click to select · Shift-click for a range · ↑↓ to move · Ctrl+A to select all · double-click
         or Enter to open · Delete to cancel
       </p>
-      <div className="overflow-auto border border-[#2a2a45] rounded">
+      <div className="overflow-auto border border-line rounded">
         <table className="w-full text-xs border-collapse">
-          <thead className="sticky top-0 z-10 bg-[#12121a]">
+          <thead className="sticky top-0 z-10 bg-panel">
             {table.getHeaderGroups().map((group) => (
               <tr key={group.id}>
                 {group.headers.map((header) => {
@@ -291,13 +291,13 @@ export function OrdersBlotter({
                               ? "none"
                               : undefined
                       }
-                      className="text-left font-medium text-[#9090b0] px-2 py-1.5 border-b border-[#2a2a45] whitespace-nowrap"
+                      className="text-left font-medium text-fg-dim px-2 py-1.5 border-b border-line whitespace-nowrap"
                     >
                       {header.isPlaceholder ? null : sortable ? (
                         <button
                           type="button"
                           onClick={header.column.getToggleSortingHandler()}
-                          className="flex items-center gap-1 hover:text-[#e8e8f0]"
+                          className="flex items-center gap-1 hover:text-fg"
                         >
                           {flexRender(header.column.columnDef.header, header.getContext())}
                           {dir === "asc" && <ChevronUp size={11} />}
@@ -321,8 +321,8 @@ export function OrdersBlotter({
                 onClick={(e) => onRowClick(row.id, row.getCanSelect(), e)}
                 onDoubleClick={() => onOpenDetail(row.original.order_id)}
                 onKeyDown={(e) => onRowKeyDown(row.original, e)}
-                className={`cursor-pointer border-b border-[#1a1a28] hover:bg-[#1a1a28] focus:outline-none focus:ring-1 focus:ring-inset focus:ring-[#3a3a60] ${
-                  row.getIsSelected() ? "bg-[#20203a]" : ""
+                className={`cursor-pointer border-b border-raised hover:bg-raised focus:outline-none focus:ring-1 focus:ring-inset focus:ring-[#3a3a60] ${
+                  row.getIsSelected() ? "bg-elevated" : ""
                 }`}
               >
                 {row.getVisibleCells().map((cell) => (
@@ -337,8 +337,8 @@ export function OrdersBlotter({
       </div>
 
       {selectedIds.length > 0 && (
-        <div className="flex items-center gap-3 rounded border border-[#2a2a45] bg-[#12121a] px-3 py-2 text-xs">
-          <span className="text-[#e8e8f0]">
+        <div className="flex items-center gap-3 rounded border border-line bg-panel px-3 py-2 text-xs">
+          <span className="text-fg">
             {selectedIds.length} {selectedIds.length === 1 ? "order" : "orders"} selected
           </span>
           <button
