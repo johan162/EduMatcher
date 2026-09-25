@@ -5,6 +5,7 @@ import { useDraftStore } from "@/store/draftStore";
 import { importYaml } from "@/api/client";
 import { Select } from "@/components/ui/Select";
 import { ConfirmDialog } from "@/components/ui/Dialog";
+import packageJson from "../../../package.json";
 
 const PERSONA_LABELS: Record<Persona, string> = {
   BEGINNER: "Beginner",
@@ -52,7 +53,7 @@ export function TopBar() {
     <header className="flex h-14 items-center justify-between gap-4 border-b border-border bg-surface px-4">
       <div className="flex items-center gap-2">
         <span className="text-sm font-semibold">
-          EduMatcher Config Builder: <span className="text-accent">v1.3.0</span>
+          EduMatcher Config Builder: <span className="text-accent">v{packageJson.version}</span>
         </span>
       </div>
 

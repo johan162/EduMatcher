@@ -1,18 +1,21 @@
 import { useState } from "react";
 import { Settings } from "lucide-react";
 import { useSettingsStore } from "@/store/useSettingsStore.js";
+import { FONT_SIZE_ORDER, useFontSizeStore } from "@/store/useFontSizeStore.js";
 
 /**
- * Settings popover in the top bar (§20.3). Currently surfaces the single
- * power-user toggle — "Confirm order/quote cancellations" (default on). When
- * off, reversible cancels skip the dialog and use an undo-toast instead;
- * always-confirm exceptions (Flatten All, kill switch, gateway kick) are
- * unaffected.
+ * Settings popover in the top bar (§20.3): the power-user toggle — "Confirm
+ * order/quote cancellations" (default on; when off, reversible cancels skip
+ * the dialog and use an undo-toast instead, always-confirm exceptions like
+ * Flatten All and kill switch unaffected) — and the font-size control, which
+ * zoom-scales the whole app (see useFontSizeStore).
  */
 export function SettingsPopover() {
   const [open, setOpen] = useState(false);
   const confirmCancellations = useSettingsStore((s) => s.confirmCancellations);
   const toggle = useSettingsStore((s) => s.toggleConfirmCancellations);
+  const fontSize = useFontSizeStore((s) => s.fontSize);
+  const setFontSize = useFontSizeStore((s) => s.setFontSize);
 
   return (
     <div className="relative">
@@ -54,6 +57,28 @@ export function SettingsPopover() {
                 </span>
               </span>
             </label>
+
+            <div className="mt-3 border-t border-line pt-3">
+              <span className="text-xs text-fg">Font size</span>
+              <div role="radiogroup" aria-label="Font size" className="mt-1.5 flex gap-1">
+                {FONT_SIZE_ORDER.map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    role="radio"
+                    aria-checked={fontSize === size}
+                    onClick={() => setFontSize(size)}
+                    className={`flex-1 rounded px-1 py-1 text-[10px] font-medium ${
+                      fontSize === size
+                        ? "bg-elevated text-fg"
+                        : "bg-raised text-fg-dim hover:bg-elevated2"
+                    }`}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </>
       )}

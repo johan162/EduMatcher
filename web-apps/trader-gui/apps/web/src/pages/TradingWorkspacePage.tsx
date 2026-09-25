@@ -78,7 +78,12 @@ export function TradingWorkspacePage() {
         </section>
 
         <section className={`col-span-2 ${PANEL}`} aria-label="Order ticket">
-          <OrderTicket compact lockedSymbol={activeSymbol} tickDecimals={tickDecimals} />
+          {/* The ticket's field grid and BUY/SELL row are sized for the
+              standalone Order Entry screen; at 25% narrower here they no
+              longer eat width the chart/DOM quadrants could use. */}
+          <div className="w-3/4">
+            <OrderTicket compact lockedSymbol={activeSymbol} tickDecimals={tickDecimals} />
+          </div>
         </section>
       </div>
 

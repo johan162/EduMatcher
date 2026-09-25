@@ -8,6 +8,10 @@
  * trading-terminal palette (§22.3); light follows terminal-gui's. */
 :root,
 html.dark {
+  /* fg-soft/dim/mute/faint are shifted 15% toward white here (and 30% toward
+     black in the light block below) beyond their original values -- the gray
+     text (field labels, secondary copy) read as too low-contrast at the
+     originals in both themes. */
   --app: 10 10 15;
   --deep: 13 13 20;
   --panel: 18 18 26;
@@ -17,14 +21,16 @@ html.dark {
   --line: 42 42 69;
   --thumb: 58 58 96;
   --fg: 232 232 240;
-  --fg-soft: 200 200 224;
-  --fg-dim: 144 144 176;
-  --fg-mute: 112 112 144;
-  --fg-faint: 80 80 112;
+  --fg-soft: 208 208 229;
+  --fg-dim: 161 161 188;
+  --fg-mute: 133 133 161;
+  --fg-faint: 106 106 133;
   --link: 110 168 254;
   --bid: 34 197 94;
   --ask: 239 68 68;
   --halt: 245 158 11;
+  --accent: 255 160 40;
+  --accent-fg: 10 12 16;
 }
 
 html:not(.dark) {
@@ -37,10 +43,12 @@ html:not(.dark) {
   --line: 213 219 227;
   --thumb: 179 188 201;
   --fg: 16 20 28;
-  --fg-soft: 47 56 70;
-  --fg-dim: 85 96 111;
-  --fg-mute: 106 117 135;
-  --fg-faint: 128 139 156;
+  --fg-soft: 33 39 49;
+  --fg-dim: 59 67 78;
+  --fg-mute: 74 82 94;
+  --fg-faint: 90 97 109;
+  --accent: 178 106 0;
+  --accent-fg: 255 255 255;
   --link: 11 95 206;
   --bid: 21 128 61;
   --ask: 220 38 38;

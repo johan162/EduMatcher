@@ -1,6 +1,6 @@
 {
   "name": "@edumatcher/web",
-  "version": "1.0.0",
+  "version": "0.41.2",
   "private": true,
   "type": "module",
   "scripts": {

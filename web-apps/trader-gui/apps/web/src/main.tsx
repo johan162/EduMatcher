@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
 import App from "./App.js";
 import { applyThemeToDocument, useThemeStore } from "./store/useThemeStore.js";
+import { applyFontSizeToDocument, useFontSizeStore } from "./store/useFontSizeStore.js";
 import "./index.css";
 
 const queryClient = new QueryClient({
@@ -20,6 +21,10 @@ const queryClient = new QueryClient({
 // not in AppShell, so the login page (which has no top bar) follows it too.
 applyThemeToDocument(useThemeStore.getState().theme);
 useThemeStore.subscribe((s) => applyThemeToDocument(s.theme));
+
+// Same pattern, for the zoom-based font-size preference (§20.3 settings).
+applyFontSizeToDocument(useFontSizeStore.getState().fontSize);
+useFontSizeStore.subscribe((s) => applyFontSizeToDocument(s.fontSize));
 
 function ThemedToaster() {
   const theme = useThemeStore((s) => s.theme);
