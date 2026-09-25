@@ -250,8 +250,9 @@ up:
 | **Intermediate** | …the above **plus** Risk & Collars, Circuit Breakers, Symbols, Indices, Auxiliary Gateways |
 | **Expert** | …the above **plus** Combos, Engine Tuning |
 
-¹ The **Market Maker** tab appears at any persona, but only once at least one
-gateway has the `MARKET_MAKER` role.
+¹ The **Market Maker** tab appears at any persona. It is greyed out and
+disabled until at least one gateway has the `MARKET_MAKER` role, then becomes
+editable.
 
 !!! note "📷 Figure 2 — Persona switcher and theme toggle"
     _Screenshot placeholder._ Capture the top bar with the persona dropdown open
@@ -275,7 +276,8 @@ gateway has the `MARKET_MAKER` role.
 | **Engine Tuning** | Expert | Low-level runtime retention and throttling knobs | [`engine_tuning`](010-configuration.md#engine_tuning) |
 | **Review & Export** | Beginner | Diagnostics summary, YAML preview, download, and verify | [Config Verifier](020-config-verifier.md) |
 
-¹ Shown only when a `MARKET_MAKER` gateway exists.
+¹ Editable only once a `MARKET_MAKER` gateway exists; before that the tab is
+shown greyed out.
 
 The rest of this chapter walks through the concepts behind these tabs. If you
 just want to produce a working file quickly, follow the
@@ -934,7 +936,8 @@ server can also serve the built UI, collapsing the two into one container.
 | **Port already in use** | Another process holds `8192`/`5192`/`8092` | Change `PORT` (API) or `server.port` / proxy target in `web-apps/config-gui/apps/web/vite.config.ts` (web). |
 | **Imported config shows an "unmapped" banner** | The file has sections the GUI does not model | Expected — those sections are preserved read-only and re-emitted unchanged. |
 | **Quote Stub Review shows "! fill in" after import** | No mid-range seeding and no explicit quotes for some symbols | Set a mid-range on the Market Maker tab, or enter explicit bid/ask on each flagged symbol's MM Quotes sub-tab. |
-| **A tab you expected is missing** | It is above the current persona, or (Market Maker) no MM gateway exists | Raise the [persona](#personas), or add a `MARKET_MAKER` gateway. |
+| **A tab you expected is missing** | It is above the current persona | Raise the [persona](#personas). |
+| **Market Maker tab is greyed out** | No `MARKET_MAKER` gateway is defined yet | Add a `MARKET_MAKER` gateway on the Basics tab. |
 
 ## See Also
 
