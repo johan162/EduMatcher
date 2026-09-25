@@ -13,7 +13,7 @@ interface SkeletonProps {
 export function Skeleton({ className = "" }: SkeletonProps) {
   return (
     <div
-      className={`animate-pulse motion-reduce:animate-none rounded bg-[#1a1a28] ${className}`}
+      className={`animate-pulse motion-reduce:animate-none rounded bg-raised ${className}`}
       aria-hidden="true"
     />
   );

@@ -32,24 +32,24 @@ export function ConfirmTypedDialog({
 
   return (
     <Modal title={title} onClose={onClose}>
-      <p className="text-xs text-[#c8c8e0]">{message}</p>
+      <p className="text-xs text-fg-soft">{message}</p>
       <label className="mt-3 flex flex-col gap-1">
-        <span className="text-[11px] text-[#9090b0]">
-          Type <span className="font-mono font-semibold text-[#e8e8f0]">{confirmWord}</span> to confirm
+        <span className="text-[11px] text-fg-dim">
+          Type <span className="font-mono font-semibold text-fg">{confirmWord}</span> to confirm
         </span>
         <input
           value={typed}
           onChange={(e) => setTyped(e.target.value)}
           aria-label={`Type ${confirmWord} to confirm`}
           autoFocus
-          className="bg-[#1a1a28] border border-[#2a2a45] rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#3a3a60]"
+          className="bg-raised border border-line rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#3a3a60]"
         />
       </label>
       <div className="mt-4 flex justify-end gap-2">
         <button
           type="button"
           onClick={onClose}
-          className="rounded border border-[#2a2a45] px-3 py-1.5 text-xs text-[#9090b0] hover:text-[#e8e8f0]"
+          className="rounded border border-line px-3 py-1.5 text-xs text-fg-dim hover:text-fg"
         >
           Cancel
         </button>

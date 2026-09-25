@@ -9,7 +9,7 @@ import { ApiError } from "@/api/apiFetch.js";
 import type { Side } from "@/types/index.js";
 
 const fieldCls =
-  "bg-[#1a1a28] border border-[#2a2a45] rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#3a3a60]";
+  "bg-raised border border-line rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#3a3a60]";
 
 type LegType = "LIMIT" | "STOP";
 
@@ -105,11 +105,11 @@ export function OcoForm() {
     setLeg: (l: LegState) => void,
     keyPrefix: string,
   ) => (
-    <fieldset className="rounded border border-[#2a2a45] p-2">
-      <legend className="px-1 text-[10px] text-[#9090b0]">{label}</legend>
+    <fieldset className="rounded border border-line p-2">
+      <legend className="px-1 text-[10px] text-fg-dim">{label}</legend>
       <div className="grid grid-cols-2 gap-2">
         <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-[#505070]">Side</span>
+          <span className="text-[10px] text-fg-faint">Side</span>
           <select
             value={leg.side}
             onChange={(e) => setLeg({ ...leg, side: e.target.value as Side })}
@@ -121,7 +121,7 @@ export function OcoForm() {
           </select>
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-[#505070]">Type</span>
+          <span className="text-[10px] text-fg-faint">Type</span>
           <select
             value={leg.order_type}
             onChange={(e) => setLeg({ ...leg, order_type: e.target.value as LegType })}
@@ -134,7 +134,7 @@ export function OcoForm() {
         </label>
         {leg.order_type === "LIMIT" && (
           <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] text-[#505070]">Price</span>
+            <span className="text-[10px] text-fg-faint">Price</span>
             <input
               type="number"
               step="any"
@@ -150,7 +150,7 @@ export function OcoForm() {
         )}
         {leg.order_type === "STOP" && (
           <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] text-[#505070]">Stop price</span>
+            <span className="text-[10px] text-fg-faint">Stop price</span>
             <input
               type="number"
               step="any"
@@ -181,7 +181,7 @@ export function OcoForm() {
     >
       <div className="grid grid-cols-2 gap-2">
         <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-[#505070]">OCO ID</span>
+          <span className="text-[10px] text-fg-faint">OCO ID</span>
           <input
             value={ocoId}
             onChange={(e) => setOcoId(e.target.value)}
@@ -191,7 +191,7 @@ export function OcoForm() {
           {errors.oco_id && <span className="text-[10px] text-ask">{errors.oco_id}</span>}
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-[#505070]">Symbol</span>
+          <span className="text-[10px] text-fg-faint">Symbol</span>
           <input
             list="oco-symbols"
             value={symbol}
@@ -212,7 +212,7 @@ export function OcoForm() {
           {errors.symbol && <span className="text-[10px] text-ask">{errors.symbol}</span>}
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-[#505070]">Quantity</span>
+          <span className="text-[10px] text-fg-faint">Quantity</span>
           <input
             type="number"
             min={1}
@@ -224,7 +224,7 @@ export function OcoForm() {
           {errors.quantity && <span className="text-[10px] text-ask">{errors.quantity}</span>}
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-[#505070]">TIF</span>
+          <span className="text-[10px] text-fg-faint">TIF</span>
           <select
             value={tif}
             onChange={(e) => setTif(e.target.value as "DAY" | "GTC")}

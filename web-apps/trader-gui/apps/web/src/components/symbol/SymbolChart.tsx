@@ -24,26 +24,31 @@ import {
 } from "@/lib/candles.js";
 import type { HistoryTrade } from "@/types/index.js";
 import { nsToEpochSec } from "@/lib/time.js";
+import { CHART_COLORS } from "@/lib/chartTheme.js";
+import { useThemeStore, type ThemePreference } from "@/store/useThemeStore.js";
 
 /** How many prints to pull for the intraday timeframes (§16.2.1). */
 const CHART_TRADE_LIMIT = 1000;
 
 const TIMEFRAMES: Timeframe[] = ["1m", "5m", "1h", "1D", "All"];
 
-const CHART_OPTIONS = {
-  layout: {
-    background: { type: ColorType.Solid, color: "#0a0a0f" },
-    textColor: "#9090b0",
-    fontFamily: "JetBrains Mono, ui-monospace, monospace",
-  },
-  grid: {
-    vertLines: { color: "#1a1a28" },
-    horzLines: { color: "#1a1a28" },
-  },
-  crosshair: { mode: CrosshairMode.Normal },
-  rightPriceScale: { borderColor: "#2a2a45" },
-  timeScale: { borderColor: "#2a2a45", timeVisible: true, secondsVisible: false },
-} as const;
+function chartOptions(theme: ThemePreference) {
+  const c = CHART_COLORS[theme];
+  return {
+    layout: {
+      background: { type: ColorType.Solid, color: c.background },
+      textColor: c.text,
+      fontFamily: "JetBrains Mono, ui-monospace, monospace",
+    },
+    grid: {
+      vertLines: { color: c.grid },
+      horzLines: { color: c.grid },
+    },
+    crosshair: { mode: CrosshairMode.Normal },
+    rightPriceScale: { borderColor: c.border },
+    timeScale: { borderColor: c.border, timeVisible: true, secondsVisible: false },
+  } as const;
+}
 
 function toCandleData(candles: Candle[]) {
   return candles.map((c) => ({
@@ -83,6 +88,7 @@ interface SymbolChartProps {
 export function SymbolChart({ symbol }: SymbolChartProps) {
   const [timeframe, setTimeframe] = useState<Timeframe>("5m");
   const [chartType, setChartType] = useState<"candlestick" | "line">("candlestick");
+  const theme = useThemeStore((s) => s.theme);
 
   const intraday = isIntraday(timeframe);
   const tradesQuery = useHistoryTradesQuery(intraday ? symbol : null, CHART_TRADE_LIMIT);
@@ -106,7 +112,9 @@ export function SymbolChart({ symbol }: SymbolChartProps) {
   const timeframeRef = useRef<Timeframe>(timeframe);
   const chartTypeRef = useRef<"candlestick" | "line">(chartType);
   const candlesRef = useRef<Candle[]>(candles);
+  const themeRef = useRef(theme);
 
+  themeRef.current = theme;
   symbolRef.current = symbol;
   timeframeRef.current = timeframe;
   chartTypeRef.current = chartType;
@@ -116,7 +124,11 @@ export function SymbolChart({ symbol }: SymbolChartProps) {
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const chart = createChart(el, { ...CHART_OPTIONS, width: el.clientWidth, height: 320 });
+    const chart = createChart(el, {
+      ...chartOptions(themeRef.current),
+      width: el.clientWidth,
+      height: 320,
+    });
     chartRef.current = chart;
 
     const observer = new ResizeObserver((entries) => {
@@ -142,26 +154,43 @@ export function SymbolChart({ symbol }: SymbolChartProps) {
       chart.removeSeries(seriesRef.current);
       seriesRef.current = null;
     }
+    const colors = CHART_COLORS[themeRef.current];
     if (chartType === "candlestick") {
       const series = chart.addSeries(CandlestickSeries, {
-        upColor: "#22c55e",
-        downColor: "#ef4444",
+        upColor: colors.up,
+        downColor: colors.down,
         borderVisible: false,
-        wickUpColor: "#22c55e",
-        wickDownColor: "#ef4444",
+        wickUpColor: colors.up,
+        wickDownColor: colors.down,
       });
       // The library's data-item unions are keyed on the series type; the
       // helper already produces the matching shape, so assert at the boundary.
       series.setData(toCandleData(candlesRef.current) as never);
       seriesRef.current = series;
     } else {
-      const series = chart.addSeries(LineSeries, { color: "#6ea8fe", lineWidth: 2 });
+      const series = chart.addSeries(LineSeries, { color: colors.line, lineWidth: 2 });
       series.setData(candlesToLine(candlesRef.current) as never);
       seriesRef.current = series;
     }
     lastBarRef.current = candlesRef.current[candlesRef.current.length - 1] ?? null;
     chart.timeScale().fitContent();
   }, [chartType]);
+
+  // Recolour the live chart and its series when the theme flips.
+  useEffect(() => {
+    const colors = CHART_COLORS[theme];
+    chartRef.current?.applyOptions(chartOptions(theme));
+    if (chartTypeRef.current === "candlestick") {
+      seriesRef.current?.applyOptions({
+        upColor: colors.up,
+        downColor: colors.down,
+        wickUpColor: colors.up,
+        wickDownColor: colors.down,
+      } as never);
+    } else {
+      seriesRef.current?.applyOptions({ color: colors.line } as never);
+    }
+  }, [theme]);
 
   // Replace the data when the candle set changes (new timeframe / refetch).
   useEffect(() => {
@@ -212,7 +241,7 @@ export function SymbolChart({ symbol }: SymbolChartProps) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
-        <div className="flex rounded border border-[#2a2a45] overflow-hidden">
+        <div className="flex rounded border border-line overflow-hidden">
           {TIMEFRAMES.map((tf) => (
             <button
               key={tf}
@@ -220,9 +249,7 @@ export function SymbolChart({ symbol }: SymbolChartProps) {
               onClick={() => setTimeframe(tf)}
               aria-pressed={timeframe === tf}
               className={`px-2 py-0.5 text-xs font-mono ${
-                timeframe === tf
-                  ? "bg-[#20203a] text-[#e8e8f0]"
-                  : "text-[#9090b0] hover:bg-[#1a1a28]"
+                timeframe === tf ? "bg-elevated text-fg" : "text-fg-dim hover:bg-raised"
               }`}
             >
               {tf}
@@ -233,7 +260,7 @@ export function SymbolChart({ symbol }: SymbolChartProps) {
         <button
           type="button"
           onClick={() => setChartType((t) => (t === "candlestick" ? "line" : "candlestick"))}
-          className="ml-auto px-2 py-0.5 text-xs rounded border border-[#2a2a45] text-[#9090b0] hover:bg-[#1a1a28]"
+          className="ml-auto px-2 py-0.5 text-xs rounded border border-line text-fg-dim hover:bg-raised"
         >
           {chartType === "candlestick" ? "Candles" : "Line"}
         </button>
@@ -242,12 +269,12 @@ export function SymbolChart({ symbol }: SymbolChartProps) {
       <div className="relative">
         <div ref={containerRef} className="w-full" data-testid="symbol-chart" />
         {loading && (
-          <p className="absolute inset-0 flex items-center justify-center text-xs text-[#9090b0]">
+          <p className="absolute inset-0 flex items-center justify-center text-xs text-fg-dim">
             Loading chart…
           </p>
         )}
         {empty && (
-          <p className="absolute inset-0 flex items-center justify-center text-xs text-[#505070]">
+          <p className="absolute inset-0 flex items-center justify-center text-xs text-fg-faint">
             No {intraday ? "trades" : "daily history"} yet for {symbol}.
           </p>
         )}

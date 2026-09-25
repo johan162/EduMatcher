@@ -49,9 +49,9 @@ export function WatchlistPanel() {
   }
 
   return (
-    <div className="overflow-auto rounded border border-[#2a2a45]">
+    <div className="overflow-auto rounded border border-line">
       <table className="w-full border-collapse text-xs">
-        <thead className="sticky top-0 z-10 bg-[#12121a] text-[#9090b0]">
+        <thead className="sticky top-0 z-10 bg-panel text-fg-dim">
           <tr>
             <th className="w-7 px-2 py-1.5" />
             <th className="px-2 py-1.5 text-left font-medium">Symbol</th>
@@ -67,8 +67,8 @@ export function WatchlistPanel() {
               key={r.symbol}
               onClick={() => openDetail(r.symbol)}
               aria-selected={r.symbol === activeSymbol}
-              className={`cursor-pointer border-b border-[#1a1a28] ${
-                r.symbol === activeSymbol ? "bg-[#20203a]" : "hover:bg-[#1a1a28]"
+              className={`cursor-pointer border-b border-raised ${
+                r.symbol === activeSymbol ? "bg-elevated" : "hover:bg-raised"
               }`}
             >
               <td className="px-2 py-1">

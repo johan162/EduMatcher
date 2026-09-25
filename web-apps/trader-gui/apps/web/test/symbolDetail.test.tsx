@@ -1,14 +1,19 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
+import { useThemeStore } from "@/store/useThemeStore";
 
 // Lightweight Charts needs real canvas/layout that jsdom lacks; stub it so the
 // Chart tab mounts without touching a canvas. `chartSeries` is hoisted so
 // tests can assert on `update`/`setData` -- SymbolChart's live-tick tests
 // need to see what the chart itself was told.
-const chartSeries = vi.hoisted(() => ({ setData: vi.fn(), update: vi.fn() }));
+const chartSeries = vi.hoisted(() => ({
+  setData: vi.fn(),
+  update: vi.fn(),
+  applyOptions: vi.fn(),
+}));
 vi.mock("lightweight-charts", () => {
   const chart = {
     addSeries: vi.fn(() => chartSeries),
@@ -203,5 +208,18 @@ describe("SymbolDetailPanel", () => {
     // A later tick in the same or a newer bucket still goes through.
     route(trade("t3", 1_100_000_000_000, 150.75));
     expect(chartSeries.update).toHaveBeenCalledTimes(2);
+  });
+
+  it("recolours the chart series when the theme flips", () => {
+    useThemeStore.setState({ theme: "dark" });
+    renderPanel();
+    chartSeries.applyOptions.mockClear();
+
+    act(() => useThemeStore.getState().toggleTheme());
+
+    expect(chartSeries.applyOptions).toHaveBeenCalledWith(
+      expect.objectContaining({ upColor: "#15803d", downColor: "#dc2626" }),
+    );
+    useThemeStore.setState({ theme: "dark" });
   });
 });

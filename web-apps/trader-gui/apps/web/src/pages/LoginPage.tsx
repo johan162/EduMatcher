@@ -78,23 +78,23 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex items-center justify-center h-screen bg-[#0a0a0f] text-[#e8e8f0]">
+    <div className="flex items-center justify-center h-screen bg-app text-fg">
       <form
         onSubmit={onSubmit}
-        className="w-[380px] bg-[#12121a] border border-[#2a2a45] rounded-lg p-6 shadow-xl"
+        className="w-[380px] bg-panel border border-line rounded-lg p-6 shadow-xl"
       >
         <div className="mb-6">
           <h1 className="font-mono font-bold text-lg">EduMatcher</h1>
-          <p className="text-xs text-[#505070]">
+          <p className="text-xs text-fg-faint">
             {env("VITE_APP_TITLE", "EduMatcher Trading")} · pm-trading-ui
           </p>
         </div>
 
-        <label htmlFor="api-key" className="block text-xs text-[#9090b0] mb-1">
+        <label htmlFor="api-key" className="block text-xs text-fg-dim mb-1">
           API key
         </label>
         <div className="relative">
-          <KeyRound size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-[#505070]" />
+          <KeyRound size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-fg-faint" />
           <input
             id="api-key"
             type="password"
@@ -106,7 +106,7 @@ export function LoginPage() {
             placeholder="key-gw01-…"
             aria-invalid={error !== null}
             aria-describedby={error ? "login-error" : undefined}
-            className="w-full bg-[#1a1a28] border border-[#2a2a45] rounded pl-7 pr-2 py-2 font-mono text-sm focus:outline-none focus:border-[#3a3a60]"
+            className="w-full bg-raised border border-line rounded pl-7 pr-2 py-2 font-mono text-sm focus:outline-none focus:border-[#3a3a60]"
           />
         </div>
 
@@ -125,7 +125,7 @@ export function LoginPage() {
           {busy ? "Connecting…" : "Connect"}
         </button>
 
-        <p className="mt-4 text-[10px] text-[#505070] leading-relaxed">
+        <p className="mt-4 text-[10px] text-fg-faint leading-relaxed">
           The key is held in memory for this tab only and is never written to browser storage.
           Reloading the page requires re-entering it.
         </p>

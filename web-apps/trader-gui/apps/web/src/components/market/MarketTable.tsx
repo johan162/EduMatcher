@@ -101,7 +101,7 @@ export function MarketTable({
         header: "Volume",
         sortUndefined: "last",
         cell: ({ row }) => (
-          <span className="price-cell text-[#9090b0]">
+          <span className="price-cell text-fg-dim">
             {row.original.volume === null ? "—" : formatQty(row.original.volume)}
           </span>
         ),
@@ -156,9 +156,9 @@ export function MarketTable({
       : 0;
 
   return (
-    <div ref={scrollRef} className="flex-1 overflow-auto border border-[#2a2a45] rounded">
+    <div ref={scrollRef} className="flex-1 overflow-auto border border-line rounded">
       <table className="w-full text-xs border-collapse">
-        <thead className="sticky top-0 z-10 bg-[#12121a]">
+        <thead className="sticky top-0 z-10 bg-panel">
           {table.getHeaderGroups().map((group) => (
             <tr key={group.id}>
               {group.headers.map((header) => {
@@ -177,13 +177,13 @@ export function MarketTable({
                             ? "none"
                             : undefined
                     }
-                    className="text-left font-medium text-[#9090b0] px-2 py-1.5 border-b border-[#2a2a45] whitespace-nowrap"
+                    className="text-left font-medium text-fg-dim px-2 py-1.5 border-b border-line whitespace-nowrap"
                   >
                     {sortable ? (
                       <button
                         type="button"
                         onClick={header.column.getToggleSortingHandler()}
-                        className="flex items-center gap-1 hover:text-[#e8e8f0]"
+                        className="flex items-center gap-1 hover:text-fg"
                       >
                         {flexRender(header.column.columnDef.header, header.getContext())}
                         {dir === "asc" && <ChevronUp size={11} />}
@@ -215,8 +215,8 @@ export function MarketTable({
                 ref={virtualizer.measureElement}
                 onClick={() => onSelect(row.original.symbol)}
                 aria-selected={isActive}
-                className={`cursor-pointer border-b border-[#1a1a28] ${
-                  isActive ? "bg-[#20203a]" : "hover:bg-[#1a1a28]"
+                className={`cursor-pointer border-b border-raised ${
+                  isActive ? "bg-elevated" : "hover:bg-raised"
                 }`}
               >
                 {row.getVisibleCells().map((cell) => (

@@ -158,7 +158,7 @@ export function PositionPanel() {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-3">
-        <span className="text-[11px] text-[#505070]">
+        <span className="text-[11px] text-fg-faint">
           {positions.length} {positions.length === 1 ? "symbol" : "symbols"}
           {positionsQuery.isFetching ? " · loading…" : ""}
         </span>
@@ -189,13 +189,13 @@ export function PositionPanel() {
       )}
 
       {positions.length === 0 ? (
-        <div className="border border-[#2a2a45] rounded p-8 text-center text-sm text-[#9090b0]">
+        <div className="border border-line rounded p-8 text-center text-sm text-fg-dim">
           No open positions.
         </div>
       ) : (
-        <div className="overflow-auto border border-[#2a2a45] rounded">
+        <div className="overflow-auto border border-line rounded">
           <table className="w-full text-xs border-collapse">
-            <thead className="bg-[#12121a] text-[#9090b0]">
+            <thead className="bg-panel text-fg-dim">
               <tr>
                 <th scope="col" className="px-2 py-1.5 text-left font-medium">Symbol</th>
                 <th scope="col" className="px-2 py-1.5 text-right font-medium">Position</th>
@@ -208,17 +208,17 @@ export function PositionPanel() {
                 const last = lastPriceFor(p);
                 const flat = p.net_qty === 0;
                 return (
-                  <tr key={p.symbol} className="border-b border-[#1a1a28] hover:bg-[#1a1a28]">
+                  <tr key={p.symbol} className="border-b border-raised hover:bg-raised">
                     <td className="px-2 py-1 font-mono font-medium">{p.symbol}</td>
                     <td
                       className={`px-2 py-1 text-right font-mono ${
-                        p.net_qty > 0 ? "text-bid" : p.net_qty < 0 ? "text-ask" : "text-[#9090b0]"
+                        p.net_qty > 0 ? "text-bid" : p.net_qty < 0 ? "text-ask" : "text-fg-dim"
                       }`}
                     >
                       {p.net_qty > 0 ? "+" : ""}
                       {formatQty(p.net_qty)}
                     </td>
-                    <td className="px-2 py-1 text-right font-mono text-[#e8e8f0]">
+                    <td className="px-2 py-1 text-right font-mono text-fg">
                       {formatPrice(last, tickFor(p.symbol))}
                     </td>
                     <td className="px-2 py-1 text-right">
@@ -228,7 +228,7 @@ export function PositionPanel() {
                         disabled={flat || flattenBlocked(p.symbol) || submit.isPending}
                         aria-label={`Flatten ${p.symbol}`}
                         title={halts[p.symbol] !== undefined ? `${p.symbol} is halted` : undefined}
-                        className="rounded border border-[#2a2a45] px-2 py-0.5 text-[11px] text-[#9090b0] hover:text-[#e8e8f0] disabled:opacity-30"
+                        className="rounded border border-line px-2 py-0.5 text-[11px] text-fg-dim hover:text-fg disabled:opacity-30"
                       >
                         Flatten
                       </button>

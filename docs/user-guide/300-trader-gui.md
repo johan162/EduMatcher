@@ -393,6 +393,9 @@ Left to right:
 - **Command palette** (magnifier, `Ctrl+K`).
 - **Notification bell** with an unread count badge (`99+` above 99).
 - **Settings** (gear) — see [power-user mode](#keyboard-shortcuts-and-power-user-mode).
+- **Theme switch** (sun / moon) — toggles between the dark and light palettes.
+  The icon shows the theme you would switch *to*; the choice is remembered in
+  this browser.
 - **Help** (`Ctrl+/`).
 - **Gateway id and role**, then **Logout**.
 

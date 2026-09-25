@@ -64,7 +64,7 @@ export function EventCenter() {
       onClick={() => setFilter(value)}
       aria-pressed={filter === value}
       className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
-        filter === value ? "bg-[#3a3a60] text-white" : "bg-[#1a1a28] text-[#9090b0] hover:text-[#e8e8f0]"
+        filter === value ? "bg-[#3a3a60] text-white" : "bg-raised text-fg-dim hover:text-fg"
       }`}
     >
       {label}
@@ -75,16 +75,16 @@ export function EventCenter() {
     <aside
       role="dialog"
       aria-label="Notification and Event Center"
-      className="fixed right-0 top-10 bottom-0 w-[420px] max-w-[92vw] bg-[#0d0d14] border-l border-[#2a2a45] shadow-2xl z-40 flex flex-col animate-fade-in"
+      className="fixed right-0 top-10 bottom-0 w-[420px] max-w-[92vw] bg-deep border-l border-line shadow-2xl z-40 flex flex-col animate-fade-in"
     >
-      <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-[#2a2a45]">
-        <h2 className="text-sm font-semibold text-[#e8e8f0]">Event Center</h2>
+      <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-line">
+        <h2 className="text-sm font-semibold text-fg">Event Center</h2>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={clear}
             disabled={entries.length === 0}
-            className="rounded border border-[#2a2a45] px-2 py-0.5 text-[11px] text-[#9090b0] hover:text-[#e8e8f0] disabled:opacity-40"
+            className="rounded border border-line px-2 py-0.5 text-[11px] text-fg-dim hover:text-fg disabled:opacity-40"
           >
             Clear
           </button>
@@ -92,21 +92,21 @@ export function EventCenter() {
             type="button"
             onClick={close}
             aria-label="Close Event Center"
-            className="text-[#9090b0] hover:text-[#e8e8f0]"
+            className="text-fg-dim hover:text-fg"
           >
             <X size={18} />
           </button>
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-1 border-b border-[#2a2a45] px-3 py-2">
+      <div className="flex flex-wrap gap-1 border-b border-line px-3 py-2">
         {filterBtn("ALL", "All")}
         {availableKinds.map((k) => filterBtn(k, KIND_META[k].label))}
       </div>
 
       <div className="flex-1 overflow-auto p-2">
         {shown.length === 0 ? (
-          <p className="p-6 text-center text-xs text-[#505070]">
+          <p className="p-6 text-center text-xs text-fg-faint">
             {entries.length === 0 ? "No events yet this session." : "No events match this filter."}
           </p>
         ) : (
@@ -117,8 +117,8 @@ export function EventCenter() {
               return (
                 <li
                   key={e.id}
-                  className={`rounded border border-[#1a1a28] p-2 ${
-                    linkable ? "cursor-pointer hover:bg-[#1a1a28]" : ""
+                  className={`rounded border border-raised p-2 ${
+                    linkable ? "cursor-pointer hover:bg-raised" : ""
                   }`}
                   onClick={linkable ? () => openOrderDetail(e.orderId!) : undefined}
                 >
@@ -126,13 +126,13 @@ export function EventCenter() {
                     <span className={`rounded px-1.5 py-0.5 text-[9px] font-semibold text-white ${meta.cls}`}>
                       {meta.label}
                     </span>
-                    <span className="font-mono text-[10px] text-[#505070]">{timeLabel(e.ts)}</span>
-                    <span className="flex-1 truncate text-[11px] font-medium text-[#e8e8f0]">
+                    <span className="font-mono text-[10px] text-fg-faint">{timeLabel(e.ts)}</span>
+                    <span className="flex-1 truncate text-[11px] font-medium text-fg">
                       {e.title}
                     </span>
-                    {linkable && <ArrowUpRight size={12} className="text-[#6ea8fe]" />}
+                    {linkable && <ArrowUpRight size={12} className="text-link" />}
                   </div>
-                  {e.detail && <div className="mt-0.5 text-[11px] text-[#9090b0]">{e.detail}</div>}
+                  {e.detail && <div className="mt-0.5 text-[11px] text-fg-dim">{e.detail}</div>}
                 </li>
               );
             })}

@@ -45,15 +45,15 @@ export function QuoteBootstrapPage() {
   return (
     <div className="flex flex-col gap-4 p-4">
       <div className="flex items-center gap-3">
-        <h1 className="text-lg font-semibold text-[#e8e8f0]">Quote Bootstrap &amp; Legs</h1>
-        <span className="text-[11px] text-[#505070]">Reconciled at {reconciledAt}</span>
+        <h1 className="text-lg font-semibold text-fg">Quote Bootstrap &amp; Legs</h1>
+        <span className="text-[11px] text-fg-faint">Reconciled at {reconciledAt}</span>
         <button
           type="button"
           onClick={() => {
             void bootstrap.refetch();
             void legs.refetch();
           }}
-          className="ml-auto rounded border border-[#2a2a45] px-2 py-1 text-[11px] text-[#9090b0] hover:text-[#e8e8f0]"
+          className="ml-auto rounded border border-line px-2 py-1 text-[11px] text-fg-dim hover:text-fg"
         >
           Resync
         </button>
@@ -61,12 +61,12 @@ export function QuoteBootstrapPage() {
 
       {/* Active quotes (bootstrap) */}
       <section aria-label="Active quotes" className="flex flex-col gap-1">
-        <h2 className="text-[11px] font-semibold uppercase tracking-wide text-[#9090b0]">
+        <h2 className="text-[11px] font-semibold uppercase tracking-wide text-fg-dim">
           Active Quotes ({bootstrap.data?.length ?? 0})
         </h2>
-        <div className="overflow-auto rounded border border-[#2a2a45]">
+        <div className="overflow-auto rounded border border-line">
           <table className="w-full border-collapse text-xs">
-            <thead className="bg-[#12121a] text-[#9090b0]">
+            <thead className="bg-panel text-fg-dim">
               <tr>
                 <th className={th}>Symbol</th>
                 <th className={th}>Quote ID</th>
@@ -79,25 +79,25 @@ export function QuoteBootstrapPage() {
             </thead>
             <tbody>
               {(bootstrap.data ?? []).map((q) => (
-                <tr key={q.quote_id} className="border-b border-[#1a1a28]">
+                <tr key={q.quote_id} className="border-b border-raised">
                   <td className="px-2 py-1 font-mono font-medium">{q.symbol}</td>
-                  <td className="px-2 py-1 font-mono text-[#9090b0]">{q.quote_id}</td>
+                  <td className="px-2 py-1 font-mono text-fg-dim">{q.quote_id}</td>
                   <td className="px-2 py-1">{q.state}</td>
                   <td className="px-2 py-1 text-right font-mono text-bid">
                     {formatPrice(q.bid_price, tickFor(q.symbol))} × {formatQty(q.bid_qty)}{" "}
-                    <span className="text-[#505070]">({formatQty(q.bid_remaining_qty)} rem)</span>
+                    <span className="text-fg-faint">({formatQty(q.bid_remaining_qty)} rem)</span>
                   </td>
                   <td className="px-2 py-1 text-right font-mono text-ask">
                     {formatPrice(q.ask_price, tickFor(q.symbol))} × {formatQty(q.ask_qty)}{" "}
-                    <span className="text-[#505070]">({formatQty(q.ask_remaining_qty)} rem)</span>
+                    <span className="text-fg-faint">({formatQty(q.ask_remaining_qty)} rem)</span>
                   </td>
-                  <td className="px-2 py-1 text-[#9090b0]">{q.bid_status}</td>
-                  <td className="px-2 py-1 text-[#9090b0]">{q.ask_status}</td>
+                  <td className="px-2 py-1 text-fg-dim">{q.bid_status}</td>
+                  <td className="px-2 py-1 text-fg-dim">{q.ask_status}</td>
                 </tr>
               ))}
               {(bootstrap.data?.length ?? 0) === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-2 py-6 text-center text-[#505070]">
+                  <td colSpan={7} className="px-2 py-6 text-center text-fg-faint">
                     No active quotes.
                   </td>
                 </tr>
@@ -109,12 +109,12 @@ export function QuoteBootstrapPage() {
 
       {/* Legs */}
       <section aria-label="Quote legs" className="flex flex-col gap-1">
-        <h2 className="text-[11px] font-semibold uppercase tracking-wide text-[#9090b0]">
+        <h2 className="text-[11px] font-semibold uppercase tracking-wide text-fg-dim">
           Legs ({legs.data?.length ?? 0})
         </h2>
-        <div className="overflow-auto rounded border border-[#2a2a45]">
+        <div className="overflow-auto rounded border border-line">
           <table className="w-full border-collapse text-xs">
-            <thead className="bg-[#12121a] text-[#9090b0]">
+            <thead className="bg-panel text-fg-dim">
               <tr>
                 <th className={th}>Symbol</th>
                 <th className={th}>Quote ID</th>
@@ -130,12 +130,12 @@ export function QuoteBootstrapPage() {
             </thead>
             <tbody>
               {(legs.data ?? []).map((r) => (
-                <tr key={r.key} className="border-b border-[#1a1a28]">
+                <tr key={r.key} className="border-b border-raised">
                   <td className="px-2 py-1 font-mono">{r.symbol ?? "—"}</td>
-                  <td className="px-2 py-1 font-mono text-[#9090b0]">{r.quote_id || "—"}</td>
-                  <td className="px-2 py-1 font-mono text-[#9090b0]">{r.order_id ?? "—"}</td>
+                  <td className="px-2 py-1 font-mono text-fg-dim">{r.quote_id || "—"}</td>
+                  <td className="px-2 py-1 font-mono text-fg-dim">{r.order_id ?? "—"}</td>
                   <td
-                    className={`px-2 py-1 ${r.leg_side === "BUY" ? "text-bid" : r.leg_side === "SELL" ? "text-ask" : "text-[#505070]"}`}
+                    className={`px-2 py-1 ${r.leg_side === "BUY" ? "text-bid" : r.leg_side === "SELL" ? "text-ask" : "text-fg-faint"}`}
                   >
                     {r.leg_side ?? "—"}
                   </td>
@@ -143,17 +143,17 @@ export function QuoteBootstrapPage() {
                     {r.price == null ? "—" : formatPrice(r.price, tickFor(r.symbol))}
                   </td>
                   <td className="px-2 py-1 text-right font-mono">{r.qty == null ? "—" : formatQty(r.qty)}</td>
-                  <td className="px-2 py-1 text-right font-mono text-[#9090b0]">
+                  <td className="px-2 py-1 text-right font-mono text-fg-dim">
                     {r.remaining == null ? "—" : formatQty(r.remaining)}
                   </td>
                   <td className="px-2 py-1 text-right font-mono">{r.filled == null ? "—" : formatQty(r.filled)}</td>
-                  <td className="px-2 py-1 text-[#9090b0]">{r.status ?? "—"}</td>
-                  <td className="px-2 py-1 text-[#9090b0]">{r.quote_status ?? "—"}</td>
+                  <td className="px-2 py-1 text-fg-dim">{r.status ?? "—"}</td>
+                  <td className="px-2 py-1 text-fg-dim">{r.quote_status ?? "—"}</td>
                 </tr>
               ))}
               {(legs.data?.length ?? 0) === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-2 py-6 text-center text-[#505070]">
+                  <td colSpan={10} className="px-2 py-6 text-center text-fg-faint">
                     No quote legs.
                   </td>
                 </tr>
@@ -162,7 +162,7 @@ export function QuoteBootstrapPage() {
           </table>
         </div>
         {hasDegradedLegs && (
-          <p className="text-[10px] text-[#505070]">
+          <p className="text-[10px] text-fg-faint">
             Some rows show quote-level status only: after a quote event lands, the gateway serves
             `/quotes/legs` from its live cache, which carries quote-level ack/status rather than
             per-leg detail. Per-side price/qty above is authoritative from the bootstrap snapshot.

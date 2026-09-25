@@ -31,12 +31,12 @@ export function Modal({ title, onClose, children, widthClass = "w-[420px]" }: Mo
       <div
         role="dialog"
         aria-label={title}
-        className={`${widthClass} max-w-[92vw] rounded border border-[#2a2a45] bg-[#0d0d14] p-4 shadow-2xl`}
+        className={`${widthClass} max-w-[92vw] rounded border border-line bg-deep p-4 shadow-2xl`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-[#e8e8f0]">{title}</h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-[#9090b0] hover:text-[#e8e8f0]">
+          <h2 className="text-sm font-semibold text-fg">{title}</h2>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-fg-dim hover:text-fg">
             <X size={16} />
           </button>
         </div>

@@ -55,25 +55,25 @@ export function SymbolDetailPanel() {
     <aside
       role="dialog"
       aria-label={`${symbol} detail`}
-      className="fixed right-0 top-10 bottom-0 w-[640px] max-w-[90vw] bg-[#0d0d14] border-l border-[#2a2a45] shadow-2xl z-40 flex flex-col animate-fade-in"
+      className="fixed right-0 top-10 bottom-0 w-[640px] max-w-[90vw] bg-deep border-l border-line shadow-2xl z-40 flex flex-col animate-fade-in"
     >
       {/* Header */}
-      <div className="flex items-start justify-between px-4 pt-3 pb-2 border-b border-[#2a2a45]">
+      <div className="flex items-start justify-between px-4 pt-3 pb-2 border-b border-line">
         <div>
           <div className="flex items-center gap-3">
-            <h2 className="text-lg font-mono font-semibold text-[#e8e8f0]">{symbol}</h2>
-            <span className="text-sm font-mono text-[#e8e8f0]">
+            <h2 className="text-lg font-mono font-semibold text-fg">{symbol}</h2>
+            <span className="text-sm font-mono text-fg">
               {last === null ? "—" : formatPrice(last, tickDecimals)}
             </span>
             <span
               className={`text-xs font-mono ${
-                pct === null ? "text-[#505070]" : pct > 0 ? "text-up" : pct < 0 ? "text-down" : "text-[#9090b0]"
+                pct === null ? "text-fg-faint" : pct > 0 ? "text-up" : pct < 0 ? "text-down" : "text-fg-dim"
               }`}
             >
               {pct === null ? "—" : `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`}
             </span>
           </div>
-          <div className="text-xs text-[#505070] mt-0.5">
+          <div className="text-xs text-fg-faint mt-0.5">
             Vol: {volume === null ? "—" : formatQty(volume)}
           </div>
         </div>
@@ -81,14 +81,14 @@ export function SymbolDetailPanel() {
           type="button"
           onClick={close}
           aria-label="Close symbol detail"
-          className="text-[#9090b0] hover:text-[#e8e8f0]"
+          className="text-fg-dim hover:text-fg"
         >
           <X size={18} />
         </button>
       </div>
 
       {/* Tabs */}
-      <div role="tablist" aria-label="Symbol detail views" className="flex border-b border-[#2a2a45] px-2">
+      <div role="tablist" aria-label="Symbol detail views" className="flex border-b border-line px-2">
         {TABS.map((t) => {
           const active = tab === t.id;
           return (
@@ -99,7 +99,7 @@ export function SymbolDetailPanel() {
               type="button"
               onClick={() => setTab(t.id)}
               className={`relative px-3 py-2 text-xs font-medium ${
-                active ? "text-[#e8e8f0]" : "text-[#9090b0] hover:text-[#e8e8f0]"
+                active ? "text-fg" : "text-fg-dim hover:text-fg"
               }`}
             >
               <span className="flex items-center gap-1">
@@ -111,7 +111,7 @@ export function SymbolDetailPanel() {
                   />
                 )}
               </span>
-              {active && <span className="absolute left-2 right-2 -bottom-px h-0.5 bg-[#6ea8fe]" />}
+              {active && <span className="absolute left-2 right-2 -bottom-px h-0.5 bg-link" />}
             </button>
           );
         })}

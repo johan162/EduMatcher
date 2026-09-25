@@ -38,7 +38,7 @@ function downloadCsv(csv: string, filename: string) {
 }
 
 const inputCls =
-  "bg-[#1a1a28] border border-[#2a2a45] rounded px-2 py-1 text-xs focus:outline-none focus:border-[#3a3a60]";
+  "bg-raised border border-line rounded px-2 py-1 text-xs focus:outline-none focus:border-[#3a3a60]";
 
 /**
  * Audit / Monitor Log Viewer (§15.9) — the ADMIN live tail of cross-gateway
@@ -71,8 +71,8 @@ export function AdminMonitorPage() {
   return (
     <div className="flex flex-col gap-3 p-4 h-full">
       <div className="flex items-center gap-3">
-        <h1 className="text-lg font-semibold text-[#e8e8f0]">Monitor Log</h1>
-        <span className="text-[11px] text-[#505070]">
+        <h1 className="text-lg font-semibold text-fg">Monitor Log</h1>
+        <span className="text-[11px] text-fg-faint">
           {filtered.length} / {events.length} events
           {snapshotAt ? ` · reconciled ${new Date(snapshotAt).toLocaleTimeString("en-GB", { hour12: false })}` : ""}
         </span>
@@ -83,7 +83,7 @@ export function AdminMonitorPage() {
           type="button"
           onClick={() => downloadCsv(monitorEventsToCsv(filtered), "monitor-log.csv")}
           disabled={filtered.length === 0}
-          className="ml-auto flex items-center gap-1 rounded border border-[#2a2a45] px-2 py-1 text-[11px] text-[#9090b0] hover:text-[#e8e8f0] disabled:opacity-40"
+          className="ml-auto flex items-center gap-1 rounded border border-line px-2 py-1 text-[11px] text-fg-dim hover:text-fg disabled:opacity-40"
         >
           <Download size={12} /> Export CSV
         </button>
@@ -92,7 +92,7 @@ export function AdminMonitorPage() {
       {/* Filter bar (§15.9) */}
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-[#505070]">Event Type</span>
+          <span className="text-[10px] text-fg-faint">Event Type</span>
           <select
             value={kind}
             onChange={(e) => setKind(e.target.value as MonitorEventKind | "ALL")}
@@ -107,7 +107,7 @@ export function AdminMonitorPage() {
           </select>
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-[#505070]">Symbol</span>
+          <span className="text-[10px] text-fg-faint">Symbol</span>
           <input
             value={symbol}
             onChange={(e) => setSymbol(e.target.value.toUpperCase())}
@@ -117,7 +117,7 @@ export function AdminMonitorPage() {
           />
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-[#505070]">Gateway</span>
+          <span className="text-[10px] text-fg-faint">Gateway</span>
           <input
             value={gateway}
             onChange={(e) => setGateway(e.target.value.toUpperCase())}
@@ -128,9 +128,9 @@ export function AdminMonitorPage() {
         </label>
       </div>
 
-      <div className="flex-1 overflow-auto rounded border border-[#2a2a45]">
+      <div className="flex-1 overflow-auto rounded border border-line">
         <table className="w-full border-collapse text-xs">
-          <thead className="sticky top-0 z-10 bg-[#12121a] text-[#9090b0]">
+          <thead className="sticky top-0 z-10 bg-panel text-fg-dim">
             <tr>
               <th className="px-2 py-1.5 text-left font-medium">Time</th>
               <th className="px-2 py-1.5 text-right font-medium">Seq</th>
@@ -147,16 +147,16 @@ export function AdminMonitorPage() {
                 <tr
                   key={e.id}
                   onClick={linkable ? () => setDetailId(e.order_id!) : undefined}
-                  className={`border-b border-[#1a1a28] ${
-                    e.kind === "GAP" ? "bg-red-950/40" : linkable ? "cursor-pointer hover:bg-[#1a1a28]" : ""
+                  className={`border-b border-raised ${
+                    e.kind === "GAP" ? "bg-red-950/40" : linkable ? "cursor-pointer hover:bg-raised" : ""
                   }`}
                 >
-                  <td className="px-2 py-1 font-mono text-[#9090b0] whitespace-nowrap">{timeLabel(e.ts)}</td>
-                  <td className="px-2 py-1 text-right font-mono text-[#505070]">{e.seq ?? "—"}</td>
+                  <td className="px-2 py-1 font-mono text-fg-dim whitespace-nowrap">{timeLabel(e.ts)}</td>
+                  <td className="px-2 py-1 text-right font-mono text-fg-faint">{e.seq ?? "—"}</td>
                   <td className="px-2 py-1">
                     <MonitorKindBadge kind={e.kind} />
                   </td>
-                  <td className="px-2 py-1 font-mono text-[#9090b0]">
+                  <td className="px-2 py-1 font-mono text-fg-dim">
                     {e.order_id ? (
                       <span className="text-sky-400 hover:underline">{e.order_id.slice(0, 12)}</span>
                     ) : (
@@ -164,13 +164,13 @@ export function AdminMonitorPage() {
                     )}
                   </td>
                   <td className="px-2 py-1 font-mono">{e.symbol ?? "—"}</td>
-                  <td className="px-2 py-1 text-[#9090b0]">{e.detail}</td>
+                  <td className="px-2 py-1 text-fg-dim">{e.detail}</td>
                 </tr>
               );
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-2 py-8 text-center text-[#505070]">
+                <td colSpan={6} className="px-2 py-8 text-center text-fg-faint">
                   {events.length === 0 ? "Waiting for cross-gateway activity…" : "No events match the filters."}
                 </td>
               </tr>

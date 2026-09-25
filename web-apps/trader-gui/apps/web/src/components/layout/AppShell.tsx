@@ -31,7 +31,7 @@ export function AppShell() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-[#0a0a0f] text-[#e8e8f0] overflow-hidden">
+    <div className="flex flex-col h-screen bg-app text-fg overflow-hidden">
       {/* Fixed top bar (h-10) */}
       <TopBar />
 

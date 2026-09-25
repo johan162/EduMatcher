@@ -94,8 +94,8 @@ export function ActiveOrdersPage() {
   return (
     <div className="flex flex-col gap-3 p-4 h-full">
       <div className="flex items-center gap-3">
-        <h1 className="text-lg font-semibold text-[#e8e8f0]">Active Orders</h1>
-        <span className="text-[11px] text-[#505070]">
+        <h1 className="text-lg font-semibold text-fg">Active Orders</h1>
+        <span className="text-[11px] text-fg-faint">
           {orders.length} {orders.length === 1 ? "order" : "orders"}
           {syncedAt ? ` · reconciled ${new Date(syncedAt).toLocaleTimeString()}` : ""}
         </span>
@@ -103,7 +103,7 @@ export function ActiveOrdersPage() {
           type="button"
           onClick={refresh}
           disabled={refreshing}
-          className="ml-auto flex items-center gap-1 rounded border border-[#2a2a45] px-2 py-1 text-xs text-[#9090b0] hover:text-[#e8e8f0] disabled:opacity-50"
+          className="ml-auto flex items-center gap-1 rounded border border-line px-2 py-1 text-xs text-fg-dim hover:text-fg disabled:opacity-50"
         >
           <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
           Refresh

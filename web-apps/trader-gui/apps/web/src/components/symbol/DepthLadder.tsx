@@ -46,8 +46,8 @@ export function DepthLadder({ symbol, tickDecimals, onPriceClick }: DepthLadderP
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
-        <span className="text-xs text-[#9090b0]">Depth</span>
-        <div className="ml-auto flex rounded border border-[#2a2a45] overflow-hidden">
+        <span className="text-xs text-fg-dim">Depth</span>
+        <div className="ml-auto flex rounded border border-line overflow-hidden">
           {LEVEL_OPTIONS.map((n) => (
             <button
               key={n}
@@ -55,7 +55,7 @@ export function DepthLadder({ symbol, tickDecimals, onPriceClick }: DepthLadderP
               onClick={() => setLevels(n)}
               aria-pressed={levels === n}
               className={`px-2 py-0.5 text-xs font-mono ${
-                levels === n ? "bg-[#20203a] text-[#e8e8f0]" : "text-[#9090b0] hover:bg-[#1a1a28]"
+                levels === n ? "bg-elevated text-fg" : "text-fg-dim hover:bg-raised"
               }`}
             >
               {n}
@@ -65,12 +65,12 @@ export function DepthLadder({ symbol, tickDecimals, onPriceClick }: DepthLadderP
       </div>
 
       {empty ? (
-        <p className="text-xs text-[#505070] py-4 text-center">No resting depth for {symbol}.</p>
+        <p className="text-xs text-fg-faint py-4 text-center">No resting depth for {symbol}.</p>
       ) : (
         <div className="grid grid-cols-2 gap-2 text-xs font-mono">
           {/* Bid side */}
           <div>
-            <div className="flex justify-between text-[10px] text-[#505070] px-1 pb-1">
+            <div className="flex justify-between text-[10px] text-fg-faint px-1 pb-1">
               <span>Cnt</span>
               <span>Qty</span>
               <span>Bid</span>
@@ -81,15 +81,15 @@ export function DepthLadder({ symbol, tickDecimals, onPriceClick }: DepthLadderP
                 type="button"
                 onClick={() => handleClick(lvl.price, "SELL")}
                 title={`Sell at ${formatPrice(lvl.price, tickDecimals)}`}
-                className="relative w-full flex justify-between px-1 py-0.5 hover:bg-[#1a1a28]"
+                className="relative w-full flex justify-between px-1 py-0.5 hover:bg-raised"
               >
                 <span
                   className="absolute inset-y-0 right-0 bg-bid/15"
                   style={{ width: maxQty ? `${(lvl.qty / maxQty) * 100}%` : "0%" }}
                   aria-hidden="true"
                 />
-                <span className="relative text-[#505070]">{lvl.count}</span>
-                <span className="relative text-[#9090b0]">{formatQty(lvl.qty)}</span>
+                <span className="relative text-fg-faint">{lvl.count}</span>
+                <span className="relative text-fg-dim">{formatQty(lvl.qty)}</span>
                 <span className="relative text-bid">{formatPrice(lvl.price, tickDecimals)}</span>
               </button>
             ))}
@@ -97,7 +97,7 @@ export function DepthLadder({ symbol, tickDecimals, onPriceClick }: DepthLadderP
 
           {/* Ask side */}
           <div>
-            <div className="flex justify-between text-[10px] text-[#505070] px-1 pb-1">
+            <div className="flex justify-between text-[10px] text-fg-faint px-1 pb-1">
               <span>Ask</span>
               <span>Qty</span>
               <span>Cnt</span>
@@ -108,7 +108,7 @@ export function DepthLadder({ symbol, tickDecimals, onPriceClick }: DepthLadderP
                 type="button"
                 onClick={() => handleClick(lvl.price, "BUY")}
                 title={`Buy at ${formatPrice(lvl.price, tickDecimals)}`}
-                className="relative w-full flex justify-between px-1 py-0.5 hover:bg-[#1a1a28]"
+                className="relative w-full flex justify-between px-1 py-0.5 hover:bg-raised"
               >
                 <span
                   className="absolute inset-y-0 left-0 bg-ask/15"
@@ -116,15 +116,15 @@ export function DepthLadder({ symbol, tickDecimals, onPriceClick }: DepthLadderP
                   aria-hidden="true"
                 />
                 <span className="relative text-ask">{formatPrice(lvl.price, tickDecimals)}</span>
-                <span className="relative text-[#9090b0]">{formatQty(lvl.qty)}</span>
-                <span className="relative text-[#505070]">{lvl.count}</span>
+                <span className="relative text-fg-dim">{formatQty(lvl.qty)}</span>
+                <span className="relative text-fg-faint">{lvl.count}</span>
               </button>
             ))}
           </div>
         </div>
       )}
 
-      <p className="text-[10px] text-[#505070]">
+      <p className="text-[10px] text-fg-faint">
         Click a bid to pre-fill a SELL, an ask to pre-fill a BUY.
       </p>
     </div>

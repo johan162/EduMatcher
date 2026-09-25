@@ -46,11 +46,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               {this.props.label ? `${this.props.label} hit an error` : "Something went wrong"}
             </h2>
           </div>
-          <p className="text-xs text-[#9090b0]">
+          <p className="text-xs text-fg-dim">
             This screen crashed but the rest of the app is still running — switch screens, or try
             again.
           </p>
-          <p className="max-w-full overflow-auto rounded bg-[#12121a] px-2 py-1 font-mono text-[10px] text-[#707090]">
+          <p className="max-w-full overflow-auto rounded bg-panel px-2 py-1 font-mono text-[10px] text-fg-mute">
             {this.state.error.message || String(this.state.error)}
           </p>
           <button

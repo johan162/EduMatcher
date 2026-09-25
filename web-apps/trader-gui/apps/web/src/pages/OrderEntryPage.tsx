@@ -34,7 +34,7 @@ export function OrderEntryPage() {
       onClick={() => setAdvanced((cur) => (cur === id ? "none" : id))}
       aria-pressed={advanced === id}
       className={`rounded px-2 py-1 text-[11px] font-medium ${
-        advanced === id ? "bg-[#3a3a60] text-white" : "bg-[#1a1a28] text-[#9090b0] hover:bg-[#22223a]"
+        advanced === id ? "bg-[#3a3a60] text-white" : "bg-raised text-fg-dim hover:bg-elevated2"
       }`}
     >
       {label}
@@ -43,17 +43,17 @@ export function OrderEntryPage() {
 
   return (
     <div className="p-4 max-w-3xl">
-      <h1 className="text-lg font-semibold text-[#e8e8f0] mb-3">Order Entry</h1>
+      <h1 className="text-lg font-semibold text-fg mb-3">Order Entry</h1>
       <section
         aria-label="Order ticket"
-        className="max-w-md border border-[#2a2a45] rounded bg-[#0d0d14] p-3"
+        className="max-w-md border border-line rounded bg-deep p-3"
       >
         <OrderTicket tickDecimals={meta?.tick_decimals ?? 2} />
       </section>
 
       <div className="mt-3">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-wide text-[#505070]">Advanced</span>
+          <span className="text-[10px] uppercase tracking-wide text-fg-faint">Advanced</span>
           {tab("oco", "OCO")}
           {tab("combo", "Combo")}
         </div>
@@ -61,9 +61,9 @@ export function OrderEntryPage() {
         {advanced === "oco" && (
           <section
             aria-label="OCO order entry"
-            className="mt-2 border border-[#2a2a45] rounded bg-[#0d0d14] p-3"
+            className="mt-2 border border-line rounded bg-deep p-3"
           >
-            <h2 className="mb-2 text-xs font-semibold text-[#e8e8f0]">OCO — One-Cancels-Other</h2>
+            <h2 className="mb-2 text-xs font-semibold text-fg">OCO — One-Cancels-Other</h2>
             <OcoForm />
           </section>
         )}
@@ -71,9 +71,9 @@ export function OrderEntryPage() {
         {advanced === "combo" && (
           <section
             aria-label="Combo order entry"
-            className="mt-2 border border-[#2a2a45] rounded bg-[#0d0d14] p-3"
+            className="mt-2 border border-line rounded bg-deep p-3"
           >
-            <h2 className="mb-2 text-xs font-semibold text-[#e8e8f0]">Combo — Multi-Leg (AON)</h2>
+            <h2 className="mb-2 text-xs font-semibold text-fg">Combo — Multi-Leg (AON)</h2>
             <ComboForm />
           </section>
         )}

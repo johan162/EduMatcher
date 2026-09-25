@@ -10,8 +10,8 @@ export function WatchlistPage() {
   return (
     <div className="flex flex-col gap-3 p-4">
       <div className="flex items-center gap-3">
-        <h1 className="text-lg font-semibold text-[#e8e8f0]">Watchlist</h1>
-        <span className="text-[11px] text-[#505070]">
+        <h1 className="text-lg font-semibold text-fg">Watchlist</h1>
+        <span className="text-[11px] text-fg-faint">
           {count} {count === 1 ? "symbol" : "symbols"}
         </span>
       </div>

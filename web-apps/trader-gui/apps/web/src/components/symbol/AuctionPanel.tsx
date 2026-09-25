@@ -14,6 +14,8 @@ import { useSessionStore } from "@/store/useSessionStore.js";
 import { isAuctionPhase } from "@/lib/marketRows.js";
 import { formatPrice, formatQty } from "@/lib/formatters.js";
 import type { BookEntry } from "@/store/useBookStore.js";
+import { useThemeStore } from "@/store/useThemeStore.js";
+import { CHART_COLORS } from "@/lib/chartTheme.js";
 
 /**
  * Cumulative supply/demand curve from the resting book (§16.6): demand is the
@@ -52,6 +54,7 @@ export function AuctionPanel({ symbol, tickDecimals }: AuctionPanelProps) {
   const entry = useBookStore((s) => s.books[symbol]);
   const phase = useSessionStore((s) => s.phase);
   const auction = entry?.auction ?? null;
+  const colors = CHART_COLORS[useThemeStore((s) => s.theme)];
   const inAuction = isAuctionPhase(phase);
 
   const curve = useMemo(() => buildCurve(entry), [entry]);
@@ -69,47 +72,47 @@ export function AuctionPanel({ symbol, tickDecimals }: AuctionPanelProps) {
       <div className="flex items-center gap-2">
         <span
           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium ${
-            inAuction ? "bg-auction text-black" : "bg-[#20203a] text-[#9090b0]"
+            inAuction ? "bg-auction text-black" : "bg-elevated text-fg-dim"
           }`}
         >
           {inAuction ? `${phase.replace("_", " ")}` : "Continuous"}
         </span>
-        <span className="text-xs text-[#9090b0]">{heading}</span>
+        <span className="text-xs text-fg-dim">{heading}</span>
       </div>
 
       {auction ? (
         <div className="grid grid-cols-2 gap-2">
-          <div className="rounded border border-[#2a2a45] bg-[#12121a] px-3 py-2">
-            <div className="text-[10px] uppercase tracking-wide text-[#505070]">Eq. price</div>
-            <div className="text-sm font-mono text-[#e8e8f0]">
+          <div className="rounded border border-line bg-panel px-3 py-2">
+            <div className="text-[10px] uppercase tracking-wide text-fg-faint">Eq. price</div>
+            <div className="text-sm font-mono text-fg">
               {auction.eqPrice === null ? "no cross" : formatPrice(auction.eqPrice, tickDecimals)}
             </div>
           </div>
-          <div className="rounded border border-[#2a2a45] bg-[#12121a] px-3 py-2">
-            <div className="text-[10px] uppercase tracking-wide text-[#505070]">Matched qty</div>
-            <div className="text-sm font-mono text-[#e8e8f0]">{formatQty(auction.eqQty)}</div>
+          <div className="rounded border border-line bg-panel px-3 py-2">
+            <div className="text-[10px] uppercase tracking-wide text-fg-faint">Matched qty</div>
+            <div className="text-sm font-mono text-fg">{formatQty(auction.eqQty)}</div>
           </div>
-          <div className="rounded border border-[#2a2a45] bg-[#12121a] px-3 py-2">
-            <div className="text-[10px] uppercase tracking-wide text-[#505070]">Imbalance side</div>
+          <div className="rounded border border-line bg-panel px-3 py-2">
+            <div className="text-[10px] uppercase tracking-wide text-fg-faint">Imbalance side</div>
             <div
               className={`text-sm font-mono ${
                 auction.imbalanceSide === "BUY"
                   ? "text-bid"
                   : auction.imbalanceSide === "SELL"
                     ? "text-ask"
-                    : "text-[#9090b0]"
+                    : "text-fg-dim"
               }`}
             >
               {auction.imbalanceSide ?? "balanced"}
             </div>
           </div>
-          <div className="rounded border border-[#2a2a45] bg-[#12121a] px-3 py-2">
-            <div className="text-[10px] uppercase tracking-wide text-[#505070]">Imbalance qty</div>
-            <div className="text-sm font-mono text-[#e8e8f0]">{formatQty(auction.imbalanceQty)}</div>
+          <div className="rounded border border-line bg-panel px-3 py-2">
+            <div className="text-[10px] uppercase tracking-wide text-fg-faint">Imbalance qty</div>
+            <div className="text-sm font-mono text-fg">{formatQty(auction.imbalanceQty)}</div>
           </div>
         </div>
       ) : (
-        <p className="text-xs text-[#505070]">
+        <p className="text-xs text-fg-faint">
           {inAuction
             ? "The engine has not published an indicative uncross for this symbol yet."
             : "The auction panel populates during opening and closing auctions."}
@@ -118,26 +121,43 @@ export function AuctionPanel({ symbol, tickDecimals }: AuctionPanelProps) {
 
       {curve.length > 1 && (
         <div>
-          <div className="text-[10px] uppercase tracking-wide text-[#505070] mb-1">
+          <div className="text-[10px] uppercase tracking-wide text-fg-faint mb-1">
             Cumulative supply / demand
           </div>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={curve} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
-              <CartesianGrid stroke="#1a1a28" />
+              <CartesianGrid stroke={colors.grid} />
               <XAxis
                 dataKey="price"
-                tick={{ fill: "#505070", fontSize: 10 }}
+                tick={{ fill: colors.text, fontSize: 10 }}
                 tickFormatter={(v: number) => formatPrice(v, tickDecimals)}
               />
-              <YAxis tick={{ fill: "#505070", fontSize: 10 }} width={44} />
+              <YAxis tick={{ fill: colors.text, fontSize: 10 }} width={44} />
               <Tooltip
-                contentStyle={{ background: "#12121a", border: "1px solid #2a2a45", fontSize: 11 }}
+                contentStyle={{
+                  background: colors.background,
+                  border: `1px solid ${colors.border}`,
+                  color: colors.text,
+                  fontSize: 11,
+                }}
                 labelFormatter={(v: number) => `Price ${formatPrice(v, tickDecimals)}`}
               />
-              <Line type="stepAfter" dataKey="demand" stroke="#22c55e" dot={false} name="Demand" />
-              <Line type="stepBefore" dataKey="supply" stroke="#ef4444" dot={false} name="Supply" />
+              <Line
+                type="stepAfter"
+                dataKey="demand"
+                stroke={colors.up}
+                dot={false}
+                name="Demand"
+              />
+              <Line
+                type="stepBefore"
+                dataKey="supply"
+                stroke={colors.down}
+                dot={false}
+                name="Supply"
+              />
               {auction?.eqPrice != null && (
-                <ReferenceLine x={auction.eqPrice} stroke="#f59e0b" strokeDasharray="3 3" />
+                <ReferenceLine x={auction.eqPrice} stroke={colors.marker} strokeDasharray="3 3" />
               )}
             </LineChart>
           </ResponsiveContainer>

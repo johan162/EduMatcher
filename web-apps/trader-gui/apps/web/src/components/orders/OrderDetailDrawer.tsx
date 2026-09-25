@@ -151,18 +151,18 @@ export function OrderDetailDrawer({ orderId, onClose }: OrderDetailDrawerProps) 
     <aside
       role="dialog"
       aria-label={`Order ${orderId} detail`}
-      className="fixed right-0 top-10 bottom-0 w-[520px] max-w-[92vw] bg-[#0d0d14] border-l border-[#2a2a45] shadow-2xl z-40 flex flex-col animate-fade-in"
+      className="fixed right-0 top-10 bottom-0 w-[520px] max-w-[92vw] bg-deep border-l border-line shadow-2xl z-40 flex flex-col animate-fade-in"
     >
-      <div className="flex items-start justify-between px-4 pt-3 pb-2 border-b border-[#2a2a45]">
+      <div className="flex items-start justify-between px-4 pt-3 pb-2 border-b border-line">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-mono font-semibold text-[#e8e8f0]">
+            <h2 className="text-sm font-mono font-semibold text-fg">
               {order?.symbol ?? "Order"} · {orderId.slice(0, 8)}
             </h2>
             {order && <StatusPill status={order.status} />}
           </div>
           {order && (
-            <div className="mt-1 text-[11px] text-[#9090b0]">
+            <div className="mt-1 text-[11px] text-fg-dim">
               <span className={order.side === "BUY" ? "text-bid" : "text-ask"}>{order.side}</span>{" "}
               {order.order_type} · {order.tif} · qty {order.quantity}
               {order.client_tag ? ` · tag ${order.client_tag}` : ""}
@@ -175,27 +175,27 @@ export function OrderDetailDrawer({ orderId, onClose }: OrderDetailDrawerProps) 
           type="button"
           onClick={onClose}
           aria-label="Close order detail"
-          className="text-[#9090b0] hover:text-[#e8e8f0]"
+          className="text-fg-dim hover:text-fg"
         >
           <X size={18} />
         </button>
       </div>
 
       <div className="flex-1 overflow-auto p-4">
-        <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#707090]">
+        <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-fg-mute">
           Lifecycle
         </h3>
 
-        {historyQuery.isLoading && <p className="text-xs text-[#9090b0]">Loading history…</p>}
+        {historyQuery.isLoading && <p className="text-xs text-fg-dim">Loading history…</p>}
 
         {is503 && (
-          <p className="text-xs text-[#9090b0]">
+          <p className="text-xs text-fg-dim">
             History unavailable — the stats database is not running. Live events below still update.
           </p>
         )}
 
         {!historyQuery.isLoading && !is503 && entries.length === 0 && (
-          <p className="text-xs text-[#9090b0]">No recorded events yet.</p>
+          <p className="text-xs text-fg-dim">No recorded events yet.</p>
         )}
 
         <ol className="flex flex-col gap-2">
@@ -209,12 +209,12 @@ export function OrderDetailDrawer({ orderId, onClose }: OrderDetailDrawerProps) 
                 {e.event_type}
               </span>
               <div className="flex flex-col">
-                <span className="font-mono text-[11px] text-[#e8e8f0]">
+                <span className="font-mono text-[11px] text-fg">
                   {timeLabel(e.ts)}
-                  {e.live && <span className="ml-1 text-[9px] text-[#6ea8fe]">live</span>}
+                  {e.live && <span className="ml-1 text-[9px] text-link">live</span>}
                 </span>
                 {detailLine(e) && (
-                  <span className="text-[11px] text-[#9090b0]">{detailLine(e)}</span>
+                  <span className="text-[11px] text-fg-dim">{detailLine(e)}</span>
                 )}
               </div>
             </li>

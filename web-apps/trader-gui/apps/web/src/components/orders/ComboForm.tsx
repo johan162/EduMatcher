@@ -10,7 +10,7 @@ import { SMP_OPTIONS } from "@/components/orders/OrderTicket.js";
 import type { Side, SmpAction } from "@/types/index.js";
 
 const fieldCls =
-  "bg-[#1a1a28] border border-[#2a2a45] rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#3a3a60]";
+  "bg-raised border border-line rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#3a3a60]";
 
 type LegType = "LIMIT" | "MARKET";
 
@@ -118,7 +118,7 @@ export function ComboForm() {
     >
       <div className="grid grid-cols-3 gap-2">
         <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-[#505070]">Combo ID</span>
+          <span className="text-[10px] text-fg-faint">Combo ID</span>
           <input
             value={comboId}
             onChange={(e) => setComboId(e.target.value)}
@@ -128,7 +128,7 @@ export function ComboForm() {
           {errors.combo_id && <span className="text-[10px] text-ask">{errors.combo_id}</span>}
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-[#505070]">TIF (all legs)</span>
+          <span className="text-[10px] text-fg-faint">TIF (all legs)</span>
           <select
             value={tif}
             onChange={(e) => setTif(e.target.value as "DAY" | "GTC")}
@@ -140,7 +140,7 @@ export function ComboForm() {
           </select>
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-[#505070]">SMP (all legs)</span>
+          <span className="text-[10px] text-fg-faint">SMP (all legs)</span>
           <select
             value={smp}
             onChange={(e) => setSmp(e.target.value as SmpAction | "")}
@@ -165,9 +165,9 @@ export function ComboForm() {
 
       <div className="flex flex-col gap-1.5">
         {legs.map((leg, i) => (
-          <div key={i} className="flex items-end gap-1.5 rounded border border-[#2a2a45] p-1.5">
+          <div key={i} className="flex items-end gap-1.5 rounded border border-line p-1.5">
             <label className="flex flex-1 flex-col gap-0.5">
-              <span className="text-[10px] text-[#505070]">Symbol</span>
+              <span className="text-[10px] text-fg-faint">Symbol</span>
               <input
                 list="combo-symbols"
                 value={leg.symbol}
@@ -181,7 +181,7 @@ export function ComboForm() {
               )}
             </label>
             <label className="flex flex-col gap-0.5">
-              <span className="text-[10px] text-[#505070]">Side</span>
+              <span className="text-[10px] text-fg-faint">Side</span>
               <select
                 value={leg.side}
                 onChange={(e) => setLeg(i, { side: e.target.value as Side })}
@@ -193,7 +193,7 @@ export function ComboForm() {
               </select>
             </label>
             <label className="flex flex-col gap-0.5">
-              <span className="text-[10px] text-[#505070]">Type</span>
+              <span className="text-[10px] text-fg-faint">Type</span>
               <select
                 value={leg.order_type}
                 onChange={(e) => setLeg(i, { order_type: e.target.value as LegType })}
@@ -205,7 +205,7 @@ export function ComboForm() {
               </select>
             </label>
             <label className="flex w-16 flex-col gap-0.5">
-              <span className="text-[10px] text-[#505070]">Qty</span>
+              <span className="text-[10px] text-fg-faint">Qty</span>
               <input
                 type="number"
                 min={1}
@@ -219,7 +219,7 @@ export function ComboForm() {
               )}
             </label>
             <label className="flex w-20 flex-col gap-0.5">
-              <span className="text-[10px] text-[#505070]">Price</span>
+              <span className="text-[10px] text-fg-faint">Price</span>
               <input
                 type="number"
                 step="any"
@@ -239,7 +239,7 @@ export function ComboForm() {
               disabled={legs.length <= MIN_LEGS}
               aria-label={`Remove leg ${i + 1}`}
               title={legs.length <= MIN_LEGS ? "A combo needs at least two legs" : "Remove leg"}
-              className="mb-1 text-[#9090b0] hover:text-ask disabled:opacity-30"
+              className="mb-1 text-fg-dim hover:text-ask disabled:opacity-30"
             >
               <X size={13} />
             </button>
@@ -252,11 +252,11 @@ export function ComboForm() {
           type="button"
           onClick={addLeg}
           disabled={legs.length >= MAX_LEGS}
-          className="flex items-center gap-1 rounded border border-[#2a2a45] px-2 py-1 text-[11px] text-[#9090b0] hover:text-[#e8e8f0] disabled:opacity-40"
+          className="flex items-center gap-1 rounded border border-line px-2 py-1 text-[11px] text-fg-dim hover:text-fg disabled:opacity-40"
         >
           <Plus size={12} /> Add leg
         </button>
-        <span className="text-[10px] text-[#505070]">
+        <span className="text-[10px] text-fg-faint">
           {legs.length}/{MAX_LEGS} legs
         </span>
         <button

@@ -48,7 +48,7 @@ export const SMP_OPTIONS: SmpAction[] = [
 ];
 
 const fieldCls =
-  "bg-[#1a1a28] border border-[#2a2a45] rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#3a3a60] disabled:opacity-40";
+  "bg-raised border border-line rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#3a3a60] disabled:opacity-40";
 
 /**
  * The single-leg Order Ticket (§12) — the one shared ticket used both by the
@@ -336,7 +336,7 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
         aria-keyshortcuts={isBuy ? "b" : "s"}
         className={`flex-1 py-2 rounded text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed ${
           isBuy ? "bg-bid hover:brightness-110" : "bg-ask hover:brightness-110"
-        } ${suggested ? "ring-2 ring-offset-1 ring-offset-[#0d0d14] ring-white/70" : ""}`}
+        } ${suggested ? "ring-2 ring-offset-1 ring-offset-deep ring-fg/70" : ""}`}
       >
         {side}
       </button>
@@ -353,7 +353,7 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
     // wrapping a <label> around both the input and the FieldInfo button would
     // make the label associate with the button instead of the input.
     <div className="flex flex-col gap-0.5">
-      <span className="flex items-center gap-1 text-[10px] text-[#505070]">
+      <span className="flex items-center gap-1 text-[10px] text-fg-faint">
         {label}
         {info}
       </span>
@@ -367,9 +367,9 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
-        <span className="text-xs font-semibold text-[#e8e8f0]">Order Ticket</span>
-        {lockedSymbol && <span className="font-mono text-xs text-[#9090b0]">{lockedSymbol}</span>}
-        <span className="ml-auto text-[10px] text-[#505070]">{compact ? "compact" : "F1 to focus"}</span>
+        <span className="text-xs font-semibold text-fg">Order Ticket</span>
+        {lockedSymbol && <span className="font-mono text-xs text-fg-dim">{lockedSymbol}</span>}
+        <span className="ml-auto text-[10px] text-fg-faint">{compact ? "compact" : "F1 to focus"}</span>
       </div>
 
       {/* Order-type tabs (§12.3) */}
@@ -395,7 +395,7 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
               className={`px-2 py-1 rounded text-[11px] font-medium disabled:opacity-30 disabled:cursor-not-allowed ${
                 active
                   ? "bg-[#3a3a60] text-white"
-                  : "bg-[#1a1a28] text-[#9090b0] hover:bg-[#22223a]"
+                  : "bg-raised text-fg-dim hover:bg-elevated2"
               }`}
             >
               {label}

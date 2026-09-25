@@ -85,21 +85,21 @@ export function MarketOverviewPage() {
   return (
     <div className="flex flex-col h-full gap-3">
       <div className="flex items-center gap-3">
-        <h1 className="text-sm font-semibold text-[#e8e8f0]">Market Overview</h1>
+        <h1 className="text-sm font-semibold text-fg">Market Overview</h1>
 
         <div className="relative">
-          <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-[#505070]" />
+          <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-fg-faint" />
           <input
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Filter symbols…"
             aria-label="Filter symbols"
-            className="bg-[#1a1a28] border border-[#2a2a45] rounded pl-7 pr-2 py-1 text-xs font-mono w-48 focus:outline-none focus:border-[#3a3a60]"
+            className="bg-raised border border-line rounded pl-7 pr-2 py-1 text-xs font-mono w-48 focus:outline-none focus:border-[#3a3a60]"
           />
         </div>
 
-        <span className="text-xs text-[#505070]">
+        <span className="text-xs text-fg-faint">
           {rows.length} {rows.length === 1 ? "symbol" : "symbols"}
         </span>
 
@@ -115,7 +115,7 @@ export function MarketOverviewPage() {
             void symbolsQuery.refetch();
             void dailyQuery.refetch();
           }}
-          className="ml-auto flex items-center gap-1 text-xs text-[#9090b0] hover:text-[#e8e8f0]"
+          className="ml-auto flex items-center gap-1 text-xs text-fg-dim hover:text-fg"
         >
           <RefreshCw size={12} />
           Refresh
@@ -125,15 +125,15 @@ export function MarketOverviewPage() {
       {loading && <TableSkeleton rows={10} columns={7} />}
 
       {empty && (
-        <div className="flex flex-col items-start gap-2 border border-[#2a2a45] rounded p-6">
-          <p className="text-sm text-[#9090b0]">No symbols available — is pm-api-gwy running?</p>
+        <div className="flex flex-col items-start gap-2 border border-line rounded p-6">
+          <p className="text-sm text-fg-dim">No symbols available — is pm-api-gwy running?</p>
           {symbolsQuery.isError && (
-            <p className="text-xs text-[#505070]">{String(symbolsQuery.error)}</p>
+            <p className="text-xs text-fg-faint">{String(symbolsQuery.error)}</p>
           )}
           <button
             type="button"
             onClick={() => void symbolsQuery.refetch()}
-            className="mt-1 px-3 py-1 rounded bg-[#20203a] text-xs hover:bg-[#2a2a45]"
+            className="mt-1 px-3 py-1 rounded bg-elevated text-xs hover:bg-line"
           >
             Retry
           </button>

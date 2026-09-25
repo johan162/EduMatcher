@@ -13,7 +13,7 @@ interface ReplaceDialogProps {
 }
 
 const field =
-  "bg-[#1a1a28] border border-[#2a2a45] rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#3a3a60] disabled:opacity-40";
+  "bg-raised border border-line rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#3a3a60] disabled:opacity-40";
 
 /**
  * Cancel-Replace (atomic) dialog (§13.2). Use when a price change or size
@@ -123,31 +123,31 @@ export function ReplaceDialog({ orderId, onClose }: ReplaceDialogProps) {
     <Modal title={`Replace ${order.symbol} · ${order.order_id.slice(0, 8)}`} onClose={onClose}>
       <div className="grid grid-cols-4 gap-2">
         <div className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-[#505070]">Symbol</span>
-          <span className="font-mono text-xs text-[#9090b0]">{order.symbol}</span>
+          <span className="text-[10px] text-fg-faint">Symbol</span>
+          <span className="font-mono text-xs text-fg-dim">{order.symbol}</span>
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-[#505070]">Side</span>
+          <span className="text-[10px] text-fg-faint">Side</span>
           <span className={`font-mono text-xs ${order.side === "BUY" ? "text-bid" : "text-ask"}`}>
             {order.side}
           </span>
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-[#505070]">Type · TIF</span>
-          <span className="font-mono text-xs text-[#9090b0]">
+          <span className="text-[10px] text-fg-faint">Type · TIF</span>
+          <span className="font-mono text-xs text-fg-dim">
             {order.order_type} · {order.tif}
           </span>
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-[#505070]">Filled</span>
-          <span className="font-mono text-xs text-[#9090b0]">{filled}</span>
+          <span className="text-[10px] text-fg-faint">Filled</span>
+          <span className="font-mono text-xs text-fg-dim">{filled}</span>
         </div>
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2">
         {fields.price && (
           <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] text-[#505070]">Price</span>
+            <span className="text-[10px] text-fg-faint">Price</span>
             <input
               type="number"
               step="any"
@@ -160,7 +160,7 @@ export function ReplaceDialog({ orderId, onClose }: ReplaceDialogProps) {
         )}
         {fields.stop_price && (
           <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] text-[#505070]">Stop price</span>
+            <span className="text-[10px] text-fg-faint">Stop price</span>
             <input
               type="number"
               step="any"
@@ -172,7 +172,7 @@ export function ReplaceDialog({ orderId, onClose }: ReplaceDialogProps) {
           </label>
         )}
         <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-[#505070]">Replacement quantity</span>
+          <span className="text-[10px] text-fg-faint">Replacement quantity</span>
           <input
             type="number"
             min={1}
@@ -184,7 +184,7 @@ export function ReplaceDialog({ orderId, onClose }: ReplaceDialogProps) {
         </label>
       </div>
 
-      <p className="mt-3 text-[10px] leading-snug text-[#707090]">
+      <p className="mt-3 text-[10px] leading-snug text-fg-mute">
         Replace cancels the resting order and submits a new one atomically. Priority resets — use
         Amend for a same-price size reduction if you want to keep your place in the queue.
       </p>
@@ -195,7 +195,7 @@ export function ReplaceDialog({ orderId, onClose }: ReplaceDialogProps) {
         <button
           type="button"
           onClick={onClose}
-          className="rounded border border-[#2a2a45] px-3 py-1.5 text-xs text-[#9090b0] hover:text-[#e8e8f0]"
+          className="rounded border border-line px-3 py-1.5 text-xs text-fg-dim hover:text-fg"
         >
           Cancel
         </button>
