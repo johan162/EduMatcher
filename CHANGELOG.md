@@ -1,3 +1,25 @@
+## [v0.41.1] - 2026-09-25
+
+Release Type: patch
+
+### 📋 Summary
+This patch release improves the config and trader GUIs with clearer feature visibility, theme switching, and more reliable WebSocket serving. It also fixes configuration display and self-match cancellation details.
+
+### ✨ Additions
+- Added dark and light theme switching to the Trader GUI
+
+### 🚀 Improvements
+- Improved the Config GUI by showing the Market Maker tab as unavailable instead of hiding it
+- Improved `pm-trading-ui-serve` to proxy WebSocket upgrades reliably
+- Improved `pm-config-show` to display `require_mm_seed_quotes`
+
+### 🐛 Bug Fixes
+- Fixed the cancel reason for iceberg aggressors cancelled by self-match prevention
+
+### 📚 Documentation
+- Updated the risk-controls guide and added training material for the revised session scheduling
+
+
 ## [v0.41.0] - 2026-09-23
 
 Release Type: major
