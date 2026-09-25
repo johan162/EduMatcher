@@ -23,6 +23,7 @@
 
 import * as fs from "node:fs";
 import * as http from "node:http";
+import * as net from "node:net";
 import * as path from "node:path";
 import * as url from "node:url";
 
@@ -189,6 +190,47 @@ function proxyApiRequest(
   req.pipe(proxy, { end: true });
 }
 
+/**
+ * Forward a WebSocket upgrade (`/api/v1/events`, `/market-data`, ...) to
+ * pm-api-gwy. `http.createServer` destroys an upgrade nobody listens for, so
+ * without this the browser's socket never opens even though REST works.
+ * The handshake and every later frame are relayed byte-for-byte.
+ */
+function proxyUpgrade(
+  req: http.IncomingMessage,
+  socket: net.Socket,
+  head: Buffer,
+): void {
+  const pathname = (req.url ?? "/").split("?")[0] ?? "/";
+  if (!API_PROXY_TARGET || !pathname.startsWith("/api/")) {
+    socket.destroy();
+    return;
+  }
+  const target = new URL(API_PROXY_TARGET);
+  const upstream = net.connect(
+    Number(target.port || 80),
+    target.hostname,
+    () => {
+      let raw = `${req.method} ${req.url} HTTP/1.1\r\n`;
+      for (let i = 0; i < req.rawHeaders.length; i += 2) {
+        const name = req.rawHeaders[i]!;
+        const value = name.toLowerCase() === "host" ? target.host : req.rawHeaders[i + 1]!;
+        raw += `${name}: ${value}\r\n`;
+      }
+      upstream.write(`${raw}\r\n`);
+      upstream.write(head);
+      socket.pipe(upstream);
+      upstream.pipe(socket);
+    },
+  );
+  upstream.on("error", (err) => {
+    console.error("[proxy] upgrade:", err.message);
+    socket.destroy();
+  });
+  socket.on("error", () => upstream.destroy());
+  socket.on("close", () => upstream.destroy());
+}
+
 // ── Request handler ───────────────────────────────────────────────────────────
 const INDEX = path.join(STATIC_DIR, "index.html");
 
@@ -257,6 +299,7 @@ function main(): void {
   }
 
   const server = http.createServer(handler);
+  server.on("upgrade", proxyUpgrade);
 
   server.listen(PORT, HOST, () => {
     const addr = `http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT}`;
