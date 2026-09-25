@@ -5010,13 +5010,19 @@ switches intended for tests, not per-symbol controls — see
 pause: it can be applied manually at any time, for any reason (e.g., a pending
 news announcement, a technology incident at a venue, a regulatory instruction).</p>
 <h3 id="state-model">State model<a class="headerlink" href="#state-model" title="Permanent link">&para;</a></h3>
+<p>The two states are represented as:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">InstrumentState</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">Enum</span><span class="p">):</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">ACTIVE</span> <span class="o">=</span> <span class="s2">"ACTIVE"</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">HALTED</span> <span class="o">=</span> <span class="s2">"HALTED"</span>
 </code></pre></div>
-<p>The engine maintains a <code>_halted_symbols</code> dictionary (keyed on symbol name) that
-records which symbols are currently halted.  Any key not present in the
-dictionary is implicitly <code>ACTIVE</code>.</p>
+<p>but the halt/resume request path does not read this enum at all. What
+actually gates order and quote acceptance is <code>self._halted_symbols: dict[str,
+bool]</code> on the engine — a plain boolean flag per symbol, checked with
+<code>.get(symbol)</code>. A symbol can appear in the dictionary with value <code>False</code> (an
+operator resumed it, but the entry was never removed) as well as be absent
+entirely; both read as <code>ACTIVE</code>. Only the boolean value is ever consulted, so
+the distinction is invisible to a client — but a reader inspecting engine
+state directly should not expect "key present" to mean "halted."</p>
 <h3 id="halt-behaviour-by-order-type">Halt behaviour by order type<a class="headerlink" href="#halt-behaviour-by-order-type" title="Permanent link">&para;</a></h3>
 <p>When the engine receives a new order for a halted symbol:</p>
 <ul>
@@ -5186,9 +5192,12 @@ the defaults above are used.</p>
 <a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a><span class="w">    </span><span class="nt">collar</span><span class="p">:</span>
 <a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a><span class="w">      </span><span class="nt">dynamic_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.06</span>
 </code></pre></div>
-<p>Resolution precedence is:</p>
+<p>Resolution is <strong>per field</strong>, not per whole block: a symbol's <code>collar</code> fields
+are merged on top of its level's <code>collar</code> fields, so a symbol can override
+just one of the two percentages and still inherit the other from its level.
+For a single field, the precedence is:</p>
 <ol>
-<li><code>symbols.&lt;symbol&gt;.collar</code> (symbol override)</li>
+<li><code>symbols.&lt;symbol&gt;.collar.&lt;field&gt;</code> (symbol override)</li>
 <li><code>symbols.&lt;symbol&gt;.level</code> profile from <code>risk_controls.levels</code></li>
 <li><code>risk_controls.default_level</code> profile</li>
 <li>built-in defaults (<code>static_band_pct=0.20</code>, <code>dynamic_band_pct=0.02</code>)</li>
@@ -6000,9 +6009,13 @@ it has no <code>HALT</code>/<code>RESUME</code>/<code>CANCEL_SYM</code> command.
 halt, a per-symbol halt/resume, or a symbol-level mass cancel, use the ADMIN
 operator console <code>pm-admin --id GW_ADMIN</code> (<code>HALT</code>, <code>RESUME</code>,
 <code>HALT_SYM|SYM=</code>, <code>RESUME_SYM|SYM=</code>, <code>CANCEL_SYM|SYM=</code>,
-<code>REOPEN|SYM=[|PRICE=][|DRY_RUN=1]</code>, <code>KILL|GW=[|SYM=]</code>), send the raw ZMQ
-frames shown below directly, or use the REST admin endpoints described in
-<a href="../260-api-gateway/">API Gateway</a>.</p>
+<code>REOPEN|SYM=[|PRICE=][|DRY_RUN=1]</code>, <code>KILL|GW=[|SYM=]</code>), or send the raw
+ZMQ frames shown below directly. The per-symbol halt/resume and the
+symbol-level mass cancel are also reachable over REST (see
+<a href="../260-api-gateway/">API Gateway</a>); the <strong>exchange-wide</strong>
+<code>risk.circuit_breaker_halt_all</code> / <code>risk.circuit_breaker_resume_all</code> have
+no REST endpoint — <code>pm-admin</code> or a raw ZMQ frame are the only ways to
+reach them.</p>
 </div>
 <h3 id="triggering-an-exchange-wide-halt">Triggering an exchange-wide halt<a class="headerlink" href="#triggering-an-exchange-wide-halt" title="Permanent link">&para;</a></h3>
 <p>Send the following frame to the engine's PUSH socket (port <strong>5555</strong>):</p>
@@ -6168,8 +6181,8 @@ the engine will begin enforcing MM obligation checks again immediately.</p>
 <p>Alongside the exchange-wide <code>risk.circuit_breaker_halt_all</code> / <code>risk.circuit_breaker_resume_all</code>
 pair, an <code>ADMIN</code> gateway can halt or resume <strong>one symbol at a time</strong> using
 <code>risk.symbol_halt</code> / <code>risk.symbol_resume</code>. This is the command used by the
-<code>/api/v1/admin/circuit-breaker/trigger</code> and <code>/circuit-breaker/resume</code> REST
-endpoints (see <a href="../260-api-gateway/">API Gateway</a>) and is the mechanism behind
+<code>/api/v1/admin/circuit-breaker/trigger</code> and <code>/api/v1/admin/circuit-breaker/resume</code>
+REST endpoints (see <a href="../260-api-gateway/">API Gateway</a>) and is the mechanism behind
 the "Per-symbol operator halt" row in the
 <a href="#market-maker-interaction">Market-maker interaction</a> table below.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>Frame 0 (topic):   b"risk.symbol_halt"
@@ -6315,10 +6328,10 @@ its own orders.</p>
 <p class="admonition-title">Cross-gateway kill switches need ADMIN</p>
 <p>A gateway's own kill switch targets only that gateway.  An <code>ADMIN</code>
 gateway can additionally cancel another gateway's exposure with
-<code>risk.kill_switch_gateway</code> (REST: <code>POST /admin/kill-switch/gateway</code>), or
-every resting order and quote on the exchange with
-<code>risk.kill_switch_global</code> (REST: <code>POST /admin/kill-switch/global</code>); both
-reject non-ADMIN callers. <code>pm-admin</code> exposes <code>KILL|GW=&lt;gw&gt;[|SYM=&lt;sym&gt;]</code>.
+<code>risk.kill_switch_gateway</code> (REST: <code>POST /api/v1/admin/kill-switch/gateway</code>),
+or every resting order and quote on the exchange with
+<code>risk.kill_switch_global</code> (REST: <code>POST /api/v1/admin/kill-switch/global</code>);
+both reject non-ADMIN callers. <code>pm-admin</code> exposes <code>KILL|GW=&lt;gw&gt;[|SYM=&lt;sym&gt;]</code>.
 To stop trading rather than clear the book, use a per-symbol
 <code>risk.symbol_halt</code> or an exchange-wide <code>risk.circuit_breaker_halt_all</code>
 (both ADMIN), or <code>risk.cancel_symbol</code> (ADMIN, see

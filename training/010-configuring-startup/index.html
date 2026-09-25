@@ -2648,6 +2648,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#exercise-13-weekday-weekend-holiday-scheduling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 13: Weekday / Weekend / Holiday Scheduling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#summary" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4647,6 +4658,109 @@ either case.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you have seen both the
 content-digest error and the source-staleness warning fire for real, and can
 state which of the two blocks startup and which only warns.</p>
+<h2 id="exercise-13-weekday-weekend-holiday-scheduling">Exercise 13: Weekday / Weekend / Holiday Scheduling<a class="headerlink" href="#exercise-13-weekday-weekend-holiday-scheduling" title="Permanent link">&para;</a></h2>
+<p>Exercise 2's <code>--sessions-enabled</code> config used the built-in default
+schedule — the same five times every day, Monday through Friday, with
+Saturday, Sunday and bank holidays all <code>CLOSED</code>. Real exchanges are rarely
+that uniform: some run a short Friday, some trade weekends, and all of them
+close (or shorten hours) on bank holidays that fall on an otherwise-ordinary
+weekday. <code>pm-config-gen</code> can generate all three variations, and this
+exercise walks through each.</p>
+<p>Resolving which schedule applies to a given calendar day always happens in
+this order:</p>
+<ol>
+<li>If the day is a bank holiday in the configured <code>country</code>, the
+   <code>holidays:</code> block applies — or <code>CLOSED</code>, if no <code>--holidays</code> block was
+   generated.</li>
+<li>Otherwise, the day's own entry applies: <code>mon</code>..<code>fri</code> (from <code>weekdays:</code>,
+   unless overridden by <code>--weekend</code>) or <code>sat</code>/<code>sun</code> (from <code>weekend:</code>, only
+   if <code>--weekend</code> was passed).</li>
+</ol>
+<p>Any day left with no resolved entry — including Saturday and Sunday by
+default — is <code>CLOSED</code> all day, exactly like today's config already leaves
+them.</p>
+<p><strong>Add a weekend session.</strong></p>
+<p>By default <code>pm-config-gen</code> leaves Saturday and Sunday <code>CLOSED</code>. Pass
+<code>--weekend</code> to give them their own (shorter) session:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>AAPL:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>MSFT:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>TSLA:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a><span class="w">  </span>--gateways<span class="w"> </span>TRADER01:TRADER<span class="w"> </span>TRADER02:TRADER<span class="w"> </span>GW_ADMIN:ADMIN<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a><span class="w">  </span>--static-band<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-34-8" name="__codelineno-34-8" href="#__codelineno-34-8"></a><span class="w">  </span>--dynamic-band<span class="w"> </span><span class="m">0</span>.05<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-34-9" name="__codelineno-34-9" href="#__codelineno-34-9"></a><span class="w">  </span>--sessions-enabled<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-34-10" name="__codelineno-34-10" href="#__codelineno-34-10"></a><span class="w">  </span>--weekend<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-34-11" name="__codelineno-34-11" href="#__codelineno-34-11"></a><span class="w">  </span>--weekend-pre-open<span class="w"> </span><span class="m">10</span>:00<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-34-12" name="__codelineno-34-12" href="#__codelineno-34-12"></a><span class="w">  </span>--weekend-opening-auction<span class="w"> </span><span class="m">10</span>:25<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-34-13" name="__codelineno-34-13" href="#__codelineno-34-13"></a><span class="w">  </span>--weekend-continuous<span class="w"> </span><span class="m">10</span>:30<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-34-14" name="__codelineno-34-14" href="#__codelineno-34-14"></a><span class="w">  </span>--weekend-closing-auction<span class="w"> </span><span class="m">14</span>:00<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-34-15" name="__codelineno-34-15" href="#__codelineno-34-15"></a><span class="w">  </span>--weekend-closing-end<span class="w"> </span><span class="m">14</span>:05<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-34-16" name="__codelineno-34-16" href="#__codelineno-34-16"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml<span class="w"> </span>--force
+</code></pre></div>
+<p>Inspect the generated <code>schedule:</code> block — Saturday and Sunday now carry
+their own five transition times instead of being absent.</p>
+<p><strong>Add a holiday session, and set the country.</strong></p>
+<p>Pass <code>--holidays</code> to give bank holidays a schedule of their own instead of
+<code>CLOSED</code> (a common real-world case is a reduced half-day rather than a full
+close):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>AAPL:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>MSFT:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>TSLA:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a><span class="w">  </span>--gateways<span class="w"> </span>TRADER01:TRADER<span class="w"> </span>TRADER02:TRADER<span class="w"> </span>GW_ADMIN:ADMIN<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-7" name="__codelineno-35-7" href="#__codelineno-35-7"></a><span class="w">  </span>--static-band<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-8" name="__codelineno-35-8" href="#__codelineno-35-8"></a><span class="w">  </span>--dynamic-band<span class="w"> </span><span class="m">0</span>.05<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-9" name="__codelineno-35-9" href="#__codelineno-35-9"></a><span class="w">  </span>--sessions-enabled<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-10" name="__codelineno-35-10" href="#__codelineno-35-10"></a><span class="w">  </span>--holidays<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-11" name="__codelineno-35-11" href="#__codelineno-35-11"></a><span class="w">  </span>--holidays-pre-open<span class="w"> </span><span class="m">10</span>:00<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-12" name="__codelineno-35-12" href="#__codelineno-35-12"></a><span class="w">  </span>--holidays-opening-auction<span class="w"> </span><span class="m">10</span>:25<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-13" name="__codelineno-35-13" href="#__codelineno-35-13"></a><span class="w">  </span>--holidays-continuous<span class="w"> </span><span class="m">10</span>:30<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-14" name="__codelineno-35-14" href="#__codelineno-35-14"></a><span class="w">  </span>--holidays-closing-auction<span class="w"> </span><span class="m">13</span>:00<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-15" name="__codelineno-35-15" href="#__codelineno-35-15"></a><span class="w">  </span>--holidays-closing-end<span class="w"> </span><span class="m">13</span>:05<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-16" name="__codelineno-35-16" href="#__codelineno-35-16"></a><span class="w">  </span>--country<span class="w"> </span>DE<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-17" name="__codelineno-35-17" href="#__codelineno-35-17"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml<span class="w"> </span>--force
+</code></pre></div>
+<p><code>--country</code> is what tells <code>pm-scheduler</code> <em>which</em> calendar of bank holidays
+to check a date against before it decides whether the <code>holidays:</code> block
+even applies. It accepts a country name (<code>"Sweden"</code>) or an ISO 3166-1
+alpha-2 code (<code>"DE"</code>), and it does <strong>only</strong> that — it has no effect on the
+session timezone (that is the separate <code>--timezone</code> flag on <code>pm-stats</code> /
+<code>pm-clearing</code>, out of scope here). Get it wrong and the consequence is
+silent, not a crash: an unrecognised value makes <code>pm-cverifier</code> raise a
+<code>M026</code> warning, and at runtime <code>pm-scheduler</code> logs a warning and falls back
+to <code>"Sweden"</code> — so a Germany-based deployment left at the default, or given
+a typo'd country name, will silently follow the Swedish holiday calendar
+instead, trading straight through a local bank holiday it should have been
+closed for (or vice versa). There is no separate validation step for this —
+run <code>pm-cverifier</code> (Exercise 3) after any change to <code>country</code> or the
+schedule and read its output, don't just deploy.</p>
+<p>Verify the country was picked up:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>pm-cverifier<span class="w"> </span>engine_config.yaml
+</code></pre></div>
+<p>Deploy and confirm the resolved schedule end-to-end:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>pm-config-deploy<span class="w"> </span>engine_config.yaml
+</code></pre></div>
+<p>Restart <code>pm-scheduler</code> (Exercise 7) and, from a gateway console
+(Exercise 8/10), query <code>SESSION</code> — or check the engine's own wire replies —
+to see the resolved weekly table, including today's entry and whether today
+is currently flagged as a holiday.</p>
+<div class="admonition tip">
+<p class="admonition-title"><code>weekend:</code> and <code>sat:</code>/<code>sun:</code> are mutually exclusive</p>
+<p><code>--weekend</code> generates a single shared block for both days. There is no
+<code>pm-config-gen</code> flag for giving Saturday and Sunday <em>different</em> hours —
+that requires hand-editing the generated <code>sat:</code>/<code>sun:</code> keys directly in
+<code>engine_config.yaml</code> (see <a href="../../user-guide/080-session-scheduling/#configuring-the-schedule">Session Scheduling — Configuring the
+schedule</a>).
+A config that sets both <code>weekend:</code> and an individual <code>sat:</code>/<code>sun:</code> block
+is rejected at load — they say two different things about the same day.</p>
+</div>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> generated config has a
+<code>weekend:</code> block, a <code>holidays:</code> block, and <code>country: DE</code>; <code>pm-cverifier</code>
+reports no <code>M026</code> warning; the deployed schedule reflects all three when
+queried from a running engine.</p>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>You now have:</p>
 <ul>
@@ -4658,6 +4772,9 @@ state which of the two blocks startup and which only warns.</p>
 <li>Confirmation that all symbols accept orders.</li>
 <li>Firsthand experience of the artifact's content-digest error and
   source-staleness warning, and which fix (<code>pm-config-deploy</code>) clears both.</li>
+<li>A schedule with weekend trading, a bank-holiday session, and the correct
+  <code>country</code> for its holiday calendar — and the ability to tell, from
+  <code>pm-cverifier</code>, when <code>country</code> isn't one.</li>
 </ul>
 <h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
 <p>Why does the engine, scheduler, and each gateway all run as <strong>separate
@@ -4672,11 +4789,19 @@ process parse its own copy of the YAML would not?</p>
 start, the other only warns. Why is a hand-edited <em>artifact</em> treated as more
 serious than a stale <em>source</em> file, given that both mean the running
 configuration is not what <code>engine_config.yaml</code> currently says?</p>
+<p>An unrecognised <code>country</code> doesn't stop the config from deploying — it only
+warns, both from <code>pm-cverifier</code> (M026) and from <code>pm-scheduler</code> at runtime,
+then silently falls back to Sweden's holiday calendar. Why might a design
+choose "warn and fall back" here instead of refusing to deploy, the way an
+invalid or incomplete schedule block does? What's different about getting
+<code>country</code> wrong versus getting the schedule times wrong?</p>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../user-guide/010-configuration/">Configuration</a></li>
 <li><a href="../../user-guide/010-configuration/#verifying-the-deployed-artifact">Configuration — Verifying the Deployed Artifact</a></li>
 <li><a href="../../user-guide/020-config-verifier/">Config Verifier (<code>pm-cverifier</code>)</a></li>
+<li><a href="../../user-guide/080-session-scheduling/">Session Scheduling and Auctions</a></li>
+<li><a href="../../user-guide/080-session-scheduling/#bank-holidays-and-weekends">Session Scheduling — Bank holidays and weekends</a></li>
 <li><a href="../../user-guide/040-running-the-exchange/">Running the Engine</a></li>
 <li><a href="../../user-guide/051-gateway-intro/">Gateway Concepts</a></li>
 <li><a href="../../user-guide/055-alf-console/">ALF Console (pm-alf-console)</a></li>

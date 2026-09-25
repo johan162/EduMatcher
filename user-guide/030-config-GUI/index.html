@@ -4880,8 +4880,9 @@ up:</p>
 </tr>
 </tbody>
 </table>
-<p>¹ The <strong>Market Maker</strong> tab appears at any persona, but only once at least one
-gateway has the <code>MARKET_MAKER</code> role.</p>
+<p>¹ The <strong>Market Maker</strong> tab appears at any persona. It is greyed out and
+disabled until at least one gateway has the <code>MARKET_MAKER</code> role, then becomes
+editable.</p>
 <div class="admonition note">
 <p class="admonition-title">📷 Figure 2 — Persona switcher and theme toggle</p>
 <p><em>Screenshot placeholder.</em> Capture the top bar with the persona dropdown open
@@ -4968,7 +4969,8 @@ Suggested file: <code>images/config-gui/fig-02-persona-theme.png</code>.</p>
 </tr>
 </tbody>
 </table>
-<p>¹ Shown only when a <code>MARKET_MAKER</code> gateway exists.</p>
+<p>¹ Editable only once a <code>MARKET_MAKER</code> gateway exists; before that the tab is
+shown greyed out.</p>
 <p>The rest of this chapter walks through the concepts behind these tabs. If you
 just want to produce a working file quickly, follow the
 <a href="#a-workflow-for-a-new-market-maker">market-maker workflow</a> and then jump to
@@ -5784,8 +5786,13 @@ server can also serve the built UI, collapsing the two into one container.</p>
 </tr>
 <tr>
 <td><strong>A tab you expected is missing</strong></td>
-<td>It is above the current persona, or (Market Maker) no MM gateway exists</td>
-<td>Raise the <a href="#personas">persona</a>, or add a <code>MARKET_MAKER</code> gateway.</td>
+<td>It is above the current persona</td>
+<td>Raise the <a href="#personas">persona</a>.</td>
+</tr>
+<tr>
+<td><strong>Market Maker tab is greyed out</strong></td>
+<td>No <code>MARKET_MAKER</code> gateway is defined yet</td>
+<td>Add a <code>MARKET_MAKER</code> gateway on the Basics tab.</td>
 </tr>
 </tbody>
 </table>
