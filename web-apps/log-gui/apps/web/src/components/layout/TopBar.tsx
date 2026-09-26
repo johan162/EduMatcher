@@ -56,7 +56,7 @@ export function TopBar({
     <header className="flex h-12 shrink-0 items-center gap-4 border-b border-border bg-bg-subtle px-4 text-sm">
       <span className="flex items-baseline gap-2">
         <span className="font-mono font-bold text-sm text-fg">EduMatcher</span>
-        <span className="font-mono text-sm text-accent">pm-log</span>
+        <span className="font-mono text-xs text-accent">pm-log</span>
         <span className="font-mono text-xs text-brand-version">v{appVersion.version}</span>
       </span>
 

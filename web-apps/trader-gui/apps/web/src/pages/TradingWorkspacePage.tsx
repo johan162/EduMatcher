@@ -6,6 +6,7 @@ import { SymbolChart } from "@/components/symbol/SymbolChart.js";
 import { DepthLadder } from "@/components/symbol/DepthLadder.js";
 import { OrderTicket } from "@/components/orders/OrderTicket.js";
 import { CompactBlotter } from "@/components/workspace/CompactBlotter.js";
+import { SymbolPicker } from "@/components/shared/SymbolPicker.js";
 
 const PANEL = "border border-line rounded bg-deep p-3 overflow-auto";
 
@@ -50,25 +51,23 @@ export function TradingWorkspacePage() {
       {/* Header: symbol picker */}
       <div className="flex items-center gap-2">
         <h1 className="text-sm font-semibold text-fg">Workspace</h1>
-        <label className="flex items-center gap-1 ml-2">
+        <div className="flex items-center gap-1 ml-2">
           <span className="text-[10px] text-fg-faint">Symbol</span>
-          <select
+          <SymbolPicker
+            symbols={symbols.map((s) => s.symbol)}
             value={activeSymbol}
-            onChange={(e) => setActiveSymbol(e.target.value)}
-            aria-label="Active symbol"
-            className="bg-raised border border-line rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#3a3a60]"
-          >
-            {symbols.map((s) => (
-              <option key={s.symbol} value={s.symbol}>
-                {s.symbol}
-              </option>
-            ))}
-          </select>
-        </label>
+            onChange={setActiveSymbol}
+            label="Active symbol"
+          />
+        </div>
       </div>
 
-      {/* Quadrants: left column (chart over ticket) + right column (DOM) */}
-      <div className="grid grid-cols-3 gap-3 flex-1 min-h-0">
+      {/* Quadrants: left column (chart over ticket) + right column (DOM).
+          Rows are content-sized (content-start) rather than the grid default
+          of stretching "auto" rows to fill the flex-1 parent -- that default
+          was inflating both the chart and ticket cells with dead space below
+          their actual content. */}
+      <div className="grid grid-cols-3 gap-3 content-start">
         <section className={`col-span-2 ${PANEL}`} aria-label="Price chart">
           <SymbolChart symbol={activeSymbol} />
         </section>
@@ -87,7 +86,11 @@ export function TradingWorkspacePage() {
         </section>
       </div>
 
-      {/* Bottom strip: compact blotter for the active symbol */}
+      {/* Bottom strip: compact blotter for the active symbol. Sized to its
+          own content (not flex-1) so an empty/short blotter doesn't claim
+          all the leftover page height -- capped at max-h-56 like before, but
+          now free to sit right under the quadrants instead of being pushed
+          down by their old dead space. */}
       <section className={`${PANEL} max-h-56`} aria-label="Working orders">
         <CompactBlotter symbol={activeSymbol} tickDecimals={tickDecimals} />
       </section>
