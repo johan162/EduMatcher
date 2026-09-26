@@ -1,3 +1,31 @@
+## [v0.42.0] - 2026-09-26
+
+Release Type: major
+
+### 📋 Summary
+This major release adds a large 150-symbol reference configurations and text scaling for the Terminal GUI. It also standardizes bundled example names around concise symbol-count prefixes.
+
+### ⚠️ Breaking Changes
+- Renamed bundled example directories and CLI shorthands to the `s<count>-<profile>` scheme; for example, `three-nominal` is now `s3-nominal` and `ten-basic` is now `s10-basic`
+- Removed support for the previous word-based example shorthands in `pm-setup` and `pm-config-deploy`
+
+### ✨ Additions
+- Added basic, nominal, and complex 150-symbol configurations as `s150-*` variants, with and without seeded market-maker quotes
+- Added configurable text scaling to the Terminal GUI
+
+### 🚀 Improvements
+- Improved bundled example naming with consistent `s1`, `s3`, `s10`, `s30`, and `s150` prefixes across configs, deployment tools, and shell completion
+
+### 🐛 Bug Fixes
+- Fixed `pm-setup` and `pm-config-deploy` using different default data directories in source checkouts
+
+### 📚 Documentation
+- Updated configuration, installation, training, deployment, and example guides for the new bundled-example names
+
+### 🛠 Internal
+- Added resolver, deployment, package-content, and GUI fixture coverage for the renamed and 150-symbol examples
+
+
 ## [v0.41.2] - 2026-09-26
 
 Release Type: patch
