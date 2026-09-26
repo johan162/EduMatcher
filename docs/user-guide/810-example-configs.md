@@ -14,20 +14,23 @@ The `docs/examples/ref_data` tree contains generated `engine_config.yaml` templa
 
 These reference configs are organized by book count and setup profile:
 
-- `one-book-basic-setup`
-- `one-book-nominal-setup`
-- `one-book-complex-setup`
-- `three-books-basic-setup`
-- `three-books-nominal-setup`
-- `three-books-complex-setup`
-- `ten-books-basic-setup`
-- `ten-books-nominal-setup`
-- `ten-books-complex-setup`
-- `thirty-books-basic-setup`
-- `thirty-books-nominal-setup`
-- `thirty-books-complex-setup`
+- `s1-basic-setup`
+- `s1-nominal-setup`
+- `s1-complex-setup`
+- `s3-basic-setup`
+- `s3-nominal-setup`
+- `s3-complex-setup`
+- `s10-basic-setup`
+- `s10-nominal-setup`
+- `s10-complex-setup`
+- `s30-basic-setup`
+- `s30-nominal-setup`
+- `s30-complex-setup`
+- `s150-basic-setup`
+- `s150-nominal-setup`
+- `s150-complex-setup`
 
-Each directory contains a small generator script, `mkrefdata.sh`, and the resulting `engine_config.yaml`.
+Each profile also has a `-nomm` variant without seeded market-maker quotes. Every directory contains a small generator script, `mkrefdata.sh`, and the resulting `engine_config.yaml`.
 
 
 ## How they are generated

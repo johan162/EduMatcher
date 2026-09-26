@@ -400,7 +400,7 @@ the ones the algorithm actually makes.
 
 Two configs are used: the deployed `engine_config.yaml` at the repository root
 (3 symbols, 10 participants, 5 keys) and
-`docs/examples/ref_data/thirty-books-complex-setup/engine_config.yaml`
+`docs/examples/ref_data/s30-complex-setup/engine_config.yaml`
 (30 symbols, 8 participants, 9 keys, collars, breakers, combos, schedule).
 
 ### 9.1 Tiny — 60 × 14
@@ -562,7 +562,7 @@ gives up width.
 
 ```
 ╭─  ENGINE CONFIGURATION  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ /mnt/user-data/uploads/EduMatcher/docs/examples/ref_data/thirty-books-complex-setup/engine_config.yaml           48.9 kB  ·  2026-08-20 23:15  ·  via --file │
+│ /mnt/user-data/uploads/EduMatcher/docs/examples/ref_data/s30-complex-setup/engine_config.yaml                   48.9 kB  ·  2026-08-20 23:15  ·  via --file │
 │ ● on sessions   ● on collars   ● on breakers   ● on mm-oblig                                                                                                 │
 │ 30 symbols   8 participants   2 API gateways   9 keys   9 listeners                                                                                          │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
@@ -638,7 +638,7 @@ where anything sits.
 
 ```
 ╭─  ENGINE CONFIGURATION  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ /mnt/user-data/uploads/EduMatcher/docs/examples/ref_data/thirty-books-complex-setup/engine_config.yaml                                                   48.9 kB  ·  2026-08-20 23:15  ·  via --file │
+│ /mnt/user-data/uploads/EduMatcher/docs/examples/ref_data/s30-complex-setup/engine_config.yaml                                                           48.9 kB  ·  2026-08-20 23:15  ·  via --file │
 │ ● on sessions   ● on collars   ● on breakers   ● on mm-oblig                                                                                                                                         │
 │ 30 symbols   8 participants   2 API gateways   9 keys   9 listeners                                                                                                                                  │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
@@ -709,7 +709,7 @@ undoes them.
 
 ```
 ╭─  ENGINE CONFIGURATION  ─────────────────────────────────────────────────────────────────────────────────────────────╮
-│ /mnt/user-data/uploads/EduMatcher/docs/examples/ref_data/thirty-books-complex-setup/engine_config.yaml               │
+│ /mnt/user-data/uploads/EduMatcher/docs/examples/ref_data/s30-complex-setup/engine_config.yaml                       │
 │ 48.9 kB  ·  2026-08-20 23:15  ·  via --file                                                                          │
 │ ● on sessions   ● on collars   ● on breakers   ● on mm-oblig                                                         │
 │ 30 symbols   8 participants   2 API gateways   9 keys   9 listeners                                                  │

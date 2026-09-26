@@ -1835,7 +1835,7 @@ _shtab_pm_config_deploy_commands() {
 _shtab_pm_config_deploy_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "(- : *)--version[show program\'s version number and exit]"
-  "--example[Use a bundled example config instead of SOURCE, e.g. \'three-basic\' for docs\/examples\/ref_data\/three-books-basic-setup\/engine_config.yaml\; append \'-nomm\' for the no-market-maker-quotes variant, e.g. \'three-basic-nomm\']:NAME:"
+  "--example[Use a bundled example config instead of SOURCE, e.g. \'s3-basic\' for docs\/examples\/ref_data\/s3-basic-setup\/engine_config.yaml\; append \'-nomm\' for the no-market-maker-quotes variant, e.g. \'s3-basic-nomm\']:NAME:"
   "--check[Validate and compile, but install nothing]"
   "--show[Print the deployed configuration paths and exit]"
   ":Authored engine_config.yaml to validate, compile and install:"
@@ -3818,8 +3818,9 @@ _shtab_pm_setup_commands() {
 _shtab_pm_setup_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "(- : *)--version[show program\'s version number and exit]"
-  "--data-dir[Data directory for persistent engine files (default\: \$EDUMATCHER_DATA_DIR or \~\/.local\/share\/edumatcher)]:PATH:"
-  "--config[Bundled example config to deploy, e.g. \'one-basic\', \'three-nominal\', \'ten-complex\' (resolves to docs\/examples\/ref_data\/\<count\>-book(s)-\<profile\>-setup\/engine_config.yaml\; append \'-nomm\' for the no-market-maker-quotes variant, e.g. \'one-basic-nomm\'\; default\: \'three-basic\')]:NAME:"
+  "--data-dir[Data directory for persistent engine files (default\: \$EDUMATCHER_DATA_DIR, or \<repo\>\/src\/data in a source checkout, or \~\/.local\/share\/edumatcher)]:PATH:"
+  "--show[Print the data directory that would be used and exit]"
+  "--config[Bundled example config to deploy, e.g. \'s1-basic\', \'s3-nominal\', \'s10-complex\', or \'s150-basic\' (resolves under docs\/examples\/ref_data\/\; append \'-nomm\' for the no-market-maker-quotes variant, e.g. \'s1-basic-nomm\'\; default\: \'s3-basic\')]:NAME:"
   "--force[Recompile and overwrite an already-deployed configuration]"
   "--no-config[Only create the data directory\; do not deploy an example config]"
 )

@@ -14,23 +14,24 @@ configuration of your own, author it wherever you like and install it with
 Which example gets installed is controlled by ``--config`` and resolved the
 same way ``pm-config-deploy --example`` resolves it — see
 ``edumatcher.config_deploy.resolve_example`` for the shorthand-to-path
-mapping (e.g. ``three-basic`` ->
-``docs/examples/ref_data/three-books-basic-setup/engine_config.yaml``). When
-``--config`` is omitted, ``three-basic`` is installed.
+mapping (e.g. ``s3-basic`` ->
+``docs/examples/ref_data/s3-basic-setup/engine_config.yaml``). When
+``--config`` is omitted, ``s3-basic`` is installed.
 
 Any example name also accepts an optional trailing ``-nomm`` to select the
-no-market-maker-quotes variant of that example (e.g. ``three-basic-nomm`` ->
-``docs/examples/ref_data/three-books-basic-nomm-setup/engine_config.yaml``)
+no-market-maker-quotes variant of that example (e.g. ``s3-basic-nomm`` ->
+``docs/examples/ref_data/s3-basic-nomm-setup/engine_config.yaml``)
 — see docs/concepts/03-concepts-mm-quotes.md.
 
 Usage
 -----
-  pm-setup                          # use all defaults (three-basic)
-  pm-setup --config one-basic       # install a specific bundled example
-  pm-setup --config one-basic-nomm  # same example with an empty order book
+    pm-setup                          # use all defaults (s3-basic)
+    pm-setup --config s1-basic       # install a specific bundled example
+    pm-setup --config s1-basic-nomm  # same example with an empty order book
   pm-setup --data-dir ~/my-session  # explicit data directory
   pm-setup --force                  # replace an already-deployed config
   pm-setup --no-config              # only create the data dir
+  pm-setup --show                   # print the data directory that would be used
 """
 
 from __future__ import annotations
@@ -43,12 +44,12 @@ from pathlib import Path
 from edumatcher.config import data_dir_preference
 from edumatcher.config_deploy import resolve_example
 
-DEFAULT_EXAMPLE_CONFIG = "three-basic"
+DEFAULT_EXAMPLE_CONFIG = "s3-basic"
 
 
 def _extract_example_config(dest: Path, force: bool, config_name: str) -> bool:
     """
-    Copy the bundled example config named *config_name* (e.g. ``three-basic``,
+    Copy the bundled example config named *config_name* (e.g. ``s3-basic``,
     resolved via ``resolve_example``) to *dest*.
     Returns True on success, False if the file already existed and --force was
     not given.
@@ -82,19 +83,25 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Data directory for persistent engine files "
-            "(default: $EDUMATCHER_DATA_DIR or ~/.local/share/edumatcher)"
+            "(default: $EDUMATCHER_DATA_DIR, or <repo>/src/data in a source "
+            "checkout, or ~/.local/share/edumatcher)"
         ),
+    )
+    parser.add_argument(
+        "--show",
+        action="store_true",
+        help="Print the data directory that would be used and exit",
     )
     parser.add_argument(
         "--config",
         metavar="NAME",
         default=DEFAULT_EXAMPLE_CONFIG,
         help=(
-            "Bundled example config to deploy, e.g. 'one-basic', 'three-nominal', "
-            "'ten-complex' (resolves to "
-            "docs/examples/ref_data/<count>-book(s)-<profile>-setup/engine_config.yaml; "
+            "Bundled example config to deploy, e.g. 's1-basic', 's3-nominal', "
+            "'s10-complex', or 's150-basic' (resolves under "
+            "docs/examples/ref_data/; "
             "append '-nomm' for the no-market-maker-quotes variant, e.g. "
-            "'one-basic-nomm'; "
+            "'s1-basic-nomm'; "
             f"default: {DEFAULT_EXAMPLE_CONFIG!r})"
         ),
     )
@@ -115,12 +122,6 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
-    if not args.no_config:
-        try:
-            resolve_example(args.config)
-        except ValueError as exc:
-            parser.error(str(exc))
-
     # -----------------------------------------------------------------------
     # 1. Resolve the data directory
     # -----------------------------------------------------------------------
@@ -128,6 +129,18 @@ def main() -> None:
         data_dir = Path(args.data_dir).expanduser().resolve()
     else:
         data_dir, _ = data_dir_preference()
+
+    if args.show:
+        ref_data = data_dir / "ref_data"
+        print(f"compiled: {ref_data / 'engine_config.json'}")
+        print(f"source:   {ref_data / 'engine_config.yaml'}")
+        return
+
+    if not args.no_config:
+        try:
+            resolve_example(args.config)
+        except ValueError as exc:
+            parser.error(str(exc))
 
     print("\npm-setup — EduMatcher session initialisation")
     print(f"{'=' * 50}")

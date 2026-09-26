@@ -100,7 +100,7 @@ describe different systems.
 | Option | Default | Effect |
 |---|---|---|
 | `--version X.Y.Z` | newest release | Install one specific release. All five images carry this tag, so it pins the whole system |
-| `--config NAME` | `three-basic` | Deploy a bundled example configuration |
+| `--config NAME` | `s3-basic` | Deploy a bundled example configuration |
 | `--config FILE` | — | ...or a path to an `engine_config.yaml` of your own |
 | `--dir PATH` | `~/.edumatcher` | Where to install |
 | `--no-start` | — | Fetch and configure, but do not start anything |
@@ -110,7 +110,7 @@ Because the script is read from a pipe, options need `bash -s --` so that the
 shell hands them to the script rather than consuming them itself:
 
 ```bash
-curl -fsSL .../install.sh | bash -s -- --config ten-nominal --version 0.41.3
+curl -fsSL .../install.sh | bash -s -- --config s10-nominal --version 0.41.3
 ```
 
 Two environment variables are also honoured: `REPO_OWNER` (which GitHub
@@ -133,7 +133,7 @@ into this file.
 |---|---|---|
 | `EM_VERSION` | *(the installed release)* | Which release to run. All five images carry this tag, so one value pins the whole system. `latest` follows the newest release |
 | `GHCR_OWNER` | `johan162` | The GHCR namespace the images are pulled from. Change it only for a fork |
-| `EM_CONFIG` | `three-basic` | Which bundled example configuration the exchange deploys |
+| `EM_CONFIG` | `s3-basic` | Which bundled example configuration the exchange deploys |
 | `EM_CONFIG_FILE` | *(empty)* | Set to `/config/engine_config.yaml` when you run a configuration of your own. Non-empty wins over `EM_CONFIG` |
 | `EM_PROFILE` | `default` | Which processes start: `default`, `mini` or `micro`. See [Processes](170-processes.md) |
 | `TZ` | `UTC` | Container timezone. Set it to match the trading calendar in your configuration, e.g. `Europe/Stockholm` |
@@ -150,7 +150,7 @@ get half-right — `EM_CONFIG` and `EM_CONFIG_FILE` must agree, and `EM_VERSION`
 needs an image pull to take effect:
 
 ```bash
-./edumatcher.sh config ten-nominal    # sets EM_CONFIG, clears EM_CONFIG_FILE
+./edumatcher.sh config s10-nominal    # sets EM_CONFIG, clears EM_CONFIG_FILE
 ./edumatcher.sh config ./mine.yaml    # copies the file, sets EM_CONFIG_FILE
 ./edumatcher.sh update 0.26.2         # sets EM_VERSION, pulls, restarts
 ```
@@ -201,14 +201,14 @@ those with or without seeded market-maker quotes. They are inside the backend
 image, so no download is involved in switching.
 
 ```bash
-./edumatcher.sh config ten-nominal
+./edumatcher.sh config s10-nominal
 ./edumatcher.sh restart
 ```
 
 The names are `one-`, `three-`, `ten-` and `thirty-` combined with `basic`,
 `nominal` and `complex`, each with an optional `-nomm` suffix for the variant
 with empty order books instead of seeded market-maker quotes (for example
-`three-basic-nomm`). `./edumatcher.sh config` lists them all if you mistype
+`s3-basic-nomm`). `./edumatcher.sh config` lists them all if you mistype
 one. See [Example Engine Configs](810-example-configs.md) for what each
 contains.
 
@@ -222,7 +222,7 @@ To run a configuration of your own, give the same command a path instead:
 The file is copied into `~/.edumatcher/config/`, mounted read-only into the
 container, and deployed on every start — so editing it and restarting is the
 whole edit-test loop. Switching back to a bundled example is
-`./edumatcher.sh config three-basic`. The configuration builder at
+`./edumatcher.sh config s3-basic`. The configuration builder at
 <http://localhost:8092> is the easy way to author one; see
 [Configuration GUI](030-config-GUI.md).
 
@@ -267,14 +267,14 @@ alone) and `up-all` (the exchange plus the GUIs).
 
 | Flag | Default | Effect |
 |---|---|---|
-| `CONFIG=<name>` | `three-basic` | Deploy a bundled example |
+| `CONFIG=<name>` | `s3-basic` | Deploy a bundled example |
 | `CONFIG=<file>` | — | Deploy an `engine_config.yaml` of your own; the file is copied to `deployment/docker/config/` and mounted read-only |
 | `PROFILE=<name>` | `default` | Which processes `pm-opctl-cli` starts: `default`, `mini` or `micro`. See [Processes](170-processes.md) |
 | `ZMQ=1` | off | Also publish the raw ZeroMQ bus (5555-5559, 5601-5602) to the host, and set the engine and index sockets to bind `0.0.0.0` inside the container |
 | `SSH=1` | off | Run `sshd` in the container on `SSH_PORT`, authorised by your `~/.ssh/*.pub` |
 | `CONFIG_GUI=1` | off | Include the configuration builder in `up-all`. It is opt-in because it talks to nothing — it is a standalone authoring tool |
 
-Flags combine: `make up-all CONFIG=ten-complex PROFILE=mini ZMQ=1 CONFIG_GUI=1`.
+Flags combine: `make up-all CONFIG=s10-complex PROFILE=mini ZMQ=1 CONFIG_GUI=1`.
 
 ### Settings in `.env`
 
@@ -289,7 +289,7 @@ When the same setting is available in more than one place, the nearer one wins:
 make flag  →  shell environment  →  .env  →  compose ${VAR:-default}  →  image ENV
 ```
 
-That is why `make up-all CONFIG=ten-nominal` does not edit `.env`, and why a
+That is why `make up-all CONFIG=s10-nominal` does not edit `.env`, and why a
 plain `make up-all` afterwards goes back to whatever `.env` says.
 
 | Variable | Default | Meaning |
@@ -297,7 +297,7 @@ plain `make up-all` afterwards goes back to whatever `.env` says.
 | `COMPOSE_PROJECT_NAME` | `edumatcher` | Compose project name; decides container and network naming |
 | `EDUMATCHER_VERSION` | *(empty)* | PyPI version for `PYPI=1` builds; empty means newest |
 | `WITH_SSH` | `1` | Install `openssh-server` into the image at build time |
-| `EM_CONFIG` | `three-basic` | Bundled example to deploy |
+| `EM_CONFIG` | `s3-basic` | Bundled example to deploy |
 | `EM_CONFIG_FILE` | *(empty)* | Path **inside the container** to a configuration of your own; set for you by `CONFIG=<file>` |
 | `EM_PROFILE` | `default` | Process profile to start |
 | `TZ` | `Europe/Stockholm` | Container timezone — match the trading calendar in your configuration |
@@ -660,7 +660,7 @@ and prints the `EDUMATCHER_DATA_DIR` line to add to your shell profile. Open a
 new terminal afterwards so every `pm-*` command sees the same data directory.
 
 ```bash
-pm-setup --config ten-nominal   # a different bundled example
+pm-setup --config s10-nominal   # a different bundled example
 pm-setup --data-dir ~/my-venue  # an explicit location
 pm-setup --force                # replace an already-deployed configuration
 pm-setup --no-config            # create the directory only

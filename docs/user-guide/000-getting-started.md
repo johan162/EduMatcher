@@ -373,7 +373,7 @@ Open three terminals in the same session environment.
     ```
 
     Then run the `pm-alf-console` commands below in those. The container's
-    default configuration is `three-basic`, which has the same symbols
+    default configuration is `s3-basic`, which has the same symbols
     (`AAPL`, `MSFT`, `TSLA`) and the same gateways (`TRADER01`, `TRADER02`,
     `OPS01`, `MM01`) as the `pm-setup` sample, so every command below works
     unchanged. `pm-config-show` prints what is actually deployed if you want to

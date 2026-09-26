@@ -26,14 +26,14 @@ thirty, each in a `basic`, `nominal` or `complex` variant. Pick one at install
 time:
 
 ```bash
-curl -fsSL .../install.sh | bash -s -- --config ten-nominal
+curl -fsSL .../install.sh | bash -s -- --config s10-nominal
 ```
 
 or afterwards:
 
 ```bash
 cd ~/.edumatcher
-./edumatcher.sh config thirty-complex
+./edumatcher.sh config s30-complex
 ./edumatcher.sh restart
 ```
 
@@ -53,7 +53,7 @@ point the exchange at the file:
 
 The file is copied into `~/.edumatcher/config/` and deployed on every start, so
 editing it and restarting is the whole edit-test loop. Switching back to a
-bundled example is `./edumatcher.sh config three-basic`.
+bundled example is `./edumatcher.sh config s3-basic`.
 
 ## Everyday commands
 

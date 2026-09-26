@@ -227,7 +227,7 @@ def check_config() -> list[str]:
 
     base_path = None
     for cand in ("src/data/ref_data/engine_config.yaml",
-                 "docs/examples/ref_data/three-books-basic-setup/engine_config.yaml"):
+                 "docs/examples/ref_data/s3-basic-setup/engine_config.yaml"):
         if (ROOT / cand).exists():
             base_path = ROOT / cand
             break

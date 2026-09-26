@@ -9,7 +9,7 @@
 set -euo pipefail
 
 DATA_DIR="${EDUMATCHER_DATA_DIR:-/data}"
-CONFIG="${EM_CONFIG:-three-basic}"
+CONFIG="${EM_CONFIG:-s3-basic}"
 CONFIG_FILE="${EM_CONFIG_FILE:-}"
 PROFILE="${EM_PROFILE:-default}"
 CONFIG_STAMP="${DATA_DIR}/.container-config"

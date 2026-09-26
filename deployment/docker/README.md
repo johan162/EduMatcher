@@ -205,7 +205,7 @@ running exchange.
 
 ```bash
 make up-all                                # exchange + terminal-, log- and trader-gui
-make up-all CONFIG=ten-nominal             # on a bundled example configuration
+make up-all CONFIG=s10-nominal             # on a bundled example configuration
 make up-all CONFIG=~/mine/engine_config.yaml   # on a configuration of your own
 make up-all CONFIG_GUI=1                   # and the configuration builder too
 make down-all                              # stop and remove everything
@@ -375,13 +375,13 @@ be overridden per command.
 way `pm-config-deploy --example` names them:
 
 ```text
-one-basic     three-basic     ten-basic     thirty-basic
-one-nominal   three-nominal   ten-nominal   thirty-nominal
-one-complex   three-complex   ten-complex   thirty-complex
+s1-basic     s3-basic     s10-basic     s30-basic     s150-basic
+s1-nominal   s3-nominal   s10-nominal   s30-nominal   s150-nominal
+s1-complex   s3-complex   s10-complex   s30-complex   s150-complex
 ```
 
 ```bash
-make up CONFIG=ten-nominal
+make up CONFIG=s10-nominal
 ```
 
 Changing it redeploys the configuration in `./data` on the next `make up`
@@ -435,7 +435,7 @@ make restart
 | `make clean` | Remove the container and the image |
 | `make clean-data` | Delete `./data` (asks first) |
 
-Flags combine: `make up ZMQ=1 SSH=1 CONFIG=ten-complex PROFILE=mini`.
+Flags combine: `make up ZMQ=1 SSH=1 CONFIG=s10-complex PROFILE=mini`.
 
 ## When a GUI shows something unexpected
 
@@ -512,7 +512,7 @@ is git-ignored, so it is the right place for host-specific choices.
 | `COMPOSE_PROJECT_NAME` | `edumatcher` | Compose project name |
 | `EDUMATCHER_VERSION` | *(empty)* | PyPI version to install; empty = latest |
 | `WITH_SSH` | `1` | Install `openssh-server` in the image |
-| `EM_CONFIG` | `three-basic` | Bundled example configuration to deploy |
+| `EM_CONFIG` | `s3-basic` | Bundled example configuration to deploy |
 | `EM_PROFILE` | `default` | `pm-opctl-cli` profile to start |
 | `TZ` | `UTC` | Container timezone — match your trading calendar |
 | `BIND_ADDR` | `127.0.0.1` | Host interface the ports bind to |

@@ -6691,7 +6691,7 @@ complete -F _shtab_pm_scheduler pm-scheduler
 
 
 
-_shtab_pm_setup_option_strings=(-h --help --version --data-dir --config --force --no-config)
+_shtab_pm_setup_option_strings=(-h --help --version --data-dir --show --config --force --no-config)
 
 
 
@@ -6700,6 +6700,7 @@ _shtab_pm_setup_option_strings=(-h --help --version --data-dir --config --force 
 _shtab_pm_setup__h_nargs=0
 _shtab_pm_setup___help_nargs=0
 _shtab_pm_setup___version_nargs=0
+_shtab_pm_setup___show_nargs=0
 _shtab_pm_setup___force_nargs=0
 _shtab_pm_setup___no_config_nargs=0
 
