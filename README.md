@@ -31,8 +31,8 @@ cd ~/.edumatcher
 ```
 
 The exchange is now running on a bundled configuration.  
-The `pm-*` commands used throughout this guide live *inside* the container. To easily open a 
-shell in the container type
+The `pm-*` commands, the control plane of the exchange, lives *inside* the container.  
+Use regular Docker/Podman command to open a shell in the conainer or use the shortcut:
 
 ```bash
 ./edumatcher.sh shell        # then pm-help, pm-admin, pm-alf-console, pm-stats-cli, ...
@@ -44,12 +44,22 @@ Once inside the container, start with reviewing available commands
 pm-help
 ```
 
-Then open the user-friendly Web applications :
+Then, on your host open a broswer and go to the following URLs for the more user-friendly ways to trade:
 
-```
-Trader GUI       :  http://localhost:8093
+```bash
+# The trading platform to buy/sell equity. Requires log-in using
+# one of the API keys defined in the `engine_config.yaml`
+Trader GUI       :  http://localhost:8093.
+
+# The terminal to watch the statistics of the market
 Trading terminal :  http://localhost:8090
-Log viewer       :  http://localhost:8091
+
+# The centrl log-srv to observer what is happening internally
+# in the exchange platform
+Log viewer       :  http://localhost:8091      
+
+# The Swagger REST-API documentation. The exchange can be
+# completely run using REST commands
 REST API docs    :  http://localhost:8080/docs
 ```
 

@@ -40,17 +40,10 @@ import os
 import sys
 from pathlib import Path
 
+from edumatcher.config import data_dir_preference
 from edumatcher.config_deploy import resolve_example
 
 DEFAULT_EXAMPLE_CONFIG = "three-basic"
-
-
-def _default_data_dir() -> Path:
-    """Return the default data directory for an installed (non-source) run."""
-    env = os.environ.get("EDUMATCHER_DATA_DIR")
-    if env:
-        return Path(env).expanduser().resolve()
-    return Path("~/.local/share/edumatcher").expanduser()
 
 
 def _extract_example_config(dest: Path, force: bool, config_name: str) -> bool:
@@ -134,7 +127,7 @@ def main() -> None:
     if args.data_dir:
         data_dir = Path(args.data_dir).expanduser().resolve()
     else:
-        data_dir = _default_data_dir()
+        data_dir, _ = data_dir_preference()
 
     print("\npm-setup — EduMatcher session initialisation")
     print(f"{'=' * 50}")
