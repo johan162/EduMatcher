@@ -7,14 +7,13 @@ import { api } from "../../lib/api.js";
 import { useUiConfig } from "../../lib/useUiConfig.js";
 import type { ThemePreference } from "../../lib/theme.js";
 import { useLiveStore, type SourceState } from "../../store/useLiveStore.js";
+import appVersion from "../../version.json";
 
 /** Icon shown is the theme a click will switch *to*, not the active one. */
 const NEXT_THEME_ICON: Record<ThemePreference, typeof Moon> = {
   dark: Sun,
   light: Moon,
 };
-
-const VERSION = "v0.1.0";
 
 const STATE_LABEL: Record<SourceState, string> = {
   LIVE: "log-srv up",
@@ -55,8 +54,11 @@ export function TopBar({
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-4 border-b border-border bg-bg-subtle px-4 text-sm">
-      <span className="font-semibold">pm-log-ui</span>
-      <span className="text-fg-subtle">{VERSION}</span>
+      <span className="flex items-baseline gap-2">
+        <span className="font-mono font-bold text-sm text-fg">EduMatcher</span>
+        <span className="font-mono text-xs text-accent">pm-log</span>
+        <span className="font-mono text-xs text-brand-version">v{appVersion.version}</span>
+      </span>
 
       <span className="flex items-center gap-1.5">
         <span className={`h-2 w-2 rounded-full ${STATE_DOT[connectionState]}`} />

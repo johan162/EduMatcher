@@ -8,6 +8,7 @@ import { SESSION_PHASE_META } from "@/lib/sessionState.js";
 import { formatCountdown } from "@/lib/formatters.js";
 import { SettingsPopover } from "@/components/shared/SettingsPopover.js";
 import { Bell, LogOut, Wifi, WifiOff, Activity, HelpCircle, Moon, Search, Sun } from "lucide-react";
+import appVersion from "../../version.json";
 
 const HEALTH_META = {
   connected: { dot: "text-emerald-400", Icon: Wifi, label: "Connected" },
@@ -60,7 +61,8 @@ export function TopBar() {
       {/* Left: wordmark */}
       <div className="flex items-center gap-2 w-56 flex-shrink-0">
         <span className="font-mono font-bold text-sm text-fg">EduMatcher</span>
-        <span className="text-xs text-fg-faint">pm-trading-ui</span>
+        <span className="font-mono text-xs text-accent">pm-trader</span>
+        <span className="font-mono text-xs text-brand-version">v{appVersion.version}</span>
       </div>
 
       {/* Centre: session badge + exchange clock + countdown */}

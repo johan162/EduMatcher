@@ -96,6 +96,12 @@ describe("TradingWorkspacePage", () => {
     expect(screen.getByRole("button", { name: "SELL" })).toBeTruthy();
   });
 
+  it("narrows the order ticket to 3/4 width, unlike the full Order Entry screen", () => {
+    renderWorkspace();
+    const ticket = screen.getByLabelText("Order ticket");
+    expect(ticket.querySelector(".w-3\\/4")).not.toBeNull();
+  });
+
   it("pre-fills the ticket price when a DOM bid level is clicked (§11.4)", () => {
     renderWorkspace();
     // The bid level offers a SELL (you hit the bid).

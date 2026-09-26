@@ -82,7 +82,13 @@ DEFAULT_API_GATEWAY_WAIT_ACK_SEC = 3.0
 #: eviction. 0 disables eviction, which lets the cache grow for the
 #: lifetime of the process.
 DEFAULT_API_GATEWAY_ORDER_RETENTION_SEC = 3600
-DEFAULT_API_GATEWAY_KEY_BYTES = 16
+
+# This will generate a hex-string of 2*DEFAULT_API_GATEWAY_KEY_BYTES characters.
+# The reason it is 2x is that each byte is represented by two hex characters.
+# For a real production environment, you would likely want a larger key size
+# for better security. But for our purposes here, a larger key is just a hassle.
+# A six character hex string together with the unique prefix will form the complete key.
+DEFAULT_API_GATEWAY_KEY_BYTES = 3
 
 DEFAULT_SCHEDULE = {
     "pre_open": "09:00",

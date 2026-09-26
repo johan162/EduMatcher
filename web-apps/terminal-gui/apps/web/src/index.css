@@ -29,6 +29,9 @@ html.dark {
   --fg-faint: #5a6478;
   --accent: #ffa028;
   --accent-fg: #0a0c10;
+  /* Brand wordmark version number only (TopBar) — distinct from --up, which
+     is the price-direction signal and must not be reused for chrome. */
+  --brand-version: #26d07c;
 
   --up: #26d07c;
   --down: #ff4d5e;
@@ -58,6 +61,7 @@ html:not(.dark) {
   --fg-faint: #808b9c;
   --accent: #b26a00;
   --accent-fg: #ffffff;
+  --brand-version: #065f46;
 
   --up: #067647;
   --down: #c8102e;

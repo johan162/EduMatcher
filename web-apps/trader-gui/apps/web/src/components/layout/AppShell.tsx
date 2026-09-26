@@ -45,7 +45,7 @@ export function AppShell() {
         {/* Main content area. The route subtree is wrapped in an ErrorBoundary
             keyed by pathname so a crashing screen degrades to an inline message
             while the chrome stays usable, and navigating away clears it. */}
-        <main className="flex-1 overflow-auto p-4">
+        <main className="flex-1 min-h-0 overflow-auto p-4">
           <ErrorBoundary key={location.pathname} label="This screen">
             <Outlet />
           </ErrorBoundary>
