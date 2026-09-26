@@ -29,8 +29,8 @@ Usage
   pm-config-deploy engine_config.yaml       # validate, compile and install
   pm-config-deploy --check engine_config.yaml   # validate only, install nothing
   pm-config-deploy --show                   # print the deployed paths
-  pm-config-deploy --example three-basic    # deploy a bundled example config
-  pm-config-deploy --example three-basic-nomm   # same, with an empty order book
+    pm-config-deploy --example s3-basic    # deploy a bundled example config
+    pm-config-deploy --example s3-basic-nomm   # same, with an empty order book
 """
 
 from __future__ import annotations
@@ -74,7 +74,13 @@ from edumatcher.ralf_gateway.config import load_ralf_gateway_config
 # lands as a sibling of the "edumatcher" package directory itself. This mirrors
 # edumatcher.config's own source-tree detection (this file lives in the same
 # "src/edumatcher/" directory that module's _IN_SOURCE_TREE check is based on).
-_EXAMPLE_COUNTS = {"one": "book", "three": "books", "ten": "books", "thirty": "books"}
+_EXAMPLE_PREFIXES = {
+    "s1": "s1",
+    "s3": "s3",
+    "s10": "s10",
+    "s30": "s30",
+    "s150": "s150",
+}
 _EXAMPLE_PROFILES = ("basic", "nominal", "complex")
 
 
@@ -86,11 +92,11 @@ def _examples_root() -> Path:
 
 
 def resolve_example(name: str) -> Path:
-    """Resolve an ``--example`` shorthand (e.g. ``three-basic``) to its YAML.
+    """Resolve an ``--example`` shorthand (e.g. ``s3-basic``) to its YAML.
 
     An optional trailing ``-nomm`` selects the no-market-maker-quotes variant
-    of the same example (e.g. ``three-basic-nomm`` ->
-    ``docs/examples/ref_data/three-books-basic-nomm-setup/engine_config.yaml``)
+    of the same example (e.g. ``s3-basic-nomm`` ->
+    ``docs/examples/ref_data/s3-basic-nomm-setup/engine_config.yaml``)
     — see docs/concepts/03-concepts-mm-quotes.md.
 
     Raises ``ValueError`` with the available names when *name* is not one of
@@ -103,11 +109,11 @@ def resolve_example(name: str) -> Path:
         base = base[: -len("-nomm")]
 
     count, _, profile = base.partition("-")
-    unit = _EXAMPLE_COUNTS.get(count)
-    if unit is None or profile not in _EXAMPLE_PROFILES:
+    prefix = _EXAMPLE_PREFIXES.get(count)
+    if prefix is None or profile not in _EXAMPLE_PROFILES:
         available = ", ".join(
             f"{count}-{profile}{suffix}"
-            for count in _EXAMPLE_COUNTS
+            for count in _EXAMPLE_PREFIXES
             for profile in _EXAMPLE_PROFILES
             for suffix in ("", "-nomm")
         )
@@ -116,7 +122,7 @@ def resolve_example(name: str) -> Path:
     nomm_suffix = "-nomm" if nomm else ""
     path = (
         _examples_root()
-        / f"{count}-{unit}-{profile}{nomm_suffix}-setup"
+        / f"{prefix}-{profile}{nomm_suffix}-setup"
         / "engine_config.yaml"
     )
     if not path.is_file():
@@ -249,10 +255,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--example",
         metavar="NAME",
         help=(
-            "Use a bundled example config instead of SOURCE, e.g. 'three-basic' "
-            "for docs/examples/ref_data/three-books-basic-setup/engine_config.yaml; "
+            "Use a bundled example config instead of SOURCE, e.g. 's3-basic' "
+            "for docs/examples/ref_data/s3-basic-setup/engine_config.yaml; "
             "append '-nomm' for the no-market-maker-quotes variant, e.g. "
-            "'three-basic-nomm'"
+            "'s3-basic-nomm'"
         ),
     )
     parser.add_argument(

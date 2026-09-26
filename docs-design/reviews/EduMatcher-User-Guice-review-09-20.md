@@ -58,7 +58,7 @@ uses `--symbol`. Recommend changing this one instance to `--symbol AAPL` or
   `engine_config.yaml`) matches `api_gateway/config.py`.
 - `pm-config-gen --symbols/--gateways/--output/--seed-mm-mid-range/
   --seed-last-prices-from-mm` all exist as documented.
-- `three-basic` as the `pm-setup` default, and `edumatcher.sh shell` /
+- `s3-basic` as the `pm-setup` default, and `edumatcher.sh shell` /
   `config`/`start`/`stop`/`status`/`logs`/`mounts`/`urls` subcommands, all
   confirmed against source.
 
@@ -67,8 +67,8 @@ uses `--symbol`. Recommend changing this one instance to `--symbol AAPL` or
 ## 001-learning-path.md
 
 No independent factual errors found beyond what's shared with
-005-installation.md (curl one-liner, `edumatcher.sh config three-basic-nomm`,
-`three-nominal`, `pm-cverifier`, `pm-config-gen` flags — all confirmed real).
+005-installation.md (curl one-liner, `edumatcher.sh config s3-basic-nomm`,
+`s3-nominal`, `pm-cverifier`, `pm-config-gen` flags — all confirmed real).
 The stage structure, checkpoints, and troubleshooting table commands
 (`./edumatcher.sh status/logs/mounts/urls`, `pm-config-show`) all check out
 against source. This chapter is in solid shape.
@@ -134,7 +134,7 @@ one pinned commit."
 The doc enumerates `{one,three,ten,thirty} x {basic,nominal,complex}` = 12.
 `deployment/curl/edumatcher.sh`'s `EXAMPLES` list (and `pm-setup`'s own
 docstring) documents 24 valid names — the 12 stated plus a `-nomm` variant of
-each (e.g. `three-basic-nomm`, used correctly elsewhere in this same chapter
+each (e.g. `s3-basic-nomm`, used correctly elsewhere in this same chapter
 set, in learning-path.md Stage 1). The enumeration should mention the `-nomm`
 suffix explicitly.
 

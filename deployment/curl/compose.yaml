@@ -21,9 +21,9 @@ services:
     # pm-opctl-cli stop has to walk the whole profile before PID 1 exits.
     stop_grace_period: 30s
     environment:
-      # A bundled example name — one-basic, three-basic, ten-basic,
-      # thirty-basic, each also as ...-nominal and ...-complex.
-      EM_CONFIG: ${EM_CONFIG:-three-basic}
+      # A bundled example name — s1-basic, s3-basic, s10-basic, s30-basic,
+      # or s150-basic, each also as ...-nominal and ...-complex.
+      EM_CONFIG: ${EM_CONFIG:-s3-basic}
       # Set instead to run a configuration of your own; ./edumatcher.sh
       # config <file> copies the file into ./config and sets this for you.
       EM_CONFIG_FILE: ${EM_CONFIG_FILE:-}

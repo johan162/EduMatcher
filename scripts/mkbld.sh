@@ -429,8 +429,8 @@ fi
 if [ -f "src/data/ref_data/engine_config.yaml" ]; then
     run_command "poetry run pm-config-deploy src/data/ref_data/engine_config.yaml" "Re-deploying config file"
 else
-    print_warning "Engine config file not found. Deploying 'three-basic'"
-    run_command "poetry run pm-config-deploy --example three-basic" "Deploying 'three-basic' example config"
+    print_warning "Engine config file not found. Deploying 's3-basic'"
+    run_command "poetry run pm-config-deploy --example s3-basic" "Deploying 's3-basic' example config"
 fi
 
 print_sub_step "Running npm tests for web applications"

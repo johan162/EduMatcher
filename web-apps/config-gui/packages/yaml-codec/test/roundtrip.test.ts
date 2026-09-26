@@ -500,13 +500,13 @@ describe("parseYamlToDraft round trip", () => {
     expect(createGateway("OPS", "ADMIN").disconnectBehaviour).toBe("LEAVE_ALL");
   });
 
-  it("imports explicit multi-MM quotes from the three-books-complex example (stub-review precondition)", () => {
+  it("imports explicit multi-MM quotes from the s3-complex example (stub-review precondition)", () => {
     // The Market Maker tab's quote-stub review reports a symbol as satisfied when
     // it has an explicit quote with both prices set. This guards that the parser
     // surfaces exactly that for a real config with fully-specified quotes.
     const examplePath = fileURLToPath(
       new URL(
-        "../../../../../docs/examples/ref_data/three-books-complex-setup/engine_config.yaml",
+        "../../../../../docs/examples/ref_data/s3-complex-setup/engine_config.yaml",
         import.meta.url,
       ),
     );

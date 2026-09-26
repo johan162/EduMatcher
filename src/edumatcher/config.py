@@ -140,17 +140,27 @@ _src_dir = _pkg_dir.parent  # .../src/   (source) or site-packages (installed)
 _IN_SOURCE_TREE: bool = _src_dir.name == "src"
 
 
-def _resolve_data_dir() -> Path:
+def data_dir_preference() -> tuple[Path, str]:
+    """Return the data directory implied by tiers 1-3, without checking
+    whether it exists.
+
+    This is the single source of truth for "where does EduMatcher put its
+    data by default" — shared by the runtime resolver below (which adds an
+    existence check and a host/container fallback on top) and by
+    ``pm-setup``, which needs the same preference to decide where to
+    *create* the data directory in the first place, before anything exists
+    to check.
+    """
     _env = os.environ.get("EDUMATCHER_DATA_DIR")
     if _env:
-        _candidate = Path(_env).expanduser().resolve()
-        _source = "EDUMATCHER_DATA_DIR"
-    elif _IN_SOURCE_TREE:
-        _candidate = _src_dir / "data"
-        _source = "source-tree default"
-    else:
-        _candidate = Path("~/.local/share/edumatcher").expanduser()
-        _source = "installed default"
+        return Path(_env).expanduser().resolve(), "EDUMATCHER_DATA_DIR"
+    if _IN_SOURCE_TREE:
+        return _src_dir / "data", "source-tree default"
+    return Path("~/.local/share/edumatcher").expanduser(), "installed default"
+
+
+def _resolve_data_dir() -> Path:
+    _candidate, _source = data_dir_preference()
 
     if _candidate.exists():
         return _candidate

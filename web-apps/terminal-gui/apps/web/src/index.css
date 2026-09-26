@@ -84,6 +84,16 @@ body,
   height: 100%;
 }
 
+/*
+ * Fallback for the zoom-scale factor CSS `zoom` (see useFontSizeStore's
+ * applyFontSizeToDocument) sets on #root before first paint. AppShell reads
+ * this to counter-size itself against `zoom` inflating its rendered height
+ * past the real viewport.
+ */
+:root {
+  --zoom: 1;
+}
+
 body {
   margin: 0;
   background: var(--bg);

@@ -1040,35 +1040,41 @@ The available examples are all located in the directory `docs/examples/ref_data/
 
 | Directory | `--example` shorthand | Profile | Number of symbols | Session enabled | MM seed quotes |
 |---|---|---|---|---|---|
-| `one-book-basic-setup` | `one-basic` | basic | 1 | no | yes |
-| `one-book-nominal-setup` | `one-nominal` | nominal | 1 | yes | yes |
-| `one-book-complex-setup` | `one-complex` | complex | 1 | yes | yes |
-| `three-books-basic-setup` | `three-basic` | basic | 3 | no | yes |
-| `three-books-nominal-setup` | `three-nominal` | nominal | 3 | yes | yes |
-| `three-books-complex-setup` | `three-complex` | complex | 3 | yes | yes |
-| `ten-books-basic-setup` | `ten-basic` | basic | 10 | no | yes |
-| `ten-books-nominal-setup` | `ten-nominal` | nominal | 10 | yes | yes |
-| `ten-books-complex-setup` | `ten-complex` | complex | 10 | yes | yes |
-| `thirty-books-basic-setup` | `thirty-basic` | basic | 30 | no | yes |
-| `thirty-books-nominal-setup` | `thirty-nominal` | nominal | 30 | yes | yes |
-| `thirty-books-complex-setup` | `thirty-complex` | complex | 30 | yes | yes |
-| `one-book-basic-nomm-setup` | `one-basic-nomm` | basic | 1 | no | no |
-| `one-book-nominal-nomm-setup` | `one-nominal-nomm` | nominal | 1 | yes | no |
-| `one-book-complex-nomm-setup` | `one-complex-nomm` | complex | 1 | yes | no |
-| `three-books-basic-nomm-setup` | `three-basic-nomm` | basic | 3 | no | no |
-| `three-books-nominal-nomm-setup` | `three-nominal-nomm` | nominal | 3 | yes | no |
-| `three-books-complex-nomm-setup` | `three-complex-nomm` | complex | 3 | yes | no |
-| `ten-books-basic-nomm-setup` | `ten-basic-nomm` | basic | 10 | no | no |
-| `ten-books-nominal-nomm-setup` | `ten-nominal-nomm` | nominal | 10 | yes | no |
-| `ten-books-complex-nomm-setup` | `ten-complex-nomm` | complex | 10 | yes | no |
-| `thirty-books-basic-nomm-setup` | `thirty-basic-nomm` | basic | 30 | no | no |
-| `thirty-books-nominal-nomm-setup` | `thirty-nominal-nomm` | nominal | 30 | yes | no |
-| `thirty-books-complex-nomm-setup` | `thirty-complex-nomm` | complex | 30 | yes | no |
+| `s1-basic-setup` | `s1-basic` | basic | 1 | no | yes |
+| `s1-nominal-setup` | `s1-nominal` | nominal | 1 | yes | yes |
+| `s1-complex-setup` | `s1-complex` | complex | 1 | yes | yes |
+| `s3-basic-setup` | `s3-basic` | basic | 3 | no | yes |
+| `s3-nominal-setup` | `s3-nominal` | nominal | 3 | yes | yes |
+| `s3-complex-setup` | `s3-complex` | complex | 3 | yes | yes |
+| `s10-basic-setup` | `s10-basic` | basic | 10 | no | yes |
+| `s10-nominal-setup` | `s10-nominal` | nominal | 10 | yes | yes |
+| `s10-complex-setup` | `s10-complex` | complex | 10 | yes | yes |
+| `s30-basic-setup` | `s30-basic` | basic | 30 | no | yes |
+| `s30-nominal-setup` | `s30-nominal` | nominal | 30 | yes | yes |
+| `s30-complex-setup` | `s30-complex` | complex | 30 | yes | yes |
+| `s150-basic-setup` | `s150-basic` | basic | 150 | no | yes |
+| `s150-nominal-setup` | `s150-nominal` | nominal | 150 | yes | yes |
+| `s150-complex-setup` | `s150-complex` | complex | 150 | yes | yes |
+| `s1-basic-nomm-setup` | `s1-basic-nomm` | basic | 1 | no | no |
+| `s1-nominal-nomm-setup` | `s1-nominal-nomm` | nominal | 1 | yes | no |
+| `s1-complex-nomm-setup` | `s1-complex-nomm` | complex | 1 | yes | no |
+| `s3-basic-nomm-setup` | `s3-basic-nomm` | basic | 3 | no | no |
+| `s3-nominal-nomm-setup` | `s3-nominal-nomm` | nominal | 3 | yes | no |
+| `s3-complex-nomm-setup` | `s3-complex-nomm` | complex | 3 | yes | no |
+| `s10-basic-nomm-setup` | `s10-basic-nomm` | basic | 10 | no | no |
+| `s10-nominal-nomm-setup` | `s10-nominal-nomm` | nominal | 10 | yes | no |
+| `s10-complex-nomm-setup` | `s10-complex-nomm` | complex | 10 | yes | no |
+| `s30-basic-nomm-setup` | `s30-basic-nomm` | basic | 30 | no | no |
+| `s30-nominal-nomm-setup` | `s30-nominal-nomm` | nominal | 30 | yes | no |
+| `s30-complex-nomm-setup` | `s30-complex-nomm` | complex | 30 | yes | no |
+| `s150-basic-nomm-setup` | `s150-basic-nomm` | basic | 150 | no | no |
+| `s150-nominal-nomm-setup` | `s150-nominal-nomm` | nominal | 150 | yes | no |
+| `s150-complex-nomm-setup` | `s150-complex-nomm` | complex | 150 | yes | no |
 
-The shorthand is always `<count>-<profile>`, where `<count>` is one of `one`,
-`three`, `ten`, or `thirty` and `<profile>` is one of `basic`, `nominal`, or
+The shorthand is always `s<count>-<profile>`, where `<count>` is one of `1`,
+`3`, `10`, `30`, or `150` and `<profile>` is one of `basic`, `nominal`, or
 `complex`. Any shorthand also accepts an optional trailing `-nomm`
-(`<count>-<profile>-nomm`, e.g. `three-basic-nomm`) to deploy the
+(`s<count>-<profile>-nomm`, e.g. `s3-basic-nomm`) to deploy the
 no-market-maker-quotes variant of that same example — the `MARKET_MAKER`
 gateway is still present so a market maker can connect and quote, but the
 book starts with no seeded `market_maker_quotes` at all, so the very first
@@ -1092,16 +1098,16 @@ makers, startup combo seeds, and explicit collar/circuit-breaker policy.
 For example
 
 ```bash
-pm-config-deploy --example three-basic
+pm-config-deploy --example s3-basic
 ```
 
 will validate, compile, and install
-`docs/examples/ref_data/three-books-basic-setup/engine_config.yaml` as the
+`docs/examples/ref_data/s3-basic-setup/engine_config.yaml` as the
 deployed `ref_data/engine_config.json` artifact, exactly as if you had passed
 that path as `SOURCE`. The same shorthand works with `pm-setup --config`.
-Appending `-nomm`, as in `pm-config-deploy --example three-basic-nomm` or
-`pm-setup --config three-basic-nomm`, deploys
-`docs/examples/ref_data/three-books-basic-nomm-setup/engine_config.yaml`
+Appending `-nomm`, as in `pm-config-deploy --example s3-basic-nomm` or
+`pm-setup --config s3-basic-nomm`, deploys
+`docs/examples/ref_data/s3-basic-nomm-setup/engine_config.yaml`
 instead.
 
 ### What the artifact records about itself
@@ -1200,7 +1206,7 @@ column like a printed index.
 
 ```text
 ╭─  ENGINE CONFIGURATION  ─────────────────────────────────────────────────────────────────────────╮
-│ docs/examples/ref_data/ten-books-nominal-setup/engine_config.yaml                                │
+│ docs/examples/ref_data/s10-nominal-setup/engine_config.yaml                                      │
 │ 33.7 kB  ·  2026-08-20 17:32  ·  via --file                                                      │
 │ ● on sessions   ● on collars   ● on breakers   ○ off mm-oblig                                    │
 │ 10 symbols   4 participants   2 API gateways   5 keys   9 listeners                              │

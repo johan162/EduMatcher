@@ -11,6 +11,7 @@ import clsx from "clsx";
 import { Gauge, Moon, Sun } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { StatusDot } from "../Badge.js";
+import { SettingsPopover } from "../shared/SettingsPopover.js";
 import { useLiveStore, type ConnectionState } from "../../store/useLiveStore.js";
 import { DENSITY_LABEL, usePrefsStore } from "../../store/usePrefsStore.js";
 import appVersion from "../../version.json";
@@ -88,6 +89,8 @@ export function TopBar() {
         >
           <ThemeIcon size={16} />
         </button>
+
+        <SettingsPopover />
 
         <StatusDot tone={tone}>
           <span className="text-xs font-semibold tracking-wider">{label}</span>

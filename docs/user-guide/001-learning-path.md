@@ -51,7 +51,7 @@ Node, or a clone of the repository.
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash
 cd ~/.edumatcher
-./edumatcher.sh config three-basic-nomm
+./edumatcher.sh config s3-basic-nomm
 ./edumatcher.sh start
 ```
 
@@ -59,7 +59,7 @@ The first start pulls five container images and takes a few minutes. Later
 starts take seconds.
 
 **Explanation:** `edumatcher.sh` is the simplified control surface for a container installed
-exchange. The first subcommand `config three-basic-nomm` installs an exchange config file (also known as reference data)
+exchange. The first subcommand `config s3-basic-nomm` installs an exchange config file (also known as reference data)
 with three symbols (order-books) with some very basic exchange config and no-market-maker quotes in any of the
 order books. 
 
@@ -128,7 +128,7 @@ the rest of the guide gets much easier.
 
 ### The configuration you are running
 
-The default bundled configuration is called `three-basic`. It gives you:
+The default bundled configuration is called `s3-basic`. It gives you:
 
 - **Symbols:** `AAPL`, `MSFT`, `TSLA`
 - **Gateways:** `TRADER01` and `TRADER02` (traders), `MM01` (market maker),
@@ -187,7 +187,7 @@ You have just caused a trade on a real matching engine.
 !!! question "It filled immediately, before I sent the second order"
     Then the book already had liquidity — some configurations seed
     market-maker quotes at startup. Not a bug: your order traded against a
-    resting quote instead of waiting. `three-basic` does seed `MM01` quotes on
+    resting quote instead of waiting. `s3-basic` does seed `MM01` quotes on
     some symbols. Try a price far from the market (say `PRICE=10.00` on a buy)
     to see an order rest instead.
 
@@ -241,7 +241,7 @@ session scheduling enabled:
 
 ```bash
 cd ~/.edumatcher
-./edumatcher.sh config three-nominal
+./edumatcher.sh config s3-nominal
 ```
 
 This switches the deployed configuration and restarts. Now the exchange moves

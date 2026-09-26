@@ -358,7 +358,7 @@ invocation only; `.env` is Compose's own file and is where machine-specific
 choices belong; the `${VAR:-fallback}` defaults inside the compose files are
 the last stop before the image's own `ENV`.
 
-This is why `make up-all CONFIG=ten-nominal` does not edit `.env`, and why
+This is why `make up-all CONFIG=s10-nominal` does not edit `.env`, and why
 re-running plain `make up-all` afterwards goes back to whatever `.env` says.
 Compose notices the changed environment and recreates the container, so the
 switch takes effect without an explicit `down`.
@@ -420,7 +420,7 @@ path inside it and which image it came from — the fastest way to tell whether
 the stack answering your ports is the one you started.
 
 The overlays are additive `-f` files, which is why they compose freely:
-`make up-all CONFIG=ten-complex PROFILE=mini ZMQ=1 CONFIG_GUI=1`.
+`make up-all CONFIG=s10-complex PROFILE=mini ZMQ=1 CONFIG_GUI=1`.
 
 ### Why `up-all` runs in two phases
 
@@ -456,7 +456,7 @@ continues and warns. The live CALF feed needs no key; only history does.
 ## Part 5 — The release process
 
 One git tag produces a wheel and five multi-architecture images, all carrying
-the same version. That coupling is what lets `install.sh --version 0.41.2`
+the same version. That coupling is what lets `install.sh --version 0.42.0`
 pin an entire system with one number.
 
 ```mermaid

@@ -23,7 +23,7 @@ services:
     # pm-opctl-cli stop has to walk the whole profile before PID 1 exits.
     stop_grace_period: 30s
     environment:
-      EM_CONFIG: ${EM_CONFIG:-three-basic}
+      EM_CONFIG: ${EM_CONFIG:-s3-basic}
       # Set to a path inside the container to deploy an engine configuration
       # of your own instead of a bundled example. `make up-all CONFIG=<file>`
       # copies the file into ./config and sets this.

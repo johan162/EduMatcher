@@ -228,7 +228,7 @@ class TestShippedSample:
         path = resolve_example(DEFAULT_EXAMPLE_CONFIG)
 
         assert path.is_file(), f"pm-setup would have nothing to deploy: {path}"
-        assert path.parts[-2:] == ("three-books-basic-setup", "engine_config.yaml")
+        assert path.parts[-2:] == ("s3-basic-setup", "engine_config.yaml")
 
     def test_the_default_setup_config_compiles(self, tmp_path: Path) -> None:
         source = tmp_path / "engine_config.yaml"
@@ -249,30 +249,36 @@ class TestExamples:
     @pytest.mark.parametrize(
         "name,folder",
         [
-            ("one-basic", "one-book-basic-setup"),
-            ("one-nominal", "one-book-nominal-setup"),
-            ("one-complex", "one-book-complex-setup"),
-            ("three-basic", "three-books-basic-setup"),
-            ("three-nominal", "three-books-nominal-setup"),
-            ("three-complex", "three-books-complex-setup"),
-            ("ten-basic", "ten-books-basic-setup"),
-            ("ten-nominal", "ten-books-nominal-setup"),
-            ("ten-complex", "ten-books-complex-setup"),
-            ("thirty-basic", "thirty-books-basic-setup"),
-            ("thirty-nominal", "thirty-books-nominal-setup"),
-            ("thirty-complex", "thirty-books-complex-setup"),
-            ("one-basic-nomm", "one-book-basic-nomm-setup"),
-            ("one-nominal-nomm", "one-book-nominal-nomm-setup"),
-            ("one-complex-nomm", "one-book-complex-nomm-setup"),
-            ("three-basic-nomm", "three-books-basic-nomm-setup"),
-            ("three-nominal-nomm", "three-books-nominal-nomm-setup"),
-            ("three-complex-nomm", "three-books-complex-nomm-setup"),
-            ("ten-basic-nomm", "ten-books-basic-nomm-setup"),
-            ("ten-nominal-nomm", "ten-books-nominal-nomm-setup"),
-            ("ten-complex-nomm", "ten-books-complex-nomm-setup"),
-            ("thirty-basic-nomm", "thirty-books-basic-nomm-setup"),
-            ("thirty-nominal-nomm", "thirty-books-nominal-nomm-setup"),
-            ("thirty-complex-nomm", "thirty-books-complex-nomm-setup"),
+            ("s1-basic", "s1-basic-setup"),
+            ("s1-nominal", "s1-nominal-setup"),
+            ("s1-complex", "s1-complex-setup"),
+            ("s3-basic", "s3-basic-setup"),
+            ("s3-nominal", "s3-nominal-setup"),
+            ("s3-complex", "s3-complex-setup"),
+            ("s10-basic", "s10-basic-setup"),
+            ("s10-nominal", "s10-nominal-setup"),
+            ("s10-complex", "s10-complex-setup"),
+            ("s30-basic", "s30-basic-setup"),
+            ("s30-nominal", "s30-nominal-setup"),
+            ("s30-complex", "s30-complex-setup"),
+            ("s150-basic", "s150-basic-setup"),
+            ("s150-nominal", "s150-nominal-setup"),
+            ("s150-complex", "s150-complex-setup"),
+            ("s1-basic-nomm", "s1-basic-nomm-setup"),
+            ("s1-nominal-nomm", "s1-nominal-nomm-setup"),
+            ("s1-complex-nomm", "s1-complex-nomm-setup"),
+            ("s3-basic-nomm", "s3-basic-nomm-setup"),
+            ("s3-nominal-nomm", "s3-nominal-nomm-setup"),
+            ("s3-complex-nomm", "s3-complex-nomm-setup"),
+            ("s10-basic-nomm", "s10-basic-nomm-setup"),
+            ("s10-nominal-nomm", "s10-nominal-nomm-setup"),
+            ("s10-complex-nomm", "s10-complex-nomm-setup"),
+            ("s30-basic-nomm", "s30-basic-nomm-setup"),
+            ("s30-nominal-nomm", "s30-nominal-nomm-setup"),
+            ("s30-complex-nomm", "s30-complex-nomm-setup"),
+            ("s150-basic-nomm", "s150-basic-nomm-setup"),
+            ("s150-nominal-nomm", "s150-nominal-nomm-setup"),
+            ("s150-complex-nomm", "s150-complex-nomm-setup"),
         ],
     )
     def test_resolves_every_bundled_example(self, name: str, folder: str) -> None:
@@ -282,26 +288,30 @@ class TestExamples:
 
     def test_rejects_an_unknown_example(self) -> None:
         with pytest.raises(ValueError, match="Unknown example"):
-            resolve_example("five-basic")
+            resolve_example("s5-basic")
 
     def test_rejects_an_unknown_example_with_nomm_suffix(self) -> None:
         # The "-nomm" suffix is stripped before the count/profile are
         # validated, so an invalid base name must still be rejected.
         with pytest.raises(ValueError, match="Unknown example"):
-            resolve_example("five-basic-nomm")
+            resolve_example("s5-basic-nomm")
+
+    def test_rejects_the_old_count_word_shorthand(self) -> None:
+        with pytest.raises(ValueError, match="Unknown example"):
+            resolve_example("three-basic")
 
     def test_nomm_suffix_does_not_change_the_non_nomm_resolution(self) -> None:
         # Backward compatibility: existing shorthand (no "-nomm") must keep
         # resolving to the original directory, unaffected by the new suffix
         # handling.
-        path = resolve_example("three-basic")
-        assert path.parts[-2:] == ("three-books-basic-setup", "engine_config.yaml")
+        path = resolve_example("s3-basic")
+        assert path.parts[-2:] == ("s3-basic-setup", "engine_config.yaml")
         assert path.is_file()
 
     def test_every_resolved_example_compiles(self) -> None:
         # These are the files shown to newcomers; one that fails to compile
         # would teach the wrong lesson before pm-config-deploy even runs.
-        path = resolve_example("three-basic")
+        path = resolve_example("s3-basic")
         assert compile_config(path).engine.symbols
 
 

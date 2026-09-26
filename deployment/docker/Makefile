@@ -135,7 +135,7 @@ help:
 	@echo "  make down               Stop and remove the container"
 	@echo ""
 	@echo "  make up-all             Start the exchange AND the web GUIs together"
-	@echo "  make up-all CONFIG=ten-nominal        ... on a bundled example"
+	@echo "  make up-all CONFIG=s10-nominal        ... on a bundled example"
 	@echo "  make up-all CONFIG=./my_config.yaml   ... on a configuration of your own"
 	@echo "  make up-all CONFIG_GUI=1              ... and the config builder too"
 	@echo "  make down-all           Stop and remove every container"

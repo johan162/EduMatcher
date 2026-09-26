@@ -5,7 +5,7 @@
 #
 # With options (note the '-s --' so the shell passes them to the script):
 #
-#   curl -fsSL .../install.sh | bash -s -- --config ten-nominal
+#   curl -fsSL .../install.sh | bash -s -- --config s10-nominal
 #   curl -fsSL .../install.sh | bash -s -- --version 0.20.5 --dir ~/exchange
 #
 # Needs podman or docker, and nothing else — no Python, no Node, no checkout.
@@ -36,7 +36,7 @@ usage() {
     cat <<'USAGE'
 Options:
   --version X.Y.Z   Release to install (default: the latest release)
-  --config NAME     Bundled example to deploy (default: three-basic)
+    --config NAME     Bundled example to deploy (default: s3-basic)
   --config FILE     ...or a path to an engine_config.yaml of your own
   --dir PATH        Install location (default: ~/.edumatcher)
   --no-start        Install the files but do not start anything
@@ -147,7 +147,7 @@ cat <<EOF
 Everything lives in $INSTALL_DIR:
   ./edumatcher.sh status            what is running
   ./edumatcher.sh logs terminal-gui follow one service
-  ./edumatcher.sh config ten-nominal    switch example configuration
+    ./edumatcher.sh config s10-nominal    switch example configuration
   ./edumatcher.sh config ./mine.yaml    ...or run one of your own
   ./edumatcher.sh stop              stop everything, keep the data
 EOF

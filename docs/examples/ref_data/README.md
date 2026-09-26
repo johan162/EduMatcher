@@ -13,7 +13,7 @@ Each `*-setup/` directory contains:
 A `Makefile` is provided to regenerate all configs at once:
 
 ```bash
-make          # regenerates all 12 subdirectories (default target: configs)
+make          # regenerates every discovered setup (default target: configs)
 make configs  # same
 ```
 
@@ -24,4 +24,4 @@ expansion, so new setups are picked up without editing the Makefile.
 
 - `pm-config-gen` supports emitting both RALF (`post_trade_gateway`) and CALF (`market_data_gateway`) sections via native flags.
 - Generated symbol entries now include mandatory `outstanding_shares` values so the configs are ready for statistics and future index-style consumers.
-- `one-book-setup` is a legacy single-file sample kept for backward compatibility.
+- The `s150-*` setups provide basic, nominal, and complex 150-symbol variants, with and without seeded market-maker quotes.
