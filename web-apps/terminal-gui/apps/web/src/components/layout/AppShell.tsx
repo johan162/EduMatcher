@@ -14,7 +14,7 @@ export function AppShell() {
   useEffect(() => applyThemeToDocument(theme), [theme]);
 
   return (
-    <div className="flex h-screen flex-col bg-bg text-fg">
+    <div className="flex flex-col bg-bg text-fg" style={{ height: "calc(100vh / var(--zoom, 1))" }}>
       <TopBar />
 
       {/*
