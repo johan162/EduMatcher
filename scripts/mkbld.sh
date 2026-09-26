@@ -376,11 +376,10 @@ VERSION="$(poetry version --short)"
 print_sub_step "Detected version: ${VERSION}"
 run_command "sed -i.bak -E 's/^  version *= *\{.*\}/  version = {'\"$VERSION\"'}/' README.md" "Updating version in README.md"
 
-# Update the web/app package that builds the ui and supplies the top bar
-run_command "sed -i.bak -E 's/^  \"version\": \"[0-9]\.[0-9]+\.[0-9]+\"/  \"version\": \"${VERSION}\"/' web-apps/trader-gui/apps/web/package.json" "Updating version in Trader GUI"
-run_command "sed -i.bak -E 's/^  \"version\": \"[0-9]\.[0-9]+\.[0-9]+\"/  \"version\": \"${VERSION}\"/' web-apps/terminal-gui/apps/web/package.json" "Updating version in Terminal GUI"
-run_command "sed -i.bak -E 's/^  \"version\": \"[0-9]\.[0-9]+\.[0-9]+\"/  \"version\": \"${VERSION}\"/' web-apps/log-gui/apps/web/package.json" "Updating version in Log GUI"
-run_command "sed -i.bak -E 's/^  \"version\": \"[0-9]\.[0-9]+\.[0-9]+\"/  \"version\": \"${VERSION}\"/' web-apps/config-gui/apps/web/package.json" "Updating version in Config GUI"
+# Write the version shown in each GUI's top bar (src/version.json is committed so dev/CI work without a build)
+for app in trader terminal log config; do
+    run_command "printf '{ \"version\": \"%s\" }\n' \"$VERSION\" > web-apps/${app}-gui/apps/web/src/version.json" "Writing version.json for ${app} GUI"
+done
 
 
 

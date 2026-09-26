@@ -13,7 +13,7 @@ import { NavLink } from "react-router-dom";
 import { StatusDot } from "../Badge.js";
 import { useLiveStore, type ConnectionState } from "../../store/useLiveStore.js";
 import { DENSITY_LABEL, usePrefsStore } from "../../store/usePrefsStore.js";
-import packageJson from "../../../package.json";
+import appVersion from "../../version.json";
 
 const VIEWS = [
   { to: "/", label: "Overview", end: true },
@@ -46,7 +46,7 @@ export function TopBar() {
       <div className="flex items-baseline gap-2">
         <span className="font-mono font-bold text-sm text-accent">EduMatcher</span>
         <span className="font-bold tracking-tight text-fg">pm-terminal</span>
-        <span className="text-xs text-fg-faint">v{packageJson.version}</span>
+        <span className="text-xs text-fg-faint">v{appVersion.version}</span>
       </div>
 
       <nav className="flex items-center gap-1">
