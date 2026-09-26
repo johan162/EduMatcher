@@ -1,3 +1,26 @@
+## [v0.41.2] - 2026-09-26
+
+Release Type: patch
+
+### 📋 Summary
+This patch release improves Trader GUI navigation and display settings while aligning GUI branding and version reporting across web applications. It also simplifies default API key generation and strengthens build consistency.
+
+### ✨ Additions
+- Added interactive symbol filtering for Trader GUI workspaces with many symbols
+- Added configurable font-size settings to the Trader GUI
+
+### 🚀 Improvements
+- Improved GUI branding text and colors across the web applications
+- Improved GUI version reporting to use the main project version consistently
+
+### 🐛 Bug Fixes
+- Fixed default API keys generating unnecessarily long random values
+
+### 🛠 Internal
+- Updated the web build to generate GUI `version.json` files from the Poetry version
+- Added Trader GUI tests for symbol filtering and font-size settings
+
+
 ## [v0.41.1] - 2026-09-25
 
 Release Type: patch
