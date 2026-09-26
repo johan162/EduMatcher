@@ -46,12 +46,20 @@ pm-help
 
 Then open the user-friendly Web applications :
 
-- <http://localhost:8090> for the market information display,
-- <http://localhost:8091> for the log console, and 
-- <http://localhost:8093> for the trading terminal.
+```
+Trader GUI       :  http://localhost:8093
+Trading terminal :  http://localhost:8090
+Log viewer       :  http://localhost:8091
+REST API docs    :  http://localhost:8080/docs
+```
 
+Configureíng the exchange can be done by either 1) Manually edit the config YAML file (and then verify/lint it with `pm-cverifier`) or, 2) generate it in scripts using the `pm-config-gen` or, 3) using the Web application reachable at :
 
-Prefer the Python package? `pipx install edumatcher`, then `pm-setup`. Both
+```
+Config builder   :  http://localhost:8092
+```
+
+Prefer a Python package? `pipx install edumatcher`, then `pm-setup`. Both
 routes, and three more, are covered in
 **[Installation](https://johan162.github.io/EduMatcher/user-guide/005-installation/)**.
 
