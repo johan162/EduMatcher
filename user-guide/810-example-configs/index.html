@@ -4069,20 +4069,23 @@
 <p>The <code>docs/examples/ref_data</code> tree contains generated <code>engine_config.yaml</code> templates that can be used directly for training and workshop exercises.</p>
 <p>These reference configs are organized by book count and setup profile:</p>
 <ul>
-<li><code>one-book-basic-setup</code></li>
-<li><code>one-book-nominal-setup</code></li>
-<li><code>one-book-complex-setup</code></li>
-<li><code>three-books-basic-setup</code></li>
-<li><code>three-books-nominal-setup</code></li>
-<li><code>three-books-complex-setup</code></li>
-<li><code>ten-books-basic-setup</code></li>
-<li><code>ten-books-nominal-setup</code></li>
-<li><code>ten-books-complex-setup</code></li>
-<li><code>thirty-books-basic-setup</code></li>
-<li><code>thirty-books-nominal-setup</code></li>
-<li><code>thirty-books-complex-setup</code></li>
+<li><code>s1-basic-setup</code></li>
+<li><code>s1-nominal-setup</code></li>
+<li><code>s1-complex-setup</code></li>
+<li><code>s3-basic-setup</code></li>
+<li><code>s3-nominal-setup</code></li>
+<li><code>s3-complex-setup</code></li>
+<li><code>s10-basic-setup</code></li>
+<li><code>s10-nominal-setup</code></li>
+<li><code>s10-complex-setup</code></li>
+<li><code>s30-basic-setup</code></li>
+<li><code>s30-nominal-setup</code></li>
+<li><code>s30-complex-setup</code></li>
+<li><code>s150-basic-setup</code></li>
+<li><code>s150-nominal-setup</code></li>
+<li><code>s150-complex-setup</code></li>
 </ul>
-<p>Each directory contains a small generator script, <code>mkrefdata.sh</code>, and the resulting <code>engine_config.yaml</code>.</p>
+<p>Each profile also has a <code>-nomm</code> variant without seeded market-maker quotes. Every directory contains a small generator script, <code>mkrefdata.sh</code>, and the resulting <code>engine_config.yaml</code>.</p>
 <h2 id="how-they-are-generated">How they are generated<a class="headerlink" href="#how-they-are-generated" title="Permanent link">&para;</a></h2>
 <p>The example configs are produced by running <code>mkrefdata.sh</code> in each profile directory. The scripts invoke <code>pm-config-gen</code> with the appropriate symbol set and gateway layout, then apply a small amount of profile-specific post-processing where needed.</p>
 <p>In practice this means:</p>

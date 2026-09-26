@@ -4547,7 +4547,7 @@ describe different systems.</p>
 </tr>
 <tr>
 <td><code>--config NAME</code></td>
-<td><code>three-basic</code></td>
+<td><code>s3-basic</code></td>
 <td>Deploy a bundled example configuration</td>
 </tr>
 <tr>
@@ -4574,7 +4574,7 @@ describe different systems.</p>
 </table>
 <p>Because the script is read from a pipe, options need <code>bash -s --</code> so that the
 shell hands them to the script rather than consuming them itself:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>.../install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--config<span class="w"> </span>ten-nominal<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.41.2
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>.../install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--config<span class="w"> </span>s10-nominal<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.42.0
 </code></pre></div>
 <p>Two environment variables are also honoured: <code>REPO_OWNER</code> (which GitHub
 account and GHCR namespace to use) and <code>REPO_REF</code> (fetch the support files
@@ -4609,7 +4609,7 @@ into this file.</p>
 </tr>
 <tr>
 <td><code>EM_CONFIG</code></td>
-<td><code>three-basic</code></td>
+<td><code>s3-basic</code></td>
 <td>Which bundled example configuration the exchange deploys</td>
 </tr>
 <tr>
@@ -4667,7 +4667,7 @@ into this file.</p>
 <p>Two settings have their own commands, because editing them by hand is easy to
 get half-right — <code>EM_CONFIG</code> and <code>EM_CONFIG_FILE</code> must agree, and <code>EM_VERSION</code>
 needs an image pull to take effect:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./edumatcher.sh<span class="w"> </span>config<span class="w"> </span>ten-nominal<span class="w">    </span><span class="c1"># sets EM_CONFIG, clears EM_CONFIG_FILE</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./edumatcher.sh<span class="w"> </span>config<span class="w"> </span>s10-nominal<span class="w">    </span><span class="c1"># sets EM_CONFIG, clears EM_CONFIG_FILE</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>./edumatcher.sh<span class="w"> </span>config<span class="w"> </span>./mine.yaml<span class="w">    </span><span class="c1"># copies the file, sets EM_CONFIG_FILE</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>./edumatcher.sh<span class="w"> </span>update<span class="w"> </span><span class="m">0</span>.26.2<span class="w">         </span><span class="c1"># sets EM_VERSION, pulls, restarts</span>
 </code></pre></div>
@@ -4708,13 +4708,13 @@ next time you switched configuration.</p>
 order books, each as a <code>basic</code>, <code>nominal</code> or <code>complex</code> variant, and each of
 those with or without seeded market-maker quotes. They are inside the backend
 image, so no download is involved in switching.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>./edumatcher.sh<span class="w"> </span>config<span class="w"> </span>ten-nominal
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>./edumatcher.sh<span class="w"> </span>config<span class="w"> </span>s10-nominal
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>./edumatcher.sh<span class="w"> </span>restart
 </code></pre></div>
 <p>The names are <code>one-</code>, <code>three-</code>, <code>ten-</code> and <code>thirty-</code> combined with <code>basic</code>,
 <code>nominal</code> and <code>complex</code>, each with an optional <code>-nomm</code> suffix for the variant
 with empty order books instead of seeded market-maker quotes (for example
-<code>three-basic-nomm</code>). <code>./edumatcher.sh config</code> lists them all if you mistype
+<code>s3-basic-nomm</code>). <code>./edumatcher.sh config</code> lists them all if you mistype
 one. See <a href="../810-example-configs/">Example Engine Configs</a> for what each
 contains.</p>
 <p>To run a configuration of your own, give the same command a path instead:</p>
@@ -4724,7 +4724,7 @@ contains.</p>
 <p>The file is copied into <code>~/.edumatcher/config/</code>, mounted read-only into the
 container, and deployed on every start — so editing it and restarting is the
 whole edit-test loop. Switching back to a bundled example is
-<code>./edumatcher.sh config three-basic</code>. The configuration builder at
+<code>./edumatcher.sh config s3-basic</code>. The configuration builder at
 <a href="http://localhost:8092">http://localhost:8092</a> is the easy way to author one; see
 <a href="../030-config-GUI/">Configuration GUI</a>.</p>
 <h2 id="containers-from-the-source-checkout">Containers from the source checkout<a class="headerlink" href="#containers-from-the-source-checkout" title="Permanent link">&para;</a></h2>
@@ -4791,7 +4791,7 @@ appear not to take effect.</p>
 <tbody>
 <tr>
 <td><code>CONFIG=&lt;name&gt;</code></td>
-<td><code>three-basic</code></td>
+<td><code>s3-basic</code></td>
 <td>Deploy a bundled example</td>
 </tr>
 <tr>
@@ -4821,7 +4821,7 @@ appear not to take effect.</p>
 </tr>
 </tbody>
 </table>
-<p>Flags combine: <code>make up-all CONFIG=ten-complex PROFILE=mini ZMQ=1 CONFIG_GUI=1</code>.</p>
+<p>Flags combine: <code>make up-all CONFIG=s10-complex PROFILE=mini ZMQ=1 CONFIG_GUI=1</code>.</p>
 <h3 id="settings-in-env">Settings in <code>.env</code><a class="headerlink" href="#settings-in-env" title="Permanent link">&para;</a></h3>
 <p><code>deployment/docker/.env</code> is created from <code>.env.example</code> on the first build.
 Compose reads it automatically because it sits beside the compose files, and it
@@ -4830,7 +4830,7 @@ as opposed to a <code>make</code> flag, which applies to one invocation only.</p
 <p>When the same setting is available in more than one place, the nearer one wins:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>make flag  →  shell environment  →  .env  →  compose ${VAR:-default}  →  image ENV
 </code></pre></div>
-<p>That is why <code>make up-all CONFIG=ten-nominal</code> does not edit <code>.env</code>, and why a
+<p>That is why <code>make up-all CONFIG=s10-nominal</code> does not edit <code>.env</code>, and why a
 plain <code>make up-all</code> afterwards goes back to whatever <code>.env</code> says.</p>
 <table>
 <thead>
@@ -4858,7 +4858,7 @@ plain <code>make up-all</code> afterwards goes back to whatever <code>.env</code
 </tr>
 <tr>
 <td><code>EM_CONFIG</code></td>
-<td><code>three-basic</code></td>
+<td><code>s3-basic</code></td>
 <td>Bundled example to deploy</td>
 </tr>
 <tr>
@@ -5373,7 +5373,7 @@ VM. This mode installs the backend only — the web GUIs are part of the
 container deployment. Provisioning runs <code>pm-setup</code>, so the VM comes up with a
 deployed configuration and <code>pm-opctl-cli</code> ready to start the stack.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.41.2<span class="w"> </span>--snapshot
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.42.0<span class="w"> </span>--snapshot
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
 <a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>multipass<span class="w"> </span>shell<span class="w"> </span>ems
 <a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="nb">cd</span><span class="w"> </span>/home/ubuntu/session
@@ -5433,7 +5433,7 @@ deployed configuration and <code>pm-opctl-cli</code> ready to start the stack.</
 <p>To read the script before running it:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span>-o<span class="w"> </span>curl_setup_vm.sh
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>less<span class="w"> </span>curl_setup_vm.sh
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.41.2<span class="w"> </span>--snapshot
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.42.0<span class="w"> </span>--snapshot
 </code></pre></div>
 <h2 id="pipx-commands-on-your-own-machine">pipx — commands on your own machine<a class="headerlink" href="#pipx-commands-on-your-own-machine" title="Permanent link">&para;</a></h2>
 <p>Use this when you want to run the processes yourself, one per terminal, which
@@ -5477,7 +5477,7 @@ is how most of this guide is written.</p>
 <p><code>pm-setup</code> creates the data directory, deploys a bundled example configuration
 and prints the <code>EDUMATCHER_DATA_DIR</code> line to add to your shell profile. Open a
 new terminal afterwards so every <code>pm-*</code> command sees the same data directory.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>pm-setup<span class="w"> </span>--config<span class="w"> </span>ten-nominal<span class="w">   </span><span class="c1"># a different bundled example</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>pm-setup<span class="w"> </span>--config<span class="w"> </span>s10-nominal<span class="w">   </span><span class="c1"># a different bundled example</span>
 <a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>pm-setup<span class="w"> </span>--data-dir<span class="w"> </span>~/my-venue<span class="w">  </span><span class="c1"># an explicit location</span>
 <a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>pm-setup<span class="w"> </span>--force<span class="w">                </span><span class="c1"># replace an already-deployed configuration</span>
 <a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>pm-setup<span class="w"> </span>--no-config<span class="w">            </span><span class="c1"># create the directory only</span>

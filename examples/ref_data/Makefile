@@ -21,6 +21,7 @@ SHELL := $(shell which bash)
 # Every direct subdirectory that contains a mkrefdata.sh is a target.
 SUBDIRS := $(patsubst %/mkrefdata.sh,%,$(wildcard */mkrefdata.sh))
 CONFIGS := $(SUBDIRS:%=%/engine_config.yaml)
+S150_CONFIGS := $(filter s150-%,$(CONFIGS))
 
 .DEFAULT_GOAL := configs
 
@@ -56,3 +57,5 @@ $(CONFIGS): %/engine_config.yaml: %/mkrefdata.sh
 	@$*/mkrefdata.sh
 	@pm-config-deploy --check $*/engine_config.yaml
 	@echo -e "$(GREEN)✓ $@ done$(NC)"
+
+$(S150_CONFIGS): mks150.sh

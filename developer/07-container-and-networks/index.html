@@ -4896,7 +4896,7 @@ not rebuild one that already exists — use <code>make build</code> or
 invocation only; <code>.env</code> is Compose's own file and is where machine-specific
 choices belong; the <code>${VAR:-fallback}</code> defaults inside the compose files are
 the last stop before the image's own <code>ENV</code>.</p>
-<p>This is why <code>make up-all CONFIG=ten-nominal</code> does not edit <code>.env</code>, and why
+<p>This is why <code>make up-all CONFIG=s10-nominal</code> does not edit <code>.env</code>, and why
 re-running plain <code>make up-all</code> afterwards goes back to whatever <code>.env</code> says.
 Compose notices the changed environment and recreates the container, so the
 switch takes effect without an explicit <code>down</code>.</p>
@@ -4986,7 +4986,7 @@ on this project, from a path in the <code>RUN</code> step that did not match the
 path inside it and which image it came from — the fastest way to tell whether
 the stack answering your ports is the one you started.</p>
 <p>The overlays are additive <code>-f</code> files, which is why they compose freely:
-<code>make up-all CONFIG=ten-complex PROFILE=mini ZMQ=1 CONFIG_GUI=1</code>.</p>
+<code>make up-all CONFIG=s10-complex PROFILE=mini ZMQ=1 CONFIG_GUI=1</code>.</p>
 <h3 id="why-up-all-runs-in-two-phases">Why <code>up-all</code> runs in two phases<a class="headerlink" href="#why-up-all-runs-in-two-phases" title="Permanent link">&para;</a></h3>
 <p>The trading terminal reads history through <code>pm-api-gwy</code> using the credential
 whose <code>gateway_id</code> is <code>null</code>. That key is <strong>generated per engine
@@ -5012,7 +5012,7 @@ same extraction snippet — that logic lives in <code>edumatcher.sh</code> rathe
 continues and warns. The live CALF feed needs no key; only history does.</p>
 <h2 id="part-5-the-release-process">Part 5 — The release process<a class="headerlink" href="#part-5-the-release-process" title="Permanent link">&para;</a></h2>
 <p>One git tag produces a wheel and five multi-architecture images, all carrying
-the same version. That coupling is what lets <code>install.sh --version 0.41.2</code>
+the same version. That coupling is what lets <code>install.sh --version 0.42.0</code>
 pin an entire system with one number.</p>
 <pre class="mermaid"><code>flowchart TD
     MK["scripts/mkrelease.sh\nbump, build docs, commit, tag"]

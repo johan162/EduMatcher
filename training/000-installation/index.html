@@ -4467,7 +4467,7 @@ is compiled on your machine.</p>
 </tbody>
 </table>
 <p>Open the trading terminal. You should see order books with live quotes: the
-bundled <code>three-basic</code> configuration seeds each symbol with a resting
+bundled <code>s3-basic</code> configuration seeds each symbol with a resting
 market-maker bid and ask the moment <code>pm-engine</code> starts, so there is a two-sided
 book before anyone has traded.</p>
 <div class="admonition note">
@@ -4593,13 +4593,13 @@ again before suspecting anything else.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pm-setup
 </code></pre></div>
 <p><code>pm-setup</code> creates the data directory, compiles a bundled example
-configuration (<code>three-basic</code> unless you say otherwise) and installs it as the
+configuration (<code>s3-basic</code> unless you say otherwise) and installs it as the
 deployed artifact, then prints the one environment variable you need. The
 output looks like this — yours will show your own home directory and shell:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-setup — EduMatcher session initialisation
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>==================================================
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>  ✓ Created data directory:          /Users/you/.local/share/edumatcher
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>  ✓ Example config 'three-basic' compiled to: /Users/you/.local/share/edumatcher/ref_data/engine_config.json
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    ✓ Example config 's3-basic' compiled to: /Users/you/.local/share/edumatcher/ref_data/engine_config.json
 <a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    3 symbol(s) ready to trade.
 <a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
 <a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>  Shell environment snippet — add to your shell profile:
@@ -4621,7 +4621,7 @@ its own output — then reload it:</p>
 <div class="admonition note">
 <p class="admonition-title">Re-running pm-setup</p>
 <p><code>pm-setup --force</code> replaces an already-deployed configuration with the
-bundled example. <code>pm-setup --config ten-nominal</code> picks a different one.
+bundled example. <code>pm-setup --config s10-nominal</code> picks a different one.
 <code>pm-setup --no-config</code> creates only the data directory.</p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-engine --version</code> prints a
@@ -4633,7 +4633,7 @@ host. Install Multipass from <a href="https://multipass.run/install">multipass.r
 verify it, then bootstrap:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>multipass<span class="w"> </span>version
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.41.2
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.42.0
 </code></pre></div>
 <p>If <code>multipass version</code> fails with <code>command not found</code>, the install did not
 complete or your shell has not picked up its PATH change yet — open a new
@@ -4775,7 +4775,7 @@ configuration and see its symbols.</p>
 <h3 id="choosing-a-different-configuration">Choosing a different configuration<a class="headerlink" href="#choosing-a-different-configuration" title="Permanent link">&para;</a></h3>
 <p><strong>If you installed with containers:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="nb">cd</span><span class="w"> </span>~/.edumatcher
-<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>./edumatcher.sh<span class="w"> </span>config<span class="w"> </span>ten-nominal<span class="w">      </span><span class="c1"># a bundled example</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>./edumatcher.sh<span class="w"> </span>config<span class="w"> </span>s10-nominal<span class="w">      </span><span class="c1"># a bundled example</span>
 <a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>./edumatcher.sh<span class="w"> </span>config<span class="w"> </span>./my-market.yaml<span class="w"> </span><span class="c1"># or one of your own</span>
 <a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>./edumatcher.sh<span class="w"> </span>restart
 </code></pre></div>
@@ -4816,7 +4816,7 @@ so updating does not discard your edits.</p>
 </tr>
 <tr>
 <td><code>EM_CONFIG</code></td>
-<td><code>three-basic</code></td>
+<td><code>s3-basic</code></td>
 <td>Which bundled example the exchange deploys</td>
 </tr>
 <tr>
