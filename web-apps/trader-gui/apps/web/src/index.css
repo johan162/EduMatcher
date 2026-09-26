@@ -31,6 +31,9 @@ html.dark {
   --halt: 245 158 11;
   --accent: 255 160 40;
   --accent-fg: 10 12 16;
+  /* Brand wordmark version number only (TopBar) — distinct from --bid, which
+     is the price-direction signal and must not be reused for chrome. */
+  --brand-version: 38 208 124;
 }
 
 html:not(.dark) {
@@ -49,6 +52,7 @@ html:not(.dark) {
   --fg-faint: 90 97 109;
   --accent: 178 106 0;
   --accent-fg: 255 255 255;
+  --brand-version: 6 95 70;
   --link: 11 95 206;
   --bid: 21 128 61;
   --ask: 220 38 38;

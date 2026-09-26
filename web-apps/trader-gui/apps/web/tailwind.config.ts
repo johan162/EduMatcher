@@ -42,6 +42,9 @@ const config: Config = {
         auction: channel("halt"),
         live: channel("bid"),
         offline: channel("ask"),
+        // Brand wordmark version number only (TopBar) — kept apart from
+        // the price-direction tokens above.
+        "brand-version": channel("brand-version"),
       },
       // ── Typography ────────────────────────────────────────────────────────
       fontFamily: {

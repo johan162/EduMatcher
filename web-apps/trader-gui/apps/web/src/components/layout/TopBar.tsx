@@ -60,11 +60,9 @@ export function TopBar() {
     <header className="h-10 flex items-center px-4 bg-panel border-b border-line flex-shrink-0 z-50">
       {/* Left: wordmark */}
       <div className="flex items-center gap-2 w-56 flex-shrink-0">
-
-        <span className="font-mono font-bold text-sm text-accent">EduMatcher</span>
-
-        <span className="text-xs font-bold text-fg-faint">pm-trading</span>
-        <span className="text-xs text-fg-faint">v{appVersion.version}</span>
+        <span className="font-mono font-bold text-sm text-fg">EduMatcher</span>
+        <span className="font-mono text-sm text-accent">pm-trader</span>
+        <span className="font-mono text-xs text-brand-version">v{appVersion.version}</span>
       </div>
 
       {/* Centre: session badge + exchange clock + countdown */}

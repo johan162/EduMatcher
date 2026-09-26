@@ -54,8 +54,11 @@ export function TopBar({
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-4 border-b border-border bg-bg-subtle px-4 text-sm">
-      <span className="font-semibold">pm-log-ui</span>
-      <span className="text-fg-subtle">v{appVersion.version}</span>
+      <span className="flex items-baseline gap-2">
+        <span className="font-mono font-bold text-sm text-fg">EduMatcher</span>
+        <span className="font-mono text-sm text-accent">pm-log</span>
+        <span className="font-mono text-xs text-brand-version">v{appVersion.version}</span>
+      </span>
 
       <span className="flex items-center gap-1.5">
         <span className={`h-2 w-2 rounded-full ${STATE_DOT[connectionState]}`} />

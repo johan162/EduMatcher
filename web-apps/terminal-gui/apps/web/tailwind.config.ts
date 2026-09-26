@@ -27,6 +27,9 @@ const config: Config = {
         "fg-faint": "var(--fg-faint)",
         accent: "var(--accent)",
         "accent-fg": "var(--accent-fg)",
+        // Brand wordmark version number only (TopBar) — kept apart from
+        // the price-direction tokens below.
+        "brand-version": "var(--brand-version)",
 
         up: "var(--up)",
         down: "var(--down)",

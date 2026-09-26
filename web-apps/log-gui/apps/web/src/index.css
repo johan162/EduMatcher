@@ -16,6 +16,8 @@ html.dark {
   --fg: #e6edf3;
   --fg-subtle: #8b949e;
   --accent: #2f81f7;
+  /* Brand wordmark version number only (TopBar). */
+  --brand-version: #26d07c;
 
   --level-debug: #8b949e;
   --level-info: #58a6ff;
@@ -33,6 +35,7 @@ html:not(.dark) {
   --fg: #1f2328;
   --fg-subtle: #59636e;
   --accent: #0969da;
+  --brand-version: #065f46;
 
   --level-debug: #6e7781;
   --level-info: #0969da;

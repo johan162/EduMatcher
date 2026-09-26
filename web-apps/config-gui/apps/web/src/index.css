@@ -17,6 +17,8 @@
   --color-fg-subtle: #5b6675;
   --color-accent: #2563eb;
   --color-accent-fg: #ffffff;
+  /* Brand wordmark version number only (TopBar). */
+  --color-brand-version: #065f46;
 
   --color-required: #d9480f;
   --color-optional-set: #2f9e44;
@@ -37,6 +39,7 @@ html.dark {
   --color-fg-subtle: #9aa7b8;
   --color-accent: #4d8dff;
   --color-accent-fg: #0b1017;
+  --color-brand-version: #26d07c;
 
   --color-required: #ff7a45;
   --color-optional-set: #51cf66;

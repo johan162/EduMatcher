@@ -20,6 +20,8 @@ const config: Config = {
         "fg-subtle": "var(--color-fg-subtle)",
         accent: "var(--color-accent)",
         "accent-fg": "var(--color-accent-fg)",
+        // Brand wordmark version number only (TopBar).
+        "brand-version": "var(--color-brand-version)",
         required: "var(--color-required)",
         "optional-set": "var(--color-optional-set)",
         "optional-default": "var(--color-optional-default)",
