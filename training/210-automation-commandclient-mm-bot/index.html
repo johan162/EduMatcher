@@ -4263,9 +4263,10 @@ operations often require deterministic automation:</p>
 <p>Every bot log line is prefixed with the bot's gateway ID (<code>[&lt;gateway_id&gt;]</code>),
 and per-symbol lines add a <code>[&lt;symbol&gt;]</code> tag. Representative startup lines
 (after the usual timestamp/level/logger prefix):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[MM_AAPL_01] starting: symbols=AAPL strategy=... gap=0.1 qty=500 ...
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>[MM_AAPL_01] [AAPL] bootstrap from random range: 100.37
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>[MM_AAPL_01] running symbols=['AAPL'] session=CONTINUOUS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[MM_AAPL_01] starting: gateway=MM_AAPL_01 symbols=AAPL
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>[MM_AAPL_01] [AAPL] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>[MM_AAPL_01] [AAPL] bootstrap from random range: 100.37
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>[MM_AAPL_01] running symbols=['AAPL'] session=CONTINUOUS
 </code></pre></div>
 <p>The <code>bootstrap from random range</code> line only appears when the price came from
 <code>--initial_min</code>/<code>--initial_max</code> (Exercise 5); with a live book the reference
@@ -4274,19 +4275,22 @@ per-quote <code>INFO</code> line — use <code>QLEGS|SYM=AAPL</code> on the MM g
 quote is live.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can identify and tune the timeout knobs that control startup behavior.</p>
 <div class="admonition note">
-<p class="admonition-title">These knobs apply per symbol on a --symbols bot</p>
-<p>Every flag in this exercise — <code>--bootstrap-timeout-sec</code>,
-<code>--qlegs-reconcile-interval-sec</code>, <code>--startup-session-timeout-sec</code>, and the
-gap/spread validation from <a href="../020-setting-up-MM-bots/">02 — Setting Up Market-Maker
-Liquidity</a> — is still a single process-wide
-value even when the bot covers several symbols with <code>--symbols</code>, but the
-QBOOT/QLEGS <em>requests themselves</em>, and the startup/gap checks they
-inform, run once per symbol. A <code>pm-mm-bot --symbols AAPL,MSFT,TSLA -v</code>
-run shows three independent <code>[AAPL]</code>/<code>[MSFT]</code>/<code>[TSLA]</code>-tagged QBOOT and
-QLEGS exchanges in the startup log, not one. If you tune
-<code>--bootstrap-timeout-sec</code> down aggressively for a fast classroom demo,
-remember it is one shared timeout budget applied to <em>each</em> symbol's
-QBOOT/QLEGS round trip in turn, not split across them.</p>
+<p class="admonition-title">Most of these knobs can differ per symbol</p>
+<p><code>--bootstrap-timeout-sec</code> and <code>--qlegs-reconcile-interval-sec</code> are
+per-symbol settings: on a multi-symbol bot each symbol may be given its
+own, either by scoping the flag after that symbol's <code>--symbol</code> or from
+its block in a config file (see <a href="../020-setting-up-MM-bots/">02 — Setting Up Market-Maker
+Liquidity</a>, Exercise 8).
+<code>--startup-session-timeout-sec</code> is the exception and stays process-wide,
+because the session phase it waits for is exchange-wide and there is
+nothing per-symbol to express.</p>
+<p>The QBOOT/QLEGS <em>requests themselves</em>, and the startup/gap checks they
+inform, run once per symbol regardless. A
+<code>pm-mm-bot --symbols AAPL,MSFT,TSLA -v</code> run shows three independent
+<code>[AAPL]</code>/<code>[MSFT]</code>/<code>[TSLA]</code>-tagged QBOOT and QLEGS exchanges in the
+startup log, not one — so a <code>--bootstrap-timeout-sec</code> tuned down
+aggressively for a fast classroom demo is a budget applied to <em>each</em>
+symbol's round trip in turn, not split across them.</p>
 </div>
 <h2 id="exercise-5-empty-book-bootstrap-drill">Exercise 5: Empty-Book Bootstrap Drill<a class="headerlink" href="#exercise-5-empty-book-bootstrap-drill" title="Permanent link">&para;</a></h2>
 <p>Simulate sparse startup conditions and run bot with explicit bootstrap range:</p>
@@ -4307,9 +4311,10 @@ as at least one other symbol resolves a reference price — see
 The single-symbol case in this exercise is the special case where there
 is no "other symbol" left, so the process-level failure you'll observe
 here is the same behavior applied to a symbol set of one. <code>--initial_min</code>/
-<code>--initial_max</code> are also one shared range applied independently to each
-symbol — with two symbols configured this way, expect two different
-random prices, one per symbol, both drawn from the same range.</p>
+<code>--initial_max</code> are per-symbol settings too: give them once before any
+<code>--symbol</code> and every symbol draws from that one range (expect a different
+random price per symbol), or scope them to a single symbol to give a
+volatile name a range of its own.</p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can choose a bootstrap strategy appropriate for your environment.</p>
 <h2 id="exercise-6-build-a-combined-automation-flow">Exercise 6: Build a Combined Automation Flow<a class="headerlink" href="#exercise-6-build-a-combined-automation-flow" title="Permanent link">&para;</a></h2>

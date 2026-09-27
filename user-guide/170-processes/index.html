@@ -6236,7 +6236,27 @@ bordered box on the alternate terminal buffer that repaints cleanly on resize.</
 </tbody>
 </table>
 <p><strong>Expected runtime input arguments:</strong></p>
-<p>None.</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>s</code> or <code>F1</code></td>
+<td>Open the symbol picker and switch to another symbol</td>
+</tr>
+<tr>
+<td><code>Ctrl-C</code></td>
+<td>Quit</td>
+</tr>
+</tbody>
+</table>
+<p>Inside the picker: type to narrow the list by prefix, <code>↑</code>/<code>↓</code> to move,
+<code>Enter</code> to switch, <code>Esc</code> to go back to the book unchanged. Both keys are
+advertised in the footer that crosses the bottom border.</p>
 <p><strong>Display</strong>:
 - Two-line header: last price with directional colour/arrow, change / %, session OHLC seeded from <code>pm-stats</code> DB, previous-close, bid/ask, spread, volume, and a live clock
 - Three equal-height columns filling the terminal: <strong>Bids</strong> (with proportional depth bars), <strong>Asks</strong>, and <strong>Trades</strong> (newest first, uptick/downtick coloured)
@@ -6259,6 +6279,15 @@ without changing that row's text color — customize it with <code>--zebra-lines
 Both color options accept a <code>#rrggbb</code> hex code or any
 <a href="https://rich.readthedocs.io/en/stable/appendix/colors.html">Rich color name</a>.</p>
 </div>
+<div class="admonition tip">
+<p class="admonition-title">Switching symbol without restarting</p>
+<p>Press <code>s</code> (or <code>F1</code>) to pick a different symbol from a popup list. The
+viewer asks the engine for the current symbol universe each time the
+picker opens, resubscribes to the chosen symbol's book, and reloads that
+symbol's session statistics — so one viewer can follow a whole class
+around the market. The picker needs a real terminal; when stdin is piped
+or redirected the viewer behaves exactly as it always did.</p>
+</div>
 <p>Run multiple viewers simultaneously for different symbols:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span><span class="p">&amp;</span>
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span><span class="p">&amp;</span>
@@ -6278,6 +6307,10 @@ Both color options accept a <code>#rrggbb</code> hex code or any
 <td>Book updates for the watched symbol</td>
 </tr>
 <tr>
+<td><code>system.symbols.{GW_ID}</code></td>
+<td>Symbol list backing the interactive picker</td>
+</tr>
+<tr>
 <td><code>session.state</code></td>
 <td>Session phase changes (displayed in header)</td>
 </tr>
@@ -6294,7 +6327,11 @@ Both color options accept a <code>#rrggbb</code> hex code or any
 <tbody>
 <tr>
 <td><code>book.snapshot_request</code></td>
-<td>Requests initial book state on startup</td>
+<td>Requests initial book state on startup, and again after a symbol switch</td>
+</tr>
+<tr>
+<td><code>system.symbols_request</code></td>
+<td>Requests the symbol list when the picker is opened</td>
 </tr>
 </tbody>
 </table>

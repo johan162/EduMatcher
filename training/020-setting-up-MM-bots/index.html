@@ -2621,13 +2621,41 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-8-one-bot-three-symbols" class="md-nav__link">
+  <a href="#exercise-8-one-bot-three-symbols-three-sets-of-terms" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 8: One Bot, Three Symbols
+        Exercise 8: One Bot, Three Symbols, Three Sets of Terms
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Exercise 8: One Bot, Three Symbols, Three Sets of Terms">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#giving-each-symbol-its-own-terms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Giving each symbol its own terms
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#which-setting-wins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which setting wins?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -4185,7 +4213,8 @@
 <p>Configure market-maker gateways and use manual <code>QUOTE</code> commands to provide
 two-sided liquidity for all three symbols. You will also compare this manual
 workflow with <code>pm-mm-bot</code>, which automates the same lifecycle — including how
-to drive the bot from a committed config file instead of a long CLI
+to quote several symbols from one process on different terms each, and how to
+drive the whole desk from a committed config file instead of a long CLI
 invocation.</p>
 <div class="admonition abstract">
 <p class="admonition-title">Pre-reading in the User Guide</p>
@@ -4353,10 +4382,10 @@ restart or partial execution.</p>
 <p>The manual quote sequence above can be automated with one bot per symbol —
 independent processes, each free to crash, restart, or be tuned without
 touching the others. (Exercise 8 below shows the alternative: one process
-covering several symbols at once.) Stop your manual quotes first
-(<code>QUOTE_CANCEL|SYM=&lt;symbol&gt;</code> from each MM console, or just leave them — the
-bot's own startup reconciliation handles either case, see the note below)
-and run:</p>
+covering several symbols at once, each on its own terms.) Stop your manual
+quotes first (<code>QUOTE_CANCEL|SYM=&lt;symbol&gt;</code> from each MM console, or just leave
+them — the bot's own startup reconciliation handles either case, see the note
+below) and run:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span>--qty<span class="w"> </span><span class="m">500</span>
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.20<span class="w"> </span>--qty<span class="w"> </span><span class="m">300</span>
 <a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>TSLA<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.50<span class="w"> </span>--qty<span class="w"> </span><span class="m">200</span>
@@ -4389,68 +4418,114 @@ for the advanced runtime flags (bootstrap timeout, QLEGS reconciliation
 interval, and similar) that this chapter deliberately leaves out.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> explain what the bot automates compared with your manual <code>QUOTE</code> workflow.</p>
 <h2 id="exercise-7-drive-the-bot-from-a-config-file">Exercise 7: Drive the Bot from a Config File<a class="headerlink" href="#exercise-7-drive-the-bot-from-a-config-file" title="Permanent link">&para;</a></h2>
-<p>Every CLI flag except <code>--config</code> itself and the logging flags can instead
-live in a version-controlled YAML file, keyed by the flag's long name with
-dashes replaced by underscores. Create <code>mm_aapl.yaml</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nt">symbol</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AAPL</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="nt">id_suffix</span><span class="p">:</span><span class="w"> </span><span class="s">"01"</span>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">symmetric</span>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="nt">gap</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.10</span>
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="nt">qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="nt">tif</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DAY</span>
-<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="nt">drift_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<p>A bot's whole configuration can live in a version-controlled YAML file
+instead of a long command line. Create <code>mm_aapl.yaml</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="nt">gateway</span><span class="p">:</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">  </span><span class="nt">label</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AAPL</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">  </span><span class="nt">id_suffix</span><span class="p">:</span><span class="w"> </span><span class="s">"01"</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="nt">defaults</span><span class="p">:</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">  </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">symmetric</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="w">  </span><span class="nt">gap</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.10</span>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="w">  </span><span class="nt">qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="w">  </span><span class="nt">tif</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DAY</span>
+<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a><span class="w">  </span><span class="nt">drift_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a>
+<a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a><span class="nt">symbols</span><span class="p">:</span>
+<a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
 </code></pre></div>
 <p>Run the bot from it instead of typing the flags:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-mm-bot<span class="w"> </span>--config<span class="w"> </span>mm_aapl.yaml
 </code></pre></div>
-<p>An explicit CLI flag always overrides the same key from the file, so you can
-keep one committed file per symbol for a class and still override a single
-value for a one-off run:</p>
+<p>The file has four blocks, and the split between them is the thing worth
+learning:</p>
+<table>
+<thead>
+<tr>
+<th>Block</th>
+<th>Holds</th>
+<th>Can it differ per symbol?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gateway:</code></td>
+<td>Gateway identity and the two engine socket addresses</td>
+<td><strong>No</strong> — one process, one gateway, one pair of sockets</td>
+</tr>
+<tr>
+<td><code>logging:</code></td>
+<td>Log level and destination</td>
+<td><strong>No</strong> — one process, one log stream</td>
+</tr>
+<tr>
+<td><code>defaults:</code></td>
+<td>Quoting settings applied to every symbol</td>
+<td>These <em>are</em> the defaults</td>
+</tr>
+<tr>
+<td><code>symbols:</code></td>
+<td>Which symbols to quote, and each one's overrides</td>
+<td><strong>Yes</strong> — see Exercise 8</td>
+</tr>
+</tbody>
+</table>
+<p><code>AAPL: {}</code> means "quote AAPL, on the house defaults". The empty braces are
+required YAML, not decoration: the value of a symbol key is its override
+block, and this one overrides nothing.</p>
+<p>An explicit CLI flag still overrides the file, so you can keep one committed
+file per desk for a class and override a single value for a one-off run:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>pm-mm-bot<span class="w"> </span>--config<span class="w"> </span>mm_aapl.yaml<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.15
 </code></pre></div>
-<p><code>--symbol</code> may be omitted from the CLI entirely as long as the file supplies
-it — but the bot fails fast with a usage error if <em>neither</em> the CLI nor the
-file provides one, rather than silently picking a default symbol.</p>
+<p>No symbol needs to appear on the CLI at all as long as the file's <code>symbols:</code>
+block names one. The bot fails fast with a usage error if <em>neither</em> the CLI
+nor the file provides a symbol, rather than silently picking a default.</p>
 <div class="admonition note">
-<p class="admonition-title"><code>--strategy</code> exists but only one strategy ships today</p>
+<p class="admonition-title">Two pricing strategies ship today</p>
 <p><code>strategy: symmetric</code> (the default, so the line above is not strictly
-needed) selects the pricing logic that turns the tracked mid-price into a
-bid/ask — quote symmetrically around mid at <code>gap</code>. It's the only pricing
-strategy that ships today; the selection point exists so a future
-strategy (skewing the quote by inventory, or widening the gap with
-volatility) can be added later without changing anything else about the
-bot. Naming any other strategy is a startup failure, not a silent
-fallback.</p>
+needed) quotes symmetrically around the tracked mid at <code>gap</code>.
+<code>strategy: inventory_skew</code> instead shifts both quotes to work an
+accumulated position back toward flat, and requires a <code>max_position:</code>
+alongside it — the net position at which the skew saturates. Naming any
+other strategy is a startup failure, not a silent fallback.</p>
 </div>
 <div class="admonition warning">
-<p class="admonition-title">A typo in the file fails fast, not silently</p>
-<p>An unknown key in the file — a flag name spelled with dashes instead of
-underscores, or a genuine typo — is rejected at startup with
-<code>invalid config file: ... unknown key(s)</code>, the same way an unrecognised
-CLI flag would be. It is never silently ignored.</p>
+<p class="admonition-title">A typo in the file fails fast, and tells you what you meant</p>
+<p>An unknown key is rejected at startup rather than silently ignored, with
+a suggestion where there is an obvious one:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>invalid config file: config file mm_aapl.yaml: unknown key 'gapp' under symbols.AAPL (did you mean 'gap'?)
+</code></pre></div>
+<p>Putting a real key in the wrong block gets its own message rather than
+"unknown key" — try moving <code>gap:</code> into <code>gateway:</code> and see what it says.</p>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Quote the <code>id_suffix</code></p>
+<p><code>id_suffix: 01</code> without quotes is the <em>number</em> 1 to YAML, which would
+make the gateway <code>MM_AAPL_1</code> rather than <code>MM_AAPL_01</code>. The loader refuses
+it outright rather than guessing; <code>"01"</code> is correct.</p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you have started a bot from
 a config file alone, then overridden one value from the CLI and confirmed the
 CLI value won.</p>
-<h2 id="exercise-8-one-bot-three-symbols">Exercise 8: One Bot, Three Symbols<a class="headerlink" href="#exercise-8-one-bot-three-symbols" title="Permanent link">&para;</a></h2>
-<p>Exercise 6 ran three separate <code>pm-mm-bot</code> processes, one per symbol — that's
-still the right choice when symbols need genuinely different parameters, or
-when you want a bad symbol to be unable to affect any other symbol's
-process. But nothing on the engine side actually requires a <code>MARKET_MAKER</code>
-gateway to quote only one symbol: the engine's <code>QuoteIndex</code> keys every active
-quote by <code>(gateway_id, symbol)</code> and tracks a <em>set</em> of such keys per gateway,
-so one gateway can hold AAPL's quote and MSFT's quote and TSLA's quote at
-the same time.</p>
+<h2 id="exercise-8-one-bot-three-symbols-three-sets-of-terms">Exercise 8: One Bot, Three Symbols, Three Sets of Terms<a class="headerlink" href="#exercise-8-one-bot-three-symbols-three-sets-of-terms" title="Permanent link">&para;</a></h2>
+<p>Exercise 6 ran three separate <code>pm-mm-bot</code> processes, one per symbol. But
+nothing on the engine side requires a <code>MARKET_MAKER</code> gateway to quote only
+one symbol: the engine's <code>QuoteIndex</code> keys every active quote by
+<code>(gateway_id, symbol)</code> and tracks a <em>set</em> of such keys per gateway, so one
+gateway can hold AAPL's quote and MSFT's quote and TSLA's quote at the same
+time — and each of those symbols can be quoted on its own terms.</p>
 <p>Stop the three bots from Exercise 6 (Ctrl+C each, or leave them — startup
 reconciliation handles either case) and register one gateway that will
 quote all three symbols instead:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nt">gateways</span><span class="p">:</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM_TECH_01</span>
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"AAPL+MSFT+TSLA</span><span class="nv"> </span><span class="s">market-maker"</span>
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
-<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="w">      </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_QUOTES_ONLY</span>
-<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="w">      </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INACTIVATE_ON_ANY_FILL</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nt">gateways</span><span class="p">:</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM_TECH_01</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"AAPL+MSFT+TSLA</span><span class="nv"> </span><span class="s">market-maker"</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="w">      </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_QUOTES_ONLY</span>
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="w">      </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INACTIVATE_ON_ANY_FILL</span>
 </code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title">The market_maker_quotes seed requirement still applies to every symbol</p>
@@ -4463,37 +4538,155 @@ gateways. If you regenerate with <code>pm-config-gen</code>, point
 <code>--gateways ... MM_TECH_01:MARKET_MAKER</code> at the one new ID and it will
 seed all three symbols against it automatically.</p>
 </div>
-<p>Check and deploy as before, then start one bot covering all three symbols:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-cverifier<span class="w"> </span>engine_config.yaml<span class="w">       </span><span class="c1"># expect 0 errors</span>
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>pm-config-deploy<span class="w"> </span>engine_config.yaml
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>pm-mm-bot<span class="w"> </span>--symbols<span class="w"> </span>AAPL,MSFT,TSLA<span class="w"> </span>--label<span class="w"> </span>TECH<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span>--qty<span class="w"> </span><span class="m">500</span>
+<p>Check and deploy as before, then start one bot covering all three symbols on
+identical terms:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>pm-cverifier<span class="w"> </span>engine_config.yaml<span class="w">       </span><span class="c1"># expect 0 errors</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>pm-config-deploy<span class="w"> </span>engine_config.yaml
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>pm-mm-bot<span class="w"> </span>--symbols<span class="w"> </span>AAPL,MSFT,TSLA<span class="w"> </span>--label<span class="w"> </span>TECH<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span>--qty<span class="w"> </span><span class="m">500</span>
 </code></pre></div>
 <p><code>--label TECH</code> is what makes the gateway ID <code>MM_TECH_01</code> instead of the
 default <code>MM_AAPL_MSFT_TSLA_01</code> the bot would otherwise derive by joining
 every symbol — useful once the symbol list is longer than a couple of
-entries. Watch the log output: the <code>starting:</code> line reports
-<code>symbols=AAPL,MSFT,TSLA</code>, and every per-symbol decision afterwards (a quote
-sent, a fill, a reprice) is tagged with <code>[AAPL]</code>, <code>[MSFT]</code>, or <code>[TSLA]</code> so
-you can tell which symbol it belongs to — one process, three independent
-quoting lifecycles.</p>
-<p>Confirm all three books are still served from <code>TRADER01</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>[GW_ADMIN|ADMIN]&gt; BOOK|SYM=AAPL
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>[GW_ADMIN|ADMIN]&gt; BOOK|SYM=MSFT
-<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>[GW_ADMIN|ADMIN]&gt; BOOK|SYM=TSLA
+entries.</p>
+<p>Watch the log output. The startup lines report the gateway, the symbol list,
+and then <strong>one line per symbol</strong> with that symbol's resolved settings:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>[MM_TECH_01] starting: gateway=MM_TECH_01 symbols=AAPL,MSFT,TSLA
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>[MM_TECH_01] [AAPL] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>[MM_TECH_01] [MSFT] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>[MM_TECH_01] [TSLA] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
 </code></pre></div>
+<p>Every per-symbol decision afterwards (a quote sent, a fill, a reprice) is
+tagged <code>[AAPL]</code>, <code>[MSFT]</code>, or <code>[TSLA]</code> — one process, three independent
+quoting lifecycles.</p>
+<h3 id="giving-each-symbol-its-own-terms">Giving each symbol its own terms<a class="headerlink" href="#giving-each-symbol-its-own-terms" title="Permanent link">&para;</a></h3>
+<p>Quoting a volatile name and a liquid one with the same spread and size is
+rarely what you want. <code>--symbol</code> may be <strong>repeated</strong>, and every quoting flag
+after it applies to that symbol until the next <code>--symbol</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>pm-mm-bot<span class="w"> </span>--label<span class="w"> </span>TECH<span class="w"> </span>--qty<span class="w"> </span><span class="m">500</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="w">  </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="w">  </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.20<span class="w"> </span>--qty<span class="w"> </span><span class="m">300</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="w">  </span>--symbol<span class="w"> </span>TSLA<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.50<span class="w"> </span>--qty<span class="w"> </span><span class="m">200</span><span class="w"> </span>--drift-ticks<span class="w"> </span><span class="m">5</span>
+</code></pre></div>
+<p>Flags <strong>before</strong> the first <code>--symbol</code> (here <code>--label</code> and <code>--qty 500</code>) are the
+defaults for everything; flags <strong>after</strong> one apply to that symbol alone. The
+startup lines now differ per symbol — check them against what you typed:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>[MM_TECH_01] [AAPL] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>[MM_TECH_01] [MSFT] strategy=symmetric gap=0.2 qty=300 tif=DAY drift_ticks=3
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>[MM_TECH_01] [TSLA] strategy=symmetric gap=0.5 qty=200 tif=DAY drift_ticks=5
+</code></pre></div>
+<p>That command line is already at the edge of readable, which is exactly what
+the config file is for. The same desk as <code>mm_tech.yaml</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="nt">gateway</span><span class="p">:</span>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="w">  </span><span class="nt">label</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TECH</span>
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="w">  </span><span class="nt">id_suffix</span><span class="p">:</span><span class="w"> </span><span class="s">"01"</span>
+<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a>
+<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a><span class="nt">defaults</span><span class="p">:</span>
+<a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a><span class="w">  </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">symmetric</span>
+<a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a><span class="w">  </span><span class="nt">gap</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.10</span>
+<a id="__codelineno-21-10" name="__codelineno-21-10" href="#__codelineno-21-10"></a><span class="w">  </span><span class="nt">qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
+<a id="__codelineno-21-11" name="__codelineno-21-11" href="#__codelineno-21-11"></a><span class="w">  </span><span class="nt">tif</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DAY</span>
+<a id="__codelineno-21-12" name="__codelineno-21-12" href="#__codelineno-21-12"></a><span class="w">  </span><span class="nt">drift_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<a id="__codelineno-21-13" name="__codelineno-21-13" href="#__codelineno-21-13"></a>
+<a id="__codelineno-21-14" name="__codelineno-21-14" href="#__codelineno-21-14"></a><span class="nt">symbols</span><span class="p">:</span>
+<a id="__codelineno-21-15" name="__codelineno-21-15" href="#__codelineno-21-15"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span><span class="w">                 </span><span class="c1"># house defaults</span>
+<a id="__codelineno-21-16" name="__codelineno-21-16" href="#__codelineno-21-16"></a>
+<a id="__codelineno-21-17" name="__codelineno-21-17" href="#__codelineno-21-17"></a><span class="w">  </span><span class="nt">MSFT</span><span class="p">:</span><span class="w">                    </span><span class="c1"># wider, smaller</span>
+<a id="__codelineno-21-18" name="__codelineno-21-18" href="#__codelineno-21-18"></a><span class="w">    </span><span class="nt">gap</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.20</span>
+<a id="__codelineno-21-19" name="__codelineno-21-19" href="#__codelineno-21-19"></a><span class="w">    </span><span class="nt">qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300</span>
+<a id="__codelineno-21-20" name="__codelineno-21-20" href="#__codelineno-21-20"></a>
+<a id="__codelineno-21-21" name="__codelineno-21-21" href="#__codelineno-21-21"></a><span class="w">  </span><span class="nt">TSLA</span><span class="p">:</span><span class="w">                    </span><span class="c1"># wider still, smaller still, less twitchy,</span>
+<a id="__codelineno-21-22" name="__codelineno-21-22" href="#__codelineno-21-22"></a><span class="w">    </span><span class="nt">gap</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.50</span><span class="w">              </span><span class="c1"># and working its inventory back toward flat</span>
+<a id="__codelineno-21-23" name="__codelineno-21-23" href="#__codelineno-21-23"></a><span class="w">    </span><span class="nt">qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">200</span>
+<a id="__codelineno-21-24" name="__codelineno-21-24" href="#__codelineno-21-24"></a><span class="w">    </span><span class="nt">drift_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<a id="__codelineno-21-25" name="__codelineno-21-25" href="#__codelineno-21-25"></a><span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">inventory_skew</span>
+<a id="__codelineno-21-26" name="__codelineno-21-26" href="#__codelineno-21-26"></a><span class="w">    </span><span class="nt">max_position</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5000</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>pm-mm-bot<span class="w"> </span>--config<span class="w"> </span>mm_tech.yaml
+</code></pre></div>
+<p>Compare the startup lines with the CLI version above: the same three spreads
+and sizes, expressed as a file instead of a command line — plus a per-symbol
+<code>strategy</code> for TSLA that would have made the command line longer still.</p>
+<div class="admonition tip">
+<p class="admonition-title">Worked examples ship with the docs</p>
+<p><code>docs/examples/mm-bot/</code> contains <code>single-symbol.yaml</code>, <code>tech-desk.yaml</code>
+(the file above, with every option commented), and <code>uniform-desk.yaml</code>
+showing the <code>symbols: [AAPL, MSFT, TSLA]</code> list shorthand for when no
+symbol needs its own block.</p>
+</div>
+<h3 id="which-setting-wins">Which setting wins?<a class="headerlink" href="#which-setting-wins" title="Permanent link">&para;</a></h3>
+<p>With both a file and a command line in play, each symbol's settings are
+resolved from the most specific source that supplies one:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Rank</th>
+<th>Source</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td>The symbol's own CLI scope</td>
+<td><code>--symbol MSFT --gap 0.20</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td>The symbol's block in the config file</td>
+<td><code>symbols.MSFT.gap</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td>The global CLI scope</td>
+<td><code>--gap 0.20</code> before the first <code>--symbol</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>The file's <code>defaults:</code> block</td>
+<td><code>defaults.gap</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">5</td>
+<td>The built-in default</td>
+<td><code>0.10</code></td>
+</tr>
+</tbody>
+</table>
+<p>Rank 2 sitting above rank 3 is the one to think about, and it is deliberate.
+Try both and read the startup lines:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="c1"># Widens only AAPL — the one symbol whose block asks for no gap of its own.</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="c1"># MSFT keeps 0.20 and TSLA keeps 0.50, because their blocks named a gap.</span>
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>pm-mm-bot<span class="w"> </span>--config<span class="w"> </span>mm_tech.yaml<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.30
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a><span class="c1"># Widens TSLA too, because this names it</span>
+<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a>pm-mm-bot<span class="w"> </span>--config<span class="w"> </span>mm_tech.yaml<span class="w"> </span>--symbol<span class="w"> </span>TSLA<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.30
+</code></pre></div>
+<p>A value someone deliberately wrote into a reviewed file for one symbol is
+not un-tuned by a throwaway gateway-wide flag. Overriding it is still one
+short command — you just have to say which symbol you mean.</p>
+<p>Confirm all three books are still served from <code>TRADER01</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>[GW_ADMIN|ADMIN]&gt; BOOK|SYM=AAPL
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>[GW_ADMIN|ADMIN]&gt; BOOK|SYM=MSFT
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>[GW_ADMIN|ADMIN]&gt; BOOK|SYM=TSLA
+</code></pre></div>
+<p>The spreads should now differ visibly between the three symbols — that is the
+per-symbol <code>gap</code> reaching the book.</p>
 <div class="admonition tip">
 <p class="admonition-title">A struggling symbol doesn't take the others down with it</p>
-<p>If one symbol's <code>--gap</code> were to violate its own <code>mm_max_spread_ticks</code>
+<p>If one symbol's <code>gap</code> were to violate its own <code>mm_max_spread_ticks</code>
 obligation, that symbol alone would be excluded from quoting at startup
 (logged as <code>[SYM] excluded from quoting: ...</code>) while the rest of
 <code>MM_TECH_01</code>'s symbols keep quoting normally — the whole process only
 exits if <em>every</em> symbol fails. Try it: add
 <code>mm_max_spread_ticks: 2</code> under one symbol's config, redeploy, and
-restart the bot with the same <code>--gap 0.10</code> to see it happen.</p>
+restart the bot to see it happen.</p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> one <code>pm-mm-bot</code> process is
-quoting all three symbols, its log lines are tagged per symbol, and all
-three books still show two-sided liquidity.</p>
+quoting all three symbols with three different spreads and sizes, its startup
+lines report each symbol's own settings, its log lines are tagged per symbol,
+and all three books show two-sided liquidity at visibly different spreads.</p>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>You now have:</p>
 <ul>
@@ -4503,8 +4696,11 @@ three books still show two-sided liquidity.</p>
 <li>Familiarity with <code>QLEGS</code> as the quote-leg inspection tool.</li>
 <li>A clear picture of what <code>pm-mm-bot</code> automates, and how to drive it from
   either the CLI or a committed config file.</li>
-<li>Experience running one <code>pm-mm-bot</code> process across multiple symbols with
-  <code>--symbols</code>/<code>--label</code>, and seeing per-symbol failure isolation in action.</li>
+<li>Experience running one <code>pm-mm-bot</code> process across multiple symbols, giving
+  each symbol its own spread, size and strategy, and seeing per-symbol
+  failure isolation in action.</li>
+<li>A working understanding of which setting wins when a config file and a
+  command line disagree.</li>
 </ul>
 <h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
 <p>If no market maker were quoting a symbol, what would happen to a marketable
@@ -4518,19 +4714,29 @@ what would it take for the verifier to catch a <code>null</code> bid/ask price i
 and can you think of a reason the two checks are allowed to diverge like
 this rather than the verifier being made strict enough to catch everything
 <code>pm-config-deploy</code> would?</p>
-<p>Exercise 8 put three symbols behind one gateway ID and one process. Given
-that the engine places no limit on how many symbols a <code>MARKET_MAKER</code>
-gateway may quote, what's actually driving the choice between "one process,
-many symbols" and "one process per symbol" in a real deployment? Think
-about failure blast radius, independent parameter tuning per symbol, and
-process/operational overhead — is there a symbol count where you'd expect
-to switch from one pattern to the other?</p>
+<p>Exercise 8 put three symbols behind one gateway ID and one process, each with
+its own spread and size. Given that the engine places no limit on how many
+symbols a <code>MARKET_MAKER</code> gateway may quote, and that per-symbol tuning no
+longer requires per-symbol processes, what's actually left driving the choice
+between "one process, many symbols" and "one process per symbol" in a real
+deployment? Think about failure blast radius, whether the scenario needs the
+symbols to be <em>independently attributable</em> to different market makers, and
+process/operational overhead — is there a symbol count where you'd expect to
+switch from one pattern to the other?</p>
+<p>The precedence table in Exercise 8 puts a per-symbol <em>file</em> value above a
+gateway-wide <em>CLI</em> flag, which reverses the usual "the command line always
+wins" rule. Argue the other side: what would break, or become surprising, if
+<code>--gap 0.30</code> did override every symbol's <code>gap</code> including the ones a reviewed
+file had deliberately tuned? Which behaviour would you rather explain to
+someone at 09:29 on a trading morning?</p>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../user-guide/090-market-maker/">Market Making</a></li>
 <li><a href="../../user-guide/100-mm-bot/">Market-Maker Bot (pm-mm-bot)</a></li>
+<li><a href="../../user-guide/100-mm-bot/#per-symbol-settings">Market-Maker Bot — Per-symbol settings</a></li>
 <li><a href="../../user-guide/100-mm-bot/#cli-reference">Market-Maker Bot CLI Reference</a></li>
 <li><a href="../../user-guide/100-mm-bot/#config-file">Market-Maker Bot — Config File</a></li>
+<li><a href="../../user-guide/100-mm-bot/#precedence">Market-Maker Bot — Precedence</a></li>
 <li><a href="../../user-guide/100-mm-bot/#per-symbol-failure-isolation">Market-Maker Bot — Per-symbol failure isolation</a></li>
 <li><a href="../../user-guide/055-alf-console/">ALF Console (pm-alf-console)</a></li>
 <li><a href="../../user-guide/900-app-alf-protocol/">ALF Protocol Reference</a></li>
