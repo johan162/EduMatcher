@@ -131,9 +131,11 @@ source in `pm-book`.
 ### 3.2 pm-viewer behaviour that is *not* copied
 
 Reading `pm-viewer` as a specification turned up four places where copying it
-literally would copy a defect. `pm-book` deliberately differs in each. None of
-them is fixed in `pm-viewer` by this plan; they are reported for a separate
-decision.
+literally would copy a defect. All four have since been fixed in `pm-viewer`
+itself (2026-09-27), together with a fifth found while doing so: the stats
+database seed read `daily_stats` integer *ticks* as display prices. The list
+stays here because `pm-book` must implement the corrected behaviour on its own
+data path; the pm-viewer fixes are the reference for it.
 
 1. **The TRADES panel never shows more than 5 rows.** It renders
    `snapshot.recent_trades`, and `OrderBook.snapshot()` truncates that to
@@ -1035,7 +1037,6 @@ paging cost is observed to matter (§7.2).
 - A user-guide chapter.
 - Showing the always-on `session` / `circuit_breaker` state (a HALTED badge,
   the session phase).
-- Fixing pm-viewer's §3.2 defects.
 
 ### 15.4 Open questions
 
