@@ -164,8 +164,25 @@ class _SymbolState:
     reissue_at: float | None = None
     last_quote_sent_at: float = 0.0
     last_qlegs_reconcile: float = 0.0
+    last_heartbeat: float = 0.0
     awaiting_cancel_for_reissue: bool = False
     pending_fills: list[dict[str, Any]] = field(default_factory=list)
+    # --- Tier-2 parameters. Resolved before construction (CLI scopes and/or
+    # the config file, see mm_bot/resolve.py) and fixed for the run, except
+    # `gap`, which startup may derive from the symbol's MM spread obligation
+    # when the operator did not choose one.
+    strategy: str = "symmetric"
+    qty: int = 500
+    max_position: int | None = None
+    drift_ticks: int = 3
+    tif: str = "DAY"
+    reissue_delay_sec: float = 0.2
+    heartbeat_interval_sec: float = 5.0
+    bootstrap_timeout_sec: float = 1.0
+    cancel_timeout_sec: float = 1.0
+    qlegs_reconcile_interval_sec: float = 15.0
+    initial_min: float | None = None
+    initial_max: float | None = None
     # Set once the symbol has failed a startup check (§5a.4 per-symbol
     # failure isolation) so the rest of the bot can skip it without
     # crashing the whole process. None while startup is still in progress
@@ -178,6 +195,41 @@ class _SymbolState:
     # bookkeeping -- the bot never queries the engine for it.
     net_position: int = 0
     avg_cost: float = 0.0
+
+
+#: Tier-2 constructor keys whose ``_SymbolState`` field has the same name.
+_DIRECT_PARAM_KEYS = (
+    "gap",
+    "gap_was_explicit",
+    "strategy",
+    "qty",
+    "max_position",
+    "drift_ticks",
+    "tif",
+    "heartbeat_interval_sec",
+    "bootstrap_timeout_sec",
+    "cancel_timeout_sec",
+    "qlegs_reconcile_interval_sec",
+    "initial_min",
+    "initial_max",
+)
+
+
+def _make_symbol_state(symbol: str, params: dict[str, Any], now: float) -> _SymbolState:
+    """Build one symbol's state from its resolved Tier-2 parameters."""
+    unknown = set(params) - set(_DIRECT_PARAM_KEYS) - {"reissue_delay_ms"}
+    if unknown:
+        raise ValueError(
+            f"[{symbol}] unknown parameter(s): {', '.join(sorted(unknown))}"
+        )
+    state = _SymbolState(
+        **{key: params[key] for key in _DIRECT_PARAM_KEYS if key in params}
+    )
+    # The wire/CLI unit is milliseconds; everything inside the bot is
+    # seconds, matching time.monotonic().
+    state.reissue_delay_sec = params["reissue_delay_ms"] / 1000.0
+    state.last_heartbeat = now
+    return state
 
 
 class MMBot:
@@ -215,41 +267,55 @@ class MMBot:
         engine_pub: str,
         verbose: bool,
         max_position: int | None = None,
+        overrides: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         resolved_symbols = _resolve_symbols_arg(symbol=symbol, symbols=symbols)
 
         self.gateway_id = gateway_id
         self.symbols = resolved_symbols
-        self.strategy = strategy
-        self._max_position = max_position
-        self.qty = qty
-        self.drift_ticks = drift_ticks
-        self.tif = tif
         self.verbose = verbose
 
-        self._reissue_delay_sec = reissue_delay_ms / 1000.0
-        self._heartbeat_interval_sec = heartbeat_interval_sec
         self._startup_session_timeout_sec = startup_session_timeout_sec
-        self._bootstrap_timeout_sec = bootstrap_timeout_sec
-        self._cancel_timeout_sec = cancel_timeout_sec
         self._shutdown_timeout_sec = shutdown_timeout_sec
-        self._qlegs_reconcile_interval_sec = qlegs_reconcile_interval_sec
-        self._initial_min = initial_min
-        self._initial_max = initial_max
         self._engine_pull = engine_pull
         self._engine_pub = engine_pub
 
         # Runtime state
         self._running = False
         self._session_state: str | None = None
-        self._last_heartbeat = time.monotonic()
 
-        # Per-symbol state, one _SymbolState per entry in self.symbols, each
-        # starting with this bot's shared gap/gap_was_explicit — a symbol's
-        # own MM-obligation-derived gap (resolved during startup, see
-        # _run_loop) can then diverge per symbol without affecting others.
+        # Every keyword argument above is the baseline applied to *every*
+        # symbol; `overrides[symbol]` replaces individual Tier-2 values for
+        # one symbol on top of it. A single-symbol bot never needs
+        # `overrides` at all, which is why the baseline is still a flat
+        # keyword list rather than a mandatory per-symbol structure.
+        baseline: dict[str, Any] = {
+            "gap": gap,
+            "gap_was_explicit": gap_was_explicit,
+            "strategy": strategy,
+            "qty": qty,
+            "max_position": max_position,
+            "drift_ticks": drift_ticks,
+            "tif": tif,
+            "reissue_delay_ms": reissue_delay_ms,
+            "heartbeat_interval_sec": heartbeat_interval_sec,
+            "bootstrap_timeout_sec": bootstrap_timeout_sec,
+            "cancel_timeout_sec": cancel_timeout_sec,
+            "qlegs_reconcile_interval_sec": qlegs_reconcile_interval_sec,
+            "initial_min": initial_min,
+            "initial_max": initial_max,
+        }
+        now = time.monotonic()
+        unknown_symbols = set(overrides or {}) - set(resolved_symbols)
+        if unknown_symbols:
+            raise ValueError(
+                "overrides names symbol(s) this bot does not quote: "
+                f"{', '.join(sorted(unknown_symbols))}"
+            )
         self._symbols_state: dict[str, _SymbolState] = {
-            sym: _SymbolState(gap=gap, gap_was_explicit=gap_was_explicit)
+            sym: _make_symbol_state(
+                sym, {**baseline, **(overrides or {}).get(sym, {})}, now
+            )
             for sym in resolved_symbols
         }
 
@@ -426,6 +492,114 @@ class MMBot:
     def _awaiting_cancel_for_reissue(self, value: bool) -> None:
         self._primary.awaiting_cancel_for_reissue = value
 
+    @property
+    def strategy(self) -> str:
+        return self._primary.strategy
+
+    @strategy.setter
+    def strategy(self, value: str) -> None:
+        self._primary.strategy = value
+
+    @property
+    def qty(self) -> int:
+        return self._primary.qty
+
+    @qty.setter
+    def qty(self, value: int) -> None:
+        self._primary.qty = value
+
+    @property
+    def drift_ticks(self) -> int:
+        return self._primary.drift_ticks
+
+    @drift_ticks.setter
+    def drift_ticks(self, value: int) -> None:
+        self._primary.drift_ticks = value
+
+    @property
+    def tif(self) -> str:
+        return self._primary.tif
+
+    @tif.setter
+    def tif(self, value: str) -> None:
+        self._primary.tif = value
+
+    @property
+    def _max_position(self) -> int | None:
+        return self._primary.max_position
+
+    @_max_position.setter
+    def _max_position(self, value: int | None) -> None:
+        self._primary.max_position = value
+
+    @property
+    def _reissue_delay_sec(self) -> float:
+        return self._primary.reissue_delay_sec
+
+    @_reissue_delay_sec.setter
+    def _reissue_delay_sec(self, value: float) -> None:
+        self._primary.reissue_delay_sec = value
+
+    @property
+    def _heartbeat_interval_sec(self) -> float:
+        return self._primary.heartbeat_interval_sec
+
+    @_heartbeat_interval_sec.setter
+    def _heartbeat_interval_sec(self, value: float) -> None:
+        self._primary.heartbeat_interval_sec = value
+
+    @property
+    def _bootstrap_timeout_sec(self) -> float:
+        return self._primary.bootstrap_timeout_sec
+
+    @_bootstrap_timeout_sec.setter
+    def _bootstrap_timeout_sec(self, value: float) -> None:
+        self._primary.bootstrap_timeout_sec = value
+
+    @property
+    def _cancel_timeout_sec(self) -> float:
+        return self._primary.cancel_timeout_sec
+
+    @_cancel_timeout_sec.setter
+    def _cancel_timeout_sec(self, value: float) -> None:
+        self._primary.cancel_timeout_sec = value
+
+    @property
+    def _qlegs_reconcile_interval_sec(self) -> float:
+        return self._primary.qlegs_reconcile_interval_sec
+
+    @_qlegs_reconcile_interval_sec.setter
+    def _qlegs_reconcile_interval_sec(self, value: float) -> None:
+        self._primary.qlegs_reconcile_interval_sec = value
+
+    @property
+    def _initial_min(self) -> float | None:
+        return self._primary.initial_min
+
+    @_initial_min.setter
+    def _initial_min(self, value: float | None) -> None:
+        self._primary.initial_min = value
+
+    @property
+    def _initial_max(self) -> float | None:
+        return self._primary.initial_max
+
+    @_initial_max.setter
+    def _initial_max(self, value: float | None) -> None:
+        self._primary.initial_max = value
+
+    @property
+    def _last_heartbeat(self) -> float:
+        return self._primary.last_heartbeat
+
+    @_last_heartbeat.setter
+    def _last_heartbeat(self, value: float) -> None:
+        # Kept as a whole-bot setter: tests and the startup path reset "the"
+        # heartbeat clock, and with one clock per symbol that means all of
+        # them.
+        for st in self._symbols_state.values():
+            st.last_heartbeat = value
+
     # Kept as a real instance attribute (not proxied) intentionally: the
     # pre-ack fill buffer historically held fills for the *one* symbol
     # before its first quote.ack, buffered before the bot even knows which
@@ -501,6 +675,23 @@ class MMBot:
             for sym, st in self._symbols_state.items()
             if st.startup_failed_reason is None
         ]
+
+    def _poll_timeout_ms(self, active: list[str]) -> int:
+        """How long the event loop may block before running the timers.
+
+        Half the shortest timing interval of any active symbol, so the most
+        impatient symbol's reissue/heartbeat still fires promptly, with a
+        50 ms floor — ``reissue_delay_sec`` may legitimately be 0, and
+        without the floor that would spin.
+        """
+        shortest_sec = min(
+            min(
+                self._symbols_state[sym].heartbeat_interval_sec,
+                self._symbols_state[sym].reissue_delay_sec,
+            )
+            for sym in active
+        )
+        return max(50, int(shortest_sec * 1000 / 2))
 
     def _setup_sockets(self) -> None:
         self._push_sock = make_pusher(self._engine_pull)
@@ -629,7 +820,7 @@ class MMBot:
 
         poller = zmq.Poller()
         poller.register(self._sub_sock, zmq.POLLIN)
-        deadline = time.monotonic() + self._bootstrap_timeout_sec
+        deadline = time.monotonic() + self._symbols_state[symbol].bootstrap_timeout_sec
 
         while time.monotonic() < deadline:
             remaining_ms = max(1, int((deadline - time.monotonic()) * 1000))
@@ -653,7 +844,7 @@ class MMBot:
 
         poller = zmq.Poller()
         poller.register(self._sub_sock, zmq.POLLIN)
-        deadline = time.monotonic() + self._bootstrap_timeout_sec
+        deadline = time.monotonic() + self._symbols_state[symbol].bootstrap_timeout_sec
 
         while time.monotonic() < deadline:
             remaining_ms = max(1, int((deadline - time.monotonic()) * 1000))
@@ -742,8 +933,8 @@ class MMBot:
                         return True
 
         # 3. Random bootstrap range
-        if self._initial_min is not None and self._initial_max is not None:
-            price = random.uniform(self._initial_min, self._initial_max)
+        if st.initial_min is not None and st.initial_max is not None:
+            price = random.uniform(st.initial_min, st.initial_max)
             # Round to nearest tick
             price = round(
                 round(price / st.tick_size) * st.tick_size,
@@ -789,15 +980,12 @@ class MMBot:
 
         prior_quoted_mid = st.quoted_at_mid
         bid, ask = st.pricer.compute_prices()
-        if (
-            self._max_position is not None
-            and abs(st.net_position) >= self._max_position
-        ):
+        if st.max_position is not None and abs(st.net_position) >= st.max_position:
             log.debug(
                 "[%s] inventory skew saturated: net_position=%d max_position=%d bid=%s ask=%s",
                 symbol,
                 st.net_position,
-                self._max_position,
+                st.max_position,
                 bid,
                 ask,
             )
@@ -819,9 +1007,9 @@ class MMBot:
             "tick_decimals": get_tick_decimals(symbol),
             "bid_price_ticks": to_ticks(bid, symbol),
             "ask_price_ticks": to_ticks(ask, symbol),
-            "bid_qty": self.qty,
-            "ask_qty": self.qty,
-            "tif": self.tif,
+            "bid_qty": st.qty,
+            "ask_qty": st.qty,
+            "tif": st.tif,
             # Client-supplied correlation id. The engine echoes it on
             # quote.ack, stamps it on both leg orders, and carries it on
             # quote.status — it only mints one of its own when the client
@@ -866,7 +1054,7 @@ class MMBot:
                 return
             self._cancel_quote(symbol)
             st.awaiting_cancel_for_reissue = True
-            st.reissue_at = time.monotonic() + self._cancel_timeout_sec
+            st.reissue_at = time.monotonic() + st.cancel_timeout_sec
             self._set_state(symbol, BotState.REPRICING)
             return
         self._send_quote(symbol)
@@ -966,7 +1154,7 @@ class MMBot:
             reason = str(payload.get("reason", "unknown"))
             self._log(f"[{symbol}] quote REJECTED: {reason}")
             # Retry after delay
-            st.reissue_at = time.monotonic() + self._reissue_delay_sec
+            st.reissue_at = time.monotonic() + st.reissue_delay_sec
 
     def _handle_quote_status(self, payload: dict[str, Any]) -> None:
         """Handle quote.status — detect INACTIVE/CANCELLED.
@@ -991,7 +1179,7 @@ class MMBot:
 
         if status in ("INACTIVE_BID_FILLED", "INACTIVE_ASK_FILLED"):
             # Engine inactivated the quote; schedule fresh reissue.
-            st.reissue_at = time.monotonic() + self._reissue_delay_sec
+            st.reissue_at = time.monotonic() + st.reissue_delay_sec
             self._clear_quote_state(symbol)
             if st.awaiting_cancel_for_reissue:
                 self._debug(
@@ -1067,7 +1255,7 @@ class MMBot:
         # fill-delay would lose the timeout if the cancel ACK never arrives,
         # leaving the bot stuck in REPRICING with no recovery timer.
         if not st.awaiting_cancel_for_reissue:
-            st.reissue_at = time.monotonic() + self._reissue_delay_sec
+            st.reissue_at = time.monotonic() + st.reissue_delay_sec
 
     def _symbol_for_order_id(self, order_id: str) -> str | None:
         for sym, st in self._symbols_state.items():
@@ -1240,15 +1428,15 @@ class MMBot:
         # Require a full heartbeat interval since the last quote send so we do
         # not pre-empt an ack that is legitimately still in flight.
         #
-        # The heartbeat clock itself stays gateway-wide (a single
-        # `_last_heartbeat`), matching the original single-symbol cadence;
-        # only the "is there a live quote" check below is per symbol.
-        if now - self._last_heartbeat >= self._heartbeat_interval_sec:
+        # The clock is per symbol, so a symbol configured with a short
+        # heartbeat recovers at its own cadence regardless of what the others
+        # are set to.
+        if now - st.last_heartbeat >= st.heartbeat_interval_sec:
             if (
                 st.state in (BotState.QUOTING, BotState.REISSUING, BotState.REPRICING)
                 and st.quote_id is None
                 and st.reissue_at is None
-                and now - st.last_quote_sent_at >= self._heartbeat_interval_sec
+                and now - st.last_quote_sent_at >= st.heartbeat_interval_sec
                 and self._session_state in _QUOTING_SESSIONS
                 and st.pricer
                 and st.pricer.mid_price is not None
@@ -1264,20 +1452,16 @@ class MMBot:
                 )
                 self._dbg_count("heartbeat_reissues")
                 self._cancel_and_reissue(symbol)
+            st.last_heartbeat = now
 
         # Periodic QLEGS reconciliation — request only (non-blocking). The
         # reply is handled in _dispatch so steady-state fills/status events
         # are never dropped while waiting for the snapshot.
-        if now - st.last_qlegs_reconcile >= self._qlegs_reconcile_interval_sec:
+        if now - st.last_qlegs_reconcile >= st.qlegs_reconcile_interval_sec:
             st.last_qlegs_reconcile = now
             if st.state == BotState.QUOTING and st.quote_id is not None:
                 self._send(make_quote_legs_request_msg(self.gateway_id, symbol, "ALL"))
                 self._dbg_count("qlegs_reconcile_requests")
-
-        if symbol == self._primary_symbol and (
-            now - self._last_heartbeat >= self._heartbeat_interval_sec
-        ):
-            self._last_heartbeat = now
 
     def _reconcile_qlegs(self, payload: dict[str, Any]) -> None:
         """Reconcile a QLEGS snapshot against local quote state.
@@ -1356,10 +1540,19 @@ class MMBot:
     def run(self) -> int:
         """Run the bot event loop. Returns exit code."""
         self._log(
-            f"starting: symbols={','.join(self.symbols)} strategy={self.strategy} "
-            f"gap={self.gap} qty={self.qty} "
-            f"tif={self.tif} drift_ticks={self.drift_ticks}"
+            f"starting: gateway={self.gateway_id} symbols={','.join(self.symbols)}"
         )
+        for sym in self.symbols:
+            st = self._symbols_state[sym]
+            self._log(
+                f"[{sym}] strategy={st.strategy} gap={st.gap} qty={st.qty} "
+                f"tif={st.tif} drift_ticks={st.drift_ticks}"
+                + (
+                    f" max_position={st.max_position}"
+                    if st.max_position is not None
+                    else ""
+                )
+            )
         self._setup_sockets()
         self._running = True
 
@@ -1423,20 +1616,16 @@ class MMBot:
             return 1
 
         self._log(f"running symbols={active} session={self._session_state}")
-        self._last_heartbeat = time.monotonic()
+        now = time.monotonic()
         for symbol in active:
-            self._symbols_state[symbol].last_qlegs_reconcile = time.monotonic()
+            self._symbols_state[symbol].last_qlegs_reconcile = now
+            self._symbols_state[symbol].last_heartbeat = now
 
         # Main event loop
         assert self._sub_sock is not None
         poller = zmq.Poller()
         poller.register(self._sub_sock, zmq.POLLIN)
-        # Poll at half the shortest timing interval so the reissue/heartbeat
-        # timers fire promptly, with a 50 ms floor to avoid a busy loop.
-        shortest_interval_sec = min(
-            self._heartbeat_interval_sec, self._reissue_delay_sec
-        )
-        poll_timeout_ms = max(50, int(shortest_interval_sec * 1000 / 2))
+        poll_timeout_ms = self._poll_timeout_ms(active)
 
         while self._running:
             socks = dict(poller.poll(timeout=poll_timeout_ms))
@@ -1478,11 +1667,11 @@ class MMBot:
         # Initialize pricing strategy
         try:
             st.pricer = create_strategy(
-                self.strategy,
+                st.strategy,
                 tick_size=st.tick_size,
                 gap=st.gap,
-                drift_ticks=self.drift_ticks,
-                max_position=self._max_position,
+                drift_ticks=st.drift_ticks,
+                max_position=st.max_position,
             )
         except ValueError as exc:
             st.startup_failed_reason = f"invalid strategy/gap/tick configuration: {exc}"

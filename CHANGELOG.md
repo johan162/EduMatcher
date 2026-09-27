@@ -1,3 +1,26 @@
+## ## [v0.42.1] - 2026-09-27
+
+### 📋 Summary
+This patch release primarily enhances the multi-symbol functionality of the `pm-mm-bot` by improving option handline and making it easier to specify a complex mm bot setting by introducing a new config file for settings.
+
+### ✨ Additions
+- Added per-symbol settings to `pm-mm-bot`: `--symbol` can now be repeated, and every spread, size, strategy and timing flag after it applies to that symbol alone
+- Added a structured `pm-mm-bot` config-file format with gateway-wide settings, shared defaults, and per-symbol overrides, so a whole market-making desk fits in one reviewable file
+- Added worked `pm-mm-bot` config examples under `docs/examples/mm-bot/`
+
+### 🚀 Improvements
+- Improved `pm-mm-bot` startup logging to report each symbol's resolved settings on its own line
+- Improved `pm-mm-bot` config-file errors with "did you mean" suggestions and hints when a setting is in the wrong block
+- The layout for `pm-opctl-cli list` is improved
+
+### 📚 Documentation
+- Updated the market-maker bot guide with the per-symbol command-line grammar, the new config-file format, and a full settings reference
+- Added new section in examples of configs for mm-bot
+
+### 🛠 Internal
+- Fixed typos in main README
+
+
 ## [v0.42.0] - 2026-09-26
 
 Release Type: major

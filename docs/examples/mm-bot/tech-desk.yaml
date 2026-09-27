@@ -1,0 +1,59 @@
+# pm-mm-bot configuration — schema version 1
+#
+# One process, one gateway ID (MM_TECH_01), three symbols, each quoting on
+# its own terms. Run it with:
+#
+#     pm-mm-bot --config docs/examples/mm-bot/tech-desk.yaml
+#
+version: 1
+
+# Gateway-wide settings. Nothing here can vary per symbol: there is one
+# gateway identity and one pair of sockets for the whole process.
+gateway:
+  label: TECH # gateway id becomes MM_TECH_01
+  id_suffix: "01" # quote it, or YAML reads 01 as the number 1
+  engine_pull: tcp://127.0.0.1:5555
+  engine_pub: tcp://127.0.0.1:5556
+  startup_session_timeout_sec: 5.0
+  shutdown_timeout_sec: 2.0
+
+logging:
+  level: INFO # CRITICAL | ERROR | WARNING | INFO | DEBUG
+  target: server # server | stdout | file
+  file: null # required when target: file
+  failover_timeout_sec: 30
+
+# Applied to every symbol below unless that symbol overrides the key.
+defaults:
+  strategy: symmetric
+  gap: 0.10
+  qty: 500
+  drift_ticks: 3
+  reissue_delay_ms: 200
+  tif: DAY
+  heartbeat_interval_sec: 5.0
+  bootstrap_timeout_sec: 1.0
+  cancel_timeout_sec: 1.0
+  qlegs_reconcile_interval_sec: 15.0
+
+# The symbol universe this bot quotes. Mapping order is the order symbols
+# are started in.
+symbols:
+  # A liquid name, happy with every default.
+  AAPL: {}
+
+  # Wider and smaller than the house default.
+  MSFT:
+    gap: 0.20
+    qty: 200
+
+  # A volatile name: quote wide, in small size, skewing quotes to work
+  # inventory back toward flat, and reprice less twitchily.
+  TSLA:
+    gap: 0.50
+    qty: 100
+    strategy: inventory_skew
+    max_position: 5000
+    drift_ticks: 5
+    initial_min: 180
+    initial_max: 220

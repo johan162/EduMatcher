@@ -1,4 +1,11 @@
-"""Entry point for pm-mm-bot — autonomous market-maker bot."""
+"""Entry point for pm-mm-bot — autonomous market-maker bot.
+
+The command line is scoped by ``--symbol``: flags before the first one are
+gateway-wide defaults, flags after one apply to that symbol alone. A
+``--config`` file expresses the same thing without a long command line. See
+docs/user-guide/100-mm-bot.md and docs-design/EduMatcher-mm-bot-multi.md for
+the full grammar.
+"""
 
 from __future__ import annotations
 
@@ -6,6 +13,7 @@ import argparse
 import logging
 import sys
 from pathlib import Path
+from typing import Any
 
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
@@ -13,7 +21,15 @@ from edumatcher.log_srv.config import (
     resolve_host_default,
 )
 from edumatcher.logclient.discovery import resolve_handler
-from edumatcher.mm_bot.config import load_config_file
+from edumatcher.mm_bot.cli_scope import ScopeError, split_argv_scopes
+from edumatcher.mm_bot.config import EMPTY_FILE_CONFIG, FileConfig, load_bot_config
+from edumatcher.mm_bot.params import (
+    GATEWAY_DEFAULTS,
+    GATEWAY_KEYS,
+    LOGGING_KEY_TO_DEST,
+    TIER2_KEYS,
+)
+from edumatcher.mm_bot.resolve import NoSymbolsError, resolve_symbol_params
 
 log = logging.getLogger(__name__)
 
@@ -22,6 +38,14 @@ _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the parser used for both the global scope and each symbol scope.
+
+    Nearly every default is ``None`` rather than the documented value: that
+    sentinel is what lets the merge layer tell "flag not given" from "given
+    the same value as the default", which in turn is what makes
+    ``gap_was_explicit`` exact. Built-in defaults are applied later, by
+    ``mm_bot.params.TIER2_DEFAULTS``/``GATEWAY_DEFAULTS``.
+    """
     parser = argparse.ArgumentParser(
         description="EduMatcher autonomous market-maker bot"
     )
@@ -32,25 +56,26 @@ def build_parser() -> argparse.ArgumentParser:
         "--config",
         metavar="PATH",
         help=(
-            "YAML file supplying any of these flags by long name "
-            "(dashes as underscores); an explicit CLI flag overrides the "
+            "YAML file supplying gateway-wide settings, shared defaults, and "
+            "per-symbol overrides; a CLI flag in the same scope overrides the "
             "same key from the file"
         ),
     )
     parser.add_argument(
         "--symbol",
-        help="Instrument to make a market in (e.g. AAPL) — required unless "
-        "--symbols or --config supplies one or more symbols",
+        help=(
+            "Instrument to make a market in (e.g. AAPL). May be repeated: "
+            "each per-symbol flag after it applies to that symbol until the "
+            "next --symbol"
+        ),
     )
     parser.add_argument(
         "--symbols",
-        default="",
+        default=None,
         help=(
-            "Comma-separated symbols to make markets in from one process "
-            "(e.g. AAPL,MSFT) — mutually exclusive with --symbol; each "
-            "symbol runs through the same startup/failure-isolation checks "
-            "independently (see docs-design/EduMatcher-MM-Bot-review.md "
-            "§5a)"
+            "Comma-separated symbols (e.g. AAPL,MSFT) that all share the same "
+            "settings — shorthand for repeating --symbol with no per-symbol "
+            "flags; mutually exclusive with --symbol"
         ),
     )
     parser.add_argument(
@@ -58,19 +83,19 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Override the gateway-ID symbol segment (default: the single "
-            "--symbol, or SYM1_SYM2_... derived from --symbols) — mainly "
+            "symbol, or SYM1_SYM2_... derived from every symbol) — mainly "
             "useful to keep a multi-symbol gateway ID short"
         ),
     )
     parser.add_argument(
         "--strategy",
-        default="symmetric",
+        default=None,
         help="Pricing strategy (default: symmetric)",
     )
     parser.add_argument(
         "--gap",
         type=float,
-        default=0.10,
+        default=None,
         help="Total spread in price units (default: 0.10)",
     )
     parser.add_argument(
@@ -84,65 +109,65 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--qty", type=int, default=500, help="Quote size on each leg (default: 500)"
+        "--qty", type=int, default=None, help="Quote size on each leg (default: 500)"
     )
     parser.add_argument(
         "--id-suffix",
-        default="01",
+        default=None,
         help="Running number for gateway ID (default: 01)",
     )
     parser.add_argument(
         "--drift-ticks",
         type=int,
-        default=3,
+        default=None,
         help="Reprice when mid moves by this many ticks (default: 3)",
     )
     parser.add_argument(
         "--reissue-delay-ms",
         type=int,
-        default=200,
+        default=None,
         help="Milliseconds to wait after fill before re-issuing (default: 200)",
     )
     parser.add_argument(
         "--tif",
         choices=["DAY", "GTC"],
-        default="DAY",
+        default=None,
         help="Time-in-force for quote legs (default: DAY)",
     )
     parser.add_argument(
         "--heartbeat-interval-sec",
         type=float,
-        default=5.0,
+        default=None,
         help="Periodic live-quote check interval (default: 5.0)",
     )
     parser.add_argument(
         "--startup-session-timeout-sec",
         type=float,
-        default=5.0,
+        default=None,
         help="Max wait for first session.state event (default: 5.0)",
     )
     parser.add_argument(
         "--bootstrap-timeout-sec",
         type=float,
-        default=1.0,
+        default=None,
         help="Max wait for QBOOT reply (default: 1.0)",
     )
     parser.add_argument(
         "--cancel-timeout-sec",
         type=float,
-        default=1.0,
+        default=None,
         help="Max wait for cancel confirmation (default: 1.0)",
     )
     parser.add_argument(
         "--shutdown-timeout-sec",
         type=float,
-        default=2.0,
+        default=None,
         help="Max wait for cancel on shutdown (default: 2.0)",
     )
     parser.add_argument(
         "--qlegs-reconcile-interval-sec",
         type=float,
-        default=15.0,
+        default=None,
         help="Interval for QLEGS snapshot reconciliation (default: 15.0)",
     )
     parser.add_argument(
@@ -159,13 +184,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--engine-pull",
-        default="tcp://127.0.0.1:5555",
-        help="Engine PUSH/PULL address",
+        default=None,
+        help="Engine PUSH/PULL address (default: tcp://127.0.0.1:5555)",
     )
     parser.add_argument(
         "--engine-pub",
-        default="tcp://127.0.0.1:5556",
-        help="Engine PUB address",
+        default=None,
+        help="Engine PUB address (default: tcp://127.0.0.1:5556)",
     )
     parser.add_argument(
         "--log-level",
@@ -252,152 +277,194 @@ def _configure_logging(args: argparse.Namespace) -> int:
     return int(level)
 
 
+def _given(namespace: argparse.Namespace, keys: tuple[str, ...]) -> dict[str, Any]:
+    """The subset of ``keys`` the operator actually supplied in this scope."""
+    return {
+        key: getattr(namespace, key)
+        for key in keys
+        if getattr(namespace, key, None) is not None
+    }
+
+
+def _parse_symbol_scopes(
+    parser: argparse.ArgumentParser,
+    scopes: list[tuple[str, list[str]]],
+) -> tuple[list[tuple[str, dict[str, Any]]], dict[str, Any]]:
+    """Parse each ``--symbol`` scope into that symbol's Tier-2 overrides.
+
+    A gateway-wide flag written inside a symbol scope is hoisted to the
+    global scope rather than rejected — that ordering is what most existing
+    single-symbol command lines already use, and there is only one gateway
+    for it to apply to. It is logged so nobody is left believing it was
+    scoped to the symbol it followed.
+    """
+    symbol_cli: list[tuple[str, dict[str, Any]]] = []
+    hoisted: dict[str, Any] = {}
+    gateway_dests = (*GATEWAY_KEYS, *LOGGING_KEY_TO_DEST.values())
+    for symbol, scope_argv in scopes:
+        scoped = parser.parse_args(scope_argv)
+        if scoped.symbols is not None or scoped.config is not None:
+            parser.error(
+                "--symbols and --config are gateway-wide and cannot follow "
+                f"--symbol {symbol}"
+            )
+        for key, value in _given(scoped, gateway_dests).items():
+            log.warning(
+                "%s is gateway-wide; the value given after --symbol %s "
+                "applies to every symbol",
+                key,
+                symbol,
+            )
+            hoisted[key] = value
+        # Verbosity is hoisted silently: nobody expects -v to be per-symbol,
+        # so warning about it would be pure noise.
+        hoisted["verbose"] = max(hoisted.get("verbose", 0), scoped.verbose)
+        hoisted["quiet"] = hoisted.get("quiet", False) or scoped.quiet
+        symbol_cli.append((symbol, _given(scoped, TIER2_KEYS)))
+    return symbol_cli, hoisted
+
+
+def _resolve_gateway_settings(
+    args: argparse.Namespace,
+    hoisted: dict[str, Any],
+    file_config: FileConfig,
+) -> None:
+    """Write resolved Tier-1 settings back onto ``args``.
+
+    Gateway-wide keys use the simple precedence — an explicit flag, then the
+    config file's ``gateway:``/``logging:`` block, then the built-in default
+    — because there is no per-symbol tier for them to compete with.
+    """
+    for key, default in GATEWAY_DEFAULTS.items():
+        value = getattr(args, key, None)
+        if value is None:
+            value = hoisted.get(key)
+        if value is None:
+            value = file_config.gateway.get(key)
+        if value is None:
+            value = default
+        setattr(args, key, value)
+
+    for yaml_key, dest in LOGGING_KEY_TO_DEST.items():
+        if getattr(args, dest, None) is None:
+            setattr(args, dest, hoisted.get(dest, file_config.logging.get(yaml_key)))
+
+    args.verbose = max(args.verbose, hoisted.get("verbose", 0))
+    args.quiet = args.quiet or hoisted.get("quiet", False)
+
+
+def _derive_gateway_id(args: argparse.Namespace, symbols: list[str]) -> str:
+    label = args.label if args.label else "_".join(symbols)
+    return f"MM_{label}_{args.id_suffix}"
+
+
 def main(argv: list[str] | None = None) -> None:
     """Main entry point for pm-mm-bot."""
     cli_args = argv if argv is not None else sys.argv[1:]
     parser = build_parser()
 
-    # First pass: only to find --config, before applying its values as
-    # parser defaults below. A bare parse (no config-file defaults in play
-    # yet) is enough for this — argparse ignores --symbol being unset here.
-    config_path = parser.parse_known_args(cli_args)[0].config
-    file_values: dict[str, object] = {}
-    if config_path is not None:
+    try:
+        scopes = split_argv_scopes(cli_args)
+    except ScopeError as exc:
+        parser.error(str(exc))
+
+    args = parser.parse_args(scopes.global_argv)
+
+    file_config = EMPTY_FILE_CONFIG
+    if args.config is not None:
         try:
-            file_values = load_config_file(Path(config_path))
+            file_config = load_bot_config(Path(args.config))
         except ValueError as exc:
             log.error("invalid config file: %s", exc)
             raise SystemExit(1)
-        parser.set_defaults(**file_values)
 
-    # Detect both the "--gap 0.10" and "--gap=0.10" forms. A gap pinned by
-    # the config file counts the same as one pinned on the CLI — either way
-    # the user (not the built-in 0.10 default) chose it, so the MM-obligation
-    # auto-derivation in bot.py must not override it.
-    gap_was_explicit = "gap" in file_values or any(
-        arg == "--gap" or arg.startswith("--gap=") for arg in cli_args
-    )
-
-    args = parser.parse_args(argv)
-    if args.symbol and args.symbols:
+    if scopes.symbol_argv and args.symbols:
         parser.error("--symbol and --symbols are mutually exclusive")
-    if not args.symbol and not args.symbols:
-        parser.error("--symbol or --symbols is required (directly or via --config)")
 
-    log_level = _configure_logging(args)
-    log.info("starting pm-mm-bot with log level %s", logging.getLevelName(log_level))
+    symbol_cli, hoisted = _parse_symbol_scopes(parser, scopes.symbol_argv)
+    _resolve_gateway_settings(args, hoisted, file_config)
 
-    from edumatcher.mm_bot.pricer import QuotePricer
+    extra_symbols = (
+        [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
+        if args.symbols
+        else []
+    )
+    if args.symbols and not extra_symbols:
+        parser.error("--symbols must contain at least one non-empty symbol")
 
-    # Validate bootstrap range
     try:
-        QuotePricer.validate_bootstrap_range(args.initial_min, args.initial_max)
+        resolved = resolve_symbol_params(
+            file_config,
+            _given(args, TIER2_KEYS),
+            symbol_cli,
+            extra_symbols,
+        )
+    except NoSymbolsError as exc:
+        parser.error(str(exc))
     except ValueError as exc:
-        log.error("invalid bootstrap range: %s", exc)
-        raise
+        log.error("invalid configuration: %s", exc)
+        raise SystemExit(1)
 
-    # Validate positive timeouts and intervals
-    positive_checks = [
+    for flag, value in (
         ("--startup-session-timeout-sec", args.startup_session_timeout_sec),
-        ("--bootstrap-timeout-sec", args.bootstrap_timeout_sec),
-        ("--cancel-timeout-sec", args.cancel_timeout_sec),
         ("--shutdown-timeout-sec", args.shutdown_timeout_sec),
-        ("--heartbeat-interval-sec", args.heartbeat_interval_sec),
-        ("--qlegs-reconcile-interval-sec", args.qlegs_reconcile_interval_sec),
-    ]
-    for flag, value in positive_checks:
+    ):
         if value <= 0:
             log.error(
                 "invalid startup value: %s must be positive (got %s)", flag, value
             )
             raise SystemExit(1)
-    if args.reissue_delay_ms < 0:
-        log.error(
-            "invalid startup value: --reissue-delay-ms must be non-negative (got %s)",
-            args.reissue_delay_ms,
-        )
-        raise SystemExit(1)
 
-    if args.strategy == "inventory_skew":
-        if args.max_position is None:
-            log.error(
-                "invalid startup value: --max-position is required when "
-                "--strategy inventory_skew is selected"
-            )
-            raise SystemExit(1)
-        if args.max_position <= 0:
-            log.error(
-                "invalid startup value: --max-position must be positive " "(got %s)",
-                args.max_position,
-            )
-            raise SystemExit(1)
-    elif args.max_position is not None:
-        log.error(
-            "invalid startup value: --max-position is only meaningful with "
-            "--strategy inventory_skew (got --strategy %s)",
-            args.strategy,
-        )
-        raise SystemExit(1)
+    log_level = _configure_logging(args)
+    log.info("starting pm-mm-bot with log level %s", logging.getLevelName(log_level))
 
-    symbol_list = (
-        [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
-        if args.symbols
-        else [args.symbol.upper()]
-    )
-    if not symbol_list:
-        parser.error("--symbols must contain at least one non-empty symbol")
-
-    # The gateway ID's symbol segment: a single --symbol keeps today's
-    # MM_<SYMBOL>_<suffix> form unchanged; multiple --symbols derives
-    # SYM1_SYM2_..._<suffix> unless --label shortens it explicitly.
-    label = args.label if args.label else "_".join(symbol_list)
-    gateway_id = f"MM_{label}_{args.id_suffix}"
+    gateway_id = _derive_gateway_id(args, resolved.symbols)
     bot_verbose = bool(args.verbose >= 1 or log_level <= logging.DEBUG)
     log.info(
-        "resolved mm_bot config gateway_id=%s symbols=%s strategy=%s gap=%s qty=%s "
-        "tif=%s",
+        "resolved mm_bot config gateway_id=%s symbols=%s",
         gateway_id,
-        ",".join(symbol_list),
-        args.strategy,
-        args.gap,
-        args.qty,
-        args.tif,
+        ",".join(resolved.symbols),
     )
-    log.debug(
-        "timeouts heartbeat=%s startup_session=%s bootstrap=%s cancel=%s shutdown=%s qlegs=%s",
-        args.heartbeat_interval_sec,
-        args.startup_session_timeout_sec,
-        args.bootstrap_timeout_sec,
-        args.cancel_timeout_sec,
-        args.shutdown_timeout_sec,
-        args.qlegs_reconcile_interval_sec,
-    )
+    for symbol in resolved.symbols:
+        params = resolved.params[symbol]
+        log.info(
+            "[%s] strategy=%s gap=%s qty=%s tif=%s drift_ticks=%s max_position=%s",
+            symbol,
+            params["strategy"],
+            params["gap"],
+            params["qty"],
+            params["tif"],
+            params["drift_ticks"],
+            params["max_position"],
+        )
 
     from edumatcher.mm_bot.bot import MMBot
 
+    primary = resolved.primary
     try:
         bot = MMBot(
             gateway_id=gateway_id,
-            symbols=symbol_list,
-            strategy=args.strategy,
-            gap=args.gap,
-            gap_was_explicit=gap_was_explicit,
-            max_position=args.max_position,
-            qty=args.qty,
-            drift_ticks=args.drift_ticks,
-            reissue_delay_ms=args.reissue_delay_ms,
-            tif=args.tif,
-            heartbeat_interval_sec=args.heartbeat_interval_sec,
+            symbols=resolved.symbols,
+            strategy=primary["strategy"],
+            gap=primary["gap"],
+            gap_was_explicit=primary["gap_was_explicit"],
+            max_position=primary["max_position"],
+            qty=primary["qty"],
+            drift_ticks=primary["drift_ticks"],
+            reissue_delay_ms=primary["reissue_delay_ms"],
+            tif=primary["tif"],
+            heartbeat_interval_sec=primary["heartbeat_interval_sec"],
             startup_session_timeout_sec=args.startup_session_timeout_sec,
-            bootstrap_timeout_sec=args.bootstrap_timeout_sec,
-            cancel_timeout_sec=args.cancel_timeout_sec,
+            bootstrap_timeout_sec=primary["bootstrap_timeout_sec"],
+            cancel_timeout_sec=primary["cancel_timeout_sec"],
             shutdown_timeout_sec=args.shutdown_timeout_sec,
-            qlegs_reconcile_interval_sec=args.qlegs_reconcile_interval_sec,
-            initial_min=args.initial_min,
-            initial_max=args.initial_max,
+            qlegs_reconcile_interval_sec=primary["qlegs_reconcile_interval_sec"],
+            initial_min=primary["initial_min"],
+            initial_max=primary["initial_max"],
             engine_pull=args.engine_pull,
             engine_pub=args.engine_pub,
             verbose=bot_verbose,
+            overrides=resolved.params,
         )
     except Exception as exc:
         log.error("failed to create mm_bot runtime: %s", exc)
