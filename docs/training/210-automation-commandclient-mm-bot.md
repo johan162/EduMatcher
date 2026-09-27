@@ -6,8 +6,6 @@ Use EduMatcher's programmatic command client for repeatable admin workflows and
 practice advanced `pm-mm-bot` runtime tuning for startup and reconciliation.
 
  
-
-
 !!! abstract "Pre-reading in the User Guide"
     - [Exchange Commands](../user-guide/160-exchange-commands.md)
     - [Market-Maker Bot](../user-guide/100-mm-bot.md)
@@ -139,7 +137,8 @@ and per-symbol lines add a `[<symbol>]` tag. Representative startup lines
 (after the usual timestamp/level/logger prefix):
 
 ```
-[MM_AAPL_01] starting: symbols=AAPL strategy=... gap=0.1 qty=500 ...
+[MM_AAPL_01] starting: gateway=MM_AAPL_01 symbols=AAPL
+[MM_AAPL_01] [AAPL] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
 [MM_AAPL_01] [AAPL] bootstrap from random range: 100.37
 [MM_AAPL_01] running symbols=['AAPL'] session=CONTINUOUS
 ```
@@ -152,19 +151,23 @@ quote is live.
 
 :material-checkbox-blank-outline: **Checkpoint:** you can identify and tune the timeout knobs that control startup behavior.
 
-!!! note "These knobs apply per symbol on a --symbols bot"
-    Every flag in this exercise — `--bootstrap-timeout-sec`,
-    `--qlegs-reconcile-interval-sec`, `--startup-session-timeout-sec`, and the
-    gap/spread validation from [02 — Setting Up Market-Maker
-    Liquidity](020-setting-up-MM-bots.md) — is still a single process-wide
-    value even when the bot covers several symbols with `--symbols`, but the
-    QBOOT/QLEGS *requests themselves*, and the startup/gap checks they
-    inform, run once per symbol. A `pm-mm-bot --symbols AAPL,MSFT,TSLA -v`
-    run shows three independent `[AAPL]`/`[MSFT]`/`[TSLA]`-tagged QBOOT and
-    QLEGS exchanges in the startup log, not one. If you tune
-    `--bootstrap-timeout-sec` down aggressively for a fast classroom demo,
-    remember it is one shared timeout budget applied to *each* symbol's
-    QBOOT/QLEGS round trip in turn, not split across them.
+!!! note "Most of these knobs can differ per symbol"
+    `--bootstrap-timeout-sec` and `--qlegs-reconcile-interval-sec` are
+    per-symbol settings: on a multi-symbol bot each symbol may be given its
+    own, either by scoping the flag after that symbol's `--symbol` or from
+    its block in a config file (see [02 — Setting Up Market-Maker
+    Liquidity](020-setting-up-MM-bots.md), Exercise 8).
+    `--startup-session-timeout-sec` is the exception and stays process-wide,
+    because the session phase it waits for is exchange-wide and there is
+    nothing per-symbol to express.
+
+    The QBOOT/QLEGS *requests themselves*, and the startup/gap checks they
+    inform, run once per symbol regardless. A
+    `pm-mm-bot --symbols AAPL,MSFT,TSLA -v` run shows three independent
+    `[AAPL]`/`[MSFT]`/`[TSLA]`-tagged QBOOT and QLEGS exchanges in the
+    startup log, not one — so a `--bootstrap-timeout-sec` tuned down
+    aggressively for a fast classroom demo is a budget applied to *each*
+    symbol's round trip in turn, not split across them.
 
  
 
@@ -191,9 +194,10 @@ Expected understanding:
     The single-symbol case in this exercise is the special case where there
     is no "other symbol" left, so the process-level failure you'll observe
     here is the same behavior applied to a symbol set of one. `--initial_min`/
-    `--initial_max` are also one shared range applied independently to each
-    symbol — with two symbols configured this way, expect two different
-    random prices, one per symbol, both drawn from the same range.
+    `--initial_max` are per-symbol settings too: give them once before any
+    `--symbol` and every symbol draws from that one range (expect a different
+    random price per symbol), or scope them to a single symbol to give a
+    volatile name a range of its own.
 
 :material-checkbox-blank-outline: **Checkpoint:** you can choose a bootstrap strategy appropriate for your environment.
 

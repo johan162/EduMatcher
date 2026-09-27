@@ -43,8 +43,16 @@ symbol never touches another symbol's quoting.
 # One process, one symbol (the classic form, still the default)
 pm-mm-bot --symbol AAPL
 
-# One process, several symbols
+# One process, several symbols sharing one set of settings
 pm-mm-bot --symbols AAPL,MSFT,TSLA
+
+# One process, several symbols, each on its own terms
+pm-mm-bot --symbol AAPL --gap 0.10 \
+          --symbol MSFT --gap 0.20 --qty 200 \
+          --symbol TSLA --gap 0.50 --qty 100 --strategy inventory_skew --max-position 5000
+
+# The same thing, from a file
+pm-mm-bot --config mm_tech.yaml
 ```
 
 Running one instance per symbol (as separate processes) is still fully
@@ -66,22 +74,22 @@ independent market makers in the book (use `--id-suffix` to distinguish them).
 | Automatic reissue after fill | No | Yes |
 | Drift-based repricing | No | Yes |
 | Session-aware (pause in auctions) | Manual | Automatic |
-| Multiple symbols per process | N/A | Built-in (`--symbols`) |
+| Multiple symbols per process | N/A | Built-in (`--symbol` repeated, or `--symbols`) |
+| Different settings per symbol | N/A | Built-in (see [Per-symbol settings](#per-symbol-settings)) |
 | Multiple instances per symbol | Possible | Built-in (`--id-suffix`) |
 
 !!! note "One process vs. several — which to use"
-    Both are legitimate, for different scenarios. `--symbols` is the right
-    default when you just want a handful of symbols quoted with one set of
-    parameters and one thing to launch, stop, and watch in the logs — it is
-    also the only way to get a genuinely shared process (one PUSH/SUB
-    connection, one auth handshake, one heartbeat clock) across symbols. One
-    process per symbol is the right choice when symbols need materially
-    different parameters (different `--gap`, `--strategy`, or timeouts), or
-    when you specifically want a bad symbol (say, one that keeps getting
-    rejected) to be unable to affect any other symbol's process at all — see
-    [Per-symbol failure isolation](#per-symbol-failure-isolation) below for
-    how a `--symbols` bot already isolates a *failing* symbol without a
-    separate process, which covers most of that second concern on its own.
+    Both are legitimate, for different scenarios. One process is the right
+    default: it is the only way to get a genuinely shared process (one
+    PUSH/SUB connection, one auth handshake, one gateway identity) across
+    symbols, and each symbol can still be tuned individually — spread,
+    size, strategy and timers are all per-symbol settings. One process per
+    symbol is the right choice when you want a separate **OS-level** failure
+    domain per symbol, or when the scenario specifically calls for several
+    independently-attributable market-maker identities (for example when
+    teaching self-match prevention). Note that a multi-symbol bot already
+    isolates a *failing* symbol without a separate process — see
+    [Per-symbol failure isolation](#per-symbol-failure-isolation).
 
 ---
 
@@ -360,50 +368,332 @@ pm-mm-bot --symbol AAPL --initial_min 95.00 --initial_max 105.00
 
 ---
 
+## Per-symbol settings
+
+Settings fall into two tiers, and the tier decides where a setting may be
+given.
+
+**Gateway-wide settings** describe the process itself. There is one gateway
+identity, one pair of sockets and one log stream, so these cannot vary per
+symbol:
+
+| Flag | Config-file location |
+|---|---|
+| `--label` | `gateway.label` |
+| `--id-suffix` | `gateway.id_suffix` |
+| `--engine-pull` | `gateway.engine_pull` |
+| `--engine-pub` | `gateway.engine_pub` |
+| `--startup-session-timeout-sec` | `gateway.startup_session_timeout_sec` |
+| `--shutdown-timeout-sec` | `gateway.shutdown_timeout_sec` |
+| `--log-level`, `-v`, `-q` | `logging.level` |
+| `--log-target`, `--log-file`, `--log-failover-timeout` | `logging.target`, `logging.file`, `logging.failover_timeout_sec` |
+| `--config` | — |
+
+**Per-symbol settings** describe how one instrument is quoted, and may
+differ for every symbol:
+
+`--strategy`, `--gap`, `--qty`, `--max-position`, `--drift-ticks`, `--tif`,
+`--reissue-delay-ms`, `--heartbeat-interval-sec`, `--bootstrap-timeout-sec`,
+`--cancel-timeout-sec`, `--qlegs-reconcile-interval-sec`, `--initial_min`,
+`--initial_max`.
+
+### Scoping flags to a symbol on the command line
+
+`--symbol` may be repeated. Every per-symbol flag **after** a `--symbol`
+applies to that symbol until the next `--symbol`; anything **before** the
+first `--symbol` is the default for all of them:
+
+```bash
+pm-mm-bot \
+  --label TECH --id-suffix 01 \
+  --qty 500 --tif DAY --drift-ticks 3 \
+  --symbol AAPL --gap 0.10 \
+  --symbol MSFT --gap 0.20 --qty 200 \
+  --symbol TSLA --gap 0.50 --qty 100 \
+                --strategy inventory_skew --max-position 5000 \
+                --initial_min 180 --initial_max 220
+```
+
+That resolves to gateway `MM_TECH_01` and:
+
+| Symbol | strategy | gap | qty | tif | drift_ticks | max_position |
+|---|---|---|---|---|---|---|
+| AAPL | symmetric | 0.10 | 500 | DAY | 3 | — |
+| MSFT | symmetric | 0.20 | 200 | DAY | 3 | — |
+| TSLA | inventory_skew | 0.50 | 100 | DAY | 3 | 5000 |
+
+Rules:
+
+- A symbol that names no flags of its own inherits everything.
+- `--symbols A,B,C` is shorthand for repeating `--symbol` with no per-symbol
+  flags. It cannot be combined with `--symbol`.
+- Naming the same symbol twice on one command line is a usage error.
+- A gateway-wide flag typed after a `--symbol` still applies to the whole
+  process (it is logged as a warning so nobody is misled) — this is what
+  keeps every pre-existing single-symbol command line working unchanged.
+
+!!! tip "Long command lines belong in a file"
+    Anything beyond two or three symbols is much easier to read, review and
+    version-control as a [config file](#config-file).
+
+---
+
 ## CLI reference
 
-| Argument                           | Default                | Description                                                        |
-|------------------------------------|------------------------|--------------------------------------------------------------------|
-| `--config PATH`                    | *unset*                | YAML file supplying any flag below by long name (see [Config file](#config-file)) |
-| `--symbol SYM`                     | *required¹*             | Instrument to make a market in — mutually exclusive with `--symbols` |
-| `--symbols SYM1,SYM2,...`          | *required¹*             | Comma-separated symbols to quote from one process — mutually exclusive with `--symbol` |
-| `--label NAME`                     | *derived*               | Override the gateway-ID symbol segment (default: `--symbol`, or every `--symbols` entry joined with `_`) |
-| `--strategy NAME`                  | `symmetric`            | Pricing strategy: `symmetric` or `inventory_skew` (see [Pricing strategies](#pricing-strategies)) |
-| `--gap PRICE`                      | `0.10`                 | Total spread (bid at mid−gap/2, ask at mid+gap/2)                  |
-| `--max-position N`                 | *unset*                | Net position at which inventory skewing saturates — required with `--strategy inventory_skew`, rejected otherwise |
-| `--qty N`                          | `500`                  | Quote size on each leg                                             |
-| `--id-suffix NN`                   | `01`                   | Running number for gateway ID (`MM_AAPL_01`)                       |
-| `--drift-ticks N`                  | `3`                    | Reprice when mid moves by this many ticks                          |
-| `--reissue-delay-ms N`             | `200`                  | Wait after fill before re-issuing                                  |
-| `--tif {DAY,GTC}`                  | `DAY`                  | Time-in-force for quote legs                                       |
-| `--heartbeat-interval-sec F`       | `5.0`                  | Periodic live-quote check interval                                 |
-| `--startup-session-timeout-sec F`  | `5.0`                  | Max wait for first `session.state`                                 |
-| `--bootstrap-timeout-sec F`        | `1.0`                  | Max wait for QBOOT reply                                           |
-| `--cancel-timeout-sec F`           | `1.0`                  | Max wait for cancel confirmation before forced replacement reissue |
-| `--shutdown-timeout-sec F`         | `2.0`                  | Max wait for cancel on SIGINT/SIGTERM                              |
-| `--qlegs-reconcile-interval-sec F` | `15.0`                 | Periodic QLEGS reconciliation interval                             |
-| `--initial_min PRICE`              | *unset*                | Lower bound for random bootstrap price                             |
-| `--initial_max PRICE`              | *unset*                | Upper bound for random bootstrap price                             |
-| `--engine-pull ADDR`               | `tcp://127.0.0.1:5555` | Engine PUSH/PULL address                                           |
-| `--engine-pub ADDR`                | `tcp://127.0.0.1:5556` | Engine PUB address                                                 |
-| `--log-level`                      | `WARNING`              | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`    |
-| `-v`, `--verbose`                  | `false`                | Increase verbosity (`-v` enables bot debug prints, `-vv` sets DEBUG) |
-| `-q`, `--quiet`                    | `false`                | Reduce output to warnings/errors                                   |
+| Argument                           | Tier         | Default                | Description                                                        |
+|------------------------------------|--------------|------------------------|--------------------------------------------------------------------|
+| `--config PATH`                    | gateway      | *unset*                | YAML config file (see [Config file](#config-file))                 |
+| `--symbol SYM`                     | *required¹*  | —                      | Instrument to make a market in; repeatable, and opens a scope for the per-symbol flags that follow it |
+| `--symbols SYM1,SYM2,...`          | *required¹*  | —                      | Comma-separated symbols sharing one set of settings — mutually exclusive with `--symbol` |
+| `--label NAME`                     | gateway      | *derived*              | Override the gateway-ID symbol segment (default: the single symbol, or every symbol joined with `_`) |
+| `--id-suffix NN`                   | gateway      | `01`                   | Running number for gateway ID (`MM_AAPL_01`)                       |
+| `--engine-pull ADDR`               | gateway      | `tcp://127.0.0.1:5555` | Engine PUSH/PULL address                                           |
+| `--engine-pub ADDR`                | gateway      | `tcp://127.0.0.1:5556` | Engine PUB address                                                 |
+| `--startup-session-timeout-sec F`  | gateway      | `5.0`                  | Max wait for first `session.state`                                 |
+| `--shutdown-timeout-sec F`         | gateway      | `2.0`                  | Max wait for cancel on SIGINT/SIGTERM                              |
+| `--strategy NAME`                  | per-symbol   | `symmetric`            | Pricing strategy: `symmetric` or `inventory_skew` (see [Pricing strategies](#pricing-strategies)) |
+| `--gap PRICE`                      | per-symbol   | `0.10`                 | Total spread (bid at mid−gap/2, ask at mid+gap/2)                  |
+| `--max-position N`                 | per-symbol   | *unset*                | Net position at which inventory skewing saturates — required with `--strategy inventory_skew`, rejected otherwise |
+| `--qty N`                          | per-symbol   | `500`                  | Quote size on each leg                                             |
+| `--drift-ticks N`                  | per-symbol   | `3`                    | Reprice when mid moves by this many ticks                          |
+| `--reissue-delay-ms N`             | per-symbol   | `200`                  | Wait after fill before re-issuing                                  |
+| `--tif {DAY,GTC}`                  | per-symbol   | `DAY`                  | Time-in-force for quote legs                                       |
+| `--heartbeat-interval-sec F`       | per-symbol   | `5.0`                  | Periodic live-quote check interval                                 |
+| `--bootstrap-timeout-sec F`        | per-symbol   | `1.0`                  | Max wait for QBOOT reply                                           |
+| `--cancel-timeout-sec F`           | per-symbol   | `1.0`                  | Max wait for cancel confirmation before forced replacement reissue |
+| `--qlegs-reconcile-interval-sec F` | per-symbol   | `15.0`                 | Periodic QLEGS reconciliation interval                             |
+| `--initial_min PRICE`              | per-symbol   | *unset*                | Lower bound for random bootstrap price                             |
+| `--initial_max PRICE`              | per-symbol   | *unset*                | Upper bound for random bootstrap price                             |
+| `--log-level`                      | gateway      | `WARNING`              | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`    |
+| `-v`, `--verbose`                  | gateway      | `false`                | Increase verbosity (`-v` enables bot debug prints, `-vv` sets DEBUG) |
+| `-q`, `--quiet`                    | gateway      | `false`                | Reduce output to warnings/errors                                   |
 
-¹ Exactly one of `--symbol` or `--symbols` is required, directly or via
-`--config` — giving both, or neither, is a startup usage error.
+¹ At least one symbol is required, from `--symbol`, `--symbols`, or the
+config file's `symbols:` block. Giving both `--symbol` and `--symbols`, or
+neither, is a startup usage error.
 
 ---
 
 ## Config file
 
-Every flag above except `--config` itself and the logging flags
-(`--log-level`, `-v`/`--verbose`, `-q`/`--quiet`, `--log-target`, `--log-file`,
-`--log-failover-timeout`) can instead live in a YAML file, keyed by the flag's
-long name with dashes replaced by underscores:
+`--config <path>` reads a YAML file. It is the recommended way to configure
+anything beyond a couple of symbols: the file is readable, reviewable, and
+can be committed alongside the `engine_config.yaml` it pairs with.
+
+Worked examples live in `docs/examples/mm-bot/`.
+
+### File structure
+
+A config file has four optional blocks and one required one:
 
 ```yaml
-# mm_aapl.yaml
+version: 1        # schema version — always 1 today
+
+gateway: {}       # gateway-wide settings (optional)
+logging: {}       # logging settings (optional)
+defaults: {}      # per-symbol settings applied to every symbol (optional)
+symbols: {}       # REQUIRED — the symbols to quote, and their overrides
+```
+
+The split is the point: `gateway:` and `logging:` hold settings that *cannot*
+vary per symbol, `defaults:` holds the house settings for every symbol, and
+each block under `symbols:` overrides the house settings for one instrument.
+
+### A full example
+
+```yaml
+# docs/examples/mm-bot/tech-desk.yaml
+version: 1
+
+# Gateway-wide settings. Nothing here can vary per symbol: there is one
+# gateway identity and one pair of sockets for the whole process.
+gateway:
+  label: TECH                      # gateway id becomes MM_TECH_01
+  id_suffix: "01"                  # quote it, or YAML reads 01 as the number 1
+  engine_pull: tcp://127.0.0.1:5555
+  engine_pub: tcp://127.0.0.1:5556
+  startup_session_timeout_sec: 5.0
+  shutdown_timeout_sec: 2.0
+
+logging:
+  level: INFO                      # CRITICAL | ERROR | WARNING | INFO | DEBUG
+  target: server                   # server | stdout | file
+  file: null                       # required when target: file
+  failover_timeout_sec: 30
+
+# Applied to every symbol below unless that symbol overrides the key.
+defaults:
+  strategy: symmetric
+  gap: 0.10
+  qty: 500
+  drift_ticks: 3
+  reissue_delay_ms: 200
+  tif: DAY
+  heartbeat_interval_sec: 5.0
+  bootstrap_timeout_sec: 1.0
+  cancel_timeout_sec: 1.0
+  qlegs_reconcile_interval_sec: 15.0
+
+# The symbol universe this bot quotes. Mapping order is the order symbols
+# are started in.
+symbols:
+  # A liquid name, happy with every default.
+  AAPL: {}
+
+  # Wider and smaller than the house default.
+  MSFT:
+    gap: 0.20
+    qty: 200
+
+  # A volatile name: quote wide, in small size, skewing quotes to work
+  # inventory back toward flat, and reprice less twitchily.
+  TSLA:
+    gap: 0.50
+    qty: 100
+    strategy: inventory_skew
+    max_position: 5000
+    drift_ticks: 5
+    initial_min: 180
+    initial_max: 220
+```
+
+```bash
+pm-mm-bot --config docs/examples/mm-bot/tech-desk.yaml
+```
+
+That file produces gateway `MM_TECH_01` quoting `AAPL` on house defaults,
+`MSFT` twice as wide in less than half the size, and `TSLA` wide, small,
+inventory-skewing and less twitchy about repricing.
+
+### The smallest useful file
+
+```yaml
+# docs/examples/mm-bot/single-symbol.yaml
+# Equivalent to:  pm-mm-bot --symbol AAPL --gap 0.08 --qty 300
+version: 1
+
+defaults:
+  gap: 0.08
+  qty: 300
+
+symbols:
+  AAPL: {}
+```
+
+### Shorthand when every symbol is the same
+
+When no symbol needs its own block, `symbols:` may be a plain list instead of
+a mapping of empty blocks:
+
+```yaml
+# docs/examples/mm-bot/uniform-desk.yaml
+version: 1
+
+gateway:
+  label: CORE
+
+defaults:
+  gap: 0.10
+  qty: 500
+  tif: GTC
+
+symbols: [AAPL, MSFT, TSLA]
+```
+
+### `gateway:` fields
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `label` | string | derived from the symbols | Gateway ID becomes `MM_<label>_<id_suffix>` |
+| `id_suffix` | string | `"01"` | **Quote it** — unquoted `01` is the number `1` to YAML, and is rejected |
+| `engine_pull` | string | `tcp://127.0.0.1:5555` | Engine PUSH/PULL address |
+| `engine_pub` | string | `tcp://127.0.0.1:5556` | Engine PUB address |
+| `startup_session_timeout_sec` | number | `5.0` | Must be > 0 |
+| `shutdown_timeout_sec` | number | `2.0` | Must be > 0 |
+
+### `logging:` fields
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `level` | enum | `WARNING` | `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `target` | enum | `server` | `server`, `stdout`, `file` |
+| `file` | string | `null` | Required when `target: file` |
+| `failover_timeout_sec` | number | from log-client config | Grace window before falling back to a local file |
+
+### `defaults:` and `symbols.<SYM>:` fields
+
+The same keys are accepted in both places; a key in a symbol's own block wins
+for that symbol.
+
+| Field | Type | Default | Constraints |
+|---|---|---|---|
+| `strategy` | string | `symmetric` | `symmetric` or `inventory_skew` |
+| `gap` | number | `0.10` | > 0; must also satisfy the symbol's MM obligation (see [Gap validation](#gap-validation)) |
+| `qty` | integer | `500` | > 0 |
+| `max_position` | integer | `null` | > 0; **only** valid with `strategy: inventory_skew`, and **required** by it |
+| `drift_ticks` | integer | `3` | > 0 |
+| `tif` | enum | `DAY` | `DAY` or `GTC` |
+| `reissue_delay_ms` | integer | `200` | ≥ 0 |
+| `heartbeat_interval_sec` | number | `5.0` | > 0 |
+| `bootstrap_timeout_sec` | number | `1.0` | > 0 |
+| `cancel_timeout_sec` | number | `1.0` | > 0 |
+| `qlegs_reconcile_interval_sec` | number | `15.0` | > 0 |
+| `initial_min` | number | `null` | Must be set together with `initial_max` |
+| `initial_max` | number | `null` | Must be greater than `initial_min` |
+
+Symbol keys are upper-cased on load, so `symbols: {aapl: {...}}` configures
+`AAPL`. Mapping order is preserved and is the order symbols start in.
+
+### Precedence
+
+When the same per-symbol setting is given in more than one place, the first
+of these that supplies it wins:
+
+| Rank | Source | Example |
+|---|---|---|
+| 1 | The symbol's own CLI scope | `--symbol MSFT --gap 0.20` |
+| 2 | The symbol's block in the config file | `symbols.MSFT.gap` |
+| 3 | The global CLI scope | `--gap 0.20` before the first `--symbol` |
+| 4 | The config file's `defaults:` block | `defaults.gap` |
+| 5 | The built-in default | `0.10` |
+
+Gateway-wide settings use the simpler ladder: the CLI flag, then the file's
+`gateway:`/`logging:` block, then the built-in default.
+
+!!! important "A per-symbol file value beats a gateway-wide flag"
+    Rank 2 sits above rank 3 deliberately. If `symbols.TSLA.gap: 0.50` is
+    written into a reviewed config file, a throwaway `--gap 0.10` on the
+    command line widens the symbols that were *not* individually tuned —
+    it does not silently un-tune TSLA. To override one symbol from the
+    command line, name it: `--symbol TSLA --gap 0.10`.
+
+A gap chosen at *any* of ranks 1–4 counts as an explicit choice, so the bot
+will not replace it with the MM-obligation default described in
+[Gap validation](#gap-validation). Only a gap nobody set is auto-derived.
+
+### Errors
+
+The file is validated up front; a bad file is a fast, explicit startup
+failure rather than a bot that runs with settings you did not intend.
+
+| Mistake | What you see |
+|---|---|
+| Typo in a key | `unknown key 'gapp' under symbols.AAPL (did you mean 'gap'?)` |
+| Gateway-wide key in `defaults:` or a symbol block | `'engine_pull' is a gateway-wide setting; move it under 'gateway:'` |
+| Per-symbol key in `gateway:` | `'gap' is a per-symbol setting; move it under 'defaults:' or into a symbol's own block` |
+| Logging key in the wrong place | `'log_level' is a logging setting; move it under 'logging:'` |
+| Unquoted `id_suffix` | `gateway.id_suffix must be a string — quote it (e.g. "01")` |
+| A future schema version | `unsupported version 2 (this build understands version 1)` |
+| An out-of-range value | `[MSFT] qty must be positive (got -1)` |
+| `inventory_skew` without a cap | `[TSLA] max_position is required when strategy inventory_skew is selected` |
+
+### Legacy flat files
+
+The original flat format — one mapping of CLI flag names, all of them
+gateway-wide — still loads unchanged:
+
+```yaml
+# mm_aapl.yaml (legacy format)
 symbol: AAPL
 id_suffix: "01"
 strategy: symmetric
@@ -413,59 +703,10 @@ tif: GTC
 drift_ticks: 4
 ```
 
-```bash
-pm-mm-bot --config mm_aapl.yaml
-```
-
-A multi-symbol bot's file uses `symbols:` instead of `symbol:`, as either a
-YAML list or the same comma-separated string the CLI takes — both are
-accepted and mean the same thing:
-
-```yaml
-# mm_tech.yaml
-symbols:
-  - AAPL
-  - MSFT
-label: TECH
-strategy: symmetric
-gap: 0.08
-qty: 300
-```
-
-```bash
-pm-mm-bot --config mm_tech.yaml
-```
-
-A bot using inventory skewing needs `max_position:` alongside `strategy:`:
-
-```yaml
-# mm_aapl_skew.yaml
-symbol: AAPL
-strategy: inventory_skew
-max_position: 1000
-gap: 0.10
-qty: 300
-```
-
-```bash
-pm-mm-bot --config mm_aapl_skew.yaml
-```
-
-An explicit CLI flag always overrides the same key from the file — so
-`pm-mm-bot --config mm_aapl.yaml --gap 0.12` quotes with `gap=0.12` even
-though the file says `0.08`. This makes it easy to keep one committed file
-per symbol (or symbol group) for a classroom session while still overriding
-a single value from the command line for a one-off run. A gap set in the
-file (like a `--gap` typed on the CLI) counts as an explicit choice: the bot
-will not silently override it with the MM-obligation default described in
-[Gap validation](#gap-validation) below.
-
-`--symbol` or `--symbols` may be omitted from the CLI as long as the config
-file supplies one of them; `pm-mm-bot` fails fast with a usage error if
-neither does, and equally fails fast if both `--symbol` and `--symbols` end
-up set (from any combination of CLI and file). An unknown key in the file (a
-typo, or a flag name spelled with dashes instead of underscores) is also a
-fast, explicit startup failure rather than being silently ignored.
+It is recognised by shape (no `version:`, and `symbols:` given as a string or
+list rather than a mapping) and behaves exactly as it did: every value
+applies to every symbol. Prefer `version: 1` for new files — it is the only
+format that can express per-symbol settings.
 
 ### Pricing strategies
 
@@ -708,10 +949,25 @@ quoting rather than failing the whole process — see
 pm-mm-bot --symbol AAPL
 ```
 
-### One process quoting several symbols
+### One process quoting several symbols, same settings
 
 ```bash
 pm-mm-bot --symbols AAPL,MSFT,TSLA --label TECH
+```
+
+### One process, different settings per symbol
+
+```bash
+pm-mm-bot --label TECH --qty 500 \
+  --symbol AAPL --gap 0.10 \
+  --symbol MSFT --gap 0.20 --qty 200 \
+  --symbol TSLA --gap 0.50 --qty 100 --strategy inventory_skew --max-position 5000
+```
+
+### The same desk, from a config file
+
+```bash
+pm-mm-bot --config docs/examples/mm-bot/tech-desk.yaml
 ```
 
 ### Two competing MMs on the same symbol
@@ -742,7 +998,11 @@ pm-mm-bot --symbol AAPL --gap 0.10 --qty 500 -v
 ### Config file, with one value overridden on the CLI
 
 ```bash
-pm-mm-bot --config mm_aapl.yaml --gap 0.12
+# Widens every symbol that has no gap of its own in the file
+pm-mm-bot --config mm_tech.yaml --gap 0.12
+
+# Widens only MSFT, whatever the file says for it
+pm-mm-bot --config mm_tech.yaml --symbol MSFT --gap 0.12
 ```
 
 ### Inventory skewing with a position cap
@@ -772,7 +1032,8 @@ bot's milestones and problems (routine per-quote activity needs `-vv` or the
 dedicated `--verbose` sections below):
 
 ```
-2026-09-20 09:30:00,001 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] starting: symbols=AAPL strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
+2026-09-20 09:30:00,001 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] starting: gateway=MM_AAPL_01 symbols=AAPL
+2026-09-20 09:30:00,002 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
 2026-09-20 09:30:01,002 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] authenticated
 2026-09-20 09:30:01,003 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] bootstrap from random range: 150.00
 2026-09-20 09:30:20,004 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] circuit breaker HALT
@@ -780,14 +1041,17 @@ dedicated `--verbose` sections below):
 2026-09-20 09:35:00,006 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] shutdown complete
 ```
 
-The `starting:` line reports the bot's resolved configuration. For a
-`--symbols` bot, `symbols=` lists every symbol the process covers (e.g.
-`symbols=AAPL,MSFT`), and every per-symbol log line carries an additional
-`[SYMBOL]` tag ahead of the message so you can tell which symbol a given
-quoting decision belongs to:
+The `starting:` line names the gateway and every symbol the process covers,
+followed by **one line per symbol** reporting that symbol's resolved
+settings. This is the confirmation that a long command line or a config file
+resolved the way you intended — read it first when a bot is not quoting the
+way you expected. Every per-symbol log line thereafter carries an additional
+`[SYMBOL]` tag ahead of the message:
 
 ```
-2026-09-20 09:30:00,001 INFO edumatcher.mm_bot.bot - [MM_TECH_01] starting: symbols=AAPL,MSFT strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
+2026-09-20 09:30:00,001 INFO edumatcher.mm_bot.bot - [MM_TECH_01] starting: gateway=MM_TECH_01 symbols=AAPL,MSFT
+2026-09-20 09:30:00,002 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [AAPL] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
+2026-09-20 09:30:00,003 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] strategy=symmetric gap=0.2 qty=200 tif=DAY drift_ticks=3
 2026-09-20 09:30:01,002 INFO edumatcher.mm_bot.bot - [MM_TECH_01] authenticated
 2026-09-20 09:30:01,003 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [AAPL] bootstrap from random range: 150.00
 2026-09-20 09:30:01,004 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] bootstrap from random range: 310.00
@@ -843,7 +1107,7 @@ low-level flow tracing (e.g. `book mid=...`, `session: OLD -> NEW`, and
 |---|---|---|
 | `auth rejected` | Gateway ID not in `engine_config.yaml` | Add the `MM_<SYM>_<nn>` (or `MM_<LABEL>_<nn>`) entry with `role: MARKET_MAKER` |
 | `invalid config file: ... unknown key(s)` | A `--config` file has a typo'd or unsupported key | Check the key against [Config file](#config-file) — long flag name, dashes as underscores |
-| `--symbol or --symbols is required (directly or via --config)` | Neither `--symbol` nor `--symbols` nor the config file's `symbol:`/`symbols:` key was given | Add one of the two |
+| `no symbols configured: use --symbol, --symbols, or a config file with a 'symbols:' block` | Neither `--symbol` nor `--symbols` nor the config file's `symbols:` block was given | Add one of the two |
 | `--symbol and --symbols are mutually exclusive` | Both `--symbol` and `--symbols` ended up set, from any combination of CLI and `--config` | Use only one |
 | `startup failed: no reference price available (no book, no trade, no bootstrap, no random range)` | Empty book + no `--initial_min`/`--initial_max`, for a symbol with no other symbol left quoting | Add bootstrap range flags |
 | `startup failed: no session.state` | Engine not running or scheduler not started | Start the engine and scheduler |

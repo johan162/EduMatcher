@@ -4,10 +4,14 @@ connecting a real DcSpyClient to a real DropCopyPublisher over ZMQ.
 
 from __future__ import annotations
 
+import argparse
 import json
+import logging
+import sys
 import threading
 import time
 from collections.abc import Generator
+from unittest.mock import Mock
 
 import pytest
 import zmq
@@ -149,12 +153,286 @@ def test_cli_parser_version(capsys: pytest.CaptureFixture[str]) -> None:
     assert "pm-dc-spy" in out
 
 
-def test_cli_connect_error_bad_endpoint() -> None:
-    # An invalid host string is rejected by zmq at connect() time.
-    opts = DcSpyOptions(host="not a host", port=5557)
-    client = DcSpyClient(opts)
-    with pytest.raises(DcSpyConnectionError):
-        client.connect()
+@pytest.mark.parametrize(
+    "arguments, expected",
+    [
+        ({"log_level": "ERROR", "verbose": 2, "quiet": False}, logging.ERROR),
+        ({"log_level": None, "verbose": 2, "quiet": False}, logging.DEBUG),
+        ({"log_level": None, "verbose": 1, "quiet": False}, logging.INFO),
+        ({"log_level": None, "verbose": 0, "quiet": True}, logging.WARNING),
+        ({"log_level": None, "verbose": 0, "quiet": False}, logging.WARNING),
+    ],
+)
+def test_logging_precedence_matches_operator_intent(
+    arguments: dict[str, object],
+    expected: int,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    args = argparse.Namespace(
+        **arguments,
+        log_target="file",
+        log_file="spy.log",
+        log_failover_timeout=None,
+    )
+    client_config = argparse.Namespace(
+        connect_timeout_sec=1.5,
+        failover_timeout_sec=30.0,
+        failover_dir="fallback",
+    )
+    server_config = argparse.Namespace(port=5600)
+    handler = logging.NullHandler()
+    resolve = Mock(return_value=handler)
+    basic_config = Mock()
+    monkeypatch.setattr(
+        dc_spy_cli, "load_default_log_client_config", lambda: client_config
+    )
+    monkeypatch.setattr(
+        dc_spy_cli, "load_default_log_server_config", lambda: server_config
+    )
+    monkeypatch.setattr(dc_spy_cli, "resolve_host_default", lambda: "log-host")
+    monkeypatch.setattr(dc_spy_cli, "resolve_handler", resolve)
+    monkeypatch.setattr(logging, "basicConfig", basic_config)
+
+    assert dc_spy_cli._configure_logging(args) == expected
+    basic_config.assert_called_once_with(
+        level=expected, format=dc_spy_cli._LOG_FORMAT, handlers=[handler]
+    )
+    assert resolve.call_args.kwargs["host"] == "log-host"
+    assert resolve.call_args.kwargs["port"] == 5600
+    assert resolve.call_args.kwargs["failover_timeout_sec"] == 30.0
+
+
+def test_explicit_failover_timeout_reaches_log_handler(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    args = argparse.Namespace(
+        log_level=None,
+        verbose=0,
+        quiet=False,
+        log_target=None,
+        log_file=None,
+        log_failover_timeout=4.5,
+    )
+    monkeypatch.setattr(
+        dc_spy_cli,
+        "load_default_log_client_config",
+        lambda: argparse.Namespace(
+            connect_timeout_sec=1.0,
+            failover_timeout_sec=30.0,
+            failover_dir="fallback",
+        ),
+    )
+    monkeypatch.setattr(
+        dc_spy_cli,
+        "load_default_log_server_config",
+        lambda: argparse.Namespace(port=5600),
+    )
+    monkeypatch.setattr(dc_spy_cli, "resolve_host_default", lambda: "localhost")
+    resolve = Mock(return_value=logging.NullHandler())
+    monkeypatch.setattr(dc_spy_cli, "resolve_handler", resolve)
+    monkeypatch.setattr(logging, "basicConfig", Mock())
+
+    dc_spy_cli._configure_logging(args)
+
+    assert resolve.call_args.kwargs["failover_timeout_sec"] == 4.5
+
+
+@pytest.mark.parametrize(
+    "isatty, no_color, expected",
+    [(True, False, True), (True, True, False), (False, False, False)],
+)
+def test_session_enables_color_only_for_an_opted_in_terminal(
+    isatty: bool,
+    no_color: bool,
+    expected: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    console = Mock()
+    console_factory = Mock(return_value=console)
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: isatty)
+    monkeypatch.setattr(dc_spy_cli, "Console", console_factory)
+
+    dc_spy_cli._SpySession(
+        argparse.Namespace(no_color=no_color, format="human", raw=False)
+    )
+
+    console_factory.assert_called_once_with(
+        highlight=False, no_color=not expected, force_terminal=expected
+    )
+
+
+def test_session_human_mode_honors_raw_and_counts_messages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = dc_spy_cli._SpySession(
+        argparse.Namespace(no_color=True, format="human", raw=True)
+    )
+    formatted = Mock(return_value="rendered fill")
+    monkeypatch.setattr(dc_spy_cli, "format_human", formatted)
+    session.console.print = Mock()
+
+    session.on_message("drop_copy.event.TRADER01", {"seq": 1}, 12.0)
+
+    formatted.assert_called_once_with("drop_copy.event.TRADER01", {"seq": 1}, raw=True)
+    session.console.print.assert_called_once_with("rendered fill")
+    assert session.count == 1
+
+
+def test_session_json_mode_emits_one_complete_record_and_ignores_raw(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    session = dc_spy_cli._SpySession(
+        argparse.Namespace(no_color=True, format="json", raw=True)
+    )
+    monkeypatch.setattr(dc_spy_cli, "format_json", lambda *args, **kwargs: '{"seq": 1}')
+
+    session.on_message("drop_copy.event.TRADER01", {"seq": 1}, 12.0)
+
+    assert capsys.readouterr().out == '{"seq": 1}\n'
+    assert session.count == 1
+
+
+class _FakeSpyClient:
+    instances: list["_FakeSpyClient"] = []
+    connect_error: Exception | None = None
+    run_error: BaseException | None = None
+
+    def __init__(self, options: DcSpyOptions) -> None:
+        self.options = options
+        self.connected = False
+        self.closed = False
+        self.max_messages: int | None = None
+        self.__class__.instances.append(self)
+
+    def connect(self) -> None:
+        if self.connect_error is not None:
+            raise self.connect_error
+        self.connected = True
+
+    def run(self, callback: object, *, max_messages: int) -> None:
+        self.max_messages = max_messages
+        if self.run_error is not None:
+            raise self.run_error
+
+    def close(self) -> None:
+        self.closed = True
+
+
+@pytest.fixture()
+def fake_cli_client(monkeypatch: pytest.MonkeyPatch) -> type[_FakeSpyClient]:
+    _FakeSpyClient.instances = []
+    _FakeSpyClient.connect_error = None
+    _FakeSpyClient.run_error = None
+    monkeypatch.setattr(dc_spy_cli, "DcSpyClient", _FakeSpyClient)
+    monkeypatch.setattr(dc_spy_cli, "_configure_logging", lambda args: logging.WARNING)
+    return _FakeSpyClient
+
+
+def test_main_normalizes_filters_and_passes_count(
+    fake_cli_client: type[_FakeSpyClient],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "pm-dc-spy",
+            "--gateway",
+            " trader01 ",
+            "--replay-of",
+            " RISK01 ",
+            "--count",
+            "7",
+            "--no-color",
+        ],
+    )
+
+    dc_spy_cli.main()
+
+    client = fake_cli_client.instances[0]
+    assert client.options == DcSpyOptions(
+        host="127.0.0.1",
+        port=5557,
+        gateway="TRADER01",
+        replay_of="RISK01",
+    )
+    assert client.connected and client.closed
+    assert client.max_messages == 7
+    output = " ".join(capsys.readouterr().out.split())
+    assert "drop_copy.event.TRADER01" in output
+    assert "drop_copy.replay.RISK01" in output
+
+
+def test_main_all_gateway_banner_does_not_claim_a_single_subscription(
+    fake_cli_client: type[_FakeSpyClient],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(sys, "argv", ["pm-dc-spy", "--count", "1", "--no-color"])
+
+    dc_spy_cli.main()
+
+    output = " ".join(capsys.readouterr().out.split())
+    assert "drop_copy.event.*" in output
+    assert "all gateways" in output
+
+
+def test_main_reports_connect_failure_as_cli_error(
+    fake_cli_client: type[_FakeSpyClient], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake_cli_client.connect_error = DcSpyConnectionError("feed unavailable")
+    monkeypatch.setattr(sys, "argv", ["pm-dc-spy", "--no-color"])
+
+    with pytest.raises(SystemExit, match="1"):
+        dc_spy_cli.main()
+
+
+@pytest.mark.parametrize(
+    "failure, exits",
+    [(DcSpyConnectionError("socket read failed"), True), (KeyboardInterrupt(), False)],
+)
+def test_main_always_closes_after_receive_loop_stops(
+    failure: BaseException,
+    exits: bool,
+    fake_cli_client: type[_FakeSpyClient],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_cli_client.run_error = failure
+    monkeypatch.setattr(sys, "argv", ["pm-dc-spy", "--no-color"])
+
+    if exits:
+        with pytest.raises(SystemExit, match="1"):
+            dc_spy_cli.main()
+    else:
+        dc_spy_cli.main()
+
+    assert fake_cli_client.instances[0].closed is True
+
+
+def test_json_mode_keeps_stdout_valid_json_lines(
+    fake_cli_client: type[_FakeSpyClient],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def emit_record(
+        self: _FakeSpyClient, callback: object, *, max_messages: int
+    ) -> None:
+        self.max_messages = max_messages
+        callback("drop_copy.event.TRADER01", _fill_payload(), 1234.5)  # type: ignore[operator]
+
+    monkeypatch.setattr(_FakeSpyClient, "run", emit_record)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["pm-dc-spy", "--format", "json", "--count", "1", "--no-color"],
+    )
+
+    dc_spy_cli.main()
+
+    records = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert len(records) == 1
+    assert records[0]["gateway_id"] == "TRADER01"
 
 
 # ---------------------------------------------------------------------------

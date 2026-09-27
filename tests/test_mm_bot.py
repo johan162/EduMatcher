@@ -1587,6 +1587,109 @@ class TestMMBotMultiSymbol:
         assert bot._symbols_state["MSFT"].reissue_at is not None
         assert bot._symbols_state["AAPL"].reissue_at is None
 
+    def test_a_fill_for_a_not_yet_acked_symbol_is_buffered_not_dropped(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A fill for a symbol that hasn't acked yet must be buffered, even
+        once a *different* symbol already has.
+
+        Regression test: the buffering guard in _handle_order_fill used to
+        check whether *any* symbol had acked, rather than whether *this*
+        fill's symbol specifically had. Once AAPL acked, a fill for MSFT
+        (whose ack was still outstanding) was silently dropped -- neither
+        matched (MSFT's order IDs were still unknown) nor buffered (the
+        guard was now false).
+        """
+        bot, push, sub = _make_multi_bot(
+            monkeypatch, ["AAPL", "MSFT"], initial_min=95.0, initial_max=105.0
+        )
+        for sym in bot.symbols:
+            st = bot._symbols_state[sym]
+            st.pricer = QuotePricer(tick_size=0.01, gap=0.10, drift_ticks=3)
+            st.pricer.set_mid(100.0)
+
+        # AAPL has already acked; MSFT's ack is still outstanding.
+        bot._symbols_state["AAPL"].bid_order_id = "bid-aapl"
+        bot._symbols_state["AAPL"].ask_order_id = "ask-aapl"
+        bot._quote_id_to_symbol["q-msft"] = "MSFT"
+
+        # MSFT's fill arrives before MSFT's own ack.
+        bot._handle_order_fill(
+            {"order_id": "bid-msft", "fill_qty": 50, "fill_price": 99.0}
+        )
+        assert bot._pending_fills == [
+            {"order_id": "bid-msft", "fill_qty": 50, "fill_price": 99.0}
+        ]
+        assert bot._symbols_state["MSFT"].net_position == 0
+
+        # MSFT's ack arrives -- the buffered fill must be applied to MSFT.
+        bot._handle_quote_ack(
+            {
+                "quote_id": "q-msft",
+                "accepted": True,
+                "bid_order_id": "bid-msft",
+                "ask_order_id": "ask-msft",
+            }
+        )
+        assert bot._pending_fills == []
+        assert bot._symbols_state["MSFT"].net_position == 50
+        assert bot._symbols_state["AAPL"].net_position == 0
+
+    def test_a_buffered_fill_survives_a_different_symbols_ack(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A fill buffered before any symbol has acked must survive another
+        symbol acking first, and still land on the right symbol once its
+        own ack arrives.
+
+        Regression test: _handle_quote_ack re-dispatches every buffered
+        fill through _handle_order_fill on ANY ack via
+        _process_pending_fills. With the old any-symbol-acked guard, AAPL
+        acking first made the guard false on that re-dispatch too, so
+        MSFT's still-buffered fill was dropped for good -- never applied
+        even once MSFT itself acked.
+        """
+        bot, push, sub = _make_multi_bot(
+            monkeypatch, ["AAPL", "MSFT"], initial_min=95.0, initial_max=105.0
+        )
+        for sym in bot.symbols:
+            st = bot._symbols_state[sym]
+            st.pricer = QuotePricer(tick_size=0.01, gap=0.10, drift_ticks=3)
+            st.pricer.set_mid(100.0)
+        bot._quote_id_to_symbol["q-aapl"] = "AAPL"
+        bot._quote_id_to_symbol["q-msft"] = "MSFT"
+
+        # Fill for MSFT arrives before either symbol has acked.
+        bot._handle_order_fill(
+            {"order_id": "bid-msft", "fill_qty": 30, "fill_price": 98.0}
+        )
+        assert len(bot._pending_fills) == 1
+
+        # AAPL acks first -- this must not lose MSFT's buffered fill.
+        bot._handle_quote_ack(
+            {
+                "quote_id": "q-aapl",
+                "accepted": True,
+                "bid_order_id": "bid-aapl",
+                "ask_order_id": "ask-aapl",
+            }
+        )
+        assert len(bot._pending_fills) == 1
+        assert bot._symbols_state["MSFT"].net_position == 0
+
+        # MSFT acks -- the buffered fill must now apply to MSFT.
+        bot._handle_quote_ack(
+            {
+                "quote_id": "q-msft",
+                "accepted": True,
+                "bid_order_id": "bid-msft",
+                "ask_order_id": "ask-msft",
+            }
+        )
+        assert bot._pending_fills == []
+        assert bot._symbols_state["MSFT"].net_position == 30
+        assert bot._symbols_state["AAPL"].net_position == 0
+
     def test_circuit_breaker_halt_only_pauses_its_symbol(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

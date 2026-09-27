@@ -613,7 +613,7 @@ def list_profile(restart: str = "ask") -> int:
     print(f"pm-opctl profile: {profile_name}")
     print(f"data directory: {DATA_DIR}")
     header = (
-        f"{'':1} {'Process':<20} {'PID':>7} {'Uptime':>8} "
+        f"{'':1} {'Process':<30} {'PID':>7} {'Uptime':>8} "
         f"{'RSS(MB)':>8}  {'Status':<15} Details"
     )
     print(header)
@@ -632,7 +632,7 @@ def list_profile(restart: str = "ask") -> int:
         uptime_text = format_uptime(uptime)
         rss_text = f"{rss:.1f}" if rss is not None else "-"
         print(
-            f"{status_mark(state)} {name:<20} {str(pid or '-'):>7} "
+            f"{status_mark(state)} {name:<30} {str(pid or '-'):>7} "
             f"{uptime_text:>8} {rss_text:>8}  {state:<15} {detail}"
         )
 

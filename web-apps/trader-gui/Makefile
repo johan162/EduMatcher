@@ -1,4 +1,4 @@
-# Makefile for EduMatcher Trading GUI (pm-trading-ui)
+# Makefile for EduMatcher Trading GUI (pm-trader-gui)
 #
 
 .PHONY: \

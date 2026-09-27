@@ -42,6 +42,7 @@ import argparse
 from collections import defaultdict
 import errno
 import logging
+import os
 import sqlite3
 import threading
 import time
@@ -52,6 +53,7 @@ from typing import Any
 
 import zmq
 from rich import box
+from rich.align import Align
 from rich.color import Color, ColorParseError
 from rich.console import Console, Group
 from rich.live import Live
@@ -73,9 +75,20 @@ from edumatcher.log_srv.config import (
 )
 from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_subscriber, make_pusher
-from edumatcher.models.message import decode, make_book_snapshot_request_msg
+from edumatcher.models.message import (
+    decode,
+    make_book_snapshot_request_msg,
+    make_symbols_request_msg,
+)
 from edumatcher.models.generated.book import (
     topic_book_snapshot,
+)
+from edumatcher.models.generated.system import topic_symbols
+from edumatcher.viewer.keyboard import KeyReader
+from edumatcher.viewer.picker import (
+    DEFAULT_VISIBLE_ROWS,
+    SymbolPicker,
+    render_picker,
 )
 
 console = Console()
@@ -124,14 +137,15 @@ def _validate_color(option: str, value: str) -> str:
     return value
 
 
-def request_snapshot_with_retry(
-    symbol: str,
+def _push_to_engine_with_retry(
+    frames: list[bytes],
+    description: str,
     *,
-    initial_delay_sec: float = _SNAPSHOT_INITIAL_DELAY_SEC,
-    retry_timeout_sec: float = _SNAPSHOT_RETRY_TIMEOUT_SEC,
-    retry_interval_sec: float = _SNAPSHOT_RETRY_INTERVAL_SEC,
+    initial_delay_sec: float,
+    retry_timeout_sec: float,
+    retry_interval_sec: float,
 ) -> None:
-    """Ask the engine for the current book snapshot for ``symbol``.
+    """Send one message to the engine's PULL socket, retrying on ``zmq.Again``.
 
     ``make_pusher()`` sets ``IMMEDIATE=1`` + ``SNDTIMEO=0`` (fail-fast, so
     gateways never block their reactor on a slow/absent engine). That means
@@ -140,9 +154,7 @@ def request_snapshot_with_retry(
     startup sleep -- especially the first time ``pm-viewer`` connects. Retry
     for up to ``retry_timeout_sec`` instead of letting the caller's thread
     crash with an unhandled traceback; if the engine is genuinely
-    unreachable this gives up quietly and logs a warning -- the live
-    ``book.<SYMBOL>`` feed will still populate the display once the engine
-    is reachable.
+    unreachable this gives up quietly and logs a warning.
     """
     time.sleep(initial_delay_sec)
     push = make_pusher(ENGINE_PULL_ADDR)
@@ -150,21 +162,60 @@ def request_snapshot_with_retry(
         deadline = time.monotonic() + retry_timeout_sec
         while True:
             try:
-                push.send_multipart(make_book_snapshot_request_msg(symbol))
+                push.send_multipart(frames)
                 return
             except zmq.Again:
                 if time.monotonic() >= deadline:
                     log.warning(
-                        "could not reach engine at %s for initial snapshot "
-                        "request (symbol=%s); live updates will still "
-                        "populate the book once the engine is reachable",
+                        "could not reach engine at %s for %s; live updates "
+                        "will still populate the book once the engine is "
+                        "reachable",
                         ENGINE_PULL_ADDR,
-                        symbol,
+                        description,
                     )
                     return
                 time.sleep(retry_interval_sec)
     finally:
         push.close()
+
+
+def request_snapshot_with_retry(
+    symbol: str,
+    *,
+    initial_delay_sec: float = _SNAPSHOT_INITIAL_DELAY_SEC,
+    retry_timeout_sec: float = _SNAPSHOT_RETRY_TIMEOUT_SEC,
+    retry_interval_sec: float = _SNAPSHOT_RETRY_INTERVAL_SEC,
+) -> None:
+    """Ask the engine for the current book snapshot for ``symbol``."""
+    _push_to_engine_with_retry(
+        make_book_snapshot_request_msg(symbol),
+        f"initial snapshot request (symbol={symbol})",
+        initial_delay_sec=initial_delay_sec,
+        retry_timeout_sec=retry_timeout_sec,
+        retry_interval_sec=retry_interval_sec,
+    )
+
+
+def request_symbols_with_retry(
+    gateway_id: str,
+    *,
+    initial_delay_sec: float = 0.0,
+    retry_timeout_sec: float = _SNAPSHOT_RETRY_TIMEOUT_SEC,
+    retry_interval_sec: float = _SNAPSHOT_RETRY_INTERVAL_SEC,
+) -> None:
+    """Ask the engine which symbols are tradable.
+
+    The engine answers a ``system.symbols_request`` without requiring the
+    caller to be a registered gateway; ``gateway_id`` is only the correlation
+    key for the reply topic here.
+    """
+    _push_to_engine_with_retry(
+        make_symbols_request_msg(gateway_id),
+        f"symbol list request (gateway_id={gateway_id})",
+        initial_delay_sec=initial_delay_sec,
+        retry_timeout_sec=retry_timeout_sec,
+        retry_interval_sec=retry_interval_sec,
+    )
 
 
 def _load_stats_from_db(db_path: Path, symbol: str) -> "_SessionStats":
@@ -467,16 +518,19 @@ def _side_table(
     )
     max_qty = max((int(r.get("qty", 0) or 0) for r in rows[:capacity]), default=0)
 
+    # The two sides are mirror images about the centre divider: the depth bars
+    # meet in the middle and grow outward, with price, qty and order count
+    # fanning out behind them.
     if is_bid:
-        tbl.add_column("Depth", justify="right", width=_BAR_WIDTH, no_wrap=True)
-        tbl.add_column("Price", justify="right", style=color, no_wrap=True)
-        tbl.add_column("Qty", justify="right", style=text_color, no_wrap=True)
         tbl.add_column("Ord", justify="right", style=text_color, no_wrap=True)
+        tbl.add_column("Qty", justify="right", style=text_color, no_wrap=True)
+        tbl.add_column("Price", justify="right", style=color, no_wrap=True)
+        tbl.add_column("Depth", justify="right", width=_BAR_WIDTH, no_wrap=True)
     else:
+        tbl.add_column("Depth", justify="left", width=_BAR_WIDTH, no_wrap=True)
         tbl.add_column("Price", justify="left", style=color, no_wrap=True)
         tbl.add_column("Qty", justify="left", style=text_color, no_wrap=True)
         tbl.add_column("Ord", justify="left", style=text_color, no_wrap=True)
-        tbl.add_column("Depth", justify="left", width=_BAR_WIDTH, no_wrap=True)
 
     shown = rows[:capacity]
     for lvl in shown:
@@ -485,9 +539,9 @@ def _side_table(
         cnt = str(lvl.get("count", ""))
         bar = _bar(lvl.get("qty"), max_qty, color, reverse=not is_bid)
         if is_bid:
-            tbl.add_row(bar, price, qty, cnt)
+            tbl.add_row(cnt, qty, price, bar)
         else:
-            tbl.add_row(price, qty, cnt, bar)
+            tbl.add_row(bar, price, qty, cnt)
 
     for _ in range(capacity - len(shown)):
         tbl.add_row(*_blank_row(4))
@@ -632,7 +686,7 @@ def _build_display(
         ("  Order Book ", "grey70"),
     )
     subtitle = Text(
-        "levels fit screen  •  bids/asks/trades equal height  •  Ctrl-C to quit",
+        "levels fit screen  •  s / F1 change symbol  •  Ctrl-C to quit",
         style="grey58",
     )
 
@@ -646,6 +700,23 @@ def _build_display(
         box=box.ROUNDED,
         height=height,
         padding=(0, 1),
+    )
+
+
+def _build_picker_overlay(
+    picker: SymbolPicker,
+    current: str,
+    *,
+    size: tuple[int, int] | None = None,
+) -> Align:
+    """Centre the symbol picker on an otherwise empty screen."""
+    height = size[1] if size is not None else console.size.height
+    # Chrome around the list: panel border, filter line, blank, scroll markers.
+    visible_rows = max(3, min(DEFAULT_VISIBLE_ROWS, height - 8))
+    return Align.center(
+        render_picker(picker, current=current, visible_rows=visible_rows),
+        vertical="middle",
+        height=height,
     )
 
 
@@ -685,7 +756,13 @@ def main() -> None:
         debug_counts.clear()
         debug_last_summary = now
 
-    sub = make_subscriber(ENGINE_PUB_ADDR, topic_book_snapshot(symbol))
+    # `gateway_id` here is only the correlation key the engine echoes on the
+    # symbols reply topic — pm-viewer is a passive subscriber and never
+    # registers as a gateway.
+    gateway_id = f"PMVIEW-{os.getpid()}"[:32]
+    symbols_topic = topic_symbols(gateway_id)
+    book_topic = topic_book_snapshot(symbol)
+    sub = make_subscriber(ENGINE_PUB_ADDR, book_topic, symbols_topic)
 
     # Request the current snapshot so reconnects show the live book
     # immediately. Done in a daemon thread so we don't block the main loop.
@@ -698,6 +775,53 @@ def main() -> None:
     poller = zmq.Poller()
     poller.register(sub, zmq.POLLIN)
 
+    picker: SymbolPicker | None = None
+    known_symbols: list[str] = []
+
+    def _switch_symbol(new_symbol: str) -> None:
+        nonlocal symbol, book_topic, latest_snapshot, stats
+        if new_symbol == symbol:
+            return
+        sub.setsockopt(zmq.UNSUBSCRIBE, book_topic.encode())
+        symbol = new_symbol
+        book_topic = topic_book_snapshot(symbol)
+        sub.setsockopt(zmq.SUBSCRIBE, book_topic.encode())
+        latest_snapshot = {"bids": [], "asks": [], "recent_trades": []}
+        stats = _load_stats_from_db(resolve_data_path(str(args.db)), symbol)
+        threading.Thread(
+            target=lambda: request_snapshot_with_retry(symbol), daemon=True
+        ).start()
+        log.info("viewer switched to symbol=%s", symbol)
+
+    def _handle_key(key: str) -> None:
+        """Apply one keypress. Opens, drives, or closes the symbol picker."""
+        nonlocal picker
+        if picker is None:
+            if key in ("s", "S", "F1"):
+                picker = SymbolPicker()
+                if known_symbols:
+                    picker.set_symbols(known_symbols)
+                threading.Thread(
+                    target=lambda: request_symbols_with_retry(gateway_id),
+                    daemon=True,
+                ).start()
+            return
+        if key == "ESC":
+            picker = None
+        elif key == "ENTER":
+            chosen = picker.selection
+            picker = None
+            if chosen is not None:
+                _switch_symbol(chosen)
+        elif key == "UP":
+            picker.move(-1)
+        elif key == "DOWN":
+            picker.move(1)
+        elif key == "BACKSPACE":
+            picker.backspace()
+        elif len(key) == 1:
+            picker.type_char(key)
+
     # Single-threaded main loop: zmq.Poller.poll() is interrupted by SIGINT
     # (zmq_poll returns EINTR → pyzmq calls PyErr_CheckSignals() → KeyboardInterrupt).
     # Live uses auto_refresh=False so it spawns no background threads of its own.
@@ -706,9 +830,14 @@ def main() -> None:
     # whole frame at the current terminal size on every refresh — so a resize
     # never leaves stale rows from a previous (larger) render behind.
     try:
-        with Live(
-            console=console, auto_refresh=False, screen=True, transient=True
-        ) as live:
+        with (
+            KeyReader() as keys,
+            Live(
+                console=console, auto_refresh=False, screen=True, transient=True
+            ) as live,
+        ):
+            if keys.available:
+                poller.register(keys.fileno(), zmq.POLLIN)
             while True:
                 try:
                     socks = dict(poller.poll(timeout=int(1000 / _REFRESH_HZ)))
@@ -717,23 +846,42 @@ def main() -> None:
                         raise
                     _dbg_count("poll_eintr")
                     break  # EINTR: signal interrupted poll — exit cleanly
+                if keys.available and keys.fileno() in socks:
+                    for key in keys.read_keys():
+                        _handle_key(key)
+                        _dbg_count("keys")
                 if sub in socks:
                     frames = sub.recv_multipart()
-                    _, payload = decode(frames)
-                    latest_snapshot = payload
-                    stats.update(payload)
-                    _dbg_count("book_snapshots")
-                live.update(
-                    _build_display(
-                        latest_snapshot,
-                        symbol,
-                        args.depth,
-                        stats=stats,
-                        text_color=text_color,
-                        zebra_lines=args.zebra_lines,
-                        zebra_color=zebra_color,
+                    topic, payload = decode(frames)
+                    if topic == symbols_topic:
+                        known_symbols = [
+                            str(entry.get("symbol", ""))
+                            for entry in payload.get("symbols", [])
+                        ]
+                        if picker is not None:
+                            picker.set_symbols(known_symbols)
+                        _dbg_count("symbol_lists")
+                    elif topic == book_topic:
+                        latest_snapshot = payload
+                        stats.update(payload)
+                        _dbg_count("book_snapshots")
+                    else:
+                        # A snapshot for the symbol we just switched away from.
+                        _dbg_count("stale_snapshots")
+                if picker is not None:
+                    live.update(_build_picker_overlay(picker, symbol))
+                else:
+                    live.update(
+                        _build_display(
+                            latest_snapshot,
+                            symbol,
+                            args.depth,
+                            stats=stats,
+                            text_color=text_color,
+                            zebra_lines=args.zebra_lines,
+                            zebra_color=zebra_color,
+                        )
                     )
-                )
                 live.refresh()
                 _dbg_count("renders")
                 _flush_debug_summary()

@@ -1,0 +1,18 @@
+# pm-mm-bot configuration — schema version 1
+#
+# Shorthand: when every symbol takes the same settings, `symbols` may be a
+# plain list instead of a mapping of empty blocks.
+#
+#     pm-mm-bot --config docs/examples/mm-bot/uniform-desk.yaml
+#
+version: 1
+
+gateway:
+  label: CORE
+
+defaults:
+  gap: 0.10
+  qty: 500
+  tif: GTC
+
+symbols: [AAPL, MSFT, TSLA]

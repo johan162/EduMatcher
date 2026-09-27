@@ -8,7 +8,7 @@
 | **Package**       | [![GitHub release](https://img.shields.io/github/v/release/johan162/edumatcher?include_prereleases)](https://github.com/johan162/edumatcher/releases) [![PyPI version](https://img.shields.io/pypi/v/edumatcher.svg)](https://pypi.org/project/edumatcher/) [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/) |
 | **Documentation** | [![Documentation](https://img.shields.io/badge/docs-mkdocs-blue)](https://johan162.github.io/EduMatcher/) |
 | **CI/CD**         | [![CI](https://github.com/johan162/EduMatcher/actions/workflows/ci.yml/badge.svg)](https://github.com/johan162/EduMatcher/actions/workflows/ci.yml) |
-| **Code Quality**  | [![Coverage](https://img.shields.io/badge/coverage-86%25-green.svg)](https://github.com/johan162/EduMatcher/actions/workflows/ci.yml)  [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/) [![Linting: flake8](https://img.shields.io/badge/linting-flake8-yellowgreen)](https://flake8.pycqa.org/) |
+| **Code Quality**  | [![Coverage](https://img.shields.io/badge/coverage-87%25-green.svg)](https://github.com/johan162/EduMatcher/actions/workflows/ci.yml)  [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/) [![Linting: flake8](https://img.shields.io/badge/linting-flake8-yellowgreen)](https://flake8.pycqa.org/) |
 | **License**       | [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)  |
 
 
@@ -44,17 +44,17 @@ Once inside the container, start with reviewing available commands
 pm-help
 ```
 
-Then, on your host open a broswer and go to the following URLs for the more user-friendly ways to trade:
+Then, on your host, open a browser and go to the following URLs for the more user-friendly ways to trade and watch the market:
 
 ```bash
-# The trading platform to buy/sell equity. Requires log-in using
+# The trading platform to buy/sell equities. Requires log-in using
 # one of the API keys defined in the `engine_config.yaml`
 Trader GUI       :  http://localhost:8093.
 
-# The terminal to watch the statistics of the market
+# The terminal to watch the movements of the market
 Trading terminal :  http://localhost:8090
 
-# The centrl log-srv to observer what is happening internally
+# The central log server to observe what is happening internally
 # in the exchange platform
 Log viewer       :  http://localhost:8091      
 
@@ -63,7 +63,7 @@ Log viewer       :  http://localhost:8091
 REST API docs    :  http://localhost:8080/docs
 ```
 
-Configureíng the exchange can be done by either 1) Manually edit the config YAML file (and then verify/lint it with `pm-cverifier`) or, 2) generate it in scripts using the `pm-config-gen` or, 3) using the Web application reachable at :
+Configuring the exchange can be done by either 1) Manually edit the config YAML file (and then verify/lint it with `pm-cverifier`) or, 2) generate it in scripts using the `pm-config-gen` tool or, 3) using the Web application reachable at :
 
 ```
 Config builder   :  http://localhost:8092
@@ -140,17 +140,16 @@ for every match. They are required for realistic risk control and add measurable
 
 ## Key Functional and Infrastructure Limitations
 
-- Very limited authentication & authorization
+- Limited authentication & no authorization implemented
 - No combo-order books (combo orders are supported with coupled order books)
 - No implied (synthetic) orders
 - No primary-secondary automatic site failover
-- No load balancing
-- Limited replay for participants that lose the connection
 - MARKET orders are rejected during a circuit-breaker halt rather than joining
   the reopening auction. Both Nasdaq and Xetra accept them into the call; here
   the uncross prices interest by book level, so unpriced interest has no level
   to sit at and would be invisible to `compute_equilibrium()`
-- The ACE expansion ladder is exchange-wide only
+- The ACE (Automated Collar Expansion) ladder is exchange-wide only, not per symbol
+- No replay functionality on the bus for clients connecting after the opening
 
 ## Contributing
 
@@ -172,7 +171,7 @@ If you use this tool in teaching or courses, please cite:
   author = {Johan Persson},
   year = {2026},
   url = {https://github.com/johan162/EduMatcher},
-  version = {0.42.0}
+  version = {0.42.1}
 }
 ```
 

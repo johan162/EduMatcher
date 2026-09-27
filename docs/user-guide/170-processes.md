@@ -626,7 +626,14 @@ pm-viewer --symbol AAPL [--depth N] [--db data/stats.db] \
 
 **Expected runtime input arguments:**
 
-None.
+| Key            | Action                                                       |
+|----------------|--------------------------------------------------------------|
+| `s` or `F1`    | Open the symbol picker and switch to another symbol          |
+| `Ctrl-C`       | Quit                                                          |
+
+Inside the picker: type to narrow the list by prefix, `↑`/`↓` to move,
+`Enter` to switch, `Esc` to go back to the book unchanged. Both keys are
+advertised in the footer that crosses the bottom border.
 
 **Display**:
 - Two-line header: last price with directional colour/arrow, change / %, session OHLC seeded from `pm-stats` DB, previous-close, bid/ask, spread, volume, and a live clock
@@ -649,6 +656,14 @@ None.
     Both color options accept a `#rrggbb` hex code or any
     [Rich color name](https://rich.readthedocs.io/en/stable/appendix/colors.html).
 
+!!! tip "Switching symbol without restarting"
+    Press `s` (or `F1`) to pick a different symbol from a popup list. The
+    viewer asks the engine for the current symbol universe each time the
+    picker opens, resubscribes to the chosen symbol's book, and reloads that
+    symbol's session statistics — so one viewer can follow a whole class
+    around the market. The picker needs a real terminal; when stdin is piped
+    or redirected the viewer behaves exactly as it always did.
+
 Run multiple viewers simultaneously for different symbols:
 
 ```bash
@@ -659,16 +674,18 @@ pm-viewer --symbol TSLA
 
 **Messages subscribed** (SUB from :5556):
 
-| Topic           | Purpose                                     |
-|-----------------|---------------------------------------------|
-| `book.{SYMBOL}` | Book updates for the watched symbol         |
-| `session.state` | Session phase changes (displayed in header) |
+| Topic                    | Purpose                                              |
+|--------------------------|------------------------------------------------------|
+| `book.{SYMBOL}`          | Book updates for the watched symbol                  |
+| `system.symbols.{GW_ID}` | Symbol list backing the interactive picker           |
+| `session.state`          | Session phase changes (displayed in header)          |
 
 **Messages sent** (PUSH → :5555):
 
-| Topic                   | Purpose                                |
-|-------------------------|----------------------------------------|
-| `book.snapshot_request` | Requests initial book state on startup |
+| Topic                     | Purpose                                                    |
+|---------------------------|------------------------------------------------------------|
+| `book.snapshot_request`   | Requests initial book state on startup, and again after a symbol switch |
+| `system.symbols_request`  | Requests the symbol list when the picker is opened          |
 
 
 

@@ -1,0 +1,15 @@
+# pm-mm-bot configuration — schema version 1
+#
+# The smallest useful file: one symbol, house defaults everywhere else.
+# Equivalent to:  pm-mm-bot --symbol AAPL --gap 0.08 --qty 300
+#
+#     pm-mm-bot --config docs/examples/mm-bot/single-symbol.yaml
+#
+version: 1
+
+defaults:
+  gap: 0.08
+  qty: 300
+
+symbols:
+  AAPL: {}
