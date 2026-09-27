@@ -133,6 +133,8 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
         raise ValueError("--mm-spread-ticks must be > 0")
     if args.mm_min_qty <= 0:
         raise ValueError("--mm-min-qty must be > 0")
+    if args.mm_seed_spread_ticks <= 0:
+        raise ValueError("--mm-seed-spread-ticks must be > 0")
     if args.cb_window_ns <= 0:
         raise ValueError("--cb-window-ns must be > 0")
     if not (0 < args.ace_initial_band < 1):
@@ -1502,6 +1504,7 @@ def _parse_index_specs(args: argparse.Namespace) -> tuple[IndexSpec, ...]:
 def _validate_seed_mm_mid_range_grid(
     seed_mm_mid_range: tuple[float, float] | None,
     tick_decimals_by_symbol: dict[str, int],
+    mm_seed_spread_ticks: int,
 ) -> None:
     """The mid-range must hold a price on every symbol's own tick grid.
 
@@ -1521,11 +1524,11 @@ def _validate_seed_mm_mid_range_grid(
                 f"--seed-mm-mid-range does not contain any prices on {sym}'s "
                 f"tick grid (tick_decimals={tick_decimals})"
             )
-        if min_steps <= 1:
+        if min_steps <= mm_seed_spread_ticks:
             raise ValueError(
                 f"--seed-mm-mid-range minimum must allow a positive bid after "
-                f"applying a one-tick spread on {sym}'s tick grid "
-                f"(tick_decimals={tick_decimals})"
+                f"applying the {mm_seed_spread_ticks}-tick seed spread on "
+                f"{sym}'s tick grid (tick_decimals={tick_decimals})"
             )
 
 
@@ -1770,7 +1773,11 @@ def main() -> None:
         tick_decimals_by_symbol = _tick_decimals_by_symbol(
             symbols, symbol_overrides, int(args.tick_decimals)
         )
-        _validate_seed_mm_mid_range_grid(seed_mm_mid_range, tick_decimals_by_symbol)
+        _validate_seed_mm_mid_range_grid(
+            seed_mm_mid_range,
+            tick_decimals_by_symbol,
+            int(args.mm_seed_spread_ticks),
+        )
         combos = _parse_combo_specs(
             args,
             allowed_symbols=set(symbols),
@@ -1814,6 +1821,7 @@ def main() -> None:
             cb_window_ns=int(args.cb_window_ns),
             mm_spread_ticks=int(args.mm_spread_ticks),
             mm_min_qty=int(args.mm_min_qty),
+            mm_seed_spread_ticks=int(args.mm_seed_spread_ticks),
             enforce_mm_obligations=bool(args.enforce_mm_obligations),
             emit_mm_defaults=has_mm_gateway,
             tick_decimals=int(args.tick_decimals),

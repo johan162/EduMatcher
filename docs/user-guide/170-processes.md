@@ -2449,6 +2449,7 @@ pm-config-gen --symbols AAPL MSFT --gateways TRADER01 TRADER02 OPS01:ADMIN --ses
 | `--seed-last-prices` | off | Emit null last-price placeholders |
 | `--seed N` | — | RNG seed for generated training values |
 | `--seed-mm-mid-range MIN:MAX` | — | Seed MM quotes from a random midpoint |
+| `--mm-seed-spread-ticks N` | `30` | Half-spread, in ticks, either side of the seeded MM midpoint |
 | `--seed-last-prices-from-mm` | off | Set last prices from the seeded MM midpoint |
 
 #### Gateway sections

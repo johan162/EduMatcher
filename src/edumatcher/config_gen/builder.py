@@ -87,6 +87,7 @@ from .defaults import (
     DEFAULT_DROP_COPY_BUFFER_SIZE,
     DEFAULT_DYNAMIC_BAND_PCT,
     DEFAULT_MM_MIN_QTY,
+    DEFAULT_MM_SEED_SPREAD_TICKS,
     DEFAULT_MM_SPREAD_TICKS,
     DEFAULT_MM_STUB_QTY,
     DEFAULT_POST_TRADE_GATEWAY_ALLOWED_ROLES,
@@ -135,6 +136,7 @@ class ConfigSpec:
         default_factory=lambda: list(DEFAULT_ACE_EXPANSIONS)
     )
     mm_spread_ticks: int = DEFAULT_MM_SPREAD_TICKS
+    mm_seed_spread_ticks: int = DEFAULT_MM_SEED_SPREAD_TICKS
     mm_min_qty: int = DEFAULT_MM_MIN_QTY
     enforce_mm_obligations: bool = False
     emit_mm_defaults: bool = False
@@ -903,8 +905,9 @@ class ConfigBuilder:
             ask_price: float | None = None
         else:
             tick_size = Decimal(1).scaleb(-tick_decimals)
-            bid_price = float(seeded_midpoint - tick_size)
-            ask_price = float(seeded_midpoint + tick_size)
+            half_spread = self.spec.mm_seed_spread_ticks * tick_size
+            bid_price = float(seeded_midpoint - half_spread)
+            ask_price = float(seeded_midpoint + half_spread)
 
         return {
             "gateway_id": gateway_id,

@@ -189,9 +189,12 @@ def test_builder_seed_last_prices_from_mm_uses_midpoint() -> None:
 
 
 def test_builder_seeds_on_each_symbols_own_tick_grid() -> None:
-    # The mid-range seed, the one-tick quote spread and the seeded last
-    # prices must all use the symbol's tick_decimals, not the global one:
-    # a 2-decimal seed on a 0-decimal symbol is off-grid and refused (CV18).
+    # The mid-range seed, the seeded quote spread and the seeded last prices
+    # must all use the symbol's tick_decimals, not the global one: a
+    # 2-decimal seed on a 0-decimal symbol is off-grid and refused (CV18).
+    # mm_seed_spread_ticks is a tick COUNT, so it scales automatically with
+    # each symbol's own tick_decimals; pin it to 1 here to keep this test's
+    # tiny mid-range sensible.
     spec = ConfigSpec(
         symbols=["WHOLE", "FINE"],
         gateways=[
@@ -202,6 +205,7 @@ def test_builder_seeds_on_each_symbols_own_tick_grid() -> None:
         random_seed=3,
         seed_mm_mid_range=(20.25, 21.25),
         seed_last_prices_from_mm=True,
+        mm_seed_spread_ticks=1,
         symbol_overrides={
             "WHOLE": SymbolOverride(tick_decimals=0),
             "FINE": SymbolOverride(tick_decimals=4),
@@ -216,6 +220,23 @@ def test_builder_seeds_on_each_symbols_own_tick_grid() -> None:
 
     fine = symbols["FINE"]["market_maker_quotes"][0]
     assert round(fine["ask_price"] - fine["bid_price"], 6) == 0.0002
+
+
+def test_builder_default_mm_seed_spread_is_30_ticks() -> None:
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[
+            parse_gateway_spec("TRADER01"),
+            parse_gateway_spec("MM01:MARKET_MAKER"),
+        ],
+        emit_mm_defaults=True,
+        random_seed=5,
+        seed_mm_mid_range=(20.0, 30.0),
+    )
+    payload = ConfigBuilder(spec).build()
+
+    quote = payload["symbols"]["AAPL"]["market_maker_quotes"][0]
+    assert round(quote["ask_price"] - quote["bid_price"], 6) == 0.60
 
 
 def test_builder_with_cb_defaults_and_symbol_override() -> None:

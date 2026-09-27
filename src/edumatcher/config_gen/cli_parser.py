@@ -12,6 +12,7 @@ from edumatcher.config_gen.defaults import (
     DEFAULT_DROP_COPY_BUFFER_SIZE,
     DEFAULT_HOLIDAYS_SCHEDULE,
     DEFAULT_MM_MIN_QTY,
+    DEFAULT_MM_SEED_SPREAD_TICKS,
     DEFAULT_MM_SPREAD_TICKS,
     DEFAULT_QUOTE_HISTORY_MAXLEN,
     DEFAULT_RECENT_TRADES_MAXLEN,
@@ -268,6 +269,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_MM_SPREAD_TICKS,
         metavar="N",
         help="Global MM max spread ticks.",
+    )
+    parser.add_argument(
+        "--mm-seed-spread-ticks",
+        type=int,
+        default=DEFAULT_MM_SEED_SPREAD_TICKS,
+        metavar="N",
+        help="Half-spread, in ticks, for the seeded MM stub quote (bid/ask sit this many ticks either side of the seeded midpoint).",
     )
     parser.add_argument(
         "--mm-min-qty",

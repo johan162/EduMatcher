@@ -1930,6 +1930,7 @@ _shtab_pm_config_gen_options=(
   "--ace-random-end-ns[Upper bound of the uniform random tail added to every call phase. 0 disables the random end, making reopen times predictable.]:NS:"
   "--ace-random-seed[Seed the random-end generator for reproducible demos. Omit for OS entropy, which is what a real venue wants.]:N:"
   "--mm-spread-ticks[Global MM max spread ticks.]:N:"
+  "--mm-seed-spread-ticks[Half-spread, in ticks, for the seeded MM stub quote (bid\/ask sit this many ticks either side of the seeded midpoint).]:N:"
   "--mm-min-qty[Global MM min qty.]:N:"
   "--enforce-mm-obligations[Enable MM obligations globally.]"
   "--no-enforce-mm-obligations[Disable MM obligations globally.]"

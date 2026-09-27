@@ -287,6 +287,7 @@ Market-maker and symbol defaults:
 | `--seed-last-prices` | Flag | off | Emit `last_buy_price`/`last_sell_price` placeholders |
 | `--seed N` | int | random source default | Deterministic RNG seed for generated training values |
 | `--seed-mm-mid-range MIN:MAX` | string | none | Seed MM quotes from a random midpoint in the inclusive price range |
+| `--mm-seed-spread-ticks N` | int (`> 0`) | `30` | Half-spread, in ticks, for seeded MM stub quotes (bid/ask sit this many ticks either side of the seeded midpoint) |
 | `--no-mm-seed-quotes` | flag | off | Set `require_mm_seed_quotes: false` — allow a `MARKET_MAKER` gateway with no seeded quotes |
 | `--seed-last-prices-from-mm` | Flag | off | Set `last_buy_price`/`last_sell_price` to the same midpoint used for seeded MM quotes |
 
