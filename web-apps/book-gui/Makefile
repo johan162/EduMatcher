@@ -284,8 +284,15 @@ cbuild: check-container | $(TIMESTAMP_DIR) ## Build container image via compose 
 	    --build-arg HTTPS_PROXY="$(HTTPS_PROXY)" \
 	    --build-arg NO_PROXY="$(NO_PROXY)" \
 		--build-arg WEB_PORT="$(WEB_PORT)"
+	@# Also tag the version, which cpush pushes
+	@$(CONTAINER_RUNTIME) tag $(APP_NAME):latest $(IMAGE)
 	@touch $(CONTAINER_STAMP)
 	@echo -e "$(GREEN)✓ Container image built$(NC)"
+
+# cdist and cpush need a built image. Without this rule a fresh checkout,
+# where no stamp exists yet, failed with "No rule to make target".
+$(CONTAINER_STAMP): | $(TIMESTAMP_DIR)
+	@$(MAKE) --no-print-directory cbuild
 
 up: check-container-env ## Start container stack (detached) with build
 	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"

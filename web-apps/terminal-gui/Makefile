@@ -11,7 +11,7 @@
 #
 # HTTP_PROXY=http://host.containers.internal:9000 \
 # HTTPS_PROXY=http://host.containers.internal:9000 \
-# NO_PROXY=localhost,127.0.0.1  make dist
+# NO_PROXY=localhost,127.0.0.1  make cdist
 #
 # or
 #
@@ -22,8 +22,9 @@
 	check-npm check-container check-container-env \
 	install build build-debug typecheck test lint format \
 	dev dev-web dev-bridge \
-	cnt-build proxy-up up down restart logs ps \
-	dist \
+	cbuild up down restart logs ps \
+	cdist imageclean \
+	ghcr-login cpush ghcr-logout ghcr-clean \
 	clean distclean
 
 # --------------------------------------------------------------------------------------------
@@ -208,21 +209,13 @@ help: ## Show this help message
 	@$(call print_section,Setup,install|clean|distclean)
 	@$(call print_section,Build and Checks,build|build-debug|typecheck|test|lint|format)
 	@$(call print_section,Development,dev|dev-web|dev-bridge)
-	@$(call print_section,Container,check-container-env|cnt-build|proxy-up|up|down|restart|logs|ps)
-	@$(call print_section,Distribute,dist)
+	@$(call print_section,Container,check-container-env|cbuild|up|down|restart|logs|ps|imageclean)
+	@$(call print_section,Distribute,cdist|ghcr-login|cpush|ghcr-logout|ghcr-clean)
 	@echo ""
 
 # --------------------------------------------------------------------------------------------
 # Local npm workflow
 # --------------------------------------------------------------------------------------------
-
-# Bump version in "TopBar.tsx" file (for display in the GUI) when updating the version in package.json
-bump-version: ## Update version in TopBar.tsx to match package.json
-	@echo -e "$(YELLOW)- Bumping version in TopBar.tsx to match package.json...$(NC)"
-	@TOPBAR_FILE=apps/web/src/components/layout/TopBar.tsx; \
-	VERSION=$(shell node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0"); \
-	sed -i.bak -E "s/v[0-9]+\.[0-9]+\.[0-9]+/v$$VERSION/" "$$TOPBAR_FILE" && rm -f "$$TOPBAR_FILE.bak"
-	@echo -e "$(GREEN)✓ Version updated in TopBar.tsx to v$(VERSION)$(NC)"
 
 # Unlike log-gui's equivalent target, this deliberately does NOT pass
 # --no-dedupe. That flag works around an npm arborist crash specific to
@@ -291,10 +284,17 @@ cbuild: check-container | $(TIMESTAMP_DIR) ## Build container image via compose 
 	    --build-arg HTTPS_PROXY="$(HTTPS_PROXY)" \
 	    --build-arg NO_PROXY="$(NO_PROXY)" \
 		--build-arg WEB_PORT="$(WEB_PORT)"
+	@# Also tag the version, which cpush pushes
+	@$(CONTAINER_RUNTIME) tag $(APP_NAME):latest $(IMAGE)
 	@touch $(CONTAINER_STAMP)
 	@echo -e "$(GREEN)✓ Container image built$(NC)"
 
-up: check-container-env bump-version ## Start container stack (detached) with build
+# cdist and cpush need a built image. Without this rule a fresh checkout,
+# where no stamp exists yet, failed with "No rule to make target".
+$(CONTAINER_STAMP): | $(TIMESTAMP_DIR)
+	@$(MAKE) --no-print-directory cbuild
+
+up: check-container-env ## Start container stack (detached) with build
 	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
 	@if [[ -n "$${PM_TERMINAL_API_KEY:-}" ]]; then
 		echo -e "$(BLUE)- Using PM_TERMINAL_API_KEY from the environment$(NC)"
@@ -387,7 +387,7 @@ $(CDIST_STAMP): $(CONTAINER_STAMP)   ## Build a distributable: container image +
 	@echo -e "$(BLUE)- Then run:$(NC)"
 	@echo -e "$(WHITE)    $(CONTAINER_RUNTIME) run -p $(WEB_PORT):$(WEB_PORT) $(IMAGE)$(NC)"
 
-cdist: $(CDIST_STAMP) check-container-env bump-version ## Build a distributable package (container image + exported OCI tarball in dist)
+cdist: $(CDIST_STAMP) check-container-env ## Build a distributable package (container image + exported OCI tarball in dist)
 	@:
 
 # --------------------------------------------------------------------------------------------
