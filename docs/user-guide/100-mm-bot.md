@@ -1107,7 +1107,7 @@ low-level flow tracing (e.g. `book mid=...`, `session: OLD -> NEW`, and
 |---|---|---|
 | `auth rejected` | Gateway ID not in `engine_config.yaml` | Add the `MM_<SYM>_<nn>` (or `MM_<LABEL>_<nn>`) entry with `role: MARKET_MAKER` |
 | `invalid config file: ... unknown key(s)` | A `--config` file has a typo'd or unsupported key | Check the key against [Config file](#config-file) — long flag name, dashes as underscores |
-| `--symbol or --symbols is required (directly or via --config)` | Neither `--symbol` nor `--symbols` nor the config file's `symbol:`/`symbols:` key was given | Add one of the two |
+| `no symbols configured: use --symbol, --symbols, or a config file with a 'symbols:' block` | Neither `--symbol` nor `--symbols` nor the config file's `symbols:` block was given | Add one of the two |
 | `--symbol and --symbols are mutually exclusive` | Both `--symbol` and `--symbols` ended up set, from any combination of CLI and `--config` | Use only one |
 | `startup failed: no reference price available (no book, no trade, no bootstrap, no random range)` | Empty book + no `--initial_min`/`--initial_max`, for a symbol with no other symbol left quoting | Add bootstrap range flags |
 | `startup failed: no session.state` | Engine not running or scheduler not started | Start the engine and scheduler |

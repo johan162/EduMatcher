@@ -7,6 +7,7 @@ This patch release primarily enhances the multi-symbol functionality of the `pm-
 - Added per-symbol settings to `pm-mm-bot`: `--symbol` can now be repeated, and every spread, size, strategy and timing flag after it applies to that symbol alone
 - Added a structured `pm-mm-bot` config-file format with gateway-wide settings, shared defaults, and per-symbol overrides, so a whole market-making desk fits in one reviewable file
 - Added worked `pm-mm-bot` config examples under `docs/examples/mm-bot/`
+- Added interactive symbol switching to the order book viewer `pm-viewer`: press `s` or `F1` to pick another symbol from a popup list
 
 ### 🚀 Improvements
 - Improved `pm-mm-bot` startup logging to report each symbol's resolved settings on its own line
@@ -17,6 +18,7 @@ This patch release primarily enhances the multi-symbol functionality of the `pm-
 ### 📚 Documentation
 - Updated the market-maker bot guide with the per-symbol command-line grammar, the new config-file format, and a full settings reference
 - Added new section in examples of configs for mm-bot
+- Documented the `pm-viewer` symbol picker and its keys in the processes guide
 
 ### 🛠 Internal
 - Fixed typos in main README
