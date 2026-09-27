@@ -5443,7 +5443,7 @@ complete -F _shtab_pm_md_gwy pm-md-gwy
 
 
 
-_shtab_pm_mm_bot_option_strings=(-h --help --version --config --symbol --symbols --label --strategy --gap --max-position --qty --id-suffix --drift-ticks --reissue-delay-ms --tif --heartbeat-interval-sec --startup-session-timeout-sec --bootstrap-timeout-sec --cancel-timeout-sec --shutdown-timeout-sec --qlegs-reconcile-interval-sec --initial_min --initial_max --engine-pull --engine-pub --log-level -v --verbose -q --quiet --log-target --log-file --log-failover-timeout)
+_shtab_pm_mm_bot_option_strings=(-h --help --version --config --symbol --symbols --label --strategy --gap --max-position --retreat-ticks --behind-ticks --min-cover-qty --fade-ticks --fade-sec --qty --id-suffix --drift-ticks --reissue-delay-ms --tif --heartbeat-interval-sec --startup-session-timeout-sec --bootstrap-timeout-sec --cancel-timeout-sec --shutdown-timeout-sec --qlegs-reconcile-interval-sec --initial_min --initial_max --engine-pull --engine-pub --log-level -v --verbose -q --quiet --log-target --log-file --log-failover-timeout)
 
 
 

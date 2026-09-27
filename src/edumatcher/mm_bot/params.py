@@ -35,6 +35,21 @@ TIER2_KEYS: tuple[str, ...] = (
     "qlegs_reconcile_interval_sec",
     "initial_min",
     "initial_max",
+    "retreat_ticks",
+    "behind_ticks",
+    "min_cover_qty",
+    "fade_ticks",
+    "fade_sec",
+)
+
+#: Tier-2 keys read only by the ``passive`` strategy; every other strategy
+#: ignores them.
+PASSIVE_KEYS: tuple[str, ...] = (
+    "retreat_ticks",
+    "behind_ticks",
+    "min_cover_qty",
+    "fade_ticks",
+    "fade_sec",
 )
 
 #: Tier-1 keys settable under the config file's ``gateway:`` block.
@@ -74,6 +89,12 @@ TIER2_DEFAULTS: dict[str, Any] = {
     "qlegs_reconcile_interval_sec": 15.0,
     "initial_min": None,
     "initial_max": None,
+    # passive strategy (docs/user-guide/100-mm-bot.md, "The passive strategy")
+    "retreat_ticks": 5,
+    "behind_ticks": 1,
+    "min_cover_qty": 1,
+    "fade_ticks": 2,
+    "fade_sec": 3.0,
 }
 
 GATEWAY_DEFAULTS: dict[str, Any] = {
@@ -188,6 +209,22 @@ def validate_symbol_params(symbol: str, values: dict[str, Any]) -> dict[str, Any
             f"{where}max_position is only meaningful with strategy "
             f"inventory_skew (got strategy {strategy})"
         )
+
+    for key, minimum in (
+        ("retreat_ticks", 0),
+        ("behind_ticks", 1),
+        ("min_cover_qty", 1),
+        ("fade_ticks", 0),
+    ):
+        count = _as_int(where, key, out[key])
+        if count < minimum:
+            raise ValueError(f"{where}{key} must be >= {minimum} (got {count})")
+        out[key] = count
+
+    fade_sec = _as_float(where, "fade_sec", out["fade_sec"])
+    if fade_sec < 0:
+        raise ValueError(f"{where}fade_sec must be non-negative (got {fade_sec})")
+    out["fade_sec"] = fade_sec
 
     for key in ("initial_min", "initial_max"):
         if out[key] is not None:

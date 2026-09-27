@@ -7,7 +7,9 @@ bid/ask prices, tracks mid-price, and detects drift.
 from __future__ import annotations
 
 import math
+import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Protocol
 
 
@@ -259,6 +261,215 @@ class InventorySkewPricer:
             self._inner.set_mid(true_mid)
 
 
+@dataclass(frozen=True)
+class PassiveParams:
+    """The ``passive`` strategy's control knobs (see ``PassivePricer``).
+
+    Defaults live in ``mm_bot/params.py::TIER2_DEFAULTS``; this class only
+    groups the resolved values so ``create_strategy`` can pass them as one.
+    """
+
+    retreat_ticks: int
+    behind_ticks: int
+    min_cover_qty: int
+    fade_ticks: int
+    fade_sec: float
+
+
+@dataclass(frozen=True)
+class _PassivePlan:
+    """One computed quote, in integer ticks, plus why each side sits there."""
+
+    bid: int
+    ask: int
+    bid_covered: bool
+    ask_covered: bool
+    bid_faded: bool
+    ask_faded: bool
+
+
+class PassivePricer:
+    """Quote as a backstop: yield the top of the book to other traders.
+
+    This is the ``"passive"`` strategy referenced by ``--strategy``. It
+    combines two behaviours (docs/user-guide/100-mm-bot.md, "The passive
+    strategy"):
+
+    * **Step behind others.** Every side has a *home* price (where the
+      ``symmetric`` strategy would quote, ``mid ± gap/2``) and a *band* that
+      reaches ``retreat_ticks`` further out. When other traders already show
+      at least ``min_cover_qty`` inside that band, the side is *covered* and
+      the bot quotes ``behind_ticks`` behind their best price — never
+      tighter than home, never outside the band. An uncovered side quotes at
+      home, so the bot still makes the market when nobody else does.
+    * **Fade after a fill.** When a leg is hit, that side is pushed
+      ``fade_ticks`` further out (still inside the band) for ``fade_sec``.
+
+    The mid is taken from *other traders'* book only — ``MMBot`` removes the
+    bot's own legs before calling ``update_book`` — so the bot never chases
+    its own quote. With no other liquidity the previous mid is kept.
+
+    If the symbol has an MM spread obligation (``max_spread_ticks``), the
+    band is narrowed so the widest possible quote still satisfies it.
+    """
+
+    def __init__(
+        self,
+        tick_size: float,
+        gap: float,
+        drift_ticks: int,
+        *,
+        params: PassiveParams | None,
+        max_spread_ticks: int | None,
+    ) -> None:
+        if params is None:
+            raise ValueError("passive strategy requires its PassiveParams")
+        if params.retreat_ticks < 0:
+            raise ValueError(f"retreat_ticks ({params.retreat_ticks}) must be >= 0")
+        if params.behind_ticks < 1:
+            raise ValueError(f"behind_ticks ({params.behind_ticks}) must be >= 1")
+        if params.min_cover_qty < 1:
+            raise ValueError(f"min_cover_qty ({params.min_cover_qty}) must be >= 1")
+        if params.fade_ticks < 0:
+            raise ValueError(f"fade_ticks ({params.fade_ticks}) must be >= 0")
+        if params.fade_sec < 0:
+            raise ValueError(f"fade_sec ({params.fade_sec}) must be >= 0")
+        self._inner = QuotePricer(tick_size=tick_size, gap=gap, drift_ticks=drift_ticks)
+        self._tick_size = tick_size
+        self._drift_ticks = drift_ticks
+        self._params = params
+        self._max_spread_ticks = max_spread_ticks
+        # Other traders' levels, best first, as (price_ticks, qty).
+        self._bids: list[tuple[int, int]] = []
+        self._asks: list[tuple[int, int]] = []
+        self._fade_until: dict[str, float] = {"BID": 0.0, "ASK": 0.0}
+        self._last: _PassivePlan | None = None
+
+    @property
+    def mid_price(self) -> float | None:
+        return self._inner.mid_price
+
+    @property
+    def price_decimals(self) -> int:
+        return self._inner.price_decimals
+
+    def update_mid(self, best_bid: float | None, best_ask: float | None) -> None:
+        self._inner.update_mid(best_bid, best_ask)
+
+    def set_mid(self, price: float) -> None:
+        self._inner.set_mid(price)
+
+    def _to_ticks(self, price: float) -> int:
+        return round(price / self._tick_size)
+
+    def update_book(
+        self, bids: list[tuple[float, int]], asks: list[tuple[float, int]]
+    ) -> None:
+        """Record other traders' levels (best first) and re-derive the mid.
+
+        Not part of the ``PricingStrategy`` Protocol — ``MMBot`` calls it
+        instead of ``update_mid`` on strategies that expose it, after
+        removing the bot's own legs from the book.
+        """
+        self._bids = [(self._to_ticks(p), q) for p, q in bids if q > 0]
+        self._asks = [(self._to_ticks(p), q) for p, q in asks if q > 0]
+        self._inner.update_mid(
+            self._bids[0][0] * self._tick_size if self._bids else None,
+            self._asks[0][0] * self._tick_size if self._asks else None,
+        )
+
+    def on_fill(self, side: str, now: float) -> None:
+        """Start (or restart) the fade on the side that was hit.
+
+        ``side`` is ``"BID"`` or ``"ASK"``; ``now`` is ``time.monotonic()``.
+        """
+        if self._params.fade_ticks > 0 and self._params.fade_sec > 0:
+            self._fade_until[side] = now + self._params.fade_sec
+
+    def _plan(self, now: float) -> _PassivePlan:
+        home_bid, home_ask = self._inner.compute_prices()
+        hb, ha = self._to_ticks(home_bid), self._to_ticks(home_ask)
+        retreat = self._params.retreat_ticks
+        if self._max_spread_ticks is not None:
+            # Both sides fully retreated must still meet the obligation.
+            retreat = min(retreat, max(0, (self._max_spread_ticks - (ha - hb)) // 2))
+        floor_bid, ceil_ask = hb - retreat, ha + retreat
+        p = self._params
+
+        in_band_bid = sum(q for price, q in self._bids if price >= floor_bid)
+        bid_covered = in_band_bid >= p.min_cover_qty
+        bid = hb
+        if bid_covered:
+            bid = min(hb, max(floor_bid, self._bids[0][0] - p.behind_ticks))
+        bid_faded = now < self._fade_until["BID"]
+        if bid_faded:
+            bid = max(floor_bid, bid - p.fade_ticks)
+
+        in_band_ask = sum(q for price, q in self._asks if price <= ceil_ask)
+        ask_covered = in_band_ask >= p.min_cover_qty
+        ask = ha
+        if ask_covered:
+            ask = max(ha, min(ceil_ask, self._asks[0][0] + p.behind_ticks))
+        ask_faded = now < self._fade_until["ASK"]
+        if ask_faded:
+            ask = min(ceil_ask, ask + p.fade_ticks)
+
+        return _PassivePlan(bid, ask, bid_covered, ask_covered, bid_faded, ask_faded)
+
+    def compute_prices(self) -> tuple[float, float]:
+        """Return (bid_price, ask_price) and remember them as the live quote.
+
+        Raises RuntimeError if no mid-price is available.
+        """
+        if self._inner.mid_price is None:
+            raise RuntimeError("No mid-price available for quote computation")
+        plan = self._plan(time.monotonic())
+        self._last = plan
+        decimals = self._inner.price_decimals
+        return (
+            round(plan.bid * self._tick_size, decimals),
+            round(plan.ask * self._tick_size, decimals),
+        )
+
+    def requote_due(self, now: float) -> bool:
+        """True when the live quote no longer matches what should be quoted.
+
+        Per side: a change of covered/faded state, a covered side that must
+        step further back (any amount — the bot never stays in front of the
+        traders it yields to), or any other move of more than
+        ``drift_ticks``.
+        """
+        last = self._last
+        if last is None or self._inner.mid_price is None:
+            return False
+        plan = self._plan(now)
+        if (plan.bid_covered, plan.ask_covered, plan.bid_faded, plan.ask_faded) != (
+            last.bid_covered,
+            last.ask_covered,
+            last.bid_faded,
+            last.ask_faded,
+        ):
+            return True
+        if plan.bid_covered and plan.bid < last.bid:
+            return True
+        if plan.ask_covered and plan.ask > last.ask:
+            return True
+        return (
+            abs(plan.bid - last.bid) > self._drift_ticks
+            or abs(plan.ask - last.ask) > self._drift_ticks
+        )
+
+    def has_drifted(self, quoted_at_mid: float) -> bool:
+        """Drift for this strategy is ``requote_due`` — see there.
+
+        Before the first quote this strategy computed itself (an adopted
+        quote at startup), fall back to the plain mid-drift rule.
+        """
+        if self._last is None:
+            return self._inner.has_drifted(quoted_at_mid)
+        return self.requote_due(time.monotonic())
+
+
 # Registered strategy names -> constructor function. Each strategy takes
 # tick_size/gap/drift_ticks plus whatever else it needs as keyword-only
 # extras; a strategy that ignores an extra simply doesn't declare it. A
@@ -276,6 +487,13 @@ _STRATEGIES: dict[str, _StrategyFactory] = {
         drift_ticks=drift_ticks,
         max_position=kwargs.get("max_position"),
     ),
+    "passive": lambda tick_size, gap, drift_ticks, **kwargs: PassivePricer(
+        tick_size=tick_size,
+        gap=gap,
+        drift_ticks=drift_ticks,
+        params=kwargs.get("passive"),
+        max_spread_ticks=kwargs.get("max_spread_ticks"),
+    ),
 }
 
 
@@ -286,11 +504,14 @@ def create_strategy(
     gap: float,
     drift_ticks: int,
     max_position: int | None = None,
+    passive: PassiveParams | None = None,
+    max_spread_ticks: int | None = None,
 ) -> PricingStrategy:
     """Construct the named pricing strategy.
 
-    ``max_position`` is only meaningful for strategies that use it (today:
-    ``inventory_skew``); strategies that don't accept it simply ignore it.
+    ``max_position`` is only meaningful for ``inventory_skew``; ``passive``
+    and ``max_spread_ticks`` (the symbol's MM spread obligation) only for
+    ``passive``. Strategies that don't use an argument simply ignore it.
 
     Raises ValueError for an unknown strategy name or invalid parameters
     (the latter propagated from the strategy's own constructor).
@@ -300,7 +521,14 @@ def create_strategy(
     except KeyError:
         allowed = ", ".join(sorted(_STRATEGIES))
         raise ValueError(f"Unknown strategy '{name}'. Allowed: {allowed}") from None
-    return factory(tick_size, gap, drift_ticks, max_position=max_position)
+    return factory(
+        tick_size,
+        gap,
+        drift_ticks,
+        max_position=max_position,
+        passive=passive,
+        max_spread_ticks=max_spread_ticks,
+    )
 
 
 def available_strategies() -> list[str]:
