@@ -339,6 +339,7 @@ Base path: `/api/v1`.
 | `GET`    | `/history/orders`            | trading       | Historical order lifecycle events    |
 | `GET`    | `/history/orders/{order_id}` | trading       | Full lifecycle for one order         |
 | `GET`    | `/history/fills`             | trading       | Historical fills                     |
+| `GET`    | `/history/session`           | any valid key | Session timezone and current trading date |
 | `GET`    | `/history/trades`            | any valid key | Public trade log                     |
 | `GET`    | `/history/daily`             | any valid key | Daily OHLCV rows                     |
 | `GET`    | `/history/price-snapshots`   | any valid key | Intraday instrument mid/bid/ask time series |
@@ -596,8 +597,8 @@ section below.
 
 `/history/orders`, `/history/orders/{order_id}`, and `/history/fills` require
 a trading credential and are scoped to that credential's `gateway_id` — they
-only ever return that gateway's own orders. `/history/trades`,
-`/history/daily`, `/history/price-snapshots`, `/history/index-daily`,
+only ever return that gateway's own orders. `/history/session`,
+`/history/trades`, `/history/daily`, `/history/price-snapshots`, `/history/index-daily`,
 `/history/index-snapshots`, `/history/index-ids`, and `/history/index-events`
 are public market data: any valid API key works, including read-only keys
 with no `gateway_id`.
@@ -607,6 +608,7 @@ with no `gateway_id`.
 | `GET /history/orders` | `symbol`, `event_type` (one of `ACK`, `REJECT`, `FILL`, `AMEND`, `CANCEL`, `EXPIRE`, `COMBO_ACK`, `COMBO_REJECT`, `COMBO_STATUS`, `OCO_ACK`, `OCO_REJECT`, `OCO_CANCEL`, `QUOTE_ACK`, `QUOTE_REJECT`, `QUOTE_STATUS`, `UNKNOWN` — `422` on any other value), `date`, `from`, `to`, `limit` (1–5000, default 500), `after` | Trading credential only; scoped to the caller's `gateway_id` |
 | `GET /history/orders/{order_id}` | none (path parameter only) | Trading credential only; full lifecycle for one order, scoped to the caller's `gateway_id`; **unbounded and unpaginated** — see the Pagination exceptions note below |
 | `GET /history/fills` | `symbol`, `date`, `from`, `to`, `limit`, `after` | Trading credential only; `event_type=FILL` events for the caller's `gateway_id` |
+| `GET /history/session` | none | `{"session_timezone": "Europe/Stockholm", "session_date": "2026-06-14"}` — the timezone `pm-stats` records in and today's trading date in it, resolved exactly as every `date` filter here resolves them. Use it for a client's "today" and session clock |
 | `GET /history/trades` | `symbol`, `date`, `from`, `to`, `limit`, `after` | Public trade tape |
 | `GET /history/daily` | `symbol`, `date`, `from`, `to`, `limit`, `after` | Omitting every time filter returns the latest available date; `from`/`to` (inclusive, dates not timestamps) return a series across days, oldest first |
 | `GET /history/price-snapshots` | `symbol` (**required**), `date`, `from`, `to`, `limit`, `after` | Intraday mid/bid/ask ticks (15-minute recording interval); unlike `/trades`/`/daily` there is no "all symbols" mode |
@@ -1595,7 +1597,11 @@ prints. It serves that cache three ways.
 ack — with the current cached snapshot for each newly matched symbol/channel,
 so a (re)subscribing client renders immediately instead of waiting for the next
 tick. When the cache is cold (nothing seen yet) the burst is simply empty and
-the client waits for the first live event, exactly as before. This is additive:
+the client waits for the first live event. For `book` the gateway does not
+leave it at that: the engine publishes a book only when it changes, so a
+symbol that has been quiet since before the gateway started would otherwise
+never arrive. On a cold `book` the gateway asks the engine to republish it,
+and it arrives shortly after as an ordinary `book` event. This is additive:
 a client that ignores the extra frames is unaffected, since they are ordinary
 `book`/`depth`/`auction`/`trade` envelopes it already routes.
 
@@ -1962,6 +1968,7 @@ MARKET\_MAKER key for `/bootstrap/mm`; ADMIN role for `/bootstrap/admin`.
 | `GET /api/v1/history/orders` | Order lifecycle list |
 | `GET /api/v1/history/orders/{order_id}` | One order's full lifecycle |
 | `GET /api/v1/history/fills` | Fill history |
+| `GET /api/v1/history/session` | Session timezone and trading date |
 | `GET /api/v1/history/trades` | Public trade tape |
 | `GET /api/v1/history/daily` | Daily OHLCV rows |
 | `GET /api/v1/history/price-snapshots` | Intraday price snapshots |

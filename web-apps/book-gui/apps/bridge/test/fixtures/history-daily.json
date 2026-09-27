@@ -1,0 +1,25 @@
+{
+  "daily": [
+    {
+      "date": "2026-09-27",
+      "symbol": "MSFT",
+      "open_price": 93.42,
+      "high_price": 94.07,
+      "low_price": 93.42,
+      "close_price": 94.06,
+      "open_bid": 93.42,
+      "open_ask": 94.02,
+      "close_bid": null,
+      "close_ask": null,
+      "volume": 1660,
+      "trade_count": 57,
+      "turnover": 156139.63,
+      "vwap": 94.06001807228915,
+      "largest_trade_qty": 95,
+      "largest_trade_price": 94.06,
+      "tick_decimals": 2
+    }
+  ],
+  "count": 1,
+  "has_more": false
+}

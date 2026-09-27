@@ -1,10 +1,10 @@
 # EduMatcher web apps
 
-Four independent browser applications for the EduMatcher exchange. Each is
+Five independent browser applications for the EduMatcher exchange. Each is
 its own npm workspace with its own `package.json`, `Dockerfile`,
 `docker-compose.yml`, and `Makefile` — nothing here is shared between them,
 and none of the Python `pm-*` processes depend on this directory existing.
-It exists purely to keep four self-contained frontend projects out of the
+It exists purely to keep five self-contained frontend projects out of the
 repository root.
 
 | App | System name | Role | Dev port(s) | Container port |
@@ -13,6 +13,7 @@ repository root.
 | [`trader-gui/`](trader-gui/) | `pm-trading-ui` | Trading terminal (TRADER / MARKET_MAKER / ADMIN personas) against `pm-api-gwy` | web `8193` | `8093` |
 | [`terminal-gui/`](terminal-gui/) | `pm-terminal` | Read-only, credential-free market display ("TapeDeck") | bridge `5190`, web `8190` | `8090` |
 | [`config-gui/`](config-gui/) | n/a | Browser builder for authored `engine_config.yaml`, companion to `pm-config-gen` | server `5192`, web `8192` | `8092` |
+| [`book-gui/`](book-gui/) | `pm-book` | One symbol's full order book, statistics and trade tape — the web companion to `pm-viewer` | bridge `5194`, web `8194` | `8094` |
 
 "Dev port(s)" is what `make dev` binds to (backend + Vite dev server,
 started together). "Container port" is what `make up` publishes on

@@ -377,7 +377,7 @@ print_sub_step "Detected version: ${VERSION}"
 run_command "sed -i.bak -E 's/^  version *= *\{.*\}/  version = {'\"$VERSION\"'}/' README.md" "Updating version in README.md"
 
 # Write the version shown in each GUI's top bar (src/version.json is committed so dev/CI work without a build)
-for app in trader terminal log config; do
+for app in trader terminal log config book; do
     run_command "printf '{ \"version\": \"%s\" }\n' \"$VERSION\" > web-apps/${app}-gui/apps/web/src/version.json" "Writing version.json for ${app} GUI"
 done
 

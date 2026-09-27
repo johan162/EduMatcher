@@ -1,8 +1,21 @@
-Version: 0.1.0
+Version: 0.2.0
 
 Date: 2026-09-27
 
-Status: Design Proposal — for review before implementation
+Status: Implemented — `web-apps/book-gui`, WP0–WP11 done (§15.5)
+
+> **Changelog v0.2.0 — implemented, and what implementing it changed**
+>
+> - **Two small `pm-api-gwy` changes** (WP0 findings): a new
+>   `GET /api/v1/history/session` returning the session timezone and trading
+>   date (§7.1), and a cold-cache `book` subscribe now asks the engine to
+>   republish that book (§6) — without it a symbol that had been quiet since
+>   before the gateway started never showed a book.
+> - **Clock and trade times in the exchange session timezone** (Q3, §9.3),
+>   matching pm-viewer after its own session-timezone fix.
+> - §8 now shows the protocol as shipped; the depth bar lives in the `Depth`
+>   column (§9.4); the `bump-version` target is dropped (Q2); the open
+>   questions are resolved (§15.4).
 
 # EduMatcher — Order Book Viewer Web App (`pm-book`, `web-apps/book-gui`) Design and Implementation Plan
 
@@ -94,7 +107,7 @@ source in `pm-book`.
 | `SIZE` | `snapshot.last_qty` | `book.data.last_qty` | body text |
 | `BID/ASK` | `bids[0].price` × `asks[0].price` | `book.data.bids[0]` / `asks[0]` | bid up colour, ask down colour |
 | `SPRD` | `ask − bid` | derived | yellow (pm-book: `--halt` amber, §9.6) |
-| clock (right-aligned) | local `HH:MM:SS` | browser clock, 1 Hz | bold cyan (pm-book: `--accent`) |
+| clock (right-aligned) | `HH:MM:SS` in the session timezone | browser clock in the session timezone (§7.1), 1 Hz | bold cyan (pm-book: `--accent`) |
 
 **Header row 2**
 
@@ -105,7 +118,7 @@ source in `pm-book`.
 | `RANGE` | `H − L` | derived | magenta (pm-book: `--auction` blue) |
 | `VOL` | `stats.db` volume + de-duplicated `recent_trades` qty | sum of today's trade quantities (§7) | body text |
 | `BASIS` | `prev-close` if PREV is known, otherwise `session-open` | same rule | faint |
-| date (right-aligned) | local `YYYY-MM-DD` | browser clock | accent |
+| date (right-aligned) | `YYYY-MM-DD` in the session timezone | browser clock in the session timezone | accent |
 
 **Panels**
 
@@ -167,7 +180,7 @@ data path; the pm-viewer fixes are the reference for it.
 | `stats.db` SQLite (pm-viewer's OHLC seed) | **No** | A file on the backend host. Reached only through `pm-api-gwy` history. |
 | CALF (`pm-md-gwy`, 5570) | Yes | `TOP`, `TRADE`, `STATE`, `DEPTH` (≤ `depth_levels`, 10 by default in every bundled example), `AUCTION`, `CB`. No trade IDs, no trade snapshot on subscribe. |
 | RALF (`pm-ralf-gwy`, 5580) | Yes, with a `CLEARING`/`DROP_COPY`/`AUDIT` role | Post-trade executions with IDs and a 24-hour replay. The wrong tool for a book viewer (same reasoning as Terminal-GUI §4.4). |
-| `pm-api-gwy` REST `/api/v1/history/*` | Yes, with the read-only key | `daily` (OHLCV per day), `trades` (with `trade_id`, ascending, paginated ≤ 5000/page) |
+| `pm-api-gwy` REST `/api/v1/history/*` | Yes, with the read-only key | `daily` (OHLCV per day), `trades` (with `trade_id`, ascending, paginated ≤ 5000/page), `session` (session timezone and trading date — added by this work, §7.1) |
 | `pm-api-gwy` REST `/api/v1/reference/symbols` | Yes, with the read-only key | Symbol universe with per-symbol reference data, including `tick_decimals` |
 | `pm-api-gwy` WS `/api/v1/market-data` | Yes, with the read-only key | `book` (**full** aggregated ladder, `last_price`, `last_qty`, `tick_decimals`, last 5 trades), `trades` (`trade.executed` with `id`), `depth`, `auction`; always-on `session`, `circuit_breaker`; snapshot on subscribe; 60 s trade tail for `resume` |
 
@@ -179,6 +192,7 @@ data path; the pm-viewer fixes are the reference for it.
 | Live trades | WS `trades` channel, same symbol |
 | Today's OHLC, volume, tape backlog | REST `/history/trades?symbol=S&date=<session date>` (all pages), merged with live trades by `trade_id` (§7) |
 | Previous close | REST `/history/daily?symbol=S&from=<session date − 14 d>` (§7.3) |
+| Session timezone and trading date | REST `/history/session` (§7.1) |
 | Symbol list + `tick_decimals` | REST `/reference/symbols` |
 
 ### 4.3 Why this departs from Terminal-GUI §4.5
@@ -298,6 +312,13 @@ Verified against `api_gateway/routers/ws.py`, `schemas.py`, `market_cache.py`,
   a subscribe is followed by the cached snapshot.
 - **Always-on events.** `session` and `circuit_breaker` reach every
   subscriber. `pm-book` ignores them in v0.1 (§15.3).
+- **Cold cache (fixed in `pm-api-gwy`).** WP0/WP11 showed that a subscribe to
+  a symbol with no cached `book` got nothing at all: the engine publishes a
+  book only when it changes, and pm-viewer covers this by sending
+  `book.snapshot_request` itself, which the bridge cannot. `_emit_snapshots`
+  now asks the engine to republish a book it has never seen
+  (`EngineClient.request_book_snapshot`, best effort), and the answer reaches
+  the subscriber as an ordinary `book` event.
 - **Where loss can happen.** Each socket's sink queue (`maxsize=512`) receives
   **all** market-data events, and filtering happens *after* dequeue. Overflow
   therefore depends on venue-wide traffic, not on what this bridge
@@ -323,11 +344,16 @@ Verified against `api_gateway/routers/ws.py`, `schemas.py`, `market_cache.py`,
 
 The current trading date is the date `pm-stats` files today's rows under.
 pm-stats uses the session timezone stored in `stats.db`, and the history
-endpoints resolve `date=` in that same timezone (`_session_tz`). The bridge
-takes it as `max(date)` of `GET /history/daily` with no filters, which returns
-the latest available date. It re-reads this on each seed. WP0 verifies that
-pm-stats writes today's row before the first trade (it does so as soon as an
-opening bid or ask is known — `stats/main.py`, `_on_book`).
+endpoints resolve `date=` in that same timezone (`_session_tz`).
+
+The first plan inferred the date as `max(date)` of `GET /history/daily`. That
+answers "the latest date with a row", not "today", and it gives no timezone
+for the clock (Q3). Nothing in `pm-api-gwy` exposed the timezone, so this work
+added `GET /api/v1/history/session` → `{"session_timezone", "session_date"}`,
+resolved by the same `_session_tz` every `date` filter uses. The bridge reads
+it on each seed and passes both on in `SessionStats` (`timezone`,
+`sessionDate`). Without history it falls back to UTC — pm-stats' own
+default.
 
 ### 7.2 Exact OHLCV without double counting
 
@@ -365,9 +391,9 @@ period after its refcount reaches 0 (§15.2).
 
 ### 7.3 Previous close
 
-`GET /history/daily?symbol=S&from=<session date − 14 days>`, reduced with
-`terminal-gui`'s `previousCloses()` (copied into `lib/prev-close.ts` with its
-tests). The rule: the newest non-null `close_price` strictly before the
+`GET /history/daily?symbol=S&from=<session date − 14 days>`, reduced in the
+bridge (`HistoryClient.previousClose`) by `terminal-gui`'s `previousCloses()`
+rule, for one symbol: the newest non-null `close_price` strictly before the
 session date. Absent means `PREV n/a` and `BASIS session-open`, the same as
 `pm-viewer`.
 
@@ -384,35 +410,40 @@ consistent with the ladder they are shown beside, as in `pm-viewer`.
 
 ## 8. Bridge ↔ browser protocol
 
-Defined in `packages/book-types/src/ws.ts`. The frames are flat JSON with a
-`type` discriminator, following `terminal-types` conventions. Prices are
-display money, as the upstream sends them.
+Defined in `packages/book-types/src/ws.ts` (shown here as shipped). The
+frames are flat JSON with a `type` discriminator, following `terminal-types`
+conventions. Prices are display money, as the upstream sends them. History
+unavailability is not an error frame: it is `stats.partial`.
 
 ```ts
 export type UpstreamState = "ACTIVE" | "RECONNECTING" | "DOWN";
 
 export interface SymbolInfo { symbol: string; tickDecimals: number }
 export interface Level { price: number; qty: number; count: number }
-export interface TapeTrade { id: string; ts: string; px: number; qty: number; side: "BUY" | "SELL" | "AUCTION" | "" }
+export type TradeSide = "BUY" | "SELL" | "AUCTION" | "";
+/** `id` is the durable engine trade id; times are epoch milliseconds. */
+export interface TapeTrade { id: string; tsMs: number; px: number; qty: number; side: TradeSide }
 
 export interface SessionStats {
   open?: number; high?: number; low?: number; close?: number;
   prevClose?: number; volume: number; tradeCount: number;
   /** True when history could not be read and stats cover only `since` onward. */
-  partial: boolean; since?: string; sessionDate?: string;
+  partial: boolean; since?: number;
+  sessionDate?: string;  // trading date in the session timezone
+  timezone: string;      // IANA name; UTC when unknown
 }
 
 export type ServerFrame =
-  | { type: "hello"; symbols: SymbolInfo[]; upstream: UpstreamState; gateway: string | null }
-  | { type: "book"; sym: string; seq: number; ts: string; tickDecimals: number;
-      bids: Level[]; asks: Level[]; last?: number; lastQty?: number; replay?: true }
-  /** Full tape + stats for a symbol: on watch, and after any re-seed. */
+  | { type: "hello"; symbols: SymbolInfo[]; upstream: UpstreamState; source: string }
+  | { type: "book"; sym: string; seq: number; tickDecimals: number;
+      bids: Level[]; asks: Level[]; last?: number; lastQty?: number }
+  /** Full tape (oldest first) + stats for a symbol: on watch, and after every (re)seed. */
   | { type: "session"; sym: string; stats: SessionStats; tape: TapeTrade[] }
   /** One new print, with the stats it produced. */
   | { type: "trade"; sym: string; trade: TapeTrade; stats: SessionStats }
   | { type: "symbols"; symbols: SymbolInfo[] }
   | { type: "bridge_status"; upstream: UpstreamState; since: string; wsClients: number }
-  | { type: "error"; code: "UNKNOWN_SYMBOL" | "HISTORY_UNAVAILABLE"; sym?: string; message: string };
+  | { type: "error"; code: "UNKNOWN_SYMBOL"; sym: string; message: string };
 
 export type ClientFrame =
   | { t: "watch"; sym: string }   // one symbol per tab; replaces the previous watch
@@ -456,8 +487,8 @@ The structure copies `terminal-gui`'s `TopBar.tsx`:
 
 The version comes from `apps/web/src/version.json`, written by
 `scripts/mkbld.sh` (§11.3). The app name uses `text-accent`, which is
-`terminal-gui`'s amber-orange `#ffa028` in dark and `#b26a00` in light (see
-open question Q1). There are no view tabs; the symbol picker takes their
+`terminal-gui`'s amber-orange `#ffa028` in dark and `#b26a00` in light
+(Q1). There are no view tabs; the symbol picker takes their
 place. The right-hand cluster is the theme toggle, the settings cog and the
 connection `StatusDot`, the same components as `terminal-gui`. Density is
 dropped: font scaling (R3) covers it and it was not requested.
@@ -468,23 +499,24 @@ Two rows, each a flex line with the elastic spacer and a right-pinned cell,
 as in pm-viewer's `_stat_line`. Labels use `text-fg-faint`, values use
 `tabular` mono figures, and separators are thin `border-subtle` rules instead
 of `│` glyphs. The trend accent line beneath it replaces pm-viewer's coloured
-frame: `--up`, `--down`, or `--border-strong` when flat.
+frame: `--up`, `--down`, or `--border-strong` when flat. Both rows wrap
+rather than overflow, so the date stays on screen at the largest font sizes.
 
 ### 9.4 Ladder and trades panels (R1)
 
 - Three equal columns (`grid-cols-3`). They never reflow, the same guarantee
-  as pm-viewer's fixed 3-column grid; below 900 px the grid scrolls
+  as pm-viewer's fixed 3-column grid; below 720 px the grid scrolls
   horizontally rather than stacking.
 - **Rows fit the viewport.** `useRowsPerPage` (copied from `terminal-gui`'s
   `lib/useAutoPaging.ts`) measures the panel body. Capacity is
   `min(fit, maxLevels)`. The panels share one capacity, as in pm-viewer.
-- **Depth bar.** An absolutely positioned fill behind the row
-  (`up-bg`/`down-bg`). Its width is `qty / maxQtyVisible` (minimum 1 px when
-  qty > 0), anchored toward the centre divider: right edge on bids, left edge
-  on asks. The narrow `Depth` column keeps pm-viewer's column order so the
-  mirror layout reads the same.
+- **Depth bar.** A solid bar (`bg-up`/`bg-down`) in the `Depth` column, as
+  pm-viewer draws its micro-bar there. Its width is `qty / maxQtyVisible`
+  (at least 2 % when qty > 0), anchored toward the centre divider: right edge
+  on bids, left edge on asks, so the two bars meet in the middle.
 - **Trades.** Newest first. The colour of each row is `trend(price, olderPrice)`,
-  exactly `_direction_style` in `_trades_table`. Time is `HH:MM:SS.mmm` local.
+  exactly `_direction_style` in `_trades_table`. Time is `HH:MM:SS.mmm` in
+  the session timezone.
 - Empty rows are rendered to capacity so the three panels keep equal height,
   as pm-viewer does with `_blank_row`.
 - **Zebra rows** use `bg-bg-subtle` on odd rows when enabled. No
@@ -590,30 +622,31 @@ gains `book`, so a release writes the same version into all five GUIs.
 ## 12. Repository layout
 
 ```
-web-apps/book-gui/
+web-apps/book-gui/                      (as shipped)
 ├── Dockerfile  docker-compose.yml  docker-compose.linux.yml  Makefile  README.md
 ├── .dockerignore  .gitignore  .prettierrc  package.json  package-lock.json
 ├── tsconfig.base.json  vitest.config.ts
 ├── test/setup-dom.ts
 ├── packages/
-│   ├── book-types/        src/{index,ws,market,upstream}.ts
+│   ├── book-types/        src/{index,ws}.ts
 │   └── lalf-client/       (copied verbatim from terminal-gui, with its tests)
 └── apps/
     ├── bridge/
-    │   ├── src/{server,config,ws-fanout}.ts
+    │   ├── src/{main,server,config,book-service,ws-fanout}.ts
     │   ├── src/upstream/{market-uplink,symbol-refcount,envelope}.ts
     │   ├── src/session/{session-book,history-seed}.ts
     │   ├── src/logging/logger.ts
-    │   └── test/{fake-api-gateway.ts, *.test.ts}
+    │   └── test/{fake-api-gateway,harness}.ts, fixtures/*.json, *.test.ts
     └── web/
         ├── index.html  vite.config.ts  tailwind.config.ts  postcss.config.js  tsconfig.json
         ├── src/{main,App}.tsx  src/index.css  src/version.json
+        ├── src/views/BookView.tsx
         ├── src/components/layout/{AppShell,TopBar,StatusStrip}.tsx
-        ├── src/components/{StatsHeader,SideLadder,TradesPanel,SymbolPicker,Badge}.tsx
+        ├── src/components/{StatsHeader,Panels,SymbolPicker,StatusDot}.tsx
         ├── src/components/shared/SettingsPopover.tsx
-        ├── src/lib/{ws,useBookStream,stats,ladder,format,prev-close,useRowsPerPage}.ts
+        ├── src/lib/{ws,useBookStream,stats,ladder,format,hooks}.ts
         ├── src/store/{useBookStore,usePrefsStore,useFontSizeStore}.ts
-        └── test/*.test.ts(x)
+        └── test/{fake-socket.ts, *.test.ts(x)}
 ```
 
 Workspace package names: `edumatcher-book-gui` (root), `@edumatcher/book-web`,
@@ -1038,22 +1071,70 @@ paging cost is observed to matter (§7.2).
 - Showing the always-on `session` / `circuit_breaker` state (a HALTED badge,
   the session phase).
 
-### 15.4 Open questions
+### 15.4 Open questions — resolved
 
-- **Q1 — Orange accent.** Should the app name use `terminal-gui`'s existing
-  `--accent` (amber-orange `#ffa028` / `#b26a00`, assumed here), or a distinct
-  orange token (for example `--brand-app: #ff7a1a`) to tell pm-book apart
-  from pm-terminal at a glance?
-- **Q2 — `bump-version`.** Should book-gui carry over terminal-gui's
-  `bump-version` target? It is a no-op against a `TopBar.tsx` that reads
-  `version.json`. This plan drops it, and the same dead target exists in
-  terminal-gui (not touched here).
-- **Q3 — Clock timezone.** Should the header clock and date follow
-  pm-viewer's local time (assumed), or the exchange session timezone?
-- **Q4 — StatusStrip additions.** Are the §9.8 additions (levels
-  shown/total, data age) wanted, or should the footer carry only the key
-  hints, as pm-viewer's subtitle does?
+- **Q1 — Orange accent.** The app name uses `terminal-gui`'s existing
+  `--accent` (amber-orange `#ffa028` dark / `#b26a00` light); no new token.
+- **Q2 — `bump-version`.** Dropped from book-gui's Makefile: the top bar reads
+  `version.json`, which `scripts/mkbld.sh` writes (now including `book`). The
+  same dead target remains in terminal-gui, untouched. book-gui's Makefile
+  also fixes two copied `make help` defects: the `Distribute` section named a
+  non-existent `dist` target, which made `make help` exit with an error, and
+  the `Container` section named `cnt-build`/`proxy-up` instead of `cbuild`.
+  Both remain in terminal-gui's Makefile.
+- **Q3 — Clock timezone.** The exchange session timezone, as pm-viewer now
+  does — which needed `GET /history/session` (§7.1).
+- **Q4 — StatusStrip additions.** Kept as designed (§9.8).
 
 ### 15.5 Verification log
 
-*(Filled in by WP0 and WP11.)*
+**WP0 (2026-09-27)** — against a real stack in a scratch environment: the
+s10-basic example, `pm-engine`, `pm-stats --timezone Europe/Stockholm`,
+`pm-api-gwy --instance dashboards`, two `pm-ai-trader`s, read-only key.
+
+1. `book` and `trade` envelopes are `{type, topic, ts, seq, data}` with
+   display-money prices; `book.data` carries the full ladder, `tick_decimals`,
+   `last_price`, `last_qty` and five `recent_trades`. Captures are in
+   `apps/bridge/test/fixtures/`.
+2. A live print's `data.id` equals its `/history/trades` `trade_id`
+   (`000001-000000003` in both captures) — the de-duplication key holds.
+3. Subscribe answers with the cached `book` and the whole 60 s trade tail;
+   `resume` replays prints with `seq > from_seq`; the ack is a
+   `subscription` frame.
+4. `/reference/symbols` works with the read-only key and carries
+   `tick_decimals`.
+5. **Finding:** no endpoint exposed the session timezone → added
+   `/history/session` (§7.1).
+6. **Finding:** a symbol untouched since before `pm-api-gwy` started had no
+   cached `book`, so subscribing to it delivered nothing, ever → cold-cache
+   book request added to `pm-api-gwy` (§6).
+
+**WP1–WP10** — `npm test` 115 tests in 12 files: the bridge end to end against
+a fake `pm-api-gwy` (paging, overlap de-duplication, prev close, shared
+subscriptions, release on last tab, unknown symbol, history outage,
+reconnect with `resume_from`, `trades.reset` re-seed, book-seq-gap resume,
+refused key, max clients), the whole web app against a fake bridge socket
+(every §3.1 field, the session timezone, ladders, tape, symbol switching by
+keyboard and mouse, unknown symbols, offline banner and re-watch, theme,
+zebra, max levels, font size), plus unit tests. `npm run typecheck` and
+`prettier --check` clean. Python: `black`, `flake8`, `mypy`, `pytest` on the
+two `pm-api-gwy` changes.
+
+**WP11** — the real bridge and built UI against the live stack above, driven
+by headless Chromium:
+
+- Header values matched `/history/daily` for AAPL at the same moment (O/H/L/C
+  exact, volume within the prints of the intervening second); clock and date
+  in Europe/Stockholm.
+- The keyboard switch AAPL → MSFT works; quiet symbols (NVDA, INTC) show
+  their book once the cold-cache fix is in.
+- Restarting `pm-api-gwy` under a running bridge: RECONNECTING, then ACTIVE,
+  with the watch restored.
+- XXL font size: the footer's bottom edge lands exactly on the window height.
+- No browser console errors.
+- The container image could not be built in that environment (Docker Hub not
+  reachable), so the Dockerfile's steps were run by hand instead: `npm ci`,
+  build, `npm prune --omit=dev`, then `npm run start --workspace
+  @edumatcher/book-bridge` with `STATIC_DIR` — the pruned install serves the
+  UI and the SPA fallback, and the compose health-check command passes.
+  `make up` on Podman remains to be run on a developer machine.

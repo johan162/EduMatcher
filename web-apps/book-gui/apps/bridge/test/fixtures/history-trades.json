@@ -1,0 +1,29 @@
+{
+  "trades": [
+    {
+      "ts": "2026-09-27T17:21:12.341+00:00",
+      "trade_id": "000001-000000003",
+      "symbol": "MSFT",
+      "price": 93.42,
+      "quantity": 5,
+      "tick_decimals": 2,
+      "buy_gateway_id": "MM01",
+      "sell_gateway_id": "TRADER02",
+      "aggressor_side": "SELL"
+    },
+    {
+      "ts": "2026-09-27T17:21:13.150+00:00",
+      "trade_id": "000001-000000004",
+      "symbol": "MSFT",
+      "price": 94.03,
+      "quantity": 1,
+      "tick_decimals": 2,
+      "buy_gateway_id": "TRADER02",
+      "sell_gateway_id": "TRADER02",
+      "aggressor_side": "BUY"
+    }
+  ],
+  "count": 2,
+  "has_more": true,
+  "next_cursor": "eyJyb3dpZCI6NCwidHMiOiIyMDI2LTA5LTI3VDE3OjIxOjEzLjE1MCswMDowMCJ9"
+}

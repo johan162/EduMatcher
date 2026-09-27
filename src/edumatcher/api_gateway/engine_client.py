@@ -25,6 +25,7 @@ from edumatcher.models.ids import new_command_id
 from edumatcher.messaging.bus import make_pusher, make_subscriber
 from edumatcher.models.message import (
     decode,
+    make_book_snapshot_request_msg,
     make_cancel_symbol_msg,
     make_combo_cancel_msg,
     make_combo_order_msg,
@@ -783,6 +784,16 @@ class EngineClient:
 
     def request_reference(self, gateway_id: str) -> None:
         self._send(make_reference_request_msg(gateway_id))
+
+    def request_book_snapshot(self, symbol: str) -> None:
+        """Ask the engine to republish ``book.<symbol>`` now.
+
+        The engine publishes a book only when it changes, so a symbol that has
+        been quiet since before this gateway subscribed has nothing in the
+        market-data cache. Best effort: the answer arrives as an ordinary
+        ``book`` event, and an unreachable engine simply leaves the cache cold.
+        """
+        self._send(make_book_snapshot_request_msg(symbol), require_engine=False)
 
     def request_session(self, gateway_id: str) -> None:
         self._send(make_session_state_request_msg(gateway_id))

@@ -631,3 +631,56 @@ async def test_missing_stats_db_returns_503(tmp_path: Path) -> None:
     detail = exc_info.value.detail
     assert isinstance(detail, dict)
     assert detail["error"]["code"] == "STATS_DB"
+
+
+# ===========================================================================
+# /history/session
+# ===========================================================================
+
+# 2026-06-14T12:00:00Z is already 2026-06-15 in UTC+14.
+_NOON_UTC = 1_781_438_400.0
+
+
+@pytest.mark.anyio
+async def test_session_reports_the_recorded_timezone_and_its_trading_date(
+    empty_db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A client's "today" and clock must match the ``date`` column pm-stats
+    wrote, which is in the recorded session timezone, not UTC."""
+    conn = sqlite3.connect(empty_db)
+    conn.execute(
+        "INSERT INTO stats_meta (key, value) VALUES ('session_timezone', 'Pacific/Kiritimati')"
+    )
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(
+        "edumatcher.api_gateway.routers.history.time.time", lambda: _NOON_UTC
+    )
+
+    result = await history.history_session(_request_for(empty_db), _readonly_session())
+
+    assert result == {
+        "session_timezone": "Pacific/Kiritimati",
+        "session_date": "2026-06-15",
+    }
+
+
+@pytest.mark.anyio
+async def test_session_defaults_to_utc_when_none_was_recorded(
+    empty_db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "edumatcher.api_gateway.routers.history.time.time", lambda: _NOON_UTC
+    )
+
+    result = await history.history_session(_request_for(empty_db), _readonly_session())
+
+    assert result == {"session_timezone": "UTC", "session_date": "2026-06-14"}
+
+
+@pytest.mark.anyio
+async def test_session_with_a_missing_stats_db_returns_503(tmp_path: Path) -> None:
+    request = _request_for(tmp_path / "does_not_exist.db")
+    with pytest.raises(HTTPException) as exc_info:
+        await history.history_session(request, _readonly_session())
+    assert exc_info.value.status_code == 503

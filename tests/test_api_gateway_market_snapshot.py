@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Iterator
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -27,6 +27,7 @@ from edumatcher.api_gateway.market_cache import (
 from edumatcher.api_gateway.routers import ws as ws_mod
 from edumatcher.api_gateway.routers.ws import Subscription
 from edumatcher.api_gateway.schemas import MarketDataControl
+from edumatcher.models.message import make_book_snapshot_request_msg
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -642,3 +643,34 @@ def test_control_still_rejects_unknown_fields() -> None:
 
     with pytest.raises(ValidationError):
         MarketDataControl.model_validate({"action": "snapshot", "bogus": 1})
+
+
+def test_emit_snapshots_asks_the_engine_for_a_book_it_has_never_seen(
+    client: EngineClient,
+) -> None:
+    """A symbol quiet since before the gateway subscribed has no cached book;
+    the engine publishes books only on change, so the subscriber would wait
+    indefinitely. The gateway asks for one instead of sending nothing."""
+    ws: Any = _FakeWS(client)
+    items = MarketDataControl.model_validate(
+        {"action": "subscribe", "items": [{"symbols": ["NVDA"], "channels": ["book"]}]}
+    ).as_items()
+    push = cast(MagicMock, client._push)
+    _run(ws_mod._emit_snapshots(ws, client.market_cache, items))
+
+    assert ws.sent == []
+    frames = push.send_multipart.call_args.args[0]
+    assert frames == make_book_snapshot_request_msg("NVDA")
+
+
+def test_emit_snapshots_does_not_ask_for_a_cached_book(client: EngineClient) -> None:
+    _warm_engine(client)
+    ws: Any = _FakeWS(client)
+    items = MarketDataControl.model_validate(
+        {"action": "subscribe", "items": [{"symbols": ["AAPL"], "channels": ["book"]}]}
+    ).as_items()
+    push = cast(MagicMock, client._push)
+    _run(ws_mod._emit_snapshots(ws, client.market_cache, items))
+
+    assert [e["type"] for e in ws.sent] == ["book"]
+    push.send_multipart.assert_not_called()

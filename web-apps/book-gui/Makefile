@@ -1,0 +1,472 @@
+# Makefile for EduMatcher Order Book Viewer, pm-book (npm workspaces + container workflow)
+#
+# Target set mirrors terminal-gui/Makefile so the frontends are driven the same way.
+#
+# For building the container behind a proxy set the environment on the command line
+# before calling make, i.e. adjust the proxy host and port to your local setup:
+#
+# Note: The special use of `host.containers.internal` is a Docker/Podman feature that resolves
+# to the host machine from inside the container and is equivalent to "localhost" on the host.
+# This is useful for accessing a local proxy or mirror from within the container.
+#
+# HTTP_PROXY=http://host.containers.internal:9000 \
+# HTTPS_PROXY=http://host.containers.internal:9000 \
+# NO_PROXY=localhost,127.0.0.1  make dist
+#
+# or
+#
+# HTTP_PROXY=http://host.containers.internal:9000 HTTPS_PROXY=http://host.containers.internal:9000 NO_PROXY=localhost,127.0.0.1  make up
+
+.PHONY: \
+	help \
+	check-npm check-container check-container-env \
+	install build build-debug typecheck test lint format \
+	dev dev-web dev-bridge \
+	cbuild up down restart logs ps \
+	cdist imageclean \
+	ghcr-login cpush ghcr-logout ghcr-clean \
+	clean distclean
+
+# --------------------------------------------------------------------------------------------
+# Make behavior
+# --------------------------------------------------------------------------------------------
+.DEFAULT_GOAL := help
+.DELETE_ON_ERROR:
+
+# Use bash with strict mode (same style as docs/Makefile)
+SHELL := $(shell which bash)
+.SHELLFLAGS := -euo pipefail -c
+.ONESHELL:
+
+# --------------------------------------------------------------------------------------------
+# Variables
+# --------------------------------------------------------------------------------------------
+APP_NAME := edumatcher-book-gui
+SERVICE_NAME := book-gui
+WEB_PORT ?= 8094
+export WEB_PORT # We need to export this so that docker-compose.yml can see it.
+
+NPM ?= npm
+UNAME_S := $(shell uname -s)
+
+# The bridge reads live market data and history from pm-api-gwy with the
+# read-only credential (gateway_id: null), so it cannot run without one. That
+# key is generated per engine configuration, so it cannot be committed here —
+# it is derived from the deployed configuration the exchange's own processes
+# read, found via EDUMATCHER_DATA_DIR. An explicit PM_BOOK_API_KEY in the
+# environment always wins.
+EDUMATCHER_DATA_DIR ?=
+COMPILED_CONFIG := $(if $(EDUMATCHER_DATA_DIR),$(EDUMATCHER_DATA_DIR)/ref_data/engine_config.json)
+
+# Prints "<instance> <port> <api_key>" for the first read-only credential.
+# Instances are visited in name order, so 'dashboards' is preferred over
+# 'desk' when both carry one.
+define READONLY_CREDENTIAL_JS
+const fs = require("fs");
+let cfg;
+try { cfg = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); } catch { process.exit(1); }
+for (const name of Object.keys(cfg.api_gateways ?? {}).sort()) {
+  const gw = cfg.api_gateways[name];
+  if (gw.enabled === false) continue;
+  for (const cred of gw.credentials ?? []) {
+    if (cred.gateway_id === null) {
+      // Plain concatenation, not a template literal: ${...} inside a make
+      // 'define' is a make variable reference and would be expanded away.
+      console.log(name + " " + gw.port + " " + cred.api_key);
+      process.exit(0);
+    }
+  }
+}
+process.exit(1);
+endef
+export READONLY_CREDENTIAL_JS
+
+VERSION ?= $(shell node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0")
+CONTAINER_NAME := $(APP_NAME)
+IMAGE ?= $(APP_NAME):$(VERSION)
+DIST_DIR ?= dist
+
+# Colors for output
+RED := \033[0;31m
+GREEN := \033[0;32m
+YELLOW := \033[1;33m
+BLUE := \033[0;34m
+BRIGHTCYAN := \033[1;36m
+NC := \033[0m
+
+# Timestamp files
+TIMESTAMP_DIR := .timestamps
+CONTAINER_STAMP := $(TIMESTAMP_DIR)/.container-stamp
+GHCR_LOGIN_STAMP := $(TIMESTAMP_DIR)/.ghcr-login-stamp
+CDIST_STAMP := $(TIMESTAMP_DIR)/.cdist-stamp
+
+
+# --------------------------------------------------------------------------------------------
+# Rewrite HTTP_PROXY from environment variable http_proxy
+# Rules:
+# 1) localhost -> host.containers.internal
+# 2) other hostnames unchanged
+# 3) extract port to PORT
+# Example: http_proxy=http://localhost:9000 -> HTTP_PROXY=http://host.containers.internal:9000
+# --------------------------------------------------------------------------------------------
+PROXY_INPUT := $(strip $(http_proxy))
+ifneq ($(PROXY_INPUT),)
+PROXY_SCHEME := $(if $(filter https://%,$(PROXY_INPUT)),https,http)
+PROXY_NO_SCHEME := $(patsubst http://%,%,$(patsubst https://%,%,$(PROXY_INPUT)))
+PROXY_HOSTPORT := $(firstword $(subst /, ,$(PROXY_NO_SCHEME)))
+HOSTNAME := $(word 1,$(subst :, ,$(PROXY_HOSTPORT)))
+PORT := $(if $(word 2,$(subst :, ,$(PROXY_HOSTPORT))),$(word 2,$(subst :, ,$(PROXY_HOSTPORT))),9000)
+NEW_HOSTNAME := $(if $(filter localhost,$(HOSTNAME)),host.containers.internal,$(HOSTNAME))
+HTTP_PROXY := $(PROXY_SCHEME)://$(NEW_HOSTNAME):$(PORT)
+else
+HTTP_PROXY :=
+endif
+HTTPS_PROXY := $(HTTP_PROXY)
+NO_PROXY := $(if $(no_proxy),$(no_proxy),localhost,127.0.0.1,::1,host.containers.internal)
+
+# Print the proxy settings for debugging
+print-proxy:
+	@echo -e "$(YELLOW)- Proxy settings for container build:$(NC)"
+	@echo -e "$(BLUE)  HOSTNAME: $(HOSTNAME)$(NC)"
+	@echo -e "$(BLUE)  PORT: $(PORT)$(NC)"
+	@echo -e "$(BLUE)  NEW_HOSTNAME: $(NEW_HOSTNAME)$(NC)"
+	@echo -e "$(BLUE)  HTTP_PROXY: $(HTTP_PROXY)$(NC)"
+	@echo -e "$(BLUE)  HTTPS_PROXY: $(HTTPS_PROXY)$(NC)"
+	@echo -e "$(BLUE)  NO_PROXY: $(NO_PROXY)$(NC)"
+
+
+# Auto-detect container runtime (prefer podman when both are installed)
+CONTAINER_RUNTIME := $(shell if command -v podman >/dev/null 2>&1; then echo podman; elif command -v docker >/dev/null 2>&1; then echo docker; fi)
+ifeq ($(CONTAINER_RUNTIME),podman)
+	DOCKER_COMPOSE := podman-compose
+else ifeq ($(CONTAINER_RUNTIME),docker)
+	# On Linux, Docker needs the extra_hosts override (host-gateway injection).
+	# Docker Desktop on macOS/Windows provides host.docker.internal natively.
+	ifeq ($(UNAME_S),Linux)
+		DOCKER_COMPOSE := docker compose -f docker-compose.yml -f docker-compose.linux.yml
+	else
+		DOCKER_COMPOSE := docker compose
+	endif
+else
+	DOCKER_COMPOSE :=
+endif
+
+
+# --------------------------------------------------------------------------------------------
+# Tool checks
+# --------------------------------------------------------------------------------------------
+check-npm:
+	@command -v "$(NPM)" >/dev/null 2>&1 || { \
+		echo -e "$(RED)✗ npm not found in PATH$(NC)"; \
+		exit 1; \
+	}
+
+check-container:
+	@if [[ -z "$(CONTAINER_RUNTIME)" ]]; then \
+		echo -e "$(RED)✗ neither podman nor docker found in PATH$(NC)"; \
+		exit 1; \
+	fi
+	@$(DOCKER_COMPOSE) version >/dev/null 2>&1 || { \
+		echo -e "$(RED)✗ compose support is not available for $(CONTAINER_RUNTIME)$(NC)"; \
+		exit 1; \
+	}
+
+check-container-env: check-container ## Ensure container runtime environment is running
+	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
+	@if [[ "$(CONTAINER_RUNTIME)" == "podman" ]]; then \
+		if podman info >/dev/null 2>&1; then \
+			echo -e "$(GREEN)✓ Podman environment is running$(NC)"; \
+		elif [[ "$(UNAME_S)" == "Darwin" ]]; then \
+			echo -e "$(YELLOW)- Podman machine is not running. Starting it...$(NC)"; \
+			podman machine start >/dev/null 2>&1 || { \
+				echo -e "$(RED)✗ Failed to start podman machine$(NC)"; \
+				exit 1; \
+			}; \
+			echo -e "$(GREEN)✓ Podman machine started$(NC)"; \
+		else \
+			echo -e "$(RED)✗ Podman is installed but not ready (podman info failed)$(NC)"; \
+			exit 1; \
+		fi; \
+	else \
+		docker info >/dev/null 2>&1 || { \
+			echo -e "$(RED)✗ Docker daemon is not running$(NC)"; \
+			echo -e "$(YELLOW)  Start Docker Desktop or the docker service, then retry$(NC)"; \
+			exit 1; \
+		}; \
+		echo -e "$(GREEN)✓ Docker daemon is running$(NC)"; \
+	fi
+
+# --------------------------------------------------------------------------------------------
+# Help
+# --------------------------------------------------------------------------------------------
+define print_section
+	@echo ""
+	@echo -e "$(BRIGHTCYAN)$1:$(NC)"
+	@grep -E '^($(2)):.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(BLUE)%-16s$(NC) %s\n", $$1, $$2}' | sort
+endef
+
+help: ## Show this help message
+	@echo -e "$(YELLOW)EduMatcher Order Book Viewer (pm-book) - Makefile Targets$(NC)"
+	@$(call print_section,Setup,install|clean|distclean)
+	@$(call print_section,Build and Checks,build|build-debug|typecheck|test|lint|format)
+	@$(call print_section,Development,dev|dev-web|dev-bridge)
+	@$(call print_section,Container,check-container-env|cbuild|up|down|restart|logs|ps|imageclean)
+	@$(call print_section,Distribute,cdist|ghcr-login|cpush|ghcr-logout|ghcr-clean)
+	@echo ""
+
+# --------------------------------------------------------------------------------------------
+# Local npm workflow
+# --------------------------------------------------------------------------------------------
+
+# Same as terminal-gui: no --no-dedupe, which would nest fastify under
+# apps/bridge and break the @fastify/* plugins' type augmentation. Use the
+# committed lockfile (npm ci): resolving this workspace from scratch needs
+# npm 11 — npm 10's arborist crashes on it ("reading 'edgesOut'").
+install: check-npm ## Install a full local npm workspace environment
+	@echo -e "$(YELLOW)- Installing Node workspace dependencies...$(NC)"
+	@if [[ -f package-lock.json ]]; then \
+		$(NPM) ci; \
+	else \
+		$(NPM) install; \
+	fi
+	@echo -e "$(GREEN)✓ Environment ready$(NC)"
+
+build: check-npm ## Build all workspaces (production — minified, no sourcemaps)
+	@echo -e "$(YELLOW)- Building all workspaces...$(NC)"
+	@$(NPM) run build
+	@echo -e "$(GREEN)✓ Build completed$(NC)"
+
+build-debug: check-npm ## Build frontend in development mode (sourcemaps, no minification)
+	@echo -e "$(YELLOW)- Building packages...$(NC)"
+	@$(NPM) run build --workspaces --if-present --workspace @edumatcher/book-types \
+		--workspace @edumatcher/lalf-client 2>/dev/null || true
+	@echo -e "$(YELLOW)- Building web (debug)...$(NC)"
+	@$(NPM) exec --workspace @edumatcher/book-web -- \
+		vite build --mode development --minify false --sourcemap true
+	@echo -e "$(GREEN)✓ Debug build completed — output: apps/web/dist$(NC)"
+	@echo -e "$(BLUE)  Sourcemaps included; NODE_ENV stays 'development'$(NC)"
+
+typecheck: check-npm ## Run TypeScript checks for all workspaces
+	@$(NPM) run typecheck
+
+test: check-npm ## Run test suite
+	@$(NPM) test
+
+lint: check-npm ## Run lint command
+	@$(NPM) run lint
+
+format: check-npm ## Format source files with Prettier
+	@$(NPM) run format
+
+dev: check-npm ## Run bridge and web dev processes together
+	@$(NPM) run dev
+
+dev-web: check-npm ## Run only web dev server (Vite)
+	@$(NPM) run dev:web
+
+dev-bridge: check-npm ## Run only the Fastify bridge (pm-api-gwy uplink + WS fan-out)
+	@$(NPM) run dev:bridge
+
+
+$(TIMESTAMP_DIR):
+	@mkdir -p $(TIMESTAMP_DIR)
+
+# --------------------------------------------------------------------------------------------
+# Container workflow
+# --------------------------------------------------------------------------------------------
+cbuild: check-container | $(TIMESTAMP_DIR) ## Build container image via compose (podman/docker)
+	@echo -e "$(YELLOW)- Building container image...$(NC)"
+	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
+	@$(DOCKER_COMPOSE) build \
+	    --build-arg NPM_STRICT_SSL=false \
+	    --build-arg NPM_REGISTRY="https://registry.npmjs.org/" \
+	    --build-arg HTTP_PROXY="$(HTTP_PROXY)" \
+	    --build-arg HTTPS_PROXY="$(HTTPS_PROXY)" \
+	    --build-arg NO_PROXY="$(NO_PROXY)" \
+		--build-arg WEB_PORT="$(WEB_PORT)"
+	@touch $(CONTAINER_STAMP)
+	@echo -e "$(GREEN)✓ Container image built$(NC)"
+
+up: check-container-env ## Start container stack (detached) with build
+	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
+	@if [[ -n "$${PM_BOOK_API_KEY:-}" ]]; then
+		echo -e "$(BLUE)- Using PM_BOOK_API_KEY from the environment$(NC)"
+	elif [[ -z "$(EDUMATCHER_DATA_DIR)" ]]; then
+		echo -e "$(RED)✗ EDUMATCHER_DATA_DIR is not set, so the read-only API key cannot be looked up."
+		echo -e "  pm-book reads all its data through pm-api-gwy and cannot start without it.$(NC)"
+		echo -e "$(BLUE)  Set the key one of these two ways:"
+		echo -e "     export EDUMATCHER_DATA_DIR=~/.local/share/edumatcher   # then: make up"
+		echo -e "     make up PM_BOOK_API_KEY=key-readonly-..."
+		echo -e "  The key is the credential with 'gateway_id: null' under"
+		echo -e "  api_gateways in your deployed engine_config.yaml.$(NC)"
+		exit 1
+	elif [[ ! -f "$(COMPILED_CONFIG)" ]]; then
+		echo -e "$(RED)✗ No deployed configuration at $(COMPILED_CONFIG)$(NC)"
+		echo -e "$(BLUE)  Deploy one with 'pm-setup' or 'pm-config-deploy', or pass the key"
+		echo -e "  directly: make up PM_BOOK_API_KEY=key-readonly-...$(NC)"
+		exit 1
+	else
+		cred=$$(node -e "$$READONLY_CREDENTIAL_JS" "$(COMPILED_CONFIG)" || true)
+		if [[ -z "$$cred" ]]; then
+			echo -e "$(RED)✗ No read-only credential (gateway_id: null) in $(COMPILED_CONFIG)$(NC)"
+			echo -e "$(BLUE)  Add one under api_gateways and redeploy, or pass the key"
+			echo -e "  directly: make up PM_BOOK_API_KEY=key-readonly-...$(NC)"
+			exit 1
+		fi
+		set -- $$cred
+		export PM_BOOK_API_KEY="$$3"
+		echo -e "$(GREEN)✓ Read-only API key taken from the '$$1' gateway instance (port $$2)$(NC)"
+		# Mirrors docker-compose.yml's own default for the unset case.
+		if [[ "$${API_GATEWAY_URL:-http://host.docker.internal:8081}" != *":$$2" ]]; then
+			echo -e "$(YELLOW)  Note: this key is only valid on port $$2 — set API_GATEWAY_URL to match$(NC)"
+		fi
+	fi
+	@echo -e "$(YELLOW)- Starting container stack...$(NC)"
+	@mkdir -p logs
+	@$(DOCKER_COMPOSE) up -d --build \
+	    --build-arg NPM_STRICT_SSL=false \
+		--build-arg NPM_REGISTRY="https://registry.npmjs.org/" \
+	    --build-arg HTTP_PROXY="$(HTTP_PROXY)" \
+	    --build-arg HTTPS_PROXY="$(HTTPS_PROXY)" \
+	    --build-arg NO_PROXY="$(NO_PROXY)" \
+	    --build-arg WEB_PORT="$(WEB_PORT)"
+	@echo -e "$(GREEN)✓ Container stack is up and listening on port $(WEB_PORT)$(NC)"
+	@echo -e "$(GREEN)✓ Web interface available at ${YELLOW}http://localhost:$(WEB_PORT)$(NC)"
+
+down: check-container | $(TIMESTAMP_DIR) ## Stop and remove container stack
+	@echo -e "$(YELLOW)- Stopping container stack...$(NC)"
+	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
+	@$(DOCKER_COMPOSE) down
+	@echo -e "$(GREEN)✓ Container stack is down$(NC)"
+
+restart: check-container-env | $(TIMESTAMP_DIR) ## Restart container stack
+	@echo -e "$(YELLOW)- Restarting container stack...$(NC)"
+	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
+	@$(DOCKER_COMPOSE) down
+	@$(MAKE) up
+
+logs: check-container ## Follow container logs
+	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
+	@$(DOCKER_COMPOSE) logs -f $(SERVICE_NAME)
+
+ps: check-container ## Show container stack status
+	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
+	@$(DOCKER_COMPOSE) ps
+
+# --------------------------------------------------------------------------------------------
+# Distributable package
+# --------------------------------------------------------------------------------------------
+$(CDIST_STAMP): $(CONTAINER_STAMP)   ## Build a distributable: container image + exported OCI tarball in dist
+	@echo -e "$(YELLOW)- Building distributable package v$(VERSION)...$(NC)"
+	@echo -e "$(BLUE)- Runtime:  $(CONTAINER_RUNTIME)$(NC)"
+	@echo -e "$(BLUE)- Image:    $(IMAGE)$(NC)"
+	@echo -e "$(BLUE)- Output:   $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar$(NC)"
+	@# Build (or rebuild) the container image tagged with the version
+	@$(DOCKER_COMPOSE) up -d --build \
+	    --build-arg NPM_STRICT_SSL=false \
+		--build-arg NPM_REGISTRY="https://registry.npmjs.org/" \
+	    --build-arg HTTP_PROXY="$(HTTP_PROXY)" \
+	    --build-arg HTTPS_PROXY="$(HTTPS_PROXY)" \
+	    --build-arg NO_PROXY="$(NO_PROXY)" \
+	    --build-arg WEB_PORT="$(WEB_PORT)"
+	# Also tag the image with the version so the tarball carries a useful name
+	@$(CONTAINER_RUNTIME) tag $(APP_NAME):latest $(IMAGE)
+	# Export the image to a tar archive for offline distribution
+	@mkdir -p $(DIST_DIR)
+	@echo -e "$(YELLOW)- Packaging distributable...$(NC)"
+	@$(CONTAINER_RUNTIME) save --format docker-archive $(IMAGE) | xz -9e > $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar.xz
+	# tar -cI 'xz -9e' -f image.tar.xz /path/to/image
+	@echo -e "$(GREEN)✓ Distributable ready: $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar.xz$(NC)"
+	@echo -e "$(BLUE)- Load on another host:$(NC)"
+	@echo -e "$(WHITE)    $(CONTAINER_RUNTIME) load --input $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar.xz$(NC)"
+	@echo -e "$(BLUE)- Then run:$(NC)"
+	@echo -e "$(WHITE)    $(CONTAINER_RUNTIME) run -p $(WEB_PORT):$(WEB_PORT) $(IMAGE)$(NC)"
+
+cdist: $(CDIST_STAMP) check-container-env ## Build a distributable package (container image + exported OCI tarball in dist)
+	@:
+
+# --------------------------------------------------------------------------------------------
+# Cleanup
+# --------------------------------------------------------------------------------------------
+clean: ## Remove local Node build artifacts and dist/
+	@echo -e "$(YELLOW)- Cleaning build artifacts...$(NC)"
+	@rm -rf apps/web/dist
+	@find apps packages -type d -name dist -prune -exec rm -rf {} +
+	@find apps packages -type f -name '*.tsbuildinfo' -delete
+	@rm -rf $(DIST_DIR)
+	@echo -e "$(GREEN)✓ Clean completed$(NC)"
+
+distclean: clean ## Remove node_modules and package-lock.json for a pristine `make install`
+	@echo -e "$(YELLOW)- Removing installed dependencies and lockfile...$(NC)"
+	@rm -rf node_modules
+	@find apps packages -type d -name node_modules -prune -exec rm -rf {} +
+	@rm -f package-lock.json
+	@echo -e "$(GREEN)✓ Distclean completed — run 'make install' for a pristine environment$(NC)"
+
+imageclean: check-container ## Remove all local container images for this project
+	@echo -e "$(YELLOW)- Removing local container images...$(NC)"
+	@$(CONTAINER_RUNTIME) rmi -f $(IMAGE) || true
+	@echo -e "$(GREEN)✓ Local container images removed$(NC)"
+
+# ============================================================================================
+# GitHub Container Registry Targets
+# ============================================================================================
+
+$(GHCR_LOGIN_STAMP): | $(TIMESTAMP_DIR)
+	@if [ -z "$(GHCR_TOKEN)" ]; then \
+		echo -e "$(RED)✗ Error: GHCR_TOKEN environment variable is not set. Please set GHCR_TOKEN with a valid GitHub Personal Access Token.$(NC)"; \
+		exit 1; \
+	fi
+	@if [ -f $(GHCR_LOGIN_STAMP) ] && [ $$(find $(GHCR_LOGIN_STAMP) -mmin -120) ]; then \
+		echo -e "$(GREEN)✓ Already logged in to GHCR recently.$(NC)"; \
+		exit 0; \
+	else \
+		echo -e "$(DARKYELLOW)- Logging in to GitHub Container Registry...$(NC)"; \
+		if $(CONTAINER_RUNTIME) login ghcr.io -u $(GITHUB_USER) -p $(GHCR_TOKEN) >/dev/null 2>&1; then \
+			echo -e "$(GREEN)✓ Login to GitHub successful!$(NC)"; \
+			touch $(GHCR_LOGIN_STAMP) ; \
+		else \
+			echo -e "$(RED)✗ Login failed. Please check your GHCR_TOKEN.$(NC)"; \
+			rm -f $(GHCR_LOGIN_STAMP); \
+			exit 1; \
+		fi \
+	fi	
+
+ghcr-login: $(GHCR_LOGIN_STAMP) ## Login to GitHub Container Registry via Podman/Docker
+	@:
+
+cpush: $(GHCR_LOGIN_STAMP) $(CONTAINER_STAMP)  ## Push container image to GitHub Container Registry
+	@if [ -z "$(GITHUB_USER)" ]; then \
+        echo -e "$(RED)✗ Error: GITHUB_USER environment variable is not set."; \
+        echo -e "  Please set GITHUB_USER as an environment variable or add as argument: make container-push GITHUB_USER=\"XXXXX\"$(NC)"; \
+        exit 1; \
+	fi
+	@echo -e "$(DARKYELLOW)- Checking if image version $(VERSION) already exists on GHCR...$(NC)"
+	@if $(CONTAINER_RUNTIME) manifest inspect ghcr.io/$(GITHUB_USER)/$(CONTAINER_NAME):$(VERSION) >/dev/null 2>&1; then \
+        echo -e "$(YELLOW)⚠️  Warning: Image $(CONTAINER_NAME):$(VERSION) already exists in the registry. Skipping push.$(NC)"; \
+        exit 1; \
+    fi
+	@echo -e "$(DARKYELLOW)- Pushing image $(CONTAINER_NAME):$(VERSION) and tagging as latest to GitHub Container Registry...$(NC)"
+	@$(CONTAINER_RUNTIME) tag $(CONTAINER_NAME):$(VERSION) ghcr.io/$(GITHUB_USER)/$(CONTAINER_NAME):$(VERSION)
+	@$(CONTAINER_RUNTIME) tag $(CONTAINER_NAME):$(VERSION) ghcr.io/$(GITHUB_USER)/$(CONTAINER_NAME):latest
+	@if $(CONTAINER_RUNTIME) push ghcr.io/$(GITHUB_USER)/$(CONTAINER_NAME):$(VERSION) && $(CONTAINER_RUNTIME) push ghcr.io/$(GITHUB_USER)/$(CONTAINER_NAME):latest; then \
+        echo -e "$(GREEN)✓ Image pushed successfully.$(NC)"; \
+	else \
+        echo -e "$(RED)✗ Error: Failed to push image to GHCR.$(NC)"; \
+        exit 1; \
+    fi
+
+ghcr-logout: ## Logout from GitHub Container Registry
+	@if [ ! -f $(GHCR_LOGIN_STAMP) ]; then \
+		echo -e "$(YELLOW)⚠️  Warning: Not logged in to GHCR. Skipping logout.$(NC)"; \
+		exit 1; \
+	fi
+	@echo -e "$(DARKYELLOW)- Logging out from GitHub Container Registry...$(NC)"
+	@$(CONTAINER_RUNTIME) logout ghcr.io
+	@rm -f $(GHCR_LOGIN_STAMP)
+	@echo -e "$(GREEN)✓ Logged out from GHCR$(NC)"
+
+ghcr-clean: ghcr-logout imageclean ## Clean up GHCR login and local images
+	@:
+
+# EOF

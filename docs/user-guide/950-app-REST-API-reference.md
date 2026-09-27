@@ -70,6 +70,7 @@ All paths are rooted at `/api/v1`.
 | [GET /api/v1/history/orders](#get-apiv1historyorders) | Trading key | Return the caller gateway's order lifecycle events |
 | [GET /api/v1/history/orders/{order_id}](#get-apiv1historyordersorder_id) | Trading key | Return the full lifecycle of one order |
 | [GET /api/v1/history/fills](#get-apiv1historyfills) | Trading key | Return fill events |
+| [GET /api/v1/history/session](#get-apiv1historysession) | Authenticated key | Return the session timezone and current trading date |
 | [GET /api/v1/history/trades](#get-apiv1historytrades) | Authenticated key | Return public trade tape rows |
 | [GET /api/v1/history/daily](#get-apiv1historydaily) | Authenticated key | Return daily OHLCV rows |
 | [GET /api/v1/history/price-snapshots](#get-apiv1historyprice-snapshots) | Authenticated key | Return intraday price snapshots |
@@ -1460,6 +1461,30 @@ Purpose: return fill events for the caller gateway.
 |---|---|
 | `AUTH` | Missing or malformed key |
 | `READ_ONLY` | Read-only credential used |
+| `STATS_DB` | `pm-stats` database missing |
+
+### `GET /api/v1/history/session`
+
+Purpose: return the session timezone `pm-stats` records in, and today's
+trading date in it — the same resolution every `date` filter on
+`/api/v1/history` uses, so a client's "today" and session clock agree with the
+`date` column of `/history/daily`.
+
+**Arguments**
+
+None.
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `{"session_timezone": str, "session_date": Date}` | IANA timezone name (`UTC` when none was recorded) and the current trading date |
+
+**Errors**
+
+| Code | When |
+|---|---|
+| `AUTH` | Missing or malformed key |
 | `STATS_DB` | `pm-stats` database missing |
 
 ### `GET /api/v1/history/trades`
