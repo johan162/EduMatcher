@@ -19,6 +19,7 @@ This patch release primarily enhances the multi-symbol functionality of the `pm-
 - Updated the market-maker bot guide with the per-symbol command-line grammar, the new config-file format, and a full settings reference
 - Added new section in examples of configs for mm-bot
 - Documented the `pm-viewer` symbol picker and its keys in the processes guide
+- Updated `pm-mm-bot` training material to match the new functions in mm bot
 
 ### 🛠 Internal
 - Fixed typos in main README
