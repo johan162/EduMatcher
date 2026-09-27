@@ -14,6 +14,7 @@ from edumatcher.config_gen.builder import (
     PostTradeGatewaySpec,
 )
 from edumatcher.config_gen.cb_spec import parse_cb_spec
+from edumatcher.config_gen.defaults import DEFAULT_MM_SEED_SPREAD_TICKS
 from edumatcher.config_gen.gateway_spec import parse_gateway_spec
 from edumatcher.config_gen.symbol_spec import SymbolOverride
 from edumatcher.models.order import SmpAction
@@ -222,7 +223,7 @@ def test_builder_seeds_on_each_symbols_own_tick_grid() -> None:
     assert round(fine["ask_price"] - fine["bid_price"], 6) == 0.0002
 
 
-def test_builder_default_mm_seed_spread_is_30_ticks() -> None:
+def test_builder_default_mm_seed_spread_uses_default_ticks() -> None:
     spec = ConfigSpec(
         symbols=["AAPL"],
         gateways=[
@@ -235,8 +236,12 @@ def test_builder_default_mm_seed_spread_is_30_ticks() -> None:
     )
     payload = ConfigBuilder(spec).build()
 
-    quote = payload["symbols"]["AAPL"]["market_maker_quotes"][0]
-    assert round(quote["ask_price"] - quote["bid_price"], 6) == 0.60
+    symbol = payload["symbols"]["AAPL"]
+    quote = symbol["market_maker_quotes"][0]
+    # The seed spread is applied either side of the midpoint.
+    tick_size = 10 ** -symbol["tick_decimals"]
+    expected = round(2 * DEFAULT_MM_SEED_SPREAD_TICKS * tick_size, 6)
+    assert round(quote["ask_price"] - quote["bid_price"], 6) == expected
 
 
 def test_builder_with_cb_defaults_and_symbol_override() -> None:
