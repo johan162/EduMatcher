@@ -1,4 +1,4 @@
-# web-apps/Makefile — orchestrate log-gui, terminal-gui, and trader-gui together.
+# web-apps/Makefile — orchestrate log-gui, terminal-gui, trader-gui and book-gui together.
 #
 # The key variable is VM_BACKEND_IP: set it to the IP of the VM (or host)
 # running the EduMatcher backend processes. Every GUI container is then
@@ -7,10 +7,10 @@
 #
 # Usage:
 #
-#   # All three GUIs, backend on Docker Desktop host (default):
+#   # All four GUIs, backend on Docker Desktop host (default):
 #   make up
 #
-#   # All three GUIs, backend in a separate VM:
+#   # All four GUIs, backend in a separate VM:
 #   make up VM_BACKEND_IP=192.168.64.10
 #
 #   # Or export once for the shell session:
@@ -18,6 +18,13 @@
 #   make up
 #   make down
 #   make logs
+#
+# book-gui cannot start without the read-only API key (it reads everything
+# through pm-api-gwy). Its own `make up` finds the key in the deployed
+# configuration via EDUMATCHER_DATA_DIR, which only works when the backend runs
+# on this host; for a backend in a VM pass it explicitly:
+#
+#   make up VM_BACKEND_IP=192.168.64.10 PM_BOOK_API_KEY=key-readonly-...
 #
 # Individual apps can still be driven from their own directories; this
 # Makefile is purely additive.
@@ -59,16 +66,21 @@ ifdef VM_BACKEND_IP
                       LOG_SRV_HOST=$(VM_BACKEND_IP)
   # trader-gui: pm-api-gwy REST/WS proxy target
   TRADER_GUI_ENV := API_PROXY_TARGET=http://$(VM_BACKEND_IP):8080
+  # book-gui: pm-api-gwy (market-data WS + REST, dashboards instance), pm-log-srv
+  BOOK_GUI_ENV := API_GATEWAY_URL=http://$(VM_BACKEND_IP):8081 \
+                  LOG_SRV_HOST=$(VM_BACKEND_IP)
 else
   LOG_GUI_ENV      :=
   TERMINAL_GUI_ENV :=
   TRADER_GUI_ENV   :=
+  BOOK_GUI_ENV     :=
 endif
 
 # Directories
 LOG_GUI_DIR      := log-gui
 TERMINAL_GUI_DIR := terminal-gui
 TRADER_GUI_DIR   := trader-gui
+BOOK_GUI_DIR     := book-gui
 
 # Colours
 RED       := \033[0;31m
@@ -78,9 +90,9 @@ BLUE      := \033[0;34m
 CYAN      := \033[1;36m
 NC        := \033[0m
 
-.PHONY: help up down restart logs-log logs-terminal logs-trader ps \
-        up-log up-terminal up-trader \
-        down-log down-terminal down-trader
+.PHONY: help up down restart logs-log logs-terminal logs-trader logs-book ps \
+        up-log up-terminal up-trader up-book \
+        down-log down-terminal down-trader down-book
 
 # --------------------------------------------------------------------------------------------
 # Help
@@ -103,19 +115,21 @@ help: ## Show this help
 # --------------------------------------------------------------------------------------------
 # All-at-once targets
 # --------------------------------------------------------------------------------------------
-up: up-log up-terminal up-trader ## Start all three GUI containers (set VM_BACKEND_IP for a remote VM)
+up: up-log up-terminal up-trader up-book ## Start all four GUI containers (set VM_BACKEND_IP for a remote VM)
 
-down: down-log down-terminal down-trader ## Stop and remove all three GUI containers
+down: down-log down-terminal down-trader down-book ## Stop and remove all four GUI containers
 
-restart: down up ## Restart all three GUI containers
+restart: down up ## Restart all four GUI containers
 
-ps: ## Show container status for all three apps
+ps: ## Show container status for all four apps
 	@echo -e "$(CYAN)--- log-gui ---$(NC)"
 	@$(MAKE) -C $(LOG_GUI_DIR) ps
 	@echo -e "$(CYAN)--- terminal-gui ---$(NC)"
 	@$(MAKE) -C $(TERMINAL_GUI_DIR) ps
 	@echo -e "$(CYAN)--- trader-gui ---$(NC)"
 	@$(MAKE) -C $(TRADER_GUI_DIR) ps
+	@echo -e "$(CYAN)--- book-gui ---$(NC)"
+	@$(MAKE) -C $(BOOK_GUI_DIR) ps
 
 # --------------------------------------------------------------------------------------------
 # Per-app targets
@@ -138,6 +152,12 @@ up-trader: ## Start trader-gui container
 	fi
 	@env $(TRADER_GUI_ENV) $(MAKE) -C $(TRADER_GUI_DIR) up
 
+up-book: ## Start book-gui container (needs the read-only key — see the header)
+	@if [[ -n "$(VM_BACKEND_IP)" ]]; then \
+		echo -e "$(YELLOW)- book-gui backend: $(VM_BACKEND_IP)$(NC)"; \
+	fi
+	@env $(BOOK_GUI_ENV) $(MAKE) -C $(BOOK_GUI_DIR) up
+
 down-log: ## Stop log-gui container
 	@$(MAKE) -C $(LOG_GUI_DIR) down
 
@@ -146,6 +166,9 @@ down-terminal: ## Stop terminal-gui container
 
 down-trader: ## Stop trader-gui container
 	@$(MAKE) -C $(TRADER_GUI_DIR) down
+
+down-book: ## Stop book-gui container
+	@$(MAKE) -C $(BOOK_GUI_DIR) down
 
 # --------------------------------------------------------------------------------------------
 # Log tailing (each in its own invocation — use separate terminals for live tailing)
@@ -158,3 +181,6 @@ logs-terminal: ## Follow terminal-gui container logs
 
 logs-trader: ## Follow trader-gui container logs
 	@$(MAKE) -C $(TRADER_GUI_DIR) logs
+
+logs-book: ## Follow book-gui container logs
+	@$(MAKE) -C $(BOOK_GUI_DIR) logs

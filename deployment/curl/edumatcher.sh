@@ -25,7 +25,7 @@ die()   { echo -e "${RED}✗ $*${NC}" >&2; exit 1; }
 # Every container this deployment owns. The names are fixed in compose.yaml
 # rather than derived from the project, which is why two installs collide —
 # see assert_no_foreign_stack below.
-CONTAINERS="edumatcher edumatcher-terminal-gui edumatcher-log-gui edumatcher-config-gui edumatcher-trader-gui"
+CONTAINERS="edumatcher edumatcher-terminal-gui edumatcher-log-gui edumatcher-config-gui edumatcher-trader-gui edumatcher-book-gui"
 
 # Read one key out of .env without sourcing the whole file.
 env_value() { [[ -f .env ]] && sed -n "s/^$1=//p" .env | tail -1; }
@@ -63,8 +63,9 @@ detect_engine() {
 }
 
 # Reads the deployed configuration and prints "<port> <api_key>" for the first
-# read-only credential (gateway_id: null). terminal-gui's history endpoints
-# need it; it is generated per configuration, so it cannot be a fixed default.
+# read-only credential (gateway_id: null). terminal-gui's history endpoints and
+# everything book-gui shows need it; it is generated per configuration, so it
+# cannot be a fixed default.
 READONLY_CREDENTIAL_PY='
 import json
 try:
@@ -132,10 +133,12 @@ cmd_start() {
         set -- $cred
         export API_GATEWAY_URL="http://edumatcher:$1"
         export PM_TERMINAL_API_KEY="$2"
+        export PM_BOOK_API_KEY="$2"
         ok "Read-only API key resolved from the deployed configuration (port $1)"
     else
         warn "No read-only credential (gateway_id: null) in the deployed configuration."
-        warn "The live market-data feed will work; history panels will not."
+        warn "The trading terminal's live feed will work; its history panels and the"
+        warn "order book viewer will not."
     fi
 
     $COMPOSE $COMPOSE_FILES up -d
@@ -205,6 +208,7 @@ cmd_urls() {
     echo "  Log viewer         http://localhost:${LOG_GUI_PORT:-8091}"
     echo "  Config builder     http://localhost:${CONFIG_GUI_PORT:-8092}"
     echo "  Trader GUI         http://localhost:${TRADER_GUI_PORT:-8093}"
+    echo "  Order book viewer  http://localhost:${BOOK_GUI_PORT:-8094}"
     echo "  REST API docs      http://localhost:8080/docs"
 }
 

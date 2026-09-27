@@ -745,7 +745,7 @@ fi
 # PHASE 6B: CONTAINER IMAGES
 # =====================================
 #
-# The five container images are built and pushed by .github/workflows/
+# The six container images are built and pushed by .github/workflows/
 # publish-images.yml, which fires on 'release: published' exactly as the PyPI
 # workflow does. They are not built here: each one is built natively on both
 # amd64 and arm64 runners and joined into a manifest list, which a single
@@ -817,7 +817,7 @@ else
             print_success "Container images published for $LATEST_TAG"
             echo ""
             for img in edumatcher edumatcher-config-gui edumatcher-log-gui \
-                       edumatcher-terminal-gui edumatcher-trader-gui; do
+                       edumatcher-terminal-gui edumatcher-trader-gui edumatcher-book-gui; do
                 echo "  ghcr.io/${GITHUB_USER}/${img}:${VERSION_NUMBER}"
             done
         else

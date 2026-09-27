@@ -30,7 +30,7 @@ where processes are started by hand.
 
 !!! tip "VM or container?"
     Use [`deployment/docker/`](07-container-and-networks.md) when you want the
-    whole system — exchange plus all four web GUIs — running with one command,
+    whole system — exchange plus all five web GUIs — running with one command,
     or when you are changing code and need a fast rebuild. Use the VM when you
     want a real machine, a snapshot you can roll back to, or a demo that
     survives being handed to somebody else. The VM installs the backend only;

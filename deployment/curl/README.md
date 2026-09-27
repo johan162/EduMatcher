@@ -7,7 +7,7 @@ curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment
 Then open <http://localhost:8090>.
 
 That starts a complete exchange — the matching engine, all the protocol
-gateways, the REST API — plus four web applications, from prebuilt images.
+gateways, the REST API — plus five web applications, from prebuilt images.
 The only requirement is **Podman or Docker**. Nothing is compiled: no Python,
 no Node, no checkout of this repository.
 
@@ -17,6 +17,7 @@ no Node, no checkout of this repository.
 | Log viewer | <http://localhost:8091> |
 | Configuration builder | <http://localhost:8092> |
 | Trader GUI | <http://localhost:8093> |
+| Order book viewer | <http://localhost:8094> |
 | REST API docs | <http://localhost:8080/docs> |
 
 ## Choosing what the exchange trades
@@ -192,7 +193,7 @@ images have to be published first.
 
 ## How it fits together
 
-All five containers share one compose project, so they share its network and
+All six containers share one compose project, so they share its network and
 the GUIs reach the exchange at the hostname `edumatcher`. The ports published
 on your machine are for *you* — `curl`, Swagger, the protocol example clients —
 and are not involved in GUI-to-backend traffic.
@@ -210,10 +211,10 @@ interface; it wins over any `bind_address:` in the deployed configuration. The
 engine and `pm-index` are the exception and stay on loopback unless `EM_ZMQ=1`.
 
 Two things are resolved for you at startup, because neither can be a fixed
-default: the trading terminal's read-only API key is generated per
-configuration, and lives on a different gateway instance than the trading one,
-so `./edumatcher.sh start` reads it out of the deployed configuration and hands
-it to the terminal. Everything else is plain compose — read `compose.yaml`.
+default: the read-only API key the trading terminal and the order book viewer
+use is generated per configuration, and lives on a different gateway instance
+than the trading one, so `./edumatcher.sh start` reads it out of the deployed
+configuration and hands it to both. Everything else is plain compose — read `compose.yaml`.
 
 ## Data
 
@@ -224,5 +225,5 @@ It survives stop, start and update. `uninstall --data` is what deletes it.
 ## Building from source instead
 
 If you want to change the code rather than run it, use
-[`../docker/`](../docker/), which builds the same five images from your
+[`../docker/`](../docker/), which builds the same six images from your
 checkout with `make up-all`.

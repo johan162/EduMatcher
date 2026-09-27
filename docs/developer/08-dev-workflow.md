@@ -61,10 +61,10 @@ or, in one step:
 
 ```bash
 make up-all BUILD=1 GUI=terminal-gui
-make up-all BUILD=1                  # all four
+make up-all BUILD=1                  # all five
 ```
 
-`make build-guis` with no `GUI=` rebuilds all four. It builds through
+`make build-guis` with no `GUI=` rebuilds all five. It builds through
 `compose.yaml -f compose.guis.yaml -f compose.config-gui.yaml`, so config-gui
 is always buildable here whether or not you start it with `CONFIG_GUI=1`.
 
@@ -127,7 +127,7 @@ Three facts make this work with no configuration:
 3. **The stack publishes to `127.0.0.1`** by default (`BIND_ADDR`). The two
    halves meet without either being told about the other.
 
-The containerised GUI keeps running on 8090–8093 the whole time. That is
+The containerised GUI keeps running on 8090–8094 the whole time. That is
 useful rather than confusing: it is your reference. Compare `localhost:8190`
 with `localhost:8090` and you are comparing your change against what is
 currently shipped.
@@ -165,6 +165,7 @@ empty history panels and a 401 in the bridge log.
 | log-gui | 8191 | 5191 | 8091 | 5601/5602 (needs `ZMQ=1`), `data/log.db` |
 | trader-gui | 8193 | — | 8093 | 8080 only, proxied by Vite |
 | config-gui | 8192 | 5192 | 8092 | nothing |
+| book-gui | 8194 | 5194 | 8094 | 8081 market data, history + read-only key, 5600 log ingest |
 
 The dev ports are deliberately `81xx`/`51xx` against the containers' `80xx`, so
 both can run at once.

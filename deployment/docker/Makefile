@@ -73,11 +73,12 @@ GHCR_REGISTRY ?= ghcr.io
 PROJECT_VERSION := $(shell awk -F'"' '/^version =/ {print $$2; exit}' ../../pyproject.toml)
 # Not VERSION: that already means "which PyPI release to install" for `make build`.
 TAG ?= dev
-GUI_IMAGES := edumatcher-config-gui edumatcher-log-gui edumatcher-terminal-gui edumatcher-trader-gui
+GUI_IMAGES := edumatcher-config-gui edumatcher-log-gui edumatcher-terminal-gui edumatcher-trader-gui \
+              edumatcher-book-gui
 
-# The same four as compose *service* names, which is what `build` and
+# The same five as compose *service* names, which is what `build` and
 # `up -d <svc>` take. GUI= selects one for build-guis / up-all BUILD=1.
-GUI_SERVICES := log-gui terminal-gui trader-gui config-gui
+GUI_SERVICES := log-gui terminal-gui trader-gui book-gui config-gui
 GUI ?=
 
 # Every container this stack owns, named as the compose files name them.
@@ -100,7 +101,7 @@ DC_ALL := $(COMPOSE) $(ALL_COMPOSE_FILES)
 
 # Reads the deployed configuration and prints "<port> <api_key>" for the first
 # read-only credential (gateway_id: null). terminal-gui's history endpoints
-# need it, and it is generated per configuration — different in every bundled
+# and everything book-gui shows need it, and it is generated per configuration — different in every bundled
 # example — and lives on the 'dashboards' instance (8081), not 'desk' (8080).
 define READONLY_CREDENTIAL_PY
 import json
@@ -140,7 +141,7 @@ help:
 	@echo "  make up-all CONFIG_GUI=1              ... and the config builder too"
 	@echo "  make down-all           Stop and remove every container"
 	@echo ""
-	@echo "  make build-guis                    Rebuild all four web-app images"
+	@echo "  make build-guis                    Rebuild all five web-app images"
 	@echo "  make build-guis GUI=terminal-gui   ... just one"
 	@echo "  make up-all BUILD=1                Rebuild the web-app images, then start"
 	@echo "  make up-all BUILD=1 GUI=log-gui    ... rebuilding only that one"
@@ -158,7 +159,7 @@ help:
 	@echo "  make ports              List the published ports"
 	@echo "  make mounts             Which directory is behind each container path"
 	@echo ""
-	@echo "  make ghcr-push          Push all five images to GHCR as :dev (this arch only)"
+	@echo "  make ghcr-push          Push all six images to GHCR as :dev (this arch only)"
 	@echo "  make ghcr-push TAG=x.y.z FORCE=1   ... as a release tag (see the warning)"
 	@echo "  make clean              Remove the container and the image"
 	@echo "  make clean-data         Delete ./data (the whole exchange state)"
@@ -212,11 +213,11 @@ build: check .env
 	$(DC) build
 
 # `up-all` deliberately does not pass --build. Compose would then re-evaluate
-# five build contexts on every start, and the backend image is `make build`'s
+# six build contexts on every start, and the backend image is `make build`'s
 # job. The consequence is that a change in web-apps/ is invisible until its
 # image is rebuilt explicitly — which is what this target is for.
 #
-#   make build-guis                       all four
+#   make build-guis                       all five
 #   make build-guis GUI=terminal-gui      one
 #   make up-all BUILD=1 [GUI=...]         rebuild, then start
 #
@@ -249,7 +250,7 @@ endif
 	@echo "Started. 'make status' for the process table, 'make shell' to log in."
 
 # --- The whole system ------------------------------------------------------
-# Two phases, deliberately: terminal-gui's read-only API key does not exist
+# Two phases, deliberately: the GUIs' read-only API key does not exist
 # until the exchange has deployed its configuration, so the backend has to be
 # up before the GUIs can be given their environment.
 # deployment/curl/ uses the same fixed container names and host ports as this
@@ -304,10 +305,12 @@ endif
 		set -- $$cred; \
 		API_GATEWAY_URL="http://edumatcher:$$1"; export API_GATEWAY_URL; \
 		PM_TERMINAL_API_KEY="$$2"; export PM_TERMINAL_API_KEY; \
-		echo "==> terminal-gui history: $$API_GATEWAY_URL (read-only key from the deployed config)"; \
+		PM_BOOK_API_KEY="$$2"; export PM_BOOK_API_KEY; \
+		echo "==> terminal-gui history and book-gui: $$API_GATEWAY_URL (read-only key from the deployed config)"; \
 	else \
 		echo "==> WARNING: no read-only credential (gateway_id: null) in the deployed"; \
-		echo "    configuration — terminal-gui's history endpoints will be unavailable."; \
+		echo "    configuration — terminal-gui's history endpoints will be unavailable,"; \
+		echo "    and book-gui will have no data at all."; \
 	fi; \
 	$(DC_ALL) up -d
 	@echo ""
@@ -315,6 +318,7 @@ endif
 	@echo "  terminal-gui  http://localhost:$${TERMINAL_GUI_PORT:-8090}"
 	@echo "  log-gui       http://localhost:$${LOG_GUI_PORT:-8091}"
 	@echo "  trader-gui    http://localhost:$${TRADER_GUI_PORT:-8093}"
+	@echo "  book-gui      http://localhost:$${BOOK_GUI_PORT:-8094}"
 ifeq ($(CONFIG_GUI),1)
 	@echo "  config-gui    http://localhost:$${CONFIG_GUI_PORT:-8092}"
 endif
@@ -455,6 +459,18 @@ dev-env: check
 			echo "         stack has to publish pm-log-srv's ZeroMQ sockets:" >&2; \
 			echo "           make down-all && make up-all ZMQ=1" >&2; \
 		fi;; \
+	book-gui) \
+		echo "# book-gui: web on 8194, bridge on 5194 (Vite proxies /api and /ws)"; \
+		cred=$$($(EXEC) $(CONTAINER_NAME) python3 -c "$$READONLY_CREDENTIAL_PY" 2>/dev/null || true); \
+		if [ -n "$$cred" ]; then \
+			set -- $$cred; \
+			echo "export API_GATEWAY_URL=http://127.0.0.1:$$1"; \
+			echo "export PM_BOOK_API_KEY=$$2"; \
+			published "$$1" || echo "WARNING: port $$1 is not published on the host." >&2; \
+		else \
+			echo "WARNING: no read-only credential (gateway_id: null) in the deployed config —" >&2; \
+			echo "         book-gui cannot read any data without one." >&2; \
+		fi;; \
 	trader-gui) \
 		echo "# trader-gui: web on 8193. No bridge and no environment needed — vite.config.ts"; \
 		echo "# proxies /api straight to pm-api-gwy on http://localhost:8080."; \
@@ -473,7 +489,7 @@ config-show: check
 	$(EXEC_TTY) $(CONTAINER_NAME) pm-config-show
 
 # --- Publishing ------------------------------------------------------------
-# Builds all five images from this checkout and pushes them to GHCR under one
+# Builds all six images from this checkout and pushes them to GHCR under one
 # tag. Needs GITHUB_USER and GHCR_TOKEN.
 #
 #   make ghcr-push                       -> :dev
@@ -502,7 +518,7 @@ ghcr-push: check
 			fi; \
 			echo "==> WARNING: pushing single-arch ($$(uname -m)) images as '$(TAG)'";; \
 	esac; \
-	echo "==> building all five images from this checkout"; \
+	echo "==> building all six images from this checkout"; \
 	$(COMPOSE) $(PUBLISH_COMPOSE_FILES) build; \
 	echo "$$GHCR_TOKEN" | $(CONTAINER_ENGINE) login $(GHCR_REGISTRY) \
 		-u "$$GITHUB_USER" --password-stdin; \

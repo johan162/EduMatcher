@@ -55,7 +55,7 @@ cd ~/.edumatcher
 ./edumatcher.sh start
 ```
 
-The first start pulls five container images and takes a few minutes. Later
+The first start pulls six container images and takes a few minutes. Later
 starts take seconds.
 
 **Explanation:** `edumatcher.sh` is the simplified control surface for a container installed
@@ -71,13 +71,14 @@ The last subcommmand `start` does what you think; starts the exchange!
 
 ### Checkpoint
 
-Open these three URLs. All three should load:
+Open these four URLs. All four should load:
 
 | URL | What it is |
 |---|---|
 | <http://localhost:8090> | **TapeDeck** — a read-only market display. Prices, depth, trades |
 | <http://localhost:8091> | **Log console** — every process's operational log |
 | <http://localhost:8093> | **Trading GUI** — where you would place orders as a trader |
+| <http://localhost:8094> | **Order book viewer** — one symbol's full book, statistics and trade tape (press `s` to switch symbol) |
 
 Then confirm the exchange itself is healthy:
 

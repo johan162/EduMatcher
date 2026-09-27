@@ -3,7 +3,7 @@
 !!! note "Learning objectives"
     After reading this page you will understand:
 
-    - How the five container images, the compose overlays and the three layers
+    - How the six container images, the compose overlays and the three layers
       of Makefile fit together
     - Where networking responsibility actually sits, and which of the several
       `127.0.0.1`/`0.0.0.0` knobs controls what
@@ -18,7 +18,7 @@
 
 ## Summary
 
-EduMatcher ships as **five container images** that run as **one Compose
+EduMatcher ships as **six container images** that run as **one Compose
 project**:
 
 | Image | Built from | Serves |
@@ -28,6 +28,7 @@ project**:
 | `edumatcher-log-gui` | `web-apps/log-gui/` | Log viewer, port 8091 |
 | `edumatcher-config-gui` | `web-apps/config-gui/` | Configuration builder, port 8092 |
 | `edumatcher-trader-gui` | `web-apps/trader-gui/` | Trader GUI, port 8093 |
+| `edumatcher-book-gui` | `web-apps/book-gui/` | Order book viewer, port 8094 |
 
 The backend is one container by design — the engine's ZeroMQ bus binds
 loopback by default, so every `pm-*` process must share a network namespace,
@@ -83,8 +84,9 @@ flowchart TD
     C2["web-apps/log-gui/Makefile"]
     C3["web-apps/trader-gui/Makefile"]
     C4["web-apps/config-gui/Makefile"]
+    C5["web-apps/book-gui/Makefile"]
 
-    A -->|"compose build/up across\nall five contexts"| IMGS["five images"]
+    A -->|"compose build/up across\nall six contexts"| IMGS["six images"]
     B -->|"make -C, one per app"| C1
     B --> C2
     B --> C3
@@ -92,13 +94,14 @@ flowchart TD
     C2 --> IMGS
     C3 --> IMGS
     C4 --> IMGS
+    C5 --> IMGS
 
     A -.->|"never calls"| B
 ```
 
 | Layer | File | Owns | Use it when |
 |---|---|---|---|
-| **System** | `deployment/docker/Makefile` | The backend image, the web-app images (`build-guis`), and Compose across all five services. Data directory, profiles, configuration deployment, publishing | You want a working exchange with GUIs |
+| **System** | `deployment/docker/Makefile` | The backend image, the web-app images (`build-guis`), and Compose across all six services. Data directory, profiles, configuration deployment, publishing | You want a working exchange with GUIs |
 | **Group** | `web-apps/Makefile` | Fanning out to three GUI Makefiles with a shared `VM_BACKEND_IP` | You run the GUIs against a backend that is *not* in the same Compose project — a Multipass VM, or a host install |
 | **App** | `web-apps/<gui>/Makefile` | One application: npm workspace, its own image, its own compose file | You are developing that one GUI |
 
@@ -184,10 +187,10 @@ flowchart TB
         BR["Browser, curl,\nprotocol clients"]
     end
     subgraph L2["2. Published ports — controlled by BIND_ADDR"]
-        P["127.0.0.1:8090-8093\n127.0.0.1:5560-5600, 8080-8081"]
+        P["127.0.0.1:8090-8094\n127.0.0.1:5560-5600, 8080-8081"]
     end
     subgraph L3["3. The Compose network — one per project"]
-        G["terminal-gui, log-gui,\nconfig-gui, trader-gui"]
+        G["terminal-gui, log-gui,\nconfig-gui, trader-gui,\nbook-gui"]
     end
     subgraph L4["4. Inside the backend namespace"]
         GW["Service layer — gateways, pm-log-srv, pm-api-gwy\ndefault 0.0.0.0 · EDUMATCHER_GATEWAY_BIND_HOST"]
@@ -492,7 +495,7 @@ generally available and free for public repositories.
 
 **The merge job selects digests by exact image prefix.** Each build job uploads
 its digest as an artifact named `digests-<image>-<arch>`, and the merge job
-collects them with a glob. `edumatcher` is a prefix of all four
+collects them with a glob. `edumatcher` is a prefix of all five
 `edumatcher-*-gui` names, so that glob over-matches: the backend's merge job
 receives every image's digests. It therefore filters the downloaded files —
 each is named `<image>@<hex>` — by exact prefix, and asserts it ended up with
@@ -514,19 +517,19 @@ never becomes what a new user gets by default. That is the same test
 
 **`mkghrelease.sh` waits but does not push.** Its PHASE 6B polls
 `gh run view` for the image workflow — bounded by `IMAGE_WAIT_MINUTES`
-(default 30), skippable with `--skip-images` — and reports the five image
+(default 30), skippable with `--skip-images` — and reports the six image
 references. If the workflow fails the GitHub release still exists; only the
 images are missing, and `gh workflow run publish-images.yml -f tag=vX.Y.Z`
 re-runs just that part.
 
 ### The manual escape hatch
 
-`make ghcr-push` in `deployment/docker/` builds all five images from your
+`make ghcr-push` in `deployment/docker/` builds all six images from your
 checkout and pushes them. It exists for when the workflow cannot run at all.
 
 ```bash
 export GITHUB_USER=<you> GHCR_TOKEN=<token with write:packages>
-make ghcr-push                              # all five, tagged :dev
+make ghcr-push                              # all six, tagged :dev
 make ghcr-push TAG=0.20.6 FORCE=1 LATEST=1  # as a release tag
 ```
 
@@ -639,7 +642,7 @@ PY
 ### Standing costs
 
 **Version coupling.** Every image carries the EduMatcher release version, so
-every release republishes all five even when only the backend changed. That is
+every release republishes all six even when only the backend changed. That is
 the price of "one tag names a coherent set" and is almost certainly the right
 trade — but it means a GUI-only fix still needs a full release.
 
@@ -716,6 +719,7 @@ podman exec edumatcher pm-config-show --section ports
 # 5. What the bridges think of their own uplinks
 curl -s localhost:8090/api/bridge/status   # calf, logging
 curl -s localhost:8091/api/bridge/status   # lalfPs, logDb
+curl -s localhost:8094/api/bridge/status   # upstream, logging
 
 # 6. Which ports are actually published
 podman port edumatcher

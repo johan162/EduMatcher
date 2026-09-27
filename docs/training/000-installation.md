@@ -5,7 +5,7 @@
 Get a working EduMatcher, understand **where its files live**, and know **how to
 change them**. There are four ways to install; you need exactly one, and
 **Containers is the recommended default** — it needs no Python setup, gives
-you the exchange plus four web applications in a single command, and is what
+you the exchange plus five web applications in a single command, and is what
 the rest of this chapter assumes unless you have a specific reason to choose
 otherwise. By the end of this chapter you will have an exchange you can start
 and stop, a deployed configuration, and a clear picture of which directory
@@ -32,7 +32,7 @@ in action.
 
 | Route | You need | You get | Best for |
 |---|---|---|---|
-| **A — Containers (recommended)** | Podman or Docker | The exchange **and four web applications**, in one command | Most students: no Python to install, the fastest path to a live market, and works through every chapter that follows |
+| **A — Containers (recommended)** | Podman or Docker | The exchange **and five web applications**, in one command | Most students: no Python to install, the fastest path to a live market, and works through every chapter that follows |
 | **B — pipx** | Python 3.13 | `pm-*` commands on your PATH | You would rather work outside a container, or Podman/Docker is not available to you |
 | **C — Multipass VM** | Multipass | A Linux VM with `pm-*` inside it | Workshops; keeping your own machine untouched; a snapshot you can reset |
 | **D — Poetry checkout** | Python 3.13, Git | The repository plus dev dependencies | Changing EduMatcher itself |
@@ -94,10 +94,10 @@ curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment
 
 The installer checks for Podman or Docker, resolves the newest release,
 downloads four small support files (`compose.yaml`, `compose.zmq.yaml`,
-`edumatcher.sh`, `.env.example`), pulls five images and starts them. Nothing
+`edumatcher.sh`, `.env.example`), pulls six images and starts them. Nothing
 is compiled on your machine.
 
-When it finishes you have a complete exchange **and** four web applications:
+When it finishes you have a complete exchange **and** five web applications:
 
 | Application | URL | What it is |
 |---|---|---|
@@ -105,6 +105,7 @@ When it finishes you have a complete exchange **and** four web applications:
 | Log viewer | <http://localhost:8091> | The centralized log, searchable |
 | Configuration builder | <http://localhost:8092> | Author an `engine_config.yaml` in your browser |
 | Trader GUI | <http://localhost:8093> | Submit and manage orders as a participant |
+| Order book viewer | <http://localhost:8094> | One symbol's full order book, statistics and trade tape — `pm-viewer` in the browser |
 | REST API docs | <http://localhost:8080/docs> | Swagger UI for the `desk` API gateway |
 
 Open the trading terminal. You should see order books with live quotes: the
@@ -113,7 +114,7 @@ market-maker bid and ask the moment `pm-engine` starts, so there is a two-sided
 book before anyone has traded.
 
 !!! note "If a port is already taken"
-    The published ports (`8080`, `8090`–`8093`) are fixed. If another program
+    The published ports (`8080`, `8090`–`8094`) are fixed. If another program
     on your machine already uses one of them, `./edumatcher.sh start` fails
     with a bind error naming that port. Free it, or move the conflicting
     service, then run `./edumatcher.sh start` again — nothing was left
@@ -489,7 +490,7 @@ so updating does not discard your edits.
 
 | Variable | Default | What it does |
 |---|---|---|
-| `EM_VERSION` | *(the installed release)* | Which release to run. All five images carry this tag, so one value pins the whole system |
+| `EM_VERSION` | *(the installed release)* | Which release to run. All six images carry this tag, so one value pins the whole system |
 | `GHCR_OWNER` | `johan162` | The registry namespace images come from. Change only for a fork |
 | `EM_CONFIG` | `s3-basic` | Which bundled example the exchange deploys |
 | `EM_CONFIG_FILE` | *(empty)* | Set when you run a configuration of your own; non-empty wins over `EM_CONFIG` |
@@ -502,6 +503,7 @@ so updating does not discard your edits.
 | `LOG_GUI_PORT` | `8091` | Host port for the log viewer |
 | `CONFIG_GUI_PORT` | `8092` | Host port for the configuration builder |
 | `TRADER_GUI_PORT` | `8093` | Host port for the trader GUI |
+| `BOOK_GUI_PORT` | `8094` | Host port for the order book viewer |
 
 Change any of them and run `./edumatcher.sh restart`. Two have their own
 commands, because they need more than an edit — `./edumatcher.sh config` keeps
@@ -562,7 +564,7 @@ handled in full:
 | Symptom | Cause | Fix |
 |---|---|---|
 | Installer exits immediately with "Neither podman nor docker is installed" | No container engine on this machine | Install Podman or Docker Desktop, then re-run the install command |
-| `./edumatcher.sh start` fails with a bind error naming a port | Something else on your machine already uses `8080` or `8090`–`8093` | Free the port or stop the other service, then `./edumatcher.sh start` again |
+| `./edumatcher.sh start` fails with a bind error naming a port | Something else on your machine already uses `8080` or `8090`–`8094` | Free the port or stop the other service, then `./edumatcher.sh start` again |
 | Starting a second install fails, naming another install's data directory | Container names and ports are fixed, so two installs cannot run side by side | Stop the other one (`./edumatcher.sh stop` in its directory), then retry — see the warning in Exercise 1 |
 | `pip install pipx` fails with `externally-managed-environment` | Modern Linux distributions block installing into the system Python | Use `python -m pip install --user pipx` instead, as Route B now shows |
 | `command not found: pm-engine` right after `pipx install edumatcher` | `pipx ensurepath` only takes effect in a *new* shell | Open a new terminal (or `exec $SHELL`) and try again |

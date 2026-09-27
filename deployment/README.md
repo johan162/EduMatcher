@@ -3,7 +3,7 @@
 Three ways to run EduMatcher, pick one:
 
 - [`curl/`](curl/) — **the quickest**: one command, prebuilt images, the whole
-  system (exchange + all four web GUIs). Needs only Podman or Docker. See
+  system (exchange + all five web GUIs). Needs only Podman or Docker. See
   [curl/README.md](curl/README.md).
 - [`docker/`](docker/) — the same system, built from this checkout. What you
   want when you are changing the code. See [docker/README.md](docker/README.md).

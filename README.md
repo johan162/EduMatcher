@@ -23,7 +23,7 @@ separate processes that talk to each other the way a real venue's do.
 ## Quick start
 
 With Podman or Docker installed, one command gets you a running exchange and
-four web applications:
+five web applications:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash
@@ -53,6 +53,10 @@ Trader GUI       :  http://localhost:8093.
 
 # The terminal to watch the movements of the market
 Trading terminal :  http://localhost:8090
+
+# One symbol's full order book, session statistics and trade tape
+# (the browser companion to the pm-viewer command)
+Order book       :  http://localhost:8094
 
 # The central log server to observe what is happening internally
 # in the exchange platform

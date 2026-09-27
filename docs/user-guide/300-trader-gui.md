@@ -118,7 +118,7 @@ doing. If you are not sure, use the first.
 
 | | What it is | Open | Use it when |
 |---|---|---|---|
-| **The whole stack** | The exchange and all four web applications, started together as containers | <http://localhost:8093> | You want a working system. This is almost always the right answer |
+| **The whole stack** | The exchange and all five web applications, started together as containers | <http://localhost:8093> | You want a working system. This is almost always the right answer |
 | **This app alone, in a container** | Just the Trading GUI, pointed at an exchange you started some other way | <http://localhost:8093> | The exchange runs elsewhere — another machine, a VM, a host install |
 | **Local dev server** | Vite with hot reload, on your machine | <http://localhost:8193> | You are changing this application's code |
 
@@ -147,7 +147,7 @@ Then open **<http://localhost:8093>**. The exchange's REST API is reachable at
 
 The other applications come up at the same time: the trader terminal on
 [8090](290-trader-info-terminal.md), the log console on
-[8091](285-log-srv-gui.md).
+[8091](285-log-srv-gui.md) and the order book viewer on 8094.
 
 Everyday commands, from `deployment/docker` (or with `./edumatcher.sh` in a
 released install):

@@ -1,4 +1,4 @@
-# Overlay: the three web GUIs that talk to the backend, in the same compose
+# Overlay: the four web GUIs that talk to the backend, in the same compose
 # project as the exchange itself.
 #
 # Sharing one project is the whole trick. Compose puts every service on the
@@ -85,6 +85,39 @@ services:
     volumes:
       - terminal-gui-logs:/app/logs
 
+  book-gui:
+    build:
+      context: ../../web-apps/book-gui
+      dockerfile: Dockerfile
+      args:
+        NPM_STRICT_SSL:
+        HTTP_PROXY:
+        HTTPS_PROXY:
+        NO_PROXY:
+    image: edumatcher-book-gui:latest
+    container_name: ${CONTAINER_NAME:-edumatcher}-book-gui
+    depends_on:
+      - edumatcher
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${BOOK_GUI_PORT:-8094}:8094"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8094"
+      CORS_ORIGIN: "${CORS_ORIGIN:-*}"
+      MAX_WS_CLIENTS: "${MAX_WS_CLIENTS:-200}"
+      # Live market data and history both come from pm-api-gwy, with the same
+      # read-only credential terminal-gui uses — resolved from the deployed
+      # config by `make up-all`. Without it the viewer has nothing to show.
+      API_GATEWAY_URL: "${API_GATEWAY_URL:-http://edumatcher:8081}"
+      PM_BOOK_API_KEY: "${PM_BOOK_API_KEY:-}"
+      LOG_SRV_ENABLED: "${LOG_SRV_ENABLED:-true}"
+      LOG_SRV_HOST: "edumatcher"
+      LOG_SRV_PORT: "5600"
+      LOG_FAILOVER_DIR: "/app/logs"
+    volumes:
+      - book-gui-logs:/app/logs
+
   trader-gui:
     build:
       context: ../../web-apps/trader-gui
@@ -110,3 +143,4 @@ services:
 volumes:
   log-gui-acks:
   terminal-gui-logs:
+  book-gui-logs:

@@ -211,7 +211,7 @@ writes.
 
 ### Option 1 — The whole stack (recommended)
 
-Starts the exchange and all four applications together, with the console
+Starts the exchange and the other applications together, with the console
 already pointed at the exchange's own data directory:
 
 **A released install:**
