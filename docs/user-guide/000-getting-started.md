@@ -165,17 +165,48 @@ Two of them matter for this page, because they lead to different first steps.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash
-cd ~/.edumatcher && ./edumatcher.sh start
+cd ~/.edumatcher
 ```
 
-The exchange is now running on a bundled configuration. Open
-<http://localhost:8090> for the trading terminal and <http://localhost:8091>
-for the log console. The `pm-*` commands used throughout this guide live
-*inside* the container:
+The exchange is now running on a bundled configuration.  
+The `pm-*` commands, the control plane of the exchange, lives *inside* the container.  
+Use regular Docker/Podman command to open a shell in the conainer or use the shortcut:
 
 ```bash
-./edumatcher.sh shell        # thenpm-help, pm-admin, pm-alf-console, pm-stats-cli, ...
+./edumatcher.sh shell        # then pm-help, pm-admin, pm-alf-console, pm-stats-cli, ...
 ```
+
+Once inside the container, start with reviewing available commands
+
+```bash
+pm-help
+```
+
+Then, on your host, open a browser and go to the following URLs for the more user-friendly ways to trade and watch the market:
+
+```bash
+# The trading platform to buy/sell equities. Requires log-in using
+# one of the API keys defined in the `engine_config.yaml`
+Trader GUI       :  http://localhost:8093.
+
+# The terminal to watch the movements of the market
+Trading terminal :  http://localhost:8090
+
+# The central log server to observe what is happening internally
+# in the exchange platform
+Log viewer       :  http://localhost:8091      
+
+# The Swagger REST-API documentation. The exchange can be
+# completely run using REST commands
+REST API docs    :  http://localhost:8080/docs
+```
+
+Configuring the exchange can be done by either 1) Manually edit the config YAML file (and then verify/lint it with `pm-cverifier`) or, 2) generate it in scripts using the `pm-config-gen` tool or, 3) using the Web application reachable at :
+
+```
+Config builder   :  http://localhost:8092
+```
+
 
 **Python package — the processes on your own machine:**
 
