@@ -267,12 +267,14 @@ def main() -> None:
         raise SystemExit(1) from exc
 
     target = options.event_topic if gateway else f"{EVENT_TOPIC_PREFIX}* (all gateways)"
-    session.console.print(
-        f"[bold cyan]◆ pm-dc-spy[/bold cyan] connected to "
-        f"{args.host}:{args.port}, subscribed to [bold]{target}[/bold]"
-        f"{f' + {options.replay_topic}' if replay_of else ''} "
-        f"(Ctrl-C to stop)"
+    banner = (
+        f"pm-dc-spy connected to {args.host}:{args.port}, subscribed to {target}"
+        f"{f' + {options.replay_topic}' if replay_of else ''} (Ctrl-C to stop)"
     )
+    if args.format == "json":
+        print(banner, file=sys.stderr)
+    else:
+        session.console.print(f"[bold cyan]◆ {banner}[/bold cyan]")
 
     try:
         client.run(session.on_message, max_messages=args.count)
@@ -283,7 +285,10 @@ def main() -> None:
         pass
     finally:
         client.close()
-        session.console.print("[dim]pm-dc-spy: connection closed.[/dim]")
+        if args.format == "json":
+            print("pm-dc-spy: connection closed.", file=sys.stderr)
+        else:
+            session.console.print("[dim]pm-dc-spy: connection closed.[/dim]")
 
 
 __all__ = ["main"]
