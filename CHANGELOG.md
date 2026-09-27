@@ -1,4 +1,4 @@
-## ## [v0.42.1] - 2026-09-27
+## [v0.42.1] - 2026-09-27
 
 ### 📋 Summary
 This patch release primarily enhances the multi-symbol functionality of the `pm-mm-bot` by improving option handline and making it easier to specify a complex mm bot setting by introducing a new config file for settings.
