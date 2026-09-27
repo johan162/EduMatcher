@@ -1209,11 +1209,16 @@ class MMBot:
 
         symbol = self._symbol_for_order_id(order_id)
         if symbol is None:
-            # If nothing has acked yet anywhere, buffer the fill the same
-            # way the single-symbol bot always did — we don't yet know
-            # which symbol's leg this is.
-            if not any(
-                st.bid_order_id is not None or st.ask_order_id is not None
+            # The order_id doesn't match any symbol's known legs. That is
+            # ambiguous, not definitive, as long as some symbol hasn't
+            # acked yet -- this fill could belong to it once its order IDs
+            # are known (checking "has ANY symbol acked" was the bug: once
+            # one symbol acked, a fill for a different, still-pending
+            # symbol was neither matched nor buffered -- silently dropped).
+            # Only once every symbol has acked is an unmatched order_id
+            # definitely not ours.
+            if any(
+                st.bid_order_id is None and st.ask_order_id is None
                 for st in self._symbols_state.values()
             ):
                 self._pending_fills.append(payload)

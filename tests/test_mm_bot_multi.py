@@ -1941,10 +1941,30 @@ class TestUnattributableEvents:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         bot, _push, _sub = self._bot(monkeypatch)
+        # Every symbol's legs must be known (acked) for an unmatched
+        # order_id to be dropped rather than buffered -- an order_id this
+        # bot doesn't recognise is only *definitely* not ours once no
+        # symbol could still turn out to own it.
         bot._symbols_state["AAPL"].bid_order_id = "B-AAPL"
+        bot._symbols_state["AAPL"].ask_order_id = "A-AAPL"
+        bot._symbols_state["MSFT"].bid_order_id = "B-MSFT"
+        bot._symbols_state["MSFT"].ask_order_id = "A-MSFT"
         bot._handle_order_fill({"order_id": "B-SOMEONE-ELSE", "fill_qty": 10})
         assert bot._pending_fills == []
         assert bot._symbols_state["AAPL"].net_position == 0
+
+    def test_a_fill_for_an_unknown_order_is_buffered_while_a_symbol_still_could_own_it(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The multi-symbol counterpart to the case above: as long as some
+        symbol hasn't acked yet, an unmatched order_id is ambiguous, not
+        dropped -- it might belong to that symbol once it acks."""
+        bot, _push, _sub = self._bot(monkeypatch)
+        bot._symbols_state["AAPL"].bid_order_id = "B-AAPL"
+        bot._symbols_state["AAPL"].ask_order_id = "A-AAPL"
+        # MSFT has not acked yet -- both its order ids are still None.
+        bot._handle_order_fill({"order_id": "B-SOMEONE-ELSE", "fill_qty": 10})
+        assert bot._pending_fills == [{"order_id": "B-SOMEONE-ELSE", "fill_qty": 10}]
 
     def test_a_fill_for_a_known_leg_is_logged_in_verbose_mode(
         self, monkeypatch: pytest.MonkeyPatch
