@@ -5,7 +5,8 @@
 Configure market-maker gateways and use manual `QUOTE` commands to provide
 two-sided liquidity for all three symbols. You will also compare this manual
 workflow with `pm-mm-bot`, which automates the same lifecycle — including how
-to drive the bot from a committed config file instead of a long CLI
+to quote several symbols from one process on different terms each, and how to
+drive the whole desk from a committed config file instead of a long CLI
 invocation.
 
  
@@ -235,10 +236,10 @@ Interpretation guide:
 The manual quote sequence above can be automated with one bot per symbol —
 independent processes, each free to crash, restart, or be tuned without
 touching the others. (Exercise 8 below shows the alternative: one process
-covering several symbols at once.) Stop your manual quotes first
-(`QUOTE_CANCEL|SYM=<symbol>` from each MM console, or just leave them — the
-bot's own startup reconciliation handles either case, see the note below)
-and run:
+covering several symbols at once, each on its own terms.) Stop your manual
+quotes first (`QUOTE_CANCEL|SYM=<symbol>` from each MM console, or just leave
+them — the bot's own startup reconciliation handles either case, see the note
+below) and run:
 
 ```bash
 pm-mm-bot --symbol AAPL --gap 0.10 --qty 500
@@ -279,18 +280,25 @@ interval, and similar) that this chapter deliberately leaves out.
 
 ## Exercise 7: Drive the Bot from a Config File
 
-Every CLI flag except `--config` itself and the logging flags can instead
-live in a version-controlled YAML file, keyed by the flag's long name with
-dashes replaced by underscores. Create `mm_aapl.yaml`:
+A bot's whole configuration can live in a version-controlled YAML file
+instead of a long command line. Create `mm_aapl.yaml`:
 
 ```yaml
-symbol: AAPL
-id_suffix: "01"
-strategy: symmetric
-gap: 0.10
-qty: 500
-tif: DAY
-drift_ticks: 3
+version: 1
+
+gateway:
+  label: AAPL
+  id_suffix: "01"
+
+defaults:
+  strategy: symmetric
+  gap: 0.10
+  qty: 500
+  tif: DAY
+  drift_ticks: 3
+
+symbols:
+  AAPL: {}
 ```
 
 Run the bot from it instead of typing the flags:
@@ -299,33 +307,54 @@ Run the bot from it instead of typing the flags:
 pm-mm-bot --config mm_aapl.yaml
 ```
 
-An explicit CLI flag always overrides the same key from the file, so you can
-keep one committed file per symbol for a class and still override a single
-value for a one-off run:
+The file has four blocks, and the split between them is the thing worth
+learning:
+
+| Block       | Holds                                              | Can it differ per symbol? |
+|-------------|----------------------------------------------------|---------------------------|
+| `gateway:`  | Gateway identity and the two engine socket addresses | **No** — one process, one gateway, one pair of sockets |
+| `logging:`  | Log level and destination                          | **No** — one process, one log stream |
+| `defaults:` | Quoting settings applied to every symbol           | These *are* the defaults |
+| `symbols:`  | Which symbols to quote, and each one's overrides    | **Yes** — see Exercise 8 |
+
+`AAPL: {}` means "quote AAPL, on the house defaults". The empty braces are
+required YAML, not decoration: the value of a symbol key is its override
+block, and this one overrides nothing.
+
+An explicit CLI flag still overrides the file, so you can keep one committed
+file per desk for a class and override a single value for a one-off run:
 
 ```bash
 pm-mm-bot --config mm_aapl.yaml --gap 0.15
 ```
 
-`--symbol` may be omitted from the CLI entirely as long as the file supplies
-it — but the bot fails fast with a usage error if *neither* the CLI nor the
-file provides one, rather than silently picking a default symbol.
+No symbol needs to appear on the CLI at all as long as the file's `symbols:`
+block names one. The bot fails fast with a usage error if *neither* the CLI
+nor the file provides a symbol, rather than silently picking a default.
 
-!!! note "`--strategy` exists but only one strategy ships today"
+!!! note "Two pricing strategies ship today"
     `strategy: symmetric` (the default, so the line above is not strictly
-    needed) selects the pricing logic that turns the tracked mid-price into a
-    bid/ask — quote symmetrically around mid at `gap`. It's the only pricing
-    strategy that ships today; the selection point exists so a future
-    strategy (skewing the quote by inventory, or widening the gap with
-    volatility) can be added later without changing anything else about the
-    bot. Naming any other strategy is a startup failure, not a silent
-    fallback.
+    needed) quotes symmetrically around the tracked mid at `gap`.
+    `strategy: inventory_skew` instead shifts both quotes to work an
+    accumulated position back toward flat, and requires a `max_position:`
+    alongside it — the net position at which the skew saturates. Naming any
+    other strategy is a startup failure, not a silent fallback.
 
-!!! warning "A typo in the file fails fast, not silently"
-    An unknown key in the file — a flag name spelled with dashes instead of
-    underscores, or a genuine typo — is rejected at startup with
-    `invalid config file: ... unknown key(s)`, the same way an unrecognised
-    CLI flag would be. It is never silently ignored.
+!!! warning "A typo in the file fails fast, and tells you what you meant"
+    An unknown key is rejected at startup rather than silently ignored, with
+    a suggestion where there is an obvious one:
+
+    ```text
+    invalid config file: config file mm_aapl.yaml: unknown key 'gapp' under symbols.AAPL (did you mean 'gap'?)
+    ```
+
+    Putting a real key in the wrong block gets its own message rather than
+    "unknown key" — try moving `gap:` into `gateway:` and see what it says.
+
+!!! tip "Quote the `id_suffix`"
+    `id_suffix: 01` without quotes is the *number* 1 to YAML, which would
+    make the gateway `MM_AAPL_1` rather than `MM_AAPL_01`. The loader refuses
+    it outright rather than guessing; `"01"` is correct.
 
 :material-checkbox-blank-outline: **Checkpoint:** you have started a bot from
 a config file alone, then overridden one value from the CLI and confirmed the
@@ -333,16 +362,14 @@ CLI value won.
 
  
 
-## Exercise 8: One Bot, Three Symbols
+## Exercise 8: One Bot, Three Symbols, Three Sets of Terms
 
-Exercise 6 ran three separate `pm-mm-bot` processes, one per symbol — that's
-still the right choice when symbols need genuinely different parameters, or
-when you want a bad symbol to be unable to affect any other symbol's
-process. But nothing on the engine side actually requires a `MARKET_MAKER`
-gateway to quote only one symbol: the engine's `QuoteIndex` keys every active
-quote by `(gateway_id, symbol)` and tracks a *set* of such keys per gateway,
-so one gateway can hold AAPL's quote and MSFT's quote and TSLA's quote at
-the same time.
+Exercise 6 ran three separate `pm-mm-bot` processes, one per symbol. But
+nothing on the engine side requires a `MARKET_MAKER` gateway to quote only
+one symbol: the engine's `QuoteIndex` keys every active quote by
+`(gateway_id, symbol)` and tracks a *set* of such keys per gateway, so one
+gateway can hold AAPL's quote and MSFT's quote and TSLA's quote at the same
+time — and each of those symbols can be quoted on its own terms.
 
 Stop the three bots from Exercise 6 (Ctrl+C each, or leave them — startup
 reconciliation handles either case) and register one gateway that will
@@ -368,7 +395,8 @@ gateways:
     `--gateways ... MM_TECH_01:MARKET_MAKER` at the one new ID and it will
     seed all three symbols against it automatically.
 
-Check and deploy as before, then start one bot covering all three symbols:
+Check and deploy as before, then start one bot covering all three symbols on
+identical terms:
 
 ```bash
 pm-cverifier engine_config.yaml       # expect 0 errors
@@ -379,11 +407,119 @@ pm-mm-bot --symbols AAPL,MSFT,TSLA --label TECH --gap 0.10 --qty 500
 `--label TECH` is what makes the gateway ID `MM_TECH_01` instead of the
 default `MM_AAPL_MSFT_TSLA_01` the bot would otherwise derive by joining
 every symbol — useful once the symbol list is longer than a couple of
-entries. Watch the log output: the `starting:` line reports
-`symbols=AAPL,MSFT,TSLA`, and every per-symbol decision afterwards (a quote
-sent, a fill, a reprice) is tagged with `[AAPL]`, `[MSFT]`, or `[TSLA]` so
-you can tell which symbol it belongs to — one process, three independent
+entries.
+
+Watch the log output. The startup lines report the gateway, the symbol list,
+and then **one line per symbol** with that symbol's resolved settings:
+
+```text
+[MM_TECH_01] starting: gateway=MM_TECH_01 symbols=AAPL,MSFT,TSLA
+[MM_TECH_01] [AAPL] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
+[MM_TECH_01] [MSFT] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
+[MM_TECH_01] [TSLA] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
+```
+
+Every per-symbol decision afterwards (a quote sent, a fill, a reprice) is
+tagged `[AAPL]`, `[MSFT]`, or `[TSLA]` — one process, three independent
 quoting lifecycles.
+
+### Giving each symbol its own terms
+
+Quoting a volatile name and a liquid one with the same spread and size is
+rarely what you want. `--symbol` may be **repeated**, and every quoting flag
+after it applies to that symbol until the next `--symbol`:
+
+```bash
+pm-mm-bot --label TECH --qty 500 \
+  --symbol AAPL --gap 0.10 \
+  --symbol MSFT --gap 0.20 --qty 300 \
+  --symbol TSLA --gap 0.50 --qty 200 --drift-ticks 5
+```
+
+Flags **before** the first `--symbol` (here `--label` and `--qty 500`) are the
+defaults for everything; flags **after** one apply to that symbol alone. The
+startup lines now differ per symbol — check them against what you typed:
+
+```text
+[MM_TECH_01] [AAPL] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
+[MM_TECH_01] [MSFT] strategy=symmetric gap=0.2 qty=300 tif=DAY drift_ticks=3
+[MM_TECH_01] [TSLA] strategy=symmetric gap=0.5 qty=200 tif=DAY drift_ticks=5
+```
+
+That command line is already at the edge of readable, which is exactly what
+the config file is for. The same desk as `mm_tech.yaml`:
+
+```yaml
+version: 1
+
+gateway:
+  label: TECH
+  id_suffix: "01"
+
+defaults:
+  strategy: symmetric
+  gap: 0.10
+  qty: 500
+  tif: DAY
+  drift_ticks: 3
+
+symbols:
+  AAPL: {}                 # house defaults
+
+  MSFT:                    # wider, smaller
+    gap: 0.20
+    qty: 300
+
+  TSLA:                    # wider still, smaller still, less twitchy,
+    gap: 0.50              # and working its inventory back toward flat
+    qty: 200
+    drift_ticks: 5
+    strategy: inventory_skew
+    max_position: 5000
+```
+
+```bash
+pm-mm-bot --config mm_tech.yaml
+```
+
+Compare the startup lines with the CLI version above: the same three spreads
+and sizes, expressed as a file instead of a command line — plus a per-symbol
+`strategy` for TSLA that would have made the command line longer still.
+
+!!! tip "Worked examples ship with the docs"
+    `docs/examples/mm-bot/` contains `single-symbol.yaml`, `tech-desk.yaml`
+    (the file above, with every option commented), and `uniform-desk.yaml`
+    showing the `symbols: [AAPL, MSFT, TSLA]` list shorthand for when no
+    symbol needs its own block.
+
+### Which setting wins?
+
+With both a file and a command line in play, each symbol's settings are
+resolved from the most specific source that supplies one:
+
+| Rank | Source                                | Example                                 |
+|-----:|---------------------------------------|-----------------------------------------|
+|    1 | The symbol's own CLI scope            | `--symbol MSFT --gap 0.20`              |
+|    2 | The symbol's block in the config file | `symbols.MSFT.gap`                      |
+|    3 | The global CLI scope                  | `--gap 0.20` before the first `--symbol` |
+|    4 | The file's `defaults:` block          | `defaults.gap`                          |
+|    5 | The built-in default                  | `0.10`                                  |
+
+Rank 2 sitting above rank 3 is the one to think about, and it is deliberate.
+Try both and read the startup lines:
+
+```bash
+# Widens only AAPL — the one symbol whose block asks for no gap of its own.
+# MSFT keeps 0.20 and TSLA keeps 0.50, because their blocks named a gap.
+pm-mm-bot --config mm_tech.yaml --gap 0.30
+
+# Widens TSLA too, because this names it
+pm-mm-bot --config mm_tech.yaml --symbol TSLA --gap 0.30
+```
+
+A value someone deliberately wrote into a reviewed file for one symbol is
+not un-tuned by a throwaway gateway-wide flag. Overriding it is still one
+short command — you just have to say which symbol you mean.
 
 Confirm all three books are still served from `TRADER01`:
 
@@ -393,18 +529,22 @@ Confirm all three books are still served from `TRADER01`:
 [GW_ADMIN|ADMIN]> BOOK|SYM=TSLA
 ```
 
+The spreads should now differ visibly between the three symbols — that is the
+per-symbol `gap` reaching the book.
+
 !!! tip "A struggling symbol doesn't take the others down with it"
-    If one symbol's `--gap` were to violate its own `mm_max_spread_ticks`
+    If one symbol's `gap` were to violate its own `mm_max_spread_ticks`
     obligation, that symbol alone would be excluded from quoting at startup
     (logged as `[SYM] excluded from quoting: ...`) while the rest of
     `MM_TECH_01`'s symbols keep quoting normally — the whole process only
     exits if *every* symbol fails. Try it: add
     `mm_max_spread_ticks: 2` under one symbol's config, redeploy, and
-    restart the bot with the same `--gap 0.10` to see it happen.
+    restart the bot to see it happen.
 
 :material-checkbox-blank-outline: **Checkpoint:** one `pm-mm-bot` process is
-quoting all three symbols, its log lines are tagged per symbol, and all
-three books still show two-sided liquidity.
+quoting all three symbols with three different spreads and sizes, its startup
+lines report each symbol's own settings, its log lines are tagged per symbol,
+and all three books show two-sided liquidity at visibly different spreads.
 
  
 
@@ -418,8 +558,11 @@ You now have:
 - Familiarity with `QLEGS` as the quote-leg inspection tool.
 - A clear picture of what `pm-mm-bot` automates, and how to drive it from
   either the CLI or a committed config file.
-- Experience running one `pm-mm-bot` process across multiple symbols with
-  `--symbols`/`--label`, and seeing per-symbol failure isolation in action.
+- Experience running one `pm-mm-bot` process across multiple symbols, giving
+  each symbol its own spread, size and strategy, and seeing per-symbol
+  failure isolation in action.
+- A working understanding of which setting wins when a config file and a
+  command line disagree.
 
 ## Reflection
 
@@ -436,20 +579,31 @@ and can you think of a reason the two checks are allowed to diverge like
 this rather than the verifier being made strict enough to catch everything
 `pm-config-deploy` would?
 
-Exercise 8 put three symbols behind one gateway ID and one process. Given
-that the engine places no limit on how many symbols a `MARKET_MAKER`
-gateway may quote, what's actually driving the choice between "one process,
-many symbols" and "one process per symbol" in a real deployment? Think
-about failure blast radius, independent parameter tuning per symbol, and
-process/operational overhead — is there a symbol count where you'd expect
-to switch from one pattern to the other?
+Exercise 8 put three symbols behind one gateway ID and one process, each with
+its own spread and size. Given that the engine places no limit on how many
+symbols a `MARKET_MAKER` gateway may quote, and that per-symbol tuning no
+longer requires per-symbol processes, what's actually left driving the choice
+between "one process, many symbols" and "one process per symbol" in a real
+deployment? Think about failure blast radius, whether the scenario needs the
+symbols to be *independently attributable* to different market makers, and
+process/operational overhead — is there a symbol count where you'd expect to
+switch from one pattern to the other?
+
+The precedence table in Exercise 8 puts a per-symbol *file* value above a
+gateway-wide *CLI* flag, which reverses the usual "the command line always
+wins" rule. Argue the other side: what would break, or become surprising, if
+`--gap 0.30` did override every symbol's `gap` including the ones a reviewed
+file had deliberately tuned? Which behaviour would you rather explain to
+someone at 09:29 on a trading morning?
 
 ## Further Reading
 
 - [Market Making](../user-guide/090-market-maker.md)
 - [Market-Maker Bot (pm-mm-bot)](../user-guide/100-mm-bot.md)
+- [Market-Maker Bot — Per-symbol settings](../user-guide/100-mm-bot.md#per-symbol-settings)
 - [Market-Maker Bot CLI Reference](../user-guide/100-mm-bot.md#cli-reference)
 - [Market-Maker Bot — Config File](../user-guide/100-mm-bot.md#config-file)
+- [Market-Maker Bot — Precedence](../user-guide/100-mm-bot.md#precedence)
 - [Market-Maker Bot — Per-symbol failure isolation](../user-guide/100-mm-bot.md#per-symbol-failure-isolation)
 - [ALF Console (pm-alf-console)](../user-guide/055-alf-console.md)
 - [ALF Protocol Reference](../user-guide/900-app-alf-protocol.md)
