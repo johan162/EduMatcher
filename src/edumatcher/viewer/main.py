@@ -467,16 +467,19 @@ def _side_table(
     )
     max_qty = max((int(r.get("qty", 0) or 0) for r in rows[:capacity]), default=0)
 
+    # The two sides are mirror images about the centre divider: the depth bars
+    # meet in the middle and grow outward, with price, qty and order count
+    # fanning out behind them.
     if is_bid:
-        tbl.add_column("Depth", justify="right", width=_BAR_WIDTH, no_wrap=True)
-        tbl.add_column("Price", justify="right", style=color, no_wrap=True)
-        tbl.add_column("Qty", justify="right", style=text_color, no_wrap=True)
         tbl.add_column("Ord", justify="right", style=text_color, no_wrap=True)
+        tbl.add_column("Qty", justify="right", style=text_color, no_wrap=True)
+        tbl.add_column("Price", justify="right", style=color, no_wrap=True)
+        tbl.add_column("Depth", justify="right", width=_BAR_WIDTH, no_wrap=True)
     else:
+        tbl.add_column("Depth", justify="left", width=_BAR_WIDTH, no_wrap=True)
         tbl.add_column("Price", justify="left", style=color, no_wrap=True)
         tbl.add_column("Qty", justify="left", style=text_color, no_wrap=True)
         tbl.add_column("Ord", justify="left", style=text_color, no_wrap=True)
-        tbl.add_column("Depth", justify="left", width=_BAR_WIDTH, no_wrap=True)
 
     shown = rows[:capacity]
     for lvl in shown:
@@ -485,9 +488,9 @@ def _side_table(
         cnt = str(lvl.get("count", ""))
         bar = _bar(lvl.get("qty"), max_qty, color, reverse=not is_bid)
         if is_bid:
-            tbl.add_row(bar, price, qty, cnt)
+            tbl.add_row(cnt, qty, price, bar)
         else:
-            tbl.add_row(price, qty, cnt, bar)
+            tbl.add_row(bar, price, qty, cnt)
 
     for _ in range(capacity - len(shown)):
         tbl.add_row(*_blank_row(4))

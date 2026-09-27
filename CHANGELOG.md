@@ -12,6 +12,7 @@ This patch release primarily enhances the multi-symbol functionality of the `pm-
 - Improved `pm-mm-bot` startup logging to report each symbol's resolved settings on its own line
 - Improved `pm-mm-bot` config-file errors with "did you mean" suggestions and hints when a setting is in the wrong block
 - The layout for `pm-opctl-cli list` is improved
+- The layout of columns in the order book viewer `pm-viewer` is mirrored to give a better visually view
 
 ### 📚 Documentation
 - Updated the market-maker bot guide with the per-symbol command-line grammar, the new config-file format, and a full settings reference
