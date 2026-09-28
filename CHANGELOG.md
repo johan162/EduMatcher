@@ -1,3 +1,38 @@
+## [v0.43.0] - 2026-09-28
+
+Release Type: major
+
+### 📋 Summary
+This release adds `pm-book`, a browser-based order book viewer that mirrors `pm-viewer` for classroom projectors and shared displays, and a `passive` market-maker strategy that yields the top of the book to student traders instead of competing with them. The terminal viewer's session statistics and trade tape are now built from individual trades rather than book snapshots.
+
+### ✨ Additions
+- Added `pm-book`, a read-only web order book viewer showing one symbol's full depth, session statistics and trade tape in a browser — the web companion to `pm-viewer`, served on port 8094
+- Added `pm-book` to the whole-stack start paths: `make up-all`, the one-line curl installer and `edumatcher.sh`, with images published to GHCR
+- Added a `passive` strategy to `pm-mm-bot` that quotes behind other traders when they already show size, quotes its own price when nobody else does, and fades further out for a while after a fill
+- Added `--retreat-ticks`, `--behind-ticks`, `--min-cover-qty`, `--fade-ticks` and `--fade-sec` to `pm-mm-bot` for tuning the passive strategy
+- Added `--mm-seed-spread-ticks` to `pm-config-gen` for setting the spread of seeded market-maker quotes
+
+### 🚀 Improvements
+- Seeded market-maker quotes now open with a 20-tick half-spread instead of a single tick, so a generated configuration starts with a realistic market rather than a near-crossed one; every bundled reference configuration has been regenerated to match
+- Improved `pm-viewer` to show prices at each symbol's own number of decimals instead of a fixed four
+
+### 🐛 Bug Fixes
+- Fixed `pm-viewer` deriving its session statistics and trade tape from book snapshots, which under-counted volume and missed prints; both are now built from individual trades, seeded from the statistics database and de-duplicated across delivery paths
+- Fixed `pm-viewer` showing the date and times in the local machine's timezone rather than the exchange session timezone
+- Fixed the web applications' `make help` listing stale and missing targets, and `make cdist` / `make cpush` failing on a fresh checkout
+
+### 📚 Documentation
+- Added a user-guide chapter for the order book viewer covering deployment, the interface, connection states and the full configuration reference
+- Added an explanation of where the read-only API key comes from, for both the order book viewer and TapeDeck
+- Improved the container getting-started section
+- Fixed errors in the TapeDeck, Trading GUI and log console chapters, and documented the `make dev-env` pitfall where exported variables break a container started from the same shell
+
+### 🛠 Internal
+- Added the order book viewer design document and work-package plan
+- Removed the unused `bump-version` target from the web applications Makefile
+- Derived the config generator's seed-spread test expectation from `DEFAULT_MM_SEED_SPREAD_TICKS` rather than a hard-coded value
+
+
 ## [v0.42.1] - 2026-09-27
 
 ### 📋 Summary
