@@ -1938,6 +1938,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/310-book-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GUI: Order book viewer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/800-examples/" class="md-nav__link">
         
   
@@ -4255,9 +4283,9 @@ start into a multi-minute one. Building is a separate decision from starting.</p
 </code></pre></div>
 <p>or, in one step:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>make<span class="w"> </span>up-all<span class="w"> </span><span class="nv">BUILD</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">GUI</span><span class="o">=</span>terminal-gui
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>make<span class="w"> </span>up-all<span class="w"> </span><span class="nv">BUILD</span><span class="o">=</span><span class="m">1</span><span class="w">                  </span><span class="c1"># all four</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>make<span class="w"> </span>up-all<span class="w"> </span><span class="nv">BUILD</span><span class="o">=</span><span class="m">1</span><span class="w">                  </span><span class="c1"># all five</span>
 </code></pre></div>
-<p><code>make build-guis</code> with no <code>GUI=</code> rebuilds all four. It builds through
+<p><code>make build-guis</code> with no <code>GUI=</code> rebuilds all five. It builds through
 <code>compose.yaml -f compose.guis.yaml -f compose.config-gui.yaml</code>, so config-gui
 is always buildable here whether or not you start it with <code>CONFIG_GUI=1</code>.</p>
 <p>For a <strong>backend</strong> change the equivalent is <code>make build</code>, which rebuilds the
@@ -4308,7 +4336,7 @@ restarting the bridge on save, against a real exchange with real market data.</p
 <li><strong>The stack publishes to <code>127.0.0.1</code></strong> by default (<code>BIND_ADDR</code>). The two
    halves meet without either being told about the other.</li>
 </ol>
-<p>The containerised GUI keeps running on 8090–8093 the whole time. That is
+<p>The containerised GUI keeps running on 8090–8094 the whole time. That is
 useful rather than confusing: it is your reference. Compare <code>localhost:8190</code>
 with <code>localhost:8090</code> and you are comparing your change against what is
 currently shipped.</p>
@@ -4370,6 +4398,13 @@ empty history panels and a 401 in the bridge log.</p>
 <td>5192</td>
 <td>8092</td>
 <td>nothing</td>
+</tr>
+<tr>
+<td>book-gui</td>
+<td>8194</td>
+<td>5194</td>
+<td>8094</td>
+<td>8081 market data, history + read-only key, 5600 log ingest</td>
 </tr>
 </tbody>
 </table>

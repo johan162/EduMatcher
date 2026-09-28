@@ -18,7 +18,7 @@
         <link rel="prev" href="../290-trader-info-terminal/">
       
       
-        <link rel="next" href="../800-examples/">
+        <link rel="next" href="../310-book-gui/">
       
       
         
@@ -2865,6 +2865,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Settings
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Settings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#font-size" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Font size
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#symbol-picker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Symbol picker
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#configuration-reference" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2901,6 +2940,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../310-book-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GUI: Order book viewer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -5121,7 +5188,7 @@ doing. If you are not sure, use the first.</p>
 <tbody>
 <tr>
 <td><strong>The whole stack</strong></td>
-<td>The exchange and all four web applications, started together as containers</td>
+<td>The exchange and all five web applications, started together as containers</td>
 <td><a href="http://localhost:8093">http://localhost:8093</a></td>
 <td>You want a working system. This is almost always the right answer</td>
 </tr>
@@ -5155,7 +5222,7 @@ network, with no addresses to configure:</p>
 — there is nothing to point anywhere.</p>
 <p>The other applications come up at the same time: the trader terminal on
 <a href="../290-trader-info-terminal/">8090</a>, the log console on
-<a href="../285-log-srv-gui/">8091</a>.</p>
+<a href="../285-log-srv-gui/">8091</a> and the order book viewer on 8094.</p>
 <p>Everyday commands, from <code>deployment/docker</code> (or with <code>./edumatcher.sh</code> in a
 released install):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>make<span class="w"> </span>status<span class="w">      </span><span class="c1"># is every exchange process up?</span>
@@ -5236,7 +5303,7 @@ which needs no extra infrastructure for a single-machine setup.</p>
 <tbody>
 <tr>
 <td><code>make install</code></td>
-<td><code>npm install</code> across all workspaces</td>
+<td><code>npm ci</code> from the lockfile across all workspaces (<code>npm install</code> when there is no lockfile yet)</td>
 </tr>
 <tr>
 <td><code>make dev</code></td>
@@ -5285,6 +5352,18 @@ which needs no extra infrastructure for a single-machine setup.</p>
 <tr>
 <td><code>make clean</code></td>
 <td>Remove build artefacts and <code>dist/</code></td>
+</tr>
+<tr>
+<td><code>make distclean</code></td>
+<td>Also remove <code>node_modules</code> and the lockfile, for a pristine <code>make install</code></td>
+</tr>
+<tr>
+<td><code>make imageclean</code></td>
+<td>Remove this project's local container images</td>
+</tr>
+<tr>
+<td><code>make ghcr-login</code> / <code>cpush</code> / <code>ghcr-logout</code> / <code>ghcr-clean</code></td>
+<td>Log in to the GitHub Container Registry, push the image, log out, and log out plus remove the local images</td>
 </tr>
 </tbody>
 </table>
@@ -5491,7 +5570,8 @@ left sidebar navigation for the TRADER role. Suggested file:
 <h3 id="top-bar">Top bar<a class="headerlink" href="#top-bar" title="Permanent link">&para;</a></h3>
 <p>Left to right:</p>
 <ul>
-<li><strong>Wordmark</strong> — <code>EduMatcher · pm-trading-ui</code>.</li>
+<li><strong>Wordmark</strong> — <code>EduMatcher pm-trader v&lt;version&gt;</code>, the version being the
+  release the app was built from.</li>
 <li><strong>Session-phase badge</strong> — colour-coded: Pre-Open (slate), Opening/Closing
   Auction (amber), Continuous (green), Closed (red). It animates on change.</li>
 <li><strong>Phase clock</strong> — a countdown to the next scheduled transition
@@ -5506,7 +5586,8 @@ left sidebar navigation for the TRADER role. Suggested file:
   frozen board is obvious.</li>
 <li><strong>Command palette</strong> (magnifier, <code>Ctrl+K</code>).</li>
 <li><strong>Notification bell</strong> with an unread count badge (<code>99+</code> above 99).</li>
-<li><strong>Settings</strong> (gear) — see <a href="#keyboard-shortcuts-and-power-user-mode">power-user mode</a>.</li>
+<li><strong>Settings</strong> (gear) — cancellation confirmations, font size and the symbol
+  picker; see <a href="#settings">Settings</a>.</li>
 <li><strong>Theme switch</strong> (sun / moon) — toggles between the dark and light palettes.
   The icon shows the theme you would switch <em>to</em>; the choice is remembered in
   this browser.</li>
@@ -5728,7 +5809,9 @@ symbol: chart (top-left), depth ladder (right), order ticket (bottom-left),
 and the compact blotter strip along the bottom. Suggested file:
 <code>images/trader-gui/fig-04-trading-workspace.png</code>.</p>
 <p>The default TRADER landing screen and cockpit. Four panels, all bound to one
-active symbol chosen from the header dropdown:</p>
+active symbol chosen with the symbol picker in the header — a dropdown, or a
+type-to-filter search box on an exchange with many symbols (see
+<a href="#symbol-picker">Symbol picker</a>):</p>
 <ul>
 <li><strong>Chart</strong> (top-left, spanning two columns) — the same chart component as
   Symbol Detail.</li>
@@ -7296,14 +7379,14 @@ as below, from the same source, so they never drift apart.</p>
   blind from wherever you were.</li>
 <li><code>Escape</code> inside the order ticket also clears the ticket's error messages and
   blurs the focused field.</li>
-<li>The four <strong>blotter</strong> keys (<code>↑</code>, <code>↓</code>, <code>Ctrl+A</code>, <code>Enter</code>, <code>Delete</code>) need a row
+<li>The five <strong>blotter</strong> keys (<code>↑</code>, <code>↓</code>, <code>Ctrl+A</code>, <code>Enter</code>, <code>Delete</code>) need a row
   to have focus first — click one, or Tab into the table. <code>↑</code>/<code>↓</code> move focus
   without changing the selection, and <code>Ctrl+A</code> selects only <em>cancellable</em>
   rows; see <a href="#selecting-rows-and-moving-around">Selecting rows and moving around</a>.</li>
 </ul>
 <h3 id="power-user-mode">Power-user mode<a class="headerlink" href="#power-user-mode" title="Permanent link">&para;</a></h3>
-<p>The <strong>settings</strong> popover (gear icon, top bar) holds a single toggle:
-<strong>Confirm cancellations</strong>, on by default.</p>
+<p>Power-user mode is the <strong>Confirm cancellations</strong> toggle in the
+<a href="#settings">settings</a> popover, on by default.</p>
 <table>
 <thead>
 <tr>
@@ -7335,6 +7418,63 @@ them is reversible with an undo:</p>
 <li>Kill switch, all three scopes — and Global additionally requires typing
   <code>CONFIRM</code></li>
 </ul>
+<h2 id="settings">Settings<a class="headerlink" href="#settings" title="Permanent link">&para;</a></h2>
+<p>The <strong>settings</strong> popover (gear icon, top bar) holds three settings:</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Choices</th>
+<th>Default</th>
+<th>Kept after a reload?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Confirm cancellations</strong></td>
+<td>on / off</td>
+<td>on</td>
+<td>No</td>
+</tr>
+<tr>
+<td><strong>Font size</strong></td>
+<td>XS, S, M, L, XL, XXL</td>
+<td>M</td>
+<td>Yes, per browser</td>
+</tr>
+<tr>
+<td><strong>Symbol picker</strong></td>
+<td>Auto, Dropdown, Search, plus an <strong>Auto threshold</strong></td>
+<td>Auto, threshold 20</td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Confirm cancellations</strong> is the power-user toggle described
+<a href="#power-user-mode">above</a>.</p>
+<h3 id="font-size">Font size<a class="headerlink" href="#font-size" title="Permanent link">&para;</a></h3>
+<p>Scales the whole application — text, tables, panels and charts together —
+from XS (the most compact) to XXL, for a large monitor, a projector, or a
+reader who wants bigger type. M is the default. The choice is stored in this
+browser's <code>localStorage</code>, so it survives a reload and a logout, but another
+browser starts at M again.</p>
+<h3 id="symbol-picker">Symbol picker<a class="headerlink" href="#symbol-picker" title="Permanent link">&para;</a></h3>
+<p>Chooses the widget the <a href="#trading-workspace">Trading Workspace</a> uses to select
+its active symbol:</p>
+<ul>
+<li><strong>Dropdown</strong> — a plain list of every symbol. Quickest with a handful of
+  symbols.</li>
+<li><strong>Search</strong> — a text box that narrows the list as you type: any symbol
+  <em>containing</em> what you typed matches. <strong>↑</strong>/<strong>↓</strong> move through the matches,
+  <strong>Enter</strong> picks one, <strong>Esc</strong> closes the list. Better with dozens or
+  hundreds of symbols, where a dropdown becomes a long scroll.</li>
+<li><strong>Auto</strong> (default) — Dropdown while the exchange lists fewer symbols than the
+  <strong>Auto threshold</strong> (20 by default), Search once it lists that many or more.
+  A classroom exchange with three books gets a dropdown and one with thirty
+  gets a search box, with nothing to set.</li>
+</ul>
+<p>Unlike the font size, this choice and the threshold are held in memory only
+and return to Auto / 20 when the page is reloaded.</p>
 <h2 id="configuration-reference">Configuration reference<a class="headerlink" href="#configuration-reference" title="Permanent link">&para;</a></h2>
 <p>The app reads its configuration from Vite environment variables at build
 time. Copy <code>web-apps/trader-gui/.env.example</code> to <code>.env</code> and adjust.</p>
@@ -7360,7 +7500,7 @@ time. Copy <code>web-apps/trader-gui/.env.example</code> to <code>.env</code> an
 <tr>
 <td><code>VITE_APP_TITLE</code></td>
 <td><code>EduMatcher Trading</code></td>
-<td>Browser tab title and top-bar wordmark subtitle.</td>
+<td>Title on the login screen, shown as <code>&lt;title&gt; · pm-trading-ui</code>. The browser tab title is fixed in <code>apps/web/index.html</code>, and the top bar always shows <code>EduMatcher pm-trader</code>.</td>
 </tr>
 <tr>
 <td><code>VITE_MAX_OVERVIEW_SYMBOLS</code></td>

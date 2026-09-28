@@ -2353,6 +2353,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../310-book-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GUI: Order book viewer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../800-examples/" class="md-nav__link">
         
   
@@ -4707,7 +4735,7 @@ extensions are required.</p>
 of running it has to give it a path to the same <code>log.db</code> that <code>pm-log-srv</code>
 writes.</p>
 <h3 id="option-1-the-whole-stack-recommended">Option 1 — The whole stack (recommended)<a class="headerlink" href="#option-1-the-whole-stack-recommended" title="Permanent link">&para;</a></h3>
-<p>Starts the exchange and all four applications together, with the console
+<p>Starts the exchange and the other applications together, with the console
 already pointed at the exchange's own data directory:</p>
 <p><strong>A released install:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">cd</span><span class="w"> </span>~/.edumatcher
@@ -4765,11 +4793,11 @@ in the console cannot corrupt the collector's database.</p>
 <p>For a host with no repository clone, build a self-contained OCI archive:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>make<span class="w"> </span>cdist
 </code></pre></div>
-<p>This produces <code>dist/edumatcher-log-gui-&lt;version&gt;.tar.gz</code> containing the Node
+<p>This produces <code>dist/edumatcher-log-gui-&lt;version&gt;.tar.xz</code> containing the Node
 runtime, the compiled frontend and the bridge — no external dependencies. On
 the target host:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Podman</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>podman<span class="w"> </span>load<span class="w"> </span>--input<span class="w"> </span>edumatcher-log-gui-&lt;version&gt;.tar.gz
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>podman<span class="w"> </span>load<span class="w"> </span>--input<span class="w"> </span>edumatcher-log-gui-&lt;version&gt;.tar.xz
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>podman<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>log-gui<span class="w"> </span>-p<span class="w"> </span><span class="m">8091</span>:8091<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">  </span>-e<span class="w"> </span><span class="nv">LOG_SRV_HOST</span><span class="o">=</span>logsrv.example<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">  </span>-v<span class="w"> </span>/srv/logsrv-data:/app/logsrv-data:ro<span class="w"> </span><span class="se">\</span>
@@ -4833,7 +4861,7 @@ See <code>web-apps/log-gui/README.md</code> for the full explanation.</p>
 <p>The window is a fixed shell: a <strong>top bar</strong> carrying global state, a <strong>six-item
 navigation rail</strong> on the left, and the active view filling the rest.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>┌────────────────────────────────────────────────────────────────────┐
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>│ pm-log-ui v0.1.0  ● log-srv up   ⚠ 3 unacked              ☾        │
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>│ EduMatcher pm-log v1.0  ● log-srv up   ⚠ 3 unacked        ☾        │
 <a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>├──────┬─────────────────────────────────────────────────────────────┤
 <a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>│ ▣ Dash│                                                             │
 <a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>│ ▤ Logs│                                                             │
@@ -4843,7 +4871,8 @@ navigation rail</strong> on the left, and the active view filling the rest.</p>
 <a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>│ ♥ Heal│                                                             │
 <a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>└──────┴─────────────────────────────────────────────────────────────┘
 </code></pre></div>
-<p>The top bar is deliberately sparse — three things, always visible:</p>
+<p>The top bar is deliberately sparse. After the name and version
+(<code>EduMatcher pm-log v&lt;version&gt;</code>) it holds three things, always visible:</p>
 <ul>
 <li><strong>Source state dot</strong> — green <em>log-srv up</em>, yellow <em>reconnecting…</em>, red
   <em>log server down</em> or <em>log.db unavailable</em>. The two red states are distinct
@@ -5176,8 +5205,8 @@ instead; it reads the same database with no HTTP layer in between.</p>
 </tr>
 <tr>
 <td><code>PORT</code></td>
-<td><code>8091</code></td>
-<td>HTTP/WebSocket port</td>
+<td><code>5191</code></td>
+<td>HTTP/WebSocket port. The container sets <code>8091</code></td>
 </tr>
 <tr>
 <td><code>CORS_ORIGIN</code></td>
@@ -5487,7 +5516,7 @@ read-only — enforced by the <code>:ro</code> mount in the container deployment
 <tr>
 <td><strong>Port <code>8091</code> or <code>8191</code> already in use</strong></td>
 <td>Another process holds it</td>
-<td>For the container, set <code>LOG_GUI_PORT</code>. For the dev server, change <code>server.port</code> in <code>web-apps/log-gui/apps/web/vite.config.ts</code>.</td>
+<td>For the whole stack, set <code>LOG_GUI_PORT</code> in <code>.env</code>; for this app's own <code>make up</code>, set <code>WEB_PORT</code> (e.g. <code>WEB_PORT=8101 make up</code>). For the dev server, change <code>server.port</code> in <code>web-apps/log-gui/apps/web/vite.config.ts</code>.</td>
 </tr>
 <tr>
 <td><strong>Blank page in production</strong>, API responds</td>

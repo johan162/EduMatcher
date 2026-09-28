@@ -1938,6 +1938,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/310-book-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GUI: Order book viewer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/800-examples/" class="md-nav__link">
         
   
@@ -4416,7 +4444,7 @@
 <p class="admonition-title">Learning objectives</p>
 <p>After reading this page you will understand:</p>
 <ul>
-<li>How the five container images, the compose overlays and the three layers
+<li>How the six container images, the compose overlays and the three layers
   of Makefile fit together</li>
 <li>Where networking responsibility actually sits, and which of the several
   <code>127.0.0.1</code>/<code>0.0.0.0</code> knobs controls what</li>
@@ -4430,7 +4458,7 @@
 </ul>
 </div>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
-<p>EduMatcher ships as <strong>five container images</strong> that run as <strong>one Compose
+<p>EduMatcher ships as <strong>six container images</strong> that run as <strong>one Compose
 project</strong>:</p>
 <table>
 <thead>
@@ -4465,6 +4493,11 @@ project</strong>:</p>
 <td><code>edumatcher-trader-gui</code></td>
 <td><code>web-apps/trader-gui/</code></td>
 <td>Trader GUI, port 8093</td>
+</tr>
+<tr>
+<td><code>edumatcher-book-gui</code></td>
+<td><code>web-apps/book-gui/</code></td>
+<td>Order book viewer, port 8094</td>
 </tr>
 </tbody>
 </table>
@@ -4512,8 +4545,9 @@ is the main standing maintenance cost of this design — see
     C2["web-apps/log-gui/Makefile"]
     C3["web-apps/trader-gui/Makefile"]
     C4["web-apps/config-gui/Makefile"]
+    C5["web-apps/book-gui/Makefile"]
 
-    A --&gt;|"compose build/up across\nall five contexts"| IMGS["five images"]
+    A --&gt;|"compose build/up across\nall six contexts"| IMGS["six images"]
     B --&gt;|"make -C, one per app"| C1
     B --&gt; C2
     B --&gt; C3
@@ -4521,6 +4555,7 @@ is the main standing maintenance cost of this design — see
     C2 --&gt; IMGS
     C3 --&gt; IMGS
     C4 --&gt; IMGS
+    C5 --&gt; IMGS
 
     A -.-&gt;|"never calls"| B</code></pre>
 <table>
@@ -4536,7 +4571,7 @@ is the main standing maintenance cost of this design — see
 <tr>
 <td><strong>System</strong></td>
 <td><code>deployment/docker/Makefile</code></td>
-<td>The backend image, the web-app images (<code>build-guis</code>), and Compose across all five services. Data directory, profiles, configuration deployment, publishing</td>
+<td>The backend image, the web-app images (<code>build-guis</code>), and Compose across all six services. Data directory, profiles, configuration deployment, publishing</td>
 <td>You want a working exchange with GUIs</td>
 </tr>
 <tr>
@@ -4662,10 +4697,10 @@ does not open any listener. Cross-host work needs both.</p>
         BR["Browser, curl,\nprotocol clients"]
     end
     subgraph L2["2. Published ports — controlled by BIND_ADDR"]
-        P["127.0.0.1:8090-8093\n127.0.0.1:5560-5600, 8080-8081"]
+        P["127.0.0.1:8090-8094\n127.0.0.1:5560-5600, 8080-8081"]
     end
     subgraph L3["3. The Compose network — one per project"]
-        G["terminal-gui, log-gui,\nconfig-gui, trader-gui"]
+        G["terminal-gui, log-gui,\nconfig-gui, trader-gui,\nbook-gui"]
     end
     subgraph L4["4. Inside the backend namespace"]
         GW["Service layer — gateways, pm-log-srv, pm-api-gwy\ndefault 0.0.0.0 · EDUMATCHER_GATEWAY_BIND_HOST"]
@@ -5012,7 +5047,7 @@ same extraction snippet — that logic lives in <code>edumatcher.sh</code> rathe
 continues and warns. The live CALF feed needs no key; only history does.</p>
 <h2 id="part-5-the-release-process">Part 5 — The release process<a class="headerlink" href="#part-5-the-release-process" title="Permanent link">&para;</a></h2>
 <p>One git tag produces a wheel and five multi-architecture images, all carrying
-the same version. That coupling is what lets <code>install.sh --version 0.42.1</code>
+the same version. That coupling is what lets <code>install.sh --version 0.43.0</code>
 pin an entire system with one number.</p>
 <pre class="mermaid"><code>flowchart TD
     MK["scripts/mkrelease.sh\nbump, build docs, commit, tag"]
@@ -5042,7 +5077,7 @@ digests into a manifest list and applies the tags. arm64 hosted runners are
 generally available and free for public repositories.</p>
 <p><strong>The merge job selects digests by exact image prefix.</strong> Each build job uploads
 its digest as an artifact named <code>digests-&lt;image&gt;-&lt;arch&gt;</code>, and the merge job
-collects them with a glob. <code>edumatcher</code> is a prefix of all four
+collects them with a glob. <code>edumatcher</code> is a prefix of all five
 <code>edumatcher-*-gui</code> names, so that glob over-matches: the backend's merge job
 receives every image's digests. It therefore filters the downloaded files —
 each is named <code>&lt;image&gt;@&lt;hex&gt;</code> — by exact prefix, and asserts it ended up with
@@ -5061,15 +5096,15 @@ never becomes what a new user gets by default. That is the same test
 <code>publish-to-pypi.yml</code> uses to choose between PyPI and TestPyPI.</p>
 <p><strong><code>mkghrelease.sh</code> waits but does not push.</strong> Its PHASE 6B polls
 <code>gh run view</code> for the image workflow — bounded by <code>IMAGE_WAIT_MINUTES</code>
-(default 30), skippable with <code>--skip-images</code> — and reports the five image
+(default 30), skippable with <code>--skip-images</code> — and reports the six image
 references. If the workflow fails the GitHub release still exists; only the
 images are missing, and <code>gh workflow run publish-images.yml -f tag=vX.Y.Z</code>
 re-runs just that part.</p>
 <h3 id="the-manual-escape-hatch">The manual escape hatch<a class="headerlink" href="#the-manual-escape-hatch" title="Permanent link">&para;</a></h3>
-<p><code>make ghcr-push</code> in <code>deployment/docker/</code> builds all five images from your
+<p><code>make ghcr-push</code> in <code>deployment/docker/</code> builds all six images from your
 checkout and pushes them. It exists for when the workflow cannot run at all.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">GITHUB_USER</span><span class="o">=</span>&lt;you&gt;<span class="w"> </span><span class="nv">GHCR_TOKEN</span><span class="o">=</span>&lt;token<span class="w"> </span>with<span class="w"> </span>write:packages&gt;
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>make<span class="w"> </span>ghcr-push<span class="w">                              </span><span class="c1"># all five, tagged :dev</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>make<span class="w"> </span>ghcr-push<span class="w">                              </span><span class="c1"># all six, tagged :dev</span>
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>make<span class="w"> </span>ghcr-push<span class="w"> </span><span class="nv">TAG</span><span class="o">=</span><span class="m">0</span>.20.6<span class="w"> </span><span class="nv">FORCE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">LATEST</span><span class="o">=</span><span class="m">1</span><span class="w">  </span><span class="c1"># as a release tag</span>
 </code></pre></div>
 <p>It can only build for the architecture you are on. Pushing single-arch over a
@@ -5210,7 +5245,7 @@ section.</p>
 </code></pre></div>
 <h3 id="standing-costs">Standing costs<a class="headerlink" href="#standing-costs" title="Permanent link">&para;</a></h3>
 <p><strong>Version coupling.</strong> Every image carries the EduMatcher release version, so
-every release republishes all five even when only the backend changed. That is
+every release republishes all six even when only the backend changed. That is
 the price of "one tag names a coherent set" and is almost certainly the right
 trade — but it means a GUI-only fix still needs a full release.</p>
 <p><strong>The GUI <code>package.json</code> versions are now decorative</strong> for release purposes.
@@ -5272,16 +5307,17 @@ anything outside that container can connect.</p>
 <a id="__codelineno-10-21" name="__codelineno-10-21" href="#__codelineno-10-21"></a><span class="c1"># 5. What the bridges think of their own uplinks</span>
 <a id="__codelineno-10-22" name="__codelineno-10-22" href="#__codelineno-10-22"></a>curl<span class="w"> </span>-s<span class="w"> </span>localhost:8090/api/bridge/status<span class="w">   </span><span class="c1"># calf, logging</span>
 <a id="__codelineno-10-23" name="__codelineno-10-23" href="#__codelineno-10-23"></a>curl<span class="w"> </span>-s<span class="w"> </span>localhost:8091/api/bridge/status<span class="w">   </span><span class="c1"># lalfPs, logDb</span>
-<a id="__codelineno-10-24" name="__codelineno-10-24" href="#__codelineno-10-24"></a>
-<a id="__codelineno-10-25" name="__codelineno-10-25" href="#__codelineno-10-25"></a><span class="c1"># 6. Which ports are actually published</span>
-<a id="__codelineno-10-26" name="__codelineno-10-26" href="#__codelineno-10-26"></a>podman<span class="w"> </span>port<span class="w"> </span>edumatcher
-<a id="__codelineno-10-27" name="__codelineno-10-27" href="#__codelineno-10-27"></a>
-<a id="__codelineno-10-28" name="__codelineno-10-28" href="#__codelineno-10-28"></a><span class="c1"># 7. Which directory on disk is behind each container path, and where each</span>
-<a id="__codelineno-10-29" name="__codelineno-10-29" href="#__codelineno-10-29"></a><span class="c1">#    container came from.  make mounts  in deployment/docker, or</span>
-<a id="__codelineno-10-30" name="__codelineno-10-30" href="#__codelineno-10-30"></a><span class="c1">#    ./edumatcher.sh mounts  in a released install. The raw forms:</span>
-<a id="__codelineno-10-31" name="__codelineno-10-31" href="#__codelineno-10-31"></a>podman<span class="w"> </span>inspect<span class="w"> </span>edumatcher-log-gui<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-32" name="__codelineno-10-32" href="#__codelineno-10-32"></a><span class="w">  </span>--format<span class="w"> </span><span class="s1">'{{range .Mounts}}{{.Source}} -&gt; {{.Destination}}{{"\n"}}{{end}}'</span>
-<a id="__codelineno-10-33" name="__codelineno-10-33" href="#__codelineno-10-33"></a>podman<span class="w"> </span>ps<span class="w"> </span>--filter<span class="w"> </span><span class="nv">name</span><span class="o">=</span>edumatcher<span class="w"> </span>--format<span class="w"> </span><span class="s1">'{{.Names}}\t{{.Image}}\t{{.CreatedAt}}'</span>
+<a id="__codelineno-10-24" name="__codelineno-10-24" href="#__codelineno-10-24"></a>curl<span class="w"> </span>-s<span class="w"> </span>localhost:8094/api/bridge/status<span class="w">   </span><span class="c1"># upstream, logging</span>
+<a id="__codelineno-10-25" name="__codelineno-10-25" href="#__codelineno-10-25"></a>
+<a id="__codelineno-10-26" name="__codelineno-10-26" href="#__codelineno-10-26"></a><span class="c1"># 6. Which ports are actually published</span>
+<a id="__codelineno-10-27" name="__codelineno-10-27" href="#__codelineno-10-27"></a>podman<span class="w"> </span>port<span class="w"> </span>edumatcher
+<a id="__codelineno-10-28" name="__codelineno-10-28" href="#__codelineno-10-28"></a>
+<a id="__codelineno-10-29" name="__codelineno-10-29" href="#__codelineno-10-29"></a><span class="c1"># 7. Which directory on disk is behind each container path, and where each</span>
+<a id="__codelineno-10-30" name="__codelineno-10-30" href="#__codelineno-10-30"></a><span class="c1">#    container came from.  make mounts  in deployment/docker, or</span>
+<a id="__codelineno-10-31" name="__codelineno-10-31" href="#__codelineno-10-31"></a><span class="c1">#    ./edumatcher.sh mounts  in a released install. The raw forms:</span>
+<a id="__codelineno-10-32" name="__codelineno-10-32" href="#__codelineno-10-32"></a>podman<span class="w"> </span>inspect<span class="w"> </span>edumatcher-log-gui<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-10-33" name="__codelineno-10-33" href="#__codelineno-10-33"></a><span class="w">  </span>--format<span class="w"> </span><span class="s1">'{{range .Mounts}}{{.Source}} -&gt; {{.Destination}}{{"\n"}}{{end}}'</span>
+<a id="__codelineno-10-34" name="__codelineno-10-34" href="#__codelineno-10-34"></a>podman<span class="w"> </span>ps<span class="w"> </span>--filter<span class="w"> </span><span class="nv">name</span><span class="o">=</span>edumatcher<span class="w"> </span>--format<span class="w"> </span><span class="s1">'{{.Names}}\t{{.Image}}\t{{.CreatedAt}}'</span>
 </code></pre></div>
 <p>Step 3 is the one that settles arguments. The deployed YAML in <code>ref_data/</code> is
 the <em>source</em> copy; the compiled JSON beside it is what every process reads,

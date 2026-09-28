@@ -1938,6 +1938,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/310-book-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GUI: Order book viewer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/800-examples/" class="md-nav__link">
         
   
@@ -5532,10 +5560,10 @@ Apple Silicon pull the same tag and each gets the right binary.</p>
 never becomes what a new user gets by default — the same rule the PyPI workflow
 uses to choose between PyPI and TestPyPI.</p>
 <h3 id="publishing-by-hand">Publishing by hand<a class="headerlink" href="#publishing-by-hand" title="Permanent link">&para;</a></h3>
-<p><code>make ghcr-push</code> in <code>deployment/docker/</code> builds all five images from your
+<p><code>make ghcr-push</code> in <code>deployment/docker/</code> builds all six images from your
 checkout and pushes them, for when the workflow cannot run:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">GITHUB_USER</span><span class="o">=</span>&lt;you&gt;<span class="w"> </span><span class="nv">GHCR_TOKEN</span><span class="o">=</span>&lt;token<span class="w"> </span>with<span class="w"> </span>write:packages&gt;
-<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>make<span class="w"> </span>ghcr-push<span class="w">                              </span><span class="c1"># all five, tagged :dev</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>make<span class="w"> </span>ghcr-push<span class="w">                              </span><span class="c1"># all six, tagged :dev</span>
 <a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>make<span class="w"> </span>ghcr-push<span class="w"> </span><span class="nv">TAG</span><span class="o">=</span><span class="m">0</span>.20.6<span class="w"> </span><span class="nv">FORCE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">LATEST</span><span class="o">=</span><span class="m">1</span><span class="w">  </span><span class="c1"># as a release tag</span>
 </code></pre></div>
 <p>It builds only for the architecture you are on. Pushing a single-architecture
@@ -5644,11 +5672,11 @@ catches that.</p>
 </div>
 <h2 id="doing-a-manual-ghcr-push">Doing a manual GHCR push<a class="headerlink" href="#doing-a-manual-ghcr-push" title="Permanent link">&para;</a></h2>
 <p>Normally the push is handled by the workflow but it can be manually overridden.
-The target <code>ghcr-push</code> in <code>deployment/docker/Makefile</code> builds all five images from. 
+The target <code>ghcr-push</code> in <code>deployment/docker/Makefile</code> builds all six images from. 
 In will login with ghe existing GITHUB_USER/GHCR_TOKEN, then tags and pushes each one.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>export GITHUB_USER=&lt;user with admin priv&gt; GHCR_TOKEN=&lt;token with write:packages&gt;
 <a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>
-<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>make ghcr-push                              # all five, tagged :dev
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>make ghcr-push                              # all six, tagged :dev
 <a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>make ghcr-push TAG=0.20.6 FORCE=1           # ...as a release tag
 <a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>make ghcr-push TAG=0.20.6 FORCE=1 LATEST=1  # ...and move :latest
 </code></pre></div>

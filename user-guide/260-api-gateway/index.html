@@ -2709,6 +2709,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../310-book-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GUI: Order book viewer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../800-examples/" class="md-nav__link">
         
   
@@ -5325,6 +5353,12 @@ order events.</p>
 </tr>
 <tr>
 <td><code>GET</code></td>
+<td><code>/history/session</code></td>
+<td>any valid key</td>
+<td>Session timezone and current trading date</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
 <td><code>/history/trades</code></td>
 <td>any valid key</td>
 <td>Public trade log</td>
@@ -5752,8 +5786,8 @@ least once). <code>/history/index-events</code> is the one exception — see its
 section below.</p>
 <p><code>/history/orders</code>, <code>/history/orders/{order_id}</code>, and <code>/history/fills</code> require
 a trading credential and are scoped to that credential's <code>gateway_id</code> — they
-only ever return that gateway's own orders. <code>/history/trades</code>,
-<code>/history/daily</code>, <code>/history/price-snapshots</code>, <code>/history/index-daily</code>,
+only ever return that gateway's own orders. <code>/history/session</code>,
+<code>/history/trades</code>, <code>/history/daily</code>, <code>/history/price-snapshots</code>, <code>/history/index-daily</code>,
 <code>/history/index-snapshots</code>, <code>/history/index-ids</code>, and <code>/history/index-events</code>
 are public market data: any valid API key works, including read-only keys
 with no <code>gateway_id</code>.</p>
@@ -5780,6 +5814,11 @@ with no <code>gateway_id</code>.</p>
 <td><code>GET /history/fills</code></td>
 <td><code>symbol</code>, <code>date</code>, <code>from</code>, <code>to</code>, <code>limit</code>, <code>after</code></td>
 <td>Trading credential only; <code>event_type=FILL</code> events for the caller's <code>gateway_id</code></td>
+</tr>
+<tr>
+<td><code>GET /history/session</code></td>
+<td>none</td>
+<td><code>{"session_timezone": "Europe/Stockholm", "session_date": "2026-06-14"}</code> — the timezone <code>pm-stats</code> records in and today's trading date in it, resolved exactly as every <code>date</code> filter here resolves them. Use it for a client's "today" and session clock</td>
 </tr>
 <tr>
 <td><code>GET /history/trades</code></td>
@@ -7010,7 +7049,11 @@ prints. It serves that cache three ways.</p>
 ack — with the current cached snapshot for each newly matched symbol/channel,
 so a (re)subscribing client renders immediately instead of waiting for the next
 tick. When the cache is cold (nothing seen yet) the burst is simply empty and
-the client waits for the first live event, exactly as before. This is additive:
+the client waits for the first live event. For <code>book</code> the gateway does not
+leave it at that: the engine publishes a book only when it changes, so a
+symbol that has been quiet since before the gateway started would otherwise
+never arrive. On a cold <code>book</code> the gateway asks the engine to republish it,
+and it arrives shortly after as an ordinary <code>book</code> event. This is additive:
 a client that ignores the extra frames is unaffected, since they are ordinary
 <code>book</code>/<code>depth</code>/<code>auction</code>/<code>trade</code> envelopes it already routes.</p>
 <p><strong>Explicit <code>snapshot</code>.</strong> Re-request the current snapshot for some
@@ -7531,6 +7574,10 @@ MARKET_MAKER key for <code>/bootstrap/mm</code>; ADMIN role for <code>/bootstrap
 <tr>
 <td><code>GET /api/v1/history/fills</code></td>
 <td>Fill history</td>
+</tr>
+<tr>
+<td><code>GET /api/v1/history/session</code></td>
+<td>Session timezone and trading date</td>
 </tr>
 <tr>
 <td><code>GET /api/v1/history/trades</code></td>

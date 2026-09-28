@@ -994,10 +994,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#two-values-you-will-not-find-in-env" class="md-nav__link">
+  <a href="#values-you-will-not-find-in-env" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Two values you will not find in .env
+        Values you will not find in .env
       
     </span>
   </a>
@@ -2317,6 +2317,34 @@
     
   
     GUI: Trading platform
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../310-book-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GUI: Order book viewer
   
 
     
@@ -4393,7 +4421,7 @@
 <td><strong>Containers, one command</strong></td>
 <td>Running a venue: classroom, demo, self-study</td>
 <td>Podman or Docker</td>
-<td>The exchange <strong>and</strong> all four web GUIs</td>
+<td>The exchange <strong>and</strong> all five web GUIs</td>
 <td><code>./edumatcher.sh start</code></td>
 </tr>
 <tr>
@@ -4427,7 +4455,7 @@
 </tbody>
 </table>
 <p>The container modes give you the whole system — engine, gateways, REST API and
-the four browser applications — with one command. The pipx and Poetry modes
+the five browser applications — with one command. The pipx and Poetry modes
 give you the individual processes to start yourself, which is what the rest of
 this guide assumes when it shows a bare <code>pm-*</code> command. In Poetry mode, prefix
 those commands with <code>poetry run</code>.</p>
@@ -4478,7 +4506,7 @@ each path inside each container if you are ever unsure.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash
 </code></pre></div>
 <p>Then open <a href="http://localhost:8090">http://localhost:8090</a>.</p>
-<p>That starts a complete exchange plus four web applications, from images built
+<p>That starts a complete exchange plus five web applications, from images built
 and published by the project. Nothing is compiled on your machine: no Python,
 no Node, no checkout. The only requirement is Podman or Docker.</p>
 <table>
@@ -4511,6 +4539,11 @@ no Node, no checkout. The only requirement is Podman or Docker.</p>
 <td>Submit and manage orders as a trading participant</td>
 </tr>
 <tr>
+<td>Order book viewer</td>
+<td><a href="http://localhost:8094">http://localhost:8094</a></td>
+<td>One symbol's full order book, session statistics and trade tape — the browser companion to <code>pm-viewer</code></td>
+</tr>
+<tr>
 <td>REST API docs</td>
 <td><a href="http://localhost:8080/docs">http://localhost:8080/docs</a></td>
 <td>Swagger UI for the <code>desk</code> API gateway</td>
@@ -4525,7 +4558,7 @@ no Node, no checkout. The only requirement is Podman or Docker.</p>
    <code>.env.example</code> <strong>from that release's tag</strong>, so the files and the images
    always come from one commit.</li>
 <li>Writes <code>.env</code>, creating <code>data/</code> and <code>config/</code> beside it.</li>
-<li>Pulls the five images and starts them.</li>
+<li>Pulls the six images and starts them.</li>
 </ol>
 <p>Step 3 is worth noting: the support files come from the release tag being
 installed, not from a branch, so the compose file and the images can never
@@ -4543,7 +4576,7 @@ describe different systems.</p>
 <tr>
 <td><code>--version X.Y.Z</code></td>
 <td>newest release</td>
-<td>Install one specific release. All five images carry this tag, so it pins the whole system</td>
+<td>Install one specific release. All six images carry this tag, so it pins the whole system</td>
 </tr>
 <tr>
 <td><code>--config NAME</code></td>
@@ -4574,7 +4607,7 @@ describe different systems.</p>
 </table>
 <p>Because the script is read from a pipe, options need <code>bash -s --</code> so that the
 shell hands them to the script rather than consuming them itself:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>.../install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--config<span class="w"> </span>s10-nominal<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.42.1
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>.../install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--config<span class="w"> </span>s10-nominal<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.43.0
 </code></pre></div>
 <p>Two environment variables are also honoured: <code>REPO_OWNER</code> (which GitHub
 account and GHCR namespace to use) and <code>REPO_REF</code> (fetch the support files
@@ -4600,7 +4633,7 @@ into this file.</p>
 <tr>
 <td><code>EM_VERSION</code></td>
 <td><em>(the installed release)</em></td>
-<td>Which release to run. All five images carry this tag, so one value pins the whole system. <code>latest</code> follows the newest release</td>
+<td>Which release to run. All six images carry this tag, so one value pins the whole system. <code>latest</code> follows the newest release</td>
 </tr>
 <tr>
 <td><code>GHCR_OWNER</code></td>
@@ -4662,6 +4695,11 @@ into this file.</p>
 <td><code>8093</code></td>
 <td>Host port for the trader GUI</td>
 </tr>
+<tr>
+<td><code>BOOK_GUI_PORT</code></td>
+<td><code>8094</code></td>
+<td>Host port for the order book viewer</td>
+</tr>
 </tbody>
 </table>
 <p>Two settings have their own commands, because editing them by hand is easy to
@@ -4679,13 +4717,14 @@ instructor's machine, and the wrong one on a network you do not control:
 the protocol gateways have no password. The default keeps everything on
 this machine.</p>
 </div>
-<h4 id="two-values-you-will-not-find-in-env">Two values you will not find in <code>.env</code><a class="headerlink" href="#two-values-you-will-not-find-in-env" title="Permanent link">&para;</a></h4>
-<p>The trading terminal also needs <code>API_GATEWAY_URL</code> and <code>PM_TERMINAL_API_KEY</code>.
-Those are <strong>resolved at startup and injected</strong>, not stored: the read-only API
-key is generated per engine configuration — a different one in each bundled
-example — and lives on a different gateway instance than the trading
+<h4 id="values-you-will-not-find-in-env">Values you will not find in <code>.env</code><a class="headerlink" href="#values-you-will-not-find-in-env" title="Permanent link">&para;</a></h4>
+<p>The trading terminal needs <code>API_GATEWAY_URL</code> and <code>PM_TERMINAL_API_KEY</code>, and the
+order book viewer <code>API_GATEWAY_URL</code> and <code>PM_BOOK_API_KEY</code> — the same read-only
+key. Those are <strong>resolved at startup and injected</strong>, not stored: the read-only
+API key is generated per engine configuration — a different one in each
+bundled example — and lives on a different gateway instance than the trading
 credentials. <code>./edumatcher.sh start</code> reads the deployed configuration and
-passes both to the terminal. Setting them in <code>.env</code> would only go stale the
+passes them to both applications. Setting them in <code>.env</code> would only go stale the
 next time you switched configuration.</p>
 <h3 id="everyday-commands">Everyday commands<a class="headerlink" href="#everyday-commands" title="Permanent link">&para;</a></h3>
 <p>Everything is driven by one script in the install directory:</p>
@@ -4703,6 +4742,14 @@ next time you switched configuration.</p>
 <a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>./edumatcher.sh<span class="w"> </span>uninstall<span class="w">           </span><span class="c1"># remove containers and volumes, keep data</span>
 <a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>./edumatcher.sh<span class="w"> </span>uninstall<span class="w"> </span>--data<span class="w">    </span><span class="c1"># remove everything</span>
 </code></pre></div>
+<div class="admonition note">
+<p class="admonition-title">Picking up a new web application</p>
+<p><code>update</code> pulls new images for the files you already have; it does not
+re-download <code>compose.yaml</code>. When a release adds an application — the order
+book viewer on port 8094 arrived this way — re-run the one-line installer
+instead. It keeps your <code>.env</code> and <code>data/</code>, and fetches the release's
+<code>compose.yaml</code> and <code>edumatcher.sh</code>.</p>
+</div>
 <h3 id="choosing-what-the-exchange-trades">Choosing what the exchange trades<a class="headerlink" href="#choosing-what-the-exchange-trades" title="Permanent link">&para;</a></h3>
 <p>EduMatcher ships 24 ready-made configurations: one, three, ten or thirty
 order books, each as a <code>basic</code>, <code>nominal</code> or <code>complex</code> variant, and each of
@@ -4729,11 +4776,11 @@ whole edit-test loop. Switching back to a bundled example is
 <a href="../030-config-GUI/">Configuration GUI</a>.</p>
 <h2 id="containers-from-the-source-checkout">Containers from the source checkout<a class="headerlink" href="#containers-from-the-source-checkout" title="Permanent link">&para;</a></h2>
 <p>Use this when you are changing EduMatcher and want to see your change running
-as a whole system. It builds the same five images from your working tree.</p>
+as a whole system. It builds the same six images from your working tree.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/johan162/EduMatcher.git
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nb">cd</span><span class="w"> </span>EduMatcher/deployment/docker
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>make<span class="w"> </span>build<span class="w">          </span><span class="c1"># builds a wheel from the checkout, then the image</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>make<span class="w"> </span>up-all<span class="w">         </span><span class="c1"># exchange + terminal-, log- and trader-gui</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>make<span class="w"> </span>up-all<span class="w">         </span><span class="c1"># exchange + terminal-, log-, trader- and book-gui</span>
 </code></pre></div>
 <p><code>make help</code> lists every target. The two that matter are <code>up</code> (the exchange
 alone) and <code>up-all</code> (the exchange plus the GUIs).</p>
@@ -4912,6 +4959,11 @@ plain <code>make up-all</code> afterwards goes back to whatever <code>.env</code
 <td>Host port for the trader GUI</td>
 </tr>
 <tr>
+<td><code>BOOK_GUI_PORT</code></td>
+<td><code>8094</code></td>
+<td>Host port for the order book viewer</td>
+</tr>
+<tr>
 <td><code>IMAGE_NAME</code> / <code>IMAGE_TAG</code></td>
 <td><code>edumatcher</code> / <code>local</code></td>
 <td>Image naming</td>
@@ -5010,7 +5062,7 @@ one thing that reliably confuses people here — the difference between
 <code>127.0.0.1</code> and <code>0.0.0.0</code> — appears in three separate places that mean three
 different things, and only one of them is a security boundary.</p>
 <h3 id="one-compose-project-one-private-network">One compose project, one private network<a class="headerlink" href="#one-compose-project-one-private-network" title="Permanent link">&para;</a></h3>
-<p>All five containers belong to a single Compose project, so Compose puts them on
+<p>All six containers belong to a single Compose project, so Compose puts them on
 one private network and gives each a name on it. The backend answers to the
 hostname <code>edumatcher</code>.</p>
 <pre class="mermaid"><code>flowchart LR
@@ -5024,18 +5076,21 @@ hostname <code>edumatcher</code>.</p>
         LOG["log-gui\n:8091"]
         CFG["config-gui\n:8092"]
         TRD["trader-gui\n:8093"]
+        BOOK["book-gui\n:8094"]
         BE["edumatcher\nengine + all gateways"]
     end
 
-    BROWSER --&gt;|"published 8090-8093\nvia BIND_ADDR"| TERM
+    BROWSER --&gt;|"published 8090-8094\nvia BIND_ADDR"| TERM
     BROWSER --&gt; LOG
     BROWSER --&gt; CFG
     BROWSER --&gt; TRD
+    BROWSER --&gt; BOOK
     CLIENT --&gt;|"published 5560, 5565, 5570,\n5580, 5590, 5600, 8080-8081\nvia BIND_ADDR"| BE
 
     TERM --&gt;|"edumatcher:5570 market data\nedumatcher:8081 history"| BE
     LOG --&gt;|"edumatcher:5601 / :5602 log stream"| BE
-    TRD --&gt;|"edumatcher:8080 REST + WebSocket"| BE</code></pre>
+    TRD --&gt;|"edumatcher:8080 REST + WebSocket"| BE
+    BOOK --&gt;|"edumatcher:8081 market-data WebSocket\n+ history"| BE</code></pre>
 <p>Two things follow, and both are easy to get wrong:</p>
 <ul>
 <li><strong>The GUIs do not use the published ports.</strong> Their traffic never leaves the
@@ -5197,15 +5252,18 @@ processes actually read:</p>
 <a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="s1">s.on("error", e =&gt; console.log("FAIL", e.code));'</span>
 </code></pre></div>
 <h3 id="the-read-only-api-key">The read-only API key<a class="headerlink" href="#the-read-only-api-key" title="Permanent link">&para;</a></h3>
-<p>One value cannot be a fixed default. The trading terminal reads historical data
-through <code>pm-api-gwy</code> using the credential whose <code>gateway_id</code> is <code>null</code>. That
+<p>One value cannot be a fixed default. The trading terminal reads historical data,
+and the order book viewer reads everything, through <code>pm-api-gwy</code> using the
+credential whose <code>gateway_id</code> is <code>null</code>. That
 key is <strong>generated per engine configuration</strong> — every bundled example has a
 different one — and it is issued on the <code>dashboards</code> gateway instance (port
 8081), not the <code>desk</code> instance (8080) that carries the trading credentials.</p>
 <p>Both start paths therefore run in two phases: bring up the exchange, read the
 key out of the deployed configuration, then start the GUIs with it. If a
 configuration has no such credential the start still succeeds and says so — the
-live market-data feed needs no key, only the history panels do.</p>
+trading terminal's live market-data feed needs no key, only its history panels
+do; the order book viewer, which reads all its data through <code>pm-api-gwy</code>, then
+has nothing to show.</p>
 <h2 id="directories-and-paths">Directories and paths<a class="headerlink" href="#directories-and-paths" title="Permanent link">&para;</a></h2>
 <p>Every location the system reads or writes, and what controls it.</p>
 <h3 id="the-data-directory">The data directory<a class="headerlink" href="#the-data-directory" title="Permanent link">&para;</a></h3>
@@ -5360,9 +5418,9 @@ disk, not inside a container: it survives stop, start, rebuild and update.</p>
 <td>Where the log viewer reads <code>log.db</code> — read-only by construction, so the viewer can never write the log server's database</td>
 </tr>
 <tr>
-<td><code>log-gui-acks</code>, <code>terminal-gui-logs</code></td>
+<td><code>log-gui-acks</code>, <code>terminal-gui-logs</code>, <code>book-gui-logs</code></td>
 <td>Compose named volumes</td>
-<td>Log acknowledgements; the terminal's failover log</td>
+<td>Log acknowledgements; the terminal's and the order book viewer's failover logs</td>
 </tr>
 </tbody>
 </table>
@@ -5373,7 +5431,7 @@ VM. This mode installs the backend only — the web GUIs are part of the
 container deployment. Provisioning runs <code>pm-setup</code>, so the VM comes up with a
 deployed configuration and <code>pm-opctl-cli</code> ready to start the stack.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.42.1<span class="w"> </span>--snapshot
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.43.0<span class="w"> </span>--snapshot
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
 <a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>multipass<span class="w"> </span>shell<span class="w"> </span>ems
 <a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="nb">cd</span><span class="w"> </span>/home/ubuntu/session
@@ -5433,7 +5491,7 @@ deployed configuration and <code>pm-opctl-cli</code> ready to start the stack.</
 <p>To read the script before running it:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span>-o<span class="w"> </span>curl_setup_vm.sh
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>less<span class="w"> </span>curl_setup_vm.sh
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.42.1<span class="w"> </span>--snapshot
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.43.0<span class="w"> </span>--snapshot
 </code></pre></div>
 <h2 id="pipx-commands-on-your-own-machine">pipx — commands on your own machine<a class="headerlink" href="#pipx-commands-on-your-own-machine" title="Permanent link">&para;</a></h2>
 <p>Use this when you want to run the processes yourself, one per terminal, which

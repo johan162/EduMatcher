@@ -2287,6 +2287,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../310-book-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GUI: Order book viewer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../800-examples/" class="md-nav__link">
         
   
@@ -4387,6 +4415,7 @@ to another audience.</p>
         TERM["TapeDeck / pm-terminal\ntrader information terminal"]
         LOG["pm-log-srv / pm-log-ui\ncentral logs"]
         TRD["trader-gui\nbrowser trading terminal"]
+        BOOK["pm-book\nbrowser order book viewer"]
     end
 
     ALF --&gt; ENG
@@ -4405,6 +4434,7 @@ to another audience.</p>
     CALF --&gt; TERM
     API --&gt; TERM
     API --&gt; TRD
+    API --&gt; BOOK
     LOG -. receives logs from .- ENG
     LOG -. receives logs from .- external</code></pre>
 <p>The important first idea is this: <strong>the exchange is not one command</strong>. It is a
@@ -4520,18 +4550,43 @@ the system uses.</p>
 <p>Two of them matter for this page, because they lead to different first steps.</p>
 <p><strong>Containers — the whole system, four browser applications included:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">cd</span><span class="w"> </span>~/.edumatcher<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>./edumatcher.sh<span class="w"> </span>start
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">cd</span><span class="w"> </span>~/.edumatcher
 </code></pre></div>
-<p>The exchange is now running on a bundled configuration. Open
-<a href="http://localhost:8090">http://localhost:8090</a> for the trading terminal and <a href="http://localhost:8091">http://localhost:8091</a>
-for the log console. The <code>pm-*</code> commands used throughout this guide live
-<em>inside</em> the container:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w">        </span><span class="c1"># thenpm-help, pm-admin, pm-alf-console, pm-stats-cli, ...</span>
+<p>The exchange is now running on a bundled configuration.<br />
+The <code>pm-*</code> commands, the control plane of the exchange, lives <em>inside</em> the container.<br />
+Use regular Docker/Podman command to open a shell in the conainer or use the shortcut:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w">        </span><span class="c1"># then pm-help, pm-admin, pm-alf-console, pm-stats-cli, ...</span>
+</code></pre></div>
+<p>Once inside the container, start with reviewing available commands</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pm-help
+</code></pre></div>
+<p>Then, on your host, open a browser and go to the following URLs for the more user-friendly ways to trade and watch the market:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># The trading platform to buy/sell equities. Requires log-in using</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="c1"># one of the API keys defined in the `engine_config.yaml`</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>Trader<span class="w"> </span>GUI<span class="w">       </span>:<span class="w">  </span>http://localhost:8093.
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># The terminal to watch the movements of the market</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>Trading<span class="w"> </span>terminal<span class="w"> </span>:<span class="w">  </span>http://localhost:8090
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="c1"># One symbol's full order book, session statistics and trade tape</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="c1"># (the browser companion to pm-viewer)</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>Order<span class="w"> </span>book<span class="w">       </span>:<span class="w">  </span>http://localhost:8094
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="c1"># The central log server to observe what is happening internally</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="c1"># in the exchange platform</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>Log<span class="w"> </span>viewer<span class="w">       </span>:<span class="w">  </span>http://localhost:8091<span class="w">      </span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="c1"># The Swagger REST-API documentation. The exchange can be</span>
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="c1"># completely run using REST commands</span>
+<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>REST<span class="w"> </span>API<span class="w"> </span>docs<span class="w">    </span>:<span class="w">  </span>http://localhost:8080/docs
+</code></pre></div>
+<p>Configuring the exchange can be done by either 1) Manually edit the config YAML file (and then verify/lint it with <code>pm-cverifier</code>) or, 2) generate it in scripts using the <code>pm-config-gen</code> tool or, 3) using the Web application reachable at :</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>Config builder   :  http://localhost:8092
 </code></pre></div>
 <p><strong>Python package — the processes on your own machine:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pipx<span class="w"> </span>install<span class="w"> </span>edumatcher
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>mkdir<span class="w"> </span>edumatcher-session<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>edumatcher-session
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>pm-setup
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pipx<span class="w"> </span>install<span class="w"> </span>edumatcher
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>mkdir<span class="w"> </span>edumatcher-session<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>edumatcher-session
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>pm-setup
 </code></pre></div>
 <p>The <code>pm-setup</code> command will create a new data-directory and install a default example engine-config file with three symbols.</p>
 <p>Here you start each process yourself. That is slower, but it is the better way
@@ -4542,44 +4597,44 @@ that all other processes will automatically send their logs to the log-server if
 on startup. Having all logs centralized in the log-server is much better for trouble-shooting (and learning!) than having to 
 manually reaad through a lot of different log files.</p>
 <p>As an administer the system offers a process management tool called <code>pm-opctl-cli</code> that allows you to easily start, stop and check the health of a running system. The tool can start the full system in the optimal order with one command as the example below shows. In this example we have installed the system in a virtual machine (using <code>Multipass</code> and <code>deployment/vm/mknode.sh</code> utility script)</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>ubuntu@ems:~$ pm-opctl-cli start
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>Starting pm-opctl configuration 'default' from /home/ubuntu/.local/share/edumatcher/emo-config.yaml
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>Data directory: /home/ubuntu/.local/share/edumatcher
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>  started log (pid 21210): pm-log-srv
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>  started audit (pid 21212): pm-audit --verbose
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>  started stats (pid 21214): pm-stats --verbose
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>  started clearing (pid 21216): pm-clearing --verbose
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>  started engine (pid 21218): pm-engine --verbose
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>  started scheduler (pid 21220): pm-scheduler --daily --verbose
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>  started market-data-gwy (md-gwy) (pid 21222): pm-md-gwy --verbose
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>  started post-trade-gwy (ralf-gwy) (pid 21224): pm-ralf-gwy --verbose
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>  started drop-copy-gwy (dc-gwy) (pid 21226): pm-dc-gwy --verbose
-<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>  started api-desk-gwy (api-gwy) (pid 21228): pm-api-gwy --verbose --instance desk
-<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>  started api-dashboards-gwy (api-gwy) (pid 21231): pm-api-gwy --verbose --instance dashboards
-<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>  started alf-gwy (pid 21233): pm-alf-gwy --verbose
-<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>  started balf-gwy (pid 21235): pm-balf-gwy --verbose
-<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>  started index-srv (pid 21239): pm-index --verbose
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>ubuntu@ems:~$ pm-opctl-cli start
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>Starting pm-opctl configuration 'default' from /home/ubuntu/.local/share/edumatcher/emo-config.yaml
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>Data directory: /home/ubuntu/.local/share/edumatcher
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>  started log (pid 21210): pm-log-srv
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>  started audit (pid 21212): pm-audit --verbose
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>  started stats (pid 21214): pm-stats --verbose
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>  started clearing (pid 21216): pm-clearing --verbose
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>  started engine (pid 21218): pm-engine --verbose
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>  started scheduler (pid 21220): pm-scheduler --daily --verbose
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>  started market-data-gwy (md-gwy) (pid 21222): pm-md-gwy --verbose
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>  started post-trade-gwy (ralf-gwy) (pid 21224): pm-ralf-gwy --verbose
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>  started drop-copy-gwy (dc-gwy) (pid 21226): pm-dc-gwy --verbose
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>  started api-desk-gwy (api-gwy) (pid 21228): pm-api-gwy --verbose --instance desk
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>  started api-dashboards-gwy (api-gwy) (pid 21231): pm-api-gwy --verbose --instance dashboards
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>  started alf-gwy (pid 21233): pm-alf-gwy --verbose
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>  started balf-gwy (pid 21235): pm-balf-gwy --verbose
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>  started index-srv (pid 21239): pm-index --verbose
 </code></pre></div>
 <p>Later we can check the if all processes are running as expected using the <code>list</code> subcommand as in:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>ubuntu@ems:~$ pm-opctl-cli list
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>pm-opctl profile: default
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>data directory: /home/ubuntu/.local/share/edumatcher
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>  Process                  PID   Uptime  RSS(MB)  Status          Details
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>----------------------------------------------------------------------------------------------
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>✅ log                   106208    00:51     40.0  running         tcp connect to 127.0.0.1:5600 ok
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>✅ audit                 106210    00:51     38.2  running         no healthcheck or tcp check configured
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>✅ stats                 106212    00:51     40.8  running         healthcheck passed
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>✅ clearing              106214    00:51     42.5  running         no healthcheck or tcp check configured
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>✅ engine                106216    00:51     51.3  running         tcp connect to 127.0.0.1:5555 ok
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>✅ scheduler             106218    00:51     49.9  running         no healthcheck or tcp check configured
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>✅ market-data-gwy (md-gwy)  106220    00:51     37.9  running         tcp connect to 127.0.0.1:5570 ok
-<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>✅ post-trade-gwy (ralf-gwy)  106222    00:51     37.7  running         tcp connect to 127.0.0.1:5580 ok
-<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>✅ drop-copy-gwy (dc-gwy)  106224    00:51     37.7  running         tcp connect to 127.0.0.1:5590 ok
-<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>✅ api-desk-gwy (api-gwy)  106264    00:51     71.9  running         tcp connect to 127.0.0.1:8080 ok
-<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>✅ api-dashboards-gwy (api-gwy)  106268    00:51     71.9  running         tcp connect to 127.0.0.1:8081 ok
-<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a>✅ alf-gwy               106270    00:51     37.9  running         tcp connect to 127.0.0.1:5565 ok
-<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a>✅ balf-gwy              106272    00:51     38.1  running         tcp connect to 127.0.0.1:5560 ok
-<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a>✅ index-srv             106276    00:51     38.3  running         no healthcheck or tcp check configured
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>ubuntu@ems:~$ pm-opctl-cli list
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>pm-opctl profile: default
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>data directory: /home/ubuntu/.local/share/edumatcher
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>  Process                  PID   Uptime  RSS(MB)  Status          Details
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>----------------------------------------------------------------------------------------------
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>✅ log                   106208    00:51     40.0  running         tcp connect to 127.0.0.1:5600 ok
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>✅ audit                 106210    00:51     38.2  running         no healthcheck or tcp check configured
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>✅ stats                 106212    00:51     40.8  running         healthcheck passed
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>✅ clearing              106214    00:51     42.5  running         no healthcheck or tcp check configured
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>✅ engine                106216    00:51     51.3  running         tcp connect to 127.0.0.1:5555 ok
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>✅ scheduler             106218    00:51     49.9  running         no healthcheck or tcp check configured
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>✅ market-data-gwy (md-gwy)  106220    00:51     37.9  running         tcp connect to 127.0.0.1:5570 ok
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>✅ post-trade-gwy (ralf-gwy)  106222    00:51     37.7  running         tcp connect to 127.0.0.1:5580 ok
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>✅ drop-copy-gwy (dc-gwy)  106224    00:51     37.7  running         tcp connect to 127.0.0.1:5590 ok
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>✅ api-desk-gwy (api-gwy)  106264    00:51     71.9  running         tcp connect to 127.0.0.1:8080 ok
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>✅ api-dashboards-gwy (api-gwy)  106268    00:51     71.9  running         tcp connect to 127.0.0.1:8081 ok
+<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>✅ alf-gwy               106270    00:51     37.9  running         tcp connect to 127.0.0.1:5565 ok
+<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a>✅ balf-gwy              106272    00:51     38.1  running         tcp connect to 127.0.0.1:5560 ok
+<a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a>✅ index-srv             106276    00:51     38.3  running         no healthcheck or tcp check configured
 </code></pre></div>
 <div class="admonition tip">
 <p class="admonition-title">Forgot what a command does?</p>
@@ -4601,7 +4656,7 @@ manually reaad through a lot of different log files.</p>
 </tr>
 <tr>
 <td>Web applications</td>
-<td>four, already wired to the exchange</td>
+<td>five, already wired to the exchange</td>
 <td>started separately</td>
 </tr>
 <tr>
@@ -4669,8 +4724,8 @@ must use the same <code>EDUMATCHER_DATA_DIR</code> value when an explicit shared
 is needed.</p>
 <p>The authored YAML may live elsewhere, but deployment always installs the
 compiled artifact and its copied source under the selected data directory:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>&lt;DATA_DIR&gt;/ref_data/engine_config.json
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>&lt;DATA_DIR&gt;/ref_data/engine_config.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>&lt;DATA_DIR&gt;/ref_data/engine_config.json
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>&lt;DATA_DIR&gt;/ref_data/engine_config.yaml
 </code></pre></div>
 <p>Configured relative runtime paths such as <code>data/stats.db</code> are also resolved
 under <code>&lt;DATA_DIR&gt;</code>, so they refer to the same files regardless of the command's
@@ -4705,23 +4760,23 @@ session. They are all in <a href="../005-installation/">Installation</a>.</p>
 pointed at a different file. EduMatcher avoids that. You deploy once, then every
 process reads the same artifact.</p>
 <p>Typical loop:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Start from the sample copied by pm-setup, or generate a new authored file</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span>--gateways<span class="w"> </span>TRADER01:TRADER<span class="w"> </span>TRADER02:TRADER<span class="w"> </span>OPS01:ADMIN<span class="w"> </span>MM01:MARKET_MAKER<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">    </span>--output<span class="w"> </span>engine_config.yaml
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="c1"># Validate only</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>pm-config-deploy<span class="w"> </span>--check<span class="w"> </span>engine_config.yaml
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="c1"># Validate, compile and install as the deployed artifact</span>
-<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>pm-config-deploy<span class="w"> </span>engine_config.yaml
-<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>
-<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="c1"># Confirm where the deployed config lives</span>
-<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>pm-config-deploy<span class="w"> </span>--show
-<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>
-<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a><span class="c1"># Show an overview of the engine config</span>
-<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>pm-config-show
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># Start from the sample copied by pm-setup, or generate a new authored file</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">    </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">    </span>--gateways<span class="w"> </span>TRADER01:TRADER<span class="w"> </span>TRADER02:TRADER<span class="w"> </span>OPS01:ADMIN<span class="w"> </span>MM01:MARKET_MAKER<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">    </span>--output<span class="w"> </span>engine_config.yaml
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="c1"># Validate only</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>pm-config-deploy<span class="w"> </span>--check<span class="w"> </span>engine_config.yaml
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="c1"># Validate, compile and install as the deployed artifact</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>pm-config-deploy<span class="w"> </span>engine_config.yaml
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="c1"># Confirm where the deployed config lives</span>
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a>pm-config-deploy<span class="w"> </span>--show
+<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a>
+<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="c1"># Show an overview of the engine config</span>
+<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a>pm-config-show
 </code></pre></div>
 <p>For the full field reference, see <a href="../010-configuration/">Configuration</a>. For a
 visual editor, see <a href="../030-config-GUI/">Configuration GUI</a>. For a catalog of
@@ -4736,8 +4791,8 @@ immediately.</p>
 <p class="admonition-title">Using the container install?</p>
 <p>The exchange is already running — skip Terminal 1. Open two shells inside
 the container instead of two on your host:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nb">cd</span><span class="w"> </span>~/.edumatcher
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w">        </span><span class="c1"># in each of two terminals</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nb">cd</span><span class="w"> </span>~/.edumatcher
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w">        </span><span class="c1"># in each of two terminals</span>
 </code></pre></div>
 <p>Then run the <code>pm-alf-console</code> commands below in those. The container's
 default configuration is <code>s3-basic</code>, which has the same symbols
@@ -4748,21 +4803,21 @@ confirm. You can also watch the trade land in the browser terminal on
 <a href="http://localhost:8090">http://localhost:8090</a>.</p>
 </div>
 <h3 id="terminal-1-start-the-engine">Terminal 1 - start the engine<a class="headerlink" href="#terminal-1-start-the-engine" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-engine<span class="w"> </span>--verbose
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-engine<span class="w"> </span>--verbose
 </code></pre></div>
 <p>Wait until the engine has bound its sockets and printed the deployed
 configuration it is using. Leave this process running.</p>
 <h3 id="terminal-2-connect-the-seller">Terminal 2 - connect the seller<a class="headerlink" href="#terminal-2-connect-the-seller" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER02
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER02
 </code></pre></div>
 <p>At the <code>TRADER02&gt;</code> prompt, post a resting sell order:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
 </code></pre></div>
 <h3 id="terminal-3-connect-the-buyer">Terminal 3 - connect the buyer<a class="headerlink" href="#terminal-3-connect-the-buyer" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
 </code></pre></div>
 <p>At the <code>TRADER01&gt;</code> prompt, buy at the same price:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
 </code></pre></div>
 <p>Both gateways should report a fill. The engine matched the buy and sell because
 the bid price was high enough to trade with the resting ask.</p>
@@ -4870,13 +4925,18 @@ quickstart above — read these two concept chapters next, in order:</p>
 <td><a href="../300-trader-gui/">Trader Information Terminal</a></td>
 </tr>
 <tr>
+<td>See one live order book in the browser</td>
+<td><code>web-apps/book-gui/</code></td>
+<td><a href="../310-book-gui/">Order Book Viewer</a></td>
+</tr>
+<tr>
 <td>Collect logs from all processes</td>
 <td><code>pm-log-srv</code>, then <code>pm-log-cli</code> or <code>pm-log-ui</code></td>
 <td><a href="../280-log-srv/">Centralized Log Server</a>, <a href="../285-log-srv-gui/">Log Operator Console</a></td>
 </tr>
 </tbody>
 </table>
-<p>| Open the browser trading terminal, log console or config builder | the container stack, or <code>make dev</code> in <code>web-apps/&lt;app&gt;</code> | <a href="../005-installation/">Installation</a>, <a href="../290-trader-info-terminal/">Trader Information Terminal</a>, <a href="../285-log-srv-gui/">Log Operator Console</a> |</p>
+<p>| Open the browser trading terminal, order book viewer, log console or config builder | the container stack, or <code>make dev</code> in <code>web-apps/&lt;app&gt;</code> | <a href="../005-installation/">Installation</a>, <a href="../290-trader-info-terminal/">Trader Information Terminal</a>, <a href="../310-book-gui/">Order Book Viewer</a>, <a href="../285-log-srv-gui/">Log Operator Console</a> |</p>
 <p><strong>Note:</strong> Starting the Web-application backends (to be able to use the GUIs) it is easiest to use one of the pre-build containers. See the <code>README.md</code> file in respective application catalogue for details. To use
 the trading terminal you will also need to authenticate with an API key that was specified in the <code>engine_config.yaml</code> file for the API Gateways.  </p>
 <p>The full process catalog is in <a href="../170-processes/">Processes</a>. Use that chapter
@@ -5008,8 +5068,8 @@ rows are grouped by the exchange's local trading date. If a session crosses
 midnight UTC, one trading day can span two UTC dates.</p>
 <p>If you run <code>pm-stats</code> and <code>pm-clearing</code> with a non-default timezone, give both
 the same value:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-stats<span class="w"> </span>--timezone<span class="w"> </span>Europe/Stockholm
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>pm-clearing<span class="w"> </span>--timezone<span class="w"> </span>Europe/Stockholm
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-stats<span class="w"> </span>--timezone<span class="w"> </span>Europe/Stockholm
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>pm-clearing<span class="w"> </span>--timezone<span class="w"> </span>Europe/Stockholm
 </code></pre></div>
 <p>Read <a href="../080-session-scheduling/#the-trading-date">The trading date</a> before
 comparing daily reports.</p>

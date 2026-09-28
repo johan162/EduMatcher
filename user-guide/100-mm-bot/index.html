@@ -1666,6 +1666,133 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#the-passive-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The passive strategy
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The passive strategy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vocabulary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Vocabulary
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-1-the-mid-comes-from-other-traders-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 1 — the mid comes from other traders only
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-2-place-each-side" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 2 — place each side
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-3-fade-after-a-fill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 3 — fade after a fill
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#worked-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Worked examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-the-bot-re-quotes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When the bot re-quotes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#interaction-with-the-mm-spread-obligation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interaction with the MM spread obligation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-control-knobs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The control knobs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#recipes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recipes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#limitations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limitations
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#querying-a-bots-position" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1836,6 +1963,17 @@
     <span class="md-ellipsis">
       
         Config file, with one value overridden on the CLI
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-market-maker-that-lets-other-traders-go-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A market maker that lets other traders go first
       
     </span>
   </a>
@@ -2626,6 +2764,34 @@
     
   
     GUI: Trading platform
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../310-book-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GUI: Order book viewer
   
 
     
@@ -4680,6 +4846,8 @@
   and when to prefer that over one process per symbol</li>
 <li>The bot's lifecycle: startup handshake, quoting, repricing, and shutdown</li>
 <li>How quote refresh works after fills and mid-price drift</li>
+<li>How the <code>passive</code> strategy lets other traders trade first, stepping
+  behind their prices and backing off after a fill</li>
 <li>How to configure gateway entries in <code>engine_config.yaml</code> for MM bots</li>
 <li>How to bootstrap a fresh exchange with no existing book data</li>
 <li>How to keep a bot's parameters in a version-controlled <code>--config</code> file</li>
@@ -4961,6 +5129,9 @@ see <a href="#session-state-handling">Session state handling</a> and
 <li><strong>Bid only</strong>: <code>mid = best_bid</code></li>
 <li><strong>No data</strong>: keep previous mid</li>
 </ul>
+<p>The <code>symmetric</code> and <code>inventory_skew</code> strategies apply this to the whole
+book, including the bot's own quote. The <code>passive</code> strategy applies it to
+other traders' orders only — see <a href="#the-passive-strategy">The passive strategy</a>.</p>
 <h3 id="quote-placement">Quote placement<a class="headerlink" href="#quote-placement" title="Permanent link">&para;</a></h3>
 <p>Given the mid-price and <code>--gap</code> (total spread), the bot places:</p>
 <ul>
@@ -4968,10 +5139,14 @@ see <a href="#session-state-handling">Session state handling</a> and
 <li><strong>Ask</strong> at <code>mid + gap/2</code>, rounded to the nearest tick</li>
 </ul>
 <p>A minimum spread of 2 ticks is always guaranteed, even after rounding.</p>
+<p>This is the <code>symmetric</code> placement. <code>passive</code> treats it as the <em>home</em> price
+and may quote further out — see <a href="#the-passive-strategy">The passive strategy</a>.</p>
 <h3 id="drift-detection">Drift detection<a class="headerlink" href="#drift-detection" title="Permanent link">&para;</a></h3>
 <p>After posting a quote, the bot records the mid at the time of posting. On each
 book update, it checks whether the mid has moved by more than <code>--drift-ticks</code>
-ticks. If so, it cancels and reissues at the new mid.</p>
+ticks. If so, it cancels and reissues at the new mid. (<code>passive</code> uses its
+own, per-side re-quote rules — see
+<a href="#when-the-bot-re-quotes">When the bot re-quotes</a>.)</p>
 <hr />
 <h2 id="quote-refresh-logic">Quote refresh logic<a class="headerlink" href="#quote-refresh-logic" title="Permanent link">&para;</a></h2>
 <h3 id="refresh-triggers">Refresh triggers<a class="headerlink" href="#refresh-triggers" title="Permanent link">&para;</a></h3>
@@ -4990,6 +5165,10 @@ ticks. If so, it cancels and reissues at the new mid.</p>
 <tr>
 <td>Mid-price drift exceeds threshold</td>
 <td>Cancel active quote, then reissue at new mid</td>
+</tr>
+<tr>
+<td><code>passive</code> only: a side becomes/stops being covered, must step back, or a fade starts/ends</td>
+<td>Cancel active quote, then reissue (see <a href="#when-the-bot-re-quotes">When the bot re-quotes</a>)</td>
 </tr>
 <tr>
 <td>Quote rejected</td>
@@ -5285,7 +5464,7 @@ version-control as a <a href="#config-file">config file</a>.</p>
 <td><code>--strategy NAME</code></td>
 <td>per-symbol</td>
 <td><code>symmetric</code></td>
-<td>Pricing strategy: <code>symmetric</code> or <code>inventory_skew</code> (see <a href="#pricing-strategies">Pricing strategies</a>)</td>
+<td>Pricing strategy: <code>symmetric</code>, <code>inventory_skew</code> or <code>passive</code> (see <a href="#pricing-strategies">Pricing strategies</a>)</td>
 </tr>
 <tr>
 <td><code>--gap PRICE</code></td>
@@ -5309,7 +5488,37 @@ version-control as a <a href="#config-file">config file</a>.</p>
 <td><code>--drift-ticks N</code></td>
 <td>per-symbol</td>
 <td><code>3</code></td>
-<td>Reprice when mid moves by this many ticks</td>
+<td>Reprice when mid moves by more than this many ticks (<code>passive</code>: when a side's target price does)</td>
+</tr>
+<tr>
+<td><code>--retreat-ticks N</code></td>
+<td>per-symbol</td>
+<td><code>5</code></td>
+<td><code>passive</code> only: how far beyond home each side may step back (see <a href="#the-control-knobs">The control knobs</a>)</td>
+</tr>
+<tr>
+<td><code>--behind-ticks N</code></td>
+<td>per-symbol</td>
+<td><code>1</code></td>
+<td><code>passive</code> only: ticks behind other traders' best price on a covered side</td>
+</tr>
+<tr>
+<td><code>--min-cover-qty N</code></td>
+<td>per-symbol</td>
+<td><code>1</code></td>
+<td><code>passive</code> only: others' quantity inside the band before a side counts as covered</td>
+</tr>
+<tr>
+<td><code>--fade-ticks N</code></td>
+<td>per-symbol</td>
+<td><code>2</code></td>
+<td><code>passive</code> only: extra ticks a side steps back after it is filled (<code>0</code> = no fade)</td>
+</tr>
+<tr>
+<td><code>--fade-sec F</code></td>
+<td>per-symbol</td>
+<td><code>3.0</code></td>
+<td><code>passive</code> only: how long a fade lasts (<code>0</code> = no fade)</td>
 </tr>
 <tr>
 <td><code>--reissue-delay-ms N</code></td>
@@ -5591,7 +5800,7 @@ for that symbol.</p>
 <td><code>strategy</code></td>
 <td>string</td>
 <td><code>symmetric</code></td>
-<td><code>symmetric</code> or <code>inventory_skew</code></td>
+<td><code>symmetric</code>, <code>inventory_skew</code> or <code>passive</code></td>
 </tr>
 <tr>
 <td><code>gap</code></td>
@@ -5664,6 +5873,36 @@ for that symbol.</p>
 <td>number</td>
 <td><code>null</code></td>
 <td>Must be greater than <code>initial_min</code></td>
+</tr>
+<tr>
+<td><code>retreat_ticks</code></td>
+<td>integer</td>
+<td><code>5</code></td>
+<td>≥ 0; <code>passive</code> only (ignored otherwise)</td>
+</tr>
+<tr>
+<td><code>behind_ticks</code></td>
+<td>integer</td>
+<td><code>1</code></td>
+<td>≥ 1; <code>passive</code> only</td>
+</tr>
+<tr>
+<td><code>min_cover_qty</code></td>
+<td>integer</td>
+<td><code>1</code></td>
+<td>≥ 1; <code>passive</code> only</td>
+</tr>
+<tr>
+<td><code>fade_ticks</code></td>
+<td>integer</td>
+<td><code>2</code></td>
+<td>≥ 0; <code>passive</code> only</td>
+</tr>
+<tr>
+<td><code>fade_sec</code></td>
+<td>number</td>
+<td><code>3.0</code></td>
+<td>≥ 0; <code>passive</code> only</td>
 </tr>
 </tbody>
 </table>
@@ -5784,14 +6023,18 @@ applies to every symbol. Prefer <code>version: 1</code> for new files — it is 
 format that can express per-symbol settings.</p>
 <h3 id="pricing-strategies">Pricing strategies<a class="headerlink" href="#pricing-strategies" title="Permanent link">&para;</a></h3>
 <p><code>--strategy</code> (or the file's <code>strategy:</code> key) selects which pricing logic the
-bot uses to compute bid/ask from the tracked mid-price. Two strategies ship
-today:</p>
+bot uses to compute bid/ask from the tracked mid-price. Three strategies
+ship today:</p>
 <ul>
 <li><strong><code>symmetric</code></strong> (the default) — quote symmetrically around mid at a fixed
   <code>--gap</code>, described in <a href="#pricing-logic">Pricing logic</a> above.</li>
 <li><strong><code>inventory_skew</code></strong> — quote asymmetrically to lean the book toward
   flattening whatever position the bot has accumulated, described in
   <a href="#inventory-skewing">Inventory skewing</a> below.</li>
+<li><strong><code>passive</code></strong> — act as a backstop: quote at home when nobody else is
+  there, step behind other traders when they are, and back off briefly
+  after a fill. Described in <a href="#the-passive-strategy">The passive strategy</a>
+  below.</li>
 </ul>
 <p>The bot fails fast at startup if <code>--strategy</code> names anything else. The
 selection point exists so a future strategy (e.g. one that widens the gap
@@ -5856,11 +6099,409 @@ feature (a hard risk cutoff) — <code>--max-position</code> here only ever affe
 the quote is skewed, never whether one is sent.</p>
 <p><code>inventory_skew</code> accepts <code>--gap</code>, <code>--drift-ticks</code>, and all the other
 <code>symmetric</code> flags unchanged — only the price-computation step differs.</p>
+<h3 id="the-passive-strategy">The passive strategy<a class="headerlink" href="#the-passive-strategy" title="Permanent link">&para;</a></h3>
+<p><code>symmetric</code> and <code>inventory_skew</code> both centre their quote on the mid of the
+<em>whole</em> book — including the bot's own quote — and always quote at
+<code>mid ± gap/2</code>. On a quiet book that makes the bot the best bid and the best
+offer almost all the time: it re-quotes 200 ms after every fill, so
+whenever a trader wants to trade immediately the bot is the one that gets
+hit, and a trader who rests a limit order at the bot's price rarely gets
+filled first.</p>
+<p>Real market makers are not obliged to be the <em>best</em> price. Their
+obligation is to be <em>present</em>: quote both sides, within a maximum spread,
+for most of the session. Being at the top of the book is a business
+choice. <code>--strategy passive</code> models that: the bot acts as a <strong>backstop</strong>.
+It makes the market when nobody else does, and steps back behind other
+traders when they are already providing liquidity.</p>
+<p>The strategy combines two behaviours:</p>
+<ul>
+<li><strong>Step behind</strong> — when other traders already quote near the bot's price,
+  the bot moves its quote <em>behind</em> theirs, so their orders trade first.</li>
+<li><strong>Fade</strong> — after one of its legs is filled, the bot quotes that side a
+  little further out for a few seconds, instead of immediately
+  re-offering the same price.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--strategy<span class="w"> </span>passive
+</code></pre></div>
+<p>With no other flags every knob below takes its default.</p>
+<h4 id="vocabulary">Vocabulary<a class="headerlink" href="#vocabulary" title="Permanent link">&para;</a></h4>
+<p>The rules are easiest to follow with four terms. The examples use a
+<code>0.01</code> tick, <code>--gap 0.10</code> and the defaults
+(<code>--retreat-ticks 5 --behind-ticks 1 --min-cover-qty 1 --fade-ticks 2 --fade-sec 3</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Meaning</th>
+<th>Example (mid <code>100.00</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Others' book</strong></td>
+<td>The order book with the bot's own two legs removed</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>Home price</strong></td>
+<td>Where <code>symmetric</code> would quote: <code>mid ± gap/2</code>, tick-rounded. The <em>tightest</em> the bot ever quotes</td>
+<td>bid <code>99.95</code>, ask <code>100.05</code></td>
+</tr>
+<tr>
+<td><strong>Band</strong></td>
+<td>From the home price out to <code>retreat_ticks</code> further away. The bot never quotes outside it</td>
+<td>bid <code>99.90</code>–<code>99.95</code>, ask <code>100.05</code>–<code>100.10</code></td>
+</tr>
+<tr>
+<td><strong>Covered side</strong></td>
+<td>A side where other traders show at least <code>min_cover_qty</code> in total at prices inside that side's band (or better)</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>          bid band              ask band
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>      |&lt;--- retreat ---&gt;|   |&lt;--- retreat ---&gt;|
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>   99.90             99.95 | 100.05            100.10
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>   floor              home | home              ceiling
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>                          mid
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>                        100.00
+</code></pre></div>
+<h4 id="step-1-the-mid-comes-from-other-traders-only">Step 1 — the mid comes from other traders only<a class="headerlink" href="#step-1-the-mid-comes-from-other-traders-only" title="Permanent link">&para;</a></h4>
+<p>Before pricing anything the bot removes its own legs from every book
+snapshot. It knows where they rest (it sent them) and how much of each is
+left (it sees its own fills). The mid is then computed from what remains,
+with the usual rule (both sides → average; one side → that side; nothing →
+keep the previous mid).</p>
+<p>This is what stops the bot chasing itself. Under <code>symmetric</code>, the bot's
+own quote <em>is</em> part of the book it prices from; under <code>passive</code>, a book
+containing only the bot's quote is an empty book, and the mid stays where
+it was.</p>
+<div class="admonition note">
+<p class="admonition-title">How own-leg removal works</p>
+<p>A snapshot level is reduced by the bot's leg only if it is at the
+bot's price and holds at least the leg's remaining quantity. If that
+level holds exactly one order, the level is dropped. A snapshot taken
+just before the leg reached the book (or just after it left) is
+therefore passed through unchanged instead of having another trader's
+quantity subtracted. The next snapshot corrects any leftover
+difference.</p>
+</div>
+<h4 id="step-2-place-each-side">Step 2 — place each side<a class="headerlink" href="#step-2-place-each-side" title="Permanent link">&para;</a></h4>
+<p>Each side is priced independently. For the bid:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>home   = mid − gap/2                        (tick-rounded)
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>floor  = home − retreat_ticks
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>covered = (others' bid qty at prices ≥ floor) ≥ min_cover_qty
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>if covered:  bid = clamp(others' best bid − behind_ticks,  floor,  home)
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>else:        bid = home
+</code></pre></div>
+<p>The ask is the mirror image: <code>ceiling = home + retreat_ticks</code>, count
+others' offers at prices ≤ ceiling, and quote <code>behind_ticks</code> <em>above</em>
+their best offer, clamped to <code>[home, ceiling]</code>.</p>
+<p>Three consequences follow from the clamp:</p>
+<ul>
+<li>The bot <strong>never quotes tighter than home</strong>. If other traders are already
+  tighter than the bot's gap, the bot simply stays at home, which is
+  already behind them.</li>
+<li>The bot <strong>never quotes outside the band</strong>. If other traders sit at the
+  edge of the band, the bot joins them at the edge. It arrives later, so
+  under price-time priority it is still behind them in the queue.</li>
+<li>Liquidity <strong>outside the band doesn't count</strong>. A resting order far from
+  the mid doesn't make the bot step back; the bot is still the market
+  between the mid and that order.</li>
+</ul>
+<h4 id="step-3-fade-after-a-fill">Step 3 — fade after a fill<a class="headerlink" href="#step-3-fade-after-a-fill" title="Permanent link">&para;</a></h4>
+<p>When a leg is filled, that side is pushed <code>fade_ticks</code> further out, still
+clamped to the band, for <code>fade_sec</code> seconds. The other side is unchanged.
+Another fill on the same side restarts the timer (fades don't stack).
+When the timer runs out the bot re-quotes that side back at its normal
+price.</p>
+<p>Fading composes with the reissue delay rather than replacing it. After a
+fill the engine inactivates the quote. The bot waits <code>--reissue-delay-ms</code>
+as always, then sends a new quote that already includes the fade.</p>
+<h4 id="worked-examples">Worked examples<a class="headerlink" href="#worked-examples" title="Permanent link">&para;</a></h4>
+<p>All with mid <code>100.00</code> unless stated; qty is the other trader's order size.</p>
+<table>
+<thead>
+<tr>
+<th>Others' book</th>
+<th>Mid</th>
+<th>Bid</th>
+<th>Ask</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>empty</td>
+<td><code>100.00</code> (kept)</td>
+<td><code>99.95</code></td>
+<td><code>100.05</code></td>
+<td>Nobody else → the bot is the market, at home</td>
+</tr>
+<tr>
+<td>bid 200 @ <code>99.97</code>, ask 200 @ <code>100.03</code></td>
+<td><code>100.00</code></td>
+<td><code>99.95</code></td>
+<td><code>100.05</code></td>
+<td>Both sides covered, but others are tighter than home → stay at home, already behind them</td>
+</tr>
+<tr>
+<td>bid 200 @ <code>99.93</code>, ask 200 @ <code>100.07</code></td>
+<td><code>100.00</code></td>
+<td><code>99.92</code></td>
+<td><code>100.08</code></td>
+<td>Covered inside the band → one tick behind them</td>
+</tr>
+<tr>
+<td>bid 200 @ <code>99.91</code>, ask 200 @ <code>100.09</code></td>
+<td><code>100.00</code></td>
+<td><code>99.90</code></td>
+<td><code>100.10</code></td>
+<td>Behind them would be <code>99.90</code>/<code>100.10</code>, exactly the band edge</td>
+</tr>
+<tr>
+<td>bid 200 @ <code>99.85</code>, ask 200 @ <code>100.15</code></td>
+<td><code>100.00</code></td>
+<td><code>99.95</code></td>
+<td><code>100.05</code></td>
+<td>Their orders are outside the band → not covered → the bot quotes at home, in front of them</td>
+</tr>
+<tr>
+<td>bid 200 @ <code>99.97</code>, no asks</td>
+<td><code>99.97</code></td>
+<td><code>99.92</code></td>
+<td><code>100.02</code></td>
+<td>One-sided book → mid is that bid. Bid covered (home <code>99.92</code> is already behind), ask not covered → at home</td>
+</tr>
+<tr>
+<td>empty, bot's bid just filled</td>
+<td><code>100.00</code></td>
+<td><code>99.93</code></td>
+<td><code>100.05</code></td>
+<td>Bid faded 2 ticks for 3 s</td>
+</tr>
+<tr>
+<td>bid 200 @ <code>99.93</code>, ask 200 @ <code>100.07</code>, bot's bid just filled</td>
+<td><code>100.00</code></td>
+<td><code>99.90</code></td>
+<td><code>100.08</code></td>
+<td>Behind (<code>99.92</code>) minus fade (2) = <code>99.90</code>, the floor</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition tip">
+<p class="admonition-title">What a trader sees</p>
+<p>With <code>passive</code> the bot's quote is the price a trader can always rely
+on, but not necessarily the best one. A trader who posts a buy inside
+the bot's spread becomes the best bid and gets filled first. If the
+trader posts <em>at</em> the bot's bid, the bot notices on the next book
+update and steps back one tick. The trader then has the top of the
+book to themselves.</p>
+</div>
+<h4 id="when-the-bot-re-quotes">When the bot re-quotes<a class="headerlink" href="#when-the-bot-re-quotes" title="Permanent link">&para;</a></h4>
+<p>Moving a quote means cancelling and re-issuing it, so the bot doesn't
+react to every change in the book. After each quote it remembers, per
+side, the price it sent, whether the side was covered, and whether it was
+faded. It re-quotes when any of these hold for either side:</p>
+<table>
+<thead>
+<tr>
+<th>Condition</th>
+<th>Reaction</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The side became covered, or stopped being covered</td>
+<td>Immediately</td>
+<td>The bot must step back behind a newcomer, or step forward when the other trader leaves</td>
+</tr>
+<tr>
+<td>A covered side must move <em>further back</em> (by any amount)</td>
+<td>Immediately</td>
+<td>The bot never stays level with or ahead of the traders it is yielding to</td>
+</tr>
+<tr>
+<td>A fade started or ended</td>
+<td>Immediately (a fade ending is checked on the bot's timer, even with no book activity)</td>
+<td>The fade is time-driven, not book-driven</td>
+</tr>
+<tr>
+<td>Any other move of the target price by <strong>more than</strong> <code>--drift-ticks</code></td>
+<td>Re-quote</td>
+<td>Same laziness as <code>symmetric</code>; a covered side creeping <em>closer</em> to the market, or a small mid move, waits until it's worth a cancel/replace</td>
+</tr>
+</tbody>
+</table>
+<p>So for <code>passive</code>, <code>--drift-ticks</code> measures how far a <em>side's target price</em>
+has moved, not how far the mid has moved.</p>
+<h4 id="interaction-with-the-mm-spread-obligation">Interaction with the MM spread obligation<a class="headerlink" href="#interaction-with-the-mm-spread-obligation" title="Permanent link">&para;</a></h4>
+<p>If the symbol has an <code>mm_max_spread_ticks</code> obligation (see
+<a href="#gap-validation">Gap validation</a>), the engine rejects any quote wider
+than it. The bot therefore narrows the band until even the widest quote it
+could send (both sides fully retreated, or faded to the band edge) still
+satisfies the obligation:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>effective retreat = min(retreat_ticks, (mm_max_spread_ticks − home spread in ticks) // 2)
+</code></pre></div>
+<p>Example: obligation <code>14</code> ticks, home spread <code>10</code> ticks → at most <code>2</code> ticks
+of retreat per side, whatever <code>--retreat-ticks</code> says. The bot logs one line
+at startup when this narrowing applies:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>[AAPL] retreat_ticks 5 narrowed to 2 by mm_max_spread_ticks=14
+</code></pre></div>
+<p>When no gap is set, the gap defaults to half the obligation, which leaves
+a quarter of the obligation for retreat on each side. With a <code>20</code>-tick
+obligation, for example, the home spread is <code>10</code> ticks and each side can
+retreat <code>5</code>, which is exactly the default <code>--retreat-ticks 5</code>.</p>
+<h4 id="the-control-knobs">The control knobs<a class="headerlink" href="#the-control-knobs" title="Permanent link">&para;</a></h4>
+<p>All are per-symbol (CLI scope, <code>defaults:</code> or <code>symbols.&lt;SYM&gt;:</code>), have the
+defaults below, and are <strong>ignored by every strategy except <code>passive</code></strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Knob</th>
+<th>CLI flag</th>
+<th>Default</th>
+<th>Range</th>
+<th>Effect</th>
+<th>Turn it up to…</th>
+<th>Turn it down to…</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gap</code></td>
+<td><code>--gap</code></td>
+<td><code>0.10</code></td>
+<td>&gt; 0</td>
+<td>Width of the home quote — the tightest the bot ever quotes</td>
+<td>Quote less aggressively when alone</td>
+<td>Make a tighter market when alone</td>
+</tr>
+<tr>
+<td><code>retreat_ticks</code></td>
+<td><code>--retreat-ticks</code></td>
+<td><code>5</code></td>
+<td>≥ 0</td>
+<td>How far out each side may step back. <code>0</code> disables stepping behind (and fading)</td>
+<td>Yield to traders further from the mid</td>
+<td>Stay close to home; <code>0</code> = never yield</td>
+</tr>
+<tr>
+<td><code>behind_ticks</code></td>
+<td><code>--behind-ticks</code></td>
+<td><code>1</code></td>
+<td>≥ 1</td>
+<td>How many ticks behind others' best price a covered side sits</td>
+<td>Leave a visible gap behind other traders</td>
+<td>Sit right behind them</td>
+</tr>
+<tr>
+<td><code>min_cover_qty</code></td>
+<td><code>--min-cover-qty</code></td>
+<td><code>1</code></td>
+<td>≥ 1</td>
+<td>Total quantity others must show inside the band before the bot yields</td>
+<td>Keep a small order from pushing the bot away</td>
+<td>Yield to any order at all</td>
+</tr>
+<tr>
+<td><code>fade_ticks</code></td>
+<td><code>--fade-ticks</code></td>
+<td><code>2</code></td>
+<td>≥ 0</td>
+<td>How far a side steps back after it is filled. <code>0</code> disables fading</td>
+<td>Back off harder after being hit</td>
+<td>Refill closer to the original price</td>
+</tr>
+<tr>
+<td><code>fade_sec</code></td>
+<td><code>--fade-sec</code></td>
+<td><code>3.0</code></td>
+<td>≥ 0</td>
+<td>How long a fade lasts. <code>0</code> disables fading</td>
+<td>Stay backed off longer, giving others time to post</td>
+<td>Return sooner</td>
+</tr>
+<tr>
+<td><code>drift_ticks</code></td>
+<td><code>--drift-ticks</code></td>
+<td><code>3</code></td>
+<td>&gt; 0</td>
+<td>Target-price move (per side) that triggers a lazy re-quote</td>
+<td>Fewer cancel/replace cycles</td>
+<td>Track the book more closely</td>
+</tr>
+<tr>
+<td><code>reissue_delay_ms</code></td>
+<td><code>--reissue-delay-ms</code></td>
+<td><code>200</code></td>
+<td>≥ 0</td>
+<td>Pause after a fill before the new quote goes out</td>
+<td>Leave a longer gap with no MM quote at all after each fill</td>
+<td>Refill faster</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition important">
+<p class="admonition-title">Fade vs. reissue delay</p>
+<p>Both slow the bot down after a fill, but differently.
+<code>reissue_delay_ms</code> is a period with <strong>no MM quote at all</strong>, and on a
+real exchange that counts against a market maker's presence obligation.
+Fading keeps a quote in the book, just further out. To give other
+traders room after a fill, prefer a longer <code>fade_sec</code> over a longer
+<code>reissue_delay_ms</code>.</p>
+</div>
+<h4 id="recipes">Recipes<a class="headerlink" href="#recipes" title="Permanent link">&para;</a></h4>
+<p>Yield to anyone, but only a little:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--strategy<span class="w"> </span>passive<span class="w"> </span>--retreat-ticks<span class="w"> </span><span class="m">2</span>
+</code></pre></div>
+<p>Only yield to real size (at least one round lot inside the band):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--strategy<span class="w"> </span>passive<span class="w"> </span>--min-cover-qty<span class="w"> </span><span class="m">100</span>
+</code></pre></div>
+<p>Pure step-behind, no fading:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--strategy<span class="w"> </span>passive<span class="w"> </span>--fade-ticks<span class="w"> </span><span class="m">0</span>
+</code></pre></div>
+<p>Pure fading, never step behind others. The band still has to leave room
+for the fade:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--strategy<span class="w"> </span>passive<span class="w"> </span>--min-cover-qty<span class="w"> </span><span class="m">1000000000</span><span class="w"> </span>--retreat-ticks<span class="w"> </span><span class="m">3</span><span class="w"> </span>--fade-ticks<span class="w"> </span><span class="m">3</span>
+</code></pre></div>
+<p>The same in a config file, with one symbol tuned differently:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="nt">gateway</span><span class="p">:</span>
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="w">  </span><span class="nt">id_suffix</span><span class="p">:</span><span class="w"> </span><span class="s">"01"</span>
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="nt">defaults</span><span class="p">:</span>
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a><span class="w">  </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">passive</span>
+<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a><span class="w">  </span><span class="nt">gap</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.10</span>
+<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a><span class="w">  </span><span class="nt">retreat_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a><span class="w">  </span><span class="nt">behind_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-23-9" name="__codelineno-23-9" href="#__codelineno-23-9"></a><span class="w">  </span><span class="nt">min_cover_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-23-10" name="__codelineno-23-10" href="#__codelineno-23-10"></a><span class="w">  </span><span class="nt">fade_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-23-11" name="__codelineno-23-11" href="#__codelineno-23-11"></a><span class="w">  </span><span class="nt">fade_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
+<a id="__codelineno-23-12" name="__codelineno-23-12" href="#__codelineno-23-12"></a><span class="nt">symbols</span><span class="p">:</span>
+<a id="__codelineno-23-13" name="__codelineno-23-13" href="#__codelineno-23-13"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+<a id="__codelineno-23-14" name="__codelineno-23-14" href="#__codelineno-23-14"></a><span class="w">  </span><span class="nt">TSLA</span><span class="p">:</span>
+<a id="__codelineno-23-15" name="__codelineno-23-15" href="#__codelineno-23-15"></a><span class="w">    </span><span class="nt">gap</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.30</span>
+<a id="__codelineno-23-16" name="__codelineno-23-16" href="#__codelineno-23-16"></a><span class="w">    </span><span class="nt">retreat_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<a id="__codelineno-23-17" name="__codelineno-23-17" href="#__codelineno-23-17"></a><span class="w">    </span><span class="nt">min_cover_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">200</span>
+<a id="__codelineno-23-18" name="__codelineno-23-18" href="#__codelineno-23-18"></a><span class="w">    </span><span class="nt">fade_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5.0</span>
+</code></pre></div>
+<h4 id="limitations">Limitations<a class="headerlink" href="#limitations" title="Permanent link">&para;</a></h4>
+<ul>
+<li>The bot has no fair value of its own; its reference is the others' mid.
+  A lone order far from the market on an otherwise empty side moves the
+  mid to that order, exactly as for <code>symmetric</code>.</li>
+<li>Covered is judged from aggregated price levels, so the bot cannot tell
+  one trader with 500 from five traders with 100.</li>
+<li><code>passive</code> doesn't skew for inventory; that is <code>inventory_skew</code>'s job,
+  and the two can't be combined today.</li>
+</ul>
 <h3 id="querying-a-bots-position">Querying a bot's position<a class="headerlink" href="#querying-a-bots-position" title="Permanent link">&para;</a></h3>
 <p>Whether or not <code>inventory_skew</code> is in use, an operator can ask any running
 gateway — including an MM bot — what it is currently holding, from
 <code>pm-alf-console</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>POS|GW=MM_AAPL_01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>POS|GW=MM_AAPL_01
 </code></pre></div>
 <p>This sends <code>system.position_request</code> for that <code>gateway_id</code> and prints
 whatever the engine's own per-gateway position ledger reports back on
@@ -5895,38 +6536,38 @@ something: watch <code>spread</code>/<code>mid</code> shift as <code>net_qty</co
 <h3 id="gateway-registration">Gateway registration<a class="headerlink" href="#gateway-registration" title="Permanent link">&para;</a></h3>
 <p>Each bot instance — whether it quotes one symbol or several — must be
 pre-registered as a single gateway entry in <code>engine_config.yaml</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nt">gateways</span><span class="p">:</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM_AAPL_01</span>
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"AAPL</span><span class="nv"> </span><span class="s">market-maker</span><span class="nv"> </span><span class="s">bot</span><span class="nv"> </span><span class="s">instance</span><span class="nv"> </span><span class="s">1"</span>
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
-<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="w">      </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_QUOTES_ONLY</span>
-<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="w">      </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INACTIVATE_ON_ANY_FILL</span>
-<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="w">      </span><span class="nt">enforce_mm_obligation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="w">      </span><span class="nt">mm_max_spread_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
-<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="w">      </span><span class="nt">mm_min_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
-<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a><span class="w">      </span><span class="nt">smp_action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_RESTING</span>
-<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a>
-<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM_AAPL_02</span>
-<a id="__codelineno-15-14" name="__codelineno-15-14" href="#__codelineno-15-14"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"AAPL</span><span class="nv"> </span><span class="s">market-maker</span><span class="nv"> </span><span class="s">bot</span><span class="nv"> </span><span class="s">instance</span><span class="nv"> </span><span class="s">2"</span>
-<a id="__codelineno-15-15" name="__codelineno-15-15" href="#__codelineno-15-15"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
-<a id="__codelineno-15-16" name="__codelineno-15-16" href="#__codelineno-15-16"></a><span class="w">      </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_QUOTES_ONLY</span>
-<a id="__codelineno-15-17" name="__codelineno-15-17" href="#__codelineno-15-17"></a><span class="w">      </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INACTIVATE_ON_ANY_FILL</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="nt">gateways</span><span class="p">:</span>
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM_AAPL_01</span>
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"AAPL</span><span class="nv"> </span><span class="s">market-maker</span><span class="nv"> </span><span class="s">bot</span><span class="nv"> </span><span class="s">instance</span><span class="nv"> </span><span class="s">1"</span>
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="w">      </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_QUOTES_ONLY</span>
+<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a><span class="w">      </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INACTIVATE_ON_ANY_FILL</span>
+<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a><span class="w">      </span><span class="nt">enforce_mm_obligation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a><span class="w">      </span><span class="nt">mm_max_spread_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a><span class="w">      </span><span class="nt">mm_min_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<a id="__codelineno-25-11" name="__codelineno-25-11" href="#__codelineno-25-11"></a><span class="w">      </span><span class="nt">smp_action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_RESTING</span>
+<a id="__codelineno-25-12" name="__codelineno-25-12" href="#__codelineno-25-12"></a>
+<a id="__codelineno-25-13" name="__codelineno-25-13" href="#__codelineno-25-13"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM_AAPL_02</span>
+<a id="__codelineno-25-14" name="__codelineno-25-14" href="#__codelineno-25-14"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"AAPL</span><span class="nv"> </span><span class="s">market-maker</span><span class="nv"> </span><span class="s">bot</span><span class="nv"> </span><span class="s">instance</span><span class="nv"> </span><span class="s">2"</span>
+<a id="__codelineno-25-15" name="__codelineno-25-15" href="#__codelineno-25-15"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
+<a id="__codelineno-25-16" name="__codelineno-25-16" href="#__codelineno-25-16"></a><span class="w">      </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_QUOTES_ONLY</span>
+<a id="__codelineno-25-17" name="__codelineno-25-17" href="#__codelineno-25-17"></a><span class="w">      </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INACTIVATE_ON_ANY_FILL</span>
 </code></pre></div>
 <p>A <code>pm-mm-bot --symbols AAPL,MSFT --label TECH</code> process registers as <em>one</em>
 gateway entry the same way — nothing in <code>gateways:</code> names which symbols a
 <code>MARKET_MAKER</code> gateway quotes, since that's the bot's own <code>--symbol</code>/
 <code>--symbols</code> choice, not an engine-config concept:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nt">gateways</span><span class="p">:</span>
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM_TECH_01</span>
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"AAPL+MSFT</span><span class="nv"> </span><span class="s">market-maker</span><span class="nv"> </span><span class="s">bot"</span>
-<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
-<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="w">      </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_QUOTES_ONLY</span>
-<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="w">      </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INACTIVATE_ON_ANY_FILL</span>
-<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a><span class="w">      </span><span class="nt">enforce_mm_obligation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="w">      </span><span class="nt">mm_max_spread_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
-<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="w">      </span><span class="nt">mm_min_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="nt">gateways</span><span class="p">:</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM_TECH_01</span>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"AAPL+MSFT</span><span class="nv"> </span><span class="s">market-maker</span><span class="nv"> </span><span class="s">bot"</span>
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
+<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a><span class="w">      </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_QUOTES_ONLY</span>
+<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a><span class="w">      </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INACTIVATE_ON_ANY_FILL</span>
+<a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a><span class="w">      </span><span class="nt">enforce_mm_obligation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a><span class="w">      </span><span class="nt">mm_max_spread_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a><span class="w">      </span><span class="nt">mm_min_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
 </code></pre></div>
 <p>One easy-to-miss consequence: the per-symbol <code>market_maker_quotes</code> seed
 (needed to bootstrap a fresh exchange — see
@@ -5985,45 +6626,48 @@ quoting rather than failing the whole process — see
 <hr />
 <h2 id="usage-examples">Usage examples<a class="headerlink" href="#usage-examples" title="Permanent link">&para;</a></h2>
 <h3 id="single-symbol-default-settings">Single symbol, default settings<a class="headerlink" href="#single-symbol-default-settings" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL
 </code></pre></div>
 <h3 id="one-process-quoting-several-symbols-same-settings">One process quoting several symbols, same settings<a class="headerlink" href="#one-process-quoting-several-symbols-same-settings" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>pm-mm-bot<span class="w"> </span>--symbols<span class="w"> </span>AAPL,MSFT,TSLA<span class="w"> </span>--label<span class="w"> </span>TECH
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>pm-mm-bot<span class="w"> </span>--symbols<span class="w"> </span>AAPL,MSFT,TSLA<span class="w"> </span>--label<span class="w"> </span>TECH
 </code></pre></div>
 <h3 id="one-process-different-settings-per-symbol">One process, different settings per symbol<a class="headerlink" href="#one-process-different-settings-per-symbol" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>pm-mm-bot<span class="w"> </span>--label<span class="w"> </span>TECH<span class="w"> </span>--qty<span class="w"> </span><span class="m">500</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="w">  </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="w">  </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.20<span class="w"> </span>--qty<span class="w"> </span><span class="m">200</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="w">  </span>--symbol<span class="w"> </span>TSLA<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.50<span class="w"> </span>--qty<span class="w"> </span><span class="m">100</span><span class="w"> </span>--strategy<span class="w"> </span>inventory_skew<span class="w"> </span>--max-position<span class="w"> </span><span class="m">5000</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>pm-mm-bot<span class="w"> </span>--label<span class="w"> </span>TECH<span class="w"> </span>--qty<span class="w"> </span><span class="m">500</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a><span class="w">  </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="w">  </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.20<span class="w"> </span>--qty<span class="w"> </span><span class="m">200</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="w">  </span>--symbol<span class="w"> </span>TSLA<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.50<span class="w"> </span>--qty<span class="w"> </span><span class="m">100</span><span class="w"> </span>--strategy<span class="w"> </span>inventory_skew<span class="w"> </span>--max-position<span class="w"> </span><span class="m">5000</span>
 </code></pre></div>
 <h3 id="the-same-desk-from-a-config-file">The same desk, from a config file<a class="headerlink" href="#the-same-desk-from-a-config-file" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pm-mm-bot<span class="w"> </span>--config<span class="w"> </span>docs/examples/mm-bot/tech-desk.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>pm-mm-bot<span class="w"> </span>--config<span class="w"> </span>docs/examples/mm-bot/tech-desk.yaml
 </code></pre></div>
 <h3 id="two-competing-mms-on-the-same-symbol">Two competing MMs on the same symbol<a class="headerlink" href="#two-competing-mms-on-the-same-symbol" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.08<span class="w"> </span>--qty<span class="w"> </span><span class="m">500</span><span class="w"> </span><span class="p">&amp;</span>
-<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.12<span class="w"> </span>--qty<span class="w"> </span><span class="m">300</span><span class="w"> </span>--id-suffix<span class="w"> </span><span class="m">02</span><span class="w"> </span><span class="p">&amp;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.08<span class="w"> </span>--qty<span class="w"> </span><span class="m">500</span><span class="w"> </span><span class="p">&amp;</span>
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.12<span class="w"> </span>--qty<span class="w"> </span><span class="m">300</span><span class="w"> </span>--id-suffix<span class="w"> </span><span class="m">02</span><span class="w"> </span><span class="p">&amp;</span>
 </code></pre></div>
 <h3 id="faster-repricing-for-volatile-sessions">Faster repricing for volatile sessions<a class="headerlink" href="#faster-repricing-for-volatile-sessions" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.20<span class="w"> </span>--drift-ticks<span class="w"> </span><span class="m">1</span><span class="w"> </span>--reissue-delay-ms<span class="w"> </span><span class="m">100</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.20<span class="w"> </span>--drift-ticks<span class="w"> </span><span class="m">1</span><span class="w"> </span>--reissue-delay-ms<span class="w"> </span><span class="m">100</span>
 </code></pre></div>
 <h3 id="fresh-exchange-with-no-book-data">Fresh exchange with no book data<a class="headerlink" href="#fresh-exchange-with-no-book-data" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--initial_min<span class="w"> </span><span class="m">95</span>.00<span class="w"> </span>--initial_max<span class="w"> </span><span class="m">105</span>.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--initial_min<span class="w"> </span><span class="m">95</span>.00<span class="w"> </span>--initial_max<span class="w"> </span><span class="m">105</span>.00
 </code></pre></div>
 <h3 id="verbose-mode-for-troubleshooting">Verbose mode for troubleshooting<a class="headerlink" href="#verbose-mode-for-troubleshooting" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span>--qty<span class="w"> </span><span class="m">500</span><span class="w"> </span>-v
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span>--qty<span class="w"> </span><span class="m">500</span><span class="w"> </span>-v
 </code></pre></div>
 <h3 id="config-file-with-one-value-overridden-on-the-cli">Config file, with one value overridden on the CLI<a class="headerlink" href="#config-file-with-one-value-overridden-on-the-cli" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="c1"># Widens every symbol that has no gap of its own in the file</span>
-<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>pm-mm-bot<span class="w"> </span>--config<span class="w"> </span>mm_tech.yaml<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.12
-<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>
-<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="c1"># Widens only MSFT, whatever the file says for it</span>
-<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>pm-mm-bot<span class="w"> </span>--config<span class="w"> </span>mm_tech.yaml<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.12
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="c1"># Widens every symbol that has no gap of its own in the file</span>
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a>pm-mm-bot<span class="w"> </span>--config<span class="w"> </span>mm_tech.yaml<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.12
+<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a>
+<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a><span class="c1"># Widens only MSFT, whatever the file says for it</span>
+<a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a>pm-mm-bot<span class="w"> </span>--config<span class="w"> </span>mm_tech.yaml<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.12
+</code></pre></div>
+<h3 id="a-market-maker-that-lets-other-traders-go-first">A market maker that lets other traders go first<a class="headerlink" href="#a-market-maker-that-lets-other-traders-go-first" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--strategy<span class="w"> </span>passive<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span>--retreat-ticks<span class="w"> </span><span class="m">5</span><span class="w"> </span>--fade-sec<span class="w"> </span><span class="m">5</span>
 </code></pre></div>
 <h3 id="inventory-skewing-with-a-position-cap">Inventory skewing with a position cap<a class="headerlink" href="#inventory-skewing-with-a-position-cap" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--strategy<span class="w"> </span>inventory_skew<span class="w"> </span>--max-position<span class="w"> </span><span class="m">1000</span><span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.10
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--strategy<span class="w"> </span>inventory_skew<span class="w"> </span>--max-position<span class="w"> </span><span class="m">1000</span><span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.10
 </code></pre></div>
 <h3 id="querying-that-bots-position-from-another-console">Querying that bot's position from another console<a class="headerlink" href="#querying-that-bots-position-from-another-console" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>POS|GW=MM_AAPL_01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>POS|GW=MM_AAPL_01
 </code></pre></div>
 <hr />
 <h2 id="understanding-bot-output">Understanding bot output<a class="headerlink" href="#understanding-bot-output" title="Permanent link">&para;</a></h2>
@@ -6036,13 +6680,13 @@ default logging level is <code>WARNING</code> — so <strong>none of them are vi
 something fails outright (those paths log at <code>ERROR</code>). Pass <code>-v</code> to see the
 bot's milestones and problems (routine per-quote activity needs <code>-vv</code> or the
 dedicated <code>--verbose</code> sections below):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>2026-09-20 09:30:00,001 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] starting: gateway=MM_AAPL_01 symbols=AAPL
-<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>2026-09-20 09:30:00,002 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
-<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>2026-09-20 09:30:01,002 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] authenticated
-<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>2026-09-20 09:30:01,003 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] bootstrap from random range: 150.00
-<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>2026-09-20 09:30:20,004 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] circuit breaker HALT
-<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>2026-09-20 09:30:45,005 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] circuit breaker RESUME
-<a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a>2026-09-20 09:35:00,006 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] shutdown complete
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>2026-09-20 09:30:00,001 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] starting: gateway=MM_AAPL_01 symbols=AAPL
+<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>2026-09-20 09:30:00,002 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
+<a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a>2026-09-20 09:30:01,002 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] authenticated
+<a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a>2026-09-20 09:30:01,003 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] bootstrap from random range: 150.00
+<a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a>2026-09-20 09:30:20,004 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] circuit breaker HALT
+<a id="__codelineno-39-6" name="__codelineno-39-6" href="#__codelineno-39-6"></a>2026-09-20 09:30:45,005 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] circuit breaker RESUME
+<a id="__codelineno-39-7" name="__codelineno-39-7" href="#__codelineno-39-7"></a>2026-09-20 09:35:00,006 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] shutdown complete
 </code></pre></div>
 <p>The <code>starting:</code> line names the gateway and every symbol the process covers,
 followed by <strong>one line per symbol</strong> reporting that symbol's resolved
@@ -6050,18 +6694,18 @@ settings. This is the confirmation that a long command line or a config file
 resolved the way you intended — read it first when a bot is not quoting the
 way you expected. Every per-symbol log line thereafter carries an additional
 <code>[SYMBOL]</code> tag ahead of the message:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>2026-09-20 09:30:00,001 INFO edumatcher.mm_bot.bot - [MM_TECH_01] starting: gateway=MM_TECH_01 symbols=AAPL,MSFT
-<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>2026-09-20 09:30:00,002 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [AAPL] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
-<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>2026-09-20 09:30:00,003 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] strategy=symmetric gap=0.2 qty=200 tif=DAY drift_ticks=3
-<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>2026-09-20 09:30:01,002 INFO edumatcher.mm_bot.bot - [MM_TECH_01] authenticated
-<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>2026-09-20 09:30:01,003 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [AAPL] bootstrap from random range: 150.00
-<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a>2026-09-20 09:30:01,004 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] bootstrap from random range: 310.00
-<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a>2026-09-20 09:30:14,005 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [AAPL] startup failed: --gap exceeds mm_max_spread_ticks obligation
-<a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a>2026-09-20 09:30:14,006 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [AAPL] excluded from quoting: --gap exceeds mm_max_spread_ticks obligation
-<a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a>2026-09-20 09:30:14,007 INFO edumatcher.mm_bot.bot - [MM_TECH_01] running symbols=['MSFT'] session=CONTINUOUS
-<a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a>2026-09-20 09:30:20,008 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] circuit breaker HALT
-<a id="__codelineno-29-11" name="__codelineno-29-11" href="#__codelineno-29-11"></a>2026-09-20 09:30:45,009 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] circuit breaker RESUME
-<a id="__codelineno-29-12" name="__codelineno-29-12" href="#__codelineno-29-12"></a>2026-09-20 09:35:00,010 INFO edumatcher.mm_bot.bot - [MM_TECH_01] shutdown complete
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>2026-09-20 09:30:00,001 INFO edumatcher.mm_bot.bot - [MM_TECH_01] starting: gateway=MM_TECH_01 symbols=AAPL,MSFT
+<a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a>2026-09-20 09:30:00,002 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [AAPL] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
+<a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a>2026-09-20 09:30:00,003 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] strategy=symmetric gap=0.2 qty=200 tif=DAY drift_ticks=3
+<a id="__codelineno-40-4" name="__codelineno-40-4" href="#__codelineno-40-4"></a>2026-09-20 09:30:01,002 INFO edumatcher.mm_bot.bot - [MM_TECH_01] authenticated
+<a id="__codelineno-40-5" name="__codelineno-40-5" href="#__codelineno-40-5"></a>2026-09-20 09:30:01,003 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [AAPL] bootstrap from random range: 150.00
+<a id="__codelineno-40-6" name="__codelineno-40-6" href="#__codelineno-40-6"></a>2026-09-20 09:30:01,004 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] bootstrap from random range: 310.00
+<a id="__codelineno-40-7" name="__codelineno-40-7" href="#__codelineno-40-7"></a>2026-09-20 09:30:14,005 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [AAPL] startup failed: --gap exceeds mm_max_spread_ticks obligation
+<a id="__codelineno-40-8" name="__codelineno-40-8" href="#__codelineno-40-8"></a>2026-09-20 09:30:14,006 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [AAPL] excluded from quoting: --gap exceeds mm_max_spread_ticks obligation
+<a id="__codelineno-40-9" name="__codelineno-40-9" href="#__codelineno-40-9"></a>2026-09-20 09:30:14,007 INFO edumatcher.mm_bot.bot - [MM_TECH_01] running symbols=['MSFT'] session=CONTINUOUS
+<a id="__codelineno-40-10" name="__codelineno-40-10" href="#__codelineno-40-10"></a>2026-09-20 09:30:20,008 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] circuit breaker HALT
+<a id="__codelineno-40-11" name="__codelineno-40-11" href="#__codelineno-40-11"></a>2026-09-20 09:30:45,009 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] circuit breaker RESUME
+<a id="__codelineno-40-12" name="__codelineno-40-12" href="#__codelineno-40-12"></a>2026-09-20 09:35:00,010 INFO edumatcher.mm_bot.bot - [MM_TECH_01] shutdown complete
 </code></pre></div>
 <p>Note that a symbol excluded during startup (as <code>AAPL</code> is here) never reaches
 the point of sending a <code>QUOTE</code> to the engine, so there is no engine-side
@@ -6075,15 +6719,15 @@ loop.</p>
 <p>With <code>--verbose</code> (<code>-v</code>), the bot additionally logs routine quoting activity —
 symbol/session updates, every quote sent, every fill, and every repricing
 decision:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>2026-09-20 09:30:01,001 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] symbols received: ['AAPL', 'MSFT', 'TSLA']
-<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>2026-09-20 09:30:01,002 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] reference from book/trade: 150.00
-<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>2026-09-20 09:30:01,003 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] QUOTE sent bid=149.95 ask=150.05
-<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>2026-09-20 09:30:01,004 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] quote ACK id=q-001
-<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>2026-09-20 09:30:14,005 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] fill: ASK 200@150.05
-<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a>2026-09-20 09:30:15,006 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] QUOTE sent bid=149.95 ask=150.05
-<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a>2026-09-20 09:31:02,007 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] drift detected — repricing
-<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a>2026-09-20 09:31:02,008 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] state: QUOTING -&gt; REPRICING
-<a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a>2026-09-20 09:31:02,009 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] QUOTE sent bid=149.99 ask=150.09
+<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>2026-09-20 09:30:01,001 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] symbols received: ['AAPL', 'MSFT', 'TSLA']
+<a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a>2026-09-20 09:30:01,002 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] reference from book/trade: 150.00
+<a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a>2026-09-20 09:30:01,003 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] QUOTE sent bid=149.95 ask=150.05
+<a id="__codelineno-41-4" name="__codelineno-41-4" href="#__codelineno-41-4"></a>2026-09-20 09:30:01,004 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] quote ACK id=q-001
+<a id="__codelineno-41-5" name="__codelineno-41-5" href="#__codelineno-41-5"></a>2026-09-20 09:30:14,005 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] fill: ASK 200@150.05
+<a id="__codelineno-41-6" name="__codelineno-41-6" href="#__codelineno-41-6"></a>2026-09-20 09:30:15,006 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] QUOTE sent bid=149.95 ask=150.05
+<a id="__codelineno-41-7" name="__codelineno-41-7" href="#__codelineno-41-7"></a>2026-09-20 09:31:02,007 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] drift detected — repricing
+<a id="__codelineno-41-8" name="__codelineno-41-8" href="#__codelineno-41-8"></a>2026-09-20 09:31:02,008 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] state: QUOTING -&gt; REPRICING
+<a id="__codelineno-41-9" name="__codelineno-41-9" href="#__codelineno-41-9"></a>2026-09-20 09:31:02,009 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] QUOTE sent bid=149.99 ask=150.09
 </code></pre></div>
 <p>(<code>symbols received:</code> covers the whole gateway and carries no <code>[SYMBOL]</code> tag;
 every other line above is per-symbol and always carries one, even when the
@@ -6152,6 +6796,21 @@ low-level flow tracing (e.g. <code>book mid=...</code>, <code>session: OLD -&gt;
 <td>Bot quotes but prices look wrong</td>
 <td>Tick size mismatch</td>
 <td>Check symbol <code>tick_size</code> in engine config</td>
+</tr>
+<tr>
+<td><code>passive</code> bot never steps back behind other traders</td>
+<td>Their orders are outside the band, below <code>--min-cover-qty</code>, or the band was narrowed to <code>0</code> by the MM spread obligation (look for <code>retreat_ticks ... narrowed to 0</code> at startup)</td>
+<td>Raise <code>--retreat-ticks</code>, lower <code>--min-cover-qty</code>, or narrow <code>--gap</code> so the obligation leaves room</td>
+</tr>
+<tr>
+<td><code>passive</code> bot still gets hit first after a trader joins its price</td>
+<td>The bot was at that price first, so it has time priority until its cancel/replace goes through</td>
+<td>Expected briefly — the bot steps back as soon as it processes the book update</td>
+</tr>
+<tr>
+<td><code>[SYM] behind_ticks must be &gt;= 1</code> (or similar)</td>
+<td>A <code>passive</code> knob is out of range</td>
+<td>See the range column in <a href="#the-control-knobs">The control knobs</a></td>
 </tr>
 <tr>
 <td>Bot stops quoting for a while, then resumes on its own</td>

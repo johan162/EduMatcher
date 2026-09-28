@@ -12,13 +12,13 @@
         <meta name="author" content="Johan Persson <johan162@gmail.com>">
       
       
-        <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/290-trader-info-terminal/">
+        <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/310-book-gui/">
       
       
-        <link rel="prev" href="../285-log-srv-gui/">
+        <link rel="prev" href="../300-trader-gui/">
       
       
-        <link rel="next" href="../300-trader-gui/">
+        <link rel="next" href="../800-examples/">
       
       
         
@@ -29,7 +29,7 @@
     
     
       
-        <title>GUI: Trading Info Terminal - EduMatcher — Educational Trading System</title>
+        <title>GUI: Order book viewer - EduMatcher — Educational Trading System</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#trader-information-terminal-tapedeck-pm-terminal" class="md-skip">
+        <a href="#order-book-viewer-pm-book" class="md-skip">
           Skip to content
         </a>
       
@@ -114,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              GUI: Trading Info Terminal
+              GUI: Order book viewer
             
           </span>
         </div>
@@ -1882,6 +1882,62 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GUI: Trading Info Terminal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../300-trader-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GUI: Trading platform
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -1901,7 +1957,7 @@
   <span class="md-ellipsis">
     
   
-    GUI: Trading Info Terminal
+    GUI: Order book viewer
   
 
     
@@ -1919,7 +1975,7 @@
   <span class="md-ellipsis">
     
   
-    GUI: Trading Info Terminal
+    GUI: Order book viewer
   
 
     
@@ -2019,6 +2075,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#all-the-web-applications-against-one-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        All the web applications against one backend
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#alternative-direct-compose-commands" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2057,6 +2124,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#make-targets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Make targets
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#where-the-read-only-api-key-comes-from" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2069,6 +2147,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-compose-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Compose setup
+      
+    </span>
+  </a>
   
 </li>
       
@@ -2096,10 +2185,76 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#status-strip-footer" class="md-nav__link">
+  <a href="#choosing-a-symbol" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Status strip (footer)
+        Choosing a symbol
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-statistics-header" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The statistics header
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bids-and-asks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BIDS and ASKS
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#trades" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TRADES
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-many-levels-are-shown" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How many levels are shown
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#footer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Footer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Settings
       
     </span>
   </a>
@@ -2112,96 +2267,13 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#screen-tour" class="md-nav__link">
+  <a href="#connection-states" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Screen tour
+        Connection states
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Screen tour">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#market-overview" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Market Overview
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#symbol-detail" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Symbol Detail
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#depth-of-book" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Depth-of-Book
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#index-view" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Index View
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#trade-tape-time-sales" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Trade Tape / Time &amp; Sales
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#movers" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Movers
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#session-halt-status-board" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Session &amp; Halt Status Board
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -2210,6 +2282,67 @@
     <span class="md-ellipsis">
       
         Configuration reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuration reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#compose-and-host-side" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compose and host side
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bridge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bridge
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#upstream-pm-api-gwy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upstream (pm-api-gwy)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Logging
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checking-the-bridge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checking the bridge
       
     </span>
   </a>
@@ -2242,62 +2375,6 @@
   
 </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../300-trader-gui/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    GUI: Trading platform
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../310-book-gui/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    GUI: Order book viewer
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -4333,55 +4410,86 @@
   
 
 
-<h1 id="trader-information-terminal-tapedeck-pm-terminal">Trader Information Terminal — "TapeDeck" (<code>pm-terminal</code>)<a class="headerlink" href="#trader-information-terminal-tapedeck-pm-terminal" title="Permanent link">&para;</a></h1>
+<h1 id="order-book-viewer-pm-book">Order Book Viewer (<code>pm-book</code>)<a class="headerlink" href="#order-book-viewer-pm-book" title="Permanent link">&para;</a></h1>
 <div class="admonition note">
 <p class="admonition-title">Learning objectives</p>
 <p>After reading this page you will understand:</p>
 <ul>
-<li>What the Trader Information Terminal is for, and when to use it instead
-  of a trading or administration tool</li>
-<li>Which services must be running before the display becomes useful</li>
-<li>How to start the terminal locally or in a container</li>
-<li>What each of the six screens is meant to help a viewer understand</li>
-<li>How to recognise normal disconnected, missing-history, and no-index
-  states without mistaking them for broken screens</li>
-<li>Which settings an operator is most likely to adjust</li>
+<li>What the order book viewer shows, and how it relates to <code>pm-viewer</code></li>
+<li>Which services must be running, and why the read-only API key is
+  mandatory for this application</li>
+<li>How to start it with the whole stack, on its own in a container, on a
+  separate display server, or as a local development server</li>
+<li>How the Compose setup wires it to the exchange</li>
+<li>What every field of the statistics header, the two ladders and the trade
+  tape means</li>
+<li>How to read the connection states and the footer without mistaking a
+  quiet market for a broken one</li>
+<li>Which environment variables an operator is most likely to adjust</li>
 </ul>
 </div>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
-<p><strong>TapeDeck</strong> is the friendly nickname this guide uses for the Trader
-Information Terminal, whose system name is <code>pm-terminal</code> and whose source code
-lives in <code>web-apps/terminal-gui/</code>. It is a read-only market display for the EduMatcher
-exchange: a browser window for watching live prices, trades, auctions, halts,
-indexes, and depth-of-book information.</p>
-<p>It is deliberately <em>not</em> a trading application. There is no order entry, no
-login screen, and no write path from the browser back into the exchange. Use it
-for a classroom wallboard, a demo display, an observer workstation, or a quick
-operator check that the market-data feed is alive. Use the trading client for
-placing orders, and the administration tools for changing exchange state.</p>
-<p>The terminal shows live data from the <a href="../240-calf-gateway/">CALF market-data feed</a>
-and reads historical bars and index history through the <a href="../260-api-gateway/">API Gateway</a>.
-The browser never sees an API key; the small bridge process running beside the
-web UI holds the upstream connections.</p>
+<p><code>pm-book</code> is the web companion to the <a href="../170-processes/#pm-viewer-order-book-viewer"><code>pm-viewer</code></a>
+terminal application: one symbol's full order book — every price level on both
+sides — the session statistics above it and a trade tape beside it, in a
+browser. Its source code lives in <code>web-apps/book-gui/</code>.</p>
+<p>Like <a href="../290-trader-info-terminal/">TapeDeck</a> it is read-only. There is no order
+entry, no login screen and no write path from the browser into the exchange.
+Use it on a classroom projector while students trade against a book, beside
+the <a href="../300-trader-gui/">Trading GUI</a> to watch the effect of your own orders, or
+on any machine where <code>pm-viewer</code> would need a terminal and direct access to the
+engine's message bus.</p>
+<p>Everything <code>pm-viewer</code> shows is here, field for field: last price and change,
+bid, ask and spread, open/high/low/close, previous close, range, volume, and the
+basis the change is measured against. What the browser adds is symbol switching
+by URL, a dark and a light theme, font scaling, and a layout that fills
+whatever screen it is shown on.</p>
 <h3 id="what-starts-when-you-run-it">What starts when you run it<a class="headerlink" href="#what-starts-when-you-run-it" title="Permanent link">&para;</a></h3>
-<p>Running TapeDeck starts one server process, <code>pm-terminal-bridge</code>, and serves
-the web page from that same process in the container setup. The bridge opens
-one live CALF connection to <a href="../240-calf-gateway/"><code>pm-md-gwy</code></a>, shares that
-single feed across every open browser tab, and opens history requests to
-<a href="../260-api-gateway/"><code>pm-api-gwy</code></a> when charts or previous-close data are
-needed. Optional operational logs go to
-<a href="../280-log-srv/">the centralized log server</a> when it is available.</p>
-<p>Most users do not need the following diagram to operate the terminal, but it
-is useful when deciding which host names and ports to put in the container
-environment.</p>
+<p>Running the viewer starts one server process, <code>pm-book-bridge</code>, which also
+serves the web page. The bridge reads <strong>all</strong> of its data from the
+<a href="../260-api-gateway/">API Gateway</a> — it never talks to the engine, to
+<code>pm-md-gwy</code> or to <code>pm-stats</code> directly:</p>
+<table>
+<thead>
+<tr>
+<th>From <code>pm-api-gwy</code></th>
+<th>Used for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>WS /api/v1/market-data</code></td>
+<td>The live book and every new trade of the symbols being watched</td>
+</tr>
+<tr>
+<td><code>GET /api/v1/reference/symbols</code></td>
+<td>The symbol list in the picker, and each symbol's number of price decimals</td>
+</tr>
+<tr>
+<td><code>GET /api/v1/history/session</code></td>
+<td>The exchange session timezone and today's trading date</td>
+</tr>
+<tr>
+<td><code>GET /api/v1/history/trades</code></td>
+<td>The session's earlier trades, so the statistics and tape are complete when you open a book</td>
+</tr>
+<tr>
+<td><code>GET /api/v1/history/daily</code></td>
+<td>The previous close</td>
+</tr>
+</tbody>
+</table>
+<p>The bridge holds exactly one upstream WebSocket however many browser tabs are
+open, and subscribes to a symbol only while at least one tab is watching it.
+The read-only API key stays in the bridge; the browser never sees it.</p>
 <pre class="mermaid"><code>flowchart LR
     subgraph Browser["Browser tab(s)"]
-        UI["React app\n(Zustand + TanStack Query)"]
+        UI["React app\n(Zustand)"]
     end
-    UI --&gt;|"WS /ws/stream\n(JSON frames)"| BRIDGE["pm-terminal-bridge\nFastify + Node :8090"]
-    UI --&gt;|"REST /api/history/*\n(proxied)"| BRIDGE
-    BRIDGE --&gt;|"CALF TCP :5570\none session, shared by every tab"| MDGWY["pm-md-gwy"]
-    BRIDGE --&gt;|"REST GET /history/*\n(server-held read-only key)"| APIGWY["pm-api-gwy :8081\n(dashboards instance)"]
+    UI --&gt;|"WS /ws/stream\n(JSON frames)"| BRIDGE["pm-book-bridge\nFastify + Node :8094"]
+    BRIDGE --&gt;|"WS /api/v1/market-data\none connection, shared by every tab"| APIGWY["pm-api-gwy :8081\n(dashboards instance)"]
+    BRIDGE --&gt;|"REST /api/v1/history/*\n/api/v1/reference/symbols"| APIGWY
+    APIGWY --&gt;|"read-only history"| STATS["pm-stats\nstats.db"]
     BRIDGE -.-&gt;|"LALF TCP :5600\noperational logging"| LOGSRV["pm-log-srv"]</code></pre>
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <table>
@@ -4393,20 +4501,20 @@ environment.</p>
 </thead>
 <tbody>
 <tr>
-<td><strong><code>pm-md-gwy</code></strong> (<a href="../240-calf-gateway/">CALF gateway</a>)</td>
-<td>Required for live prices, trades, session state, auctions, halts, indexes, and depth. The terminal can start without it, but it will show <code>RECONNECTING</code>/<code>OFFLINE</code> until the feed is reachable.</td>
+<td><strong><code>pm-api-gwy</code></strong> (<a href="../260-api-gateway/">API Gateway</a>), <code>dashboards</code> instance, with a <strong>read-only API key</strong></td>
+<td>Required for everything. The key is the credential with <code>gateway_id: null</code>; it is issued on the <code>dashboards</code> instance (port 8081 in the bundled configurations), not on <code>desk</code> (8080). Without the key the viewer has nothing to show.</td>
 </tr>
 <tr>
-<td><strong><code>pm-api-gwy</code></strong> (<a href="../260-api-gateway/">API Gateway</a>) with a read-only API key</td>
-<td>Required for charts, previous-close data, index history, and Overview/Movers <code>Open</code>/<code>Volume</code> columns. Live prices still tick without it.</td>
+<td><strong><code>pm-stats</code></strong> (<a href="../140-statistics-and-reporting/">Statistics</a>)</td>
+<td>Strongly recommended. The history endpoints read its database. Without it the viewer still works, but the statistics cover only the trades seen since the book was opened, and the header says so.</td>
 </tr>
 <tr>
 <td><strong><code>pm-log-srv</code></strong> (<a href="../280-log-srv/">Centralized Log Server</a>) — optional</td>
-<td>Used only for operational logs. If it is unavailable, the terminal still starts and writes to stdout or the local failover log directory.</td>
+<td>Used only for the bridge's own operational logs. If it is unavailable the bridge logs to stdout, or to a local failover file.</td>
 </tr>
 <tr>
 <td><strong>Podman ≥ 4</strong> or <strong>Docker ≥ 24</strong> with a Compose plugin</td>
-<td>Needed for the recommended container run path.</td>
+<td>Needed for the container run paths.</td>
 </tr>
 <tr>
 <td><strong>Node.js ≥ 20</strong> and <strong>npm ≥ 10</strong></td>
@@ -4414,118 +4522,178 @@ environment.</p>
 </tr>
 </tbody>
 </table>
+<div class="admonition warning">
+<p class="admonition-title">The key is mandatory — unlike TapeDeck</p>
+<p>TapeDeck gets its live prices from <code>pm-md-gwy</code> and uses the API key only
+for history, so it still ticks without one. The order book viewer reads
+its live data through <code>pm-api-gwy</code> too. Without a key the bridge starts,
+logs <code>PM_BOOK_API_KEY is unset — no market data or history can be read</code>,
+and never connects upstream. The app's own <code>make up</code> therefore refuses to
+start without one.</p>
+<p>Mandatory does not mean you have to find it: every bundled configuration
+already contains the key, and the local start paths look it up for you —
+see <a href="#where-the-read-only-api-key-comes-from">Where the read-only API key comes from</a>.</p>
+</div>
 <h2 id="running-the-application">Running the application<a class="headerlink" href="#running-the-application" title="Permanent link">&para;</a></h2>
-<p>TapeDeck needs three things from the exchange, and how you supply them is the
-only real difference between the ways of running it:</p>
+<p>There are four ways to run the viewer. They differ only in how the bridge
+learns two things: <strong>where <code>pm-api-gwy</code> is</strong>, and <strong>the read-only API key</strong>.</p>
 <table>
 <thead>
 <tr>
-<th>It needs</th>
-<th>For</th>
-<th>Without it</th>
+<th>Way</th>
+<th>Where the exchange runs</th>
+<th>Who supplies the address and the key</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>pm-md-gwy</code> on 5570</td>
-<td>The live CALF feed — prices, depth, trades</td>
-<td>The page loads but shows <code>RECONNECTING</code></td>
+<td><a href="#the-whole-stack-recommended">The whole stack</a></td>
+<td>In the same Compose project</td>
+<td>Found automatically</td>
 </tr>
 <tr>
-<td><code>pm-api-gwy</code> on 8081, plus a read-only API key</td>
-<td>Charts, previous close, historical index data</td>
-<td>Live prices tick; history panels stay empty</td>
+<td><a href="#this-app-alone-in-a-container">This app alone, in a container</a></td>
+<td>On this host, in a VM, or elsewhere</td>
+<td>You, or <code>make up</code> from the deployed configuration</td>
 </tr>
 <tr>
-<td><code>pm-log-srv</code> on 5600 <em>(optional)</em></td>
-<td>Sending the bridge's own logs to the central log server</td>
-<td>The bridge writes a fallback log to <code>./logs</code></td>
+<td><a href="#running-on-a-separate-display-server">On a separate display server</a></td>
+<td>On another machine</td>
+<td>You</td>
+</tr>
+<tr>
+<td><a href="#local-development">Local development</a></td>
+<td>Anywhere reachable</td>
+<td>You, or <code>make dev-env</code></td>
 </tr>
 </tbody>
 </table>
+<p>You only ever supply the key yourself when the exchange runs on another
+machine; everywhere else it is looked up for you, as described in
+<a href="#where-the-read-only-api-key-comes-from">Where the read-only API key comes from</a>.</p>
 <h3 id="the-whole-stack-recommended">The whole stack (recommended)<a class="headerlink" href="#the-whole-stack-recommended" title="Permanent link">&para;</a></h3>
-<p>This is the path that requires nothing of you: it starts the exchange and
-TapeDeck together, resolves the read-only API key out of the deployed
-configuration, and points the terminal at the backend by service name.</p>
-<p><strong>A released install:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">cd</span><span class="w"> </span>~/.edumatcher
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>./edumatcher.sh<span class="w"> </span>start
+<p>This path requires nothing of you: it starts the exchange and every web
+application together, reads the read-only key out of the deployed
+configuration, and points the viewer at the backend by service name.</p>
+<p><strong>A released install</strong> (the one-line installer):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">cd</span><span class="w"> </span>~/.edumatcher
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>./edumatcher.sh<span class="w"> </span>start
 </code></pre></div>
 <p><strong>From a source checkout:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>make<span class="w"> </span>up-all
 </code></pre></div>
-<p>Then open <strong><a href="http://localhost:8090">http://localhost:8090</a></strong>. The log console comes up on
-<a href="../285-log-srv-gui/">8091</a>, the trading GUI on <a href="../300-trader-gui/">8093</a> and
-the order book viewer on 8094 at the same time.</p>
-<p>There are no addresses to configure because every container shares one
-Compose network, on which the exchange answers to the hostname <code>edumatcher</code>.
-The API key is the one part that cannot be a fixed default — it is generated
-per engine configuration — so <code>up-all</code> reads it from the deployed
-configuration and injects it. See
-<a href="#where-the-read-only-api-key-comes-from">Where the read-only API key comes from</a>
-and <a href="../005-installation/">Installation</a>.</p>
+<p>Then open <strong><a href="http://localhost:8094">http://localhost:8094</a></strong>. It opens on the first listed symbol; press
+<code>s</code> to pick another. <code>./edumatcher.sh urls</code> (released install) or the summary
+<code>make up-all</code> prints lists every application's address.</p>
+<div class="admonition note">
+<p class="admonition-title">An install from before the order book viewer existed</p>
+<p><code>./edumatcher.sh update</code> pulls new images but does not re-download
+<code>compose.yaml</code>, so an older install does not gain the viewer from an
+update. Re-run the one-line installer: it keeps your <code>.env</code> and <code>data/</code>
+and fetches the current <code>compose.yaml</code> and <code>edumatcher.sh</code>. See
+<a href="../005-installation/">Installation</a>.</p>
+</div>
+<p>Useful commands on this path:</p>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Released install</th>
+<th>Source checkout (<code>deployment/docker</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Follow the viewer's log</td>
+<td><code>./edumatcher.sh logs book-gui</code></td>
+<td><code>podman logs -f edumatcher-book-gui</code></td>
+</tr>
+<tr>
+<td>Rebuild only this image and restart</td>
+<td>—</td>
+<td><code>make up-all BUILD=1 GUI=book-gui</code></td>
+</tr>
+<tr>
+<td>Move it to another host port</td>
+<td><code>BOOK_GUI_PORT=8100</code> in <code>.env</code></td>
+<td><code>BOOK_GUI_PORT=8100</code> in <code>.env</code></td>
+</tr>
+<tr>
+<td>Stop everything</td>
+<td><code>./edumatcher.sh stop</code></td>
+<td><code>make down-all</code></td>
+</tr>
+</tbody>
+</table>
+<p>Use <code>docker</code> in place of <code>podman</code> if that is your runtime. After changing the
+engine configuration (<code>make up-all CONFIG=&lt;other&gt;</code>), start the stack again
+rather than only the viewer: every bundled configuration carries a different
+read-only key, and the key is resolved at start time.</p>
 <h3 id="this-app-alone-in-a-container">This app alone, in a container<a class="headerlink" href="#this-app-alone-in-a-container" title="Permanent link">&para;</a></h3>
-<p>Use this when the exchange is running somewhere else — another machine, a VM,
-or as processes on your host. From <code>web-apps/terminal-gui/</code>:</p>
+<p>Use this when the exchange is already running outside Compose — as processes on
+your host, in a VM, or on another machine. From <code>web-apps/book-gui/</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span>~/.local/share/edumatcher
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>make<span class="w"> </span>up
 </code></pre></div>
-<p>Then open <strong><a href="http://localhost:8090">http://localhost:8090</a></strong>. <code>make logs</code> follows the bridge log,
-<code>make down</code> stops it.</p>
-<p><strong>How <code>make up</code> finds the API key.</strong> An explicit <code>PM_TERMINAL_API_KEY</code> always
-wins:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>make<span class="w"> </span>up<span class="w"> </span><span class="nv">PM_TERMINAL_API_KEY</span><span class="o">=</span>key-readonly-...
+<p>Then open <strong><a href="http://localhost:8094">http://localhost:8094</a></strong>. <code>make logs</code> follows the bridge log,
+<code>make ps</code> shows the container, and <code>make down</code> stops it.</p>
+<p><strong>How <code>make up</code> finds the key.</strong> An explicit <code>PM_BOOK_API_KEY</code> always wins:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>make<span class="w"> </span>up<span class="w"> </span><span class="nv">PM_BOOK_API_KEY</span><span class="o">=</span>key-readonly-...
 </code></pre></div>
 <p>Otherwise <code>make up</code> reads it from the deployed configuration
-<code>$EDUMATCHER_DATA_DIR/ref_data/engine_config.json</code>, picking the first
-credential with <code>gateway_id: null</code> (the <code>dashboards</code> instance is preferred when
-several carry one). It prints which instance and port the key came from, and
-warns when <code>API_GATEWAY_URL</code> points at a different port. When there is no key to
-be found it warns and starts anyway — the live feed needs no key, only the
-history panels do. Pass the key explicitly when the exchange runs on another
-machine or in a VM, since the look-up reads this host's data directory.</p>
-<p>Now the addresses matter, because the container is no longer beside the
-exchange. The compose file defaults to <code>host.docker.internal</code>, which resolves
-on Docker Desktop but not on Podman or Linux Docker:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">CALF_HOST</span><span class="o">=</span>host.containers.internal
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">API_GATEWAY_URL</span><span class="o">=</span>http://host.containers.internal:8081
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="nb">export</span><span class="w"> </span><span class="nv">LOG_SRV_HOST</span><span class="o">=</span>host.containers.internal
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>make<span class="w"> </span>up
+<code>$EDUMATCHER_DATA_DIR/ref_data/engine_config.json</code> — the same file the
+exchange's own processes read — picking the first credential with
+<code>gateway_id: null</code> (the <code>dashboards</code> instance is preferred when several carry
+one). It prints which instance and port the key came from, and warns when
+<code>API_GATEWAY_URL</code> points at a different port. With neither a key nor a deployed
+configuration to read it from, <code>make up</code> stops with an explanation rather than
+starting a viewer that can show nothing.</p>
+<p><strong>The address.</strong> The app's <code>docker-compose.yml</code> defaults <code>API_GATEWAY_URL</code> and
+<code>LOG_SRV_HOST</code> to <code>host.docker.internal</code>, which is right on Docker Desktop. On
+bare Linux Docker, <code>make up</code> adds <code>docker-compose.linux.yml</code>, which maps that
+name to the host. On Podman, point both at <code>host.containers.internal</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">API_GATEWAY_URL</span><span class="o">=</span>http://host.containers.internal:8081
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">LOG_SRV_HOST</span><span class="o">=</span>host.containers.internal
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>make<span class="w"> </span>up
 </code></pre></div>
 <div class="admonition warning">
-<p class="admonition-title">The history key is valid on 8081, not 8080</p>
-<p><code>API_GATEWAY_URL</code> must point at the <code>dashboards</code> instance. The read-only
-credential (<code>gateway_id: null</code>) is issued there; <code>desk</code> on 8080 will reject
-it, and the symptom is a live book with empty charts. The compose file
-already defaults to <code>:8081</code> — keep the port when you change the host.</p>
+<p class="admonition-title">The key is valid on 8081, not 8080</p>
+<p><code>API_GATEWAY_URL</code> must point at the <code>dashboards</code> instance, where the
+read-only credential is issued. <code>desk</code> on 8080 rejects it; the bridge then
+logs <code>refused PM_BOOK_API_KEY</code> and the top bar stays on <code>RECONNECTING</code>.
+Keep the port when you change the host.</p>
 </div>
-<p>If port 8090 is taken, move the <em>host</em> side of it. Pick something outside
+<p>If port 8094 is taken, move the <em>host</em> side of it. Pick something outside
 8090–8094, which the other applications use:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nv">TERMINAL_GUI_PORT</span><span class="o">=</span><span class="m">8100</span><span class="w"> </span>make<span class="w"> </span>up
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nv">BOOK_GUI_PORT</span><span class="o">=</span><span class="m">8100</span><span class="w"> </span>make<span class="w"> </span>up
 </code></pre></div>
-<p>The container serves the built React frontend, the WebSocket endpoint, and the
-small read-only history proxy from the same port. There is no database volume:
-the only bind mount is <code>./logs:/app/logs</code>, used when the optional log server is
-not reachable after startup.</p>
+<h4 id="all-the-web-applications-against-one-backend">All the web applications against one backend<a class="headerlink" href="#all-the-web-applications-against-one-backend" title="Permanent link">&para;</a></h4>
+<p><code>web-apps/Makefile</code> starts the log console, TapeDeck, the Trading GUI and the
+order book viewer together, each from its own directory, and points them all at
+one backend address:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nb">cd</span><span class="w"> </span>web-apps
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>make<span class="w"> </span>up<span class="w"> </span><span class="nv">VM_BACKEND_IP</span><span class="o">=</span><span class="m">192</span>.168.64.10<span class="w"> </span><span class="nv">PM_BOOK_API_KEY</span><span class="o">=</span>key-readonly-...
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>make<span class="w"> </span>up-book<span class="w"> </span><span class="nv">VM_BACKEND_IP</span><span class="o">=</span><span class="m">192</span>.168.64.10<span class="w"> </span><span class="nv">PM_BOOK_API_KEY</span><span class="o">=</span>key-readonly-...<span class="w">   </span><span class="c1"># only this one</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>make<span class="w"> </span>logs-book
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>make<span class="w"> </span>down-book
+</code></pre></div>
+<p><code>VM_BACKEND_IP</code> sets <code>API_GATEWAY_URL=http://&lt;ip&gt;:8081</code> and <code>LOG_SRV_HOST=&lt;ip&gt;</code>
+for the viewer. Pass the key explicitly when the backend runs in a VM: the
+automatic look-up reads the deployed configuration from <em>this</em> host's data
+directory.</p>
 <h4 id="alternative-direct-compose-commands">Alternative: direct Compose commands<a class="headerlink" href="#alternative-direct-compose-commands" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nv">PM_TERMINAL_API_KEY</span><span class="o">=</span><span class="s1">'...'</span><span class="w"> </span>docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>--build<span class="w"> </span>-d
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>docker<span class="w"> </span>compose<span class="w"> </span>logs<span class="w"> </span>-f<span class="w"> </span>terminal-gui
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>docker<span class="w"> </span>compose<span class="w"> </span>down
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nv">PM_BOOK_API_KEY</span><span class="o">=</span><span class="s1">'key-readonly-...'</span><span class="w"> </span>docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>--build<span class="w"> </span>-d
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>docker<span class="w"> </span>compose<span class="w"> </span>logs<span class="w"> </span>-f<span class="w"> </span>book-gui
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>docker<span class="w"> </span>compose<span class="w"> </span>down
 </code></pre></div>
 <p>With Podman, use <code>podman-compose</code> for the same commands.</p>
 <h3 id="running-on-a-separate-display-server">Running on a separate display server<a class="headerlink" href="#running-on-a-separate-display-server" title="Permanent link">&para;</a></h3>
-<p>TapeDeck does not have to run on the same machine as the matching engine,
-<code>pm-md-gwy</code>, or <code>pm-api-gwy</code>. A common deployment is:</p>
-<ul>
-<li><strong>Exchange server</strong>: runs the engine, <code>pm-md-gwy</code>, <code>pm-api-gwy</code>, and
-  optionally <code>pm-log-srv</code>.</li>
-<li><strong>Display server</strong>: runs only the TapeDeck container and serves the browser
-  UI to viewers.</li>
-</ul>
-<p>No protocol change is needed on the exchange side. The terminal bridge is just
-another external CALF client plus a read-only history client. The practical
-requirements are:</p>
+<p>The viewer does not have to run on the machine that runs the exchange. A common
+classroom set-up has the exchange on one server and the viewer on the machine
+driving the projector. Nothing changes on the exchange side: the bridge is just
+another read-only <code>pm-api-gwy</code> client.</p>
 <table>
 <thead>
 <tr>
@@ -4535,115 +4703,148 @@ requirements are:</p>
 </thead>
 <tbody>
 <tr>
-<td><code>pm-md-gwy</code></td>
-<td>It normally binds to <code>0.0.0.0:5570</code>, so no application change is needed unless your config deliberately set <code>market_data_gateway.bind_address</code> to <code>127.0.0.1</code>. The display server must be able to open TCP <code>5570</code> on the exchange host.</td>
-</tr>
-<tr>
 <td><code>pm-api-gwy</code></td>
-<td>It binds <code>0.0.0.0</code> by default, so no application change is needed unless your configuration deliberately narrows <code>api_gateways.&lt;name&gt;.host</code>. The display server must reach the instance that issues the <strong>read-only</strong> credential — the <code>dashboards</code> instance, HTTP <code>8081</code> in the bundled configurations, not <code>desk</code> on 8080.</td>
+<td>It binds <code>0.0.0.0</code> by default. The display server must reach the <code>dashboards</code> instance — HTTP and WebSocket on TCP <code>8081</code> in the bundled configurations.</td>
 </tr>
 <tr>
 <td>API key</td>
-<td>Create or reuse a read-only <code>pm-api-gwy</code> key with <code>gateway_id: null</code>; TapeDeck only needs history reads and never sends the key to browsers.</td>
+<td>The read-only credential (<code>gateway_id: null</code>) of that instance. It never leaves the display server's bridge.</td>
+</tr>
+<tr>
+<td><code>pm-stats</code></td>
+<td>Must be running on the exchange server for complete statistics; the viewer reaches it only through <code>pm-api-gwy</code>.</td>
 </tr>
 <tr>
 <td><code>pm-log-srv</code></td>
-<td>Optional. If you want centralized terminal logs, make TCP <code>5600</code> reachable and set <code>LOG_SRV_HOST</code> on the display server. If not, set <code>LOG_SRV_ENABLED=false</code> or let the container write its fallback log to <code>./logs</code>.</td>
+<td>Optional. Make TCP <code>5600</code> reachable and set <code>LOG_SRV_HOST</code>, or set <code>LOG_SRV_ENABLED=false</code>.</td>
 </tr>
 <tr>
-<td>Firewall / routing</td>
-<td>Open only the ports the display server actually needs: TCP <code>5570</code> for CALF, TCP <code>8081</code> for history, and optionally TCP <code>5600</code> for logs. Browsers only need access to the display server's <code>8090</code> port, not to the exchange gateways.</td>
+<td>Firewall</td>
+<td>Open <code>8081</code> (and optionally <code>5600</code>) from the display server to the exchange. Browsers need only the display server's <code>8094</code>.</td>
 </tr>
 </tbody>
 </table>
-<p>On the display server, use the prepared image rather than building from source.
-The exact image name depends on how the release was delivered:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Option A: the released image</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>podman<span class="w"> </span>pull<span class="w"> </span>ghcr.io/johan162/edumatcher-terminal-gui:&lt;VERSION&gt;
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># Option B: an image tarball made with `make cdist` in web-apps/terminal-gui</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>podman<span class="w"> </span>load<span class="w"> </span>--input<span class="w"> </span>edumatcher-terminal-gui-&lt;VERSION&gt;.tar.xz
+<p>On the display server, use a prepared image rather than building from source:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Option A: the released image</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>podman<span class="w"> </span>pull<span class="w"> </span>ghcr.io/johan162/edumatcher-book-gui:&lt;VERSION&gt;
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="c1"># Option B: an image tarball made with `make cdist` in web-apps/book-gui</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>podman<span class="w"> </span>load<span class="w"> </span>--input<span class="w"> </span>edumatcher-book-gui-&lt;VERSION&gt;.tar.xz
 </code></pre></div>
-<p>Then run the container, pointing it at the exchange server's network name or IP
-address:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>logs
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>podman<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>terminal-gui<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">  </span>--restart<span class="w"> </span>unless-stopped<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">  </span>-p<span class="w"> </span><span class="m">8090</span>:8090<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">  </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/logs:/app/logs"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">  </span>-e<span class="w"> </span><span class="nv">CALF_HOST</span><span class="o">=</span>exchange.example.org<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">  </span>-e<span class="w"> </span><span class="nv">CALF_PORT</span><span class="o">=</span><span class="m">5570</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">  </span>-e<span class="w"> </span><span class="nv">API_GATEWAY_URL</span><span class="o">=</span>http://exchange.example.org:8081<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="w">  </span>-e<span class="w"> </span><span class="nv">PM_TERMINAL_API_KEY</span><span class="o">=</span><span class="s1">'...'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="w">  </span>-e<span class="w"> </span><span class="nv">INDEX_IDS</span><span class="o">=</span>MAIN<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="w">  </span>-e<span class="w"> </span><span class="nv">LOG_SRV_ENABLED</span><span class="o">=</span><span class="nb">false</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="w">  </span>ghcr.io/johan162/edumatcher-terminal-gui:&lt;VERSION&gt;
+<p>Then run it, pointing it at the exchange server:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>logs
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>podman<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>book-gui<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span>--restart<span class="w"> </span>unless-stopped<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">  </span>-p<span class="w"> </span><span class="m">8094</span>:8094<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">  </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/logs:/app/logs"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">  </span>-e<span class="w"> </span><span class="nv">API_GATEWAY_URL</span><span class="o">=</span>http://exchange.example.org:8081<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">  </span>-e<span class="w"> </span><span class="nv">PM_BOOK_API_KEY</span><span class="o">=</span><span class="s1">'key-readonly-...'</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">  </span>-e<span class="w"> </span><span class="nv">LOG_SRV_ENABLED</span><span class="o">=</span><span class="nb">false</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">  </span>ghcr.io/johan162/edumatcher-book-gui:&lt;VERSION&gt;
 </code></pre></div>
-<p>Use the image name you pulled or loaded — a loaded tarball is named
-<code>edumatcher-terminal-gui:&lt;VERSION&gt;</code> — and <code>docker</code> instead of <code>podman</code> if that
-is your container runtime. If
-centralized logging is available, replace <code>LOG_SRV_ENABLED=false</code> with:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>-e<span class="w"> </span><span class="nv">LOG_SRV_ENABLED</span><span class="o">=</span><span class="nb">true</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>-e<span class="w"> </span><span class="nv">LOG_SRV_HOST</span><span class="o">=</span>exchange.example.org<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>-e<span class="w"> </span><span class="nv">LOG_SRV_PORT</span><span class="o">=</span><span class="m">5600</span>
-</code></pre></div>
-<p>After startup, open <strong>http://display-server.example.org:8090</strong> from a browser.
-If the page loads but shows <code>RECONNECTING</code>, the display server can serve the
-UI but cannot reach <code>pm-md-gwy</code>. If live prices tick but charts or previous
-close values are missing, check <code>API_GATEWAY_URL</code> and <code>PM_TERMINAL_API_KEY</code>.</p>
+<p>Use the image name you pulled or loaded. For centralized logging, replace
+<code>LOG_SRV_ENABLED=false</code> with <code>-e LOG_SRV_HOST=exchange.example.org</code>. Then open
+<strong>http://display-server.example.org:8094</strong>.</p>
+<p>If the page loads but the top bar shows <code>RECONNECTING</code>, the display server
+serves the UI but cannot reach or authenticate with <code>pm-api-gwy</code>; the bridge
+log says which.</p>
 <h3 id="local-development">Local development<a class="headerlink" href="#local-development" title="Permanent link">&para;</a></h3>
-<p>From the <code>web-apps/terminal-gui/</code> directory:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>make<span class="w"> </span>install<span class="w">    </span><span class="c1"># npm workspace install; once, and after a dependency change</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>make<span class="w"> </span>dev<span class="w">        </span><span class="c1"># Vite dev server on :8190, bridge on :5190</span>
+<p>From <code>web-apps/book-gui/</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>make<span class="w"> </span>install<span class="w">                                   </span><span class="c1"># once, and after a dependency change</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="nv">PM_BOOK_API_KEY</span><span class="o">=</span>key-readonly-...<span class="w"> </span>make<span class="w"> </span>dev<span class="w">      </span><span class="c1"># Vite on :8194, bridge on :5194</span>
 </code></pre></div>
-<p>Open <strong><a href="http://localhost:8190">http://localhost:8190</a></strong>. You do not talk to the bridge directly:
-<code>vite.config.ts</code> proxies <code>/api</code> and <code>/ws</code> from the dev server to the bridge on
-<code>127.0.0.1:5190</code>, so the browser sees a single origin.</p>
-<p>The bridge's own connect targets all default to <code>127.0.0.1</code>, which is exactly
-where the container stack publishes its ports — so <code>make up-all</code> in
-<code>deployment/docker</code> plus <code>make dev</code> here works with no configuration beyond the
-API key. <code>make dev-env GUI=terminal-gui</code> in <code>deployment/docker</code> prints the two
-values that cannot be defaulted:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span>make<span class="w"> </span>-s<span class="w"> </span>-C<span class="w"> </span>../../deployment/docker<span class="w"> </span>dev-env<span class="w"> </span><span class="nv">GUI</span><span class="o">=</span>terminal-gui<span class="k">)</span><span class="s2">"</span>
+<p>Open <strong><a href="http://localhost:8194">http://localhost:8194</a></strong>. The Vite dev server proxies <code>/api</code> and <code>/ws</code> to the
+bridge on <code>127.0.0.1:5194</code>, so the browser sees a single origin.</p>
+<p>The bridge's connect targets default to <code>127.0.0.1</code>, which is exactly where the
+container stack publishes its ports, so <code>make up-all</code> in <code>deployment/docker</code>
+plus <code>make dev</code> here needs nothing beyond the key. <code>make dev-env</code> prints it,
+together with the matching <code>API_GATEWAY_URL</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span>make<span class="w"> </span>-s<span class="w"> </span>-C<span class="w"> </span>../../deployment/docker<span class="w"> </span>dev-env<span class="w"> </span><span class="nv">GUI</span><span class="o">=</span>book-gui<span class="k">)</span><span class="s2">"</span>
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>make<span class="w"> </span>dev
 </code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title">Keep <code>dev-env</code> out of the shell you start containers from</p>
 <p><code>eval "$(make dev-env …)"</code> exports <code>API_GATEWAY_URL=http://127.0.0.1:8081</code>
-and <code>PM_TERMINAL_API_KEY</code> into your shell, and they stay there. That is right
+and <code>PM_BOOK_API_KEY</code> into your shell, and they stay there. That is right
 for <code>make dev</code>, whose bridge runs on your own machine. It is wrong for a
 <strong>container</strong> started later from the same shell: Compose hands the
 exported <code>API_GATEWAY_URL</code> to the container, where <code>127.0.0.1</code> is the
-container itself. The app's own <code>make up</code> in <code>web-apps/terminal-gui</code> — or
+container itself. The app's own <code>make up</code> in <code>web-apps/book-gui</code> — or
 <code>make up</code> in <code>web-apps/</code> without <code>VM_BACKEND_IP</code> — then starts a bridge
-that cannot reach <code>pm-api-gwy</code>: live prices still tick, but the charts, previous close and Open/Volume columns stay empty, and the bridge log shows the history requests to <code>127.0.0.1:8081</code> failing. The exported key also takes
+that cannot reach <code>pm-api-gwy</code>: the top bar stays on <code>RECONNECTING</code>, and the bridge log shows connections to <code>127.0.0.1:8081</code> being refused. The exported key also takes
 precedence over <code>make up</code>'s own look-up, and is stale once the exchange
 runs another configuration.</p>
 <p><code>make up-all</code> and <code>./edumatcher.sh start</code> are not affected: whenever they
 find the read-only credential they set both values themselves.</p>
 <p>Either load the variables for the development server only, in a subshell:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="o">(</span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span>make<span class="w"> </span>-s<span class="w"> </span>-C<span class="w"> </span>../../deployment/docker<span class="w"> </span>dev-env<span class="w"> </span><span class="nv">GUI</span><span class="o">=</span>terminal-gui<span class="k">)</span><span class="s2">"</span><span class="p">;</span><span class="w"> </span>make<span class="w"> </span>dev<span class="o">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="o">(</span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span>make<span class="w"> </span>-s<span class="w"> </span>-C<span class="w"> </span>../../deployment/docker<span class="w"> </span>dev-env<span class="w"> </span><span class="nv">GUI</span><span class="o">=</span>book-gui<span class="k">)</span><span class="s2">"</span><span class="p">;</span><span class="w"> </span>make<span class="w"> </span>dev<span class="o">)</span>
 </code></pre></div>
 <p>or clear them before starting a container from that shell:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nb">unset</span><span class="w"> </span>API_GATEWAY_URL<span class="w"> </span>PM_TERMINAL_API_KEY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nb">unset</span><span class="w"> </span>API_GATEWAY_URL<span class="w"> </span>PM_BOOK_API_KEY
 </code></pre></div>
 </div>
-<p>If <code>pm-md-gwy</code> is not running the page still loads, with the connection
-indicator showing <code>RECONNECTING</code>/<code>OFFLINE</code> until the feed appears.
-<code>make dev-bridge</code> runs only the bridge, <code>make dev-web</code> only the web server, and
-<code>make test</code> the Vitest suite. The full inner-loop workflow is
-<a href="../../developer/08-dev-workflow/">The Development Loop</a>.</p>
+<p>The containerised viewer keeps running on 8094 at the same time, which makes it
+a convenient reference for your change on 8194. The full inner loop is
+described in <a href="../../developer/08-dev-workflow/">The Development Loop</a>.</p>
+<h3 id="make-targets">Make targets<a class="headerlink" href="#make-targets" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Target</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>make install</code></td>
+<td>Install the npm workspace from the lockfile</td>
+</tr>
+<tr>
+<td><code>make dev</code> / <code>dev-web</code> / <code>dev-bridge</code></td>
+<td>Bridge and Vite together / only Vite / only the bridge</td>
+</tr>
+<tr>
+<td><code>make build</code> / <code>build-debug</code></td>
+<td>Production build / frontend with sourcemaps</td>
+</tr>
+<tr>
+<td><code>make typecheck</code> / <code>lint</code> / <code>format</code></td>
+<td>Type-check every workspace / the same / Prettier</td>
+</tr>
+<tr>
+<td><code>make test</code></td>
+<td>The Vitest suite: the bridge end to end against a fake <code>pm-api-gwy</code>, the web app against a fake bridge, and unit tests</td>
+</tr>
+<tr>
+<td><code>make cbuild</code></td>
+<td>Build the container image without starting it</td>
+</tr>
+<tr>
+<td><code>make up</code> / <code>down</code> / <code>restart</code> / <code>logs</code> / <code>ps</code></td>
+<td>Container lifecycle</td>
+</tr>
+<tr>
+<td><code>make cdist</code></td>
+<td>Build the image and export it as <code>dist/edumatcher-book-gui-&lt;VERSION&gt;.tar.xz</code></td>
+</tr>
+<tr>
+<td><code>make clean</code> / <code>distclean</code></td>
+<td>Remove build output / also <code>node_modules</code> and the lockfile</td>
+</tr>
+</tbody>
+</table>
+<p>The version in the top bar comes from <code>apps/web/src/version.json</code>, which
+<code>scripts/mkbld.sh</code> writes for every web application at release time.</p>
 <h3 id="where-the-read-only-api-key-comes-from">Where the read-only API key comes from<a class="headerlink" href="#where-the-read-only-api-key-comes-from" title="Permanent link">&para;</a></h3>
-<p>You never type the API key in the normal start paths, yet TapeDeck can read
-history. The key has always been there: it is part of the exchange's own
-configuration, and every start path looks it up and hands it to the bridge.</p>
-<p><strong>1. It is generated with the configuration.</strong> <code>pm-config-gen</code>'s
-<code>--api-gateway-readonly-key</code> option adds one extra credential to the
-<code>dashboards</code> API gateway instance (port 8081), with <code>gateway_id: null</code> and a
-randomly generated key. Every bundled example configuration was generated with
-that option (see its <code>mkrefdata.sh</code>), so each carries one — and each a
-different one. In <code>docs/examples/ref_data/s1-basic-setup/engine_config.yaml</code>:</p>
+<p>The viewer gets its key exactly the way <a href="../290-trader-info-terminal/#where-the-read-only-api-key-comes-from">TapeDeck does</a>,
+and from the same place — the two applications use the <strong>same</strong> key, under
+different variable names.</p>
+<p><strong>It is part of the configuration.</strong> <code>pm-config-gen</code>'s
+<code>--api-gateway-readonly-key</code> option adds a credential with <code>gateway_id: null</code>
+and a randomly generated key to the <code>dashboards</code> API gateway instance (port
+8081). Every bundled example configuration was generated with that option, so
+each carries one, and each a different one:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nt">api_gateways</span><span class="p">:</span>
 <a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span><span class="nt">dashboards</span><span class="p">:</span>
 <a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8081</span>
@@ -4652,350 +4853,451 @@ different one. In <code>docs/examples/ref_data/s1-basic-setup/engine_config.yaml
 <a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="w">      </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
 <a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Generated read-only market-data key</span>
 </code></pre></div>
-<p>When a configuration is deployed, the key travels with it into
-<code>&lt;data dir&gt;/ref_data/engine_config.json</code>, the file every exchange process
-reads.</p>
-<p><strong>2. The start path looks it up.</strong> The bridge takes the key from the
-environment variable <code>PM_TERMINAL_API_KEY</code>, and each way of starting TapeDeck
-fills that variable from the deployed configuration:</p>
+<p>Deploying a configuration copies the key into
+<code>&lt;data dir&gt;/ref_data/engine_config.json</code>.</p>
+<p><strong>Every local start path looks it up</strong> and passes it to the bridge as
+<code>PM_BOOK_API_KEY</code>:</p>
 <table>
 <thead>
 <tr>
 <th>Start path</th>
 <th>How it finds the key</th>
+<th>With no key to be found</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>make up-all</code> / <code>./edumatcher.sh start</code></td>
-<td>Starts the exchange first and waits for its configuration to be deployed, then reads <code>/data/ref_data/engine_config.json</code> inside the exchange container. It exports the key as <code>PM_TERMINAL_API_KEY</code> and sets <code>API_GATEWAY_URL=http://edumatcher:&lt;that instance's port&gt;</code>, and only then starts the web applications — which is why the whole-stack start runs in two phases</td>
+<td>Starts the exchange, waits for its configuration to be deployed, reads the key inside the exchange container, and exports it as both <code>PM_BOOK_API_KEY</code> and <code>PM_TERMINAL_API_KEY</code>, with <code>API_GATEWAY_URL=http://edumatcher:&lt;port&gt;</code>; then starts the web applications</td>
+<td>Starts anyway and warns; the viewer has nothing to show</td>
 </tr>
 <tr>
-<td><code>make up</code> in <code>web-apps/terminal-gui</code></td>
-<td>Reads <code>$EDUMATCHER_DATA_DIR/ref_data/engine_config.json</code> on this host. A <code>PM_TERMINAL_API_KEY</code> you set yourself always wins</td>
+<td><code>make up</code> in <code>web-apps/book-gui</code></td>
+<td>Reads <code>$EDUMATCHER_DATA_DIR/ref_data/engine_config.json</code> on this host. A <code>PM_BOOK_API_KEY</code> you set yourself always wins</td>
+<td><strong>Stops</strong> with an explanation</td>
 </tr>
 <tr>
-<td><code>make dev-env GUI=terminal-gui</code></td>
+<td><code>make dev-env GUI=book-gui</code></td>
 <td>Reads the key from the running exchange container and prints it as an <code>export</code> line for <code>make dev</code></td>
+<td>Prints a warning</td>
 </tr>
 </tbody>
 </table>
-<p>All three pick the first enabled gateway instance, in name order, that carries a
-credential with <code>gateway_id: null</code> — so <code>dashboards</code> is preferred over <code>desk</code>
-when both have one — and take that instance's port along with the key.</p>
-<p><strong>Why this is acceptable.</strong> A read-only key is not a secret that grants
-anything worth protecting: it reads only public data — reference data, the
-market-data stream and history — and can neither place nor see orders. It still
-never reaches the browser; only the bridge holds it.</p>
-<p><strong>A configuration without one.</strong> A configuration you built yourself may have no
-<code>gateway_id: null</code> credential. TapeDeck then still starts, with a warning: live
-prices work, because they come from <code>pm-md-gwy</code> and need no key, but the charts,
-previous close and Open/Volume columns stay empty. To fix it, add a credential
-with <code>gateway_id: null</code> to the <code>dashboards</code> instance — in the
-<a href="../030-config-GUI/">Configuration GUI</a>'s gateway settings, by hand in
-<code>engine_config.yaml</code>, or by regenerating with <code>--api-gateway-readonly-key</code> —
-and redeploy.</p>
-<div class="admonition note">
-<p class="admonition-title">Switching configuration changes the key</p>
-<p>Because every configuration has its own key, a key copied from one
-configuration is rejected (HTTP 401) by an exchange running another. The
-automatic look-up avoids this; a key you exported yourself, or one left
-in your shell by <code>make dev-env</code>, does not.</p>
-</div>
+<p>Each picks the first enabled instance, in name order, with a <code>gateway_id: null</code>
+credential — <code>dashboards</code> before <code>desk</code> — and takes that instance's port with
+the key.</p>
+<p><strong>When you do pass it yourself.</strong> The look-up reads a configuration file on the
+machine it runs on. When the exchange runs somewhere else — <code>web-apps/Makefile</code>
+with <code>VM_BACKEND_IP</code>, or a <a href="#running-on-a-separate-display-server">separate display server</a>
+— there is no file to read, so you copy the key from that exchange's
+<code>engine_config.yaml</code> (the <code>gateway_id: null</code> credential under <code>dashboards</code>) and
+pass it as <code>PM_BOOK_API_KEY</code>.</p>
+<p><strong>A configuration without one.</strong> Add a credential with <code>gateway_id: null</code> to the
+<code>dashboards</code> instance — in the <a href="../030-config-GUI/">Configuration GUI</a>'s gateway
+settings, by hand, or by regenerating with <code>--api-gateway-readonly-key</code> — and
+redeploy. Every configuration has its own key, so after switching
+configuration restart through a path that looks it up again; a key copied from
+another configuration is refused, and the viewer stays on <code>RECONNECTING</code>.</p>
+<p>The key reads only public data — reference data, the market-data stream and
+history — and cannot place or see orders. It stays in the bridge and never
+reaches the browser.</p>
+<h2 id="the-compose-setup">The Compose setup<a class="headerlink" href="#the-compose-setup" title="Permanent link">&para;</a></h2>
+<p>The viewer appears in three compose files. The service is the same in each; what
+differs is how it finds the exchange.</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Used by</th>
+<th><code>API_GATEWAY_URL</code> default</th>
+<th>Image</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>deployment/curl/compose.yaml</code></td>
+<td>The one-line installer, <code>edumatcher.sh</code></td>
+<td><code>http://edumatcher:8081</code></td>
+<td><code>ghcr.io/johan162/edumatcher-book-gui:${EM_VERSION}</code></td>
+</tr>
+<tr>
+<td><code>deployment/docker/compose.guis.yaml</code></td>
+<td><code>make up-all</code></td>
+<td><code>http://edumatcher:8081</code></td>
+<td><code>edumatcher-book-gui:latest</code>, built from <code>web-apps/book-gui</code></td>
+</tr>
+<tr>
+<td><code>web-apps/book-gui/docker-compose.yml</code></td>
+<td>The app's own <code>make up</code></td>
+<td><code>http://host.docker.internal:8081</code></td>
+<td><code>edumatcher-book-gui:latest</code>, built locally</td>
+</tr>
+</tbody>
+</table>
+<p>In the two whole-stack files the viewer shares one Compose network with the
+exchange container, which answers to the hostname <code>edumatcher</code>. The
+source-checkout service looks like this:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nt">book-gui</span><span class="p">:</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">edumatcher-book-gui:latest</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">  </span><span class="nt">container_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${CONTAINER_NAME:-edumatcher}-book-gui</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">  </span><span class="nt">depends_on</span><span class="p">:</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">edumatcher</span>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="w">  </span><span class="nt">restart</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">unless-stopped</span>
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="w">  </span><span class="nt">ports</span><span class="p">:</span>
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"${BIND_ADDR:-127.0.0.1}:${BOOK_GUI_PORT:-8094}:8094"</span>
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="w">  </span><span class="nt">environment</span><span class="p">:</span>
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="w">    </span><span class="nt">HOST</span><span class="p">:</span><span class="w"> </span><span class="s">"0.0.0.0"</span>
+<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a><span class="w">    </span><span class="nt">PORT</span><span class="p">:</span><span class="w"> </span><span class="s">"8094"</span>
+<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a><span class="w">    </span><span class="nt">CORS_ORIGIN</span><span class="p">:</span><span class="w"> </span><span class="s">"${CORS_ORIGIN:-*}"</span>
+<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a><span class="w">    </span><span class="nt">MAX_WS_CLIENTS</span><span class="p">:</span><span class="w"> </span><span class="s">"${MAX_WS_CLIENTS:-200}"</span>
+<a id="__codelineno-15-14" name="__codelineno-15-14" href="#__codelineno-15-14"></a><span class="w">    </span><span class="nt">API_GATEWAY_URL</span><span class="p">:</span><span class="w"> </span><span class="s">"${API_GATEWAY_URL:-http://edumatcher:8081}"</span>
+<a id="__codelineno-15-15" name="__codelineno-15-15" href="#__codelineno-15-15"></a><span class="w">    </span><span class="nt">PM_BOOK_API_KEY</span><span class="p">:</span><span class="w"> </span><span class="s">"${PM_BOOK_API_KEY:-}"</span>
+<a id="__codelineno-15-16" name="__codelineno-15-16" href="#__codelineno-15-16"></a><span class="w">    </span><span class="nt">LOG_SRV_ENABLED</span><span class="p">:</span><span class="w"> </span><span class="s">"${LOG_SRV_ENABLED:-true}"</span>
+<a id="__codelineno-15-17" name="__codelineno-15-17" href="#__codelineno-15-17"></a><span class="w">    </span><span class="nt">LOG_SRV_HOST</span><span class="p">:</span><span class="w"> </span><span class="s">"edumatcher"</span>
+<a id="__codelineno-15-18" name="__codelineno-15-18" href="#__codelineno-15-18"></a><span class="w">    </span><span class="nt">LOG_SRV_PORT</span><span class="p">:</span><span class="w"> </span><span class="s">"5600"</span>
+<a id="__codelineno-15-19" name="__codelineno-15-19" href="#__codelineno-15-19"></a><span class="w">    </span><span class="nt">LOG_FAILOVER_DIR</span><span class="p">:</span><span class="w"> </span><span class="s">"/app/logs"</span>
+<a id="__codelineno-15-20" name="__codelineno-15-20" href="#__codelineno-15-20"></a><span class="w">  </span><span class="nt">volumes</span><span class="p">:</span>
+<a id="__codelineno-15-21" name="__codelineno-15-21" href="#__codelineno-15-21"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">book-gui-logs:/app/logs</span>
+</code></pre></div>
+<p>Points worth knowing:</p>
+<ul>
+<li><strong><code>PM_BOOK_API_KEY</code> is empty in the file on purpose.</strong> <code>make up-all</code> and
+  <code>./edumatcher.sh start</code> start the exchange first, read the key from the
+  deployed configuration inside it, and export it for this service — the same
+  key TapeDeck gets as <code>PM_TERMINAL_API_KEY</code>. See
+  <a href="../005-installation/#the-read-only-api-key">The read-only API key</a>.</li>
+<li><strong><code>BIND_ADDR</code></strong> (default <code>127.0.0.1</code>) decides who can open the page. Set it
+  to <code>0.0.0.0</code> in <code>.env</code> to serve the viewer to other machines, and consider
+  restricting <code>CORS_ORIGIN</code> when you do.</li>
+<li><strong>There is no data volume.</strong> The bridge keeps each watched symbol's session in
+  memory and rebuilds it from <code>pm-api-gwy</code> on restart. The one volume,
+  <code>book-gui-logs</code> (<code>./logs</code> for the app's own compose file), holds the log
+  failover file, written only when <code>pm-log-srv</code> becomes unreachable.</li>
+<li><strong>A health check</strong> (in the app's own compose file) polls
+  <code>http://127.0.0.1:8094/api/bridge/status</code> every 30 seconds.</li>
+<li><strong>Image build arguments</strong> <code>HTTP_PROXY</code>, <code>HTTPS_PROXY</code>, <code>NO_PROXY</code> and
+  <code>NPM_STRICT_SSL</code> are passed through for builds behind a corporate proxy, as
+  for the other web applications.</li>
+</ul>
 <h2 id="a-tour-of-the-interface">A tour of the interface<a class="headerlink" href="#a-tour-of-the-interface" title="Permanent link">&para;</a></h2>
-<p>📷 <strong>Figure 1 — The app shell.</strong> Capture the Overview screen in dark theme,
-showing the full shell: the top bar (app name and version, the six view tabs,
-the density, theme and settings controls, the connection indicator) and the footer status strip.
-Suggested file: <code>images/terminal-gui/fig-01-app-shell.png</code>.</p>
+<p>📷 <strong>Figure 1 — The order book viewer.</strong> Capture a liquid symbol mid-session in
+dark theme, with several levels on both sides, a populated trade tape, and the
+footer visible. Suggested file: <code>images/book-gui/fig-01-book.png</code>.</p>
+<p>The page has four parts, top to bottom: the top bar, the statistics header, the
+three panels <strong>BIDS</strong>, <strong>ASKS</strong> and <strong>TRADES</strong>, and the footer.</p>
 <h3 id="top-bar">Top bar<a class="headerlink" href="#top-bar" title="Permanent link">&para;</a></h3>
-<p>A single row (not a collapsible sidebar — six destinations is small enough
-for one row, and a data-dense terminal wants its horizontal space for
-numbers, not navigation chrome) holding:</p>
 <ul>
-<li><strong><code>EduMatcher pm-terminal v&lt;version&gt;</code></strong> — the app name and the release it
-  was built from.</li>
-<li>The six view tabs: <strong>Overview</strong>, <strong>Symbol</strong>, <strong>Index</strong>, <strong>Tape</strong>,
-  <strong>Movers</strong>, <strong>Session</strong>.</li>
-<li>A <strong>density</strong> control (gauge icon) that cycles <strong>Lobby → Standard →
-  Dense</strong>. This is a display preference, not a mode — every route and every
-  data point stays reachable at every setting; only defaults change (larger
-  type and a longer page delay under Lobby, tighter rows and shorter delay
-  under Dense). It persists to the browser's <code>localStorage</code>, so a different
-  browser or profile always starts on <strong>Standard</strong>.</li>
-<li>A <strong>theme</strong> toggle (dark by default — the working default for a trading
-  screen — with a full light palette for bright rooms and projectors).</li>
-<li>A <strong>settings</strong> cog holding <strong>Font size</strong> — XS, S, M, L, XL or XXL, XS by
-  default — which scales the whole page, for a projector or a screen read
-  from across a room. It is independent of density, persists to the
-  browser's <code>localStorage</code>, and (as the popover says) works in Chrome and
-  Safari only.</li>
-<li>A <strong>connection indicator</strong>: <code>LIVE</code> (green), <code>RECONNECTING</code> (amber), or
-  <code>OFFLINE</code> (red), reflecting the bridge's own CALF session state, plus the
-  gateway id it is talking to.</li>
+<li><strong><code>EduMatcher pm-book v&lt;version&gt;</code></strong> on the left, as in every EduMatcher web
+  application.</li>
+<li><strong>The symbol picker</strong> — the current symbol with a drop-down arrow. Click it,
+  or press <strong><code>s</code></strong> or <strong><code>F1</code></strong> anywhere on the page.</li>
+<li><strong>Theme</strong> (sun/moon): switches between the dark and the light palette.</li>
+<li><strong>Settings</strong> (cog): font size, maximum levels and zebra rows — see
+  <a href="#settings">Settings</a>.</li>
+<li><strong>Connection indicator</strong>: <code>LIVE</code>, <code>RECONNECTING</code> or <code>OFFLINE</code>, followed by the
+  <code>host:port</code> of the <code>pm-api-gwy</code> instance the bridge reads — see
+  <a href="#connection-states">Connection states</a>.</li>
 </ul>
-<h3 id="status-strip-footer">Status strip (footer)<a class="headerlink" href="#status-strip-footer" title="Permanent link">&para;</a></h3>
-<p>A single-line summary meant to be readable from across a room: the current
-session phase (blank/no badge during <code>CONTINUOUS</code> — the absence of a badge
-<em>is</em> the "everything is normal" signal),
-a countdown to the next scheduled phase transition when the feed has named
-one, the number of currently-halted symbols, the total symbol count, the
-CALF connection state, <strong>the age of the last market-data tick</strong>, and a UTC
-clock.</p>
+<h3 id="choosing-a-symbol">Choosing a symbol<a class="headerlink" href="#choosing-a-symbol" title="Permanent link">&para;</a></h3>
+<p>The picker works as <code>pm-viewer</code>'s does. Typing narrows the list <strong>by prefix</strong>
+(<code>A</code> offers the symbols that start with A, not every symbol containing one),
+<strong>↑</strong>/<strong>↓</strong> move the selection, <strong>Enter</strong> switches and <strong>Esc</strong> closes. A click
+works too.</p>
+<p>Every book has its own URL: <code>/book/&lt;SYMBOL&gt;</code>, for example
+<code>http://localhost:8094/book/AAPL</code>. Bookmark it, or open several tabs on different
+symbols — each tab watches one symbol. The bare address <code>/</code> opens the book you
+viewed last in this browser, or the first listed symbol. A URL naming a symbol
+that is not listed shows <code>&lt;SYMBOL&gt; is not a listed symbol</code> instead of an empty
+book.</p>
+<h3 id="the-statistics-header">The statistics header<a class="headerlink" href="#the-statistics-header" title="Permanent link">&para;</a></h3>
+<p>📷 <strong>Figure 2 — The statistics header.</strong> Capture both rows with a positive change
+and the <code>prev-close</code> basis. Suggested file: <code>images/book-gui/fig-02-header.png</code>.</p>
+<p>Two rows, the same fields as <code>pm-viewer</code>'s header. The <strong>reference</strong> price that
+change and colour are measured against is the previous close when one is known,
+otherwise the session open.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Last</strong></td>
+<td>Price of the last trade, with ▲ / ▼ / ▬ against the reference, green when up and red when down</td>
+</tr>
+<tr>
+<td><strong>Chg</strong></td>
+<td>Last minus the reference, and the same as a percentage</td>
+</tr>
+<tr>
+<td><strong>Size</strong></td>
+<td>Quantity of the last trade</td>
+</tr>
+<tr>
+<td><strong>Bid/Ask</strong></td>
+<td>Best bid (green) × best ask (red)</td>
+</tr>
+<tr>
+<td><strong>Sprd</strong></td>
+<td>Ask minus bid</td>
+</tr>
+<tr>
+<td><em>clock</em></td>
+<td>Current time in the exchange session timezone (hover for the zone name)</td>
+</tr>
+<tr>
+<td><strong>O / H / L / C</strong></td>
+<td>The session's open, high, low and latest close, from every trade of the day</td>
+</tr>
+<tr>
+<td><strong>Prev</strong></td>
+<td>The previous trading day's close, <code>n/a</code> when there is none</td>
+</tr>
+<tr>
+<td><strong>Range</strong></td>
+<td>High minus low</td>
+</tr>
+<tr>
+<td><strong>Vol</strong></td>
+<td>Total quantity traded this session</td>
+</tr>
+<tr>
+<td><strong>Basis</strong></td>
+<td>What the change is measured against: <code>prev-close</code>, <code>session-open</code>, or <code>live since HH:MM</code></td>
+</tr>
+<tr>
+<td><em>date</em></td>
+<td>Today's date in the exchange session timezone</td>
+</tr>
+</tbody>
+</table>
+<p>A thin line under the header shows the session's direction: green when the
+close is above the reference, red when below, grey when level.</p>
 <div class="admonition note">
-<p class="admonition-title">Connection state and data age are two different readings, on purpose</p>
-<p>"CALF connected" only says the pipe is open — it says nothing about
-whether anything is actually coming down it, and a feed that has gone
-silent behind a healthy socket is exactly the failure a reader most needs
-to catch. The status strip shows both: connection state, and separately,
-how long it has been since the last tick arrived. A silently frozen
-exchange still reads "CALF connected" but its tick age keeps climbing.</p>
+<p class="admonition-title">What <code>live since HH:MM</code> means</p>
+<p>When the bridge cannot read the session's history — <code>pm-stats</code> is not
+running, or its database does not exist yet — it still shows the book and
+records every trade it sees from then on. The statistics are then correct
+only for that period, and the Basis field says so in amber, with the time
+the recording started. This is the web equivalent of running <code>pm-viewer</code>
+without a stats database. Times are then in UTC, because the session
+timezone also comes from <code>pm-stats</code>.</p>
 </div>
-<h2 id="screen-tour">Screen tour<a class="headerlink" href="#screen-tour" title="Permanent link">&para;</a></h2>
-<h3 id="market-overview">Market Overview<a class="headerlink" href="#market-overview" title="Permanent link">&para;</a></h3>
-<p>The default landing view: every tradable symbol, paginated, meant to run
-unattended on a classroom or lobby display just as well as be actively
-browsed.</p>
-<p>📷 <strong>Figure 2 — Market Overview.</strong> Capture a multi-page symbol list mid-session
-with a mix of up/down movers and at least one halted symbol, the Watchlist
-toggle visible. Suggested file: <code>images/terminal-gui/fig-02-overview.png</code>.</p>
-<p>Key behaviors:</p>
+<p>All times, the clock and the date use the exchange session timezone recorded by
+<code>pm-stats</code>, not the timezone of the browser — so a viewer in another country
+reads the same times as the exchange.</p>
+<h3 id="bids-and-asks">BIDS and ASKS<a class="headerlink" href="#bids-and-asks" title="Permanent link">&para;</a></h3>
+<p>The two ladders mirror each other about the centre, as in <code>pm-viewer</code>, with the
+best price at the top of each:</p>
+<table>
+<thead>
+<tr>
+<th>BIDS columns</th>
+<th></th>
+<th>ASKS columns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Ord</strong> — number of resting orders at the level</td>
+<td></td>
+<td><strong>Depth</strong> — bar, growing outward to the right</td>
+</tr>
+<tr>
+<td><strong>Qty</strong> — total quantity at the level</td>
+<td></td>
+<td><strong>Price</strong></td>
+</tr>
+<tr>
+<td><strong>Price</strong></td>
+<td></td>
+<td><strong>Qty</strong></td>
+</tr>
+<tr>
+<td><strong>Depth</strong> — bar, growing outward to the left</td>
+<td></td>
+<td><strong>Ord</strong></td>
+</tr>
+</tbody>
+</table>
+<p>The depth bars are scaled to the largest quantity among the levels <strong>on
+screen</strong>, so the largest visible level fills its bar. Prices use each symbol's
+own number of decimals from the reference data.</p>
+<p>The ladders show the levels the gateway publishes (aggregated per price — never
+individual orders).</p>
+<h3 id="trades">TRADES<a class="headerlink" href="#trades" title="Permanent link">&para;</a></h3>
+<p>The trade tape, newest first: <strong>Time</strong> (session timezone, to the millisecond),
+<strong>Price</strong> and <strong>Qty</strong>. Each print is coloured by its tick — green when its price
+is above the print before it, red when below, grey when equal.</p>
+<p>When you open a book the tape already holds the session's earlier trades, read
+from history. The bridge keeps the newest <code>TAPE_MAX</code> (500) prints per symbol;
+the statistics count every trade of the session regardless.</p>
+<h3 id="how-many-levels-are-shown">How many levels are shown<a class="headerlink" href="#how-many-levels-are-shown" title="Permanent link">&para;</a></h3>
+<p>The three panels share one row count. By default (<strong>Max levels: Fit</strong>) it is
+whatever fits the window, like <code>pm-viewer</code> in a terminal — make the window taller
+to see deeper into the book. The Settings popover can cap it at 10, 20 or 50
+levels, like <code>pm-viewer --depth</code>.</p>
+<p>The panels never reflow into a single column: in a narrow window the page
+scrolls sideways instead.</p>
+<h3 id="footer">Footer<a class="headerlink" href="#footer" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Auto-paging.</strong> Rows are split into pages sized to fit the viewport
-  (<code>⚙</code> control offers 3s/5s/8s/15s/30s dwell times, or a density-based
-  default), so the grid never needs to scroll — useful for an unattended
-  display with no mouse. Hovering the grid, sorting a column, or typing in
-  the symbol search <strong>suspends</strong> auto-advance (a reader who is actively
-  interacting with the board should not have it slide out from under them);
-  the manual <code>‹</code>/<code>›</code>/pause controls keep working regardless.</li>
-<li><strong>Every row stays live on every page.</strong> Paging is purely a rendering
-  concern — the bridge already holds one wildcard subscription covering
-  every symbol, so there is no per-page subscribe/unsubscribe to do, and
-  numbers on a page you are not currently viewing never go stale.</li>
-<li><strong>Sortable columns</strong> and a <strong>type-ahead symbol search</strong> — both narrow/order
-  what is shown without touching the underlying subscription.</li>
-<li><strong>Watchlist.</strong> Click the <code>☆</code> next to any symbol to pin it; the
-  <code>All</code>/<code>☆ Watchlist</code> toggle switches the grid between paging through every
-  symbol and paging through only pinned ones. This is client-only,
-  <code>localStorage</code>-persisted state — there is no server-side watchlist and
-  nothing to log into.</li>
-<li><strong>A row fades after a configurable silence threshold</strong> (<code>fade …</code> control —
-  choices from 1 minute to 1 hour, or off). The right value is a property of
-  the exchange, not of the terminal: a busy, liquid book and a thin classroom
-  exchange want very different thresholds, so it is exposed rather than
-  hardcoded.</li>
-<li><strong>During a call auction phase</strong>, the quote columns (<code>Bid</code>/<code>Ask</code>) are
-  replaced by auction-indicative columns (indicative uncross price/quantity,
-  imbalance) for symbols currently in an opening or closing auction — a call
-  phase is a different kind of market, not a display preference, so the grid
-  follows it automatically rather than offering a toggle.</li>
-<li><strong>Not-executable banners.</strong> When the whole board is outside continuous
-  trading (closed, or in a call auction), a banner says so explicitly rather
-  than merely dimming the numbers — the prices and volumes shown remain an
-  accurate record, they are just not currently tradable. A separate banner
-  appears if the previous-close lookup failed (percentage change is then
-  measured from today's open instead, and marked with a small <code>*</code>) or if the
-  history service itself is unreachable (Open/Volume/Turnover columns go
-  blank; live prices are unaffected).</li>
+<li><strong><code>upstream ACTIVE</code></strong> — the state of the bridge's connection to <code>pm-api-gwy</code>;
+  shown in amber whenever it is anything else.</li>
+<li><strong><code>bids 12/12 · asks 9/15 levels shown</code></strong> — how many of each side's levels are
+  on screen, out of how many there are. A truncated ladder is never silent:
+  <code>9/15</code> means six more ask levels exist below the fold.</li>
+<li><strong><code>last book 2s ago</code></strong> — the age of the most recent book update. It keeps
+  counting in a quiet market; that is normal, and the book shown is still
+  current. <code>no book yet</code> means the symbol has not had a book since it was
+  opened.</li>
+<li><strong><code>s / F1 change symbol</code></strong> — the keyboard hint.</li>
 </ul>
-<h3 id="symbol-detail">Symbol Detail<a class="headerlink" href="#symbol-detail" title="Permanent link">&para;</a></h3>
-<p>The deep-dive view for one instrument: a candlestick + midpoint chart, a
-values table, and an optional depth ladder. Large-screen only, by design —
-there is no responsive mobile layout.</p>
-<p>📷 <strong>Figure 3 — Symbol Detail.</strong> Capture a symbol with a visible price history
-(1D or 5D preset), both the OHLC and Midpoint series toggled on, and the
-Values panel. A second capture with the Depth toggle on instead of Values
-would usefully show the two-panel swap described below. Suggested files:
-<code>images/terminal-gui/fig-03-symbol-detail.png</code> and
-<code>images/terminal-gui/fig-03b-symbol-detail-depth.png</code>.</p>
-<ul>
-<li><strong>Header.</strong> Symbol, session badge, last price, change and %change (always
-  quoted against the <em>previous close</em>, footnoted when no previous close is
-  on record and the figure falls back to today's open instead), and today's
-  volume.</li>
-<li><strong>Chart.</strong> Time-window presets (<code>1D</code>/<code>5D</code>/<code>1M</code>/<code>3M</code>/<code>YTD</code>/<code>All</code>/<code>Live</code>),
-  free-form drag-zoom, and two independently toggleable series: OHLC
-  candlesticks (built from historical bars, with the live-forming bar updated
-  in place from CALF <code>TRADE</code> prints) and a spliced midpoint line — a coarser,
-  15-minute-resolution historical segment giving way to a tick-by-tick live
-  segment from CALF <code>TOP</code>, drawn in a slightly muted style where it is the
-  coarser data. A reference line for the previous close is always drawn, and
-  a VWAP line appears on the <code>1D</code>/<code>Live</code> presets only (VWAP is a same-session
-  benchmark; drawing it across a multi-day preset would be quoting today's
-  average against days it has nothing to do with).</li>
-<li><strong>Auction and halt context.</strong> An auction uncross fills a dismissible
-  banner (equilibrium price or "no cross," matched quantity, and any residual
-  imbalance) that distinguishes an opening/closing auction, a
-  circuit-breaker <strong>reopening</strong> auction, and a startup/recovery uncross by
-  name, rather than calling all three "auction uncrossed." A halted symbol
-  expands to show the circuit-breaker detail — trigger level, trigger and
-  reference price, and a <strong>corridor bar</strong> showing the price band the symbol
-  may reopen inside, with the last indicative price marked against it. This
-  is the visual explanation of <em>why</em> a halt is still running: if the marker
-  sits outside the band, the call phase was extended rather than printing.</li>
-<li><strong>Values panel ↔ Depth ladder.</strong> The <code>☐ Depth</code> toggle <em>replaces</em> the
-  Values panel with the <a href="#depth-of-book">Depth-of-Book ladder</a> rather than
-  showing both side by side. This is deliberate, not a space-saving
-  afterthought: unlike <code>OHLC</code>/<code>Midpoint</code>, which reuse subscriptions the
-  bridge already holds for every symbol, turning Depth on causes the bridge
-  to open a brand-new per-symbol CALF subscription — so it is opt-in per
-  viewer, and the panel swap is a visible reminder that this is a heavier,
-  deliberately-requested data stream.</li>
-</ul>
-<h3 id="depth-of-book">Depth-of-Book<a class="headerlink" href="#depth-of-book" title="Permanent link">&para;</a></h3>
-<p>A Level 2 ladder (aggregated quantity per price level — never per-order
-identity, which CALF does not carry at any version) for whichever symbol
-currently has the Depth toggle on in Symbol Detail. It is not its own
-navigation tab.</p>
-<p>📷 <strong>Figure 4 — Depth ladder.</strong> Capture a symbol with resting orders on both
-sides, ideally with at least one row whose distance-from-touch marker is
-visible. Suggested file: <code>images/terminal-gui/fig-04-depth-ladder.png</code>.</p>
-<p>Columns run outward from the touch in both directions —
-<code>Cum | Qty | # | Bid ‖ Ask | # | Qty | Cum</code> — so the two best prices meet in
-the middle and the cumulative totals sit at the outer edges, where the eye
-ends up after scanning inward. Two things worth calling out:</p>
-<ul>
-<li><strong>The <code>#</code> column</strong> is the count of individual resting orders aggregated
-  into that price level — genuinely useful context a bare quantity doesn't
-  convey (1,400 shares from one order reads very differently than the same
-  1,400 split across four), and it costs nothing extra since <code>COUNT</code> is
-  already on the CALF wire.</li>
-<li><strong>Rows are evenly spaced regardless of price gaps</strong>, with the actual
-  distance from the touch shown as a percentage figure beside each row
-  instead. Spacing rows by price would collapse to unreadable slivers the
-  moment one level sat far out; the trade-off is that a lone level far from
-  a tight cluster would otherwise look like just the next rung down, which
-  is exactly what the percentage-distance figure (and a subtle highlight
-  when a level is unusually far out) corrects for.</li>
-</ul>
-<p>A <strong>Bid depth / Ask depth / Imbalance</strong> summary line below the ladder states
-the book's lean as a percentage (e.g. "62% bid") rather than a bid:ask ratio,
-since a ratio's useful range is lopsided (0.2 and 5.0 are the same imbalance
-mirrored) while a percentage reads the same distance from 50% either way.</p>
-<h3 id="index-view">Index View<a class="headerlink" href="#index-view" title="Permanent link">&para;</a></h3>
-<p>Headline level and a historical chart for a configured exchange index (see
-<a href="../150-market-index/">Market Index</a>).</p>
-<p>📷 <strong>Figure 5 — Index View.</strong> Capture the chart on a <code>1M</code>+ preset (to show the
-daily-bar rendering) alongside the Open/High/Low panel and, if any exist,
-the Recent changes strip. Suggested file: <code>images/terminal-gui/fig-05-index-view.png</code>.</p>
-<p>The headline level, change, and session badge always come from the <strong>live</strong>
-CALF <code>INDEX</code> stream, never from a historical REST row for the current date —
-<code>/history/index-daily</code>'s <code>close_level</code> is only guaranteed final once the
-session for that date has actually closed, so quoting it live for <em>today</em>
-would risk showing a figure that is still moving. Open/High/Low are safe to
-read from the REST row even intraday, since those are running-so-far values
-that only get more accurate as the day progresses. Switching indexes (when
-more than one is configured) costs nothing upstream — the bridge holds a
-standing subscription for every configured index regardless of which one a
-given tab is currently viewing. If the exchange has no index configured at
-all, the tab still exists and shows an explicit empty state rather than
-being hidden, so the tab row never shifts between differently-configured
-classroom exchanges.</p>
-<h3 id="trade-tape-time-sales">Trade Tape / Time &amp; Sales<a class="headerlink" href="#trade-tape-time-sales" title="Permanent link">&para;</a></h3>
-<p>Every print on the exchange, newest first, filterable by symbol.</p>
-<p>📷 <strong>Figure 6 — Trade Tape.</strong> Capture the unfiltered tape with several
-symbols' prints visible. If reproducible, a second capture showing a gap
-marker row would be a good addition — see the callout below for how to
-trigger one deliberately in a test environment.
-Suggested file: <code>images/terminal-gui/fig-06-trade-tape.png</code>.</p>
-<p>The symbol filter narrows what is <em>displayed</em>; the bridge's underlying
-<code>SYM=*</code> wildcard subscription means every symbol's prints are already
-arriving regardless of the filter, so switching it is instant and free.
-<code>Pause</code> freezes the visible rows without losing anything — the tape keeps
-recording underneath, and <code>Resume</code> shows the current state rather than a
-gap where the pause was.</p>
-<div class="admonition note">
-<p class="admonition-title">Gap markers are a real, shipped feature, not a hypothetical</p>
-<p>If the bridge's CALF connection drops and cannot fully repair a symbol's
-trade sequence on reconnect (the replay window has already rolled past
-the missed messages), the tape shows an explicit marker row — <em>"gap in
-the tape — some prints for <code>SYMBOL</code> were missed"</em> — in place among the
-prints it falls between, rather than silently omitting the missing
-prints or, worse, saying nothing at all. A record with an unmarked hole
-in it is worse than one that admits the hole, because a viewer has no
-way to tell it apart from a genuinely quiet stretch. This is the direct
-result of a real CALF protocol fix made while building TapeDeck.</p>
-</div>
-<h3 id="movers">Movers<a class="headerlink" href="#movers" title="Permanent link">&para;</a></h3>
-<p>A different ranking over the same data the Overview grid already computes —
-no new subscriptions.</p>
-<p>📷 <strong>Figure 7 — Movers.</strong> Capture the Gainers tab with several bars of
-different lengths visible. Suggested file: <code>images/terminal-gui/fig-07-movers.png</code>.</p>
-<p>Three tabs: <strong>Gainers</strong> and <strong>Losers</strong> rank by percentage change from the
-previous close (falling back to today's open, and labelled as such, when no
-previous close is available); <strong>Active</strong> ranks by session turnover (value
-traded) instead — a common third view on real market boards, and cheap here
-since Overview already computes turnover per symbol. Each row's bar is
-scaled relative to the largest value currently shown on that tab.</p>
-<h3 id="session-halt-status-board">Session &amp; Halt Status Board<a class="headerlink" href="#session-halt-status-board" title="Permanent link">&para;</a></h3>
-<p>Three panels in one view: the exchange-wide session phase, every symbol
-currently halted with its full circuit-breaker detail, and the auctions that
-have uncrossed since the tab was opened.</p>
-<p>📷 <strong>Figure 8 — Session &amp; Halt Status Board.</strong> Capture a state with at least
-one active halt and one completed auction result, so both tables have
-content. Suggested file: <code>images/terminal-gui/fig-08-session-board.png</code>.</p>
-<ul>
-<li><strong>Active halts</strong> shows, per halted symbol: circuit-breaker level, trigger
-  and reference price (blank for an operator-initiated halt, which carries
-  neither), how and when it resumes (a converted wall-clock time for a timed
-  halt, or <code>Manual</code> for one that only ends on an explicit operator action),
-  and how long it has been halted.</li>
-<li><strong>Recent auction results</strong> is a session-scoped, client-side ring buffer of
-  every auction uncross seen since the tab opened — not a durable audit
-  trail (that is <code>pm-index</code>'s own structural log, surfaced separately via the
-  Index View's "Recent changes" strip). An omitted equilibrium price is
-  labelled <code>(no cross)</code> rather than shown as a blank, since "no crossable
-  interest at all" is a meaningfully different outcome from a price, just an
-  unusual one.</li>
-<li>Opening this view is itself one of the two triggers for the bridge to hold
-  a per-symbol <code>CB</code> subscription (the other is opening that symbol's own
-  Symbol Detail view) — closing the tab releases every subscription it was
-  the sole reason for.</li>
-</ul>
+<h3 id="settings">Settings<a class="headerlink" href="#settings" title="Permanent link">&para;</a></h3>
+<p>The cog in the top bar opens the settings. All of them are stored per browser.</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Choices</th>
+<th>Default</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Font size</strong></td>
+<td>XS, S, M, L, XL, XXL</td>
+<td>XS</td>
+<td>Scales the whole page. Works in Chrome and Safari only</td>
+</tr>
+<tr>
+<td><strong>Max levels</strong></td>
+<td>Fit, 10, 20, 50</td>
+<td>Fit</td>
+<td><code>pm-viewer</code>'s <code>--depth</code></td>
+</tr>
+<tr>
+<td><strong>Zebra rows</strong></td>
+<td>on / off</td>
+<td>off</td>
+<td><code>pm-viewer</code>'s <code>--zebra-lines</code></td>
+</tr>
+<tr>
+<td><strong>Theme</strong> (top-bar button)</td>
+<td>dark / light</td>
+<td>dark</td>
+<td>Light is meant for bright rooms and projectors</td>
+</tr>
+</tbody>
+</table>
+<h2 id="connection-states">Connection states<a class="headerlink" href="#connection-states" title="Permanent link">&para;</a></h2>
+<p>Two connections are involved, and the viewer reports both:</p>
+<table>
+<thead>
+<tr>
+<th>Indicator</th>
+<th>Meaning</th>
+<th>What you see</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>LIVE</code></strong> (green)</td>
+<td>The browser is connected to the bridge, and the bridge to <code>pm-api-gwy</code></td>
+<td>The live book</td>
+</tr>
+<tr>
+<td><strong><code>RECONNECTING</code></strong> (amber)</td>
+<td>The browser is connected to the bridge, but the bridge's upstream connection is down or not yet authenticated</td>
+<td>The last values received, with <code>upstream RECONNECTING</code> or <code>upstream DOWN</code> in the footer</td>
+</tr>
+<tr>
+<td><strong><code>OFFLINE</code></strong> (red)</td>
+<td>The browser has lost its connection to the bridge</td>
+<td>A <em>Disconnected from pm-book-bridge</em> banner; values are <strong>hidden</strong> rather than shown stale. The page reconnects by itself</td>
+</tr>
+</tbody>
+</table>
+<p>The bridge reconnects upstream by itself, backing off from half a second to 15
+seconds between attempts. When a working connection drops, the footer shows
+<code>upstream RECONNECTING</code> for the first 30 seconds (<code>UPSTREAM_DOWN_AFTER_SEC</code>) and
+<code>upstream DOWN</code> after that. Before the first successful connection, and at once
+when <code>pm-api-gwy</code> rejects the key, it shows <code>upstream DOWN</code>.</p>
+<p><strong>No trade is lost across a short outage.</strong> On reconnect the bridge asks
+<code>pm-api-gwy</code> to resume each symbol's trades from the last one it saw. If the
+gap is longer than the gateway retains (<code>market_data_cache_sec</code>, 60 seconds by
+default — see <a href="../260-api-gateway/">API Gateway</a>), the bridge rebuilds that
+symbol's statistics and tape from history instead, and logs that it did.</p>
 <h2 id="configuration-reference">Configuration reference<a class="headerlink" href="#configuration-reference" title="Permanent link">&para;</a></h2>
-<p>The container is configured with environment variables. Most installations only
-need to set <code>PM_TERMINAL_API_KEY</code> and, when the upstream services are not on the
-default host names, <code>CALF_HOST</code>, <code>API_GATEWAY_URL</code>, and <code>LOG_SRV_HOST</code>.</p>
+<p>The bridge is configured entirely with environment variables. Most
+installations set only <code>PM_BOOK_API_KEY</code> and, outside the whole stack,
+<code>API_GATEWAY_URL</code> and <code>LOG_SRV_HOST</code>.</p>
+<h3 id="compose-and-host-side">Compose and host side<a class="headerlink" href="#compose-and-host-side" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
 <th>Variable</th>
-<th>Container default</th>
+<th>Default</th>
 <th>Purpose</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>TERMINAL_GUI_PORT</code></td>
-<td><code>8090</code></td>
-<td>Host port exposed by <code>docker-compose.yml</code>; use this when <code>8090</code> is already in use.</td>
+<td><code>BOOK_GUI_PORT</code></td>
+<td><code>8094</code></td>
+<td>Host port the container is published on. Set it in <code>.env</code> for the whole stack, or on the command line for the app's own <code>make up</code></td>
 </tr>
 <tr>
+<td><code>BIND_ADDR</code></td>
+<td><code>127.0.0.1</code></td>
+<td>Whole stack only: host address the port is published on; <code>0.0.0.0</code> exposes it to the network</td>
+</tr>
+<tr>
+<td><code>EDUMATCHER_DATA_DIR</code></td>
+<td>—</td>
+<td>App's own <code>make up</code> only: where to find <code>ref_data/engine_config.json</code> to read the key from</td>
+</tr>
+</tbody>
+</table>
+<h3 id="bridge">Bridge<a class="headerlink" href="#bridge" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default (dev / container)</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
 <td><code>HOST</code> / <code>PORT</code></td>
-<td><code>0.0.0.0</code> / <code>8090</code></td>
-<td>Bridge bind address inside the container.</td>
+<td><code>127.0.0.1</code> / <code>5194</code> — container <code>0.0.0.0</code> / <code>8094</code></td>
+<td>Bridge bind address and port</td>
 </tr>
 <tr>
 <td><code>CORS_ORIGIN</code></td>
 <td><code>*</code></td>
-<td>CORS allow-list</td>
+<td>CORS allow-list; restrict it to your site's origin when the viewer is exposed beyond localhost</td>
 </tr>
 <tr>
 <td><code>STATIC_DIR</code></td>
-<td><code>/app/apps/web/dist</code></td>
-<td>Serve a built frontend from here (single-container mode); unset in development</td>
+<td>— (container: the built frontend)</td>
+<td>Serve the built web UI from this directory</td>
 </tr>
 <tr>
 <td><code>MAX_WS_CLIENTS</code></td>
 <td><code>200</code></td>
-<td>Browser-tab cap</td>
+<td>Maximum browser tabs; further connections are refused</td>
 </tr>
 <tr>
-<td><code>WS_HEARTBEAT_INTERVAL_SEC</code></td>
+<td><code>WS_HEARTBEAT_SEC</code></td>
 <td><code>5</code></td>
-<td>How often every tab receives the bridge's status heartbeat</td>
+<td>How often every tab receives the bridge's status</td>
 </tr>
 <tr>
-<td><code>WS_PING_INTERVAL_SEC</code> / <code>WS_PING_MAX_MISSED</code></td>
+<td><code>WS_PING_SEC</code> / <code>WS_PING_MAX_MISSED</code></td>
 <td><code>10</code> / <code>2</code></td>
 <td>Ping to each tab, and missed replies before a dead tab is dropped</td>
 </tr>
@@ -5005,54 +5307,73 @@ default host names, <code>CALF_HOST</code>, <code>API_GATEWAY_URL</code>, and <c
 <td>A tab whose outgoing buffer exceeds this (a stalled browser) is disconnected</td>
 </tr>
 <tr>
-<td><code>CALF_HOST</code> / <code>CALF_PORT</code></td>
-<td><code>host.docker.internal</code> / <code>5570</code></td>
-<td><code>pm-md-gwy</code>; use <code>host.containers.internal</code> for Podman if needed.</td>
+<td><code>TAPE_MAX</code></td>
+<td><code>500</code></td>
+<td>Trades kept per watched symbol for the TRADES panel</td>
 </tr>
+</tbody>
+</table>
+<h3 id="upstream-pm-api-gwy">Upstream (<code>pm-api-gwy</code>)<a class="headerlink" href="#upstream-pm-api-gwy" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
 <tr>
-<td><code>CALF_CLIENT_ID</code></td>
-<td><code>pm-terminal-bridge</code></td>
-<td>CALF <code>HELLO.CLIENT</code></td>
+<th>Variable</th>
+<th>Default (dev / container)</th>
+<th>Purpose</th>
 </tr>
-<tr>
-<td><code>CALF_PING_INTERVAL_SEC</code></td>
-<td><code>60</code></td>
-<td>Keepalive; belt-and-braces now that the gateway's idle timer honours outbound traffic too</td>
-</tr>
-<tr>
-<td><code>INDEX_IDS</code></td>
-<td>—</td>
-<td>Comma-separated index ids to subscribe to (CALF has no "list the indexes" request)</td>
-</tr>
+</thead>
+<tbody>
 <tr>
 <td><code>API_GATEWAY_URL</code></td>
-<td><code>http://host.docker.internal:8081</code></td>
-<td><code>pm-api-gwy</code>, <strong>the <code>dashboards</code> instance</strong> — the read-only key is not valid on <code>desk</code> (8080). Use <code>host.containers.internal</code> for Podman. In the whole-stack path this is <code>http://edumatcher:8081</code>, set for you.</td>
+<td><code>http://127.0.0.1:8081</code> — app compose <code>http://host.docker.internal:8081</code>, whole stack <code>http://edumatcher:8081</code></td>
+<td>Base URL of the <code>dashboards</code> instance. The market-data WebSocket URL is derived from it (<code>ws://…/api/v1/market-data</code>, or <code>wss://</code> for <code>https://</code>)</td>
 </tr>
 <tr>
-<td><code>PM_TERMINAL_API_KEY</code></td>
-<td>—</td>
-<td>Read-only (<code>gateway_id: null</code>) key, history reads only — never sent to the browser</td>
+<td><code>PM_BOOK_API_KEY</code></td>
+<td>— (<strong>required</strong>)</td>
+<td>The read-only (<code>gateway_id: null</code>) key of that instance. Never sent to the browser</td>
 </tr>
+<tr>
+<td><code>UPSTREAM_PING_SEC</code> / <code>UPSTREAM_PING_MAX_MISSED</code></td>
+<td><code>10</code> / <code>3</code></td>
+<td>Liveness check of the upstream WebSocket</td>
+</tr>
+<tr>
+<td><code>UPSTREAM_DOWN_AFTER_SEC</code></td>
+<td><code>30</code></td>
+<td>How long <code>RECONNECTING</code> lasts before it is reported as <code>DOWN</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="logging">Logging<a class="headerlink" href="#logging" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default (dev / container)</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
 <tr>
 <td><code>LOG_SRV_ENABLED</code></td>
 <td><code>true</code></td>
-<td><code>false</code> skips even the startup probe</td>
+<td><code>false</code> logs to stdout and skips even the startup probe</td>
 </tr>
 <tr>
 <td><code>LOG_SRV_HOST</code> / <code>LOG_SRV_PORT</code></td>
-<td><code>host.docker.internal</code> / <code>5600</code></td>
-<td><code>pm-log-srv</code>; use <code>host.containers.internal</code> for Podman if needed.</td>
+<td><code>127.0.0.1</code> / <code>5600</code> — app compose <code>host.docker.internal</code>, whole stack <code>edumatcher</code></td>
+<td><code>pm-log-srv</code></td>
 </tr>
 <tr>
 <td><code>LOG_SRV_CLIENT_ID</code></td>
-<td><code>pm-terminal-bridge</code></td>
+<td><code>pm-book-bridge</code></td>
 <td>Name the bridge registers with at the log server</td>
 </tr>
 <tr>
 <td><code>LOG_SRV_INSTANCE</code></td>
 <td>—</td>
-<td>Optional suffix that tells several terminals' logs apart</td>
+<td>Optional suffix that tells several viewers' logs apart</td>
 </tr>
 <tr>
 <td><code>LOG_CONNECT_TIMEOUT_SEC</code></td>
@@ -5062,17 +5383,58 @@ default host names, <code>CALF_HOST</code>, <code>API_GATEWAY_URL</code>, and <c
 <tr>
 <td><code>LOG_FAILOVER_TIMEOUT_SEC</code></td>
 <td><code>30</code></td>
-<td>Grace window before the one-way switch to a local log file</td>
+<td>How long a lost log-server connection may last before the bridge switches, for good, to a local file</td>
 </tr>
 <tr>
 <td><code>LOG_QUEUE_MAXSIZE</code></td>
 <td><code>2000</code></td>
-<td>Bounded backlog while reconnecting</td>
+<td>Log records buffered while reconnecting</td>
 </tr>
 <tr>
 <td><code>LOG_FAILOVER_DIR</code></td>
-<td><code>/app/logs</code></td>
-<td>Where the post-failover log file goes; bind-mounted to <code>./logs</code> by Compose.</td>
+<td><code>&lt;data dir&gt;/logs</code> — container <code>/app/logs</code></td>
+<td>Where that local file goes</td>
+</tr>
+</tbody>
+</table>
+<p>If <code>pm-log-srv</code> is not reachable at startup the bridge logs to stdout, which
+<code>make logs</code> or <code>podman logs</code> show.</p>
+<h2 id="checking-the-bridge">Checking the bridge<a class="headerlink" href="#checking-the-bridge" title="Permanent link">&para;</a></h2>
+<p><code>GET /api/bridge/status</code> on the viewer's port describes the bridge's state as
+JSON:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>localhost:8094/api/bridge/status
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>upstream</code> / <code>since</code></td>
+<td><code>ACTIVE</code>, <code>RECONNECTING</code> or <code>DOWN</code>, and since when</td>
+</tr>
+<tr>
+<td><code>source</code></td>
+<td>The <code>host:port</code> of <code>pm-api-gwy</code></td>
+</tr>
+<tr>
+<td><code>symbols</code></td>
+<td>How many symbols the reference data lists</td>
+</tr>
+<tr>
+<td><code>watched</code></td>
+<td>Each watched symbol, with the number of tabs watching it</td>
+</tr>
+<tr>
+<td><code>wsClients</code></td>
+<td>Connected browser tabs</td>
+</tr>
+<tr>
+<td><code>logging</code></td>
+<td>Where the bridge's logs are going right now</td>
 </tr>
 </tbody>
 </table>
@@ -5087,56 +5449,72 @@ default host names, <code>CALF_HOST</code>, <code>API_GATEWAY_URL</code>, and <c
 </thead>
 <tbody>
 <tr>
-<td>Every screen shows the red "Disconnected from pm-terminal-bridge" banner</td>
-<td>The browser's own WebSocket to the bridge is down</td>
-<td>Confirm the bridge process is running and reachable at <code>HOST:PORT</code>; check the browser console for the WS connection error</td>
+<td><code>make up</code> stops with <em>EDUMATCHER_DATA_DIR is not set</em> or <em>No read-only credential</em></td>
+<td>There is no key to start with</td>
+<td>Set <code>EDUMATCHER_DATA_DIR</code>, or pass <code>PM_BOOK_API_KEY=...</code></td>
 </tr>
 <tr>
-<td>Connection indicator shows <code>RECONNECTING</code> and never returns to <code>LIVE</code></td>
-<td>The bridge cannot reach <code>pm-md-gwy</code></td>
-<td>Confirm <code>CALF_HOST</code>/<code>CALF_PORT</code> point at a running gateway, and that nothing (e.g. a firewall) blocks that TCP connection from the bridge's host</td>
+<td>Top bar stays <code>RECONNECTING</code>, footer <code>upstream DOWN</code>; the log says <code>PM_BOOK_API_KEY is unset</code></td>
+<td>The container was started without a key</td>
+<td>Start it through <code>make up</code>, <code>make up-all</code> or <code>./edumatcher.sh start</code>, or pass the key</td>
 </tr>
 <tr>
-<td>Charts and Open/Volume columns are empty or show an "unavailable" banner, but live prices still tick</td>
-<td>The bridge cannot reach <code>pm-api-gwy</code>, or <code>PM_TERMINAL_API_KEY</code> is missing/invalid</td>
-<td>Check the bridge's startup log for a <code>PM_TERMINAL_API_KEY is unset</code> warning; confirm <code>API_GATEWAY_URL</code> is correct and the key is a valid read-only history key</td>
+<td>Top bar stays <code>RECONNECTING</code>; the log says <code>refused PM_BOOK_API_KEY</code></td>
+<td>The key is wrong for that instance — typically <code>API_GATEWAY_URL</code> points at <code>desk</code> (8080), or the key belongs to a different engine configuration</td>
+<td>Point <code>API_GATEWAY_URL</code> at port 8081; after switching configuration, restart the whole stack so the key is read again</td>
 </tr>
 <tr>
-<td>A container started with <code>make up</code> shows live prices but no history, and its log shows requests to <code>127.0.0.1:8081</code> failing</td>
+<td>Top bar stays <code>RECONNECTING</code>, nothing in the log about the key</td>
+<td>The bridge cannot reach <code>pm-api-gwy</code></td>
+<td>Check <code>API_GATEWAY_URL</code>; on Podman use <code>host.containers.internal</code>; check that <code>pm-api-gwy</code> is running</td>
+</tr>
+<tr>
+<td>Red <em>Disconnected from pm-book-bridge</em> banner</td>
+<td>The browser cannot reach the bridge</td>
+<td>Is the container running (<code>make ps</code>, <code>podman ps</code>)? Is the port right?</td>
+</tr>
+<tr>
+<td>Basis says <code>live since HH:MM</code>; times are in UTC</td>
+<td>History is unavailable — <code>pm-stats</code> is not running or has not created its database</td>
+<td>Start <code>pm-stats</code>, then reload the page: a symbol's history is read again when it is next opened with no other tab watching it</td>
+</tr>
+<tr>
+<td><em>Waiting for the symbol list…</em> never goes away</td>
+<td>The bridge could not read <code>/api/v1/reference/symbols</code></td>
+<td>See the rows about <code>RECONNECTING</code> above</td>
+</tr>
+<tr>
+<td><code>&lt;SYMBOL&gt; is not a listed symbol</code></td>
+<td>The URL names a symbol the exchange does not list</td>
+<td>Press <code>s</code> and choose one</td>
+</tr>
+<tr>
+<td>A ladder ends before the book does</td>
+<td>More levels exist than fit the window, or <strong>Max levels</strong> caps them</td>
+<td>Read the footer (<code>asks 9/15</code>); make the window taller or set Max levels to Fit</td>
+</tr>
+<tr>
+<td>A container started with <code>make up</code> stays <code>RECONNECTING</code>; its log shows <code>127.0.0.1:8081</code> refusing connections</td>
 <td><code>API_GATEWAY_URL=http://127.0.0.1:8081</code> was left in the shell by <code>eval "$(make dev-env …)"</code></td>
-<td><code>unset API_GATEWAY_URL PM_TERMINAL_API_KEY</code> and run <code>make up</code> again — see <a href="#local-development">Local development</a></td>
+<td><code>unset API_GATEWAY_URL PM_BOOK_API_KEY</code> and run <code>make up</code> again — see <a href="#local-development">Local development</a></td>
 </tr>
 <tr>
-<td>Index tab shows "This exchange has no index configured"</td>
-<td>Expected, not an error, when no index is configured for this exchange</td>
-<td>Set <code>INDEX_IDS</code> if an index should be shown</td>
-</tr>
-<tr>
-<td>A tape gap marker appears</td>
-<td>The bridge's CALF connection dropped for long enough that the gateway's replay window rolled past the missed trades</td>
-<td>Expected behavior under a real disconnect — see <a href="#trade-tape-time-sales">Trade Tape</a> above; not itself a bug to fix</td>
-</tr>
-<tr>
-<td>Prices render to the wrong number of decimal places</td>
-<td>The connected <code>pm-md-gwy</code> predates the <code>REF=</code> per-symbol precision field</td>
-<td>Upgrade the gateway; TapeDeck falls back to two decimal places when <code>REF=</code> is absent, which is a compatibility fallback, not a defect in TapeDeck</td>
+<td>An older curl install has no viewer on 8094</td>
+<td><code>update</code> does not fetch a new <code>compose.yaml</code></td>
+<td>Re-run the one-line installer</td>
 </tr>
 </tbody>
 </table>
 <h2 id="related-documentation">Related documentation<a class="headerlink" href="#related-documentation" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../240-calf-gateway/">CALF Gateway - Market Data Feed</a> — the protocol
-  TapeDeck's bridge speaks upstream</li>
-<li><a href="../260-api-gateway/">API Gateway</a> — the REST history endpoints the bridge
-  proxies</li>
-<li><a href="../280-log-srv/">Centralized Log Server</a> — the bridge's optional
-  operational-logging destination</li>
-<li><a href="../030-config-GUI/">Configuration GUI (<code>config-gui</code>)</a> — the sibling
-  application TapeDeck shares its monorepo shape and deployment conventions
-  with</li>
-<li><code>docs-design/EduMatcher-Terminal-GUI.md</code> — the full design document (repository checkout only)</li>
-<li><code>web-apps/terminal-gui/README.md</code> — the implementation's own record of every
-  deviation from that design document (repository checkout only)</li>
+<li><a href="../170-processes/#pm-viewer-order-book-viewer"><code>pm-viewer</code> — Order Book Viewer</a> — the terminal application this one mirrors</li>
+<li><a href="../260-api-gateway/">API Gateway</a> — the market-data WebSocket and history endpoints the bridge reads</li>
+<li><a href="../140-statistics-and-reporting/">Statistics and Reporting</a> — <code>pm-stats</code>, which records the history</li>
+<li><a href="../005-installation/">Installation</a> — the container stack, <code>.env</code> and the read-only API key</li>
+<li><a href="../290-trader-info-terminal/">Trader Information Terminal</a> — the sibling read-only display, with which it shares its structure and deployment conventions</li>
+<li><a href="../280-log-srv/">Centralized Log Server</a> — the bridge's optional logging destination</li>
+<li><code>docs-design/EduMatcher-Book-GUI.md</code> — the design document (repository checkout only)</li>
+<li><code>web-apps/book-gui/README.md</code> — the implementation's own reference (repository checkout only)</li>
 </ul>
 
 

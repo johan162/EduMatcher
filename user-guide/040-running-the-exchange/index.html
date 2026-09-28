@@ -1353,6 +1353,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#order-book-viewer-pm-book" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Order book viewer (pm-book)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2671,6 +2682,34 @@
     
   
     GUI: Trading platform
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../310-book-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GUI: Order book viewer
   
 
     
@@ -4769,7 +4808,7 @@ where they live.</p>
 </tr>
 <tr>
 <td>Web applications</td>
-<td>four, included</td>
+<td>five, included</td>
 <td>started separately</td>
 <td>started separately</td>
 </tr>
@@ -5068,7 +5107,7 @@ directory. What is left is shorter:</p>
 </tr>
 <tr>
 <td>The applications answer</td>
-<td>open 8090, 8091, 8093</td>
+<td>open 8090, 8091, 8093, 8094</td>
 <td>The two-phase start can succeed for the backend and still leave a GUI unhealthy</td>
 </tr>
 <tr>
@@ -5328,7 +5367,7 @@ up, or when you are debugging one of them.</p>
 <td>Web applications</td>
 <td><code>cd deployment/docker &amp;&amp; make up-all</code></td>
 <td>None — <code>up-all</code> resolves the read-only API key and the backend hostname itself</td>
-<td>TapeDeck needs <code>pm-md-gwy</code> for live data and <code>pm-api-gwy</code> for history; the log console needs <code>pm-log-srv</code>. Starting them last is why <code>up-all</code> runs in two phases.</td>
+<td>TapeDeck needs <code>pm-md-gwy</code> for live data and <code>pm-api-gwy</code> for history; the order book viewer needs <code>pm-api-gwy</code> for everything; the log console needs <code>pm-log-srv</code>. Starting them last is why <code>up-all</code> runs in two phases.</td>
 </tr>
 </tbody>
 </table>
@@ -5440,8 +5479,8 @@ the read-only API key from the deployed configuration and wires the terminal to
 the exchange for you:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>up-all<span class="w">      </span><span class="c1"># or: ./edumatcher.sh start</span>
 </code></pre></div>
-<p>Then open <a href="http://localhost:8090">http://localhost:8090</a>. The same applies to the log console (8091)
-and the browser trading terminal (8093).</p>
+<p>Then open <a href="http://localhost:8090">http://localhost:8090</a>. The same applies to the log console (8091),
+the browser trading terminal (8093) and the order book viewer (8094).</p>
 <p>To run it against an exchange you started by hand instead, start it from
 <code>web-apps/terminal-gui/</code> with the key and the gateway URL in its environment:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PM_TERMINAL_API_KEY</span><span class="o">=</span><span class="s1">'key-readonly-...'</span><span class="w">   </span><span class="c1"># the credential with gateway_id: null</span>
@@ -5455,6 +5494,24 @@ history panels stay empty. See
 remote display servers and troubleshooting, and
 <a href="../../developer/08-dev-workflow/">The Development Loop</a> for the
 <code>make dev-env</code> helper that prints both values for you.</p>
+<h3 id="order-book-viewer-pm-book">Order book viewer (<code>pm-book</code>)<a class="headerlink" href="#order-book-viewer-pm-book" title="Permanent link">&para;</a></h3>
+<p><code>pm-book</code> is <code>pm-viewer</code> in a browser: one symbol's full order book, the
+session statistics and a trade tape, in <code>web-apps/book-gui/</code>. Press <code>s</code> or
+<code>F1</code> to switch symbol, as in <code>pm-viewer</code>. It depends on:</p>
+<ul>
+<li><code>pm-api-gwy</code> with the read-only API key, for <strong>all</strong> of its data — the live
+  book and trades over the <code>/api/v1/market-data</code> WebSocket, and the session's
+  earlier trades and the previous close from the history endpoints</li>
+<li><code>pm-stats</code>, which records those history endpoints' data; without it the
+  statistics cover only the trades seen since the book was opened</li>
+<li>optionally <code>pm-log-srv</code> for bridge logs</li>
+</ul>
+<p>The container stack starts it with the other applications and hands it the
+key; open <a href="http://localhost:8094">http://localhost:8094</a>. Against an exchange you started by hand, run
+it from <code>web-apps/book-gui/</code> with <code>PM_BOOK_API_KEY</code> and <code>API_GATEWAY_URL</code> set
+exactly as for TapeDeck above — unlike TapeDeck it shows nothing without the
+key, so its <code>make up</code> refuses to start without one. See
+<a href="../310-book-gui/">Order Book Viewer</a> for the details.</p>
 <h2 id="process-groups-by-scenario">Process groups by scenario<a class="headerlink" href="#process-groups-by-scenario" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -5483,6 +5540,10 @@ remote display servers and troubleshooting, and
 <tr>
 <td>Browser market display</td>
 <td>core engine/recorders plus <code>pm-md-gwy</code>, <code>pm-api-gwy</code>, TapeDeck</td>
+</tr>
+<tr>
+<td>Browser order book</td>
+<td>core engine/recorders plus <code>pm-api-gwy</code> (<code>dashboards</code>), <code>pm-book</code></td>
 </tr>
 <tr>
 <td>Operational investigation</td>
@@ -5599,6 +5660,10 @@ responding</code> row means the same thing there as on the host.</p>
 <tr>
 <td><code>pm-viewer --symbol &lt;SYM&gt;</code></td>
 <td>One order book in detail</td>
+</tr>
+<tr>
+<td><code>pm-book</code> (book-gui, port 8094)</td>
+<td>The same order book view in a browser, with symbol switching</td>
 </tr>
 <tr>
 <td><code>pm-orders</code></td>
@@ -6151,6 +6216,7 @@ configuration.</p>
 <li><a href="../120-risk-controls/">Risk Controls</a> - collars, circuit breakers and halts</li>
 <li><a href="../180-persistence/">Persistence</a> - all files written by the exchange</li>
 <li><a href="../290-trader-info-terminal/">Trader Information Terminal</a> - TapeDeck browser display</li>
+<li><a href="../310-book-gui/">Order Book Viewer</a> - <code>pm-book</code>, the browser companion to <code>pm-viewer</code></li>
 <li><a href="../005-installation/">Installation</a> - the container stack, its networking and every directory it uses</li>
 <li><a href="../../developer/08-dev-workflow/">The Development Loop</a> - running a web application against a backend you started yourself</li>
 </ul>

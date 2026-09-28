@@ -2868,6 +2868,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../310-book-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GUI: Order book viewer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../800-examples/" class="md-nav__link">
         
   
@@ -4973,7 +5001,8 @@ no longer describe a single trading session.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-stats<span class="w"> </span>--timezone<span class="w"> </span>Europe/Stockholm
 </code></pre></div>
 <p><code>pm-stats</code> writes that value into the database's <code>stats_meta</code> table, and every
-reader — <code>pm-stats-cli</code>, <code>pm-ticker</code>, the API Gateway — picks it up from there.
+reader — <code>pm-stats-cli</code>, <code>pm-ticker</code>, <code>pm-viewer</code>, the API Gateway — picks it up
+from there.
 <strong>Readers need no timezone configuration at all</strong>, and cannot disagree with the
 recorder about which trading day a <code>--date</code> refers to:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-stats-cli<span class="w"> </span>daily<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w">   </span><span class="c1"># resolves in Europe/Stockholm automatically</span>

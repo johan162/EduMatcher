@@ -1941,6 +1941,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../310-book-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GUI: Order book viewer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../800-examples/" class="md-nav__link">
         
   
@@ -2937,6 +2965,17 @@
     <span class="md-ellipsis">
       
         GET /api/v1/history/fills
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1historysession" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/history/session
       
     </span>
   </a>
@@ -5229,6 +5268,11 @@ here.</p>
 <td><a href="#get-apiv1historyfills">GET /api/v1/history/fills</a></td>
 <td>Trading key</td>
 <td>Return fill events</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1historysession">GET /api/v1/history/session</a></td>
+<td>Authenticated key</td>
+<td>Return the session timezone and current trading date</td>
 </tr>
 <tr>
 <td><a href="#get-apiv1historytrades">GET /api/v1/history/trades</a></td>
@@ -8201,6 +8245,49 @@ gateway id; public history accepts any valid key.</p>
 <tr>
 <td><code>READ_ONLY</code></td>
 <td>Read-only credential used</td>
+</tr>
+<tr>
+<td><code>STATS_DB</code></td>
+<td><code>pm-stats</code> database missing</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1historysession"><code>GET /api/v1/history/session</code><a class="headerlink" href="#get-apiv1historysession" title="Permanent link">&para;</a></h3>
+<p>Purpose: return the session timezone <code>pm-stats</code> records in, and today's
+trading date in it — the same resolution every <code>date</code> filter on
+<code>/api/v1/history</code> uses, so a client's "today" and session clock agree with the
+<code>date</code> column of <code>/history/daily</code>.</p>
+<p><strong>Arguments</strong></p>
+<p>None.</p>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{"session_timezone": str, "session_date": Date}</code></td>
+<td>IANA timezone name (<code>UTC</code> when none was recorded) and the current trading date</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
 </tr>
 <tr>
 <td><code>STATS_DB</code></td>
