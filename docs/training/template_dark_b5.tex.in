@@ -21,6 +21,9 @@
 \PassOptionsToPackage{hyphens}{url}
 \usepackage{xurl}
 \usepackage[dvipsnames]{xcolor}
+\definecolor{tablerule}{rgb}{0.80,0.80,0.80}
+\definecolor{tablerulethin}{rgb}{0.40,0.38,0.37}
+\input{latex-tables.tex}
 \usepackage{hyperref}
 \urlstyle{same}
 \hypersetup{
