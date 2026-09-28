@@ -588,8 +588,10 @@ nanosecond the uncross runs, the last order in — placed with full sight of the
 book, too late for anyone to react — is strictly advantaged. This is why real
 venues randomise the end of a call phase.
 
-ACE is modelled on Deutsche Börse's mechanism of the same name and on Nasdaq
-Rule 4120(c)(7). It has two independent halves.
+ACE Is modelled after the Deusche Börse Xetra. The mechanism is publically described 
+in [Market Model for the Trading Venue Deutsche Börse Xetra](https://www.cashmarket.deutsche-boerse.com/resource/blob/4942824/7f80f5406aab402eb2e5e2436ce0821a/data/T7_Release_14.1_-_Market_Model%20_Xetra.pdf)
+
+It has two independent halves.
 
 #### The corridor and the expansion ladder
 
