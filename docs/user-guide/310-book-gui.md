@@ -87,6 +87,10 @@ flowchart LR
     and never connects upstream. The app's own `make up` therefore refuses to
     start without one.
 
+    Mandatory does not mean you have to find it: every bundled configuration
+    already contains the key, and the local start paths look it up for you —
+    see [Where the read-only API key comes from](#where-the-read-only-api-key-comes-from).
+
 
 ## Running the application
 
@@ -99,6 +103,10 @@ learns two things: **where `pm-api-gwy` is**, and **the read-only API key**.
 | [This app alone, in a container](#this-app-alone-in-a-container) | On this host, in a VM, or elsewhere | You, or `make up` from the deployed configuration |
 | [On a separate display server](#running-on-a-separate-display-server) | On another machine | You |
 | [Local development](#local-development) | Anywhere reachable | You, or `make dev-env` |
+
+You only ever supply the key yourself when the exchange runs on another
+machine; everywhere else it is looked up for you, as described in
+[Where the read-only API key comes from](#where-the-read-only-api-key-comes-from).
 
 
 ### The whole stack (recommended)
@@ -349,6 +357,62 @@ described in [The Development Loop](../developer/08-dev-workflow.md).
 The version in the top bar comes from `apps/web/src/version.json`, which
 `scripts/mkbld.sh` writes for every web application at release time.
 
+
+### Where the read-only API key comes from
+
+The viewer gets its key exactly the way [TapeDeck does](290-trader-info-terminal.md#where-the-read-only-api-key-comes-from),
+and from the same place — the two applications use the **same** key, under
+different variable names.
+
+**It is part of the configuration.** `pm-config-gen`'s
+`--api-gateway-readonly-key` option adds a credential with `gateway_id: null`
+and a randomly generated key to the `dashboards` API gateway instance (port
+8081). Every bundled example configuration was generated with that option, so
+each carries one, and each a different one:
+
+```yaml
+api_gateways:
+  dashboards:
+    port: 8081
+    credentials:
+    - api_key: key-readonly-fq9m76
+      gateway_id: null
+      description: Generated read-only market-data key
+```
+
+Deploying a configuration copies the key into
+`<data dir>/ref_data/engine_config.json`.
+
+**Every local start path looks it up** and passes it to the bridge as
+`PM_BOOK_API_KEY`:
+
+| Start path | How it finds the key | With no key to be found |
+|---|---|---|
+| `make up-all` / `./edumatcher.sh start` | Starts the exchange, waits for its configuration to be deployed, reads the key inside the exchange container, and exports it as both `PM_BOOK_API_KEY` and `PM_TERMINAL_API_KEY`, with `API_GATEWAY_URL=http://edumatcher:<port>`; then starts the web applications | Starts anyway and warns; the viewer has nothing to show |
+| `make up` in `web-apps/book-gui` | Reads `$EDUMATCHER_DATA_DIR/ref_data/engine_config.json` on this host. A `PM_BOOK_API_KEY` you set yourself always wins | **Stops** with an explanation |
+| `make dev-env GUI=book-gui` | Reads the key from the running exchange container and prints it as an `export` line for `make dev` | Prints a warning |
+
+Each picks the first enabled instance, in name order, with a `gateway_id: null`
+credential — `dashboards` before `desk` — and takes that instance's port with
+the key.
+
+**When you do pass it yourself.** The look-up reads a configuration file on the
+machine it runs on. When the exchange runs somewhere else — `web-apps/Makefile`
+with `VM_BACKEND_IP`, or a [separate display server](#running-on-a-separate-display-server)
+— there is no file to read, so you copy the key from that exchange's
+`engine_config.yaml` (the `gateway_id: null` credential under `dashboards`) and
+pass it as `PM_BOOK_API_KEY`.
+
+**A configuration without one.** Add a credential with `gateway_id: null` to the
+`dashboards` instance — in the [Configuration GUI](030-config-GUI.md)'s gateway
+settings, by hand, or by regenerating with `--api-gateway-readonly-key` — and
+redeploy. Every configuration has its own key, so after switching
+configuration restart through a path that looks it up again; a key copied from
+another configuration is refused, and the viewer stays on `RECONNECTING`.
+
+The key reads only public data — reference data, the market-data stream and
+history — and cannot place or see orders. It stays in the bridge and never
+reaches the browser.
 
 ## The Compose setup
 
