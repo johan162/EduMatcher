@@ -301,6 +301,33 @@ eval "$(make -s -C ../../deployment/docker dev-env GUI=book-gui)"
 make dev
 ```
 
+!!! warning "Keep `dev-env` out of the shell you start containers from"
+    `eval "$(make dev-env …)"` exports `API_GATEWAY_URL=http://127.0.0.1:8081`
+    and `PM_BOOK_API_KEY` into your shell, and they stay there. That is right
+    for `make dev`, whose bridge runs on your own machine. It is wrong for a
+    **container** started later from the same shell: Compose hands the
+    exported `API_GATEWAY_URL` to the container, where `127.0.0.1` is the
+    container itself. The app's own `make up` in `web-apps/book-gui` — or
+    `make up` in `web-apps/` without `VM_BACKEND_IP` — then starts a bridge
+    that cannot reach `pm-api-gwy`: the top bar stays on `RECONNECTING`, and the bridge log shows connections to `127.0.0.1:8081` being refused. The exported key also takes
+    precedence over `make up`'s own look-up, and is stale once the exchange
+    runs another configuration.
+
+    `make up-all` and `./edumatcher.sh start` are not affected: whenever they
+    find the read-only credential they set both values themselves.
+
+    Either load the variables for the development server only, in a subshell:
+
+    ```bash
+    (eval "$(make -s -C ../../deployment/docker dev-env GUI=book-gui)"; make dev)
+    ```
+
+    or clear them before starting a container from that shell:
+
+    ```bash
+    unset API_GATEWAY_URL PM_BOOK_API_KEY
+    ```
+
 The containerised viewer keeps running on 8094 at the same time, which makes it
 a convenient reference for your change on 8194. The full inner loop is
 described in [The Development Loop](../developer/08-dev-workflow.md).
@@ -631,6 +658,7 @@ curl -s localhost:8094/api/bridge/status
 | *Waiting for the symbol list…* never goes away | The bridge could not read `/api/v1/reference/symbols` | See the rows about `RECONNECTING` above |
 | `<SYMBOL> is not a listed symbol` | The URL names a symbol the exchange does not list | Press `s` and choose one |
 | A ladder ends before the book does | More levels exist than fit the window, or **Max levels** caps them | Read the footer (`asks 9/15`); make the window taller or set Max levels to Fit |
+| A container started with `make up` stays `RECONNECTING`; its log shows `127.0.0.1:8081` refusing connections | `API_GATEWAY_URL=http://127.0.0.1:8081` was left in the shell by `eval "$(make dev-env …)"` | `unset API_GATEWAY_URL PM_BOOK_API_KEY` and run `make up` again — see [Local development](#local-development) |
 | An older curl install has no viewer on 8094 | `update` does not fetch a new `compose.yaml` | Re-run the one-line installer |
 
 

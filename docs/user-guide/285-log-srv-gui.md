@@ -299,13 +299,13 @@ For a host with no repository clone, build a self-contained OCI archive:
 make cdist
 ```
 
-This produces `dist/edumatcher-log-gui-<version>.tar.gz` containing the Node
+This produces `dist/edumatcher-log-gui-<version>.tar.xz` containing the Node
 runtime, the compiled frontend and the bridge — no external dependencies. On
 the target host:
 
 ```bash
 # Podman
-podman load --input edumatcher-log-gui-<version>.tar.gz
+podman load --input edumatcher-log-gui-<version>.tar.xz
 podman run -d --name log-gui -p 8091:8091 \
   -e LOG_SRV_HOST=logsrv.example \
   -v /srv/logsrv-data:/app/logsrv-data:ro \
@@ -386,7 +386,7 @@ navigation rail** on the left, and the active view filling the rest.
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│ pm-log-ui v0.1.0  ● log-srv up   ⚠ 3 unacked              ☾        │
+│ EduMatcher pm-log v1.0  ● log-srv up   ⚠ 3 unacked        ☾        │
 ├──────┬─────────────────────────────────────────────────────────────┤
 │ ▣ Dash│                                                             │
 │ ▤ Logs│                                                             │
@@ -397,7 +397,8 @@ navigation rail** on the left, and the active view filling the rest.
 └──────┴─────────────────────────────────────────────────────────────┘
 ```
 
-The top bar is deliberately sparse — three things, always visible:
+The top bar is deliberately sparse. After the name and version
+(`EduMatcher pm-log v<version>`) it holds three things, always visible:
 
 - **Source state dot** — green *log-srv up*, yellow *reconnecting…*, red
   *log server down* or *log.db unavailable*. The two red states are distinct
@@ -658,7 +659,7 @@ All bridge configuration is environment variables.
 | Variable | Default | Purpose |
 |---|---|---|
 | `HOST` | `127.0.0.1` | Bind address. The container sets `0.0.0.0`. |
-| `PORT` | `8091` | HTTP/WebSocket port |
+| `PORT` | `5191` | HTTP/WebSocket port. The container sets `8091` |
 | `CORS_ORIGIN` | `*` | Allowed origin. **Restrict this** when exposed beyond localhost. |
 | `STATIC_DIR` | _(unset)_ | Serve the built frontend from here (single-container mode) |
 | `LOG_LEVEL` | `info` | The bridge's own logging verbosity |
@@ -780,7 +781,7 @@ read-only — enforced by the `:ro` mount in the container deployment.
 | **`make up` on macOS: podman machine not running** | The Podman VM is not started | `make up` starts it automatically; otherwise `podman machine init && podman machine start`. |
 | **Container cannot reach `pm-log-srv` on `localhost`** | `localhost` inside a container is the container | Use `host.docker.internal` (Docker Desktop) or `host.containers.internal` (Podman), or a real hostname. |
 | **`npm install` crashes: `TypeError: Invalid Version:`** | npm dedup bug | Use `make install`, or rerun with `--no-dedupe`. |
-| **Port `8091` or `8191` already in use** | Another process holds it | For the container, set `LOG_GUI_PORT`. For the dev server, change `server.port` in `web-apps/log-gui/apps/web/vite.config.ts`. |
+| **Port `8091` or `8191` already in use** | Another process holds it | For the whole stack, set `LOG_GUI_PORT` in `.env`; for this app's own `make up`, set `WEB_PORT` (e.g. `WEB_PORT=8101 make up`). For the dev server, change `server.port` in `web-apps/log-gui/apps/web/vite.config.ts`. |
 | **Blank page in production**, API responds | Frontend not built or `STATIC_DIR` wrong | `make build`, then point `STATIC_DIR` at an **absolute** path to `apps/web/dist`. |
 | **A client route 404s in production** | Static host with no SPA fallback | Let the bridge serve the UI via `STATIC_DIR`; it falls back to `index.html`. |
 | **Explorer shows fewer rows than expected** | `QUERY_MAX_ROWS` cap (5 000) | Narrow the filter, use a time range, or export instead. |
