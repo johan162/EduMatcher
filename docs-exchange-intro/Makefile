@@ -135,6 +135,13 @@ ADMONITIONS_LUA_FILTER := $(DOCS_DIR)/admonitions.lua
 BOOK_STRUCTURE_LUA_FILTER := $(DOCS_DIR)/book_structure.lua
 EXCHANGE_INTRO_LUA_FILTER_FLAGS := --lua-filter $(BOOK_STRUCTURE_LUA_FILTER) --lua-filter $(EXCHANGE_INTRO_LUA_FILTER) --lua-filter $(ADMONITIONS_LUA_FILTER)
 
+# Professional (booktabs-style) table rules for every PDF build, identical to
+# docs/: latex-tables.tex is \input by each LaTeX template and sets rule
+# weights and colours; latex-table-rules.awk post-processes the pandoc LaTeX
+# body to add a thin rule between the data rows of every longtable.
+LATEX_TABLES_TEX := $(DOCS_DIR)/latex-tables.tex
+LATEX_TABLE_RULES_AWK := $(DOCS_DIR)/latex-table-rules.awk
+
 # Markdown sources that are concatenated into the User Guide PDF body.
 # Keep this list markdown-only; non-markdown assets are tracked separately
 # via EXCHANGE_INTRO_PDF_DEPS so they trigger rebuilds without polluting content.
@@ -157,7 +164,9 @@ EXCHANGE_INTRO_PDF_DEPS := \
 	$(DOCS_DIR)/template_a4.tex \
 	$(DOCS_DIR)/template_dark_a4.tex \
 	$(DOCS_DIR)/template_b5.tex \
-	$(DOCS_DIR)/template_dark_b5.tex 
+	$(DOCS_DIR)/template_dark_b5.tex \
+	$(LATEX_TABLES_TEX) \
+	$(LATEX_TABLE_RULES_AWK)
 
 # Exchange Intro EPUB output path, source CSS template, and generated CSS
 # (EPUB_FIGURE_MAX_WIDTH is substituted into the latter, same @@VAR@@
@@ -367,6 +376,7 @@ $$($1_PDF): $$(EXCHANGE_INTRO_MD_SOURCES) $$(EXCHANGE_INTRO_PDF_DEPS) $$($1_TEMP
 		$$($1_CONCAT_MD) -o $$($1_BODY_TEX)
 	@sed -i.bak 's/\\def\\LTcaptype{none}/\\def\\LTcaptype{table}/g' $$($1_BODY_TEX)
 	@rm -f $$($1_BODY_TEX).bak
+	@awk -f $$(LATEX_TABLE_RULES_AWK) $$($1_BODY_TEX) > $$($1_BODY_TEX).tmp && mv $$($1_BODY_TEX).tmp $$($1_BODY_TEX)
 	@echo -e "$$(DARKYELLOW)  - Injecting body into handcrafted LaTeX template $$(BRIGHTCYAN)\"$$(notdir $$($1_TEMPLATE))\"$(DARKYELLOW) ...$$(NC)"
 	@awk -v body="$$($1_BODY_TEX)" '\
 		/%%__EXCHANGE_INTRO_CONTENT__%%/ { while ((getline line < body) > 0) print line; close(body); inserted=1; next } \
@@ -520,6 +530,7 @@ $$($1_PDF): $$(PART_$(3)_MD_SOURCES) $$(EXCHANGE_INTRO_PDF_DEPS) $$($1_COVER) | 
 	pandoc --from=markdown --to=latex --top-level-division=chapter --syntax-highlighting=none --filter "$(MERMAID_FILTER)" $$(EXCHANGE_INTRO_LUA_FILTER_FLAGS) --metadata paper_format=$(2) $$($1_BUILD)/concat.md -o $$($1_BUILD)/body.tex
 	@sed -i.bak 's/\\def\\LTcaptype{none}/\\def\\LTcaptype{table}/g' $$($1_BUILD)/body.tex
 	@rm -f $$($1_BUILD)/body.tex.bak
+	@awk -f $$(LATEX_TABLE_RULES_AWK) $$($1_BUILD)/body.tex > $$($1_BUILD)/body.tex.tmp && mv $$($1_BUILD)/body.tex.tmp $$($1_BUILD)/body.tex
 	@echo -e "$$(DARKYELLOW)  - Injecting body into patched LaTeX template for Part $(4)...$$(NC)"
 	@awk -v body="$$($1_BUILD)/body.tex" '\
 		/%%__EXCHANGE_INTRO_CONTENT__%%/ { while ((getline line < body) > 0) print line; close(body); inserted=1; next } \

@@ -1,0 +1,27 @@
+% latex-tables.tex — shared booktabs table styling for every PDF template
+% (light and dark, A4 and B5), loaded with \input from the
+% template preamble after xcolor. xelatex runs with this directory as cwd, so the
+% bare file name resolves here.
+%
+% Rule hierarchy (traditional LaTeX/booktabs look):
+%   \toprule / \bottomrule  heavy   (\heavyrulewidth)
+%   \midrule under header   normal  (\lightrulewidth)
+%   \tablerowrule           thin    (\tablethinrulewidth), between data rows
+%
+% Pandoc emits only the first three. latex-table-rules.awk inserts
+% \tablerowrule between body rows of every longtable in the generated body.
+%
+% Colours: a template may \definecolor{tablerule} (heavy/normal rules) and
+% {tablerulethin} before \input-ing this file; the defaults suit light pages.
+\usepackage{colortbl}
+\providecolor{tablerule}{gray}{0}
+\providecolor{tablerulethin}{gray}{0.72}
+\setlength{\heavyrulewidth}{1pt}
+\setlength{\lightrulewidth}{0.5pt}
+\newlength{\tablethinrulewidth}
+\setlength{\tablethinrulewidth}{0.25pt}
+\arrayrulecolor{tablerule}
+\newcommand{\tablerowrule}{%
+  \arrayrulecolor{tablerulethin}%
+  \specialrule{\tablethinrulewidth}{0.45ex}{0.55ex}%
+  \arrayrulecolor{tablerule}}
