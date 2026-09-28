@@ -44,7 +44,7 @@ where they live.
 | | Containers | `pm-opctl-cli` on the host | One terminal per process |
 |---|---|---|---|
 | Start the exchange | `./edumatcher.sh start` or `make up-all` | `pm-opctl-cli start` | 8–14 commands, in order |
-| Web applications | four, included | started separately | started separately |
+| Web applications | five, included | started separately | started separately |
 | Process table | `make status` | `pm-opctl-cli list` | `ps`, and your own notes |
 | Process logs | `data/emo/<name>.log` | `<DATA_DIR>/emo/<name>.log` | each terminal's scrollback |
 | Best for | classrooms, demos, anyone who wants it *running* | scripted or repeated local runs | learning what each process does, and debugging one of them |
@@ -193,7 +193,7 @@ directory. What is left is shorter:
 | The right configuration is deployed | `make config-show` (or `./edumatcher.sh shell` then `pm-config-show`) | `EM_CONFIG` picks a bundled example; `EM_CONFIG_FILE` overrides it. `./edumatcher.sh config <name>` *selects* a configuration and requires an argument — it does not show what is currently deployed |
 | Every process came up | `./edumatcher.sh status` or `make status` | Runs `pm-opctl-cli list` inside the container |
 | It is *your* exchange on those ports | `./edumatcher.sh mounts` or `make mounts` | A released and a source-built stack use the same container names and host ports |
-| The applications answer | open 8090, 8091, 8093 | The two-phase start can succeed for the backend and still leave a GUI unhealthy |
+| The applications answer | open 8090, 8091, 8093, 8094 | The two-phase start can succeed for the backend and still leave a GUI unhealthy |
 | Timezone matches the calendar | `TZ` in `.env` | Set it before the session; it affects every timestamp and the trading date |
 
 
@@ -364,7 +364,7 @@ flowchart TD
 | 11 | `pm-alf-gwy` | `pm-alf-gwy` | Optional `--bind`, `--port`, `--engine-host`; gateway IDs come from client `HELLO` and config | The ALF TCP gateway has no process-level `--id`. Start after the engine is healthy, then external text clients can connect. |
 | 12 | `pm-balf-gwy` | `pm-balf-gwy` | Optional `--bind`, `--port`, `--engine-host`; identity is configured/client-provided | Optional binary order-entry gateway. Start only for BALF client exercises or integrations. |
 | 13 | `pm-index` | `pm-index` | Index definitions in deployed config | Started last in the `default` profile; index publications depend on the engine and its own configured indices, not on any other process here. |
-| 14 | Web applications | `cd deployment/docker && make up-all` | None — `up-all` resolves the read-only API key and the backend hostname itself | TapeDeck needs `pm-md-gwy` for live data and `pm-api-gwy` for history; the log console needs `pm-log-srv`. Starting them last is why `up-all` runs in two phases. |
+| 14 | Web applications | `cd deployment/docker && make up-all` | None — `up-all` resolves the read-only API key and the backend hostname itself | TapeDeck needs `pm-md-gwy` for live data and `pm-api-gwy` for history; the order book viewer needs `pm-api-gwy` for everything; the log console needs `pm-log-srv`. Starting them last is why `up-all` runs in two phases. |
 
 This order is approximate for independent consumers, but not arbitrary. The
 recorders can safely wait for the engine to appear, so starting them first is a
@@ -516,8 +516,8 @@ the exchange for you:
 cd deployment/docker && make up-all      # or: ./edumatcher.sh start
 ```
 
-Then open <http://localhost:8090>. The same applies to the log console (8091)
-and the browser trading terminal (8093).
+Then open <http://localhost:8090>. The same applies to the log console (8091),
+the browser trading terminal (8093) and the order book viewer (8094).
 
 To run it against an exchange you started by hand instead, start it from
 `web-apps/terminal-gui/` with the key and the gateway URL in its environment:
@@ -536,6 +536,26 @@ remote display servers and troubleshooting, and
 [The Development Loop](../developer/08-dev-workflow.md) for the
 `make dev-env` helper that prints both values for you.
 
+### Order book viewer (`pm-book`)
+
+`pm-book` is `pm-viewer` in a browser: one symbol's full order book, the
+session statistics and a trade tape, in `web-apps/book-gui/`. Press `s` or
+`F1` to switch symbol, as in `pm-viewer`. It depends on:
+
+- `pm-api-gwy` with the read-only API key, for **all** of its data — the live
+  book and trades over the `/api/v1/market-data` WebSocket, and the session's
+  earlier trades and the previous close from the history endpoints
+- `pm-stats`, which records those history endpoints' data; without it the
+  statistics cover only the trades seen since the book was opened
+- optionally `pm-log-srv` for bridge logs
+
+The container stack starts it with the other applications and hands it the
+key; open <http://localhost:8094>. Against an exchange you started by hand, run
+it from `web-apps/book-gui/` with `PM_BOOK_API_KEY` and `API_GATEWAY_URL` set
+exactly as for TapeDeck above — unlike TapeDeck it shows nothing without the
+key, so its `make up` refuses to start without one. See
+[Order Book Viewer](310-book-gui.md) for the details.
+
 
 ## Process groups by scenario
 
@@ -546,6 +566,7 @@ remote display servers and troubleshooting, and
 | Market-making exercise | recorded classroom set plus `pm-viewer`, `pm-mm-bot` or `MM01` gateway, possibly `pm-orders` |
 | External client integration | core engine/recorders plus `pm-alf-gwy` or `pm-balf-gwy`, `pm-md-gwy`, `pm-ralf-gwy` as needed |
 | Browser market display | core engine/recorders plus `pm-md-gwy`, `pm-api-gwy`, TapeDeck |
+| Browser order book | core engine/recorders plus `pm-api-gwy` (`dashboards`), `pm-book` |
 | Operational investigation | running system plus `pm-audit-cli`, `pm-stats-cli`, `pm-clearing-cli`, `pm-log-cli`, `pm-admin-cli` |
 | Everything, with the web applications | the container stack: `./edumatcher.sh start`, or `make up-all` from a checkout |
 
@@ -686,6 +707,7 @@ responding` row means the same thing there as on the host.
 | `pm-admin` | Live session, symbol, gateway and risk-control commands |
 | `pm-admin-cli` | Scripts, health checks, one-shot operator queries |
 | `pm-viewer --symbol <SYM>` | One order book in detail |
+| `pm-book` (book-gui, port 8094) | The same order book view in a browser, with symbol switching |
 | `pm-orders` | Resting orders across gateways |
 | `pm-board` | Multi-symbol terminal board |
 | `pm-ticker` | Scrolling market tape based on stats |
@@ -1203,5 +1225,6 @@ configuration.
 - [Risk Controls](120-risk-controls.md) - collars, circuit breakers and halts
 - [Persistence](180-persistence.md) - all files written by the exchange
 - [Trader Information Terminal](290-trader-info-terminal.md) - TapeDeck browser display
+- [Order Book Viewer](310-book-gui.md) - `pm-book`, the browser companion to `pm-viewer`
 - [Installation](005-installation.md) - the container stack, its networking and every directory it uses
 - [The Development Loop](../developer/08-dev-workflow.md) - running a web application against a backend you started yourself

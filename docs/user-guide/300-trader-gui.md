@@ -118,7 +118,7 @@ doing. If you are not sure, use the first.
 
 | | What it is | Open | Use it when |
 |---|---|---|---|
-| **The whole stack** | The exchange and all four web applications, started together as containers | <http://localhost:8093> | You want a working system. This is almost always the right answer |
+| **The whole stack** | The exchange and all five web applications, started together as containers | <http://localhost:8093> | You want a working system. This is almost always the right answer |
 | **This app alone, in a container** | Just the Trading GUI, pointed at an exchange you started some other way | <http://localhost:8093> | The exchange runs elsewhere — another machine, a VM, a host install |
 | **Local dev server** | Vite with hot reload, on your machine | <http://localhost:8193> | You are changing this application's code |
 
@@ -147,7 +147,7 @@ Then open **<http://localhost:8093>**. The exchange's REST API is reachable at
 
 The other applications come up at the same time: the trader terminal on
 [8090](290-trader-info-terminal.md), the log console on
-[8091](285-log-srv-gui.md).
+[8091](285-log-srv-gui.md) and the order book viewer on 8094.
 
 Everyday commands, from `deployment/docker` (or with `./edumatcher.sh` in a
 released install):
@@ -250,7 +250,7 @@ which needs no extra infrastructure for a single-machine setup.
 
 | Target | What it does |
 |---|---|
-| `make install` | `npm install` across all workspaces |
+| `make install` | `npm ci` from the lockfile across all workspaces (`npm install` when there is no lockfile yet) |
 | `make dev` | Vite dev server on `:8193` with hot reload |
 | `make build` | Typecheck + production build into `apps/web/dist/` |
 | `make build-debug` | Build with source maps, skipping the typecheck |
@@ -263,6 +263,9 @@ which needs no extra infrastructure for a single-machine setup.
 | `make logs` / `make ps` | Follow container logs / show stack status |
 | `make cdist` | Build a distributable image tarball under `dist/` |
 | `make clean` | Remove build artefacts and `dist/` |
+| `make distclean` | Also remove `node_modules` and the lockfile, for a pristine `make install` |
+| `make imageclean` | Remove this project's local container images |
+| `make ghcr-login` / `cpush` / `ghcr-logout` / `ghcr-clean` | Log in to the GitHub Container Registry, push the image, log out, and log out plus remove the local images |
 
 Run `make help` for the authoritative list, `npm run serve -- --help` for the
 static server's own flag reference, and see `web-apps/trader-gui/README.md` for the
@@ -377,7 +380,8 @@ Every authenticated screen shares the same chrome.
 
 Left to right:
 
-- **Wordmark** — `EduMatcher · pm-trading-ui`.
+- **Wordmark** — `EduMatcher pm-trader v<version>`, the version being the
+  release the app was built from.
 - **Session-phase badge** — colour-coded: Pre-Open (slate), Opening/Closing
   Auction (amber), Continuous (green), Closed (red). It animates on change.
 - **Phase clock** — a countdown to the next scheduled transition
@@ -392,7 +396,8 @@ Left to right:
   frozen board is obvious.
 - **Command palette** (magnifier, `Ctrl+K`).
 - **Notification bell** with an unread count badge (`99+` above 99).
-- **Settings** (gear) — see [power-user mode](#keyboard-shortcuts-and-power-user-mode).
+- **Settings** (gear) — cancellation confirmations, font size and the symbol
+  picker; see [Settings](#settings).
 - **Theme switch** (sun / moon) — toggles between the dark and light palettes.
   The icon shows the theme you would switch *to*; the choice is remembered in
   this browser.
@@ -570,7 +575,9 @@ and the compact blotter strip along the bottom. Suggested file:
 `images/trader-gui/fig-04-trading-workspace.png`.
 
 The default TRADER landing screen and cockpit. Four panels, all bound to one
-active symbol chosen from the header dropdown:
+active symbol chosen with the symbol picker in the header — a dropdown, or a
+type-to-filter search box on an exchange with many symbols (see
+[Symbol picker](#symbol-picker)):
 
 - **Chart** (top-left, spanning two columns) — the same chart component as
   Symbol Detail.
@@ -1585,15 +1592,15 @@ A few behavioural notes:
   blind from wherever you were.
 - `Escape` inside the order ticket also clears the ticket's error messages and
   blurs the focused field.
-- The four **blotter** keys (`↑`, `↓`, `Ctrl+A`, `Enter`, `Delete`) need a row
+- The five **blotter** keys (`↑`, `↓`, `Ctrl+A`, `Enter`, `Delete`) need a row
   to have focus first — click one, or Tab into the table. `↑`/`↓` move focus
   without changing the selection, and `Ctrl+A` selects only *cancellable*
   rows; see [Selecting rows and moving around](#selecting-rows-and-moving-around).
 
 ### Power-user mode
 
-The **settings** popover (gear icon, top bar) holds a single toggle:
-**Confirm cancellations**, on by default.
+Power-user mode is the **Confirm cancellations** toggle in the
+[settings](#settings) popover, on by default.
 
 | With it **on** (default) | With it **off** (power-user) |
 |---|---|
@@ -1613,6 +1620,46 @@ them is reversible with an undo:
 - Kill switch, all three scopes — and Global additionally requires typing
   `CONFIRM`
 
+## Settings
+
+The **settings** popover (gear icon, top bar) holds three settings:
+
+| Setting | Choices | Default | Kept after a reload? |
+|---|---|---|---|
+| **Confirm cancellations** | on / off | on | No |
+| **Font size** | XS, S, M, L, XL, XXL | M | Yes, per browser |
+| **Symbol picker** | Auto, Dropdown, Search, plus an **Auto threshold** | Auto, threshold 20 | No |
+
+**Confirm cancellations** is the power-user toggle described
+[above](#power-user-mode).
+
+### Font size
+
+Scales the whole application — text, tables, panels and charts together —
+from XS (the most compact) to XXL, for a large monitor, a projector, or a
+reader who wants bigger type. M is the default. The choice is stored in this
+browser's `localStorage`, so it survives a reload and a logout, but another
+browser starts at M again.
+
+### Symbol picker
+
+Chooses the widget the [Trading Workspace](#trading-workspace) uses to select
+its active symbol:
+
+- **Dropdown** — a plain list of every symbol. Quickest with a handful of
+  symbols.
+- **Search** — a text box that narrows the list as you type: any symbol
+  *containing* what you typed matches. **↑**/**↓** move through the matches,
+  **Enter** picks one, **Esc** closes the list. Better with dozens or
+  hundreds of symbols, where a dropdown becomes a long scroll.
+- **Auto** (default) — Dropdown while the exchange lists fewer symbols than the
+  **Auto threshold** (20 by default), Search once it lists that many or more.
+  A classroom exchange with three books gets a dropdown and one with thirty
+  gets a search box, with nothing to set.
+
+Unlike the font size, this choice and the threshold are held in memory only
+and return to Auto / 20 when the page is reloaded.
+
 ## Configuration reference
 
 The app reads its configuration from Vite environment variables at build
@@ -1622,7 +1669,7 @@ time. Copy `web-apps/trader-gui/.env.example` to `.env` and adjust.
 |---|---|---|
 | `VITE_API_BASE` | *(empty)* | Base URL for the `pm-api-gwy` REST API. Empty relies on the dev proxy / same-origin reverse proxy. |
 | `VITE_WS_BASE` | *(empty)* | Base URL for WebSocket connections. Empty resolves against the page origin (`http`→`ws`, `https`→`wss`). |
-| `VITE_APP_TITLE` | `EduMatcher Trading` | Browser tab title and top-bar wordmark subtitle. |
+| `VITE_APP_TITLE` | `EduMatcher Trading` | Title on the login screen, shown as `<title> · pm-trading-ui`. The browser tab title is fixed in `apps/web/index.html`, and the top bar always shows `EduMatcher pm-trader`. |
 | `VITE_MAX_OVERVIEW_SYMBOLS` | `250` | Cap on the broad book/trades subscription (Market Overview). |
 | `VITE_MAX_FOCUS_SYMBOLS` | `25` | Cap on the focused per-symbol depth/auction subscription set (active symbol + watchlist). |
 | `VITE_CHART_HISTORY_TICKS` | `1000` | Historical prints fetched for an intraday chart. |

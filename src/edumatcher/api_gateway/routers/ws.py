@@ -405,9 +405,14 @@ async def _emit_snapshots(
             for symbol in symbols:
                 if channel == "trades" and resume_seq is not None:
                     await _emit_trade_resume(websocket, cache, symbol, resume_seq)
-                else:
-                    for event in cache.snapshot(symbol, channel):
-                        await websocket.send_json(event)
+                    continue
+                events = cache.snapshot(symbol, channel)
+                if channel == "book" and not events:
+                    # A book the engine has not republished since this gateway
+                    # subscribed: ask for it, and it arrives as a live event.
+                    websocket.app.state.engine.request_book_snapshot(symbol)
+                for event in events:
+                    await websocket.send_json(event)
 
 
 async def _emit_resume(

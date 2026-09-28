@@ -204,7 +204,7 @@ running exchange.
 > Everything below builds it from your checkout instead.
 
 ```bash
-make up-all                                # exchange + terminal-, log- and trader-gui
+make up-all                                # exchange + terminal-, log-, trader- and book-gui
 make up-all CONFIG=s10-nominal             # on a bundled example configuration
 make up-all CONFIG=~/mine/engine_config.yaml   # on a configuration of your own
 make up-all CONFIG_GUI=1                   # and the configuration builder too
@@ -216,7 +216,7 @@ its image first — otherwise compose reuses the one it already has and your
 change is invisible:
 
 ```bash
-make build-guis GUI=terminal-gui   # rebuild one image (omit GUI= for all four)
+make build-guis GUI=terminal-gui   # rebuild one image (omit GUI= for all five)
 make up-all                        # recreate the containers whose image changed
 make up-all BUILD=1 GUI=log-gui    # both steps in one
 ```
@@ -232,6 +232,7 @@ reload against this container stack — see
 | Log viewer | <http://localhost:8091> | `pm-log-srv` 5601/5602, and `data/log.db` read-only |
 | Config builder | <http://localhost:8092> | nothing — standalone, hence `CONFIG_GUI=1` |
 | Trader GUI | <http://localhost:8093> | `pm-api-gwy` 8080 |
+| Order book viewer | <http://localhost:8094> | `pm-api-gwy` 8081 (market-data WebSocket and history), `pm-log-srv` 5600 |
 
 ### How the GUIs reach the exchange
 
@@ -285,14 +286,16 @@ table does not mean a gateway is reachable from a sibling container.
 
 ### Why `up-all` is two phases
 
-`terminal-gui` reads history through `pm-api-gwy` with the read-only
-credential (`gateway_id: null`), which is generated *per configuration* — a
+`terminal-gui` reads history, and `book-gui` reads everything, through
+`pm-api-gwy` with the read-only credential (`gateway_id: null`), which is
+generated *per configuration* — a
 different key in every bundled example — and lives on the `dashboards`
 instance (8081), not `desk` (8080). It does not exist until the exchange has
 deployed its configuration, so `up-all` starts the backend, reads the key out
 of `data/ref_data/engine_config.json`, and only then starts the GUIs with it.
-A configuration with no such credential is not an error: the live market-data
-feed still works, and `up-all` warns that history will be unavailable.
+A configuration with no such credential is not an error: terminal-gui's live
+market-data feed still works, and `up-all` warns that its history — and all of
+book-gui's data — will be unavailable.
 
 ### Running a configuration of your own
 
@@ -430,7 +433,7 @@ make restart
 | `make config-show` | Show the deployed configuration |
 | `make ports` | List the published ports |
 | `make mounts` | Which directory on disk is behind each container path, and which image each container came from |
-| `make ghcr-push` | Push all five images to GHCR as `:dev`. `TAG=x.y.z FORCE=1` for a release tag, `LATEST=1` to move `latest`. Needs `GITHUB_USER` and `GHCR_TOKEN` |
+| `make ghcr-push` | Push all six images to GHCR as `:dev`. `TAG=x.y.z FORCE=1` for a release tag, `LATEST=1` to move `latest`. Needs `GITHUB_USER` and `GHCR_TOKEN` |
 | `make info` | Show the detected engine, compose command and image name |
 | `make clean` | Remove the container and the image |
 | `make clean-data` | Delete `./data` (asks first) |
@@ -471,7 +474,7 @@ you see it.
 ## Publishing images by hand
 
 Releases publish images from `.github/workflows/publish-images.yml`, which
-builds each of the five natively on amd64 and arm64 and joins them into one
+builds each of the six natively on amd64 and arm64 and joins them into one
 manifest list. `make ghcr-push` is the escape hatch for when that workflow
 cannot run — a registry outage, a fork without Actions, or an image you want in
 someone's hands before a release exists.
@@ -479,7 +482,7 @@ someone's hands before a release exists.
 ```bash
 export GITHUB_USER=johan162 GHCR_TOKEN=<token with write:packages>
 
-make ghcr-push                              # all five, tagged :dev
+make ghcr-push                              # all six, tagged :dev
 make ghcr-push TAG=0.20.6 FORCE=1           # ...as a release tag
 make ghcr-push TAG=0.20.6 FORCE=1 LATEST=1  # ...and move :latest
 ```
@@ -499,7 +502,7 @@ merely stuck rather than unavailable, re-run it instead:
 gh workflow run publish-images.yml -f tag=v0.20.6
 ```
 
-A newly created GHCR package is **private**. Until each of the five is made
+A newly created GHCR package is **private**. Until each of the six is made
 public in its package settings, nobody but you can pull them.
 
 ## Configuration reference (`.env`)
@@ -517,7 +520,7 @@ is git-ignored, so it is the right place for host-specific choices.
 | `TZ` | `UTC` | Container timezone — match your trading calendar |
 | `BIND_ADDR` | `127.0.0.1` | Host interface the ports bind to |
 | `SSH_PORT` | `2222` | Host port forwarded to sshd |
-| `TERMINAL_GUI_PORT` / `LOG_GUI_PORT` / `CONFIG_GUI_PORT` / `TRADER_GUI_PORT` | `8090` / `8091` / `8092` / `8093` | Host ports for the GUIs started by `make up-all` |
+| `TERMINAL_GUI_PORT` / `LOG_GUI_PORT` / `CONFIG_GUI_PORT` / `TRADER_GUI_PORT` / `BOOK_GUI_PORT` | `8090` / `8091` / `8092` / `8093` / `8094` | Host ports for the GUIs started by `make up-all` |
 | `IMAGE_NAME` / `IMAGE_TAG` | `edumatcher` / `local` | Image naming |
 | `CONTAINER_NAME` | `edumatcher` | Container name |
 

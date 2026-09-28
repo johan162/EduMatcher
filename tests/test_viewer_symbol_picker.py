@@ -633,7 +633,7 @@ class TestInteractiveSymbolSwitching:
             ],
         )
         assert sub.subscribed == ["book.MSFT"]
-        assert "1.2500" not in _capture(rendered[-1])
+        assert "1.25" not in _capture(rendered[-1])
 
     def test_the_new_symbols_book_is_shown_after_the_switch(
         self, monkeypatch: pytest.MonkeyPatch
@@ -650,8 +650,8 @@ class TestInteractiveSymbolSwitching:
         )
         out = _capture(rendered[-1])
         assert "MSFT" in out
-        assert "99.5000" in out
-        assert "1.2500" not in out
+        assert "99.50" in out
+        assert "1.25" not in out
 
     def test_a_symbol_list_arriving_after_escape_is_kept_for_next_time(
         self, monkeypatch: pytest.MonkeyPatch

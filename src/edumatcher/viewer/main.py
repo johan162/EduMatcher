@@ -6,18 +6,28 @@ Usage:
   poetry run pm-viewer --symbol AAPL --zebra-lines
   poetry run pm-viewer --symbol AAPL --text-color "#e0e0e0"
 
-Subscribes to book.<SYMBOL> and renders a full-screen, self-redrawing order
-book showing:
+Subscribes to book.<SYMBOL> and trade.executed and renders a full-screen,
+self-redrawing order book showing:
   • A status header: last price, intraday change / %, session O/H/L/C,
     best bid/ask, spread, session volume and a live clock.
   • Three equal-height panels (Bids / Asks / Trades) that fill the terminal
     height and show the top rows that fit.
 
-The header's session OHLC and volume are derived locally from the live
-``book.<SYMBOL>`` feed (the engine's book snapshot carries no OHLC), so they
-reflect activity observed since the viewer connected. ``prev_close`` is wired
-through for a future feed that provides it; until then the percentage change
-is measured against the session open.
+The header's session OHLC and volume, and the TRADES panel, are built from
+individual trades: seeded from the stats database (today's ``daily_stats``
+row and ``trade_log`` tail), then extended by every live ``trade.executed``
+print for the symbol. A trade is counted once however many paths deliver it
+(the database seed, the live print, a book snapshot's ``recent_trades``).
+The percentage change is measured against the previous close from the stats
+database, or against the session open when there is none.
+
+Prices are shown at the symbol's own ``tick_decimals``, as carried by the
+book snapshot and the trade prints.
+
+"Today", the header clock and date, and the trade times are all in the
+exchange's session timezone, read from the stats database's ``stats_meta``
+exactly as pm-stats recorded it — the host's local clock is a different
+clock. Without a stats database that is UTC, pm-stats' own default.
 
 Iceberg orders show only displayed_qty — the hidden size is intentionally
 invisible, demonstrating the privacy feature of iceberg orders.
@@ -47,7 +57,7 @@ import sqlite3
 import threading
 import time
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import datetime, timezone, tzinfo
 from pathlib import Path
 from typing import Any
 
@@ -84,6 +94,10 @@ from edumatcher.models.generated.book import (
     topic_book_snapshot,
 )
 from edumatcher.models.generated.system import topic_symbols
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+from edumatcher.models.price import DEFAULT_TICK_DECIMALS
+from edumatcher.stats.query import resolve_session_timezone
+from edumatcher.stats.trading_day import trading_date, trading_day_bounds
 from edumatcher.viewer.keyboard import KeyReader
 from edumatcher.viewer.picker import (
     DEFAULT_VISIBLE_ROWS,
@@ -98,7 +112,7 @@ _CLIENT_NAME = "pm-viewer"
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
 _REFRESH_HZ = 4  # rich Live refresh rate
-_MAX_RECENT_TRADES = 50  # upper bound; actual shown is driven by screen height
+_MAX_RECENT_TRADES = 50  # trade tape length; actual shown is driven by screen height
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 _SNAPSHOT_INITIAL_DELAY_SEC = 0.15
 _SNAPSHOT_RETRY_TIMEOUT_SEC = 2.0
@@ -218,16 +232,33 @@ def request_symbols_with_retry(
     )
 
 
+def _from_ticks(value: Any, decimals: int) -> float | None:
+    """Convert a stats-database integer tick price to display money."""
+    return value / 10 ** decimals if isinstance(value, (int, float)) else None
+
+
 def _load_stats_from_db(db_path: Path, symbol: str) -> "_SessionStats":
     """Seed a :class:`_SessionStats` from the stats SQLite database.
 
-    Queries two rows from ``daily_stats``:
-    - Today's row  → true intraday O/H/L/C and volume so far.
-    - Yesterday's row → previous close for the change % baseline.
+    Reads, all in one read transaction:
+    - The session timezone from ``stats_meta`` → which trading date is today.
+    - Today's ``daily_stats`` row → true intraday O/H/L/C and volume so far.
+    - The most recent prior-day close → the change % baseline.
+    - Today's newest ``trade_log`` rows → the TRADES panel.
+    - The newest ``trade_log`` trade id for the symbol → the point up to
+      which the seeded volume already counts every trade.
+
+    pm-stats writes each trade's ``trade_log`` row and its ``daily_stats``
+    rollup in one transaction, so reading them under one snapshot keeps the
+    seeded volume and the trade-id watermark in step: a live or snapshot
+    trade at or below the watermark is already in the volume and is skipped.
+
+    Prices in both tables are integer ticks, converted with each row's own
+    ``tick_decimals``.
 
     If the DB doesn't exist yet (stats process hasn't run) or the symbol
     has no rows, returns an empty :class:`_SessionStats` and logs a note.
-    Both queries are read-only and fail-safe — any error just leaves the
+    Every query is read-only and fail-safe — any error just leaves the
     corresponding fields as ``None``, which the header renders as "—" /
     "n/a", and the live feed fills them in as trades arrive.
     """
@@ -238,27 +269,35 @@ def _load_stats_from_db(db_path: Path, symbol: str) -> "_SessionStats":
         )
         return stats
 
-    today = date.today().isoformat()
     sym = symbol.upper()
     try:
-        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        conn = sqlite3.connect(
+            f"file:{db_path}?mode=ro", uri=True, isolation_level=None
+        )
         try:
+            conn.execute("BEGIN")
+            # daily_stats.date is the trading date in the session timezone
+            # pm-stats recorded with, so resolve "today" in that timezone.
+            tz, warning = resolve_session_timezone(conn)
+            if warning is not None:
+                log.warning("stats DB: %s", warning)
+            stats.tz = tz
+            today = trading_date(time.time(), tz)
+            # trade_log.ts is UTC text; this bound sorts correctly against it.
+            day_start, _day_end = trading_day_bounds(today, tz)
             # Today's intraday row — may be partial (session still live).
             row = conn.execute(
-                "SELECT open_price, high_price, low_price, close_price, volume "
-                "FROM daily_stats WHERE date = ? AND symbol = ?",
+                "SELECT open_price, high_price, low_price, close_price, volume, "
+                "tick_decimals FROM daily_stats WHERE date = ? AND symbol = ?",
                 (today, sym),
             ).fetchone()
             if row:
-                op, hi, lo, cl, vol = row
-                if isinstance(op, (int, float)):
-                    stats.open = float(op)
-                if isinstance(hi, (int, float)):
-                    stats.high = float(hi)
-                if isinstance(lo, (int, float)):
-                    stats.low = float(lo)
-                if isinstance(cl, (int, float)):
-                    stats.close = float(cl)
+                op, hi, lo, cl, vol, dec = row
+                stats.tick_decimals = int(dec)
+                stats.open = _from_ticks(op, dec)
+                stats.high = _from_ticks(hi, dec)
+                stats.low = _from_ticks(lo, dec)
+                stats.close = _from_ticks(cl, dec)
                 if isinstance(vol, (int, float)):
                     stats.volume = int(vol)
                 log.debug(
@@ -273,18 +312,39 @@ def _load_stats_from_db(db_path: Path, symbol: str) -> "_SessionStats":
 
             # Most recent prior-day close for a meaningful % change.
             prev_row = conn.execute(
-                "SELECT close_price FROM daily_stats "
+                "SELECT close_price, tick_decimals FROM daily_stats "
                 "WHERE symbol = ? AND date < ? AND close_price IS NOT NULL "
                 "ORDER BY date DESC LIMIT 1",
                 (sym, today),
             ).fetchone()
-            if prev_row and isinstance(prev_row[0], (int, float)):
-                stats.prev_close = float(prev_row[0])
+            if prev_row:
+                stats.prev_close = _from_ticks(prev_row[0], prev_row[1])
                 log.debug(
                     "loaded prev_close from stats DB symbol=%s prev_close=%s",
                     sym,
                     stats.prev_close,
                 )
+
+            tape_rows = conn.execute(
+                "SELECT trade_id, ts, price, quantity, tick_decimals FROM trade_log "
+                "WHERE symbol = ? AND ts >= ? ORDER BY trade_id DESC LIMIT ?",
+                (sym, day_start, _MAX_RECENT_TRADES),
+            ).fetchall()
+            stats.tape = [
+                {
+                    "id": tid,
+                    "price": _from_ticks(px, dec),
+                    "quantity": qty,
+                    "ts_ns": round(datetime.fromisoformat(ts).timestamp() * 1_000)
+                    * 1_000_000,
+                }
+                for tid, ts, px, qty, dec in reversed(tape_rows)
+            ]
+
+            mark = conn.execute(
+                "SELECT MAX(trade_id) FROM trade_log WHERE symbol = ?", (sym,)
+            ).fetchone()
+            stats.counted_through = mark[0] if mark else None
         finally:
             conn.close()
     except sqlite3.OperationalError as exc:
@@ -298,43 +358,81 @@ def _load_stats_from_db(db_path: Path, symbol: str) -> "_SessionStats":
 
 @dataclass
 class _SessionStats:
-    """Intraday statistics accumulated from the live book feed.
+    """Intraday statistics and the trade tape, built from individual trades.
 
-    The engine book snapshot has no OHLC, so we derive session open / high /
-    low / close from the ``last_price`` seen on each snapshot and volume from
-    de-duplicated ``recent_trades`` ids.
+    Seeded by :func:`_load_stats_from_db`, then fed every trade for the
+    symbol through :meth:`add_trade` — live ``trade.executed`` prints and the
+    ``recent_trades`` each book snapshot repeats. Each trade is counted once.
+
+    Trade ids are fixed-width ``<run_seq>-<counter>`` strings, so they sort
+    in print order; that is what orders open, close and the tape even when an
+    older trade (a snapshot's ``recent_trades``) arrives after a newer one.
     """
 
     open: float | None = None
     high: float | None = None
     low: float | None = None
     close: float | None = None
-    prev_close: float | None = None  # reserved for a future feed
+    prev_close: float | None = None
     volume: int = 0
-    _seen_trades: set[Any] = field(default_factory=set)
+    tick_decimals: int = DEFAULT_TICK_DECIMALS
+    # Exchange session timezone: "today", the clock and trade times.
+    tz: tzinfo = timezone.utc
+    # Oldest first, at most _MAX_RECENT_TRADES — the TRADES panel.
+    tape: list[dict[str, Any]] = field(default_factory=list)
+    # Newest trade id the database seed already counted, or None.
+    counted_through: str | None = None
+    _first_id: str | None = None
+    _last_id: str | None = None
+    _seen_trades: set[str] = field(default_factory=set)
 
     def update(self, snapshot: dict[str, Any]) -> None:
-        last = snapshot.get("last_price")
-        if isinstance(last, (int, float)):
-            if self.open is None:
-                self.open = float(last)
-            self.high = float(last) if self.high is None else max(self.high, last)
-            self.low = float(last) if self.low is None else min(self.low, last)
-            self.close = float(last)
+        dec = snapshot.get("tick_decimals")
+        if isinstance(dec, int):
+            self.tick_decimals = dec
 
         pc = snapshot.get("prev_close")
         if isinstance(pc, (int, float)):
             self.prev_close = float(pc)
 
         for tr in snapshot.get("recent_trades", []) or []:
-            tid = tr.get("id")
-            if tid is None or tid in self._seen_trades:
-                continue
-            self._seen_trades.add(tid)
-            try:
-                self.volume += int(tr.get("quantity", 0) or 0)
-            except (TypeError, ValueError):
-                pass
+            self.add_trade(tr)
+
+    def add_trade(self, trade: dict[str, Any]) -> None:
+        tid = trade.get("id")
+        price = trade.get("price")
+        if not isinstance(tid, str) or not isinstance(price, (int, float)):
+            return
+        if tid in self._seen_trades or (
+            self.counted_through is not None and tid <= self.counted_through
+        ):
+            return
+        self._seen_trades.add(tid)
+
+        dec = trade.get("tick_decimals")
+        if isinstance(dec, int):
+            self.tick_decimals = dec
+
+        px = float(price)
+        # A seeded open predates every trade that gets past the watermark,
+        # so only an open this object derived itself can be displaced.
+        if self.open is None or (self._first_id is not None and tid < self._first_id):
+            self.open = px
+            self._first_id = tid
+        if self._last_id is None or tid > self._last_id:
+            self.close = px
+            self._last_id = tid
+        self.high = px if self.high is None else max(self.high, px)
+        self.low = px if self.low is None else min(self.low, px)
+        try:
+            self.volume += int(trade.get("quantity", 0) or 0)
+        except (TypeError, ValueError):
+            pass
+
+        self.tape.append(trade)
+        if len(self.tape) > 1 and self.tape[-2].get("id", "") > tid:
+            self.tape.sort(key=lambda t: str(t.get("id", "")))
+        del self.tape[:-_MAX_RECENT_TRADES]
 
     @property
     def reference(self) -> float | None:
@@ -342,8 +440,8 @@ class _SessionStats:
         return self.prev_close if self.prev_close is not None else self.open
 
 
-def _fmt_price(value: Any, prec: int = 4) -> str:
-    return f"{value:.{prec}f}" if isinstance(value, (int, float)) else "—"
+def _fmt_price(value: Any, decimals: int) -> str:
+    return f"{value:.{decimals}f}" if isinstance(value, (int, float)) else "—"
 
 
 def _fmt_int(value: Any) -> str:
@@ -399,6 +497,7 @@ def _build_header(
     *,
     text_color: str = _DEFAULT_TEXT_COLOR,
 ) -> Group:
+    dec = stats.tick_decimals
     last = snapshot.get("last_price")
     last_qty = snapshot.get("last_qty")
     reference = stats.reference
@@ -418,10 +517,10 @@ def _build_header(
 
     line1_left = Text.assemble(
         _label("LAST"),
-        (_fmt_price(last), f"bold {trend}"),
+        (_fmt_price(last, dec), f"bold {trend}"),
         (f" {arrow}  ", trend),
         _label("CHG"),
-        ((f"{change:+.4f}" if change is not None else "—"), trend),
+        ((f"{change:+.{dec}f}" if change is not None else "—"), trend),
         ("  ", ""),
         ((f"{pct:+.2f}%" if pct is not None else "—"), f"bold {trend}"),
         _sep(),
@@ -429,36 +528,40 @@ def _build_header(
         (_fmt_int(last_qty), text_color),
         _sep(),
         _label("BID/ASK"),
-        (_fmt_price(best_bid), _UP),
+        (_fmt_price(best_bid, dec), _UP),
         (" x ", "grey62"),
-        (_fmt_price(best_ask), _DOWN),
+        (_fmt_price(best_ask, dec), _DOWN),
         _sep(),
         _label("SPRD"),
-        (_fmt_price(spread), "yellow"),
+        (_fmt_price(spread, dec), "yellow"),
     )
-    now = datetime.now()
+    now = datetime.now(stats.tz)
     line1_right = Text(now.strftime("%H:%M:%S"), style="bold cyan")
 
     line2_left = Text.assemble(
         _label("O"),
-        (_fmt_price(stats.open), text_color),
+        (_fmt_price(stats.open, dec), text_color),
         _label("  H"),
-        (_fmt_price(stats.high), _UP),
+        (_fmt_price(stats.high, dec), _UP),
         _label("  L"),
-        (_fmt_price(stats.low), _DOWN),
+        (_fmt_price(stats.low, dec), _DOWN),
         _label("  C"),
-        (_fmt_price(stats.close), text_color),
+        (_fmt_price(stats.close, dec), text_color),
         _sep(),
         _label("PREV"),
         (
-            _fmt_price(stats.prev_close) if stats.prev_close is not None else "n/a",
+            (
+                _fmt_price(stats.prev_close, dec)
+                if stats.prev_close is not None
+                else "n/a"
+            ),
             text_color,
         ),
         _sep(),
         _label("RANGE"),
         (
             (
-                _fmt_price(stats.high - stats.low)
+                _fmt_price(stats.high - stats.low, dec)
                 if isinstance(stats.high, (int, float))
                 and isinstance(stats.low, (int, float))
                 else "—"
@@ -502,6 +605,7 @@ def _side_table(
     capacity: int,
     *,
     is_bid: bool,
+    decimals: int,
     text_color: str = _DEFAULT_TEXT_COLOR,
     zebra_lines: bool = False,
     zebra_color: str = _DEFAULT_ZEBRA_COLOR,
@@ -534,7 +638,7 @@ def _side_table(
 
     shown = rows[:capacity]
     for lvl in shown:
-        price = _fmt_price(lvl.get("price"))
+        price = _fmt_price(lvl.get("price"), decimals)
         qty = _fmt_int(lvl.get("qty"))
         cnt = str(lvl.get("count", ""))
         bar = _bar(lvl.get("qty"), max_qty, color, reverse=not is_bid)
@@ -552,6 +656,8 @@ def _trades_table(
     recent: list[dict[str, Any]],
     capacity: int,
     *,
+    decimals: int,
+    tz: tzinfo,
     zebra_lines: bool = False,
     zebra_color: str = _DEFAULT_ZEBRA_COLOR,
 ) -> Table:
@@ -581,7 +687,7 @@ def _trades_table(
         ts_raw = tr.get("ts_ns")
         if isinstance(ts_raw, int):
             try:
-                ts = datetime.fromtimestamp(ts_raw / 1_000_000_000).strftime(
+                ts = datetime.fromtimestamp(ts_raw / 1_000_000_000, tz).strftime(
                     "%H:%M:%S.%f"
                 )[:-3]
             except (ValueError, OSError):
@@ -590,7 +696,7 @@ def _trades_table(
             ts = "—"
         tbl.add_row(
             Text(ts, style="grey70"),
-            Text(_fmt_price(price), style=style),
+            Text(_fmt_price(price, decimals), style=style),
             Text(_fmt_int(tr.get("quantity")), style=style),
         )
 
@@ -644,6 +750,7 @@ def _build_display(
         _UP,
         capacity,
         is_bid=True,
+        decimals=stats.tick_decimals,
         text_color=text_color,
         zebra_lines=zebra_lines,
         zebra_color=zebra_color,
@@ -654,13 +761,16 @@ def _build_display(
         _DOWN,
         capacity,
         is_bid=False,
+        decimals=stats.tick_decimals,
         text_color=text_color,
         zebra_lines=zebra_lines,
         zebra_color=zebra_color,
     )
     trades_tbl = _trades_table(
-        snapshot.get("recent_trades", []) or [],
+        stats.tape,
         capacity,
+        decimals=stats.tick_decimals,
+        tz=stats.tz,
         zebra_lines=zebra_lines,
         zebra_color=zebra_color,
     )
@@ -762,7 +872,9 @@ def main() -> None:
     gateway_id = f"PMVIEW-{os.getpid()}"[:32]
     symbols_topic = topic_symbols(gateway_id)
     book_topic = topic_book_snapshot(symbol)
-    sub = make_subscriber(ENGINE_PUB_ADDR, book_topic, symbols_topic)
+    sub = make_subscriber(
+        ENGINE_PUB_ADDR, book_topic, symbols_topic, TOPIC_TRADE_EXECUTED
+    )
 
     # Request the current snapshot so reconnects show the live book
     # immediately. Done in a daemon thread so we don't block the main loop.
@@ -865,6 +977,11 @@ def main() -> None:
                         latest_snapshot = payload
                         stats.update(payload)
                         _dbg_count("book_snapshots")
+                    elif topic == TOPIC_TRADE_EXECUTED:
+                        # Venue-wide topic: every symbol's prints arrive here.
+                        if payload.get("symbol") == symbol:
+                            stats.add_trade(payload)
+                            _dbg_count("trades")
                     else:
                         # A snapshot for the symbol we just switched away from.
                         _dbg_count("stale_snapshots")

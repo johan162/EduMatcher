@@ -81,6 +81,29 @@ services:
     volumes:
       - terminal-gui-logs:/app/logs
 
+  book-gui:
+    image: ghcr.io/${GHCR_OWNER:-johan162}/edumatcher-book-gui:${EM_VERSION:-latest}
+    container_name: edumatcher-book-gui
+    depends_on:
+      - edumatcher
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${BOOK_GUI_PORT:-8094}:8094"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8094"
+      CORS_ORIGIN: "*"
+      # Live market data and history both come from pm-api-gwy, with the same
+      # read-only credential as terminal-gui, resolved by ./edumatcher.sh start.
+      API_GATEWAY_URL: "${API_GATEWAY_URL:-http://edumatcher:8081}"
+      PM_BOOK_API_KEY: "${PM_BOOK_API_KEY:-}"
+      LOG_SRV_ENABLED: "true"
+      LOG_SRV_HOST: "edumatcher"
+      LOG_SRV_PORT: "5600"
+      LOG_FAILOVER_DIR: "/app/logs"
+    volumes:
+      - book-gui-logs:/app/logs
+
   log-gui:
     image: ghcr.io/${GHCR_OWNER:-johan162}/edumatcher-log-gui:${EM_VERSION:-latest}
     container_name: edumatcher-log-gui
@@ -132,3 +155,4 @@ services:
 volumes:
   log-gui-acks:
   terminal-gui-logs:
+  book-gui-logs:

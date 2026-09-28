@@ -1,0 +1,20 @@
+{
+  "type": "trade",
+  "topic": "trade.executed",
+  "ts": "2026-09-27T17:21:12.342Z",
+  "data": {
+    "id": "000001-000000003",
+    "run_seq": 1,
+    "symbol": "MSFT",
+    "buy_order_id": "ede772be7902f671afa7d5fbfa4e4959",
+    "sell_order_id": "22f734c21d1eb79cfd98977a41ce31f7",
+    "buy_gateway_id": "MM01",
+    "sell_gateway_id": "TRADER02",
+    "price": 93.42,
+    "quantity": 5,
+    "aggressor_side": "SELL",
+    "ts_ns": 1790529672341133499,
+    "tick_decimals": 2
+  },
+  "seq": 3
+}

@@ -30,7 +30,7 @@ where processes are started by hand.
 
 !!! tip "VM or container?"
     Use [`deployment/docker/`](07-container-and-networks.md) when you want the
-    whole system — exchange plus all four web GUIs — running with one command,
+    whole system — exchange plus all five web GUIs — running with one command,
     or when you are changing code and need a fast rebuild. Use the VM when you
     want a real machine, a snapshot you can roll back to, or a demo that
     survives being handed to somebody else. The VM installs the backend only;
@@ -73,7 +73,7 @@ Without a repository checkout:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh \
-    | bash -s -- --version 0.42.1
+    | bash -s -- --version 0.43.0
 ```
 
 `curl_setup_vm.sh` downloads `mknode.sh` and `install_edumatcher.sh` into a

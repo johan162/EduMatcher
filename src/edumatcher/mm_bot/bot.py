@@ -38,7 +38,8 @@ from edumatcher.models.message import (
     make_quote_new_msg,
     make_symbols_request_msg,
 )
-from edumatcher.mm_bot.pricer import PricingStrategy, create_strategy
+from edumatcher.mm_bot.params import TIER2_DEFAULTS
+from edumatcher.mm_bot.pricer import PassiveParams, PricingStrategy, create_strategy
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 from edumatcher.models.generated.circuit_breaker import (
@@ -183,6 +184,19 @@ class _SymbolState:
     qlegs_reconcile_interval_sec: float = 15.0
     initial_min: float | None = None
     initial_max: float | None = None
+    # passive-strategy knobs; ignored by every other strategy.
+    retreat_ticks: int = TIER2_DEFAULTS["retreat_ticks"]
+    behind_ticks: int = TIER2_DEFAULTS["behind_ticks"]
+    min_cover_qty: int = TIER2_DEFAULTS["min_cover_qty"]
+    fade_ticks: int = TIER2_DEFAULTS["fade_ticks"]
+    fade_sec: float = TIER2_DEFAULTS["fade_sec"]
+    # Where this bot's own legs rest and how much of each is left, so the
+    # passive strategy can remove them from book snapshots (_others_levels).
+    # Set when a quote is sent or adopted; cleared with the quote state.
+    own_bid_price: float | None = None
+    own_ask_price: float | None = None
+    own_bid_qty: int = 0
+    own_ask_qty: int = 0
     # Set once the symbol has failed a startup check (§5a.4 per-symbol
     # failure isolation) so the rest of the bot can skip it without
     # crashing the whole process. None while startup is still in progress
@@ -212,7 +226,44 @@ _DIRECT_PARAM_KEYS = (
     "qlegs_reconcile_interval_sec",
     "initial_min",
     "initial_max",
+    "retreat_ticks",
+    "behind_ticks",
+    "min_cover_qty",
+    "fade_ticks",
+    "fade_sec",
 )
+
+
+def _others_levels(
+    levels: list[dict[str, Any]],
+    own_price: float | None,
+    own_qty: int,
+    tick_size: float,
+) -> list[tuple[float, int]]:
+    """Book levels as (price, qty) with this bot's own leg taken out.
+
+    A level is only reduced when it holds at least the bot's remaining leg
+    quantity — a snapshot published before the leg reached the book (or
+    after it left) is then passed through unchanged instead of having some
+    other trader's quantity subtracted. A level whose only order was the
+    bot's leg disappears.
+    """
+    out: list[tuple[float, int]] = []
+    for lvl in levels:
+        price = float(lvl.get("price", 0.0))
+        qty = int(lvl.get("qty", 0))
+        count = int(lvl.get("count", 1))
+        if (
+            own_price is not None
+            and own_qty > 0
+            and round(price / tick_size) == round(own_price / tick_size)
+            and qty >= own_qty
+        ):
+            if count <= 1:
+                continue
+            qty -= own_qty
+        out.append((price, qty))
+    return out
 
 
 def _make_symbol_state(symbol: str, params: dict[str, Any], now: float) -> _SymbolState:
@@ -897,6 +948,12 @@ class MMBot:
                     mid = (float(bid_price) + float(ask_price)) / 2.0
                     st.pricer.set_mid(mid)
                     st.quoted_at_mid = mid
+                    st.own_bid_price, st.own_ask_price = (
+                        float(bid_price),
+                        float(ask_price),
+                    )
+                    st.own_bid_qty = int(q.get("bid_qty", st.qty))
+                    st.own_ask_qty = int(q.get("ask_qty", st.qty))
                     self._log(
                         f"[{symbol}] adopted existing quote {st.quote_id} "
                         f"bid={bid_price} ask={ask_price}"
@@ -1020,6 +1077,8 @@ class MMBot:
         }
         self._send(make_quote_new_msg(quote_payload))
         st.quoted_at_mid = st.pricer.mid_price
+        st.own_bid_price, st.own_ask_price = bid, ask
+        st.own_bid_qty = st.own_ask_qty = st.qty
         st.last_quote_sent_at = time.monotonic()
         self._set_state(symbol, BotState.REISSUING)
         # Indexed at send time, not ack time: quote.status for a quote that is
@@ -1044,6 +1103,8 @@ class MMBot:
         st.quote_id = None
         st.bid_order_id = None
         st.ask_order_id = None
+        st.own_bid_price = st.own_ask_price = None
+        st.own_bid_qty = st.own_ask_qty = 0
 
     def _cancel_and_reissue(self, symbol: str | None = None) -> None:
         """Replace one symbol's active quote with a fresh one at current mid."""
@@ -1078,6 +1139,15 @@ class MMBot:
             return
         bids = payload.get("bids", [])
         asks = payload.get("asks", [])
+        update_book = getattr(st.pricer, "update_book", None)
+        if update_book is not None:
+            # passive: price off other traders' liquidity only.
+            update_book(
+                _others_levels(bids, st.own_bid_price, st.own_bid_qty, st.tick_size),
+                _others_levels(asks, st.own_ask_price, st.own_ask_qty, st.tick_size),
+            )
+            self._debug(f"[{symbol}] book mid (others only)={st.pricer.mid_price}")
+            return
         best_bid_raw = bids[0].get("price") if bids else None
         best_ask_raw = asks[0].get("price") if asks else None
         best_bid = float(best_bid_raw) if best_bid_raw is not None else None
@@ -1254,6 +1324,12 @@ class MMBot:
         )
         if hasattr(st.pricer, "update_position"):
             st.pricer.update_position(st.net_position)  # type: ignore[union-attr]
+        if side == "BID":
+            st.own_bid_qty = max(0, st.own_bid_qty - fill_qty)
+        else:
+            st.own_ask_qty = max(0, st.own_ask_qty - fill_qty)
+        if hasattr(st.pricer, "on_fill"):
+            st.pricer.on_fill(side, time.monotonic())  # type: ignore[union-attr]
 
         # Reset or start the reissue timer — but only when no cancel is already
         # in flight.  Overwriting the cancel-confirmation timeout with a shorter
@@ -1426,6 +1502,18 @@ class MMBot:
                     pass  # wait for session
                 else:
                     self._set_state(symbol, BotState.WAITING_FOR_SESSION)
+
+        # Time-driven requote (passive: a fade has expired). Book-driven
+        # drift is checked in _dispatch; this covers changes with no event.
+        if (
+            st.state == BotState.QUOTING
+            and st.quote_id is not None
+            and hasattr(st.pricer, "requote_due")
+            and st.pricer.requote_due(now)  # type: ignore[union-attr]
+        ):
+            self._debug(f"[{symbol}] requote due — repricing")
+            self._set_state(symbol, BotState.REPRICING)
+            self._cancel_and_reissue(symbol)
 
         # Heartbeat guard — recover if we are in an active state but hold no
         # live quote and have no reissue already scheduled. This covers a
@@ -1677,11 +1765,27 @@ class MMBot:
                 gap=st.gap,
                 drift_ticks=st.drift_ticks,
                 max_position=st.max_position,
+                passive=PassiveParams(
+                    retreat_ticks=st.retreat_ticks,
+                    behind_ticks=st.behind_ticks,
+                    min_cover_qty=st.min_cover_qty,
+                    fade_ticks=st.fade_ticks,
+                    fade_sec=st.fade_sec,
+                ),
+                max_spread_ticks=st.mm_max_spread_ticks,
             )
         except ValueError as exc:
             st.startup_failed_reason = f"invalid strategy/gap/tick configuration: {exc}"
             self._log(f"[{symbol}] startup failed: {st.startup_failed_reason}")
             return
+        if st.strategy == "passive" and st.mm_max_spread_ticks is not None:
+            room = (st.mm_max_spread_ticks - round(st.gap / st.tick_size)) // 2
+            if st.retreat_ticks > room:
+                self._log(
+                    f"[{symbol}] retreat_ticks {st.retreat_ticks} narrowed to "
+                    f"{max(0, room)} by mm_max_spread_ticks="
+                    f"{st.mm_max_spread_ticks}"
+                )
 
         # QBOOT — try adoption
         boot_payload = self._request_bootstrap(symbol)

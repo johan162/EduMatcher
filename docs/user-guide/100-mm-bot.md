@@ -9,6 +9,8 @@
       and when to prefer that over one process per symbol
     - The bot's lifecycle: startup handshake, quoting, repricing, and shutdown
     - How quote refresh works after fills and mid-price drift
+    - How the `passive` strategy lets other traders trade first, stepping
+      behind their prices and backing off after a fill
     - How to configure gateway entries in `engine_config.yaml` for MM bots
     - How to bootstrap a fresh exchange with no existing book data
     - How to keep a bot's parameters in a version-controlled `--config` file
@@ -264,6 +266,10 @@ The bot tracks the current mid-price from the order book:
 - **Bid only**: `mid = best_bid`
 - **No data**: keep previous mid
 
+The `symmetric` and `inventory_skew` strategies apply this to the whole
+book, including the bot's own quote. The `passive` strategy applies it to
+other traders' orders only — see [The passive strategy](#the-passive-strategy).
+
 ### Quote placement
 
 Given the mid-price and `--gap` (total spread), the bot places:
@@ -273,11 +279,16 @@ Given the mid-price and `--gap` (total spread), the bot places:
 
 A minimum spread of 2 ticks is always guaranteed, even after rounding.
 
+This is the `symmetric` placement. `passive` treats it as the *home* price
+and may quote further out — see [The passive strategy](#the-passive-strategy).
+
 ### Drift detection
 
 After posting a quote, the bot records the mid at the time of posting. On each
 book update, it checks whether the mid has moved by more than `--drift-ticks`
-ticks. If so, it cancels and reissues at the new mid.
+ticks. If so, it cancels and reissues at the new mid. (`passive` uses its
+own, per-side re-quote rules — see
+[When the bot re-quotes](#when-the-bot-re-quotes).)
 
 ---
 
@@ -289,6 +300,7 @@ ticks. If so, it cancels and reissues at the new mid.
 |---|---|
 | Quote inactivated (one side filled) | Reissue after `--reissue-delay-ms` |
 | Mid-price drift exceeds threshold | Cancel active quote, then reissue at new mid |
+| `passive` only: a side becomes/stops being covered, must step back, or a fade starts/ends | Cancel active quote, then reissue (see [When the bot re-quotes](#when-the-bot-re-quotes)) |
 | Quote rejected | Retry after delay |
 | Periodic heartbeat (no active quote) | Reissue |
 | Periodic QLEGS reconciliation mismatch | Clear local state and reissue |
@@ -451,11 +463,16 @@ Rules:
 | `--engine-pub ADDR`                | gateway      | `tcp://127.0.0.1:5556` | Engine PUB address                                                 |
 | `--startup-session-timeout-sec F`  | gateway      | `5.0`                  | Max wait for first `session.state`                                 |
 | `--shutdown-timeout-sec F`         | gateway      | `2.0`                  | Max wait for cancel on SIGINT/SIGTERM                              |
-| `--strategy NAME`                  | per-symbol   | `symmetric`            | Pricing strategy: `symmetric` or `inventory_skew` (see [Pricing strategies](#pricing-strategies)) |
+| `--strategy NAME`                  | per-symbol   | `symmetric`            | Pricing strategy: `symmetric`, `inventory_skew` or `passive` (see [Pricing strategies](#pricing-strategies)) |
 | `--gap PRICE`                      | per-symbol   | `0.10`                 | Total spread (bid at mid−gap/2, ask at mid+gap/2)                  |
 | `--max-position N`                 | per-symbol   | *unset*                | Net position at which inventory skewing saturates — required with `--strategy inventory_skew`, rejected otherwise |
 | `--qty N`                          | per-symbol   | `500`                  | Quote size on each leg                                             |
-| `--drift-ticks N`                  | per-symbol   | `3`                    | Reprice when mid moves by this many ticks                          |
+| `--drift-ticks N`                  | per-symbol   | `3`                    | Reprice when mid moves by more than this many ticks (`passive`: when a side's target price does) |
+| `--retreat-ticks N`                | per-symbol   | `5`                    | `passive` only: how far beyond home each side may step back (see [The control knobs](#the-control-knobs)) |
+| `--behind-ticks N`                 | per-symbol   | `1`                    | `passive` only: ticks behind other traders' best price on a covered side |
+| `--min-cover-qty N`                | per-symbol   | `1`                    | `passive` only: others' quantity inside the band before a side counts as covered |
+| `--fade-ticks N`                   | per-symbol   | `2`                    | `passive` only: extra ticks a side steps back after it is filled (`0` = no fade) |
+| `--fade-sec F`                     | per-symbol   | `3.0`                  | `passive` only: how long a fade lasts (`0` = no fade)              |
 | `--reissue-delay-ms N`             | per-symbol   | `200`                  | Wait after fill before re-issuing                                  |
 | `--tif {DAY,GTC}`                  | per-symbol   | `DAY`                  | Time-in-force for quote legs                                       |
 | `--heartbeat-interval-sec F`       | per-symbol   | `5.0`                  | Periodic live-quote check interval                                 |
@@ -627,7 +644,7 @@ for that symbol.
 
 | Field | Type | Default | Constraints |
 |---|---|---|---|
-| `strategy` | string | `symmetric` | `symmetric` or `inventory_skew` |
+| `strategy` | string | `symmetric` | `symmetric`, `inventory_skew` or `passive` |
 | `gap` | number | `0.10` | > 0; must also satisfy the symbol's MM obligation (see [Gap validation](#gap-validation)) |
 | `qty` | integer | `500` | > 0 |
 | `max_position` | integer | `null` | > 0; **only** valid with `strategy: inventory_skew`, and **required** by it |
@@ -640,6 +657,11 @@ for that symbol.
 | `qlegs_reconcile_interval_sec` | number | `15.0` | > 0 |
 | `initial_min` | number | `null` | Must be set together with `initial_max` |
 | `initial_max` | number | `null` | Must be greater than `initial_min` |
+| `retreat_ticks` | integer | `5` | ≥ 0; `passive` only (ignored otherwise) |
+| `behind_ticks` | integer | `1` | ≥ 1; `passive` only |
+| `min_cover_qty` | integer | `1` | ≥ 1; `passive` only |
+| `fade_ticks` | integer | `2` | ≥ 0; `passive` only |
+| `fade_sec` | number | `3.0` | ≥ 0; `passive` only |
 
 Symbol keys are upper-cased on load, so `symbols: {aapl: {...}}` configures
 `AAPL`. Mapping order is preserved and is the order symbols start in.
@@ -711,14 +733,18 @@ format that can express per-symbol settings.
 ### Pricing strategies
 
 `--strategy` (or the file's `strategy:` key) selects which pricing logic the
-bot uses to compute bid/ask from the tracked mid-price. Two strategies ship
-today:
+bot uses to compute bid/ask from the tracked mid-price. Three strategies
+ship today:
 
 - **`symmetric`** (the default) — quote symmetrically around mid at a fixed
   `--gap`, described in [Pricing logic](#pricing-logic) above.
 - **`inventory_skew`** — quote asymmetrically to lean the book toward
   flattening whatever position the bot has accumulated, described in
   [Inventory skewing](#inventory-skewing) below.
+- **`passive`** — act as a backstop: quote at home when nobody else is
+  there, step behind other traders when they are, and back off briefly
+  after a fill. Described in [The passive strategy](#the-passive-strategy)
+  below.
 
 The bot fails fast at startup if `--strategy` names anything else. The
 selection point exists so a future strategy (e.g. one that widens the gap
@@ -792,6 +818,271 @@ the quote is skewed, never whether one is sent.
 
 `inventory_skew` accepts `--gap`, `--drift-ticks`, and all the other
 `symmetric` flags unchanged — only the price-computation step differs.
+
+### The passive strategy
+
+`symmetric` and `inventory_skew` both centre their quote on the mid of the
+*whole* book — including the bot's own quote — and always quote at
+`mid ± gap/2`. On a quiet book that makes the bot the best bid and the best
+offer almost all the time: it re-quotes 200 ms after every fill, so
+whenever a trader wants to trade immediately the bot is the one that gets
+hit, and a trader who rests a limit order at the bot's price rarely gets
+filled first.
+
+Real market makers are not obliged to be the *best* price. Their
+obligation is to be *present*: quote both sides, within a maximum spread,
+for most of the session. Being at the top of the book is a business
+choice. `--strategy passive` models that: the bot acts as a **backstop**.
+It makes the market when nobody else does, and steps back behind other
+traders when they are already providing liquidity.
+
+The strategy combines two behaviours:
+
+- **Step behind** — when other traders already quote near the bot's price,
+  the bot moves its quote *behind* theirs, so their orders trade first.
+- **Fade** — after one of its legs is filled, the bot quotes that side a
+  little further out for a few seconds, instead of immediately
+  re-offering the same price.
+
+```bash
+pm-mm-bot --symbol AAPL --strategy passive
+```
+
+With no other flags every knob below takes its default.
+
+#### Vocabulary
+
+The rules are easiest to follow with four terms. The examples use a
+`0.01` tick, `--gap 0.10` and the defaults
+(`--retreat-ticks 5 --behind-ticks 1 --min-cover-qty 1 --fade-ticks 2 --fade-sec 3`).
+
+| Term | Meaning | Example (mid `100.00`) |
+|---|---|---|
+| **Others' book** | The order book with the bot's own two legs removed | — |
+| **Home price** | Where `symmetric` would quote: `mid ± gap/2`, tick-rounded. The *tightest* the bot ever quotes | bid `99.95`, ask `100.05` |
+| **Band** | From the home price out to `retreat_ticks` further away. The bot never quotes outside it | bid `99.90`–`99.95`, ask `100.05`–`100.10` |
+| **Covered side** | A side where other traders show at least `min_cover_qty` in total at prices inside that side's band (or better) | — |
+
+```
+          bid band              ask band
+      |<--- retreat --->|   |<--- retreat --->|
+   99.90             99.95 | 100.05            100.10
+   floor              home | home              ceiling
+                          mid
+                        100.00
+```
+
+#### Step 1 — the mid comes from other traders only
+
+Before pricing anything the bot removes its own legs from every book
+snapshot. It knows where they rest (it sent them) and how much of each is
+left (it sees its own fills). The mid is then computed from what remains,
+with the usual rule (both sides → average; one side → that side; nothing →
+keep the previous mid).
+
+This is what stops the bot chasing itself. Under `symmetric`, the bot's
+own quote *is* part of the book it prices from; under `passive`, a book
+containing only the bot's quote is an empty book, and the mid stays where
+it was.
+
+!!! note "How own-leg removal works"
+    A snapshot level is reduced by the bot's leg only if it is at the
+    bot's price and holds at least the leg's remaining quantity. If that
+    level holds exactly one order, the level is dropped. A snapshot taken
+    just before the leg reached the book (or just after it left) is
+    therefore passed through unchanged instead of having another trader's
+    quantity subtracted. The next snapshot corrects any leftover
+    difference.
+
+#### Step 2 — place each side
+
+Each side is priced independently. For the bid:
+
+```
+home   = mid − gap/2                        (tick-rounded)
+floor  = home − retreat_ticks
+covered = (others' bid qty at prices ≥ floor) ≥ min_cover_qty
+
+if covered:  bid = clamp(others' best bid − behind_ticks,  floor,  home)
+else:        bid = home
+```
+
+The ask is the mirror image: `ceiling = home + retreat_ticks`, count
+others' offers at prices ≤ ceiling, and quote `behind_ticks` *above*
+their best offer, clamped to `[home, ceiling]`.
+
+Three consequences follow from the clamp:
+
+- The bot **never quotes tighter than home**. If other traders are already
+  tighter than the bot's gap, the bot simply stays at home, which is
+  already behind them.
+- The bot **never quotes outside the band**. If other traders sit at the
+  edge of the band, the bot joins them at the edge. It arrives later, so
+  under price-time priority it is still behind them in the queue.
+- Liquidity **outside the band doesn't count**. A resting order far from
+  the mid doesn't make the bot step back; the bot is still the market
+  between the mid and that order.
+
+#### Step 3 — fade after a fill
+
+When a leg is filled, that side is pushed `fade_ticks` further out, still
+clamped to the band, for `fade_sec` seconds. The other side is unchanged.
+Another fill on the same side restarts the timer (fades don't stack).
+When the timer runs out the bot re-quotes that side back at its normal
+price.
+
+Fading composes with the reissue delay rather than replacing it. After a
+fill the engine inactivates the quote. The bot waits `--reissue-delay-ms`
+as always, then sends a new quote that already includes the fade.
+
+#### Worked examples
+
+All with mid `100.00` unless stated; qty is the other trader's order size.
+
+| Others' book | Mid | Bid | Ask | Why |
+|---|---|---|---|---|
+| empty | `100.00` (kept) | `99.95` | `100.05` | Nobody else → the bot is the market, at home |
+| bid 200 @ `99.97`, ask 200 @ `100.03` | `100.00` | `99.95` | `100.05` | Both sides covered, but others are tighter than home → stay at home, already behind them |
+| bid 200 @ `99.93`, ask 200 @ `100.07` | `100.00` | `99.92` | `100.08` | Covered inside the band → one tick behind them |
+| bid 200 @ `99.91`, ask 200 @ `100.09` | `100.00` | `99.90` | `100.10` | Behind them would be `99.90`/`100.10`, exactly the band edge |
+| bid 200 @ `99.85`, ask 200 @ `100.15` | `100.00` | `99.95` | `100.05` | Their orders are outside the band → not covered → the bot quotes at home, in front of them |
+| bid 200 @ `99.97`, no asks | `99.97` | `99.92` | `100.02` | One-sided book → mid is that bid. Bid covered (home `99.92` is already behind), ask not covered → at home |
+| empty, bot's bid just filled | `100.00` | `99.93` | `100.05` | Bid faded 2 ticks for 3 s |
+| bid 200 @ `99.93`, ask 200 @ `100.07`, bot's bid just filled | `100.00` | `99.90` | `100.08` | Behind (`99.92`) minus fade (2) = `99.90`, the floor |
+
+!!! tip "What a trader sees"
+    With `passive` the bot's quote is the price a trader can always rely
+    on, but not necessarily the best one. A trader who posts a buy inside
+    the bot's spread becomes the best bid and gets filled first. If the
+    trader posts *at* the bot's bid, the bot notices on the next book
+    update and steps back one tick. The trader then has the top of the
+    book to themselves.
+
+#### When the bot re-quotes
+
+Moving a quote means cancelling and re-issuing it, so the bot doesn't
+react to every change in the book. After each quote it remembers, per
+side, the price it sent, whether the side was covered, and whether it was
+faded. It re-quotes when any of these hold for either side:
+
+| Condition | Reaction | Reason |
+|---|---|---|
+| The side became covered, or stopped being covered | Immediately | The bot must step back behind a newcomer, or step forward when the other trader leaves |
+| A covered side must move *further back* (by any amount) | Immediately | The bot never stays level with or ahead of the traders it is yielding to |
+| A fade started or ended | Immediately (a fade ending is checked on the bot's timer, even with no book activity) | The fade is time-driven, not book-driven |
+| Any other move of the target price by **more than** `--drift-ticks` | Re-quote | Same laziness as `symmetric`; a covered side creeping *closer* to the market, or a small mid move, waits until it's worth a cancel/replace |
+
+So for `passive`, `--drift-ticks` measures how far a *side's target price*
+has moved, not how far the mid has moved.
+
+#### Interaction with the MM spread obligation
+
+If the symbol has an `mm_max_spread_ticks` obligation (see
+[Gap validation](#gap-validation)), the engine rejects any quote wider
+than it. The bot therefore narrows the band until even the widest quote it
+could send (both sides fully retreated, or faded to the band edge) still
+satisfies the obligation:
+
+```
+effective retreat = min(retreat_ticks, (mm_max_spread_ticks − home spread in ticks) // 2)
+```
+
+Example: obligation `14` ticks, home spread `10` ticks → at most `2` ticks
+of retreat per side, whatever `--retreat-ticks` says. The bot logs one line
+at startup when this narrowing applies:
+
+```
+[AAPL] retreat_ticks 5 narrowed to 2 by mm_max_spread_ticks=14
+```
+
+When no gap is set, the gap defaults to half the obligation, which leaves
+a quarter of the obligation for retreat on each side. With a `20`-tick
+obligation, for example, the home spread is `10` ticks and each side can
+retreat `5`, which is exactly the default `--retreat-ticks 5`.
+
+#### The control knobs
+
+All are per-symbol (CLI scope, `defaults:` or `symbols.<SYM>:`), have the
+defaults below, and are **ignored by every strategy except `passive`**.
+
+| Knob | CLI flag | Default | Range | Effect | Turn it up to… | Turn it down to… |
+|---|---|---|---|---|---|---|
+| `gap` | `--gap` | `0.10` | > 0 | Width of the home quote — the tightest the bot ever quotes | Quote less aggressively when alone | Make a tighter market when alone |
+| `retreat_ticks` | `--retreat-ticks` | `5` | ≥ 0 | How far out each side may step back. `0` disables stepping behind (and fading) | Yield to traders further from the mid | Stay close to home; `0` = never yield |
+| `behind_ticks` | `--behind-ticks` | `1` | ≥ 1 | How many ticks behind others' best price a covered side sits | Leave a visible gap behind other traders | Sit right behind them |
+| `min_cover_qty` | `--min-cover-qty` | `1` | ≥ 1 | Total quantity others must show inside the band before the bot yields | Keep a small order from pushing the bot away | Yield to any order at all |
+| `fade_ticks` | `--fade-ticks` | `2` | ≥ 0 | How far a side steps back after it is filled. `0` disables fading | Back off harder after being hit | Refill closer to the original price |
+| `fade_sec` | `--fade-sec` | `3.0` | ≥ 0 | How long a fade lasts. `0` disables fading | Stay backed off longer, giving others time to post | Return sooner |
+| `drift_ticks` | `--drift-ticks` | `3` | > 0 | Target-price move (per side) that triggers a lazy re-quote | Fewer cancel/replace cycles | Track the book more closely |
+| `reissue_delay_ms` | `--reissue-delay-ms` | `200` | ≥ 0 | Pause after a fill before the new quote goes out | Leave a longer gap with no MM quote at all after each fill | Refill faster |
+
+!!! important "Fade vs. reissue delay"
+    Both slow the bot down after a fill, but differently.
+    `reissue_delay_ms` is a period with **no MM quote at all**, and on a
+    real exchange that counts against a market maker's presence obligation.
+    Fading keeps a quote in the book, just further out. To give other
+    traders room after a fill, prefer a longer `fade_sec` over a longer
+    `reissue_delay_ms`.
+
+#### Recipes
+
+Yield to anyone, but only a little:
+
+```bash
+pm-mm-bot --symbol AAPL --strategy passive --retreat-ticks 2
+```
+
+Only yield to real size (at least one round lot inside the band):
+
+```bash
+pm-mm-bot --symbol AAPL --strategy passive --min-cover-qty 100
+```
+
+Pure step-behind, no fading:
+
+```bash
+pm-mm-bot --symbol AAPL --strategy passive --fade-ticks 0
+```
+
+Pure fading, never step behind others. The band still has to leave room
+for the fade:
+
+```bash
+pm-mm-bot --symbol AAPL --strategy passive --min-cover-qty 1000000000 --retreat-ticks 3 --fade-ticks 3
+```
+
+The same in a config file, with one symbol tuned differently:
+
+```yaml
+version: 1
+gateway:
+  id_suffix: "01"
+defaults:
+  strategy: passive
+  gap: 0.10
+  retreat_ticks: 5
+  behind_ticks: 1
+  min_cover_qty: 1
+  fade_ticks: 2
+  fade_sec: 3.0
+symbols:
+  AAPL: {}
+  TSLA:
+    gap: 0.30
+    retreat_ticks: 10
+    min_cover_qty: 200
+    fade_sec: 5.0
+```
+
+#### Limitations
+
+- The bot has no fair value of its own; its reference is the others' mid.
+  A lone order far from the market on an otherwise empty side moves the
+  mid to that order, exactly as for `symmetric`.
+- Covered is judged from aggregated price levels, so the bot cannot tell
+  one trader with 500 from five traders with 100.
+- `passive` doesn't skew for inventory; that is `inventory_skew`'s job,
+  and the two can't be combined today.
 
 ### Querying a bot's position
 
@@ -1005,6 +1296,12 @@ pm-mm-bot --config mm_tech.yaml --gap 0.12
 pm-mm-bot --config mm_tech.yaml --symbol MSFT --gap 0.12
 ```
 
+### A market maker that lets other traders go first
+
+```bash
+pm-mm-bot --symbol AAPL --strategy passive --gap 0.10 --retreat-ticks 5 --fade-sec 5
+```
+
 ### Inventory skewing with a position cap
 
 ```bash
@@ -1115,6 +1412,9 @@ low-level flow tracing (e.g. `book mid=...`, `session: OLD -> NEW`, and
 | `[SYM] excluded from quoting: ...` | One symbol (not all) failed a startup check on a `--symbols` bot | Expected if intentional (e.g. testing failure isolation); otherwise fix that symbol's cause and restart |
 | `quote REJECTED` | Gap or qty violates MM obligation policy | Reduce `--gap` / increase `--qty` or adjust gateway MM settings |
 | Bot quotes but prices look wrong | Tick size mismatch | Check symbol `tick_size` in engine config |
+| `passive` bot never steps back behind other traders | Their orders are outside the band, below `--min-cover-qty`, or the band was narrowed to `0` by the MM spread obligation (look for `retreat_ticks ... narrowed to 0` at startup) | Raise `--retreat-ticks`, lower `--min-cover-qty`, or narrow `--gap` so the obligation leaves room |
+| `passive` bot still gets hit first after a trader joins its price | The bot was at that price first, so it has time priority until its cancel/replace goes through | Expected briefly — the bot steps back as soon as it processes the book update |
+| `[SYM] behind_ticks must be >= 1` (or similar) | A `passive` knob is out of range | See the range column in [The control knobs](#the-control-knobs) |
 | Bot stops quoting for a while, then resumes on its own | An engine reply (`quote.ack`/`quote.status`) was dropped | Expected self-healing; the heartbeat and QLEGS reconciliation recover automatically. Lower `--heartbeat-interval-sec` for faster recovery |
 
 ---

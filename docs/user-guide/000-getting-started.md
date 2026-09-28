@@ -80,6 +80,7 @@ flowchart LR
         TERM["TapeDeck / pm-terminal\ntrader information terminal"]
         LOG["pm-log-srv / pm-log-ui\ncentral logs"]
         TRD["trader-gui\nbrowser trading terminal"]
+        BOOK["pm-book\nbrowser order book viewer"]
     end
 
     ALF --> ENG
@@ -98,6 +99,7 @@ flowchart LR
     CALF --> TERM
     API --> TERM
     API --> TRD
+    API --> BOOK
     LOG -. receives logs from .- ENG
     LOG -. receives logs from .- external
 ```
@@ -165,17 +167,52 @@ Two of them matter for this page, because they lead to different first steps.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash
-cd ~/.edumatcher && ./edumatcher.sh start
+cd ~/.edumatcher
 ```
 
-The exchange is now running on a bundled configuration. Open
-<http://localhost:8090> for the trading terminal and <http://localhost:8091>
-for the log console. The `pm-*` commands used throughout this guide live
-*inside* the container:
+The exchange is now running on a bundled configuration.  
+The `pm-*` commands, the control plane of the exchange, lives *inside* the container.  
+Use regular Docker/Podman command to open a shell in the conainer or use the shortcut:
 
 ```bash
-./edumatcher.sh shell        # thenpm-help, pm-admin, pm-alf-console, pm-stats-cli, ...
+./edumatcher.sh shell        # then pm-help, pm-admin, pm-alf-console, pm-stats-cli, ...
 ```
+
+Once inside the container, start with reviewing available commands
+
+```bash
+pm-help
+```
+
+Then, on your host, open a browser and go to the following URLs for the more user-friendly ways to trade and watch the market:
+
+```bash
+# The trading platform to buy/sell equities. Requires log-in using
+# one of the API keys defined in the `engine_config.yaml`
+Trader GUI       :  http://localhost:8093.
+
+# The terminal to watch the movements of the market
+Trading terminal :  http://localhost:8090
+
+# One symbol's full order book, session statistics and trade tape
+# (the browser companion to pm-viewer)
+Order book       :  http://localhost:8094
+
+# The central log server to observe what is happening internally
+# in the exchange platform
+Log viewer       :  http://localhost:8091      
+
+# The Swagger REST-API documentation. The exchange can be
+# completely run using REST commands
+REST API docs    :  http://localhost:8080/docs
+```
+
+Configuring the exchange can be done by either 1) Manually edit the config YAML file (and then verify/lint it with `pm-cverifier`) or, 2) generate it in scripts using the `pm-config-gen` tool or, 3) using the Web application reachable at :
+
+```
+Config builder   :  http://localhost:8092
+```
+
 
 **Python package — the processes on your own machine:**
 
@@ -249,7 +286,7 @@ data directory: /home/ubuntu/.local/share/edumatcher
 | | Containers | `pipx` / Poetry |
 |---|---|---|
 | Time to a running exchange | one command | a few, plus `pm-setup, pm-opctl-cli` |
-| Web applications | four, already wired to the exchange | started separately |
+| Web applications | five, already wired to the exchange | started separately |
 | Where `pm-*` commands run | inside the container, after `./edumatcher.sh shell` | your own shell |
 | Data on disk | `~/.edumatcher/data` | `~/.local/share/edumatcher` |
 | Best for | seeing the whole system; classrooms and demos | learning the pieces; developing against them |
@@ -477,9 +514,10 @@ To explore the processes the following table will be helpful
 | Publish external market data | `pm-md-gwy` | [Market Data Feed (CALF)](240-calf-gateway.md) |
 | Open the browser trader info terminal | `web-apps/terminal-gui/` | [Trader Information Terminal](290-trader-info-terminal.md) |
 | Open the browser trader platform | `web-apps/trader-gui/` | [Trader Information Terminal](./300-trader-gui.md) |
+| See one live order book in the browser | `web-apps/book-gui/` | [Order Book Viewer](310-book-gui.md) |
 | Collect logs from all processes | `pm-log-srv`, then `pm-log-cli` or `pm-log-ui` | [Centralized Log Server](280-log-srv.md), [Log Operator Console](285-log-srv-gui.md) |
 
-| Open the browser trading terminal, log console or config builder | the container stack, or `make dev` in `web-apps/<app>` | [Installation](005-installation.md), [Trader Information Terminal](290-trader-info-terminal.md), [Log Operator Console](285-log-srv-gui.md) |
+| Open the browser trading terminal, order book viewer, log console or config builder | the container stack, or `make dev` in `web-apps/<app>` | [Installation](005-installation.md), [Trader Information Terminal](290-trader-info-terminal.md), [Order Book Viewer](310-book-gui.md), [Log Operator Console](285-log-srv-gui.md) |
 
 **Note:** Starting the Web-application backends (to be able to use the GUIs) it is easiest to use one of the pre-build containers. See the `README.md` file in respective application catalogue for details. To use
 the trading terminal you will also need to authenticate with an API key that was specified in the `engine_config.yaml` file for the API Gateways.  

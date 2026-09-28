@@ -244,6 +244,11 @@ class TestPerSymbolIsolation:
         "bootstrap_timeout_sec": ("--bootstrap-timeout-sec", 2.5),
         "cancel_timeout_sec": ("--cancel-timeout-sec", 3.5),
         "qlegs_reconcile_interval_sec": ("--qlegs-reconcile-interval-sec", 99.0),
+        "retreat_ticks": ("--retreat-ticks", 7),
+        "behind_ticks": ("--behind-ticks", 2),
+        "min_cover_qty": ("--min-cover-qty", 300),
+        "fade_ticks": ("--fade-ticks", 4),
+        "fade_sec": ("--fade-sec", 6.5),
     }
 
     @pytest.mark.parametrize("key", sorted(OVERRIDES))

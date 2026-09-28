@@ -101,14 +101,16 @@ make up-all
 ```
 
 Then open **<http://localhost:8090>**. The log console comes up on
-[8091](285-log-srv-gui.md) and the trading GUI on
-[8093](300-trader-gui.md) at the same time.
+[8091](285-log-srv-gui.md), the trading GUI on [8093](300-trader-gui.md) and
+the order book viewer on 8094 at the same time.
 
 There are no addresses to configure because every container shares one
 Compose network, on which the exchange answers to the hostname `edumatcher`.
 The API key is the one part that cannot be a fixed default — it is generated
 per engine configuration — so `up-all` reads it from the deployed
-configuration and injects it. See [Installation](005-installation.md).
+configuration and injects it. See
+[Where the read-only API key comes from](#where-the-read-only-api-key-comes-from)
+and [Installation](005-installation.md).
 
 ### This app alone, in a container
 
@@ -116,12 +118,28 @@ Use this when the exchange is running somewhere else — another machine, a VM,
 or as processes on your host. From `web-apps/terminal-gui/`:
 
 ```bash
-export PM_TERMINAL_API_KEY='key-readonly-...'   # read-only key; history only
+export EDUMATCHER_DATA_DIR=~/.local/share/edumatcher
 make up
 ```
 
 Then open **<http://localhost:8090>**. `make logs` follows the bridge log,
 `make down` stops it.
+
+**How `make up` finds the API key.** An explicit `PM_TERMINAL_API_KEY` always
+wins:
+
+```bash
+make up PM_TERMINAL_API_KEY=key-readonly-...
+```
+
+Otherwise `make up` reads it from the deployed configuration
+`$EDUMATCHER_DATA_DIR/ref_data/engine_config.json`, picking the first
+credential with `gateway_id: null` (the `dashboards` instance is preferred when
+several carry one). It prints which instance and port the key came from, and
+warns when `API_GATEWAY_URL` points at a different port. When there is no key to
+be found it warns and starts anyway — the live feed needs no key, only the
+history panels do. Pass the key explicitly when the exchange runs on another
+machine or in a VM, since the look-up reads this host's data directory.
 
 Now the addresses matter, because the container is no longer beside the
 exchange. The compose file defaults to `host.docker.internal`, which resolves
@@ -141,7 +159,7 @@ make up
     already defaults to `:8081` — keep the port when you change the host.
 
 If port 8090 is taken, move the *host* side of it. Pick something outside
-8090–8093, which the other applications use:
+8090–8094, which the other applications use:
 
 ```bash
 TERMINAL_GUI_PORT=8100 make up
@@ -188,11 +206,11 @@ On the display server, use the prepared image rather than building from source.
 The exact image name depends on how the release was delivered:
 
 ```bash
-# Option A: image from a registry
-podman pull edumatcher-terminal-gui:<VERSION>
+# Option A: the released image
+podman pull ghcr.io/johan162/edumatcher-terminal-gui:<VERSION>
 
-# Option B: image tarball from a release bundle
-podman load --input edumatcher-terminal-gui-<VERSION>.tar.gz
+# Option B: an image tarball made with `make cdist` in web-apps/terminal-gui
+podman load --input edumatcher-terminal-gui-<VERSION>.tar.xz
 ```
 
 Then run the container, pointing it at the exchange server's network name or IP
@@ -211,10 +229,12 @@ podman run -d --name terminal-gui \
   -e PM_TERMINAL_API_KEY='...' \
   -e INDEX_IDS=MAIN \
   -e LOG_SRV_ENABLED=false \
-  edumatcher-terminal-gui:<VERSION>
+  ghcr.io/johan162/edumatcher-terminal-gui:<VERSION>
 ```
 
-Use `docker` instead of `podman` if that is your container runtime. If
+Use the image name you pulled or loaded — a loaded tarball is named
+`edumatcher-terminal-gui:<VERSION>` — and `docker` instead of `podman` if that
+is your container runtime. If
 centralized logging is available, replace `LOG_SRV_ENABLED=false` with:
 
 ```bash
@@ -252,17 +272,105 @@ eval "$(make -s -C ../../deployment/docker dev-env GUI=terminal-gui)"
 make dev
 ```
 
+!!! warning "Keep `dev-env` out of the shell you start containers from"
+    `eval "$(make dev-env …)"` exports `API_GATEWAY_URL=http://127.0.0.1:8081`
+    and `PM_TERMINAL_API_KEY` into your shell, and they stay there. That is right
+    for `make dev`, whose bridge runs on your own machine. It is wrong for a
+    **container** started later from the same shell: Compose hands the
+    exported `API_GATEWAY_URL` to the container, where `127.0.0.1` is the
+    container itself. The app's own `make up` in `web-apps/terminal-gui` — or
+    `make up` in `web-apps/` without `VM_BACKEND_IP` — then starts a bridge
+    that cannot reach `pm-api-gwy`: live prices still tick, but the charts, previous close and Open/Volume columns stay empty, and the bridge log shows the history requests to `127.0.0.1:8081` failing. The exported key also takes
+    precedence over `make up`'s own look-up, and is stale once the exchange
+    runs another configuration.
+
+    `make up-all` and `./edumatcher.sh start` are not affected: whenever they
+    find the read-only credential they set both values themselves.
+
+    Either load the variables for the development server only, in a subshell:
+
+    ```bash
+    (eval "$(make -s -C ../../deployment/docker dev-env GUI=terminal-gui)"; make dev)
+    ```
+
+    or clear them before starting a container from that shell:
+
+    ```bash
+    unset API_GATEWAY_URL PM_TERMINAL_API_KEY
+    ```
+
 If `pm-md-gwy` is not running the page still loads, with the connection
 indicator showing `RECONNECTING`/`OFFLINE` until the feed appears.
 `make dev-bridge` runs only the bridge, `make dev-web` only the web server, and
 `make test` the Vitest suite. The full inner-loop workflow is
 [The Development Loop](../developer/08-dev-workflow.md).
 
+### Where the read-only API key comes from
+
+You never type the API key in the normal start paths, yet TapeDeck can read
+history. The key has always been there: it is part of the exchange's own
+configuration, and every start path looks it up and hands it to the bridge.
+
+**1. It is generated with the configuration.** `pm-config-gen`'s
+`--api-gateway-readonly-key` option adds one extra credential to the
+`dashboards` API gateway instance (port 8081), with `gateway_id: null` and a
+randomly generated key. Every bundled example configuration was generated with
+that option (see its `mkrefdata.sh`), so each carries one — and each a
+different one. In `docs/examples/ref_data/s1-basic-setup/engine_config.yaml`:
+
+```yaml
+api_gateways:
+  dashboards:
+    port: 8081
+    credentials:
+    - api_key: key-readonly-fq9m76
+      gateway_id: null
+      description: Generated read-only market-data key
+```
+
+When a configuration is deployed, the key travels with it into
+`<data dir>/ref_data/engine_config.json`, the file every exchange process
+reads.
+
+**2. The start path looks it up.** The bridge takes the key from the
+environment variable `PM_TERMINAL_API_KEY`, and each way of starting TapeDeck
+fills that variable from the deployed configuration:
+
+| Start path | How it finds the key |
+|---|---|
+| `make up-all` / `./edumatcher.sh start` | Starts the exchange first and waits for its configuration to be deployed, then reads `/data/ref_data/engine_config.json` inside the exchange container. It exports the key as `PM_TERMINAL_API_KEY` and sets `API_GATEWAY_URL=http://edumatcher:<that instance's port>`, and only then starts the web applications — which is why the whole-stack start runs in two phases |
+| `make up` in `web-apps/terminal-gui` | Reads `$EDUMATCHER_DATA_DIR/ref_data/engine_config.json` on this host. A `PM_TERMINAL_API_KEY` you set yourself always wins |
+| `make dev-env GUI=terminal-gui` | Reads the key from the running exchange container and prints it as an `export` line for `make dev` |
+
+All three pick the first enabled gateway instance, in name order, that carries a
+credential with `gateway_id: null` — so `dashboards` is preferred over `desk`
+when both have one — and take that instance's port along with the key.
+
+**Why this is acceptable.** A read-only key is not a secret that grants
+anything worth protecting: it reads only public data — reference data, the
+market-data stream and history — and can neither place nor see orders. It still
+never reaches the browser; only the bridge holds it.
+
+**A configuration without one.** A configuration you built yourself may have no
+`gateway_id: null` credential. TapeDeck then still starts, with a warning: live
+prices work, because they come from `pm-md-gwy` and need no key, but the charts,
+previous close and Open/Volume columns stay empty. To fix it, add a credential
+with `gateway_id: null` to the `dashboards` instance — in the
+[Configuration GUI](030-config-GUI.md)'s gateway settings, by hand in
+`engine_config.yaml`, or by regenerating with `--api-gateway-readonly-key` —
+and redeploy.
+
+!!! note "Switching configuration changes the key"
+    Because every configuration has its own key, a key copied from one
+    configuration is rejected (HTTP 401) by an exchange running another. The
+    automatic look-up avoids this; a key you exported yourself, or one left
+    in your shell by `make dev-env`, does not.
+
 ## A tour of the interface
 
 📷 **Figure 1 — The app shell.** Capture the Overview screen in dark theme,
-showing the full shell: the top bar (app name, the six view tabs, density and
-theme toggles, the connection indicator) and the footer status strip.
+showing the full shell: the top bar (app name and version, the six view tabs,
+the density, theme and settings controls, the connection indicator) and the footer status strip.
 Suggested file: `images/terminal-gui/fig-01-app-shell.png`.
 
 ### Top bar
@@ -271,6 +379,8 @@ A single row (not a collapsible sidebar — six destinations is small enough
 for one row, and a data-dense terminal wants its horizontal space for
 numbers, not navigation chrome) holding:
 
+- **`EduMatcher pm-terminal v<version>`** — the app name and the release it
+  was built from.
 - The six view tabs: **Overview**, **Symbol**, **Index**, **Tape**,
   **Movers**, **Session**.
 - A **density** control (gauge icon) that cycles **Lobby → Standard →
@@ -281,6 +391,11 @@ numbers, not navigation chrome) holding:
   browser or profile always starts on **Standard**.
 - A **theme** toggle (dark by default — the working default for a trading
   screen — with a full light palette for bright rooms and projectors).
+- A **settings** cog holding **Font size** — XS, S, M, L, XL or XXL, XS by
+  default — which scales the whole page, for a projector or a screen read
+  from across a room. It is independent of density, persists to the
+  browser's `localStorage`, and (as the popover says) works in Chrome and
+  Safari only.
 - A **connection indicator**: `LIVE` (green), `RECONNECTING` (amber), or
   `OFFLINE` (red), reflecting the bridge's own CALF session state, plus the
   gateway id it is talking to.
@@ -538,8 +653,11 @@ default host names, `CALF_HOST`, `API_GATEWAY_URL`, and `LOG_SRV_HOST`.
 | `TERMINAL_GUI_PORT` | `8090` | Host port exposed by `docker-compose.yml`; use this when `8090` is already in use. |
 | `HOST` / `PORT` | `0.0.0.0` / `8090` | Bridge bind address inside the container. |
 | `CORS_ORIGIN` | `*` | CORS allow-list |
-| `STATIC_DIR` | — | Serve a built frontend from here (single-container mode) |
+| `STATIC_DIR` | `/app/apps/web/dist` | Serve a built frontend from here (single-container mode); unset in development |
 | `MAX_WS_CLIENTS` | `200` | Browser-tab cap |
+| `WS_HEARTBEAT_INTERVAL_SEC` | `5` | How often every tab receives the bridge's status heartbeat |
+| `WS_PING_INTERVAL_SEC` / `WS_PING_MAX_MISSED` | `10` / `2` | Ping to each tab, and missed replies before a dead tab is dropped |
+| `WS_MAX_BUFFERED_BYTES` | `5000000` | A tab whose outgoing buffer exceeds this (a stalled browser) is disconnected |
 | `CALF_HOST` / `CALF_PORT` | `host.docker.internal` / `5570` | `pm-md-gwy`; use `host.containers.internal` for Podman if needed. |
 | `CALF_CLIENT_ID` | `pm-terminal-bridge` | CALF `HELLO.CLIENT` |
 | `CALF_PING_INTERVAL_SEC` | `60` | Keepalive; belt-and-braces now that the gateway's idle timer honours outbound traffic too |
@@ -548,6 +666,8 @@ default host names, `CALF_HOST`, `API_GATEWAY_URL`, and `LOG_SRV_HOST`.
 | `PM_TERMINAL_API_KEY` | — | Read-only (`gateway_id: null`) key, history reads only — never sent to the browser |
 | `LOG_SRV_ENABLED` | `true` | `false` skips even the startup probe |
 | `LOG_SRV_HOST` / `LOG_SRV_PORT` | `host.docker.internal` / `5600` | `pm-log-srv`; use `host.containers.internal` for Podman if needed. |
+| `LOG_SRV_CLIENT_ID` | `pm-terminal-bridge` | Name the bridge registers with at the log server |
+| `LOG_SRV_INSTANCE` | — | Optional suffix that tells several terminals' logs apart |
 | `LOG_CONNECT_TIMEOUT_SEC` | `0.5` | Startup probe and each reconnect attempt |
 | `LOG_FAILOVER_TIMEOUT_SEC` | `30` | Grace window before the one-way switch to a local log file |
 | `LOG_QUEUE_MAXSIZE` | `2000` | Bounded backlog while reconnecting |
@@ -560,6 +680,7 @@ default host names, `CALF_HOST`, `API_GATEWAY_URL`, and `LOG_SRV_HOST`.
 | Every screen shows the red "Disconnected from pm-terminal-bridge" banner | The browser's own WebSocket to the bridge is down | Confirm the bridge process is running and reachable at `HOST:PORT`; check the browser console for the WS connection error |
 | Connection indicator shows `RECONNECTING` and never returns to `LIVE` | The bridge cannot reach `pm-md-gwy` | Confirm `CALF_HOST`/`CALF_PORT` point at a running gateway, and that nothing (e.g. a firewall) blocks that TCP connection from the bridge's host |
 | Charts and Open/Volume columns are empty or show an "unavailable" banner, but live prices still tick | The bridge cannot reach `pm-api-gwy`, or `PM_TERMINAL_API_KEY` is missing/invalid | Check the bridge's startup log for a `PM_TERMINAL_API_KEY is unset` warning; confirm `API_GATEWAY_URL` is correct and the key is a valid read-only history key |
+| A container started with `make up` shows live prices but no history, and its log shows requests to `127.0.0.1:8081` failing | `API_GATEWAY_URL=http://127.0.0.1:8081` was left in the shell by `eval "$(make dev-env …)"` | `unset API_GATEWAY_URL PM_TERMINAL_API_KEY` and run `make up` again — see [Local development](#local-development) |
 | Index tab shows "This exchange has no index configured" | Expected, not an error, when no index is configured for this exchange | Set `INDEX_IDS` if an index should be shown |
 | A tape gap marker appears | The bridge's CALF connection dropped for long enough that the gateway's replay window rolled past the missed trades | Expected behavior under a real disconnect — see [Trade Tape](#trade-tape-time-sales) above; not itself a bug to fix |
 | Prices render to the wrong number of decimal places | The connected `pm-md-gwy` predates the `REF=` per-symbol precision field | Upgrade the gateway; TapeDeck falls back to two decimal places when `REF=` is absent, which is a compatibility fallback, not a defect in TapeDeck |

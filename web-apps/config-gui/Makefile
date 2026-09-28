@@ -12,8 +12,9 @@
 	check-npm check-container check-container-env \
 	install build build-debug typecheck test lint format \
 	dev dev-web dev-server \
-	cnt-build up down restart logs ps \
-	dist \
+	cbuild up down restart logs ps \
+	cdist imageclean \
+	ghcr-login cpush ghcr-logout ghcr-clean \
 	clean distclean
 
 # --------------------------------------------------------------------------------------------
@@ -159,21 +160,13 @@ help: ## Show this help message
 	@$(call print_section,Setup,install|clean|distclean)
 	@$(call print_section,Build and Checks,build|build-debug|typecheck|test|lint|format)
 	@$(call print_section,Development,dev|dev-web|dev-server)
-	@$(call print_section,Container,check-container-env|cnt-build|up|down|restart|logs|ps)
-	@$(call print_section,Distribute,dist)
+	@$(call print_section,Container,check-container-env|cbuild|up|down|restart|logs|ps|imageclean)
+	@$(call print_section,Distribute,cdist|ghcr-login|cpush|ghcr-logout|ghcr-clean)
 	@echo ""
 
 # --------------------------------------------------------------------------------------------
 # Local npm workflow
 # --------------------------------------------------------------------------------------------
-
-# Bump version in "TopBar.tsx" file (for display in the GUI) when updating the version in package.json
-bump-version: ## Update version in TopBar.tsx to match package.json
-	@echo -e "$(YELLOW)- Bumping version in TopBar.tsx to match package.json...$(NC)"
-	@TOPBAR_FILE=apps/web/src/components/layout/TopBar.tsx; \
-	VERSION=$(shell node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0"); \
-	sed -i.bak -E "s/v[0-9]+\.[0-9]+\.[0-9]+/v$$VERSION/" "$$TOPBAR_FILE" && rm -f "$$TOPBAR_FILE.bak"
-	@echo -e "$(GREEN)✓ Version updated in TopBar.tsx to v$(VERSION)$(NC)"
 
 install: check-npm ## Install a full local npm workspace environment
 	@echo -e "$(YELLOW)- Installing Node workspace dependencies...$(NC)"
@@ -190,12 +183,12 @@ install: check-npm ## Install a full local npm workspace environment
 	fi
 	@echo -e "$(GREEN)✓ Environment ready$(NC)"
 
-build: check-npm bump-version  ## Build all workspaces (production — minified, no sourcemaps)
+build: check-npm ## Build all workspaces (production — minified, no sourcemaps)
 	@echo -e "$(YELLOW)- Building all workspaces...$(NC)"
 	@$(NPM) run build
 	@echo -e "$(GREEN)✓ Build completed$(NC)"
 
-build-debug: check-npm bump-version ## Build frontend in development mode (sourcemaps, no minification)
+build-debug: check-npm ## Build frontend in development mode (sourcemaps, no minification)
 	@echo -e "$(YELLOW)- Building packages...$(NC)"
 	@$(NPM) run build --workspaces --if-present --workspace @edumatcher/schema \
 		--workspace @edumatcher/yaml-codec \
@@ -218,13 +211,13 @@ lint: check-npm ## Run lint command
 format: check-npm ## Format source files with Prettier
 	@$(NPM) run format
 
-dev: check-npm bump-version ## Run server and web dev processes together
+dev: check-npm ## Run server and web dev processes together
 	@$(NPM) run dev
 
-dev-web: check-npm bump-version ## Run only web dev server (Vite)
+dev-web: check-npm ## Run only web dev server (Vite)
 	@$(NPM) run dev:web
 
-dev-server: check-npm bump-version ## Run only backend dev server (Fastify)
+dev-server: check-npm ## Run only backend dev server (Fastify)
 	@$(NPM) run dev:server
 
 
@@ -244,10 +237,17 @@ cbuild: check-container | $(TIMESTAMP_DIR) ## Build container image via compose 
 	    --build-arg HTTPS_PROXY="$(HTTPS_PROXY)" \
 	    --build-arg NO_PROXY="$(NO_PROXY)" \
 		--build-arg WEB_PORT="$(WEB_PORT)"
+	@# Also tag the version, which cpush pushes
+	@$(CONTAINER_RUNTIME) tag $(APP_NAME):latest $(IMAGE)
 	@touch $(CONTAINER_STAMP)
 	@echo -e "$(GREEN)✓ Container image built$(NC)"
 
-up: check-container-env bump-version ## Start container stack (detached) with build
+# cdist and cpush need a built image. Without this rule a fresh checkout,
+# where no stamp exists yet, failed with "No rule to make target".
+$(CONTAINER_STAMP): | $(TIMESTAMP_DIR)
+	@$(MAKE) --no-print-directory cbuild
+
+up: check-container-env ## Start container stack (detached) with build
 	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
 	@echo -e "$(YELLOW)- Starting container stack...$(NC)"
 	@$(DOCKER_COMPOSE) up -d --build \
@@ -282,7 +282,6 @@ ps: check-container ## Show container stack status
 
 # --------------------------------------------------------------------------------------------
 # Distributable package
-# | check-container-env bump-version
 # --------------------------------------------------------------------------------------------
 $(CDIST_STAMP): $(CONTAINER_STAMP)   ## Build a distributable: container image + exported OCI tarball in dist
 	@echo -e "$(YELLOW)- Building distributable package v$(VERSION)...$(NC)"
@@ -310,7 +309,7 @@ $(CDIST_STAMP): $(CONTAINER_STAMP)   ## Build a distributable: container image +
 	@echo -e "$(BLUE)- Then run:$(NC)"
 	@echo -e "$(WHITE)    $(CONTAINER_RUNTIME) run -p $(WEB_PORT):$(WEB_PORT) $(IMAGE)$(NC)"
 
-cdist: $(CDIST_STAMP) check-container-env bump-version ## Build a distributable package (container image + exported OCI tarball in dist)
+cdist: $(CDIST_STAMP) check-container-env ## Build a distributable package (container image + exported OCI tarball in dist)
 	@:
 
 # --------------------------------------------------------------------------------------------

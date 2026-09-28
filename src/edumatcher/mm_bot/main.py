@@ -27,6 +27,7 @@ from edumatcher.mm_bot.params import (
     GATEWAY_DEFAULTS,
     GATEWAY_KEYS,
     LOGGING_KEY_TO_DEST,
+    PASSIVE_KEYS,
     TIER2_KEYS,
 )
 from edumatcher.mm_bot.resolve import NoSymbolsError, resolve_symbol_params
@@ -109,6 +110,51 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--retreat-ticks",
+        type=int,
+        default=None,
+        help=(
+            "passive strategy: how many ticks beyond its home price each side "
+            "may step back to stay behind other traders (default: 5)"
+        ),
+    )
+    parser.add_argument(
+        "--behind-ticks",
+        type=int,
+        default=None,
+        help=(
+            "passive strategy: how many ticks behind other traders' best "
+            "price a covered side quotes (default: 1)"
+        ),
+    )
+    parser.add_argument(
+        "--min-cover-qty",
+        type=int,
+        default=None,
+        help=(
+            "passive strategy: quantity other traders must show inside the "
+            "retreat band before a side counts as covered (default: 1)"
+        ),
+    )
+    parser.add_argument(
+        "--fade-ticks",
+        type=int,
+        default=None,
+        help=(
+            "passive strategy: extra ticks a side steps back after it is "
+            "filled; 0 disables fading (default: 2)"
+        ),
+    )
+    parser.add_argument(
+        "--fade-sec",
+        type=float,
+        default=None,
+        help=(
+            "passive strategy: seconds a fade lasts after a fill; 0 disables "
+            "fading (default: 3.0)"
+        ),
+    )
+    parser.add_argument(
         "--qty", type=int, default=None, help="Quote size on each leg (default: 500)"
     )
     parser.add_argument(
@@ -120,7 +166,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--drift-ticks",
         type=int,
         default=None,
-        help="Reprice when mid moves by this many ticks (default: 3)",
+        help=(
+            "Reprice when mid moves by more than this many ticks; passive "
+            "strategy: when a side's target price does (default: 3)"
+        ),
     )
     parser.add_argument(
         "--reissue-delay-ms",
@@ -437,6 +486,12 @@ def main(argv: list[str] | None = None) -> None:
             params["drift_ticks"],
             params["max_position"],
         )
+        if params["strategy"] == "passive":
+            log.info(
+                "[%s] passive: %s",
+                symbol,
+                " ".join(f"{key}={params[key]}" for key in PASSIVE_KEYS),
+            )
 
     from edumatcher.mm_bot.bot import MMBot
 

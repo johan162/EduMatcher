@@ -1,10 +1,10 @@
 # EduMatcher web apps
 
-Four independent browser applications for the EduMatcher exchange. Each is
+Five independent browser applications for the EduMatcher exchange. Each is
 its own npm workspace with its own `package.json`, `Dockerfile`,
 `docker-compose.yml`, and `Makefile` — nothing here is shared between them,
 and none of the Python `pm-*` processes depend on this directory existing.
-It exists purely to keep four self-contained frontend projects out of the
+It exists purely to keep five self-contained frontend projects out of the
 repository root.
 
 | App | System name | Role | Dev port(s) | Container port |
@@ -13,6 +13,7 @@ repository root.
 | [`trader-gui/`](trader-gui/) | `pm-trading-ui` | Trading terminal (TRADER / MARKET_MAKER / ADMIN personas) against `pm-api-gwy` | web `8193` | `8093` |
 | [`terminal-gui/`](terminal-gui/) | `pm-terminal` | Read-only, credential-free market display ("TapeDeck") | bridge `5190`, web `8190` | `8090` |
 | [`config-gui/`](config-gui/) | n/a | Browser builder for authored `engine_config.yaml`, companion to `pm-config-gen` | server `5192`, web `8192` | `8092` |
+| [`book-gui/`](book-gui/) | `pm-book` | One symbol's full order book, statistics and trade tape — the web companion to `pm-viewer` | bridge `5194`, web `8194` | `8094` |
 
 "Dev port(s)" is what `make dev` binds to (backend + Vite dev server,
 started together). "Container port" is what `make up` publishes on
@@ -34,19 +35,25 @@ here.
 
 ## Starting all GUIs together
 
-A `Makefile` in this directory orchestrates `log-gui`, `terminal-gui`, and
-`trader-gui` as a group. The key variable is `VM_BACKEND_IP`: set it to the
-IP address of the VM (or host) running the EduMatcher backend processes, and
-all three containers are pointed at that address automatically.
+A `Makefile` in this directory orchestrates `log-gui`, `terminal-gui`,
+`trader-gui` and `book-gui` as a group. The key variable is `VM_BACKEND_IP`:
+set it to the IP address of the VM (or host) running the EduMatcher backend
+processes, and all four containers are pointed at that address automatically.
+
+`book-gui` cannot start without the read-only API key, since it reads all of
+its data through `pm-api-gwy`. Its `make up` finds the key in the deployed
+configuration through `EDUMATCHER_DATA_DIR`, which only works when the backend
+runs on this machine; with a backend in a VM, pass it along:
+`make up VM_BACKEND_IP=192.168.64.10 PM_BOOK_API_KEY=key-readonly-...`.
 
 ```bash
-# All three GUIs, backend on Docker Desktop host (no VM — uses host.docker.internal):
+# All four GUIs, backend on Docker Desktop host (no VM — uses host.docker.internal):
 make up
 
-# All three GUIs, backend running in a Multipass or other VM:
+# All four GUIs, backend running in a Multipass or other VM:
 make up VM_BACKEND_IP=192.168.64.10
 
-# Stop all three:
+# Stop all four:
 make down VM_BACKEND_IP=192.168.64.10   # or just: make down
 
 # Export once for the session and omit from every command:
@@ -64,6 +71,7 @@ before each app's compose stack starts:
 | `log-gui` | `LOG_SRV_HOST` | `5601`/`5602` (LALF-PS) |
 | `terminal-gui` | `CALF_HOST`, `API_GATEWAY_URL`, `LOG_SRV_HOST` | `5570` (CALF), `8080` (REST), `5600` (LALF) |
 | `trader-gui` | `API_PROXY_TARGET` | `8080` (REST/WS) |
+| `book-gui` | `API_GATEWAY_URL`, `LOG_SRV_HOST` | `8081` (REST + market-data WebSocket), `5600` (LALF) |
 
 When `VM_BACKEND_IP` is not set, each app's compose file falls back to
 `host.docker.internal`, which is correct for Docker Desktop on macOS/Windows.
@@ -76,13 +84,13 @@ Available top-level targets:
 
 | Target | Description |
 | --- | --- |
-| `up` | Start all three GUI containers |
-| `down` | Stop and remove all three |
+| `up` | Start all four GUI containers |
+| `down` | Stop and remove all four |
 | `restart` | `down` then `up` |
-| `ps` | Show container status for all three |
-| `up-log` / `up-terminal` / `up-trader` | Start a single app |
-| `down-log` / `down-terminal` / `down-trader` | Stop a single app |
-| `logs-log` / `logs-terminal` / `logs-trader` | Follow a single app's container logs |
+| `ps` | Show container status for all four |
+| `up-log` / `up-terminal` / `up-trader` / `up-book` | Start a single app |
+| `down-log` / `down-terminal` / `down-trader` / `down-book` | Stop a single app |
+| `logs-log` / `logs-terminal` / `logs-trader` / `logs-book` | Follow a single app's container logs |
 
 ## Backend dependencies
 
@@ -94,6 +102,7 @@ None of these apps depend on each other, but each depends on one or more
 | `log-gui` | `pm-log-srv` (LALF-PS, `5601`/`5602`; reads its `log.db`) | `pm-log-cli` on `PATH`, for the Diagnostics view |
 | `trader-gui` | `pm-api-gwy` (REST + WebSocket, `8080`) | — |
 | `terminal-gui` | `pm-md-gwy` (CALF TCP, `5570`), `pm-api-gwy` (REST, `8080`) | `pm-log-srv` (`5600`) — falls back to stdout/file logging if unreachable |
+| `book-gui` | `pm-api-gwy` (market-data WebSocket + REST, `8081`, read-only key) | `pm-stats` (for full-day statistics), `pm-log-srv` (`5600`) |
 | `config-gui` | — | `pm-cverifier` on `PATH`, for the "Verify" button |
 
 ## Common shape
@@ -110,12 +119,14 @@ Every app follows the same layout:
   Dockerfile              Single-container production image
   docker-compose.yml       Compose wrapper around Dockerfile
   Makefile                 install / dev / test / build / up / down — the
-                            same target names across all four apps
+                            same target names across all five apps
 ```
 
 `log-gui` and `terminal-gui` each ship a small first-party Fastify backend
 (`apps/bridge/`) that talks to the Python side directly (LALF-PS or CALF
-TCP) and serves the built frontend in production. `trader-gui` has no
+TCP) and serves the built frontend in production. `book-gui` has the same
+kind of bridge, talking to `pm-api-gwy`'s market-data WebSocket and REST
+history instead. `trader-gui` has no
 bridge process — its backend (`apps/serve/`) is a zero-dependency static
 file server that only proxies REST/WebSocket calls through to `pm-api-gwy`.
 `config-gui` is the odd one out entirely: it has no required runtime

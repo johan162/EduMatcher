@@ -20,14 +20,14 @@ The first question is whether you want to **run** EduMatcher or **change** it.
 
 | Mode | Best for | Needs on your machine | What you get | Command style |
 |---|---|---|---|---|
-| **Containers, one command** | Running a venue: classroom, demo, self-study | Podman or Docker | The exchange **and** all four web GUIs | `./edumatcher.sh start` |
+| **Containers, one command** | Running a venue: classroom, demo, self-study | Podman or Docker | The exchange **and** all five web GUIs | `./edumatcher.sh start` |
 | **Containers from source** | Changing the code and seeing it run as a system | Podman/Docker, Poetry, Node | The same, built from your checkout | `make up-all` |
 | **VM bootstrap** | Workshops where host setup must stay untouched | Multipass, `curl` | Backend inside a Multipass VM | `multipass shell ems` |
 | **pipx** | Students running processes by hand, one per terminal | Python 3.13, `pipx` | `pm-*` commands on your PATH | `pm-engine` |
 | **Poetry checkout** | Developing, running the test suite | Python 3.13, Poetry | Repository plus dev dependencies | `poetry run pm-engine` |
 
 The container modes give you the whole system — engine, gateways, REST API and
-the four browser applications — with one command. The pipx and Poetry modes
+the five browser applications — with one command. The pipx and Poetry modes
 give you the individual processes to start yourself, which is what the rest of
 this guide assumes when it shows a bare `pm-*` command. In Poetry mode, prefix
 those commands with `poetry run`.
@@ -69,7 +69,7 @@ curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment
 
 Then open <http://localhost:8090>.
 
-That starts a complete exchange plus four web applications, from images built
+That starts a complete exchange plus five web applications, from images built
 and published by the project. Nothing is compiled on your machine: no Python,
 no Node, no checkout. The only requirement is Podman or Docker.
 
@@ -79,6 +79,7 @@ no Node, no checkout. The only requirement is Podman or Docker.
 | Log viewer | <http://localhost:8091> | The centralized log, searchable, with acknowledgements |
 | Configuration builder | <http://localhost:8092> | Author an `engine_config.yaml` in the browser |
 | Trader GUI | <http://localhost:8093> | Submit and manage orders as a trading participant |
+| Order book viewer | <http://localhost:8094> | One symbol's full order book, session statistics and trade tape — the browser companion to `pm-viewer` |
 | REST API docs | <http://localhost:8080/docs> | Swagger UI for the `desk` API gateway |
 
 ### What the installer does
@@ -89,7 +90,7 @@ no Node, no checkout. The only requirement is Podman or Docker.
    `.env.example` **from that release's tag**, so the files and the images
    always come from one commit.
 4. Writes `.env`, creating `data/` and `config/` beside it.
-5. Pulls the five images and starts them.
+5. Pulls the six images and starts them.
 
 Step 3 is worth noting: the support files come from the release tag being
 installed, not from a branch, so the compose file and the images can never
@@ -99,7 +100,7 @@ describe different systems.
 
 | Option | Default | Effect |
 |---|---|---|
-| `--version X.Y.Z` | newest release | Install one specific release. All five images carry this tag, so it pins the whole system |
+| `--version X.Y.Z` | newest release | Install one specific release. All six images carry this tag, so it pins the whole system |
 | `--config NAME` | `s3-basic` | Deploy a bundled example configuration |
 | `--config FILE` | — | ...or a path to an `engine_config.yaml` of your own |
 | `--dir PATH` | `~/.edumatcher` | Where to install |
@@ -110,7 +111,7 @@ Because the script is read from a pipe, options need `bash -s --` so that the
 shell hands them to the script rather than consuming them itself:
 
 ```bash
-curl -fsSL .../install.sh | bash -s -- --config s10-nominal --version 0.42.1
+curl -fsSL .../install.sh | bash -s -- --config s10-nominal --version 0.43.0
 ```
 
 Two environment variables are also honoured: `REPO_OWNER` (which GitHub
@@ -131,7 +132,7 @@ into this file.
 
 | Variable | Default | What it does |
 |---|---|---|
-| `EM_VERSION` | *(the installed release)* | Which release to run. All five images carry this tag, so one value pins the whole system. `latest` follows the newest release |
+| `EM_VERSION` | *(the installed release)* | Which release to run. All six images carry this tag, so one value pins the whole system. `latest` follows the newest release |
 | `GHCR_OWNER` | `johan162` | The GHCR namespace the images are pulled from. Change it only for a fork |
 | `EM_CONFIG` | `s3-basic` | Which bundled example configuration the exchange deploys |
 | `EM_CONFIG_FILE` | *(empty)* | Set to `/config/engine_config.yaml` when you run a configuration of your own. Non-empty wins over `EM_CONFIG` |
@@ -144,6 +145,7 @@ into this file.
 | `LOG_GUI_PORT` | `8091` | Host port for the log viewer |
 | `CONFIG_GUI_PORT` | `8092` | Host port for the configuration builder |
 | `TRADER_GUI_PORT` | `8093` | Host port for the trader GUI |
+| `BOOK_GUI_PORT` | `8094` | Host port for the order book viewer |
 
 Two settings have their own commands, because editing them by hand is easy to
 get half-right — `EM_CONFIG` and `EM_CONFIG_FILE` must agree, and `EM_VERSION`
@@ -163,14 +165,15 @@ Everything else is a plain edit followed by `./edumatcher.sh restart`.
     the protocol gateways have no password. The default keeps everything on
     this machine.
 
-#### Two values you will not find in `.env`
+#### Values you will not find in `.env`
 
-The trading terminal also needs `API_GATEWAY_URL` and `PM_TERMINAL_API_KEY`.
-Those are **resolved at startup and injected**, not stored: the read-only API
-key is generated per engine configuration — a different one in each bundled
-example — and lives on a different gateway instance than the trading
+The trading terminal needs `API_GATEWAY_URL` and `PM_TERMINAL_API_KEY`, and the
+order book viewer `API_GATEWAY_URL` and `PM_BOOK_API_KEY` — the same read-only
+key. Those are **resolved at startup and injected**, not stored: the read-only
+API key is generated per engine configuration — a different one in each
+bundled example — and lives on a different gateway instance than the trading
 credentials. `./edumatcher.sh start` reads the deployed configuration and
-passes both to the terminal. Setting them in `.env` would only go stale the
+passes them to both applications. Setting them in `.env` would only go stale the
 next time you switched configuration.
 
 ### Everyday commands
@@ -192,6 +195,13 @@ cd ~/.edumatcher
 ./edumatcher.sh uninstall           # remove containers and volumes, keep data
 ./edumatcher.sh uninstall --data    # remove everything
 ```
+
+!!! note "Picking up a new web application"
+    `update` pulls new images for the files you already have; it does not
+    re-download `compose.yaml`. When a release adds an application — the order
+    book viewer on port 8094 arrived this way — re-run the one-line installer
+    instead. It keeps your `.env` and `data/`, and fetches the release's
+    `compose.yaml` and `edumatcher.sh`.
 
 ### Choosing what the exchange trades
 
@@ -230,13 +240,13 @@ whole edit-test loop. Switching back to a bundled example is
 ## Containers from the source checkout
 
 Use this when you are changing EduMatcher and want to see your change running
-as a whole system. It builds the same five images from your working tree.
+as a whole system. It builds the same six images from your working tree.
 
 ```bash
 git clone https://github.com/johan162/EduMatcher.git
 cd EduMatcher/deployment/docker
 make build          # builds a wheel from the checkout, then the image
-make up-all         # exchange + terminal-, log- and trader-gui
+make up-all         # exchange + terminal-, log-, trader- and book-gui
 ```
 
 `make help` lists every target. The two that matter are `up` (the exchange
@@ -308,6 +318,7 @@ plain `make up-all` afterwards goes back to whatever `.env` says.
 | `LOG_GUI_PORT` | `8091` | Host port for the log viewer |
 | `CONFIG_GUI_PORT` | `8092` | Host port for the configuration builder |
 | `TRADER_GUI_PORT` | `8093` | Host port for the trader GUI |
+| `BOOK_GUI_PORT` | `8094` | Host port for the order book viewer |
 | `IMAGE_NAME` / `IMAGE_TAG` | `edumatcher` / `local` | Image naming |
 | `CONTAINER_NAME` | `edumatcher` | Container name |
 
@@ -356,7 +367,7 @@ different things, and only one of them is a security boundary.
 
 ### One compose project, one private network
 
-All five containers belong to a single Compose project, so Compose puts them on
+All six containers belong to a single Compose project, so Compose puts them on
 one private network and gives each a name on it. The backend answers to the
 hostname `edumatcher`.
 
@@ -372,18 +383,21 @@ flowchart LR
         LOG["log-gui\n:8091"]
         CFG["config-gui\n:8092"]
         TRD["trader-gui\n:8093"]
+        BOOK["book-gui\n:8094"]
         BE["edumatcher\nengine + all gateways"]
     end
 
-    BROWSER -->|"published 8090-8093\nvia BIND_ADDR"| TERM
+    BROWSER -->|"published 8090-8094\nvia BIND_ADDR"| TERM
     BROWSER --> LOG
     BROWSER --> CFG
     BROWSER --> TRD
+    BROWSER --> BOOK
     CLIENT -->|"published 5560, 5565, 5570,\n5580, 5590, 5600, 8080-8081\nvia BIND_ADDR"| BE
 
     TERM -->|"edumatcher:5570 market data\nedumatcher:8081 history"| BE
     LOG -->|"edumatcher:5601 / :5602 log stream"| BE
     TRD -->|"edumatcher:8080 REST + WebSocket"| BE
+    BOOK -->|"edumatcher:8081 market-data WebSocket\n+ history"| BE
 ```
 
 Two things follow, and both are easy to get wrong:
@@ -523,8 +537,9 @@ s.on("error", e => console.log("FAIL", e.code));'
 
 ### The read-only API key
 
-One value cannot be a fixed default. The trading terminal reads historical data
-through `pm-api-gwy` using the credential whose `gateway_id` is `null`. That
+One value cannot be a fixed default. The trading terminal reads historical data,
+and the order book viewer reads everything, through `pm-api-gwy` using the
+credential whose `gateway_id` is `null`. That
 key is **generated per engine configuration** — every bundled example has a
 different one — and it is issued on the `dashboards` gateway instance (port
 8081), not the `desk` instance (8080) that carries the trading credentials.
@@ -532,7 +547,9 @@ different one — and it is issued on the `dashboards` gateway instance (port
 Both start paths therefore run in two phases: bring up the exchange, read the
 key out of the deployed configuration, then start the GUIs with it. If a
 configuration has no such credential the start still succeeds and says so — the
-live market-data feed needs no key, only the history panels do.
+trading terminal's live market-data feed needs no key, only its history panels
+do; the order book viewer, which reads all its data through `pm-api-gwy`, then
+has nothing to show.
 
 
 ## Directories and paths
@@ -585,7 +602,7 @@ disk, not inside a container: it survives stop, start, rebuild and update.
 | `deployment/docker/.wheel/` | `make build` | The locally built wheel the image installs from |
 | `deployment/docker/.ssh/` | `make keys` | `authorized_keys` assembled from your `~/.ssh/*.pub`, for `SSH=1` |
 | `/backend-data` (in log-gui) | the `./data:/backend-data:ro` mount | Where the log viewer reads `log.db` — read-only by construction, so the viewer can never write the log server's database |
-| `log-gui-acks`, `terminal-gui-logs` | Compose named volumes | Log acknowledgements; the terminal's failover log |
+| `log-gui-acks`, `terminal-gui-logs`, `book-gui-logs` | Compose named volumes | Log acknowledgements; the terminal's and the order book viewer's failover logs |
 
 
 ## VM bootstrap — a ready-to-run Multipass VM
@@ -598,7 +615,7 @@ deployed configuration and `pm-opctl-cli` ready to start the stack.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | \
-    bash -s -- --version 0.42.1 --snapshot
+    bash -s -- --version 0.43.0 --snapshot
 
 multipass shell ems
 cd /home/ubuntu/session
@@ -621,7 +638,7 @@ To read the script before running it:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh -o curl_setup_vm.sh
 less curl_setup_vm.sh
-bash curl_setup_vm.sh --version 0.42.1 --snapshot
+bash curl_setup_vm.sh --version 0.43.0 --snapshot
 ```
 
 

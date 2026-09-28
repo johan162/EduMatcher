@@ -1,0 +1,116 @@
+{
+  "type": "book",
+  "topic": "book.MSFT",
+  "ts": "2026-09-27T17:21:52.949Z",
+  "data": {
+    "symbol": "MSFT",
+    "tick_decimals": 2,
+    "ts_ns": 1790529712949050857,
+    "bids": [
+      {
+        "price": 94.06,
+        "qty": 659,
+        "count": 11
+      },
+      {
+        "price": 94.05,
+        "qty": 247,
+        "count": 22
+      },
+      {
+        "price": 94.04,
+        "qty": 127,
+        "count": 7
+      },
+      {
+        "price": 94.03,
+        "qty": 162,
+        "count": 5
+      },
+      {
+        "price": 94.02,
+        "qty": 11,
+        "count": 2
+      },
+      {
+        "price": 93.42,
+        "qty": 995,
+        "count": 1
+      }
+    ],
+    "asks": [
+      {
+        "price": 94.07,
+        "qty": 467,
+        "count": 6
+      },
+      {
+        "price": 94.08,
+        "qty": 210,
+        "count": 20
+      }
+    ],
+    "last_price": 94.07,
+    "last_qty": 32,
+    "last_buy_price": 94.07,
+    "last_sell_price": 94.06,
+    "recent_trades": [
+      {
+        "id": "000001-000000102",
+        "symbol": "MSFT",
+        "buy_order_id": "01b3c027a22c1ad8aac2c5e122242c7d",
+        "sell_order_id": "bb33b0f82c3d06cc573ab213300098ba",
+        "buy_gateway_id": "TRADER02",
+        "sell_gateway_id": "TRADER01",
+        "price": 94.07,
+        "quantity": 12,
+        "ts_ns": 1790529702608783106
+      },
+      {
+        "id": "000001-000000113",
+        "symbol": "MSFT",
+        "buy_order_id": "9d46e3569d01bb60e6d9514272bdeed4",
+        "sell_order_id": "0e2b6794eb6ea57fa78b9a7aced7187c",
+        "buy_gateway_id": "TRADER01",
+        "sell_gateway_id": "TRADER02",
+        "price": 94.06,
+        "quantity": 2,
+        "ts_ns": 1790529705651233593
+      },
+      {
+        "id": "000001-000000120",
+        "symbol": "MSFT",
+        "buy_order_id": "dd1c49c98cf7d19ae99e2f7159575d56",
+        "sell_order_id": "bb33b0f82c3d06cc573ab213300098ba",
+        "buy_gateway_id": "TRADER02",
+        "sell_gateway_id": "TRADER01",
+        "price": 94.07,
+        "quantity": 7,
+        "ts_ns": 1790529707678326866
+      },
+      {
+        "id": "000001-000000121",
+        "symbol": "MSFT",
+        "buy_order_id": "e84a0e6b65d1f5656c33f8df25971e2d",
+        "sell_order_id": "bb33b0f82c3d06cc573ab213300098ba",
+        "buy_gateway_id": "TRADER01",
+        "sell_gateway_id": "TRADER01",
+        "price": 94.07,
+        "quantity": 84,
+        "ts_ns": 1790529708083226402
+      },
+      {
+        "id": "000001-000000122",
+        "symbol": "MSFT",
+        "buy_order_id": "e84a0e6b65d1f5656c33f8df25971e2d",
+        "sell_order_id": "bede3103a49993b68c65668cda84c85f",
+        "buy_gateway_id": "TRADER01",
+        "sell_gateway_id": "TRADER01",
+        "price": 94.07,
+        "quantity": 32,
+        "ts_ns": 1790529708083226402
+      }
+    ]
+  },
+  "seq": 67
+}

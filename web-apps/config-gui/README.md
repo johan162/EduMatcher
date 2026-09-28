@@ -42,7 +42,7 @@ make down   # stop and remove
 ```
 
 
-If you are behind a proxy (or firewall) you need to use `make proxy-up` instead of `make up` to build and run the container. This target will set the HTTP_PROXY and HTTPS_PROXY environment variables for the build and run steps. See the `make help` output for more details. It asumes the two environment variables `http_proxy` and `https_proxy` are set in your shell. If they are not set, the Makefile will default to using `http://host.containers.internal:9000` for both.
+If you are behind a proxy (or firewall), export `http_proxy` in your shell before `make up` (or `make cbuild` / `make cdist`). The Makefile passes it into the image build as `HTTP_PROXY` and `HTTPS_PROXY`, rewriting a `localhost` proxy host to `host.containers.internal` so the build container can reach it, and defaulting the port to `9000` when the URL has none. With `http_proxy` unset the build uses no proxy. `make print-proxy` shows the values the build will get.
 
 
 
@@ -93,14 +93,12 @@ Container-only build args (`docker-compose.yml`, for corporate proxies):
 | `format`          | Format source with Prettier                                            |
 | `dev-web`         | Only the web dev server (Vite)                                         |
 | `dev-server`      | Only the backend dev server (Fastify)                                  |
-| `cnt-build`       | Build the container image via compose without starting it              |
-| `proxy-up`        | Start the container stack through a local dev proxy                    |
+| `cbuild`          | Build the container image via compose without starting it              |
 | `restart`         | Restart the container stack                                            |
 | `logs`            | Follow container logs                                                  |
 | `ps`              | Show container stack status                                            |
-| `dist`            | Build a distributable: container image + exported OCI tarball in `dist/` |
+| `cdist`           | Build a distributable: container image + exported OCI tarball in `dist/` |
 | `clean`           | Remove local build artifacts and `dist/`                               |
-| `bump-version`    | Sync the version shown in the UI's `TopBar.tsx` with `package.json`    |
 
 `npm run verify:python` (outside `make`) runs the golden-file check that
 validates generated configs with the real Python `load_engine_config()`;

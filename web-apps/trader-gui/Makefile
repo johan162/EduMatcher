@@ -6,8 +6,9 @@
 	check-npm check-container check-container-env \
 	install build build-debug typecheck test lint format \
 	dev serve \
-	cnt-build proxy-up up down restart logs ps \
-	dist \
+	cbuild up down restart logs ps \
+	cdist imageclean \
+	ghcr-login cpush ghcr-logout ghcr-clean \
 	clean distclean
 
 # --------------------------------------------------------------------------------------------
@@ -162,15 +163,6 @@ check-container-env: check-container ## Ensure container runtime environment is 
 # Local npm workflow
 # --------------------------------------------------------------------------------------------
 
-# Bump version in "TopBar.tsx" file (for display in the GUI) when updating the version in package.json
-bump-version: ## Update version in TopBar.tsx to match package.json
-	@echo -e "$(YELLOW)- Bumping version in TopBar.tsx to match package.json...$(NC)"
-	@TOPBAR_FILE=apps/web/src/components/layout/TopBar.tsx; \
-	VERSION=$(shell node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0"); \
-	sed -i.bak -E "s/v[0-9]+\.[0-9]+\.[0-9]+/v$$VERSION/" "$$TOPBAR_FILE" && rm -f "$$TOPBAR_FILE.bak"
-	@echo -e "$(GREEN)✓ Version updated in TopBar.tsx to v$(VERSION)$(NC)"
-
-
 install: check-npm ## Install a full local npm workspace environment
 	@echo -e "$(YELLOW)- Installing Node workspace dependencies...$(NC)"
 	@if [[ -f package-lock.json ]]; then \
@@ -228,6 +220,9 @@ serve: check-npm ## Serve the production build (apps/web/dist/) on :8093
 # --------------------------------------------------------------------------------------------
 # Container workflow
 # --------------------------------------------------------------------------------------------
+$(TIMESTAMP_DIR):
+	@mkdir -p $(TIMESTAMP_DIR)
+
 cbuild: check-container | $(TIMESTAMP_DIR) ## Build container image via compose (podman/docker)
 	@echo -e "$(YELLOW)- Building container image...$(NC)"
 	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
@@ -238,10 +233,17 @@ cbuild: check-container | $(TIMESTAMP_DIR) ## Build container image via compose 
 	    --build-arg HTTPS_PROXY="$(HTTPS_PROXY)" \
 	    --build-arg NO_PROXY="$(NO_PROXY)" \
 		--build-arg WEB_PORT="$(WEB_PORT)"
+	@# Also tag the version, which cpush pushes
+	@$(CONTAINER_RUNTIME) tag $(APP_NAME):latest $(IMAGE)
 	@touch $(CONTAINER_STAMP)
 	@echo -e "$(GREEN)✓ Container image built$(NC)"
 
-up: check-container-env bump-version ## Start container stack (detached) with build
+# cdist and cpush need a built image. Without this rule a fresh checkout,
+# where no stamp exists yet, failed with "No rule to make target".
+$(CONTAINER_STAMP): | $(TIMESTAMP_DIR)
+	@$(MAKE) --no-print-directory cbuild
+
+up: check-container-env ## Start container stack (detached) with build
 	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
 	@echo -e "$(YELLOW)- Starting container stack...$(NC)"
 	@mkdir -p logs
@@ -305,7 +307,7 @@ $(CDIST_STAMP): $(CONTAINER_STAMP)   ## Build a distributable: container image +
 	@echo -e "$(BLUE)- Then run:$(NC)"
 	@echo -e "$(WHITE)    $(CONTAINER_RUNTIME) run -p $(WEB_PORT):$(WEB_PORT) $(IMAGE)$(NC)"
 
-cdist: $(CDIST_STAMP) check-container-env bump-version ## Build a distributable package (container image + exported OCI tarball in dist)
+cdist: $(CDIST_STAMP) check-container-env ## Build a distributable package (container image + exported OCI tarball in dist)
 	@:
 
 # --------------------------------------------------------------------------------------------

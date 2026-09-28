@@ -34,6 +34,7 @@ from edumatcher.stats.query import (
     validate_date,
     validate_iso_ts,
 )
+from edumatcher.stats.trading_day import timezone_name, trading_date
 
 log = logging.getLogger(__name__)
 
@@ -228,6 +229,28 @@ async def history_fills(
                 detail={"error": {"code": "VALIDATION", "message": str(exc)}},
             ) from exc
     return _paginated_envelope("events", events, next_cursor)
+
+
+@router.get("/session")
+async def history_session(
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
+) -> dict[str, str]:
+    """The session timezone and current trading date — public market data.
+
+    Resolved exactly as every ``date`` filter on this router resolves them,
+    from the timezone pm-stats recorded in the statistics database, so a
+    client showing "today" or a session clock cannot disagree with the
+    ``date`` column of ``/daily``. The trading date is computed from the
+    gateway's clock at the moment of the request.
+    """
+    _ = session
+    with closing(_open_stats(request)) as conn:
+        tz = _session_tz(request, conn)
+    return {
+        "session_timezone": timezone_name(tz),
+        "session_date": trading_date(time.time(), tz),
+    }
 
 
 @router.get("/trades")

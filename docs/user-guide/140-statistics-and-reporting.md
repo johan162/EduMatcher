@@ -57,7 +57,8 @@ pm-stats --timezone Europe/Stockholm
 ```
 
 `pm-stats` writes that value into the database's `stats_meta` table, and every
-reader — `pm-stats-cli`, `pm-ticker`, the API Gateway — picks it up from there.
+reader — `pm-stats-cli`, `pm-ticker`, `pm-viewer`, the API Gateway — picks it up
+from there.
 **Readers need no timezone configuration at all**, and cannot disagree with the
 recorder about which trading day a `--date` refers to:
 

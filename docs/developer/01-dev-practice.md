@@ -720,12 +720,12 @@ uses to choose between PyPI and TestPyPI.
 
 ### Publishing by hand
 
-`make ghcr-push` in `deployment/docker/` builds all five images from your
+`make ghcr-push` in `deployment/docker/` builds all six images from your
 checkout and pushes them, for when the workflow cannot run:
 
 ```bash
 export GITHUB_USER=<you> GHCR_TOKEN=<token with write:packages>
-make ghcr-push                              # all five, tagged :dev
+make ghcr-push                              # all six, tagged :dev
 make ghcr-push TAG=0.20.6 FORCE=1 LATEST=1  # as a release tag
 ```
 
@@ -820,13 +820,13 @@ somebody who is not you.
 ## Doing a manual GHCR push
 
 Normally the push is handled by the workflow but it can be manually overridden.
-The target `ghcr-push` in `deployment/docker/Makefile` builds all five images from. 
+The target `ghcr-push` in `deployment/docker/Makefile` builds all six images from. 
 In will login with ghe existing GITHUB_USER/GHCR_TOKEN, then tags and pushes each one.
 
 ```
 export GITHUB_USER=<user with admin priv> GHCR_TOKEN=<token with write:packages>
 
-make ghcr-push                              # all five, tagged :dev
+make ghcr-push                              # all six, tagged :dev
 make ghcr-push TAG=0.20.6 FORCE=1           # ...as a release tag
 make ghcr-push TAG=0.20.6 FORCE=1 LATEST=1  # ...and move :latest
 ```
