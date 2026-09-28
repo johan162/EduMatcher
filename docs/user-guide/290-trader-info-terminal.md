@@ -108,7 +108,9 @@ There are no addresses to configure because every container shares one
 Compose network, on which the exchange answers to the hostname `edumatcher`.
 The API key is the one part that cannot be a fixed default — it is generated
 per engine configuration — so `up-all` reads it from the deployed
-configuration and injects it. See [Installation](005-installation.md).
+configuration and injects it. See
+[Where the read-only API key comes from](#where-the-read-only-api-key-comes-from)
+and [Installation](005-installation.md).
 
 ### This app alone, in a container
 
@@ -302,6 +304,67 @@ indicator showing `RECONNECTING`/`OFFLINE` until the feed appears.
 `make dev-bridge` runs only the bridge, `make dev-web` only the web server, and
 `make test` the Vitest suite. The full inner-loop workflow is
 [The Development Loop](../developer/08-dev-workflow.md).
+
+### Where the read-only API key comes from
+
+You never type the API key in the normal start paths, yet TapeDeck can read
+history. The key has always been there: it is part of the exchange's own
+configuration, and every start path looks it up and hands it to the bridge.
+
+**1. It is generated with the configuration.** `pm-config-gen`'s
+`--api-gateway-readonly-key` option adds one extra credential to the
+`dashboards` API gateway instance (port 8081), with `gateway_id: null` and a
+randomly generated key. Every bundled example configuration was generated with
+that option (see its `mkrefdata.sh`), so each carries one — and each a
+different one. In `docs/examples/ref_data/s1-basic-setup/engine_config.yaml`:
+
+```yaml
+api_gateways:
+  dashboards:
+    port: 8081
+    credentials:
+    - api_key: key-readonly-fq9m76
+      gateway_id: null
+      description: Generated read-only market-data key
+```
+
+When a configuration is deployed, the key travels with it into
+`<data dir>/ref_data/engine_config.json`, the file every exchange process
+reads.
+
+**2. The start path looks it up.** The bridge takes the key from the
+environment variable `PM_TERMINAL_API_KEY`, and each way of starting TapeDeck
+fills that variable from the deployed configuration:
+
+| Start path | How it finds the key |
+|---|---|
+| `make up-all` / `./edumatcher.sh start` | Starts the exchange first and waits for its configuration to be deployed, then reads `/data/ref_data/engine_config.json` inside the exchange container. It exports the key as `PM_TERMINAL_API_KEY` and sets `API_GATEWAY_URL=http://edumatcher:<that instance's port>`, and only then starts the web applications — which is why the whole-stack start runs in two phases |
+| `make up` in `web-apps/terminal-gui` | Reads `$EDUMATCHER_DATA_DIR/ref_data/engine_config.json` on this host. A `PM_TERMINAL_API_KEY` you set yourself always wins |
+| `make dev-env GUI=terminal-gui` | Reads the key from the running exchange container and prints it as an `export` line for `make dev` |
+
+All three pick the first enabled gateway instance, in name order, that carries a
+credential with `gateway_id: null` — so `dashboards` is preferred over `desk`
+when both have one — and take that instance's port along with the key.
+
+**Why this is acceptable.** A read-only key is not a secret that grants
+anything worth protecting: it reads only public data — reference data, the
+market-data stream and history — and can neither place nor see orders. It still
+never reaches the browser; only the bridge holds it.
+
+**A configuration without one.** A configuration you built yourself may have no
+`gateway_id: null` credential. TapeDeck then still starts, with a warning: live
+prices work, because they come from `pm-md-gwy` and need no key, but the charts,
+previous close and Open/Volume columns stay empty. To fix it, add a credential
+with `gateway_id: null` to the `dashboards` instance — in the
+[Configuration GUI](030-config-GUI.md)'s gateway settings, by hand in
+`engine_config.yaml`, or by regenerating with `--api-gateway-readonly-key` —
+and redeploy.
+
+!!! note "Switching configuration changes the key"
+    Because every configuration has its own key, a key copied from one
+    configuration is rejected (HTTP 401) by an exchange running another. The
+    automatic look-up avoids this; a key you exported yourself, or one left
+    in your shell by `make dev-env`, does not.
 
 ## A tour of the interface
 
