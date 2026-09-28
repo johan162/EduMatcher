@@ -212,6 +212,16 @@ The core documentation for understanding order behavior, priority categories, an
 * CME Group, [Record annual ADV of 28.1 million contracts in 2025](https://investor.cmegroup.com/news-releases/news-release-details/cme-group-reports-record-annual-adv-281-million-contracts-2025-6), 5 January 2026.
 * Databento, [CME matching algorithms explained](https://databento.com/blog/cme-matching-algorithms-explained).
 * Eurex, [T7 Functional and Interface Overview](https://www.eurex.com/resource/blob/304532/1fe112bacf6513a134ce9ce064d09cc5/data/T7-Functional-Interface-Overview.pdf) (Market Maker Protection limits).
+* NYSE, [Enhancement to Reopening Process after LULD Trading Pauses](https://www.nyse.com/publicdocs/nyse/markets/nyse/NYSE_Group_LULD_12_testing.pdf), 2017 (auction collar widening in 5% steps).
+
+* SEC, [Order approving Nasdaq Halt Cross price protections](https://www.federalregister.gov/documents/2025/02/10/2025-02386/self-regulatory-organizations-the-nasdaq-stock-market-llc-order-granting-approval-of-a-proposed-rule), Release No. 34-102336, 10 February 2025.
+
+* Deutsche Börse, [Protective Mechanisms in Auctions](https://www.cashmarket.deutsche-boerse.com/cash-en/trading/Xetra/protective-mechanisms/protective-mechanisms-in-auctions) (Xetra volatility interruptions); CME Group, 
+
+* Deutsche Börse, [Price Limits](https://www.cmegroup.com/trading/price-limits.html). 
+
+* Deutsche Börse, [Market Model for the Trading Venue Deutsche Börse Xetra](https://www.cashmarket.deutsche-boerse.com/resource/blob/4942824/7f80f5406aab402eb2e5e2436ce0821a/data/T7_Release_14.1_-_Market_Model%20_Xetra.pdf)
+
 * Wikipedia, [Initial public offering of SpaceX](https://en.wikipedia.org/wiki/Initial_public_offering_of_SpaceX); CoinDesk, [SpaceX prices shares at $135 in largest IPO ever](https://www.coindesk.com/markets/2026/06/11/spacex-prices-shares-at-usd135-in-largest-ipo-ever), 11 June 2026.
 * CME Group, [CME Group to Permanently Close Most Open Outcry Trading Pits](https://www.cmegroup.com/media-room/press-releases/2021/5/04/cme_group_to_permanentlyclosemostopenoutcrytradingpitseurodollar.html), 4 May 2021.
 * SEC, In the Matter of The NASDAQ Stock Market, LLC (Facebook IPO), Release No. 34-69655, 29 May 2013.

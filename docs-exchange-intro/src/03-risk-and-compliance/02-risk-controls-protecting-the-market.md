@@ -140,6 +140,57 @@ The two collars serve different purposes:
 - The static collar protects against outright mistakes (orders many times the current price).
 - The dynamic collar protects against gradual manipulation or runaway algorithms.
 
+### Automated Corridor Expansion (ACE)
+
+A corridor is a promise: *this market will not trade outside this band*. On an ordinary day that promise costs nothing. On an extraordinary day it becomes a trap. Suppose a company announces overnight that it has been acquired at a 25% premium. The "right" price really is 25% higher, and a collar of ±10% around yesterday's close now blocks every trade that reflects reality. The venue is left with two bad choices: keep the collar and let nothing trade (the market is effectively closed exactly when participants most need it), or drop the collar and let the first few orders print at whatever price they happen to carry (the collar was there precisely to stop that).
+
+**Automated Corridor Expansion (ACE)** is the family of rules that avoids both. Instead of forcing an immediate yes-or-no decision, the venue *keeps collecting orders* for the affected instrument, repeatedly asks "at what price would these orders trade?", and, if the answer is still outside the band, *widens the band by a predefined step* and asks again. The instrument reopens as soon as the price the orders imply fits inside the (now wider) band. Only that one instrument waits; the rest of the market keeps trading normally.
+
+A note on the name: "ACE" is this book's label for the pattern, not a standardised industry term. Real venues each have their own names and parameters (the examples below give several), and the reference exchange that accompanies this book implements it under the name *Automated Corridor Expansion*, where "corridor" simply means the collar used for a reopening.
+
+As an example, Deutsche Boerse adopted the ACE (Automated Corridor Expansion) Model for ETFs in 2021, accounting for the specific nature of ETPs and their intrinsic higher volatility.
+
+The mechanism is publically described in [Market Model for the Trading Venue Deutsche Börse Xetra](https://www.cashmarket.deutsche-boerse.com/resource/blob/4942824/7f80f5406aab402eb2e5e2436ce0821a/data/T7_Release_14.1_-_Market_Model%20_Xetra.pdf)
+
+**How it works, step by step.** Every ACE design has the same moving parts:
+
+1. **A trigger.** The instrument's price has hit its collar or circuit-breaker threshold, and continuous matching stops *for that instrument*. It enters a **call phase**: orders are accepted and rest in the book, but nothing matches (the same mechanics as the opening auction in Part II).
+2. **A latched reference price.** The collar is centred on a reference price captured at the moment of the trigger. It is *latched*, frozen for the duration, so that nothing traded elsewhere can shift the target while participants are responding to it.
+3. **A dry-run uncross.** At the end of the call phase, the engine computes the auction equilibrium price (the price that would maximise executable volume) *without executing anything*. This is the **indicative price**.
+4. **The decision.** If the indicative price lies inside the collar, the instrument reopens with a normal auction uncross at that price. If it lies outside, the instrument does *not* reopen: the collar is widened by the next step of a published **expansion ladder**, and a new call phase starts. All resting orders stay in the book throughout.
+5. **Termination.** Because each step makes the collar wider, it eventually contains any finite price, so the instrument always reopens eventually. Designs differ on what else may end the process: the end of the trading day, a maximum number of steps, or a human decision.
+
+**A worked example.** Take a stock with a reference price of **$100.00**, an initial collar of ±10%, a first widening of 10 percentage points, and later widenings of 20 points each, with 5-minute call phases. A burst of buying after big news produces an indicative price of **$122.00**, which stays put.
+
+| Time | Collar | Indicative price | Inside? | Outcome |
+|---|---|---|---|---|
+| Trigger (0 min) | $90.00 – $110.00 (±10%) | – | – | Call phase 1 begins |
+| End of call 1 (5 min) | $90.00 – $110.00 (±10%) | $122.00 | No | Widen by 10 points, call phase 2 |
+| End of call 2 (10 min) | $80.00 – $120.00 (±20%) | $122.00 | No | Widen by 20 points, call phase 3 |
+| End of call 3 (15 min) | $60.00 – $140.00 (±40%) | $122.00 | **Yes** | Reopen: uncross at $122.00 |
+
+These are the numbers from the SEC's own illustration of Nasdaq's rule, described below. Notice what the extra ten minutes buy. Every participant can see that the stock is heading for a 22% move and has time to react: sellers who think $122 is too high can enter orders, and if enough of them do, the indicative price falls back and the stock reopens earlier, inside a narrower collar. The expansion does not decide the price; it slows the process down just enough for the market to decide it with everybody watching.
+
+Note also that the widening is **additive on the reference price**: each step adds a percentage of the *original* $100 reference, so the band grows by a fixed number of dollars per step rather than compounding. That keeps the ladder predictable, which is the whole point of publishing it.
+
+**Design choices that differ between venues.**
+
+- **Symmetric or directional.** Nasdaq widens both sides of the collar. NYSE's reopening after a Limit Up-Limit Down pause widens only the side facing the order imbalance: the opposite side stays where it was, since there is no pressure in that direction to accommodate.
+- **Step size and interval.** How far to widen and how long each call phase lasts trade speed against safety: big, fast steps reopen quickly but offer less protection; small, slow steps protect but can keep an instrument dark for a long time.
+- **Predictable or random end.** If everyone knows the exact moment a call phase ends, the last order to arrive has seen everyone else's and cannot be answered. Many venues therefore end call phases at a random moment after a minimum duration, as Deutsche Börse's Xetra does for its auctions.
+- **Automatic or manual last resort.** Some designs never stop widening; others hand the final decision to people. On Xetra, if the potential price lies outside an even wider "extended" price range, the call phase continues until market supervision ends the volatility interruption manually.
+
+**Real-world examples.**
+
+- **NYSE (and the other US primary listing exchanges), 2017.** Since 20 November 2017, when a stock cannot reopen from a Limit Up-Limit Down trading pause inside its auction collar (initially 5% below the auction reference price on the lower side, with the Limit Up-Limit Down upper price band as the upper side), the pause is extended by five minutes and the collar is widened by a further 5% of the reference price, in the direction of the imbalance only, and this repeats until the stock can reopen. With a reference price of $90, each step moves the collar by $4.50 [NYSE, *Enhancement to Reopening Process after LULD Trading Pauses*, 2017].
+- **Nasdaq, 2025.** For halts other than LULD pauses (news-pending halts, for example), the SEC approved in February 2025 "Halt Cross" price protections: a reopening must fall within 10% of a reference price; if it cannot, the collar widens by 10% after the first five minutes and by 20% after each subsequent five minutes, exactly as in the worked example above [SEC Release No. 34-102336, 10 February 2025].
+- **Xetra (Deutsche Börse).** A volatility interruption extends the auction call phase when the potential price lies outside the static or dynamic price range; the call phase then ends at a random moment after a minimum duration, and an "extended" volatility interruption is ended manually [Deutsche Börse, *Protective Mechanisms in Auctions*].
+- **CME agricultural futures.** A simpler, slower cousin: after a contract settles at its daily price limit, the next day's limit is expanded, for example from $0.30 to $0.45 per bushel for corn, so that the market is not locked at the limit day after day [CME Group, *Price Limits*]. No halt is involved at all; the band simply widens for the next session.
+
+**What this means for developers.** ACE turns the collar from a single number into a small state machine: *normal → call phase → (dry-run, widen, call phase)\* → reopen*. The engine needs a dry-run mode of its auction algorithm that computes the indicative price without executing, a latched reference price per instrument, and a ladder read from reference data rather than hardcoded. Every widening must be published to market data and written to the audit trail, because participants need to see the new collar to respond to it and regulators will ask why the instrument reopened when it did. If the end of each call phase is randomised, the random number generator must be treated as an input to the deterministic engine (seeded and recorded), or the replay guarantees of the *Determinism, Replay, and Persistence* chapter are lost. Finally, the ladder needs a defined interaction with the end of the trading day: an instrument still in a call phase at the close must resolve somehow, whether by a forced closing uncross, by rolling its orders into the next session, or by an operator's decision.
+
+> **Key idea:** A fixed collar either blocks a genuine repricing or gives way to an absurd one. Automated Collar Expansion does neither: it pauses only the affected instrument, keeps collecting orders, and widens the collar in published, predictable steps until the price the orders imply fits, so that large moves are allowed to happen, but slowly enough for the whole market to take part in setting the price.
+
 ## Self-Match Prevention (SMP)
 
 A participant should not be able to trade with themselves. If you have a resting sell order at $150.35 and you submit a buy order at $150.40, those orders would match, but both sides belong to you. No real change of ownership has occurred; you have simply generated artificial trading volume. This is called **wash trading** and is illegal under most exchange regulations.
