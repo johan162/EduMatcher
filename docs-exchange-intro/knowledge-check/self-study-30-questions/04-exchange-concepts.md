@@ -190,7 +190,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 ### 22. Knight Capital, deeper detail
 - [ ] A. The malfunctioning code was triggered on a single misconfigured server out of eight
 - [ ] B. Power Peg bought at the offer and sold at the bid repeatedly, paying the spread each time
-- [ ] C. Knight's losses were roughly equal to the firm's total pre-incident equity capital
+- [ ] C. Knight's losses left it unable to continue on its own capital, requiring an emergency rescue
 - [ ] D. Knight ultimately merged with Getco LLC to form KCG Holdings
 - [ ] E. The incident had no influence on subsequent MiFID II or SEC rulemaking
 
@@ -198,7 +198,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] A. IEX's speed bump introduces a fixed delay of approximately 350 microseconds
 - [ ] B. A fixed delay applied equally to all orders eliminates relative timing differences between participants
 - [ ] C. IEX became a registered national securities exchange in 2016
-- [ ] D. Speed bumps can be applied selectively to cancel messages to counter last-look practices
+- [ ] D. Asymmetric speed bumps can delay aggressive orders while letting cancellations through, protecting liquidity providers from latency arbitrage
 - [ ] E. IEX is described as having captured the majority of total US equity trading volume
 
 ### 24. Gateway and matching engine separation
@@ -212,13 +212,13 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] A. The NBBO is the best bid and best ask computed across all exchanges
 - [ ] B. A locked market occurs when one venue's best bid equals another venue's best ask
 - [ ] C. A crossed market means a venue's bid is actually higher than another venue's ask
-- [ ] D. Regulation NMS requires orders to trade at the best available price across registered venues
+- [ ] D. Regulation NMS prohibits venues from trading through a better protected quote displayed on another registered venue
 - [ ] E. Persistent, deliberate locked or crossed quoting by a venue is described as acceptable under Reg NMS
 
 ### 26. Dark pools, PFOF, and fee models
 - [ ] A. Dark pool orders are typically matched at the midpoint of the NBBO
 - [ ] B. PFOF involves a wholesale market maker paying a broker for the right to execute client orders internally
-- [ ] C. PFOF is currently banned in the United Kingdom and European Union
+- [ ] C. PFOF is banned in the United Kingdom and, since 30 June 2026, in the European Union
 - [ ] D. Under a standard maker-taker model, makers pay a fee and takers receive a rebate
 - [ ] E. An inverted (taker-maker) fee model pays takers a rebate and charges makers a fee
 

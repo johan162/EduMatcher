@@ -39,8 +39,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 ### 2. Limit orders and price improvement
 - [ ] A. A limit order's stated price is always the exact price at which it executes, never better
 - [ ] B. A resting limit buy order can be filled at a price better than its own limit price if the market allows
-- [ ] C. Market orders can rest in the book if no immediate match exists
-- [ ] D. SEC Rule 605 requires broker-dealers to publish statistics on how often price improvement occurs
+- [ ] C. On most equity venues, the unfilled part of a market order rests in the book until a counterparty arrives
+- [ ] D. SEC Rule 605 requires market centres (and, since 2024, larger broker-dealers) to publish statistics on how often price improvement occurs
 - [ ] E. A limit price acts as a target price the engine tries to match exactly
 
 ### 3. Stop, stop-limit, and trailing stop orders
@@ -60,7 +60,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 ### 5. Reading the order book
 - [ ] A. The bid side of the book is sorted from highest to lowest price
 - [ ] B. The ask side of the book is sorted from lowest to highest price
-- [ ] C. Level 1 data shows only the best bid and ask, while Level 2 shows the full depth of resting price levels
+- [ ] C. Level 1 data shows only the best bid and ask, while Level 2 shows the aggregated quantity at multiple price levels
 - [ ] D. Visible book depth can understate true available liquidity when iceberg orders are present
 - [ ] E. Bid-ask imbalance near 1.0 indicates heavy buy-side pressure relative to sell-side depth
 
@@ -125,7 +125,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 <div style="page-break-after: always;"></div>
 
 ### 14. Implied orders
-- [ ] A. Removing one of the underlying orders that generates an implied order makes that implied order disappear instantly
+- [ ] A. Removing one of the underlying orders that generates an implied order removes the implied quantity built on it in the same processing step
 - [ ] B. Implied orders create genuinely new liquidity that did not exist anywhere in the market before
 - [ ] C. Implied-out combines an outright order with a spread order to derive a synthetic outright in another delivery month
 - [ ] D. Implied orders only exist for equities, never for futures markets
@@ -136,7 +136,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] B. A HALTED state can transition to a RESUMPTION_AUCTION before returning to CONTINUOUS trading
 - [ ] C. A HALTED state can also transition directly to CLOSING_AUCTION, given an end-of-day signal
 - [ ] D. CLOSED can transition back to PRE_OPEN later the same calendar day if volume was low
-- [ ] E. Only CONTINUOUS trading is ever allowed to transition into HALTED
+- [ ] E. PRE_OPEN can transition directly to HALTED
 
 ### 16. Trade busting and clearly erroneous trades
 - [ ] A. The clearly erroneous execution test is applied trade-by-trade (execution by execution), not to an entire order
@@ -157,7 +157,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 ### 18. The Consolidated Audit Trail
 - [ ] A. The Consolidated Audit Trail (CAT) has been operational in the US since 2020
 - [ ] B. Before CAT, regulators could pull cross-exchange order data instantly from one unified source
-- [ ] C. Audit-trail records are generally expected to be retained for around seven years under US rules
+- [ ] C. Audit-trail and trading records must be retained for several years, commonly five to seven depending on jurisdiction and record type
 - [ ] D. A properly maintained audit trail should allow deterministic replay that reproduces the exact same fills and book state
 - [ ] E. Rejected orders are typically excluded from the audit trail, since they never affected the book
 

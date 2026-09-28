@@ -11,7 +11,7 @@ A **circuit breaker** (also called a **trading curb** in some regulatory context
 
 The origin of circuit breakers is the **Black Monday crash of 19 October 1987**, when US markets fell 22.6% in a single day. The Presidential Task Force on Market Mechanisms (the Brady Commission) recommended coordinated market-wide pause mechanisms in its January 1988 report, directly leading to the first exchange circuit breakers being implemented. The full history is in the *Black Monday and the Origin of Circuit Breakers* section of Part I.
 
-**The basic mechanism:** After each trade, the exchange calculates how much the price has moved relative to a reference price (typically the most recent auction price, or the price at the start of a defined time window). If the movement exceeds a configured threshold in either direction, trading in that symbol is halted. During the halt, new orders can still be submitted and will rest in the book, but no matching occurs. When the halt ends, trading resumes through a **resumption auction** rather than instantly returning to continuous matching , this ensures that the first post-halt price is determined by the broadest available supply and demand, not by a single resting order that happens to be at the top of a thin book.
+**The basic mechanism:** After each trade, the exchange calculates how much the price has moved relative to a reference price (typically the most recent auction price, or the price at the start of a defined time window). If the movement exceeds a configured threshold in either direction, trading in that symbol is halted. During the halt, new orders can still be submitted and will rest in the book, but no matching occurs. When the halt ends, trading resumes through a **resumption auction** rather than instantly returning to continuous matching, this ensures that the first post-halt price is determined by the broadest available supply and demand, not by a single resting order that happens to be at the top of a thin book.
 
 The circuit breaker introduces its own state machine within the trading session:
 
@@ -61,28 +61,28 @@ For individual stocks, the US LULD system takes a complementary approach: rather
 
 | Tier | Instruments | Band during regular hours | Band in early/late sessions |
 |---|---|---|---|
-| **Tier 1** | S&P 500, Russell 1000, selected ETFs | ±5% | ±10% |
-| **Tier 2** | Other NMS stocks | ±10% | ±20% |
-| **Leveraged ETFs** | Multiply the applicable tier by the leverage factor | Up to ±75% for very leveraged instruments | , |
+| **Tier 1** | S&P 500, Russell 1000, selected ETFs (priced above $3) | ±5% | ±10% |
+| **Tier 2** | Other NMS stocks (priced above $3) | ±10% | ±20% |
+| **Leveraged ETPs** | Band multiplied by the product's leverage factor | Wider, per the plan's rules | Wider still |
 
-If the price moves outside the band, a 15-second monitoring period begins. If the price does not return inside the band within 15 seconds, a 5-minute trading pause is triggered. The halt duration is fixed at 5 minutes regardless of how far the price moved, but the threshold that triggers the halt reflects the instrument's normal volatility characteristics.
+(Stocks priced at $3 or below have wider bands. The doubled "early/late" bands apply before 9:45am and after 3:35pm.) The bands are recalculated continuously from a reference price, the average trade price over the preceding five minutes. Trades outside the band are simply not allowed. If the best bid or offer sits exactly at the band (a **limit state**) and does not recover within 15 seconds, a 5-minute trading pause is triggered. The halt duration is fixed at 5 minutes regardless of how far the price moved, but the threshold that triggers the halt reflects the instrument's normal volatility characteristics.
 
 ## The 2020 COVID-19 Circuit Breaker Events
 
 The most recent real-world test of the US market-wide circuit breaker system was the four Level 1 halts triggered in March 2020. These remain the only times the modern percentage-based system has halted all US equity trading, and they confirmed both that the mechanism worked as designed and that it had not been calibrated for the specific dynamics of a pandemic-driven crash.
 
-| Date | Trigger Time (EST) | S&P 500 Level | Context |
-|---|---|---|---|
-| March 9, 2020 | 9:34 AM | 2,772.39 | Saudi–Russia oil price war combined with accelerating COVID-19 spread |
-| March 12, 2020 | 9:35 AM | 2,564.24 | WHO declared COVID-19 a global pandemic; US announced European travel bans |
-| March 16, 2020 | 9:30 AM | 2,490.47 | Triggered at the exact opening bell despite an emergency Fed rate cut overnight |
-| March 18, 2020 | 12:56 PM | 2,429.23 | Intraday halt as liquidity withdrew mid-session |
+| Date | Trigger time (ET) | Prior S&P 500 close | 7% trigger level (93% of prior close) | Context |
+|---|---|---|---|---|
+| March 9, 2020 | 9:34 AM | 2,972.37 | 2,764.30 | Saudi–Russia oil price war combined with accelerating COVID-19 spread |
+| March 12, 2020 | 9:35 AM | 2,741.38 | 2,549.48 | WHO had declared COVID-19 a pandemic the day before; US announced European travel restrictions |
+| March 16, 2020 | 9:30 AM | 2,711.02 | 2,521.25 | Triggered at the opening despite an emergency Fed rate cut the previous evening |
+| March 18, 2020 | 12:56 PM | 2,529.19 | 2,352.15 | Intraday halt as liquidity withdrew mid-session |
 
 Each halt lasted the mandatory 15 minutes. Trading resumed through a brief reopening auction each time. The halts functioned as the Brady Commission intended: providing a window for participants to cancel erroneous orders, re-submit with updated prices, and allow the resumption auction to establish a coordinated reopening rather than a scramble into a thin book.
 
 Several operational characteristics of these events are worth noting for exchange system developers:
 
-**Level 2 was not triggered** despite the Dow falling approximately 13% on March 16. The Level 2 threshold is measured from the previous day's close, and after a Level 1 halt and resumption the reference level is reset. The measurement window effectively restarts, which means a further 13% decline from the *post-halt* level would be required to trigger Level 2.
+**Level 2 was not triggered**, even though the Dow Jones Industrial Average fell about 13% on March 16. Two details explain why. First, the market-wide circuit breakers are driven by the **S&P 500**, not the Dow, and the S&P 500 closed down about 12%, never reaching its 13% threshold. Second, every level is measured from the *previous day's close*: the reference does not reset after a Level 1 halt. (Also, a Level 1 or Level 2 halt can occur only once per day; after one Level 1 halt, only a 13% decline can halt trading again that day.) For a developer this is a reminder to implement exactly what the rule says: which index, which reference price, and which percentage.
 
 **Market-wide circuit breakers do not apply before 9:30am.** The March 16 halt triggered at the exact opening bell because the overnight futures market had already been limit-down on CME (CME imposes its own ±5% limit on equity futures outside regular hours). The circuit breaker mechanism described in this section governs only the regular session. Pre-market and after-hours risk management is handled separately at the futures exchange level.
 
@@ -103,7 +103,7 @@ The design flaw was the narrow **gap between the two thresholds** (5% and 7%, on
 
 **Japan: daily price limits**
 
-JPX (Japan Exchange Group) uses a different paradigm: instead of a halt, the exchange imposes **daily price limits** that prevent the price from moving more than a set percentage from the previous close. If the price hits the limit (up or down), trading can continue at that price but cannot move beyond it. This is a continuous constraint rather than a discrete halt, the market remains open but price movement is bounded. If the next day opens near the limit, the limit is widened. This approach prioritises continuity over interruption.
+JPX (Japan Exchange Group) uses a different paradigm: instead of a halt, the exchange imposes **daily price limits** that prevent the price from moving more than a set percentage from the previous close. If the price hits the limit (up or down), trading can continue at that price but cannot move beyond it. This is a continuous constraint rather than a discrete halt: the market remains open but price movement is bounded. When a stock stays pinned at its limit without trading for consecutive days, the exchange widens the limit. This approach prioritises continuity over interruption.
 
 ## Design Implications for Exchange System Developers
 
@@ -163,7 +163,7 @@ It can be triggered by:
 
 After a kill switch, the participant's connection is typically marked as **inactive**. Before they can re-enter orders, they must reconnect and authenticate. This gives a human a chance to assess the situation before resuming trading.
 
-Kill switches are mandatory features under regulations including MiFID II (EU) and the **Market Access Rule (Rule 15c3-5, 2010)** in the United States. As noted in the *How Exchanges Are Regulated* section of Part I, the Market Access Rule was enacted directly in response to the 2010 Flash Crash and requires broker-dealers to have pre-trade risk controls and post-trade monitoring, including the ability to immediately halt trading. MiFID II additionally mandates that kill switch functionality be **regularly tested** , it is not sufficient to have a kill switch that works only in theory. Every exchange must demonstrate the ability to cancel a participant's orders immediately when required, and must produce evidence of this capability to regulators on request.
+Kill switches are mandatory features under regulations including MiFID II (EU) and the **Market Access Rule (Rule 15c3-5, 2010)** in the United States. As noted in the *How Exchanges Are Regulated* section of Part I, the Market Access Rule, adopted in November 2010 in the year of the Flash Crash, requires broker-dealers to have pre-trade risk controls and post-trade monitoring, including the ability to immediately halt trading. MiFID II additionally mandates that kill switch functionality be **regularly tested**, it is not sufficient to have a kill switch that works only in theory. Every exchange must demonstrate the ability to cancel a participant's orders immediately when required, and must produce evidence of this capability to regulators on request.
 
 ## Mass Cancel, Not the Same as a Kill Switch
 

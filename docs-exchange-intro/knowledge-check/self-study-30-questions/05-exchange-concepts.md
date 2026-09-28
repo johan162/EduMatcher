@@ -72,7 +72,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] A. NASDAQ launched in 1971 as described in the document
 - [ ] B. Eurex is described as a European derivatives exchange
 - [ ] C. Cboe is described in connection with the world of listed options
-- [ ] D. LSE demutualised in 2001
+- [ ] D. LSE demutualised in 2000 and listed its own shares in 2001
 - [ ] E. JPX runs on an all-electronic platform called "arrowhead"
 
 ### 7. Listing thresholds and alternatives
@@ -156,15 +156,15 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 
 ### 18. Knight Capital, the numbers
 - [ ] A. Knight handled roughly 10-15% of all US equity trading volume before the incident
-- [ ] B. The rogue system sent approximately 4 million orders over the 45-minute episode
+- [ ] B. The rogue system produced more than 4 million executions over the 45-minute episode
 - [ ] C. Knight's net positions spanned approximately 154 different stocks
-- [ ] D. The firm's losses were smaller than its total pre-incident equity capital
+- [ ] D. Knight's loss was fully covered by insurance and required no outside capital
 - [ ] E. RLP (Retail Liquidity Program) was the new NYSE feature that triggered the deployment
 
 ### 19. Speed bumps and IEX, revisited
 - [ ] A. IEX routes orders through 38 miles of coiled fibre before reaching the matching engine
 - [ ] B. IEX's delay is described as approximately 350 microseconds
-- [ ] C. Speed bumps applied only to cancel messages can defend against last-look practices
+- [ ] C. Asymmetric speed bumps can delay aggressive orders while letting cancellations through, protecting market makers' quotes from latency arbitrage
 - [ ] D. IEX has displaced NYSE and NASDAQ as the largest US equity venue by volume
 - [ ] E. IEX's founders argued that speed advantages primarily benefit long-term investors over HFT firms
 

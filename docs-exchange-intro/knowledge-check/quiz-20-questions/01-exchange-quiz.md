@@ -48,7 +48,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 ### 3. Origins of market language
 - [ ] A. "The book" derives from the physical ledger kept by NYSE floor specialists
 - [ ] B. NASDAQ launched in 1971 as the world's first electronic stock market
-- [ ] C. "Going long" originates from a merchant's inventory lasting through time in a warehouse
+- [ ] C. The market phrase "to sell short" is recorded in English only from the mid-19th century, although the practice itself is far older
 - [ ] D. The term "blue chip" originated from a 1923 Dow Jones description of stocks trading at $200+/share
 - [ ] E. The ticker got its name because it displayed prices in real time on a screen
 
@@ -61,11 +61,11 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] E. Wall Street's name has no verified historical origin
 
 ### 5. The US/EU regulatory landscape
-- [ ] A. Reg NMS requires equity orders receive the nationally best available price across registered venues
+- [ ] A. Reg NMS's Order Protection Rule prohibits a venue from trading through a better displayed quote on another registered venue
 - [ ] B. Reg SHO governs short sales, including the locate requirement
-- [ ] C. The Market Access Rule (15c3-5) was enacted in response to the 2010 Flash Crash
+- [ ] C. The Market Access Rule (15c3-5) requires broker-dealers providing market access to have pre-trade risk controls
 - [ ] D. MiFID II mandates algorithmic trading controls, including kill switch testing, in the EU
-- [ ] E. Reg NMS is the reason the US has more than a dozen registered equity exchanges competing for order flow
+- [ ] E. Reg NMS helped shape a US market with more than a dozen registered equity exchanges competing for order flow
 
 <div style="page-break-after: always;"></div>
 
@@ -79,7 +79,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 ### 7. Listing and delisting mechanics
 - [ ] A. A stock trading below $1.00 for 30 consecutive days typically triggers a deficiency notice
 - [ ] B. A reverse stock split increases a company's total market capitalization
-- [ ] C. In a direct listing, no new shares are issued and there is no underwriter price guarantee
+- [ ] C. In a classic direct listing, no new shares are issued and there is no underwriter price guarantee
 - [ ] D. A SPAC is an operating business that already holds a completed merger when it IPOs
 - [ ] E. Delisted shares can never be traded again anywhere
 
@@ -129,7 +129,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 
 ### 14. LULD vs market-wide circuit breakers
 - [ ] A. LULD trigger bands vary the halt duration depending on how severe the price move is
-- [ ] B. LULD applies a fixed-duration trading pause once a price stays outside its band for a defined monitoring window
+- [ ] B. LULD applies a fixed-duration trading pause once a stock stays in a limit state at its band for a defined monitoring window
 - [ ] C. Market-wide circuit breakers apply identical percentage thresholds and durations to every individual stock
 - [ ] D. LULD and market-wide circuit breakers are actually the same regulatory mechanism under a different name
 - [ ] E. LULD bands become narrower during the first and last minutes of the trading session

@@ -55,7 +55,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 ### 4. Regulatory landmarks
 - [ ] A. Regulation NMS was adopted in 2005 and phased in through 2007
 - [ ] B. MiFID II mandates algorithmic trading controls, including kill switch testing, in the EU
-- [ ] C. The Market Access Rule (15c3-5) predates and is unrelated to the 2010 Flash Crash
+- [ ] C. The Market Access Rule (15c3-5) was adopted before the May 2010 Flash Crash
 - [ ] D. Regulation SHO governs the locate requirement for short sales
 - [ ] E. Dodd-Frank and EMIR both push standardised OTC derivatives toward central clearing
 
@@ -85,7 +85,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 ### 8. Tick size, historical and modern
 - [ ] A. NYSE traded in fractions of a dollar from 1792 until decimalisation around 2000-2001
 - [ ] B. The "teenie" refers to a sixteenth of a dollar
-- [ ] C. Decimalisation is described as roughly halving quoted spreads on liquid stocks
+- [ ] C. Decimalisation is described as causing quoted spreads on actively traded stocks to fall sharply
 - [ ] D. The Tick Size Pilot Program clearly demonstrated that wider ticks improved small-cap liquidity
 - [ ] E. MiFID II's European tick regime uses smaller absolute increments for lower-priced stocks
 
@@ -159,9 +159,9 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 ### 18. Speed bumps and market structure
 - [ ] A. IEX's speed bump is implemented via a coiled fibre-optic cable rather than a software delay
 - [ ] B. A fixed delay preserves relative timing differences between orders rather than erasing them
-- [ ] C. Selectively delaying only cancel messages can counter last-look practices
+- [ ] C. Asymmetric speed bumps can delay aggressive orders while letting cancellations through at full speed
 - [ ] D. IEX is described as having captured a majority of total US equity trading volume since 2016
-- [ ] E. European regulators have discussed asymmetric cancel-message speed bumps under MiFID II's algorithmic trading framework
+- [ ] E. Eurex introduced an asymmetric speed bump, Passive Liquidity Protection, for certain options and FX futures in 2019
 
 <div style="page-break-after: always;"></div>
 
@@ -233,7 +233,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] E. Most crypto venues have historically lacked a defined opening or closing auction establishing a daily reference price
 
 ### 28. Corporate actions and reference data interplay
-- [ ] A. A stock split changes a company's tick size and price scale in reference data
+- [ ] A. A stock split can move a stock into a different tick-size band and changes the prices and quantities of resting orders
 - [ ] B. Symbol changes from rebranding or mergers require systems tracking positions by symbol to handle remapping
 - [ ] C. Reference data changes from corporate actions should propagate to all dependent systems atomically
 - [ ] D. A reverse split changes the number of shares per position without changing per-share price

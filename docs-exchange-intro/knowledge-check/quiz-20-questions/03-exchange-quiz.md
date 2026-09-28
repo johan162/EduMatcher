@@ -48,8 +48,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] A. Level 1 US market-wide circuit breakers were triggered four times during the March 2020 COVID-19 crash
 - [ ] B. Level 2 was also triggered multiple times alongside Level 1 in March 2020
 - [ ] C. Single-stock LULD pauses operate independently from market-wide circuit breakers and were triggered far more frequently in March 2020
-- [ ] D. A stock that moves outside its LULD band and stays there beyond the monitoring window enters a fixed-duration trading pause
-- [ ] E. Market-wide circuit-breaker reference levels reset after a Level 1 halt and resumption
+- [ ] D. A stock that stays in a limit state at its LULD band beyond the 15-second monitoring window enters a fixed-duration trading pause
+- [ ] E. Market-wide circuit-breaker thresholds are measured against the S&P 500's previous-day close throughout the trading day
 
 ### 4. The Mizuho fat-finger incident
 - [ ] A. The 2005 Mizuho Securities incident involved a trader accidentally selling a huge quantity of shares at an absurdly low price instead of a small quantity at the intended price
@@ -65,7 +65,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] B. FIX is a text-based protocol whose wire delimiter is a non-printable SOH character, not a literal pipe symbol
 - [ ] C. Binary protocols like ITCH and OUCH are generally more compact and faster to parse than an equivalent FIX message
 - [ ] D. Market data is commonly distributed over UDP multicast, while order submission commonly uses TCP for reliability
-- [ ] E. A hybrid design using UDP multicast for live data plus a separate TCP unicast channel for gap recovery is a standard exchange market-data pattern
+- [ ] E. A hybrid design using UDP multicast for live data plus a separate recovery path, such as a TCP replay channel, is a standard exchange market-data pattern
 
 ### 6. Conformance testing and onboarding
 - [ ] A. Participants can typically connect a production gateway before completing formal conformance testing
@@ -112,7 +112,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] E. Market data and connectivity revenue has become a substantial and growing share of major exchange profit
 
 ### 12. PFOF and dark pool settlements
-- [ ] A. Payment for order flow is banned in the UK and EU under MiFID II's best-execution requirements
+- [ ] A. Payment for order flow is effectively banned in the UK and, from 30 June 2026, across the EU
 - [ ] B. In the US, PFOF is fully banned outright with no ambiguity
 - [ ] C. Barclays paid a settlement over allegations it misled clients about the presence of HFT activity in its dark pool
 - [ ] D. Wholesale market makers pay for retail order flow because retail flow carries high adverse-selection risk

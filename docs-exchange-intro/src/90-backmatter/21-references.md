@@ -168,6 +168,7 @@ Cboe details its execution logic for multi-leg derivative allocations, net premi
 
 ICE manages highly nested energy and financial spreads that utilize synthetic order generation.
 
+* **Implied Prices and Generations:** ICE's FAQ on implied prices, including the Sep/Oct/Nov multi-generation example used in Part II: [ICE Futures Implied Prices](https://www.ice.com/publicdocs/technology/Additional_Implieds_FAQ.pdf).
 * **Market Data & Connectivity Controls:** For foundational parameters on data fields, systemic electronic metrics, and electronic volume calculations within the ICE infrastructure, refer to the [Intercontinental Exchange Connect User Guide](https://www.ice.com/publicdocs/Connect_Web_User_Guide_.pdf).
 
 ## NYSE Pillar (Equity Trading Platform)
@@ -182,10 +183,51 @@ The core documentation for understanding order behavior, priority categories, an
 
 
 
+## Further Sources Cited in the Text
+
+### Implied orders and spreads
+
+* CME Group Client Systems Wiki, [Futures Implied Order Matching Priority](https://cmegroupclientsite.atlassian.net/wiki/spaces/EPICSANDBOX/pages/457096650/Futures+Implied+Order+Matching+Priority) (real orders before implied orders; tie-breaks between implied sources).
+* CME Group Client Systems Wiki, [MDP 3.0 – Implied Book](https://cmegroupclientsite.atlassian.net/wiki/spaces/EPICSANDBOX/pages/457422235/MDP+3.0+-+Implied+Book) (two-deep implied book dissemination).
+* CME Group, [Treasury Futures Calendar Spreads](https://www.cmegroup.com/trading/interest-rates/files/treasury-futures-calendar-spreads.pdf), 2016 (spread buy/sell convention; leg-price assignment).
+* Isaac Carruthers, [Inter-Commodity Spreads and Implied Pricing](https://texnology.com/quant.pdf), 2018 (outward rounding of implied prices; finer implied grids for ratio spreads).
+* Eurex, [Matching principles](https://www.eurex.com/ex-en/trade/order-book-trading/matching-principles) (synthetic matching) and [Passive Liquidity Protection](https://www.eurex.com/ex-en/support/initiatives/archive/passive-liquidity-protection).
+* CME press releases on implied functionality for Eurodollar butterflies, 8 March 2004 and 18 October 2004.
+
+### Crude oil and negative prices
+
+* CME Group, NYMEX Rulebook [Chapter 200: Light Sweet Crude Oil Futures](https://www.cmegroup.com/rulebook/NYMEX/2/200.pdf) (1,000 barrels; $0.01 tick).
+* CFTC, [Interim Staff Report on NYMEX WTI Crude Oil Futures Trading around April 20, 2020](https://www.cftc.gov/PressRoom/PressReleases/8315-20), November 2020.
+* Congressional Research Service, [Crude Oil Futures Prices Turn Negative (IN11354)](https://www.everycrsreport.com/reports/IN11354.html), 2020.
+* CFTC press release [8432-21](https://www.cftc.gov/PressRoom/PressReleases/8432-21), 28 September 2021 (Interactive Brokers: negative-price handling failures).
+
+### Market events, enforcement and statistics
+
+* SEC and CFTC, [Findings Regarding the Market Events of May 6, 2010](https://www.sec.gov/news/studies/2010/marketevents-report.pdf), September 2010.
+* SEC, [In the Matter of Knight Capital Americas LLC](https://www.sec.gov/litigation/admin/2013/34-70694.pdf), Release No. 34-70694, 16 October 2013.
+* SEC Division of Economic and Risk Analysis, [Assessment of the Plan to Implement a Tick Size Pilot Program](https://www.sec.gov/files/TICK%20PILOT%20ASSESSMENT%20FINAL%20Aug%202.pdf), 2018.
+* FINRA, [Rule 11892: Clearly Erroneous Transactions in Exchange-Listed Securities](https://www.finra.org/rules-guidance/rulebooks/finra-rules/11892).
+* NYSE, [Closing Auction Fact Sheet](https://www.nyse.com/publicdocs/nyse/NYSE_Auctions_Closing_Process_Fact_Sheet.pdf); BMLL, [Into the Close: Unpacking U.S. Closing Auction Dynamics](https://www.bmlltech.com/news/market-insight/into-the-close-unpacking-u-s-closing-auction-dynamics-and-the-impact-of-the-russell-reconstitution), 2024.
+* Federal Reserve Bank of St. Louis, [FRED series SP500](https://fred.stlouisfed.org/series/SP500) (S&P 500 closing levels, March 2020).
+* CME Group, [Record annual ADV of 28.1 million contracts in 2025](https://investor.cmegroup.com/news-releases/news-release-details/cme-group-reports-record-annual-adv-281-million-contracts-2025-6), 5 January 2026.
+* Databento, [CME matching algorithms explained](https://databento.com/blog/cme-matching-algorithms-explained).
+* Eurex, [T7 Functional and Interface Overview](https://www.eurex.com/resource/blob/304532/1fe112bacf6513a134ce9ce064d09cc5/data/T7-Functional-Interface-Overview.pdf) (Market Maker Protection limits).
+* Wikipedia, [Initial public offering of SpaceX](https://en.wikipedia.org/wiki/Initial_public_offering_of_SpaceX); CoinDesk, [SpaceX prices shares at $135 in largest IPO ever](https://www.coindesk.com/markets/2026/06/11/spacex-prices-shares-at-usd135-in-largest-ipo-ever), 11 June 2026.
+* CME Group, [CME Group to Permanently Close Most Open Outcry Trading Pits](https://www.cmegroup.com/media-room/press-releases/2021/5/04/cme_group_to_permanentlyclosemostopenoutcrytradingpitseurodollar.html), 4 May 2021.
+* SEC, In the Matter of The NASDAQ Stock Market, LLC (Facebook IPO), Release No. 34-69655, 29 May 2013.
+* CCP Global, [The Lehman Case](https://ccp-global.org/the-lehman-case) (LCH SwapClear close-out of Lehman's portfolio).
+
+### History and etymology
+
+* Christopher Steiner, ["How the Nasdaq Got Hacked"](https://www.forbes.com/sites/christophersteiner/2012/08/30/how-the-nasdaq-got-hacked/), *Forbes*, 30 August 2012 (Thomas Peterffy's robot typist); see also his book *Automate This* (2012).
+* Online Etymology Dictionary, [short](https://www.etymonline.com/word/short) ("sell short" attested by 1852).
+* Hendrik Bessembinder, "Trade Execution Costs and Market Quality after Decimalization", *Journal of Financial and Quantitative Analysis* 38(4), 2003.
+* Richard Smitten, *Jesse Livermore: World's Greatest Stock Trader* (Wiley, 2001).
+
 ## Notes on Sources Not Cited Inline
 
-Some specific facts in this document are well established in the historical and financial literature but could not be attributed to a single verifiable primary aademic document within this text, but rather second hand sources such as NYSE own publications and posts. For example:
+Some specific facts in this document are well established in the historical and financial literature but could not be attributed to a single verifiable primary academic document within this text, but rather second hand sources such as NYSE own publications and posts. For example:
 
-**NYSE closing auction volume (substantial part of daily volume):** Based on exchange market structure analyses published periodically by NYSE Group and referenced in market microstructure research. The specific percentage varies by year and instrument; the range given is illustrative. See [The shifting dynamics of the NYSE Closing Auction](https://www.nyse.com/data-insights/nyse-closing-auction-dynamics-2023)
+**Closing auction volume:** The share of daily volume executed in US closing auctions varies by year, instrument, and calendar (it spikes on index rebalancing days); the figures in the text are from BMLL's 2024 analysis cited above. See [The shifting dynamics of the NYSE Closing Auction](https://www.nyse.com/data-insights/nyse-closing-auction-dynamics-2023)
 
 

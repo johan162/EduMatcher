@@ -11,7 +11,7 @@ Let us trace the life of a complex event through the entire system using the voc
 
 **Step 3:** The engine checks the order type: LIMIT SELL at $150.20. Since the best bid is $150.35 (above the limit price), this order will immediately sweep the buy side.
 
-**Step 4:** The engine sweeps. It fills against resting buy orders, starting at $150.35, then $150.30, then $150.25, then $150.20, until either the 50,000 shares are exhausted or all bids above $150.20 are consumed. Along the way:
+**Step 4:** The engine sweeps. It fills against resting buy orders, starting at $150.35, then $150.30, then $150.25, and it would continue down to $150.20 until either the 50,000 shares are exhausted or all bids at $150.20 and above are consumed, unless something stops it first (see Step 7). Along the way:
 - A market maker's GTC bid for 1,000 shares at $150.35 is completely consumed by the sweep. Status: NEW → FILLED.
 - An iceberg order's visible 500-share peak at $150.30 gets filled, triggering replenishment from the hidden reserve.
 - Several DAY limit orders at $150.25 get partially or fully filled.
@@ -20,7 +20,7 @@ Let us trace the life of a complex event through the entire system using the voc
 
 **Step 6:** The engine checks dormant stops. Does the new `last_trade_price` trigger any waiting stop orders? Suppose a buy stop at $150.40 was waiting, but the price just moved down, not up, so it does not trigger. A sell stop at $150.30 was waiting, the last trade price of $150.25 is now below $150.30, so this sell stop triggers, converting to a market sell order and immediately joining the sweep.
 
-**Step 7:** After all fills, the engine checks whether any circuit breaker thresholds have been breached. Suppose the last closing auction cleared at $153.50 and the collar band for this stock is ±2%. The lower band is $153.50 × 0.98 = $150.43. The sweep has driven the last trade price down to $150.20, which is below the lower band; a circuit breaker trips. The engine transitions to HALTED state, all market maker quotes are cancelled (stale quotes cannot be maintained during a halt), and a halt notification is published.
+**Step 7:** Before each fill, the engine checks the price against the stock's price band. Suppose yesterday's closing auction cleared at $153.30 and the band for this stock is ±2%. The lower band is $153.30 × 0.98 = $150.234, which rounds *up* to $150.24, the lowest valid price inside the band. The fills at $150.35, $150.30 and $150.25 were inside the band, but the next resting bids, at $150.20, lie below it. Rather than print a trade outside the band, the engine stops the sweep and a circuit breaker trips. The engine transitions to HALTED state, all market maker quotes are cancelled (stale quotes cannot be maintained during a halt), and a halt notification is published.
 
 **Step 8:** All fill events are published to the PUB socket. GW03 receives fill notifications for the institutional investor's order (now showing PARTIAL status, 50,000 shares ordered, 38,000 filled before the halt, 12,000 remaining). Each market maker whose bid was hit receives their fill notification on their respective gateways.
 
@@ -48,10 +48,10 @@ sequenceDiagram
 
     INV->>GW3: FIX: SELL 50,000 AAPL LIMIT $150.20
     GW3->>ME: Validated order (internal format)
-    ME->>GW3: ACK , order NEW (UUID assigned)
+    ME->>GW3: ACK: order NEW (UUID assigned)
     GW3->>INV: Execution report: NEW
 
-    loop Sweep bids $150.35 → $150.20
+    loop Sweep bids $150.35 → $150.25
         ME->>PUB: Trade event (price, qty, both sides)
         PUB->>GW1: Fill notification → market maker FILLED
         PUB->>GW3: Fill notification → investor PARTIAL
@@ -59,7 +59,7 @@ sequenceDiagram
         PUB->>CL: Position update
     end
 
-    ME->>ME: last_trade_price < collar band → HALT
+    ME->>ME: next bid $150.20 below lower band → HALT
     ME->>PUB: Session state: CONTINUOUS → HALTED
     PUB->>GW1: Cancel all MM quotes (stale during halt)
     PUB->>DC: HALT event (seq numbered)

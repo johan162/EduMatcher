@@ -64,7 +64,7 @@ divisor = 7,007,100,000,000 / 1000 = 7,007,100,000
 index level = 7,007,100,000,000 / 7,007,100,000 = 1000.00
 ```
 
-Now if Alpha rises to $230, the aggregate cap rises to about $7.32 trillion, and the index reads roughly 1045, up 4.5%. Notice that Alpha, the largest constituent, moved the index more than an identical percentage move in tiny Gamma would have. That is cap weighting doing its job.
+Now if Alpha rises from $209.50 to $230 (up 9.8%), its market cap grows by $20.50 × 15 billion = $307.5 billion, the aggregate cap rises to $7,314,600,000,000, and the index reads 7,314,600,000,000 / 7,007,100,000 ≈ 1043.9, up about 4.4%. Notice that Alpha, the largest constituent, moved the index more than an identical percentage move in tiny Gamma would have. That is cap weighting doing its job.
 
 Most serious indexes refine this further with **free-float adjustment**: instead of *all* shares outstanding, they count only the shares actually available to public trading, excluding blocks held by founders, governments, or strategic owners that never trade. A company that is 60% owned by its founding family has only 40% of its shares influencing supply and demand, so only that 40% should influence the index. The principle is identical; only the share count used in the market-cap formula changes.
 
@@ -97,7 +97,7 @@ flowchart TD
     E["Future price moves\nnow change the level normally"]
     A --> B --> C --> D --> E
 ```
-***Figure 17.1:** The divisor is adjusted to absorb changes in aggregate market cap that are not genuine price moves, so the index level remains continuous.*
+***Figure 1:** The divisor is adjusted to absorb changes in aggregate market cap that are not genuine price moves, so the index level remains continuous.*
 
 The continuity this provides is not a nicety, it is the whole point. An index is only meaningful if a move from 4000 to 4040 always means "the market rose 1%," never "a constituent happened to split last night."
 
@@ -114,7 +114,7 @@ To be eligible for the S&P 500, a company must broadly satisfy rules such as [S&
 - **Profitability.** The sum of its most recent four quarters of earnings must be positive, *and* the most recent quarter must be positive. This single rule has kept some very large, fast-growing-but-unprofitable companies out for years.
 - **Committee approval.** Even meeting every numeric rule does not guarantee entry. An index committee selects constituents to keep the index representative of the US large-cap economy.
 
-This contrasts with rules-based indexes like the Russell or FTSE families, which reconstitute mechanically on a schedule with no discretion. Both philosophies exist; the trade-off is between predictability (rules) and representativeness (committee judgement).
+This contrasts with rules-based indexes like the Russell or FTSE families, which reconstitute largely mechanically, on a published schedule, according to published rules. Both philosophies exist; the trade-off is between predictability (rules) and representativeness (committee judgement).
 
 Indexes are **reconstituted** periodically, additions and removals are batched and announced in advance, so that the funds tracking them have time to adjust. And this advance announcement is where the drama begins.
 

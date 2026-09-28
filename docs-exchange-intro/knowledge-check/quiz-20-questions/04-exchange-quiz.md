@@ -40,7 +40,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] A. A broker trades primarily for its own account rather than on behalf of clients
 - [ ] B. Prime brokers provide services like securities lending, leveraged financing, and consolidated clearing/custody, mainly to sophisticated clients such as hedge funds
 - [ ] C. Without a prime broker relationship, a hedge fund would generally find it easier to efficiently short sell
-- [ ] D. The word "broker" traces back to a Middle English/Anglo-Norman word originally describing a middleman who sold wine retail
+- [ ] D. The word "broker" traces back to Middle English "brocour" and Anglo-Norman "abrocour", meaning a middleman or small trader
 - [ ] E. Prime brokerage services are typically offered directly by small independent retail brokerages rather than large investment banks
 
 ### 3. Demutualization and regulators
@@ -48,7 +48,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] B. NYSE demutualized and listed as a public company in 2006
 - [ ] C. Exchanges in the US are also self-regulatory organizations, with obligations to monitor their own markets
 - [ ] D. FINRA oversees futures and derivatives exchanges in the US, while the SEC oversees broker-dealers
-- [ ] E. The London Stock Exchange demutualized in 2001
+- [ ] E. The London Stock Exchange demutualized in 2000 and listed its own shares in 2001
 
 ### 4. LSE's "Big Bang"
 - [ ] A. The 1986 "Big Bang" deregulation abolished fixed commissions and replaced open outcry with an electronic quotation system on the London Stock Exchange
@@ -151,7 +151,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 
 ### 17. Settlement mechanics
 - [ ] A. US equity settlement has progressively shortened over time, from T+5 to T+1
-- [ ] B. Some markets, such as certain money-market funds and US Treasuries, already commonly settle same-day
+- [ ] B. Some instruments, including many money-market instruments and some US Treasury trades, already settle on the trade date (T+0)
 - [ ] C. A buy-in occurs when a seller purchases replacement shares in the open market at the buyer's expense
 - [ ] D. DTCC's Depository Trust Company performs settlement exclusively through physical paper certificates today
 - [ ] E. Settlement failures can never occur once a trade has matched successfully in the order book
@@ -171,7 +171,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] E. Pin risk can expose an uncovered option writer to a large loss if the underlying gaps significantly after expiry-day assignment
 
 ### 20. Exercise, assignment, and allocation
-- [ ] A. OCC commonly allocates assignment among a clearing member's short-position clients using methods such as random selection or FIFO by position age
+- [ ] A. After the OCC assigns an exercise to a clearing member, the broker commonly allocates it among its short-position clients using random selection or FIFO by position age
 - [ ] B. Assignment is the option holder's own voluntary decision to exercise their right
 - [ ] C. European-style options can be exercised at any point before expiry, just like American-style options
 - [ ] D. Physical delivery is the standard settlement method for broad index options like SPX

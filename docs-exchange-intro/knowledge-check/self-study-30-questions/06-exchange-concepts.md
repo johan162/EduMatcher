@@ -122,7 +122,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 ### 13. Circuit breakers and Japan's approach
 - [ ] A. Japan's daily price limit approach keeps the market open while capping how far price can move
 - [ ] B. If Japan's price hits the daily limit, trading halts completely rather than continuing at that price
-- [ ] C. If the next day opens near Japan's limit, the limit is described as being widened
+- [ ] C. If a stock stays pinned at Japan's daily limit without trading for consecutive days, the limit is described as being widened
 - [ ] D. The US LULD system varies trigger bands by instrument tier rather than by halt duration
 - [ ] E. Eurex's volatility interruption approach is auction-based rather than a fixed timed pause
 
@@ -153,7 +153,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] A. Layering places multiple large orders at various price levels to create a false impression of depth
 - [ ] B. The Consolidated Audit Trail correlates order and trade events across every registered exchange and FINRA venue
 - [ ] C. Before CAT, regulators could instantly correlate records across exchanges without any manual process
-- [ ] D. A Suspicious Transaction Report can be filed with the SEC or CFTC depending on jurisdiction
+- [ ] D. In the EU and UK, trading venues must file Suspicious Transaction and Order Reports (STORs) with the regulator
 - [ ] E. Navinder Singh Sarao's spoofing activity is linked by the document to conditions present during the 2010 Flash Crash
 
 <div style="page-break-after: always;"></div>
@@ -252,8 +252,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] A. Given asks 2,000@$150.35, 1,500@$150.40, 1,500@$150.45, the market impact of a 5,000-share sweep is $0.045/share
 - [ ] B. A pro-rata split of 60 lots between orders of 100 and 40 lots gives the smaller order roughly 17 lots
 - [ ] C. An equilibrium auction price is chosen to minimise, not maximise, the executable volume
-- [ ] D. A 45-minute delay in exercising a kill switch is cited as a key failure in the Knight Capital incident
-- [ ] E. The NYSE closing auction is described as capable of accounting for 10-15% of a stock's entire daily volume
+- [ ] D. Knight's inability to stop its runaway system for about 45 minutes is cited as a key failure in the incident
+- [ ] E. US closing auctions are described as matching roughly 9% of a typical day's total volume in 2024
 
 &nbsp;
 

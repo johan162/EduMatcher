@@ -107,13 +107,13 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] A. Single-threaded processing is chosen to guarantee deterministic, auditable outcomes
 - [ ] B. Sweeping a large order through multiple price levels can generate slippage
 - [ ] C. Calendar spreads require the engine to evaluate both legs of the trade together
-- [ ] D. Each symbol's order book is entirely independent of every other symbol's book
+- [ ] D. Each symbol has its own logically separate order book
 - [ ] E. A market order that cannot fill immediately rests quietly in the book
 
 ### 12. Market makers, one more pass
 - [ ] A. A market maker earns the spread by buying at the bid and selling at the ask
 - [ ] B. A maximum-spread obligation could prevent quoting a bid and ask more than a specified number of ticks apart
-- [ ] C. Cancelling both legs of a quote immediately upon any fill is the described "Eurex-style inactivation" policy
+- [ ] C. Cancelling both legs of a quote immediately upon any fill is described as the most conservative refresh policy
 - [ ] D. MMP protection periods are described as giving the market maker time to reassess before re-quoting
 - [ ] E. A market maker's obligations exist without any corresponding privileges from the exchange
 
@@ -142,7 +142,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] A. A notional value check multiplies order quantity by price to catch decimal-point errors
 - [ ] B. Credit limits require tracking outstanding order commitments as well as settled positions
 - [ ] C. Rate limiting is checked using an in-memory, per-gateway counter
-- [ ] D. Short sale flag validation is unrelated to whether a valid locate exists
+- [ ] D. A short sale must be marked as such, but no locate is required anywhere in the order's path before it is accepted
 - [ ] E. The cheapest checks are deliberately run last to save computation for accepted orders
 
 ### 17. Circuit breakers and collars, one more pass
@@ -246,7 +246,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] A. VWAP for a position of 100 shares at $150 and 50 shares at $160 is $153.33
 - [ ] B. A market maker's loss is $200 if a 400-share position bought at $150.30 is later marked at $149.80
 - [ ] C. An index with $7,007,100,000,000 aggregate market cap launching at base value 1000 has a divisor near 7.0071 billion
-- [ ] D. Knight Capital's approximately 45-minute kill-switch delay is cited as a central failure in that incident
+- [ ] D. Knight Capital's inability to stop its runaway system for about 45 minutes is cited as a central failure in that incident
 - [ ] E. A 60% deviation from a pre-crash reference price was used as the bust threshold following the 2010 Flash Crash
 
 &nbsp;

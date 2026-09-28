@@ -69,7 +69,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 <div style="page-break-after: always;"></div>
 
 ### 6. Origins of market language
-- [ ] A. The word "broker" traces back to a term for someone who broaches and sells wine retail
+- [ ] A. The word "broker" traces back to Middle English "brocour", meaning a middleman or small trader
 - [ ] B. "Going short" derives from a merchant lacking enough inventory to cover a delivery promise
 - [ ] C. The specialist's paper ledger is the direct historical ancestor of "the book"
 - [ ] D. The ticker tape got its name from the ticking sound of the telegraph printer
@@ -87,7 +87,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] B. A sell limit at $150.25 crossing a $150.30 bid fills at $150.30
 - [ ] C. A limit order's price is a ceiling for a buyer and a floor for a seller
 - [ ] D. Resting limit orders are also called aggressive orders
-- [ ] E. Price improvement statistics are reported by brokers under SEC Rule 605
+- [ ] E. Price improvement statistics are published under SEC Rule 605 by market centres and, since 2024, larger broker-dealers
 
 ### 9. Market and stop orders
 - [ ] A. Market orders can rest in the book if no immediate counterparty is available
@@ -145,7 +145,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 ### 16. Tick sizes
 - [ ] A. Storing prices as integer tick counts avoids floating-point representation errors
 - [ ] B. Rule 612 of Regulation NMS permits sub-penny quoting for any stock priced above $1.00
-- [ ] C. The London Stock Exchange's tick regime uses smaller absolute increments for lower-priced stocks
+- [ ] C. The European MiFID II tick regime uses smaller absolute increments for lower-priced stocks
 - [ ] D. The SEC's Tick Size Pilot Program found clear evidence that wider ticks improved small-cap liquidity
 - [ ] E. A true midpoint between $150.30 and $150.33 is not always a valid tick-aligned price
 
@@ -167,11 +167,11 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] A. A market maker must maintain a live bid and ask simultaneously under two-sided quoting obligations
 - [ ] B. Quoting only 50 shares when the minimum required size is 200 shares satisfies the obligation
 - [ ] C. If a market maker buys 500 shares at $150.30 and the true price falls to $150.10, the loss is $100
-- [ ] D. In that same scenario, the half-spread revenue on the fill was $25
+- [ ] D. In that same scenario, with a $0.05 spread, the half-spread revenue on the fill was $12.50
 - [ ] E. Market Maker Protection automatically cancels quotes once a configured fill-rate threshold is exceeded
 
 ### 20. Quote refresh policies
-- [ ] A. Eurex-style inactivation cancels both sides of a quote the moment either leg fills
+- [ ] A. The most conservative refresh policy cancels both sides of a quote the moment either leg fills
 - [ ] B. Leaving both quote sides active after a fill is the most conservative refresh policy
 - [ ] C. Cancelling only the filled side and leaving the other active can leave a stale quote in a moving market
 - [ ] D. Refresh policy is generally configurable per market maker per product
@@ -250,7 +250,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] A. FIX order submission typically uses TCP while live market data typically uses UDP multicast
 - [ ] B. ITCH messages use fixed binary offsets rather than text field parsing
 - [ ] C. A locked market occurs when the best bid on one venue equals the best ask on another
-- [ ] D. Payment for order flow is banned in the United Kingdom and the European Union under MiFID II
+- [ ] D. Payment for order flow is effectively banned in the United Kingdom and, from 30 June 2026, in the European Union
 - [ ] E. Maker-taker fee models charge the maker a fee and pay the taker a rebate
 
 &nbsp;
