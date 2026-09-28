@@ -127,6 +127,7 @@ nav:
     - Log Operator Console (pm-log-ui): user-guide/285-log-srv-gui.md
     - "GUI: Trading Info Terminal": user-guide/290-trader-info-terminal.md
     - "GUI: Trading platform": user-guide/300-trader-gui.md
+    - "GUI: Order book viewer": user-guide/310-book-gui.md
     - Examples: user-guide/800-examples.md
     - Example Engine Configs: user-guide/810-example-configs.md
     - Audit Replay (pm-audit-replay): user-guide/820-audit-replay.md

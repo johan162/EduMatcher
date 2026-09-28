@@ -552,8 +552,9 @@ session statistics and a trade tape, in `web-apps/book-gui/`. Press `s` or
 The container stack starts it with the other applications and hands it the
 key; open <http://localhost:8094>. Against an exchange you started by hand, run
 it from `web-apps/book-gui/` with `PM_BOOK_API_KEY` and `API_GATEWAY_URL` set
-exactly as for TapeDeck above — unlike TapeDeck it refuses to start without
-the key. See [`book-gui/README.md`](https://github.com/johan162/EduMatcher/blob/main/web-apps/book-gui/README.md) for the details.
+exactly as for TapeDeck above — unlike TapeDeck it shows nothing without the
+key, so its `make up` refuses to start without one. See
+[Order Book Viewer](310-book-gui.md) for the details.
 
 
 ## Process groups by scenario
@@ -1224,5 +1225,6 @@ configuration.
 - [Risk Controls](120-risk-controls.md) - collars, circuit breakers and halts
 - [Persistence](180-persistence.md) - all files written by the exchange
 - [Trader Information Terminal](290-trader-info-terminal.md) - TapeDeck browser display
+- [Order Book Viewer](310-book-gui.md) - `pm-book`, the browser companion to `pm-viewer`
 - [Installation](005-installation.md) - the container stack, its networking and every directory it uses
 - [The Development Loop](../developer/08-dev-workflow.md) - running a web application against a backend you started yourself

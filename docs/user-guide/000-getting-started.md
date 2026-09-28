@@ -514,10 +514,10 @@ To explore the processes the following table will be helpful
 | Publish external market data | `pm-md-gwy` | [Market Data Feed (CALF)](240-calf-gateway.md) |
 | Open the browser trader info terminal | `web-apps/terminal-gui/` | [Trader Information Terminal](290-trader-info-terminal.md) |
 | Open the browser trader platform | `web-apps/trader-gui/` | [Trader Information Terminal](./300-trader-gui.md) |
-| See one live order book in the browser | `web-apps/book-gui/` | [`book-gui/README.md`](https://github.com/johan162/EduMatcher/blob/main/web-apps/book-gui/README.md) |
+| See one live order book in the browser | `web-apps/book-gui/` | [Order Book Viewer](310-book-gui.md) |
 | Collect logs from all processes | `pm-log-srv`, then `pm-log-cli` or `pm-log-ui` | [Centralized Log Server](280-log-srv.md), [Log Operator Console](285-log-srv-gui.md) |
 
-| Open the browser trading terminal, order book viewer, log console or config builder | the container stack, or `make dev` in `web-apps/<app>` | [Installation](005-installation.md), [Trader Information Terminal](290-trader-info-terminal.md), [Log Operator Console](285-log-srv-gui.md) |
+| Open the browser trading terminal, order book viewer, log console or config builder | the container stack, or `make dev` in `web-apps/<app>` | [Installation](005-installation.md), [Trader Information Terminal](290-trader-info-terminal.md), [Order Book Viewer](310-book-gui.md), [Log Operator Console](285-log-srv-gui.md) |
 
 **Note:** Starting the Web-application backends (to be able to use the GUIs) it is easiest to use one of the pre-build containers. See the `README.md` file in respective application catalogue for details. To use
 the trading terminal you will also need to authenticate with an API key that was specified in the `engine_config.yaml` file for the API Gateways.  
