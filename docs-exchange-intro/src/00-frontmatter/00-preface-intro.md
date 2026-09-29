@@ -9,7 +9,7 @@ Status: Published
 
 **A Conceptual Introduction for Software Developers**
 
-# Foreward to the Second Edition
+# Preface to the Second Edition
 
 This book is still for the same person: the developer who gets dropped into an exchange codebase full of words like "NBBO", "LULD", "implied in/out", "ATC", "SIP", "MMP", and quietly wonders whether they have accidentally joined a cult. You have not. You have joined a domain with very old vocabulary, very modern latency budgets, and very expensive failure modes.
 
@@ -36,7 +36,7 @@ Johan Persson,
 Second Edition, Autumn 2026, Järnboås Socken
 
 
-# Foreward to the First Edition
+# Preface to the First Edition
 
 This is a book for anyone who finds themselves having been asked to work on a financial exchange system, and yet, has no financial background. Scary. The codebase is full of words like "bid," "ask," "FOK," "the book," "OCO," "circuit breaker," "drop copy," and "kill switch," and many more. These are not arbitrary names; each one represents a concept that evolved over decades of real-world market operation, regulation, and hard-won lessons about what can go wrong when large amounts of money change hands at high speed. You just happened to be "unlucky" enough to start when all these terms have already been defined. Had you instead started 50-ish years ago the terms did not yet exist and you would have seen them come to life organically.
 
