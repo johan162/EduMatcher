@@ -46,7 +46,7 @@ from edumatcher.engine.circuit_breaker import (
     ReopeningConfig,
 )
 
-_DEFAULT_MM_MAX_SPREAD_TICKS = 10
+_DEFAULT_MM_MAX_SPREAD_TICKS = 20
 _DEFAULT_MM_MIN_QTY = 100
 _DEFAULT_SNAPSHOT_INTERVAL_SEC = 0.5
 # How often to republish the indicative uncross during a call phase. One

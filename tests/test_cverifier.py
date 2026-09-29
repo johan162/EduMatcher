@@ -1589,13 +1589,13 @@ class TestLayer4:
         results = layer4_complete.check(raw, Path("x.yaml"))
         assert "C004" in _codes(results)
 
-    def test_c005_mm_gw_no_obligation_defaults(self) -> None:
+    def test_c005_mm_gw_no_obligation_defaults_is_quiet(self) -> None:
         raw = _raw(
             "symbols:\n  AAPL:\n    tick_decimals: 2\n"
             "gateways:\n  alf:\n    - id: MM01\n      role: MARKET_MAKER\n"
         )
         results = layer4_complete.check(raw, Path("x.yaml"))
-        assert "C005" in _codes(results)
+        assert "C005" not in _codes(results)
 
     def test_c006_mm_obligation_not_enforced(self) -> None:
         raw = _raw(
