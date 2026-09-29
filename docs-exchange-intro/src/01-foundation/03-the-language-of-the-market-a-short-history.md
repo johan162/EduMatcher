@@ -17,7 +17,7 @@ The physical book is gone. Every exchange in the world now maintains its order b
 
 On exchange floors like CME Group's in Chicago, trading in futures contracts was conducted through **open outcry**, a method where traders stood in a sunken circular area called a **pit** and literally shouted their bids and asks at each other, using a combination of voice and hand signals to communicate price, quantity, and direction. The noise was enormous. The system worked because the pit was small enough that everyone could hear and see everyone else.
 
-The CME Group operated open outcry pits for decades. Some products, particularly certain agricultural and options contracts, continued in open outcry long after equity markets went fully electronic, largely because the pit handled complex, illiquid products where human negotiation had genuine advantages. CME substantially wound down its open outcry operations in 2015 [9], though some niche trading still occurs. The physical pit is where terms like "floor broker" (a broker who executes trades on the physical floor), "floor trader" (a trader who trades for their own account from the floor), and "pit committee" originated.
+The CME Group operated open outcry pits for decades. Some products, particularly certain agricultural and options contracts, continued in open outcry long after equity markets went fully electronic, largely because the pit handled complex, illiquid products where human negotiation had genuine advantages. CME closed most of its futures pits in July 2015 [9]. The remaining pits were shut in March 2020 as a COVID-19 precaution, and in May 2021 CME announced that most of them would never reopen; only the Eurodollar options pit was kept [CME Group press release, 4 May 2021]. The physical pit is where terms like "floor broker" (a broker who executes trades on the physical floor), "floor trader" (a trader who trades for their own account from the floor), and "pit committee" originated.
 
 The terms survive in documentation, regulations, and informal industry speech even though the pits themselves are mostly silent now.
 
@@ -27,13 +27,13 @@ Before electronic screens, prices of completed trades were published via the **s
 
 Reading the tape was a skill. A **tape reader** was someone who could watch the continuous stream of prices and volumes and infer what institutional buyers and sellers were doing, one of the earliest forms of technical analysis. An even earlier form of market observation appears in Joseph de la Vega's *Confusión de Confusiones* (1688) [4], the oldest known book about stock trading, written in Amsterdam about the VOC share market, which describes participants reading order flow and inferring intent from patterns of buying and selling.
 
-In 1878, the phone was invented. In 1929, the first electronic ticker was installed. By the 1960s, electronic displays began replacing paper. Today, the "ticker" refers to the digital price feeds streaming across screens in every trading firm, brokerage, and financial news channel, and the **ticker symbol** (AAPL, MSFT, GOOG) is the abbreviated code printed on the old paper tape.
+The first telephones appeared on the NYSE floor in 1878, two years after Alexander Graham Bell's patent. The ticker itself kept getting faster, yet it still ran hours behind during the heavy selling of October 1929, and again, as the note below describes, in 1962. By the 1960s, electronic displays began replacing paper. Today, the "ticker" refers to the digital price feeds streaming across screens in every trading firm, brokerage, and financial news channel, and the **ticker symbol** (AAPL, MSFT, GOOG) is the abbreviated code printed on the old paper tape.
 
 When you see terms like "tick" (the minimum price movement), "tick data" (a record of every trade), or "ticker plant" (the server infrastructure that publishes market data), you are using the language of a machine that ran on telegraph cables and printed on paper strips.
 
 !!! note "The Kennedy Slide, the Lagging Tape, and the Study That Created NASDAQ (1962–71)"
 
-    On 28 May 1962 the Dow fell 5.7% in a single session, the sharpest one-day drop since 1929, in what became known as the "Kennedy Slide." Operationally, the day's defining failure was informational: trading volume so overwhelmed the ticker that the tape ran more than an hour behind actual trading, meaning investors nationwide were making decisions on prices that no longer existed. The SEC's *Special Study of Securities Markets* (1963), a multi-volume examination already underway when the break occurred, documented the episode and, more consequentially, dissected the over-the-counter market's opaque, telephone-based quotation system, recommending that OTC quotations be automated. The NASD's answer to that recommendation went live on 8 February 1971 as NASDAQ, initially not a matching engine at all, but an automated *quotation display* system, exactly what the Special Study had prescribed. The lineage is worth stating plainly: the world's first electronic stock market exists because a regulator's post-crash study concluded that stale, inaccessible price information was itself a market-structure defect. Every market-data latency requirement in Part IV is a descendant of that conclusion.
+    On 28 May 1962 the Dow fell 5.7% in a single session, then the second-largest one-day point decline on record, in what became known as the "Kennedy Slide." Operationally, the day's defining failure was informational: trading volume so overwhelmed the ticker that the tape ran far behind actual trading, meaning investors nationwide were making decisions on prices that no longer existed. The SEC's *Special Study of Securities Markets* (1963), a multi-volume examination already underway when the break occurred, documented the episode and, more consequentially, dissected the over-the-counter market's opaque, telephone-based quotation system, recommending that OTC quotations be automated. The NASD's answer to that recommendation went live on 8 February 1971 as NASDAQ, initially not a matching engine at all, but an automated *quotation display* system, exactly what the Special Study had prescribed. The lineage is worth stating plainly: the world's first electronic stock market exists because a regulator's post-crash study concluded that stale, inaccessible price information was itself a market-structure defect. Every market-data latency requirement in Part IV is a descendant of that conclusion.
 
     **References:** Kennedy Slide of 1962, Wikipedia, https://en.wikipedia.org/wiki/Kennedy_Slide_of_1962 
 
@@ -43,13 +43,13 @@ When you see terms like "tick" (the minimum price movement), "tick data" (a reco
 
 These historical terms are not just in trading rooms and textbooks. They are in the source code. A developer reading an exchange codebase for the first time will find:
 
-- `bid_price`, `ask_price`, `spread` , the physical ledger's two columns, reduced to struct fields
-- `lot_size`, `tick_size` , the standardisation introduced by the early commodity pits
-- `aggressor_side` , which party crossed the spread; matters for fee calculation and regulatory reporting
-- `book.add_order()`, `book.cancel_order()`, `book.sweep()` , the specialist's actions, now function calls
-- `GTC`, `DAY`, `IOC` , time-in-force codes whose full names (Good-Till-Cancelled, Day, Immediate-or-Cancel) are rarely spoken, used daily in hundreds of millions of orders
-- `tape_price`, `last_trade_price` , what the ticker printed, now a field in a trade record
-- `long_position`, `short_position` , the Amsterdam merchant's grain warehouse, abstracted to a signed integer
+- `bid_price`, `ask_price`, `spread`: the physical ledger's two columns, reduced to struct fields
+- `lot_size`, `tick_size`: the standardisation introduced by the early commodity pits
+- `aggressor_side`: which party crossed the spread; matters for fee calculation and regulatory reporting
+- `book.add_order()`, `book.cancel_order()`, `book.sweep()`: the specialist's actions, now function calls
+- `GTC`, `DAY`, `IOC`: time-in-force codes whose full names (Good-Till-Cancelled, Day, Immediate-or-Cancel) are rarely spoken, used daily in hundreds of millions of orders
+- `tape_price`, `last_trade_price`: what the ticker printed, now a field in a trade record
+- `long_position`, `short_position`: owning versus owing, abstracted to the sign of an integer
 
 Every time you read a function name or a variable name in exchange software that sounds like it belongs in a different century, it does. The codebase is the physical exchange, translated.
 
@@ -57,7 +57,7 @@ Every time you read a function name or a variable name in exchange software that
 
 On 19 October 1987, US stock markets fell **22.6%** in a single day, the largest single-day percentage drop in the history of the Dow Jones Industrial Average. This event, known as **Black Monday**, remains the most severe one-day market crash on record. A more detailed account of this is given in the *Risk Controls, Protecting the Market* section of Part III.
 
-The crash was not driven by a single piece of bad news. It was amplified by automated **portfolio insurance** programmes, algorithmic selling strategies designed to protect institutional portfolios by automatically selling futures contracts as prices fell. As these programmes sold, prices fell further, triggering more programme selling, which pushed prices further down , a feedback loop that human traders could not interrupt. The lack of any coordinated mechanism to pause trading made the spiral self-reinforcing.
+The crash was not driven by a single piece of bad news. It was amplified by automated **portfolio insurance** programmes, algorithmic selling strategies designed to protect institutional portfolios by automatically selling futures contracts as prices fell. As these programmes sold, prices fell further, triggering more programme selling, which pushed prices further down, a feedback loop that human traders could not interrupt. The lack of any coordinated mechanism to pause trading made the spiral self-reinforcing.
 
 The Presidential Task Force on Market Mechanisms (the "Brady Commission"), reporting to President Reagan in January 1988, concluded that the absence of circuit breakers and coordinated pause mechanisms across markets had allowed the panic to become catastrophic. Its central recommendation was explicit: create automatic trading halts that could interrupt the feedback loop and give participants time to assess [Brady Commission Report, January 1988].
 
@@ -81,7 +81,7 @@ The two most fundamental prices in any market are the **bid** and the **ask** (a
 
 The **spread** is the difference between the best bid and the best ask at any moment: if the best bid is $150.30 and the best ask is $150.35, the spread is $0.05. The spread is both a measure of market quality (tight spreads mean the market is liquid and efficient; wide spreads mean it is illiquid or uncertain) and the primary source of income for market makers, who earn the spread by continuously standing ready to buy at the bid and sell at the ask.
 
-The phrase **"crossing the spread"** means submitting an order aggressive enough to immediately match against a resting order. An investor who submits a buy order at $150.35 (the ask) rather than waiting at $150.30 (the bid) is crossing the spread and paying for the privilege of immediate execution. This small payment , a few cents, or a fraction of a cent in liquid markets , is the cost of immediacy, and it is the foundation of the market maker's business model.
+The phrase **"crossing the spread"** means submitting an order aggressive enough to immediately match against a resting order. An investor who submits a buy order at $150.35 (the ask) rather than waiting at $150.30 (the bid) is crossing the spread and paying for the privilege of immediate execution. This small payment, a few cents, or a fraction of a cent in liquid markets, is the cost of immediacy, and it is the foundation of the market maker's business model.
 
 ## Blue Chips, Bulls, and Bears
 
@@ -89,19 +89,17 @@ Not all inherited terminology has to do with physical infrastructure. Some comes
 
 **Blue chip** stocks are large, well-established, financially sound companies, the most prestigious tier of the equity market. The term comes from poker: in casino chips, blue has traditionally been the highest denomination. The first recorded use in finance was by Oliver Gingold at Dow Jones in 1923, who described stocks trading at $200 or more per share as "blue chip stocks." [14]
 
-**Bull market** (rising prices) and **bear market** (falling prices) have disputed origins, but the most widely cited explanation refers to how each animal attacks: a bull thrusts its horns upward, a bear swipes its paws downward. The terms appear in financial writing as early as the 18th century. Today, a market that has fallen 20% or more from a recent peak is formally defined as a bear market; a sustained rise of 20% or more from a trough is a bull market.
+**Bull market** (rising prices) and **bear market** (falling prices) have disputed origins, but the most widely cited explanation refers to how each animal attacks: a bull thrusts its horns upward, a bear swipes its paws downward. The terms appear in financial writing as early as the 18th century. Today, by widely used convention rather than by any formal rule, a market that has fallen 20% or more from a recent peak is called a bear market, and a sustained rise of 20% or more from a trough a bull market.
 
-**Going long** and **going short** have roots far older than stock markets. Their origin lies in the physical trade of commodities, grain, spices, metals, cloth, timber, and other durable goods, that dominated commerce for centuries before financial securities existed.
+**Going long** and **going short** describe the two directions a position can face, and the practice is far older than the words. **Long** means you own (or have agreed to buy) the asset: you gain if its price rises and lose if it falls. **Short** means you have sold something you do not own (or agreed to deliver something you do not yet have): you gain if the price falls, because you can buy it back more cheaply before you must deliver, and you lose if it rises.
 
-A merchant in a 17th-century Amsterdam or London trading house who had purchased a large stock of grain and was storing it in a warehouse was described as being **long** in grain [4]. The word captured two ideas simultaneously: first, that they *possessed* the goods, they owned something tangible, in their hands, in their warehouse; and second, that durable goods could be held *over time*. Grain kept through winter. Spices kept for years. Metal did not spoil. A merchant who was "long" in such goods had an inventory that would *last a long time*, goods with longevity. The root connection is direct: long as in duration, as in possession extended through time.
+The *words* are younger than you might expect. The sense of "short" as "having an insufficient quantity" is recorded in English from the 1690s, and the market phrase "to sell short", meaning to sell what the seller does not at the time possess, is attested by 1852 [Online Etymology Dictionary, "short"]; nineteenth-century American usage popularised the pair. The short seller is literally *short of* the goods, in the same word family as "shortage" or "falling short". "Long" came along as its natural opposite: well supplied, holding more than enough. (You will find more romantic origin stories online, about grain warehouses and the longevity of stored goods. They are pleasant, but no dictionary supports them.)
 
-This is still exactly what "going long" means in modern finance: you own the asset and you are exposed to its price over time. If you buy shares of a company and hold them, you are long those shares. If the price rises, your long position profits; if it falls, it loses. Nothing about the meaning has changed, only the asset has shifted from sacks of grain in a warehouse to electronic records in a clearing house.
+What *is* old is the practice. Forward contracts, promises to deliver goods at a future date for a price agreed today, were common in the grain and commodity trades of the 17th and 18th centuries, and a merchant who had promised more than their warehouse held was short in every sense that matters: they would need to buy before the delivery date, and they would profit only if prices had fallen in the meantime.
 
-**Going short** comes from the opposite situation: a merchant who had promised to deliver goods they did not yet possess. In forward contracts, common in the grain and commodity markets of the 17th and 18th centuries, a seller would commit to deliver a quantity of goods at a future date and price. If they had sold more than their warehouse contained, they were "short" of the goods, deficient, lacking, falling short of their obligations. The same word family as "we are short of supplies," "he fell short of expectations," or "shortage." Being short meant your inventory was insufficient to cover what you had committed to deliver. You would need to go into the market and buy before the delivery date, hoping prices had fallen so you could profit on the difference.
+The Dutch East India Company (VOC), founded in 1602, whose shares traded in Amsterdam from that same year, pioneered many instruments still in use today: transferable shares, dividend payments, and a secondary market in those shares [5] [11]. It also became the arena for what is likely the first recorded large-scale short selling operation in financial history: in 1609, a merchant named Isaac Le Maire, himself a major VOC shareholder, organised a group of traders to sell VOC shares they did not own, betting the price would fall so they could buy them back cheaply before delivery [5]. The scheme was disruptive enough that the Dutch authorities banned the practice in 1610, the earliest known attempt to regulate it [5]. The ban did not stick; short selling has been controversial, periodically banned, and always present in markets ever since.
 
-The Dutch East India Company (VOC), founded in 1602 and traded on the Amsterdam Exchange from that same year, pioneered many instruments still in use today, transferable shares, dividend payments, and the secondary market in those shares [5] [11], and became the arena for what is likely the first recorded large-scale short selling operation in financial history: in 1609, a merchant named Isaac Le Maire organised a group of traders to sell VOC shares they did not own, betting the price would fall so they could buy them back cheaply before delivery [5]. The scheme was disruptive enough that the Amsterdam city council attempted to ban short selling the following year, the earliest known attempt to regulate the practice [5]. It did not stick; short selling has been controversial, periodically banned, and always present in markets ever since.
-
-"Long" and "short" thus carry the physical memory of a world where trading meant moving real goods between warehouses and ships. A developer reading `last_sell_price` or `position += signed_qty` in the matching engine's clearing code is working with concepts that a 17th-century spice merchant would have recognised immediately, even if the technology would be unrecognisable to them.
+In the code, all of this collapses into a sign. A long position is a positive quantity, a short position a negative one, and a developer reading `position += signed_qty` in a clearing module is applying exactly the bookkeeping a 17th-century merchant would have recognised, even if the technology would be unrecognisable to them.
 
 
 !!! note "Historic Notes"
@@ -110,7 +108,7 @@ The Dutch East India Company (VOC), founded in 1602 and traded on the Amsterdam 
 
     **References:** 
     Peter M. Garber, *Famous First Bubbles: The Fundamentals of Early Manias* (MIT Press, 2000), <br>&nbsp;<br>
-    *Tulipmania: Money, Honor, and Knowledge in the Dutch Golden Age* (University of Chicago Press, 2007).
+    Anne Goldgar, *Tulipmania: Money, Honor, and Knowledge in the Dutch Golden Age* (University of Chicago Press, 2007).
 
 
 
@@ -119,7 +117,7 @@ The Dutch East India Company (VOC), founded in 1602 and traded on the Amsterdam 
 
 The historical explanation above describes the *economics* of short selling. The modern operational reality involves several additional steps that are invisible in the exchange's order book but fundamental to how clearing and settlement actually work.
 
-**You must borrow before you short.** Before a participant can sell shares they do not own, they must first arrange to borrow those shares from someone who does own them. This is called the **locate** process, finding and reserving a source of borrowable shares. In the US, Regulation SHO (adopted by the SEC in 2005) mandates that broker-dealers must have a reasonable grounds to believe shares can be borrowed before accepting a short sale order. Selling short without a locate is called **naked short selling** and is generally illegal.
+**You must borrow before you short.** Before a participant can sell shares they do not own, they must make sure those shares can be borrowed from someone who does own them. The first step is called the **locate**: identifying a source of borrowable shares. In the US, Regulation SHO (in force since January 2005) requires broker-dealers to have reasonable grounds to believe the shares can be borrowed, so that they can be delivered on the settlement date, before accepting a short sale order. Selling short without a locate is called **naked short selling** and is generally illegal.
 
 **Where the borrow comes from.** Shares available to borrow come primarily from long investors who hold shares in custody through a broker or prime broker. These holders consent (usually automatically through their account agreements) to their shares being lent out in exchange for a **lending fee**. The custodian or prime broker intermediates: they find willing lenders and lend the shares to the short seller. The short seller pays a daily lending fee (the **borrow rate**) while the position is open.
 
@@ -134,7 +132,7 @@ The historical explanation above describes the *economics* of short selling. The
 
 ## Wall Street
 
-**Wall Street** is named after an actual wall, a wooden palisade built in 1653 by Dutch colonists along the northern edge of their settlement (then called New Amsterdam, now Lower Manhattan) to protect against British and Native American incursions. The wall is long gone; the street that replaced it became the financial centre of America, and now "Wall Street" is a metonym for the entire US financial industry, regardless of where the actual firms are physically located.
+**Wall Street** is named after an actual wall, a wooden palisade built in 1653 by Dutch colonists along the northern edge of their settlement (then called New Amsterdam, now Lower Manhattan) to protect against English and Native American attacks. The wall is long gone; the street that replaced it became the financial centre of America, and now "Wall Street" is a metonym for the entire US financial industry, regardless of where the actual firms are physically located.
 
 ## Why This Matters for You
 

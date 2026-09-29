@@ -69,7 +69,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] A. Subscribers such as the clearing process, stats recorder, and audit log are described as passive receivers that do not write to the order book
 - [ ] B. A message bus using a publish/subscribe pattern is one way exchange components distribute events to multiple downstream consumers
 - [ ] C. Every subscriber to the message bus is required to also have write access to the live order book to function correctly
-- [ ] D. Book snapshots aggregated by price level are commonly published on a periodic basis, such as roughly every 500 milliseconds per symbol
+- [ ] D. In the book's reference exchange, snapshots aggregated by price level are published periodically, every 500 milliseconds per symbol
 - [ ] E. A ticker or viewer/board application is an example of a component that writes new orders directly into the book
 
 ### 7. Recovery objectives, revisited
@@ -153,12 +153,12 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] B. MiFID II's tick-size regime applies exactly one single fixed tick size across every price band and liquidity category
 - [ ] C. Tick size for the same underlying stock is described in the book as always identical across every listing venue
 - [ ] D. The E-mini S&P 500 futures contract is described as ticking in units of a full index point, rather than a fraction of one
-- [ ] E. US Treasury futures are described in the book as ticking in units of 1/32nds
+- [ ] E. US Treasury futures are described in the book as ticking in 32nds of a point and fractions of a 32nd
 
 ### 18. Fragmentation and routing, recap
-- [ ] A. Reg NMS's requirement that orders receive the best available price across venues is described as a direct reason the US has more than a dozen registered equity exchanges competing for flow
-- [ ] B. The book's illustrative AAPL volume-split example shows NASDAQ capturing a noticeably larger share of trading than NYSE
-- [ ] C. Dark pools and internalisers are excluded entirely from the book's discussion of where AAPL's trading volume can be split across
+- [ ] A. Reg NMS, by forbidding venues to trade through better displayed prices elsewhere, is described as creating strong incentives for new venues to compete with NYSE and NASDAQ
+- [ ] B. The book notes that, in recent years, close to half of all US equity volume has executed off-exchange
+- [ ] C. The book states that dark pools and internalisers play no meaningful role in where US equity volume executes
 - [ ] D. Fragmentation across many venues is presented in the book as adding complexity to routing decisions and best-price discovery
 - [ ] E. A Smart Order Router's decision criteria are described as limited strictly to price, ignoring fees, depth, or queue-position probability
 
@@ -172,7 +172,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] E. The book frames exchange engineering as inseparable from market structure, history, and regulation, rather than as a purely technical problem in isolation
 
 ### 20. The book's own caveats
-- [ ] A. The book itself flags at least one of its own statistics, such as the NYSE closing auction's share of daily volume, as an illustrative figure rather than one tied to a single rigorously verifiable primary source
+- [ ] A. The book's references include a section on facts drawn from secondary sources, such as exchange publications, rather than a single primary academic source
 - [ ] B. Every single numeric figure in the book is presented as coming from a fully audited primary regulatory filing, with no caveats
 - [ ] C. The book claims that circuit-breaker thresholds have remained completely fixed and unchanged since 1988
 - [ ] D. The book states that odd-lot trading data has always been fully included in NBBO calculations since markets began

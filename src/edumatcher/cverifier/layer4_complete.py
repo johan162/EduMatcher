@@ -171,22 +171,6 @@ def _check_mm_obligation_completeness(
 
     mm_defaults = raw.get("mm_obligation_defaults")
     if mm_defaults is None:
-        gw = mm_gateways[0]
-        results.append(
-            CheckResult(
-                code="C005",
-                severity=Severity.WARN,
-                message=(
-                    f"MARKET_MAKER gateway '{gw}' is configured but mm_obligation_defaults "
-                    "is absent."
-                ),
-                suggestion=(
-                    "MM obligations will use built-in defaults (spread=10 ticks, qty=100). "
-                    "Add mm_obligation_defaults if you want to enforce specific requirements."
-                ),
-                path="mm_obligation_defaults",
-            )
-        )
         return
 
     if isinstance(mm_defaults, dict):

@@ -11,7 +11,7 @@ Every order carries several key pieces of information:
 | **Quantity** | How many units to trade | Typically a positive integer. The **lot** is the smallest unit an order can be submitted in; for US equities the matching engine will accept an order for as little as one share. Asian markets often require order sizes to be a whole multiple of a larger minimum lot, 100 or 1,000 shares. This minimum tradeable unit is a separate concept from the **round lot** used to define an odd lot, covered just below. |
 | **Price** | Limit price (for limit orders) | Maximum a buyer will pay, or minimum a seller will accept. Market orders carry no price. |
 | **Time-In-Force** | How long the order remains valid | So important it gets its own section below. |
-| **Arrival timestamp** | When the exchange received the order | Recorded to nanosecond precision. Not just metadata , it is the tiebreaker in price-time priority. |
+| **Arrival timestamp** | When the exchange received the order | Recorded to nanosecond precision. Not just metadata, it is the tiebreaker in price-time priority. |
 | **Identity** | Which gateway (participant) submitted it | Used for self-match prevention, kill switches, and regulatory reporting. |
 
 ## Round Lots and Odd Lots

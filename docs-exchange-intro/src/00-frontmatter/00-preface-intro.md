@@ -13,23 +13,27 @@ Status: Published
 
 This book is still for the same person: the developer who gets dropped into an exchange codebase full of words like "NBBO", "LULD", "implied in/out", "ATC", "SIP", "MMP", and quietly wonders whether they have accidentally joined a cult. You have not. You have joined a domain with very old vocabulary, very modern latency budgets, and very expensive failure modes.
 
-The first edition focused on giving the reader a map. This second edition keeps the same promise, almost no code-first deep dives, no equations for their own sake, just concepts that make the system legible, but the map is now wider, denser, and more practical. Compared with the first edition, this edition adds over a thousand lines of new material and rewrites key chapters that were a bit too brief in the first pass where obviously my aspiration to keep it short sometimes conflicted with the need for completeness and understandability. Some pseudo-code has in addition been added where it helps clarify the mechanics, but the focus is still on concepts, not implementation. The goal is still to give you a mental model that lets you reason about the system, not just translate jargon.
+The first edition focused on giving the reader a map. This second edition keeps the same promise, almost no code-first deep dives, no equations for their own sake, just concepts that make the system legible, but the map is now wider, denser, and more practical. Compared with the first edition, this edition adds well over a thousand lines of new material and rewrites key chapters that were a bit too brief in the first pass where obviously my aspiration to keep it short sometimes conflicted with the need for completeness and understandability. Some pseudo-code has in addition been added where it helps clarify the mechanics, but the focus is still on concepts, not implementation. The goal is still to give you a mental model that lets you reason about the system, not just translate jargon.
 
-The largest expansion is in the implied-orders section, which has been rebuilt from a short overview into a full walkthrough: sign conventions, formula identities, quantity and priority rules, second-generation implieds, tick-alignment edge cases, market-data publication models, engineering invariants, and self-check exercises with worked solutions. The order-book chapter has also been expanded from concept to implementation shape: cache behavior, memory layout, single-threaded matching partitions, pool allocation, and step-by-step insert/cancel/sweep mechanics, including determinism concerns.
+The largest expansion is in the implied-orders material, which has been rebuilt from a short overview into two full chapters placed at the end of Part II, once the order book and the matching engine are familiar. The first is a complete walkthrough: the spread sign convention, a vector model from which every implied price formula follows, quantity, depth and priority rules, tick alignment, market-data publication, a first-generation algorithm, engineering invariants, and self-check exercises with worked solutions. The second follows chains of implied orders across many contract months and shows why every venue must limit how far implication is allowed to reach. The order-book chapter has also been expanded from concept to implementation shape: cache behavior, memory layout, single-threaded matching partitions, pool allocation, and step-by-step insert/cancel/sweep mechanics, including determinism concerns.
 
-Several missing bridge topics are also now included explicitly. Part I this time around closes with listing and delisting mechanics (initial and continued standards, cure periods, reverse splits, voluntary delisting, direct listings, and SPAC pathways). Part II adds round-lot vs odd-lot treatment and a dedicated tick-size chapter (Rule 612, historical fraction pricing, Tick Size Pilot, and midpoint rounding). The auction material has been upgraded with auction-only order types, opening/closing cross mechanics, and manipulation-at-the-close context.
+Several missing bridge topics are also now included explicitly. Part I this time around closes with listing (including the part black-magic art of IPO valuation) and delisting mechanics (initial and continued standards, cure periods, reverse splits, voluntary delisting, direct listings, and SPAC pathways). Part II adds round-lot vs odd-lot treatment and a dedicated tick-size chapter (Rule 612, historical fraction pricing, Tick Size Pilot, and midpoint rounding). The auction material has been upgraded with auction-only order types, opening/closing cross mechanics, and manipulation-at-the-close context.
 
 Beyond core matching, this edition also adds the operational and structural topics developers eventually run into: benchmark integrity (LIBOR and FX fix case studies), trade busting and clearly erroneous handling, conformance testing and onboarding drift, market-data economics (SIP vs proprietary feeds, locked/crossed markets), fixed-income microstructure, crypto venue differences, and options expiry mechanics (exercise, assignment, settlement type, and pin risk).
 
 So yes, the document is longer now. That is deliberate. The first edition tried to keep every section short; this one tries to keep every section useful when things get messy in production. If the first edition was the "day one" guide, this one aims to be the "month six" guide, the point where you are no longer asking what a term means, but why the system was designed that way and what breaks if it is wrong.
 
-As before, this is an introduction, not a rulebook. Exchange rulebooks and venue technical specifications remain the final authority. But if this second edition helps you move from terminology to reasoning faster, it has done its job.
+As before, this is an introduction, not a rulebook. Exchange rulebooks and venue technical specifications remain the final authority. But if this second edition helps you move from terminology to reasoning faster, it has done its job. The reference section includes the publicly available reference material many details in this books draws from to be as exact as possible.
 
-Reasonable efforts have been made to ensure accuracy, but any remaining errors, typos or otherwise, are mine. If you find mistakes or have suggestions, please let me know at *johan162@gmail.com*. I genuinely appreciate it.
+Reasonable efforts have been made to ensure accuracy, but, it would be foolish of me to believe that I during some late night/early morning while editing this book didn't swap some bid/ask  columns or simply forgot a whole section I had in my notes or my mind. 
 
+Enjoy the pleasure of finding things out and the triumph of being sure that the author was proveable wrong! 
+So, any typos, missing signs, bad explanations/grammar or faults otherwise, are mine and mine alone. I have no-one to blame!
+
+If you find any mistakes or have other suggestions, please let me know at *johan162@gmail.com*. I genuinely appreciate it.
 
 Johan Persson,
-Second Edition, Autumn 2026, Järnboås
+Second Edition, Autumn 2026, Järnboås Socken
 
 
 # Preface to the First Edition
@@ -46,5 +50,5 @@ Reasonable efforts have been made to ensure accuracy, but as usual any remaining
 
 
 Johan Persson,
-Spring 2026, Järnboås
+First Edition, Winter 2025/2026, Järnboås Socken
 

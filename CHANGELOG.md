@@ -1,3 +1,29 @@
+## [v0.43.1] - 2026-09-29
+
+Release Type: minor
+
+### 📋 Summary
+This release focus on documentation update for the Exchange Introduction and also aligns market-maker obligation defaults across the engine, 
+verifier and configuration generator, and refreshes the bundled example profiles so their generated warnings match their intended behavior. 
+
+### 🚀 Improvements
+- Improved the built-in market-maker maximum spread default from 10 to 20 ticks
+- Improved verifier diagnostics so absent, non-enforced market-maker obligations do not produce unnecessary completeness warnings
+- Improved `pm-config-gen` validation to reject seed quotes whose total spread exceeds the effective market-maker obligation
+
+### 🐛 Bug Fixes
+- Fixed generated market-maker seed quotes exceeding the configured `mm_max_spread_ticks`
+- Fixed no-MM example profiles lacking reference prices needed by verifier checks
+- Fixed no-MM example profiles emitting disabled market-maker obligation definitions
+
+### 📚 Documentation
+- Updated generated example configurations and their generator scripts for the corrected market-maker spread, reference-price, collar and obligation settings
+- Major update of the Exchange Introdction book across all chapters 
+
+### 🛠 Internal
+- Added regression coverage for seed-spread validation, per-symbol market-maker spread limits and verifier warning behavior
+
+
 ## [v0.43.0] - 2026-09-28
 
 Release Type: major

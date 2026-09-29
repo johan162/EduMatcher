@@ -42,6 +42,33 @@ def test_minimal_output_parses(
     assert "Wrote generated config" in stderr
 
 
+def test_disabled_mm_obligations_are_not_emitted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "MM01:MARKET_MAKER",
+            "--no-enforce-mm-obligations",
+            "--no-mm-seed-quotes",
+            "--seed-mm-mid-range",
+            "20:30",
+            "--seed-last-prices-from-mm",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    payload = yaml.safe_load(out_file.read_text(encoding="utf-8"))
+    assert "mm_obligation_defaults" not in payload
+    assert payload["symbols"]["AAPL"]["last_buy_price"] is not None
+
+
 def test_engine_tuning_is_omitted_without_tuning_options(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -268,6 +295,8 @@ def test_market_maker_seeded_quotes_are_emitted(
             "17",
             "--seed-mm-mid-range",
             "20:21",
+            "--mm-seed-spread-ticks",
+            "10",
             "--seed-last-prices-from-mm",
             "--dry-run",
         ],
@@ -844,6 +873,63 @@ def test_seed_mm_mid_range_must_fit_every_symbols_tick_grid(
         )
     assert exc_info.value.code == 2
     assert "WHOLE's tick grid" in capsys.readouterr().err
+
+
+def test_seed_quote_spread_cannot_exceed_mm_obligation(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "--gateways",
+                "TRADER01",
+                "MM01:MARKET_MAKER",
+                "--seed-mm-mid-range",
+                "20:30",
+                "--mm-spread-ticks",
+                "20",
+                "--mm-seed-spread-ticks",
+                "11",
+                "--dry-run",
+            ],
+        )
+    assert exc_info.value.code == 2
+    assert "seed quote spread (22 ticks) exceeds" in capsys.readouterr().err
+
+
+def test_seed_quote_spread_uses_symbol_mm_obligation_override(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "MSFT",
+                "--gateways",
+                "MM01:MARKET_MAKER",
+                "--symbol-opts",
+                "MSFT:mm_spread_ticks=12",
+                "--seed-mm-mid-range",
+                "20:30",
+                "--mm-spread-ticks",
+                "20",
+                "--mm-seed-spread-ticks",
+                "7",
+                "--dry-run",
+            ],
+        )
+    assert exc_info.value.code == 2
+    assert (
+        "seed quote spread (14 ticks) exceeds mm_max_spread_ticks (12) for MSFT"
+        in capsys.readouterr().err
+    )
 
 
 def test_comment_default_config_fields_emits_engine_field_defaults(

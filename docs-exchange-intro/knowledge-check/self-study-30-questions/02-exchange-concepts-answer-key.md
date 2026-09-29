@@ -30,4 +30,4 @@ Correct statements are listed per question. Scoring: +1 per correct selection, -
 - **Q18(D):** The state machine diagram checks dormant stops *after* publishing the FILLED/PARTIAL event for the triggering trade, then publishes all events together — stops are not checked before any fill event is published.
 - **Q25(B, D):** Position/credit limit checks require live clearing-system data and are explicitly the *most* expensive check, run last; checks are deliberately sequenced fail-fast rather than run in parallel.
 - **Q28(A):** Mass cancel can be initiated by the participant; a kill switch can be triggered by the participant, the exchange, or an automatic disconnect handler — the "only the exchange" framing in A is reversed from the source.
-- **Q30(D):** NYSE processed every one of Knight's roughly four million orders correctly and validly; none were rejected by the exchange, since each was individually valid at the prevailing market price.
+- **Q30(D):** NYSE processed Knight's orders (more than four million executions) correctly and validly; none were rejected by the exchange, since each was individually valid at the prevailing market price.

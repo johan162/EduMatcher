@@ -64,13 +64,13 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] B. The term "blue chip" originates from casino poker chip denominations
 - [ ] C. Oliver Gingold's 1923 usage described stocks trading at $200 or more as "blue chip"
 - [ ] D. A bear market is formally defined by a sustained rise of 20% or more from a trough
-- [ ] E. "Going long" originated from a merchant's grain being held over time in a warehouse
+- [ ] E. The phrase "sell short" is recorded in English only from the mid-19th century, although the practice is centuries older
 
 <div style="page-break-after: always;"></div>
 
 ### 6. Short selling operations
 - [ ] A. The locate process is intended to confirm shares can be borrowed before a short sale is accepted
-- [ ] B. Regulation SHO was adopted by the SEC in 2005
+- [ ] B. Regulation SHO has been in force since January 2005
 - [ ] C. A rising borrow rate can signal increasing short interest and limited supply
 - [ ] D. Settlement for a short seller requires delivering shares they already own outright
 - [ ] E. The exchange's matching engine distinguishes short sales from long sales at the point of matching
@@ -144,8 +144,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 
 ### 16. The matching engine and sweeps
 - [ ] A. The sweep process works through price levels from best to worst until the order is filled or the book is exhausted
-- [ ] B. NASDAQ's matching engines are described as acknowledging orders in under 100 microseconds in typical conditions
-- [ ] C. CME Globex is described as handling on the order of 30-35 million messages per day across all products
+- [ ] B. Major equity exchanges are described as typically acknowledging an order within tens of microseconds
+- [ ] C. CME Group's venues are described as trading a record average of 28.1 million contracts per day in 2025
 - [ ] D. Multi-leg options strategies never require cross-symbol coordination
 - [ ] E. Basket orders trading dozens of stocks as one instruction require cross-symbol scheduling
 
@@ -165,8 +165,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 
 ### 19. Quote refresh and MMP recap
 - [ ] A. Policy 3 (leave both sides active) is described as the riskiest refresh policy
-- [ ] B. Eurex-style inactivation cancels both legs immediately upon any fill
-- [ ] C. A typical Eurex MMP configuration might specify five fills within 500 milliseconds
+- [ ] B. The most conservative refresh policy cancels both legs immediately upon any fill
+- [ ] C. Eurex's MMP can trigger on percentage, volume, delta, and vega limits rather than only on a count of fills
 - [ ] D. MMP is triggered manually by a human risk officer in real time
 - [ ] E. Without MMP, market makers might quote wider spreads to compensate for adverse selection risk
 
@@ -202,7 +202,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 
 ### 24. Circuit breakers and collars
 - [ ] A. LULD Tier 1 instruments generally have a narrower regular-hours band than Tier 2 instruments
-- [ ] B. A 15-second monitoring period precedes a LULD trading pause once price exits its band
+- [ ] B. A LULD trading pause follows if a stock stays in a limit state at its band for 15 seconds
 - [ ] C. Leveraged ETFs can have LULD bands multiplied by their leverage factor
 - [ ] D. A static price collar is recalculated using the most recent trade rather than the prior close
 - [ ] E. Market-wide circuit breakers did not apply before 9:30am during the March 2020 events
@@ -218,7 +218,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 
 ### 26. VWAP and P&L, numerically
 - [ ] A. Buying 100 shares at $150 and 50 more at $160 produces a VWAP of $153.33
-- [ ] B. If the market price then rises to $160 while holding 150 shares at that VWAP, unrealised P&L is approximately $1,000.50
+- [ ] B. If the market price then rises to $160 while holding those 150 shares, unrealised P&L is $1,000.00
 - [ ] C. Realised P&L changes continuously as the market price moves, even without any further trade
 - [ ] D. Unrealised P&L is a factor in triggering margin calls
 - [ ] E. Selling all 150 shares at $160 locks in the previously unrealised P&L as realised P&L

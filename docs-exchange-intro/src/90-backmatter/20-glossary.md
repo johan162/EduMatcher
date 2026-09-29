@@ -10,6 +10,8 @@ The following definitions are written to be concise and standalone, useful as a 
 
 ## A {#glossary-a}
 
+**Automated Collar Expansion (ACE):** This book's name for rules that, when an instrument's likely price lies outside its protective collar, pause only that instrument, keep collecting orders, and widen the collar in published steps until the indicative auction price fits, instead of either blocking a genuine repricing or trading at an absurd price. Real venues use their own names (Nasdaq's Halt Cross price protections, NYSE's auction-collar extension after LULD pauses, Xetra's extended volatility interruption). See *Price Collars*, Part III.
+
 **Adverse Selection:** The risk a market maker faces when their quote is hit by a counterparty who has superior information about where prices are heading, causing the market maker to trade at a price that will quickly move against them. A market maker who is repeatedly adversely selected will lose money even while quoting at "correct" prices. MMP exists specifically to limit adverse selection damage.
 
 **Aggressive order:** (also called a **taker**), an incoming order that immediately
@@ -45,7 +47,9 @@ The collection of all active asks forms the sell side of the book.
 
 **Big Bang:** The 27 October 1986 deregulation of the London Stock Exchange, which abolished fixed commissions, ended the broker/jobber separation, permitted outside and foreign ownership of member firms, and replaced floor trading with the screen-based SEAQ system, all on a single day. The UK counterpart to the US's 1975 "May Day." See *May Day*.
 
-**Basis:** In derivatives and futures markets, the price difference between two related instruments, most commonly between the spot/cash price and a futures price on the same underlying, or between two futures contracts with different expiry dates. In the implied order example in this document (the *Order Types* section of Part II), the spread price of −$2 between the January and February WTI contracts is the basis between those two contract months: January is $2 cheaper than February. The basis is not fixed; it changes continuously as supply and demand for the near and far months evolve independently. **Basis risk** is the risk that the expected relationship between two instruments diverges unexpectedly, a spread trader who expected the two legs to move together may find they do not, leaving an unintended net exposure. See *Implied Order*, *Calendar Spread*.
+**Backwardation:** A futures market in which near-dated contracts are more expensive than later-dated ones, so a calendar spread priced as near minus far is positive. The opposite of *contango*.
+
+**Basis:** In derivatives and futures markets, the price difference between two related instruments, most commonly between the spot/cash price and a futures price on the same underlying, or between two futures contracts with different expiry dates. In the implied-order examples in this document (the *Implied Orders and Synthetic Liquidity* chapter of Part II), the spread price of −$2 between the January and February crude oil contracts is the basis between those two contract months: January is $2 cheaper than February. The basis is not fixed; it changes continuously as supply and demand for the near and far months evolve independently. **Basis risk** is the risk that the expected relationship between two instruments diverges unexpectedly, a spread trader who expected the two legs to move together may find they do not, leaving an unintended net exposure. See *Implied Order*, *Calendar Spread*.
 
 **Bear Market:** A sustained decline of 20% or more from a recent market peak. Originates from the image of a bear swiping its paws downward. Contrast with *Bull Market*.
 
@@ -65,6 +69,8 @@ can trade immediately.
 **Blue Chip:** A large, financially sound, well-established company, the most prestigious tier of the equity market. The term originates from poker, where blue chips represent the highest denomination.
 
 **Bond:** A standardised debt instrument. The issuing company borrows money and promises to pay periodic interest (coupon payments) and return the face value (principal) at maturity. Bondholders are creditors, not owners, and are paid before equity holders in a bankruptcy. Bonds trade on secondary markets after issuance, allowing investors to exit before maturity. The financial term "bond" traces its roots back to the 14th century from the Old English word bindan and band, which eventually evolved into the standard English word "bind". The word was originally used to describe something that literally ties, fastens, or holds things together. Because a financial bond fundamentally operates as a formal, legally binding contract where an issuer promises to repay a loan with interest, the term stuck.
+
+**Book-Building:** The customary way a conventional IPO is priced: the issuer and its underwriters publish a price range, collect indications of interest from institutional investors during a roadshow, revise the range, and set the final offer price the evening before trading starts. A process of price discovery, not a legal requirement.
 
 **Book Depth:** The total volume (quantity of shares) resting near the top of the order book. A deep book absorbs large orders without significant price impact. A thin (or shallow) book moves quickly on even moderate order flow.
 
@@ -87,7 +93,7 @@ stop-loss STOP, typically implemented as an OCO pair.
 
 ## C {#glossary-c}
 
-**Calendar Spread:** A derivatives strategy involving the simultaneous purchase and sale of contracts on the same underlying instrument but with different expiry dates, for example, buy the March futures contract, sell the June futures contract. Used to profit from expected changes in the price difference (the "spread") between contract months. Requires cross-symbol coordination in the matching engine.
+**Calendar Spread:** A derivatives strategy involving the simultaneous purchase and sale of contracts on the same underlying instrument but with different expiry dates, for example, buy the March futures contract, sell the June futures contract. Used to profit from expected changes in the price difference (the "spread") between contract months. On CME and most futures venues it is also a listed instrument with its own order book, priced as near month minus far month; *buying* the spread means buying the near month and selling the far month, so the buyer profits when that difference rises. Spread prices are routinely negative. Requires cross-symbol coordination in the matching engine. See *Implied Order*.
 
 **Call auction:**  Synonym for auction, "call" refers to the fact that all participants are "called" to submit orders before a single price is determined.
 
@@ -104,6 +110,8 @@ stop-loss STOP, typically implemented as an OCO pair.
 **Clearly Erroneous Execution (CEE):** A trade whose price deviates from a reference price by more than a published, price-tiered percentage threshold, making it eligible for cancellation (busting) or price adjustment under exchange rules. Reviewed execution-by-execution within a short time window (commonly 30 minutes); multi-venue events require coordinated rulings across exchanges. Distinct from a trade that is merely unwelcome to the participant who sent it, the test is an objective price deviation, not the sender's intent. See *Trade Busting and Clearly Erroneous Trades*, Part III.
 
 **Conformance Testing:** The process by which a prospective exchange participant's trading system is verified, against a prescribed test script in a certification (UAT) environment, to correctly implement the exchange's protocol and expected behaviours before being granted production credentials.
+
+**Contango:** A futures market in which later-dated contracts are more expensive than near-dated ones (common when the cost of storing the underlying is high), so a calendar spread priced as near minus far is negative. The opposite of *backwardation*.
 
 **Continued Listing Standards:** The ongoing, ordinarily automated compliance thresholds (minimum bid price, market value of public float, shareholder count) a listed company must keep satisfying after its initial listing, distinct from the one-time *Initial Listing Standards*. Breach triggers a deficiency notice and cure period before involuntary delisting.
 
@@ -166,6 +174,8 @@ stop-loss STOP, typically implemented as an OCO pair.
 
 **Determinism (Exchange):** The property that given the same initial state and the same ordered input messages, the matching engine always produces identical outputs. Essential for audit trail replay and disaster recovery.
 
+**Discounted Cash Flow (DCF):** A valuation method that estimates a company's future free cash flows and discounts each one back to today's money at a rate reflecting risk and the time value of money. For young, fast-growing firms most of the result usually sits in the *terminal value*, the lump that stands for all years beyond the forecast.
+
 **Dilution:** The reduction in existing shareholders' ownership percentage when new shares are issued. Selling 20% of a company to new investors reduces existing owners to 80%.
 
 **Dividend:** A cash payment made by a company to its shareholders, distributed from retained profits. Not guaranteed, the board of directors decides whether, when, and how much to pay. Companies that pay regular dividends are typically mature, profitable businesses with stable cash flows. High-growth companies often pay no dividend, choosing to reinvest profits in expansion. The key dates are: the *declaration date* (when the board announces the dividend), the *ex-dividend date* (buyers on or after this date do not receive the payment), the *record date* (the register of shareholders eligible to receive payment), and the *payment date* (when the cash is distributed).
@@ -223,6 +233,8 @@ stop-loss STOP, typically implemented as an OCO pair.
 
 ## G {#glossary-g}
 
+**Greenshoe (Over-Allotment Option):** An option letting IPO underwriters sell up to 15% more shares than the base deal. If the price sags after listing they buy shares back in the market to support it; if it rises they exercise the option and buy the extra shares from the issuer at the offer price.
+
 **Gap (Market Data):** A missing sequence number in a market data feed, indicating a lost message. Subscribers must request retransmission or resynchronise from the next full snapshot.
 
 **Gateway:** The participant-facing interface to the exchange. Handles authentication, session management, and message translation.
@@ -253,13 +265,15 @@ stop-loss STOP, typically implemented as an OCO pair.
 
 **Implementation Shortfall (IS) / Arrival Price Algorithm:** An execution algorithm that minimises the difference between the *decision price* (the market price when the investment decision was made) and the actual average execution price. IS algos trade faster when the price moves against the position (urgency increases to avoid further shortfall) and slower when price moves favourably. More adaptive and sophisticated than VWAP or TWAP; preferred by quantitative funds whose models predict short-term price moves.
 
-**Implied Matching:** A technique used in derivatives markets where the exchange combines spread orders and outright orders to synthesise matches that neither could achieve alone. For example: a spread order to buy March/sell June can be combined with a resting outright June sell to create an implied March buy. Implemented on CME Globex and Eurex for calendar spreads.
+**Implied Generation:** A count of how many real orders an implied quote combines, minus one. A first-generation implied quote is built from two real orders; a second-generation quote uses a first-generation implied quote as an ingredient and so combines three. Venues restrict how many generations they compute because the work grows explosively. See *Multi-Layer Implied Orders and the Combinatorial Wall*, Part II.
 
-**Implied Order:** An order derived by the matching engine from a combination of existing spread and outright orders. Not submitted by any participant, computed from pre-existing orders and published in the relevant outright or spread book. When an implied order matches, all contributing orders execute simultaneously. If any contributing order is cancelled or filled by other means, the implied order disappears instantly.
+**Implied Matching:** A technique used in derivatives markets where the exchange combines resting spread and outright orders (in different books) into a synthetic order in a third book, and lets incoming orders trade against it, all contributing orders executing together. For example: a resting spread order to buy March/sell June combined with a resting outright June bid creates an implied March bid. Implemented on CME Globex, ICE, and (as "synthetic matching") Eurex. Implied matching creates no new liquidity: it makes existing orders reachable from another book.
 
-**Implied-In:** A form of implied matching where an outright order in one month plus a spread order imply a new outright in the other month. Example: January sell at $75 + Jan/Feb spread buy at −$2 = implied February sell at $77.
+**Implied Order:** An order derived by the matching engine from a combination of existing spread and outright orders. Not submitted by any participant, computed from pre-existing orders and published in the relevant outright or spread book. When an implied order matches, all contributing orders execute simultaneously and atomically. If any contributing order is cancelled or filled by other means, the implied order shrinks or disappears in the same processing step. Implied orders never act as the aggressor, and at the same price real orders trade before them.
 
-**Implied-Out:** A form of implied matching where two outright orders imply a spread. Example: January buy at $75 + February sell at $77 = implied Jan/Feb spread sell at −$2.
+**Implied IN:** In CME's terminology, an implied order in the *spread* book created from orders in the outright books. Example: a January bid at $74.40 and a February ask at $76.60 together imply a Jan/Feb spread *bid* at 74.40 − 76.60 = −$2.20.
+
+**Implied OUT:** In CME's terminology, an implied order in an *outright* book created from a spread order plus an outright order. Example: a January ask at $75.00 and a Jan/Feb spread *bid* at −$2.00 together imply a February *ask* at 75.00 − (−2.00) = $77.00.
 
 **Inactivation (Quote):** Automatically cancelling or suspending the surviving leg of a two-sided quote the moment the other leg is filled. The market maker must re-quote both sides afresh within their re-quoting window. Used in conservative quote refresh policies (Eurex-style). Protects the market maker from being left with a stale unhedged quote after their inventory position has changed.
 
@@ -317,11 +331,13 @@ the limit price and any unfilled remainder is immediately cancelled. Never rests
 
 **Limit Order:** An order to trade at a specified price or better. May rest in the book if not immediately matched.
 
-**Limit Up-Limit Down (LULD):** A US regulatory circuit breaker mechanism that pauses trading in an individual stock if its price moves outside a percentage band (the "price band") calculated from a reference price. The bands are tighter for liquid large-cap stocks and wider for smaller, more volatile ones. If the best offer falls below the lower band or the best bid rises above the upper band, trading pauses for 15 seconds; if the imbalance persists, a 5-minute trading halt begins. Implemented across all US equity exchanges.
+**Limit Up-Limit Down (LULD):** A US regulatory circuit breaker mechanism that pauses trading in an individual stock if its price moves outside a percentage band (the "price band") calculated from a reference price. The bands are tighter for liquid large-cap stocks and wider for smaller, more volatile ones. Trades outside the band are not allowed. If the best bid or offer sits exactly at the band (a "limit state") and does not recover within 15 seconds, a 5-minute trading pause begins. Implemented across all US equity trading venues.
 
 **Liquidity:** The ease with which an asset can be bought or sold without significantly affecting its price. High liquidity = tight spread, large depth, easy trading.
 
 **Locate:** The process of finding and reserving a source of borrowable shares before executing a short sale. Under US Regulation SHO, broker-dealers must have reasonable grounds to believe shares can be borrowed before accepting a short sale order. "Failing to locate" before shorting is called naked short selling, which is illegal in most jurisdictions.
+
+**Lock-Up:** A contractual agreement, typically 180 days, under which insiders and pre-IPO investors promise not to sell their shares after an IPO. It is a contract with the underwriters, not a legal rule, and its expiry can put pressure on the share price.
 
 **Locked Market:** A condition where the best bid on one venue equals the best ask on another venue for the same instrument, a transient artefact of fragmentation and quote-propagation latency. See *Crossed Market*.
 
@@ -420,7 +436,7 @@ as a positive number  P&L ledger.
 
 **Passive Order:** See *Resting Order*
 
-**Payment for Order Flow (PFOF):** A practice in which retail brokers receive payment from wholesale market makers in exchange for routing client order flow to those market makers for internalisation rather than to lit exchanges. Market makers pay for retail flow because retail orders have lower adverse selection risk. Banned in the UK and EU under MiFID II. Controversial in the US, where it subsidises zero-commission brokerages but raises concerns about conflicts of interest and reduced price discovery. See *Best Execution*, *Internaliser*.
+**Payment for Order Flow (PFOF):** A practice in which retail brokers receive payment from wholesale market makers in exchange for routing client order flow to those market makers for internalisation rather than to lit exchanges. Market makers pay for retail flow because retail orders have lower adverse selection risk. Effectively banned in the UK since 2012, and banned EU-wide from 30 June 2026 under the 2024 MiFIR review. Legal but controversial in the US, where it subsidises zero-commission brokerages but raises concerns about conflicts of interest and reduced price discovery. See *Best Execution*, *Internaliser*.
 
 **Pin Risk:** The risk faced by an option writer when the underlying closes at expiry very close to the strike price, leaving the writer uncertain whether automatic exercise and assignment will occur until after markets have closed, with any resulting delivery obligation priced at the strike regardless of where the underlying opens the next session. See *Exercise*, *Assignment*.
 
@@ -447,6 +463,8 @@ as a positive number  P&L ledger.
 **Primary Site:** The active, live data centre running the production matching engine.
 
 **Private Company:** A company whose shares are not publicly traded, held only by founders, employees, and private investors.
+
+**Prospectus:** The disclosure document a company must publish before offering securities to the public. In the EU it is governed by the Prospectus Regulation (EU) 2017/1129 and approved by a national competent authority; in the US it forms part of the S-1 registration statement.
 
 **Pro-Rata Allocation:** An alternative to price-time priority where fills at a price level are distributed proportionally among all resting orders at that level. Common in some futures markets.
 
@@ -509,6 +527,8 @@ position. Once realized, it cannot be reversed by subsequent price moves.
 
 **Securities Lending / Stock Borrow:** The temporary transfer of securities from a lender (typically a long-term investor or custodian) to a borrower (typically a short seller) in exchange for collateral and a lending fee (borrow rate). Short sellers must borrow shares before selling short. The lender retains economic ownership (receives manufactured dividends and can recall the shares) but transfers legal title temporarily. Recall risk, the lender demanding shares back at an inconvenient time, is a key risk for short sellers.
 
+**S-1 (Form S-1):** The registration statement a US company files with the SEC under the Securities Act of 1933 before an IPO. It contains the prospectus, audited financials, risk factors and the *use of proceeds*. Foreign issuers use the equivalent Form F-1.
+
 **SEDOL:** A 7-character UK security identifier used in settlement and clearing. Analogous to CUSIP.
 
 **Self-Match Prevention (SMP):** A mechanism that detects when a participant would trade against their own orders and applies a cancellation policy.
@@ -526,8 +546,6 @@ position. Once realized, it cannot be reversed by subsequent price moves.
 **Shadow Replication / Shadow Mode:** An architectural pattern for high-availability exchange systems. The secondary site receives and processes all input messages in parallel with the primary, maintaining an up-to-date copy of the order book, but does not publish outputs or accept participant connections. If the primary fails, the secondary's in-memory state is already current and it can begin accepting inputs and publishing outputs with minimal failover time. More common in production than true active-active matching.
 
 **Share / Stock:** A single unit of equity ownership in a company. Each share represents a fractional claim on the company's assets, earnings, and votes.
-
-**Smart Order Router (SOR):** Software that evaluates multiple trading venues and routes orders to achieve the best overall execution, balancing price, fees, available depth, and speed.
 
 **Slippage:** The difference between the expected fill price and the actual average fill
 price, caused by executing against multiple price levels in the book. Large
@@ -580,7 +598,7 @@ orders in thin books experience more slippage.
 
 **Tick Size:** The value of one tick, the minimum price increment for an instrument.
 
-**Tick Size Pilot Program:** A US SEC study (October 2016 – October 2018) that widened the tick size to five cents for roughly 1,200 small-capitalisation stocks to test whether coarser ticks improve market-making economics and liquidity for thinly traded names. Results were mixed, spreads and costs rose without a clear liquidity benefit, and no permanent wider-tick regime was adopted. See *Tick Sizes and Fractional Ticks*, Part II.
+**Tick Size Pilot Program:** A US SEC study (October 2016 – October 2018) that widened the tick size to five cents for roughly 1,200 small-capitalisation stocks to test whether coarser ticks improve market-making economics and liquidity for thinly traded names. Results were mixed: quoted spreads and costs for small trades rose, displayed size at the best prices rose sharply, but the hoped-for improvement in overall liquidity and capital formation did not appear, and no permanent wider-tick regime was adopted. See *Tick Sizes and Fractional Ticks*, Part II.
 
 **Tick-to-Trade Latency:** The time from when a market data message leaves the exchange to when an order based on that message is received by the exchange. A key performance metric for market makers and HFT firms.
 
@@ -591,6 +609,8 @@ orders in thin books experience more slippage.
 **Time-In-Force (TIF):** The attribute specifying how long an order remains valid (DAY, GTC, IOC, FOK, ATO, ATC).
 
 **Top-of-Book (Level 1):** Market data showing only the best bid price, best ask price, and their quantities. The minimum information needed to understand the current market.
+
+**Total Addressable Market (TAM):** The total revenue available if a company captured 100% of its market. Often narrowed to the serviceable addressable market (SAM) and the share realistically obtainable (SOM). Popular in growth-company IPO pitches, and notorious for being stretched.
 
 **Trade:** An executed match between a buy and sell order. Also called a fill or execution.
 
@@ -604,6 +624,8 @@ orders in thin books experience more slippage.
 ## U {#glossary-u}
 
 **UUID (Universally Unique Identifier):** A 128-bit identifier designed to be unique without central coordination. UUID v4 is randomly generated; UUID v1 incorporates the current time and network address.
+
+**Underpricing:** Setting an IPO offer price below what the market will pay, visible as a first-day price jump. The gap multiplied by the number of shares sold is called money *left on the table*.
 
 **Uncross**
 The single atomic batch execution that occurs at the end of an auction phase.

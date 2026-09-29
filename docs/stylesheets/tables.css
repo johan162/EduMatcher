@@ -1,0 +1,48 @@
+/* tables.css — booktabs-style tables for the MkDocs (Material) site, the
+ * HTML counterpart of latex-tables.tex (PDF) and epub.css.in (EPUB):
+ * heavy top/bottom rule, normal rule under the header row, thin faint rule
+ * between data rows, plus a very faint zebra stripe. Loaded via extra_css
+ * in mkdocs.yml; overrides Material's boxed default table style.
+ */
+:root {
+  --em-table-rule: var(--md-default-fg-color);
+  --em-table-rule-thin: rgba(0, 0, 0, 0.12);
+  --em-table-stripe: rgba(0, 0, 0, 0.022);
+  --em-table-hover: rgba(0, 0, 0, 0.05);
+}
+
+[data-md-color-scheme="slate"] {
+  --em-table-rule: var(--md-default-fg-color--light);
+  --em-table-rule-thin: rgba(255, 255, 255, 0.12);
+  --em-table-stripe: rgba(255, 255, 255, 0.025);
+  --em-table-hover: rgba(255, 255, 255, 0.05);
+}
+
+.md-typeset table:not([class]) {
+  border: none;
+  border-radius: 0;
+  border-top: 2px solid var(--em-table-rule);
+  border-bottom: 2px solid var(--em-table-rule);
+  border-collapse: collapse;
+}
+
+.md-typeset table:not([class]) th {
+  border-bottom: 1px solid var(--em-table-rule);
+}
+
+.md-typeset table:not([class]) td {
+  border-top: none;
+}
+
+.md-typeset table:not([class]) tbody tr + tr td {
+  border-top: 1px solid var(--em-table-rule-thin);
+}
+
+.md-typeset table:not([class]) tbody tr:nth-child(even) {
+  background-color: var(--em-table-stripe);
+}
+
+.md-typeset table:not([class]) tbody tr:hover {
+  background-color: var(--em-table-hover);
+  box-shadow: none;
+}

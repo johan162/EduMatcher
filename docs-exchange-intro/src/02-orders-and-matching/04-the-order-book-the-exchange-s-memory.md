@@ -167,8 +167,7 @@ function match_aggressive_buy(incoming):        # incoming: {qty, limit_price or
                 pool.release_node(node)
                 node = next_node
             else:
-                node = node                           # partial fill of resting order; sweep stops here
-                break
+                break                                 # resting order partly filled: incoming is done
         if list_is_empty(level):
             ask_side.price_map.remove(level.price)
             pool.release_level(level)
@@ -185,7 +184,7 @@ Trace it against the book from the start of this chapter, best ask $150.35 × 1,
 Two properties of this loop are worth making explicit because both were asserted earlier in the chapter without proof:
 
 - **Every fill in a sweep can print at a different price** (here $150.35 then $150.36). The single-price rule is a property of *auctions* (covered later), never of continuous sweeps, this loop is precisely where "market impact" and "slippage" come from.
-- **The inner loop preserves time priority**: it always starts at `level.head`, the oldest order, and a partial fill of a resting order (`node.qty > 0` after trading) *stops* the sweep, because if the incoming order could not consume even the front order at this level, it certainly cannot reach the orders behind it. The remaining incoming quantity then either rests (limit) or is done (market).
+- **The inner loop preserves time priority**: it always starts at `level.head`, the oldest order, and moves to the next order only when the one in front is completely filled. A partial fill of a resting order (`node.qty > 0` after trading) can only happen when the incoming order has run out of quantity, so the sweep ends there, and the partly filled order keeps its place at the front of the queue. If instead the sweep ends because the book or the limit price is exhausted, any remaining incoming quantity either rests (limit) or is dropped (market).
 
 > **Key idea:** The three operations, insert, cancel, sweep, are the entire contract of an order book, and each one's cost is dominated by a single step: the price-map lookup on insert, the pointer unlink on cancel, and the level-by-level walk on sweep. Every optimisation in the preceding sections (best-price pointers, doubly-linked queues, the order-ID index, pooled allocation) exists to make exactly one of those steps constant time. If you can implement these three functions with the costs annotated above, you have implemented the core of a matching engine; everything else is order types, risk checks, and protocol.
 
@@ -207,7 +206,7 @@ The **mid price** is the arithmetic average of the best bid and best ask: (150.3
 
 **Depth** refers to how much quantity is resting at each price level. A market with 50,000 shares resting within $0.05 of the best bid is "deep", you can trade a large size without moving the price much. A market with only 100 shares available near the best price is "shallow", a single large order will sweep through multiple price levels.
 
-**Level 1 data** shows only the best bid price, best ask price, and quantities. **Level 2 data** (also called **market depth** or the full order book) shows all resting price levels. Professional traders subscribe to Level 2 data because depth reveals information about near-term price pressure.
+**Level 1 data** shows only the best bid price, best ask price, and quantities. **Level 2 data** (also called **market depth** or **market-by-price**) shows the aggregated quantity at several (sometimes all) price levels. **Level 3 data** (**market-by-order**) goes further and shows every individual resting order, still without revealing who placed it. Professional traders subscribe to depth data because it reveals information about near-term price pressure.
 
 ## Measuring Depth
 

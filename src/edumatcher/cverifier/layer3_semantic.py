@@ -110,7 +110,7 @@ def _check_mm_seeds(raw: dict[str, Any], results: list[CheckResult]) -> None:
     mm_max_spread: int | None = None
     if isinstance(mm_obligation_defaults, dict) and mm_obligation_defaults:
         try:
-            mm_max_spread = int(mm_obligation_defaults.get("mm_max_spread_ticks", 10))
+            mm_max_spread = int(mm_obligation_defaults.get("mm_max_spread_ticks", 20))
         except (TypeError, ValueError):
             mm_max_spread = 10
 

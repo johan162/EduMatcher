@@ -17,13 +17,13 @@ A professional trading firm may submit thousands of orders per second. Even a br
 
 **Position limits and credit limits.** These two controls are frequently grouped together but measure different things and require different data to evaluate.
 
-*Position limits* cap the number of units a participant may hold in a given instrument, long or short. A position limit of 500,000 shares means a participant cannot hold more than 500,000 shares long or be more than 500,000 shares short at any time. Checking a position limit requires knowing the participant's current settled and unsettled position , data fed from the clearing system into the gateway as a continuously updated parameter. They are designed to prevent any single participant from accumulating a position large enough to create settlement or market concentration risk.
+*Position limits* cap the number of units a participant may hold in a given instrument, long or short. A position limit of 500,000 shares means a participant cannot hold more than 500,000 shares long or be more than 500,000 shares short at any time. Checking a position limit requires knowing the participant's current settled and unsettled position, data fed from the clearing system into the gateway as a continuously updated parameter. They are designed to prevent any single participant from accumulating a position large enough to create settlement or market concentration risk.
 
-*Credit limits* (also called notional or exposure limits) cap the total financial obligation outstanding at any moment: the mark-to-market value of current positions plus the notional value of all open orders not yet filled. A credit limit of $10 million means the sum of position value plus unfilled order commitments cannot exceed $10 million. Credit limits are harder to check in real time than position limits because they require tracking the full "open order book" , every outstanding order submission and cancellation , as well as settled positions. The example above: already long 50,000 shares, new order would take you to 100,000, limit is 75,000 , that is a position limit breach. A separate check might reject an order because the notional value of all outstanding orders already exceeds the credit threshold, even if the eventual position itself would be within limits.
+*Credit limits* (also called notional or exposure limits) cap the total financial obligation outstanding at any moment: the mark-to-market value of current positions plus the notional value of all open orders not yet filled. A credit limit of $10 million means the sum of position value plus unfilled order commitments cannot exceed $10 million. Credit limits are harder to check in real time than position limits because they require tracking the full "open order book", every outstanding order submission and cancellation, as well as settled positions. For example: a participant already long 50,000 shares, with a position limit of 75,000, submits a buy order for 50,000 more; the order would take the position to 100,000, so it is rejected as a position limit breach. A separate check might reject an order because the notional value of all outstanding orders already exceeds the credit threshold, even if the eventual position itself would be within limits.
 
 **Rate limiting / throttling.** Each participant connection (gateway) is permitted to submit at most N orders per second. If submissions arrive faster than this rate, excess orders are queued or rejected. This protects the exchange from denial-of-service conditions, whether deliberate or accidental.
 
-**Short sale flagging.** In the United States, Regulation SHO (2005) requires that any sell order where the seller does not own the shares be explicitly marked as a **short sale** in the FIX message. The gateway must validate two things: (1) that the "short" flag is correctly present on any sell order for shares the participant does not hold, and (2) that the participant has a valid **locate** confirming shares are available to borrow. Accepting a short sale without a locate is a Reg SHO violation. As described in the *Short Selling* section of Part I, the locate process itself happens in prime brokerage infrastructure outside the exchange, but the gateway enforces that the flag is present before forwarding to the matching engine.
+**Short sale flagging.** In the United States, Regulation SHO (in force since 2005) requires every sell order to be marked "long", "short", or "short exempt", and a short sale to be backed by a **locate** confirming the shares can be borrowed. The division of labour matters for developers. The *broker-dealer* that accepts the client's order is responsible for the locate, and its own pre-trade risk layer checks it; the exchange cannot know who owns what. What the exchange gateway can and must enforce is that the marking field is present and valid, because it drives exchange-side behaviour (for example, the short-sale price test of Rule 201, which restricts short sales in a stock that has already fallen 10% in a day) and is recorded in the audit trail. As described in the *Short Selling* section of Part I, the locate process itself happens in prime brokerage infrastructure outside the exchange.
 
 **Self-match prevention (SMP).** Detects when an incoming order would match against a resting order from the same participant, a "wash trade." Described fully in the *Self-Match Prevention* section of this Part.
 
@@ -31,14 +31,14 @@ A professional trading firm may submit thousands of orders per second. Even a br
 
 The sequence in which pre-trade checks run is not arbitrary. Checks requiring external state lookups are more expensive than checks that can be performed on the order message alone. The standard pattern is to fail-fast with the cheapest checks first:
 
-1. **Format and syntax** , Is the message well-formed? Are required fields present and correctly typed? Zero external lookups. Cheapest possible rejection.
-2. **Symbol validity** , Is the symbol known, active, and in a session state that accepts orders? Requires only a reference data table lookup.
-3. **Rate limiting** , Is this gateway within its message rate allowance? In-memory counter per gateway, no external state.
-4. **Fat-finger price check** , Is the submitted price within a configured percentage of the reference price? Requires only a cached reference price per symbol.
-5. **Quantity and notional limits** , Does the order exceed size or value thresholds? Requires only the order fields and configured thresholds.
-6. **Short sale flag check** , If the order is a sell, is the flag correctly set and locate valid?
-7. **Position and credit limits** , Would this order breach the participant's position or credit limits? Requires current position data from the clearing system , the most expensive check.
-8. **SMP pre-check** , Does an obvious self-match with a resting order exist?
+1. **Format and syntax**, Is the message well-formed? Are required fields present and correctly typed? Zero external lookups. Cheapest possible rejection.
+2. **Symbol validity**, Is the symbol known, active, and in a session state that accepts orders? Requires only a reference data table lookup.
+3. **Rate limiting**, Is this gateway within its message rate allowance? In-memory counter per gateway, no external state.
+4. **Fat-finger price check**, Is the submitted price within a configured percentage of the reference price? Requires only a cached reference price per symbol.
+5. **Quantity and notional limits**, Does the order exceed size or value thresholds? Requires only the order fields and configured thresholds.
+6. **Short sale marking check**, If the order is a sell, is it marked long, short, or short exempt, and does the marking pass any active short-sale restriction?
+7. **Position and credit limits**, Would this order breach the participant's position or credit limits? Requires current position data from the clearing system, the most expensive check.
+8. **SMP pre-check**, Does an obvious self-match with a resting order exist?
 
 Failing at step 1 takes nanoseconds. Failing at step 7 takes longer because it requires consulting external state. Running all checks in parallel wastes resources on orders that would be rejected at step 1; running them in this sequence minimises latency for both accepted and rejected orders.
 
@@ -67,7 +67,7 @@ flowchart TD
     F -->|Yes| G
 
     G{"6. Short sale\nflag correct?"}
-    G -->|No| R6["REJECTED\nReg SHO violation"]
+    G -->|No| R6["REJECTED\nMissing or invalid sale marking"]
     G -->|Yes| H
 
     H{"7. Position &\ncredit limits OK?"}

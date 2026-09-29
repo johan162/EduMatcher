@@ -42,7 +42,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] A. Price discovery means the current price reflects the aggregate opinion of willing participants
 - [ ] B. Liquidity means a participant can convert an asset to cash without an indefinite wait for a counterparty
 - [ ] C. Fairness means the rules for who trades first are decided case-by-case by exchange staff
-- [ ] D. Regulation NMS is the reason the US has more than a dozen competing registered equity exchanges
+- [ ] D. Regulation NMS helped shape a US market with more than a dozen competing registered equity exchanges
 - [ ] E. The Securities Exchange Act of 1934 was passed before the 1929 crash
 
 ### 3. Participants and the maker/taker distinction
@@ -57,7 +57,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] B. The CFTC oversees US futures and derivatives exchanges
 - [ ] C. MiFID II applies only to US equity markets
 - [ ] D. Regulation SHO governs short sales, including the locate requirement
-- [ ] E. The Market Access Rule (15c3-5) was enacted in direct response to the 2010 Flash Crash
+- [ ] E. The Market Access Rule (15c3-5) requires broker-dealers with market access to have pre-trade risk controls and the ability to halt trading
 
 ### 5. Historic market crashes
 - [ ] A. Black Monday, 19 October 1987, saw US markets fall 22.6% in a single day
@@ -137,7 +137,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] B. A cancel-and-replace always retains the original order's queue priority
 - [ ] C. A quantity decrease amendment retains the resting order's original timestamp
 - [ ] D. Pro-rata allocation rewards order size over arrival speed
-- [ ] E. CME uses pro-rata allocation for its SOFR and Treasury futures
+- [ ] E. CME uses a largely pro-rata "allocation" algorithm for its SOFR futures
 
 <div style="page-break-after: always;"></div>
 
@@ -183,7 +183,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] B. If imbalance is tied between two candidate prices, the algorithm prefers the price in the direction of remaining pressure
 - [ ] C. Proximity to a reference price is used as a final tie-breaker if imbalance and pressure are both equal
 - [ ] D. The indicative uncross price is recalculated only once, at the very start of the auction
-- [ ] E. NYSE begins publishing closing auction imbalances at 3:45pm for a 4:00pm uncross
+- [ ] E. NYSE begins publishing closing auction imbalances at 3:50pm for a 4:00pm uncross
 
 ### 22. Trading session transitions
 - [ ] A. PRE_OPEN transitions to OPENING_AUCTION at the scheduled auction start time
@@ -239,7 +239,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 ### 29. Drop copy and the audit trail
 - [ ] A. Drop copy is a public feed available to any market participant who subscribes
 - [ ] B. A drop copy sequence number lets a recipient detect and request replay of missed events
-- [ ] C. The audit trail must be complete, immutable, and retained for a period such as seven years under US rules
+- [ ] C. The audit trail must be complete, immutable, and retained for several years, commonly five to seven depending on jurisdiction and record type
 - [ ] D. Deterministic replay means the same input sequence must always reproduce the same fills and book state
 - [ ] E. A clearing broker can use drop copy to begin clearing and settlement before end-of-day reports arrive
 
@@ -250,7 +250,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] B. The dangerous Power Peg code had been fully deleted from the codebase before the incident
 - [ ] C. Knight lacked a firm-wide position or notional limit that could have halted the runaway system sooner
 - [ ] D. The exchange's own systems rejected the majority of Knight's erroneous orders
-- [ ] E. Knight's kill switch, in principle available, was too slow to exercise effectively during the crisis
+- [ ] E. Knight lacked clear incident-response guidance on when to disconnect a malfunctioning system
 
 &nbsp;
 

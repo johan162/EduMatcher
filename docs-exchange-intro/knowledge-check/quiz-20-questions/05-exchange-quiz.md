@@ -38,8 +38,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 
 ### 2. The VOC and Isaac Le Maire
 - [ ] A. Isaac Le Maire's 1609 short-selling scheme targeted shares of the Dutch East India Company (VOC)
-- [ ] B. The Amsterdam city council's attempt to ban short selling in 1610 was successful and ended the practice permanently
-- [ ] C. The VOC issued the world's first publicly traded shares, in 1602
+- [ ] B. The Dutch authorities' 1610 ban on short selling was successful and ended the practice permanently
+- [ ] C. The VOC's shares, first traded in 1602, are widely regarded as the world's first publicly traded shares
 - [ ] D. Le Maire's operation is generally cited as a single, isolated short sale involving one share
 - [ ] E. Joseph de la Vega's 1688 book about the VOC share market predates Le Maire's short-selling scheme
 
@@ -122,7 +122,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] B. SBE messages are generally faster to decode than equivalent text-based FIX messages, contributing to microsecond order-submission times
 - [ ] C. A market maker's quote is a single instruction that can generate two linked order legs, one for the bid and one for the ask
 - [ ] D. Quote IDs and the order IDs generated from a quote are always required to be identical
-- [ ] E. Cross-broker SMP-tagging standards can allow a self-match-prevention ID to be shared and recognized across multiple brokers
+- [ ] E. Some venues allow a self-match-prevention ID to be shared and recognized across multiple executing brokers
 
 ### 14. Novation
 - [ ] A. Novation is the process by which a central counterparty steps between buyer and seller, so each faces the CCP rather than each other

@@ -76,10 +76,17 @@ OUTSTANDING_ARGS=(
   --outstanding-shares AAPL:15400000000
 )
 
+SMP_ARGS=()
+for gateway in "${GATEWAYS[@]}"; do
+  SMP_ARGS+=(--gateway-smp "${gateway%%:*}:CANCEL_AGGRESSOR")
+done
+
 COMMON_ARGS=(
   --symbols "${SYMBOLS[@]}"
   --gateways "${GATEWAYS[@]}"
+  "${SMP_ARGS[@]}"
   --seed-mm-mid-range 20:300
+  --mm-seed-spread-ticks 10
   --seed-last-prices-from-mm
   --output engine_config.yaml
   --force
@@ -109,11 +116,11 @@ COMMON_ARGS=(
   --risk-level HIGH_BETA:0.12:0.04 \
   --cb-levels L1:0.07:5 L2:0.13:15 L3:0.20:0 \
   --cb-window-ns 300000000000 \
-  --mm-spread-ticks 12 \
+  --mm-spread-ticks 20 \
   --mm-min-qty 200 \
   --enforce-mm-obligations \
   --tick-decimals 2 \
-  --symbol-opts AAPL:level=CORE,mm_spread_ticks=8,mm_min_qty=300 \
+  --symbol-opts AAPL:level=CORE,mm_spread_ticks=20,mm_min_qty=300 \
   --post-trade-gateway \
   --post-trade-name ralf-gwy01 \
   --post-trade-bind-address 0.0.0.0 \

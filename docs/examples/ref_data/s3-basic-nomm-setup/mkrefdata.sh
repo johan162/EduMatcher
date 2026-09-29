@@ -73,12 +73,21 @@ OUTSTANDING_ARGS=(
   --outstanding-shares TSLA:3200000000
 )
 
+SMP_ARGS=()
+for gateway in "${GATEWAYS[@]}"; do
+  SMP_ARGS+=(--gateway-smp "${gateway%%:*}:CANCEL_AGGRESSOR")
+done
+
 COMMON_ARGS=(
   --symbols "${SYMBOLS[@]}"
   --gateways "${GATEWAYS[@]}"
+  "${SMP_ARGS[@]}"
   --no-mm-seed-quotes
   --no-collars
   --no-circuit-breakers
+  --no-enforce-mm-obligations
+  --seed-mm-mid-range 20:300
+  --seed-last-prices-from-mm
   --output engine_config.yaml
   --force
   --comment-default-config-fields

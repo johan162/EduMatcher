@@ -1532,6 +1532,36 @@ def _validate_seed_mm_mid_range_grid(
             )
 
 
+def _validate_seed_spread_against_mm_obligations(
+    symbols: list[str],
+    symbol_overrides: dict[str, SymbolOverride],
+    mm_spread_ticks: int,
+    mm_seed_spread_ticks: int,
+) -> None:
+    """Reject seed quotes wider than their effective MM spread obligation.
+
+    ``mm_seed_spread_ticks`` is the distance from the midpoint to each quote
+    side, while ``mm_spread_ticks`` is the complete bid-ask spread. A seed
+    therefore occupies ``2 * mm_seed_spread_ticks`` ticks and must fit the
+    global or symbol-specific obligation before it is written to YAML.
+    """
+    seed_spread_ticks = 2 * mm_seed_spread_ticks
+    for symbol in symbols:
+        override = symbol_overrides.get(symbol)
+        max_spread_ticks = (
+            override.mm_spread_ticks
+            if override is not None and override.mm_spread_ticks is not None
+            else mm_spread_ticks
+        )
+        if seed_spread_ticks > max_spread_ticks:
+            raise ValueError(
+                f"seed quote spread ({seed_spread_ticks} ticks) exceeds "
+                f"mm_max_spread_ticks ({max_spread_ticks}) for {symbol}; "
+                "reduce --mm-seed-spread-ticks or raise the effective "
+                "--mm-spread-ticks"
+            )
+
+
 def _tick_decimals_by_symbol(
     symbols: list[str],
     symbol_overrides: dict[str, SymbolOverride],
@@ -1794,6 +1824,17 @@ def main() -> None:
             file=sys.stderr,
         )
         raise SystemExit(2)
+    if seed_mm_mid_range is not None and has_mm_gateway and not args.no_mm_seed_quotes:
+        try:
+            _validate_seed_spread_against_mm_obligations(
+                symbols,
+                symbol_overrides,
+                int(args.mm_spread_ticks),
+                int(args.mm_seed_spread_ticks),
+            )
+        except ValueError as exc:
+            print(f"[ERROR] {exc}", file=sys.stderr)
+            raise SystemExit(2) from exc
 
     try:
         spec = ConfigSpec(
@@ -1823,7 +1864,7 @@ def main() -> None:
             mm_min_qty=int(args.mm_min_qty),
             mm_seed_spread_ticks=int(args.mm_seed_spread_ticks),
             enforce_mm_obligations=bool(args.enforce_mm_obligations),
-            emit_mm_defaults=has_mm_gateway,
+            emit_mm_defaults=has_mm_gateway and bool(args.enforce_mm_obligations),
             tick_decimals=int(args.tick_decimals),
             seed_last_prices=bool(args.seed_last_prices),
             random_seed=args.seed,
