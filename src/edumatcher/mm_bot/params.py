@@ -56,6 +56,7 @@ PASSIVE_KEYS: tuple[str, ...] = (
 GATEWAY_KEYS: tuple[str, ...] = (
     "label",
     "id_suffix",
+    "gateway_id",
     "engine_pull",
     "engine_pub",
     "startup_session_timeout_sec",
@@ -100,6 +101,7 @@ TIER2_DEFAULTS: dict[str, Any] = {
 GATEWAY_DEFAULTS: dict[str, Any] = {
     "label": None,
     "id_suffix": "01",
+    "gateway_id": None,
     "engine_pull": "tcp://127.0.0.1:5555",
     "engine_pub": "tcp://127.0.0.1:5556",
     "startup_session_timeout_sec": 5.0,

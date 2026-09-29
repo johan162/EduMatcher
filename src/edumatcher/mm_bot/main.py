@@ -163,6 +163,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Running number for gateway ID (default: 01)",
     )
     parser.add_argument(
+        "--gateway-id",
+        default=None,
+        help=(
+            "Use this exact gateway ID (e.g. MM01) instead of deriving "
+            "MM_<label>_<id-suffix>; it must match a MARKET_MAKER gateway "
+            "in the engine config"
+        ),
+    )
+    parser.add_argument(
         "--drift-ticks",
         type=int,
         default=None,
@@ -403,6 +412,8 @@ def _resolve_gateway_settings(
 
 
 def _derive_gateway_id(args: argparse.Namespace, symbols: list[str]) -> str:
+    if args.gateway_id:
+        return str(args.gateway_id)
     label = args.label if args.label else "_".join(symbols)
     return f"MM_{label}_{args.id_suffix}"
 

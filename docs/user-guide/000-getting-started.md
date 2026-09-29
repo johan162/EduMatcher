@@ -527,7 +527,7 @@ when you want exact command-line flags and startup dependencies.
 
 Once you know which processes you want, you do not have to start them one at a
 time forever. `pm-opctl-cli start` brings up a whole named profile — `micro`,
-`mini` or `default` — writes each process's log to a file, and reports the lot
+`mini`, `default` or `mm-demo` — writes each process's log to a file, and reports the lot
 with `pm-opctl-cli list`. It is what the container runs internally, and it works
 the same on the host. See
 [Running the Exchange](040-running-the-exchange.md#starting-the-stack-with-pm-opctl-cli).

@@ -393,6 +393,7 @@ symbol:
 |---|---|
 | `--label` | `gateway.label` |
 | `--id-suffix` | `gateway.id_suffix` |
+| `--gateway-id` | `gateway.gateway_id` |
 | `--engine-pull` | `gateway.engine_pull` |
 | `--engine-pub` | `gateway.engine_pub` |
 | `--startup-session-timeout-sec` | `gateway.startup_session_timeout_sec` |
@@ -459,6 +460,7 @@ Rules:
 | `--symbols SYM1,SYM2,...`          | *required¹*  | —                      | Comma-separated symbols sharing one set of settings — mutually exclusive with `--symbol` |
 | `--label NAME`                     | gateway      | *derived*              | Override the gateway-ID symbol segment (default: the single symbol, or every symbol joined with `_`) |
 | `--id-suffix NN`                   | gateway      | `01`                   | Running number for gateway ID (`MM_AAPL_01`)                       |
+| `--gateway-id ID`                  | gateway      | *derived*              | Use this exact gateway ID (e.g. `MM01`) instead of `MM_<label>_<id-suffix>`; it must be a `MARKET_MAKER` gateway in the engine config |
 | `--engine-pull ADDR`               | gateway      | `tcp://127.0.0.1:5555` | Engine PUSH/PULL address                                           |
 | `--engine-pub ADDR`                | gateway      | `tcp://127.0.0.1:5556` | Engine PUB address                                                 |
 | `--startup-session-timeout-sec F`  | gateway      | `5.0`                  | Max wait for first `session.state`                                 |
@@ -623,6 +625,7 @@ symbols: [AAPL, MSFT, TSLA]
 |---|---|---|---|
 | `label` | string | derived from the symbols | Gateway ID becomes `MM_<label>_<id_suffix>` |
 | `id_suffix` | string | `"01"` | **Quote it** — unquoted `01` is the number `1` to YAML, and is rejected |
+| `gateway_id` | string | derived | Exact gateway ID; when set, `label` and `id_suffix` are ignored |
 | `engine_pull` | string | `tcp://127.0.0.1:5555` | Engine PUSH/PULL address |
 | `engine_pub` | string | `tcp://127.0.0.1:5556` | Engine PUB address |
 | `startup_session_timeout_sec` | number | `5.0` | Must be > 0 |

@@ -411,7 +411,7 @@ make down-all       # stop and remove everything
 |---|---|---|
 | `CONFIG=<name>` | `up`, `up-all` | Deploy a bundled example |
 | `CONFIG=<file>` | `up-all` | Copy the file to `config/`, mount it read-only at `/config`, deploy it |
-| `PROFILE=<name>` | `up`, `up-all` | `default`, `mini` or `micro` |
+| `PROFILE=<name>` | `up`, `up-all` | `default`, `mini`, `micro` or `mm-demo` |
 | `ZMQ=1` | `up`, `up-all` | Add `compose.zmq.yaml`: publish the raw bus and set the engine/index bind hosts to `0.0.0.0` |
 | `SSH=1` | `up`, `up-all` | Add `compose.ssh.yaml` and prepare `authorized_keys` |
 | `CONFIG_GUI=1` | `up-all` | Add `compose.config-gui.yaml` |

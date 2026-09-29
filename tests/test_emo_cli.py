@@ -53,8 +53,19 @@ def test_start_debug_defaults_to_false() -> None:
 
 def test_load_profiles_returns_builtins_when_no_config_file() -> None:
     profiles = load_profiles()
-    assert set(profiles) == {"default", "micro", "mini"}
+    assert set(profiles) == {"default", "micro", "mini", "mm-demo"}
     assert profiles["default"] == DEFAULT_PROCESSES
+
+
+def test_mm_demo_profile_is_default_plus_a_passive_mm01_bot() -> None:
+    processes = load_profiles()["mm-demo"]
+    assert processes[: len(DEFAULT_PROCESSES)] == DEFAULT_PROCESSES
+    assert [p["name"] for p in processes[len(DEFAULT_PROCESSES) :]] == ["mm-bot"]
+    command = processes[-1]["command"]
+    assert command[0] == "pm-mm-bot"
+    assert command[command.index("--gateway-id") + 1] == "MM01"
+    assert command[command.index("--strategy") + 1] == "passive"
+    assert "--config" not in command
 
 
 # -- start_profile: debug flag rewrites every command -------------------------
@@ -188,7 +199,7 @@ def test_init_creates_editable_profiles_but_never_overwrites(
 ) -> None:
     assert emo_cli.create_config() == 0
     created = emo_cli.config_path().read_text(encoding="utf-8")
-    assert set(emo_cli.load_profiles()) == {"default", "micro", "mini"}
+    assert set(emo_cli.load_profiles()) == {"default", "micro", "mini", "mm-demo"}
 
     assert emo_cli.create_config() == 1
     assert emo_cli.config_path().read_text(encoding="utf-8") == created

@@ -3191,6 +3191,7 @@ _shtab_pm_mm_bot_options=(
   "--fade-sec[passive strategy\: seconds a fade lasts after a fill\; 0 disables fading (default\: 3.0)]:fade_sec:"
   "--qty[Quote size on each leg (default\: 500)]:qty:"
   "--id-suffix[Running number for gateway ID (default\: 01)]:id_suffix:"
+  "--gateway-id[Use this exact gateway ID (e.g. MM01) instead of deriving MM_\<label\>_\<id-suffix\>\; it must match a MARKET_MAKER gateway in the engine config]:gateway_id:"
   "--drift-ticks[Reprice when mid moves by more than this many ticks\; passive strategy\: when a side\'s target price does (default\: 3)]:drift_ticks:"
   "--reissue-delay-ms[Milliseconds to wait after fill before re-issuing (default\: 200)]:reissue_delay_ms:"
   "--tif[Time-in-force for quote legs (default\: DAY)]:tif:(DAY GTC)"

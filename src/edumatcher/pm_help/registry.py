@@ -976,6 +976,11 @@ _AI_AND_BOTS: tuple[CommandInfo, ...] = (
             Option(
                 "--id-suffix STR", "01", "Running number for gateway ID (MM_AAPL_01)"
             ),
+            Option(
+                "--gateway-id STR",
+                "MM_<symbols>_<id-suffix>",
+                "Use this exact gateway ID (e.g. MM01) instead of deriving one",
+            ),
             Option("--drift-ticks N", "3", "Reprice when mid moves by this many ticks"),
             Option(
                 "--reissue-delay-ms MS",

@@ -988,6 +988,11 @@ class TestMainWiring:
                 "MM_AAPL_MSFT_09",
                 id="suffix",
             ),
+            pytest.param(
+                ["--symbols", "AAPL,MSFT", "--gateway-id", "MM01"],
+                "MM01",
+                id="explicit-gateway-id",
+            ),
         ],
     )
     def test_gateway_identity(
@@ -1002,6 +1007,17 @@ class TestMainWiring:
         path = write(tmp_path, "version: 1\ngateway:\n  label: FILE\nsymbols: [AAPL]\n")
         assert run_main(["--config", str(path), "--label", "CLI"]) == 0
         assert fake_bot.instances[0].kwargs["gateway_id"] == "MM_CLI_01"
+
+    def test_a_gateway_id_beats_label_and_suffix(
+        self, fake_bot: type[FakeBot], tmp_path: Path
+    ) -> None:
+        path = write(
+            tmp_path,
+            "version: 1\ngateway:\n  gateway_id: MM01\n  label: FILE\n"
+            "symbols: [AAPL]\n",
+        )
+        assert run_main(["--config", str(path), "--id-suffix", "09"]) == 0
+        assert fake_bot.instances[0].kwargs["gateway_id"] == "MM01"
 
     def test_engine_endpoints_come_from_the_file_when_not_given(
         self, fake_bot: type[FakeBot], tmp_path: Path

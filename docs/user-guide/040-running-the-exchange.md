@@ -271,16 +271,17 @@ pm-opctl-cli stop           # stop what it started
 `start` is idempotent: a process it finds already running is left alone and
 reported as such, so it is safe to re-run after adding one by hand.
 
-### The three built-in profiles
+### The four built-in profiles
 
 | Profile | Processes | Use it for |
 |---|---|---|
 | `micro` | `pm-log-srv`, `pm-engine` | The smallest thing that can match an order |
 | `mini` | `micro` plus `pm-stats`, `pm-scheduler`, `pm-md-gwy`, `pm-api-gwy` (desk), `pm-alf-gwy`, `pm-ralf-gwy`, `pm-dc-gwy` | A trading-capable venue with external access, without clearing or audit |
 | `default` | `mini` plus `pm-audit`, `pm-clearing`, `pm-index`, `pm-balf-gwy` and the second `pm-api-gwy` instance (`dashboards`) | Everything — the operational baseline below |
+| `mm-demo` | `default` plus one `pm-mm-bot` (`passive` strategy, gateway `MM01`, all ten `s10-*` symbols) | Showing students a market maker at work; the default of the `deployment/curl` installer |
 
 The built-ins are used as they are when no configuration file exists.
-`pm-opctl-cli init` writes all three to `<DATA_DIR>/emo-config.yaml`, and once
+`pm-opctl-cli init` writes all four to `<DATA_DIR>/emo-config.yaml`, and once
 that file exists **its profiles replace the built-ins entirely**. That is the
 supported way to add a process, change a flag or define a profile of your own.
 
