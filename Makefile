@@ -128,6 +128,13 @@ USER_GUIDE_LUA_FILTER := $(DOCS_DIR)/user-guide/pagebreaks.lua
 USER_GUIDE_ADMONITIONS_LUA_FILTER := $(DOCS_DIR)/admonitions.lua
 USER_GUIDE_LUA_FILTER_FLAGS := --lua-filter $(USER_GUIDE_LUA_FILTER) --lua-filter $(USER_GUIDE_ADMONITIONS_LUA_FILTER)
 
+# Professional (booktabs-style) table rules for every PDF build:
+# latex-tables.tex is \input by each LaTeX template and sets rule weights and
+# colours; latex-table-rules.awk post-processes the pandoc LaTeX body to add a
+# thin rule between the data rows of every longtable.
+LATEX_TABLES_TEX := $(DOCS_DIR)/latex-tables.tex
+LATEX_TABLE_RULES_AWK := $(DOCS_DIR)/latex-table-rules.awk
+
 # Markdown sources that are concatenated into the User Guide PDF body.
 # Keep this list markdown-only; non-markdown assets are tracked separately
 # via USER_GUIDE_PDF_DEPS so they trigger rebuilds without polluting content.
@@ -141,7 +148,9 @@ USER_GUIDE_TEMPLATE_DEPS := \
 	$(DOCS_DIR)/user-guide/template_a4.tex.in \
 	$(DOCS_DIR)/user-guide/template_dark_a4.tex.in \
 	$(DOCS_DIR)/user-guide/template_b5.tex.in \
-	$(DOCS_DIR)/user-guide/template_dark_b5.tex.in
+	$(DOCS_DIR)/user-guide/template_dark_b5.tex.in \
+	$(LATEX_TABLES_TEX) \
+	$(LATEX_TABLE_RULES_AWK)
 
 # User Guide EPUB output path, source CSS template, and generated CSS
 # (EPUB_FIGURE_MAX_WIDTH is substituted into the latter, same @@VAR@@
@@ -165,7 +174,9 @@ TRAINING_GUIDE_TEMPLATE_DEPS := \
 	$(DOCS_DIR)/training/template_dark_a4.tex.in \
 	$(DOCS_DIR)/training/template_b5.tex.in \
 	$(DOCS_DIR)/training/template_dark_b5.tex.in \
-	$(DOCS_DIR)/assets/cover-training-guide.png
+	$(DOCS_DIR)/assets/cover-training-guide.png \
+	$(LATEX_TABLES_TEX) \
+	$(LATEX_TABLE_RULES_AWK)
 
 # Training Guide EPUB output path, source CSS template, and generated CSS —
 # mirrors USER_GUIDE_EPUB/EPUB_CSS_IN/EPUB_CSS above (EPUB_FIGURE_MAX_WIDTH
@@ -318,6 +329,7 @@ $$($1_PDF): $$(USER_GUIDE_MD_SOURCES) $$(USER_GUIDE_LUA_FILTER) $$(USER_GUIDE_AD
 	pandoc --from=markdown --to=latex --top-level-division=chapter --syntax-highlighting=none --filter "$(MERMAID_FILTER)" $$(USER_GUIDE_LUA_FILTER_FLAGS) --metadata paper_format=$(2) $$($1_CONCAT_MD) -o $$($1_BODY_TEX)
 	@sed -i.bak 's/\\def\\LTcaptype{none}/\\def\\LTcaptype{table}/g' $$($1_BODY_TEX)
 	@rm -f $$($1_BODY_TEX).bak
+	@awk -f $$(LATEX_TABLE_RULES_AWK) $$($1_BODY_TEX) > $$($1_BODY_TEX).tmp && mv $$($1_BODY_TEX).tmp $$($1_BODY_TEX)
 	@echo -e "$$(DARKYELLOW)  - Injecting user-guide body into LaTeX template $$(BRIGHTCYAN)\"$$(notdir $$($1_TEMPLATE))\"$(DARKYELLOW) ...$$(NC)"
 	@awk -v body="$$($1_BODY_TEX)" '\
 		/%%__USER_GUIDE_CONTENT__%%/ { while ((getline line < body) > 0) print line; close(body); inserted=1; next } \
@@ -512,6 +524,7 @@ $$($1_PDF): $$(TRAINING_GUIDE_MD_SOURCES) $$(TRAINING_GUIDE_TEMPLATE_DEPS) $$(US
 	pandoc --from=markdown --to=latex --top-level-division=chapter --syntax-highlighting=none --filter "$(MERMAID_FILTER)" $$(USER_GUIDE_LUA_FILTER_FLAGS) --metadata paper_format=$(2) $$($1_CONCAT_MD) -o $$($1_BODY_TEX)
 	@sed -i.bak 's/\\def\\LTcaptype{none}/\\def\\LTcaptype{table}/g' $$($1_BODY_TEX)
 	@rm -f $$($1_BODY_TEX).bak
+	@awk -f $$(LATEX_TABLE_RULES_AWK) $$($1_BODY_TEX) > $$($1_BODY_TEX).tmp && mv $$($1_BODY_TEX).tmp $$($1_BODY_TEX)
 	@echo -e "$$(DARKYELLOW)  - Injecting training body into LaTeX template $$(BRIGHTCYAN)\"$$(notdir $$($1_TEMPLATE))\"$$(DARKYELLOW) ...$$(NC)"
 	@awk -v body="$$($1_BODY_TEX)" '\
 		/%%__USER_GUIDE_CONTENT__%%/ { while ((getline line < body) > 0) print line; close(body); inserted=1; next } \
@@ -580,6 +593,9 @@ $$(CHAPTERS_A4_DIR)/$(notdir $(basename $(1))).pdf: \
 	@sed -i.bak 's/\\def\\LTcaptype{none}/\\def\\LTcaptype{table}/g' \
 		$$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1)))/body.tex
 	@rm -f $$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1)))/body.tex.bak
+	@awk -f $$(LATEX_TABLE_RULES_AWK) $$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1)))/body.tex \
+		> $$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1)))/body.tex.tmp \
+		&& mv $$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1)))/body.tex.tmp $$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1)))/body.tex
 	@awk -v body="$$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1)))/body.tex" '\
 		/%%__USER_GUIDE_CONTENT__%%/ { while ((getline line < body) > 0) print line; close(body); inserted=1; next } \
 		{ print } \

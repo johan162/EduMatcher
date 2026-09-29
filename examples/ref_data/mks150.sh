@@ -80,9 +80,16 @@ for index in "${!symbols[@]}"; do
   outstanding_args+=(--outstanding-shares "${symbols[$index]}:$((500000000 + index * 10000000))")
 done
 
+gateway_smp_args=()
+for gateway in "${gateways[@]}"; do
+  gateway_id="${gateway%%:*}"
+  gateway_smp_args+=(--gateway-smp "${gateway_id}:CANCEL_AGGRESSOR")
+done
+
 common_args=(
   --symbols "${symbols[@]}"
   --gateways "${gateways[@]}"
+  "${gateway_smp_args[@]}"
   --output engine_config.yaml
   --force
   --comment-default-config-fields
@@ -93,9 +100,18 @@ common_args=(
   --api-gateway-readonly-key
 )
 if [[ "$seed_quotes" == true ]]; then
-  common_args+=(--seed-mm-mid-range 20:300 --seed-last-prices-from-mm)
+  common_args+=(--seed-mm-mid-range 20:300 --mm-seed-spread-ticks 10 --seed-last-prices-from-mm)
 else
-  common_args+=(--no-mm-seed-quotes)
+  common_args+=(--no-mm-seed-quotes --seed-mm-mid-range 20:300 --seed-last-prices-from-mm)
+fi
+
+if [[ "$profile" == basic || "$profile" == nominal ]]; then
+  common_args+=(--no-collars)
+fi
+if [[ "$seed_quotes" == true ]]; then
+  common_args+=(--enforce-mm-obligations)
+else
+  common_args+=(--no-enforce-mm-obligations)
 fi
 
 gateway_args=(
@@ -136,9 +152,9 @@ case "$profile" in
       --depth-snapshot-tolerance-ticks 100 --static-band 0.20 --dynamic-band 0.02
       --risk-level CORE:0.18:0.02 --risk-level HIGH_BETA:0.12:0.04
       --cb-levels L1:0.07:5 L2:0.13:15 L3:0.20:0
-      --cb-window-ns 300000000000 --mm-spread-ticks 12 --mm-min-qty 200
-      --enforce-mm-obligations --tick-decimals 2
-      --symbol-opts AAPL:level=CORE,mm_spread_ticks=8,mm_min_qty=300
+      --cb-window-ns 300000000000
+      --tick-decimals 2
+      --symbol-opts AAPL:level=CORE
       --symbol-opts TSLA:level=HIGH_BETA,dynamic_band=0.04,cb_halt_l1=10
       --post-trade-gateway --post-trade-name ralf-gwy01
       --post-trade-bind-address 0.0.0.0 --post-trade-port 5580
