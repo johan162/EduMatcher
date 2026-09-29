@@ -86,9 +86,15 @@ OUTSTANDING_ARGS=(
   --outstanding-shares ORCL:2800000000
 )
 
+SMP_ARGS=()
+for gateway in "${GATEWAYS[@]}"; do
+  SMP_ARGS+=(--gateway-smp "${gateway%%:*}:CANCEL_AGGRESSOR")
+done
+
 COMMON_ARGS=(
   --symbols "${SYMBOLS[@]}"
   --gateways "${GATEWAYS[@]}"
+  "${SMP_ARGS[@]}"
   --no-mm-seed-quotes
   --output engine_config.yaml
   --force
@@ -118,11 +124,11 @@ SPECIFIC_ARGS=(
   --risk-level HIGH_BETA:0.12:0.04
   --cb-levels L1:0.07:5 L2:0.13:15 L3:0.20:0
   --cb-window-ns 300000000000
-  --mm-spread-ticks 12
-  --mm-min-qty 200
-  --enforce-mm-obligations
+  --seed-mm-mid-range 20:300
+  --seed-last-prices-from-mm
+  --no-enforce-mm-obligations
   --tick-decimals 2
-  --symbol-opts AAPL:level=CORE,mm_spread_ticks=8,mm_min_qty=300
+  --symbol-opts AAPL:level=CORE
   --symbol-opts TSLA:level=HIGH_BETA,dynamic_band=0.04,cb_halt_l1=10
   --post-trade-gateway
   --post-trade-name ralf-gwy01
