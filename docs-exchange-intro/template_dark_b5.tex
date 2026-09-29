@@ -123,6 +123,9 @@
 \pagecolor[rgb]{0.17,0.15,0.14}
 \color[rgb]{0.80,0.80,0.80}
 
+% Two-level numbering: chapters (N) and sections (N.M) only.
+\setcounter{secnumdepth}{1}
+
 \begin{document}
 
 % dummy-first-page-cover
@@ -176,7 +179,7 @@
 \cleardoublepage
 
 \begingroup
-\setcounter{tocdepth}{2}
+\setcounter{tocdepth}{1}
 \renewcommand{\contentsname}{Contents}
 \tableofcontents
 \endgroup

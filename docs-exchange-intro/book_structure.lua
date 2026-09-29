@@ -21,6 +21,18 @@ local mainmatter_started = false
 local backmatter_started = false
 local preface_started = false
 
+-- EPUB two-level numbering (chapter N, section N.M). LaTeX numbers its own
+-- \chapter/\section (secnumdepth=1 in the templates), so this is EPUB only.
+local chapter_num = 0
+local section_num = 0
+local in_chapter = false
+
+local function prepend_number(el, number)
+  el.content:insert(1, pandoc.Space())
+  el.content:insert(1, pandoc.Span({ pandoc.Str(number) }, { class = "header-section-number" }))
+  return el
+end
+
 local function emit_raw(line)
   return pandoc.RawBlock("latex", line)
 end
@@ -98,6 +110,7 @@ function Header(el)
   -- there), which is why the bug only showed up in the 4-part book.
   if el.level == 1 and is_part_heading(text) then
     in_part = true
+    in_chapter = false
     local is_first_part = not mainmatter_started
     if not mainmatter_started then
       mainmatter_started = true
@@ -128,6 +141,18 @@ function Header(el)
     blocks:insert(emit_raw("\\chapter*{" .. tex_escape(text) .. "}"))
     blocks:insert(emit_raw("\\addcontentsline{toc}{chapter}{" .. tex_escape(text) .. "}"))
     return blocks
+  end
+
+  if FORMAT == "epub3" and in_part and not backmatter_started then
+    if el.level == 1 then
+      chapter_num = chapter_num + 1
+      section_num = 0
+      in_chapter = true
+      return prepend_number(el, tostring(chapter_num))
+    elseif el.level == 2 and in_chapter then
+      section_num = section_num + 1
+      return prepend_number(el, chapter_num .. "." .. section_num)
+    end
   end
 
   return nil

@@ -15,6 +15,13 @@ h1, h2, h3, h4, h5, h6 {
   font-family: Helvetica, Arial, "DejaVu Sans", sans-serif;
 }
 
+/* Headings carry their own chapter/section numbers (book_structure.lua),
+   so drop the navigation list's own 1, 2, 3 markers. */
+nav#toc ol {
+  list-style-type: none;
+  padding-left: 1em;
+}
+
 code, pre {
   font-family: "DejaVu Sans Mono", Consolas, monospace;
   /* Monospace faces read visually larger than the body serif/sans faces at
