@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -2093,6 +2094,83 @@ class TestUnattributableEvents:
         bot._handle_session_state({"state": "CONTINUOUS"})
         assert push.sent == []
         assert all(bot._symbols_state[s].state == BotState.QUOTING for s in bot.symbols)
+
+
+# ========================================================================
+# 13b. --all-symbols: quote everything in the deployed configuration
+# ========================================================================
+
+
+class TestAllSymbols:
+    @staticmethod
+    def _deploy(monkeypatch: pytest.MonkeyPatch, symbols: list[str] | None) -> None:
+        compiled = (
+            None
+            if symbols is None
+            else SimpleNamespace(engine=SimpleNamespace(symbols=dict.fromkeys(symbols)))
+        )
+        monkeypatch.setattr(
+            "edumatcher.mm_bot.main.load_compiled_config", lambda: compiled
+        )
+
+    def test_quotes_every_deployed_symbol_with_shared_settings(
+        self, monkeypatch: pytest.MonkeyPatch, fake_bot: type[FakeBot]
+    ) -> None:
+        self._deploy(monkeypatch, ["AAPL", "msft", "TSLA"])
+        assert run_main(["--all-symbols", "--gap", "0.2", "--qty", "70"]) == 0
+        kwargs = fake_bot.instances[0].kwargs
+        assert kwargs["symbols"] == ["AAPL", "MSFT", "TSLA"]
+        assert kwargs["gateway_id"] == "MM_ALL_01"
+        assert {p["gap"] for p in kwargs["overrides"].values()} == {0.2}
+        assert {p["qty"] for p in kwargs["overrides"].values()} == {70}
+
+    def test_label_overrides_the_default_all_label(
+        self, monkeypatch: pytest.MonkeyPatch, fake_bot: type[FakeBot]
+    ) -> None:
+        self._deploy(monkeypatch, ["AAPL"])
+        assert run_main(["--all-symbols", "--label", "DESK"]) == 0
+        assert fake_bot.instances[0].kwargs["gateway_id"] == "MM_DESK_01"
+
+    def test_a_config_file_supplies_defaults_but_no_symbols(
+        self, monkeypatch: pytest.MonkeyPatch, fake_bot: type[FakeBot], tmp_path: Path
+    ) -> None:
+        self._deploy(monkeypatch, ["AAPL", "MSFT"])
+        path = write(tmp_path, "version: 1\ndefaults:\n  qty: 55\n")
+        assert run_main(["--all-symbols", "--config", str(path)]) == 0
+        overrides = fake_bot.instances[0].kwargs["overrides"]
+        assert {p["qty"] for p in overrides.values()} == {55}
+
+    @pytest.mark.parametrize(
+        "argv",
+        [
+            pytest.param(["--all-symbols", "--symbol", "AAPL"], id="symbol"),
+            pytest.param(["--all-symbols", "--symbols", "AAPL"], id="symbols"),
+        ],
+    )
+    def test_cannot_be_combined_with_explicit_symbols(
+        self, monkeypatch: pytest.MonkeyPatch, argv: list[str]
+    ) -> None:
+        self._deploy(monkeypatch, ["AAPL"])
+        assert run_main(argv) == 2
+
+    def test_cannot_be_combined_with_a_config_symbols_block(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        self._deploy(monkeypatch, ["AAPL"])
+        path = write(tmp_path, "version: 1\nsymbols: [AAPL]\n")
+        assert run_main(["--all-symbols", "--config", str(path)]) == 2
+
+    def test_no_deployed_configuration_is_a_usage_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._deploy(monkeypatch, None)
+        assert run_main(["--all-symbols"]) == 2
+
+    def test_a_deployed_configuration_without_symbols_is_a_usage_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._deploy(monkeypatch, [])
+        assert run_main(["--all-symbols"]) == 2
 
 
 # ========================================================================

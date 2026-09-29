@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from edumatcher.config_artifact import ArtifactError, load_compiled_config
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
     load_default_log_server_config,
@@ -77,6 +78,16 @@ def build_parser() -> argparse.ArgumentParser:
             "Comma-separated symbols (e.g. AAPL,MSFT) that all share the same "
             "settings — shorthand for repeating --symbol with no per-symbol "
             "flags; mutually exclusive with --symbol"
+        ),
+    )
+    parser.add_argument(
+        "--all-symbols",
+        action="store_true",
+        help=(
+            "Quote every symbol in the currently deployed configuration, all "
+            "with the same settings; the gateway ID defaults to MM_ALL_<nn>. "
+            "Mutually exclusive with --symbol, --symbols and a config file "
+            "'symbols:' block"
         ),
     )
     parser.add_argument(
@@ -411,10 +422,30 @@ def _resolve_gateway_settings(
     args.quiet = args.quiet or hoisted.get("quiet", False)
 
 
-def _derive_gateway_id(args: argparse.Namespace, symbols: list[str]) -> str:
+def _deployed_symbols(parser: argparse.ArgumentParser) -> list[str]:
+    """The symbols of the deployed configuration, for ``--all-symbols``."""
+    try:
+        compiled = load_compiled_config()
+    except ArtifactError as exc:
+        log.error("cannot read the deployed configuration: %s", exc)
+        raise SystemExit(1)
+    if compiled is None:
+        parser.error(
+            "--all-symbols needs a deployed configuration; run pm-config-deploy"
+        )
+    symbols = list(compiled.engine.symbols)
+    if not symbols:
+        parser.error("the deployed configuration defines no symbols")
+    return symbols
+
+
+def _derive_gateway_id(
+    args: argparse.Namespace, symbols: list[str], all_symbols: bool = False
+) -> str:
     if args.gateway_id:
         return str(args.gateway_id)
-    label = args.label if args.label else "_".join(symbols)
+    default_label = "ALL" if all_symbols else "_".join(symbols)
+    label = args.label if args.label else default_label
     return f"MM_{label}_{args.id_suffix}"
 
 
@@ -433,7 +464,9 @@ def main(argv: list[str] | None = None) -> None:
     file_config = EMPTY_FILE_CONFIG
     if args.config is not None:
         try:
-            file_config = load_bot_config(Path(args.config))
+            file_config = load_bot_config(
+                Path(args.config), symbols_required=not args.all_symbols
+            )
         except ValueError as exc:
             log.error("invalid config file: %s", exc)
             raise SystemExit(1)
@@ -441,14 +474,23 @@ def main(argv: list[str] | None = None) -> None:
     if scopes.symbol_argv and args.symbols:
         parser.error("--symbol and --symbols are mutually exclusive")
 
+    if args.all_symbols and (scopes.symbol_argv or args.symbols or file_config.symbols):
+        parser.error(
+            "--all-symbols cannot be combined with --symbol, --symbols or a "
+            "config file 'symbols:' block"
+        )
+
     symbol_cli, hoisted = _parse_symbol_scopes(parser, scopes.symbol_argv)
     _resolve_gateway_settings(args, hoisted, file_config)
 
-    extra_symbols = (
-        [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
-        if args.symbols
-        else []
-    )
+    if args.all_symbols:
+        extra_symbols = _deployed_symbols(parser)
+    elif args.symbols:
+        extra_symbols = [
+            s.strip().upper() for s in args.symbols.split(",") if s.strip()
+        ]
+    else:
+        extra_symbols = []
     if args.symbols and not extra_symbols:
         parser.error("--symbols must contain at least one non-empty symbol")
 
@@ -478,7 +520,7 @@ def main(argv: list[str] | None = None) -> None:
     log_level = _configure_logging(args)
     log.info("starting pm-mm-bot with log level %s", logging.getLevelName(log_level))
 
-    gateway_id = _derive_gateway_id(args, resolved.symbols)
+    gateway_id = _derive_gateway_id(args, resolved.symbols, args.all_symbols)
     bot_verbose = bool(args.verbose >= 1 or log_level <= logging.DEBUG)
     log.info(
         "resolved mm_bot config gateway_id=%s symbols=%s",
