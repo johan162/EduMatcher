@@ -70,6 +70,8 @@ can trade immediately.
 
 **Bond:** A standardised debt instrument. The issuing company borrows money and promises to pay periodic interest (coupon payments) and return the face value (principal) at maturity. Bondholders are creditors, not owners, and are paid before equity holders in a bankruptcy. Bonds trade on secondary markets after issuance, allowing investors to exit before maturity. The financial term "bond" traces its roots back to the 14th century from the Old English word bindan and band, which eventually evolved into the standard English word "bind". The word was originally used to describe something that literally ties, fastens, or holds things together. Because a financial bond fundamentally operates as a formal, legally binding contract where an issuer promises to repay a loan with interest, the term stuck.
 
+**Book-Building:** The customary way a conventional IPO is priced: the issuer and its underwriters publish a price range, collect indications of interest from institutional investors during a roadshow, revise the range, and set the final offer price the evening before trading starts. A process of price discovery, not a legal requirement.
+
 **Book Depth:** The total volume (quantity of shares) resting near the top of the order book. A deep book absorbs large orders without significant price impact. A thin (or shallow) book moves quickly on even moderate order flow.
 
 
@@ -172,6 +174,8 @@ stop-loss STOP, typically implemented as an OCO pair.
 
 **Determinism (Exchange):** The property that given the same initial state and the same ordered input messages, the matching engine always produces identical outputs. Essential for audit trail replay and disaster recovery.
 
+**Discounted Cash Flow (DCF):** A valuation method that estimates a company's future free cash flows and discounts each one back to today's money at a rate reflecting risk and the time value of money. For young, fast-growing firms most of the result usually sits in the *terminal value*, the lump that stands for all years beyond the forecast.
+
 **Dilution:** The reduction in existing shareholders' ownership percentage when new shares are issued. Selling 20% of a company to new investors reduces existing owners to 80%.
 
 **Dividend:** A cash payment made by a company to its shareholders, distributed from retained profits. Not guaranteed, the board of directors decides whether, when, and how much to pay. Companies that pay regular dividends are typically mature, profitable businesses with stable cash flows. High-growth companies often pay no dividend, choosing to reinvest profits in expansion. The key dates are: the *declaration date* (when the board announces the dividend), the *ex-dividend date* (buyers on or after this date do not receive the payment), the *record date* (the register of shareholders eligible to receive payment), and the *payment date* (when the cash is distributed).
@@ -228,6 +232,8 @@ stop-loss STOP, typically implemented as an OCO pair.
 
 
 ## G {#glossary-g}
+
+**Greenshoe (Over-Allotment Option):** An option letting IPO underwriters sell up to 15% more shares than the base deal. If the price sags after listing they buy shares back in the market to support it; if it rises they exercise the option and buy the extra shares from the issuer at the offer price.
 
 **Gap (Market Data):** A missing sequence number in a market data feed, indicating a lost message. Subscribers must request retransmission or resynchronise from the next full snapshot.
 
@@ -330,6 +336,8 @@ the limit price and any unfilled remainder is immediately cancelled. Never rests
 **Liquidity:** The ease with which an asset can be bought or sold without significantly affecting its price. High liquidity = tight spread, large depth, easy trading.
 
 **Locate:** The process of finding and reserving a source of borrowable shares before executing a short sale. Under US Regulation SHO, broker-dealers must have reasonable grounds to believe shares can be borrowed before accepting a short sale order. "Failing to locate" before shorting is called naked short selling, which is illegal in most jurisdictions.
+
+**Lock-Up:** A contractual agreement, typically 180 days, under which insiders and pre-IPO investors promise not to sell their shares after an IPO. It is a contract with the underwriters, not a legal rule, and its expiry can put pressure on the share price.
 
 **Locked Market:** A condition where the best bid on one venue equals the best ask on another venue for the same instrument, a transient artefact of fragmentation and quote-propagation latency. See *Crossed Market*.
 
@@ -456,6 +464,8 @@ as a positive number  P&L ledger.
 
 **Private Company:** A company whose shares are not publicly traded, held only by founders, employees, and private investors.
 
+**Prospectus:** The disclosure document a company must publish before offering securities to the public. In the EU it is governed by the Prospectus Regulation (EU) 2017/1129 and approved by a national competent authority; in the US it forms part of the S-1 registration statement.
+
 **Pro-Rata Allocation:** An alternative to price-time priority where fills at a price level are distributed proportionally among all resting orders at that level. Common in some futures markets.
 
 **Protection Period:** The window of time after MMP fires during which a market maker has no active quotes and is expected to assess market conditions before deciding whether and at what prices to re-enter. The duration is typically a few seconds and is defined in the market maker agreement.
@@ -516,6 +526,8 @@ position. Once realized, it cannot be reversed by subsequent price moves.
 **Secondary Site / Backup Site:** A standby data centre that can take over exchange operation if the primary site fails.
 
 **Securities Lending / Stock Borrow:** The temporary transfer of securities from a lender (typically a long-term investor or custodian) to a borrower (typically a short seller) in exchange for collateral and a lending fee (borrow rate). Short sellers must borrow shares before selling short. The lender retains economic ownership (receives manufactured dividends and can recall the shares) but transfers legal title temporarily. Recall risk, the lender demanding shares back at an inconvenient time, is a key risk for short sellers.
+
+**S-1 (Form S-1):** The registration statement a US company files with the SEC under the Securities Act of 1933 before an IPO. It contains the prospectus, audited financials, risk factors and the *use of proceeds*. Foreign issuers use the equivalent Form F-1.
 
 **SEDOL:** A 7-character UK security identifier used in settlement and clearing. Analogous to CUSIP.
 
@@ -598,6 +610,8 @@ orders in thin books experience more slippage.
 
 **Top-of-Book (Level 1):** Market data showing only the best bid price, best ask price, and their quantities. The minimum information needed to understand the current market.
 
+**Total Addressable Market (TAM):** The total revenue available if a company captured 100% of its market. Often narrowed to the serviceable addressable market (SAM) and the share realistically obtainable (SOM). Popular in growth-company IPO pitches, and notorious for being stretched.
+
 **Trade:** An executed match between a buy and sell order. Also called a fill or execution.
 
 **Trailing Stop:** A stop order whose trigger price automatically advances in the favourable direction as the market moves, protected by a fixed trail offset.
@@ -610,6 +624,8 @@ orders in thin books experience more slippage.
 ## U {#glossary-u}
 
 **UUID (Universally Unique Identifier):** A 128-bit identifier designed to be unique without central coordination. UUID v4 is randomly generated; UUID v1 incorporates the current time and network address.
+
+**Underpricing:** Setting an IPO offer price below what the market will pay, visible as a first-day price jump. The gap multiplied by the number of shares sold is called money *left on the table*.
 
 **Uncross**
 The single atomic batch execution that occurs at the end of an auction phase.

@@ -227,6 +227,17 @@ The core documentation for understanding order behavior, priority categories, an
 * SEC, In the Matter of The NASDAQ Stock Market, LLC (Facebook IPO), Release No. 34-69655, 29 May 2013.
 * CCP Global, [The Lehman Case](https://ccp-global.org/the-lehman-case) (LCH SwapClear close-out of Lehman's portfolio).
 
+### IPO pricing and valuation
+
+* Jay R. Ritter, [IPO Data](https://site.warrington.ufl.edu/ritter/ipo-data/), University of Florida (first-day returns, money left on the table, gross spreads).
+* Aswath Damodaran, interview with The Acquirer's Multiple, 2024 (pricing versus valuing).
+* Investor.gov (SEC), [Lockup Agreements](https://www.investor.gov/introduction-investing/investing-basics/glossary/lockup-agreements).
+* SEC, [Regulation S-K Item 504: Use of Proceeds](https://www.ecfr.gov/current/title-17/chapter-II/part-229/subpart-229.500/section-229.504).
+* European Union, [Prospectus Regulation (EU) 2017/1129](https://eur-lex.europa.eu/eli/reg/2017/1129/oj) and [Listing Act Regulation (EU) 2024/2809](https://eur-lex.europa.eu/eli/reg/2024/2809/oj); Bird & Bird, 2025 (Listing Act overview).
+* S&P Dow Jones Indices, [S&P U.S. Indices Methodology](https://www.spglobal.com/spdji/en/documents/methodologies/methodology-sp-us-indices.pdf) (IPO seasoning, profitability rule); S&P DJI announcement, 4 June 2026.
+* WeWork Companies Inc., Form S-1 registration statement, 14 August 2019.
+* News coverage used for deal details: *Forbes* (Facebook, 17 May 2012; WeWork, 22 April 2019 and 7 November 2023), *The Register* (Google auction, 19 August 2004), CNBC (Snowflake, 15 September 2020; Robinhood, 2 July 2021; Rivian, 9 November 2021), CoreWeave press release and Reuters (27 March 2025), *Fortune* (SpaceX S-1, 20 May 2026).
+
 ### History and etymology
 
 * Christopher Steiner, ["How the Nasdaq Got Hacked"](https://www.forbes.com/sites/christophersteiner/2012/08/30/how-the-nasdaq-got-hacked/), *Forbes*, 30 August 2012 (Thomas Peterffy's robot typist); see also his book *Automate This* (2012).
