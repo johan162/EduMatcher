@@ -3826,7 +3826,7 @@ _shtab_pm_setup_options=(
   "(- : *)--version[show program\'s version number and exit]"
   "--data-dir[Data directory for persistent engine files (default\: \$EDUMATCHER_DATA_DIR, or \<repo\>\/src\/data in a source checkout, or \~\/.local\/share\/edumatcher)]:PATH:"
   "--show[Print the data directory that would be used and exit]"
-  "--config[Bundled example config to deploy, e.g. \'s1-basic\', \'s3-nominal\', \'s10-complex\', or \'s150-basic\' (resolves under docs\/examples\/ref_data\/\; append \'-nomm\' for the no-market-maker-quotes variant, e.g. \'s1-basic-nomm\'\; default\: \'s3-basic\')]:NAME:"
+  "--config[Bundled example config to deploy, e.g. \'s1-basic\', \'s3-nominal\', \'s10-complex\', or \'s150-basic\' (resolves under docs\/examples\/ref_data\/\; append \'-nomm\' for the no-market-maker-quotes variant, e.g. \'s1-basic-nomm\'\; default\: \'s10-basic\')]:NAME:"
   "--force[Recompile and overwrite an already-deployed configuration]"
   "--no-config[Only create the data directory\; do not deploy an example config]"
 )

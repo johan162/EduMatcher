@@ -54,7 +54,7 @@ point the exchange at the file:
 
 The file is copied into `~/.edumatcher/config/` and deployed on every start, so
 editing it and restarting is the whole edit-test loop. Switching back to a
-bundled example is `./edumatcher.sh config s3-basic`.
+bundled example is `./edumatcher.sh config s10-basic`.
 
 ## Everyday commands
 

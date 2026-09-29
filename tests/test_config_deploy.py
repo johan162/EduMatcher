@@ -228,7 +228,7 @@ class TestShippedSample:
         path = resolve_example(DEFAULT_EXAMPLE_CONFIG)
 
         assert path.is_file(), f"pm-setup would have nothing to deploy: {path}"
-        assert path.parts[-2:] == ("s3-basic-setup", "engine_config.yaml")
+        assert path.parts[-2:] == ("s10-basic-setup", "engine_config.yaml")
 
     def test_the_default_setup_config_compiles(self, tmp_path: Path) -> None:
         source = tmp_path / "engine_config.yaml"

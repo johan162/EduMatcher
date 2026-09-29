@@ -101,7 +101,7 @@ describe different systems.
 | Option | Default | Effect |
 |---|---|---|
 | `--version X.Y.Z` | newest release | Install one specific release. All six images carry this tag, so it pins the whole system |
-| `--config NAME` | `s3-basic` | Deploy a bundled example configuration |
+| `--config NAME` | `s10-basic` | Deploy a bundled example configuration |
 | `--config FILE` | — | ...or a path to an `engine_config.yaml` of your own |
 | `--dir PATH` | `~/.edumatcher` | Where to install |
 | `--no-start` | — | Fetch and configure, but do not start anything |
@@ -134,7 +134,7 @@ into this file.
 |---|---|---|
 | `EM_VERSION` | *(the installed release)* | Which release to run. All six images carry this tag, so one value pins the whole system. `latest` follows the newest release |
 | `GHCR_OWNER` | `johan162` | The GHCR namespace the images are pulled from. Change it only for a fork |
-| `EM_CONFIG` | `s3-basic` | Which bundled example configuration the exchange deploys |
+| `EM_CONFIG` | `s10-basic` | Which bundled example configuration the exchange deploys |
 | `EM_CONFIG_FILE` | *(empty)* | Set to `/config/engine_config.yaml` when you run a configuration of your own. Non-empty wins over `EM_CONFIG` |
 | `EM_PROFILE` | `default` | Which processes start: `default`, `mini` or `micro`. See [Processes](170-processes.md) |
 | `TZ` | `UTC` | Container timezone. Set it to match the trading calendar in your configuration, e.g. `Europe/Stockholm` |
@@ -232,7 +232,7 @@ To run a configuration of your own, give the same command a path instead:
 The file is copied into `~/.edumatcher/config/`, mounted read-only into the
 container, and deployed on every start — so editing it and restarting is the
 whole edit-test loop. Switching back to a bundled example is
-`./edumatcher.sh config s3-basic`. The configuration builder at
+`./edumatcher.sh config s10-basic`. The configuration builder at
 <http://localhost:8092> is the easy way to author one; see
 [Configuration GUI](030-config-GUI.md).
 
@@ -277,7 +277,7 @@ alone) and `up-all` (the exchange plus the GUIs).
 
 | Flag | Default | Effect |
 |---|---|---|
-| `CONFIG=<name>` | `s3-basic` | Deploy a bundled example |
+| `CONFIG=<name>` | `s10-basic` | Deploy a bundled example |
 | `CONFIG=<file>` | — | Deploy an `engine_config.yaml` of your own; the file is copied to `deployment/docker/config/` and mounted read-only |
 | `PROFILE=<name>` | `default` | Which processes `pm-opctl-cli` starts: `default`, `mini` or `micro`. See [Processes](170-processes.md) |
 | `ZMQ=1` | off | Also publish the raw ZeroMQ bus (5555-5559, 5601-5602) to the host, and set the engine and index sockets to bind `0.0.0.0` inside the container |
@@ -307,7 +307,7 @@ plain `make up-all` afterwards goes back to whatever `.env` says.
 | `COMPOSE_PROJECT_NAME` | `edumatcher` | Compose project name; decides container and network naming |
 | `EDUMATCHER_VERSION` | *(empty)* | PyPI version for `PYPI=1` builds; empty means newest |
 | `WITH_SSH` | `1` | Install `openssh-server` into the image at build time |
-| `EM_CONFIG` | `s3-basic` | Bundled example to deploy |
+| `EM_CONFIG` | `s10-basic` | Bundled example to deploy |
 | `EM_CONFIG_FILE` | *(empty)* | Path **inside the container** to a configuration of your own; set for you by `CONFIG=<file>` |
 | `EM_PROFILE` | `default` | Process profile to start |
 | `TZ` | `Europe/Stockholm` | Container timezone — match the trading calendar in your configuration |

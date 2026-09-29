@@ -16,7 +16,7 @@ same way ``pm-config-deploy --example`` resolves it — see
 ``edumatcher.config_deploy.resolve_example`` for the shorthand-to-path
 mapping (e.g. ``s3-basic`` ->
 ``docs/examples/ref_data/s3-basic-setup/engine_config.yaml``). When
-``--config`` is omitted, ``s3-basic`` is installed.
+``--config`` is omitted, ``s10-basic`` is installed.
 
 Any example name also accepts an optional trailing ``-nomm`` to select the
 no-market-maker-quotes variant of that example (e.g. ``s3-basic-nomm`` ->
@@ -25,7 +25,7 @@ no-market-maker-quotes variant of that example (e.g. ``s3-basic-nomm`` ->
 
 Usage
 -----
-    pm-setup                          # use all defaults (s3-basic)
+    pm-setup                          # use all defaults (s10-basic)
     pm-setup --config s1-basic       # install a specific bundled example
     pm-setup --config s1-basic-nomm  # same example with an empty order book
   pm-setup --data-dir ~/my-session  # explicit data directory
@@ -44,7 +44,7 @@ from pathlib import Path
 from edumatcher.config import data_dir_preference
 from edumatcher.config_deploy import resolve_example
 
-DEFAULT_EXAMPLE_CONFIG = "s3-basic"
+DEFAULT_EXAMPLE_CONFIG = "s10-basic"
 
 
 def _extract_example_config(dest: Path, force: bool, config_name: str) -> bool:

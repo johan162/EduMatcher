@@ -515,7 +515,7 @@ is git-ignored, so it is the right place for host-specific choices.
 | `COMPOSE_PROJECT_NAME` | `edumatcher` | Compose project name |
 | `EDUMATCHER_VERSION` | *(empty)* | PyPI version to install; empty = latest |
 | `WITH_SSH` | `1` | Install `openssh-server` in the image |
-| `EM_CONFIG` | `s3-basic` | Bundled example configuration to deploy |
+| `EM_CONFIG` | `s10-basic` | Bundled example configuration to deploy |
 | `EM_PROFILE` | `default` | `pm-opctl-cli` profile to start |
 | `TZ` | `UTC` | Container timezone — match your trading calendar |
 | `BIND_ADDR` | `127.0.0.1` | Host interface the ports bind to |
