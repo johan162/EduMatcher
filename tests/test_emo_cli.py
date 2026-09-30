@@ -66,6 +66,8 @@ def test_mm_demo_profile_is_default_plus_a_passive_mm01_bot() -> None:
     assert command[command.index("--gateway-id") + 1] == "MM01"
     assert command[command.index("--strategy") + 1] == "passive"
     assert "--config" not in command
+    assert "--all-symbols" in command
+    assert "--symbols" not in command
 
 
 # -- start_profile: debug flag rewrites every command -------------------------

@@ -1855,6 +1855,54 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
         ),
     ),
     CommandInfo(
+        name="pm-new-symbol",
+        aliases=("pm-ipo",),
+        category="Setup & Configuration",
+        title="List a New Symbol (IPO)",
+        summary="Add a symbol at its IPO price to the deployed configuration's source and redeploy it.",
+        synopsis=(
+            "pm-new-symbol --symbol NAME --ipo-price PRICE --outstanding-shares N",
+            "pm-ipo --config PATH --symbol NAME --ipo-price PRICE --outstanding-shares N",
+        ),
+        options=(
+            Option(
+                "--config PATH",
+                "deployed source",
+                "Authored YAML to edit; redeployed only when it is the deployed source",
+            ),
+            Option("--symbol NAME", "required", "1-8 characters of A-Z 0-9 . _"),
+            Option(
+                "--ipo-price PRICE",
+                "required",
+                "Offer price; becomes both last prices and the collar/breaker reference",
+            ),
+            Option("--outstanding-shares N", "required", "Positive number of shares"),
+            Option("--tick-decimals N", "2", "Price grid precision, 0..8"),
+            Option(
+                "--mm-gateway-id ID",
+                "the only MM gateway",
+                "MARKET_MAKER gateway that posts the seed quote",
+            ),
+            Option(
+                "--mm-bid-price PRICE, --mm-ask-price PRICE",
+                "max spread around the IPO price",
+                "Explicit seed quote; must straddle the IPO price",
+            ),
+            Option("--mm-bid-qty N, --mm-ask-qty N", "1000", "Seed quote sizes"),
+            Option("--mm-tif DAY|GTC", "DAY", "Seed quote time in force"),
+            Option(
+                "--[no-]mm-seed-once", "on", "Skip the seed when a quote was restored"
+            ),
+            Option(
+                "--field KEY=YAML_VALUE",
+                "none",
+                "level, collar, order_limits or circuit_breaker; repeatable",
+            ),
+        ),
+        related=("pm-config-deploy", "pm-cverifier", "pm-opctl-cli"),
+        doc_page="045-new-symbol.md",
+    ),
+    CommandInfo(
         name="pm-config-show",
         category="Setup & Configuration",
         title="Config Viewer",

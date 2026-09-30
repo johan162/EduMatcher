@@ -97,6 +97,7 @@ nav:
     - Config Verifier: user-guide/020-config-verifier.md
     - Configuration GUI: user-guide/030-config-GUI.md
     - Running the Exchange: user-guide/040-running-the-exchange.md
+    - Listing a New Symbol (IPO): user-guide/045-new-symbol.md
     - Gateway Concepts: user-guide/051-gateway-intro.md
     - ALF Console (pm-alf-console): user-guide/055-alf-console.md
     - Order Types: user-guide/060-order-types.md

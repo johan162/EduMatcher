@@ -1032,6 +1032,18 @@ process deserialise rather than decide.
 Deployment replaces the running configuration but does not disturb live
 processes; restart them to pick it up.
 
+### Add a symbol with `pm-new-symbol`
+
+To list a new symbol (an IPO) in the running configuration, stop the exchange
+and use `pm-new-symbol` (alias `pm-ipo`). It edits the deployed
+configuration's authored source, validates it, and redeploys it:
+
+```bash
+pm-new-symbol --symbol NEWCO --ipo-price 20.00 --outstanding-shares 50000000
+```
+
+See [Listing a New Symbol](045-new-symbol.md) for the full procedure.
+
 ### Deploying example configurations
 
 By using the option `--example` it is possible to deploy one of the example configurations

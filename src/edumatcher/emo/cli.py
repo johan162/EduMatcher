@@ -21,7 +21,8 @@ built in:
 ``mm-demo``
     ``default`` plus one ``pm-mm-bot`` running the ``passive`` strategy at a
     deliberately slow pace, so a student can watch a market maker work. It
-    quotes as gateway ``MM01``, which the bundled example configs register.
+    quotes as gateway ``MM01``, which the bundled example configs register, on
+    every symbol of the deployed configuration.
 
 The built-ins are used as-is when no configuration file exists. Running
 ``init`` writes them to ``<DATA_DIR>/emo-config.yaml`` so they can be edited.
@@ -254,9 +255,9 @@ MINI_PROCESSES: list[dict[str, Any]] = [
 # The default stack plus a slow, passive market-maker bot for classroom demos.
 # Every bot setting is a command-line argument, so no bot config file is needed.
 # The bot quotes as MM01 (the MARKET_MAKER gateway of the bundled example
-# configs) on all ten s10-* symbols; --gap stays within the examples'
-# mm_max_spread_ticks of 20 (0.20 at two-decimal ticks).
-MM_DEMO_SYMBOLS = "AAPL,MSFT,TSLA,AMZN,GOOGL,META,NVDA,NFLX,INTC,ORCL"
+# configs) on every symbol of the deployed configuration (--all-symbols), so
+# the profile works with whatever config it is run against; --gap stays within
+# the examples' mm_max_spread_ticks of 20 (0.20 at two-decimal ticks).
 MM_DEMO_PROCESSES: list[dict[str, Any]] = [
     *DEFAULT_PROCESSES,
     {
@@ -265,8 +266,7 @@ MM_DEMO_PROCESSES: list[dict[str, Any]] = [
             "pm-mm-bot",
             "--gateway-id",
             "MM01",
-            "--symbols",
-            MM_DEMO_SYMBOLS,
+            "--all-symbols",
             "--strategy",
             "passive",
             "--gap",

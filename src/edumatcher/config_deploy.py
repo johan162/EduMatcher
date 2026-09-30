@@ -84,7 +84,7 @@ _EXAMPLE_PREFIXES = {
 _EXAMPLE_PROFILES = ("basic", "nominal", "complex")
 
 
-def _examples_root() -> Path:
+def examples_root() -> Path:
     pkg_dir = Path(__file__).parent  # .../edumatcher/
     src_dir = pkg_dir.parent  # .../src/  (source) or site-packages (installed)
     base = src_dir.parent if src_dir.name == "src" else src_dir
@@ -121,7 +121,7 @@ def resolve_example(name: str) -> Path:
 
     nomm_suffix = "-nomm" if nomm else ""
     path = (
-        _examples_root()
+        examples_root()
         / f"{prefix}-{profile}{nomm_suffix}-setup"
         / "engine_config.yaml"
     )
