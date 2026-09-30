@@ -72,9 +72,9 @@ class InterviewApp:
                     ),
                     VSplit(
                         [
-                            Window(FormattedTextControl(self._pages), width=22),
+                            Window(FormattedTextControl(self._pages), width=32),
                             DynamicContainer(self._body),
-                            Window(FormattedTextControl(self._preview), width=24),
+                            Window(FormattedTextControl(self._preview), width=22),
                         ]
                     ),
                     Window(FormattedTextControl(self._help), height=3, wrap_lines=True),
@@ -103,7 +103,7 @@ class InterviewApp:
         area = TextArea(
             text=self.iv.texts.get(spec.key, ""),
             multiline=False,
-            width=18,
+            width=13,
             accept_handler=lambda buffer: self._enter(spec),
         )
         area.window.style = lambda: (
@@ -127,7 +127,7 @@ class InterviewApp:
             [
                 Window(
                     FormattedTextControl(" " + spec.label),
-                    width=Dimension(min=12, preferred=34, max=34),
+                    width=Dimension(min=12, preferred=30, max=30),
                 ),
                 self._input(spec),
                 Window(FormattedTextControl(hint), wrap_lines=False),
@@ -196,9 +196,7 @@ class InterviewApp:
             style = "class:page.current" if number == self.iv.page else "class:page"
             marker = "▶" if number == self.iv.page else " "
             count = f" ✎{mine}" if mine else ""
-            out.append(
-                (style, f"{marker}{number:>2} {PAGES[number - 1][:14]:<14}{count}\n")
-            )
+            out.append((style, f"{marker}{number:>2} {PAGES[number - 1]:<21}{count}\n"))
         return out
 
     def _preview(self) -> StyleAndTextTuples:

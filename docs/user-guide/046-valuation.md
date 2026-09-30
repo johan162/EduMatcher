@@ -1009,11 +1009,12 @@ join the index. That is a later step, not part of listing.
 | `--config PATH` | the deployed source | With `--list`: the engine YAML to edit |
 
 !!! tip "Terminal width"
-    The interview fits 80 columns, but the automatic-value hints need about
-    100. Reports printed with `--no-tui` are always 100 columns wide, so they
-    read the same in a terminal, a pipe or a file; a narrower terminal wraps
-    their lines. A table wider than 100 columns is split into parts that each
-    repeat its first column. `--export` writes every table in one piece.
+    The interview is laid out for a terminal at least 120 columns wide; in a
+    narrower one the automatic-value hints are cut off first. Reports printed
+    with `--no-tui` are always 100 columns wide, so they read the same in a
+    terminal, a pipe or a file; a narrower terminal wraps their lines. A
+    table wider than 100 columns is split into parts that each repeat its
+    first column. `--export` writes every table in one piece.
 
 ## Where to go next
 

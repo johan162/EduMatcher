@@ -32,8 +32,8 @@ You will practice:
   exchange with a market maker and two trader consoles) and the auctions
   chapter ([Auctions](070-auctions.md)), because the new stock opens in the
   opening auction.
-- A terminal at least 100 columns wide. Printed reports are 100 columns
-  wide, and at 80 columns the interview hides the automatic-value hints.
+- A terminal at least 120 columns wide: the interview is laid out for it,
+  and printed reports are 100 columns wide.
 
  
 
