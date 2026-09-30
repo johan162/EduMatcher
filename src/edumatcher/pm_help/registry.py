@@ -1899,8 +1899,62 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
                 "level, collar, order_limits or circuit_breaker; repeatable",
             ),
         ),
-        related=("pm-config-deploy", "pm-cverifier", "pm-opctl-cli"),
+        related=("pm-config-deploy", "pm-cverifier", "pm-opctl-cli", "pm-valuation"),
         doc_page="045-new-symbol.md",
+    ),
+    CommandInfo(
+        name="pm-valuation",
+        category="Setup & Configuration",
+        title="IPO Valuation Simulator",
+        summary=(
+            "Value a fictive company with a DCF, simulate its IPO book-build and "
+            "find the offer price that pm-new-symbol lists."
+        ),
+        synopsis=(
+            "pm-valuation [--load FILE | --case NAME] [--quick]",
+            "pm-valuation [--load FILE | --case NAME] --no-tui [--list [--config PATH]]",
+        ),
+        description=(
+            "A terminal interview (twelve pages, every answer optional) feeds a "
+            "two-stage DCF, comparables, a book-building model and an index "
+            "rulebook. The report ends with the pm-new-symbol command for the "
+            "priced IPO, or explains why the IPO is postponed.",
+        ),
+        options=(
+            Option("--load FILE", "none", "Scenario file to start from"),
+            Option("--case NAME", "none", "Classroom case to start from"),
+            Option("--no-tui", "off", "Print the report instead of interviewing"),
+            Option("--quick", "off", "Interview pages 1 and 11 only"),
+            Option(
+                "--mode MODE",
+                "both",
+                "deterministic, montecarlo or both (overrides the scenario)",
+            ),
+            Option("--draws N, --seed S", "10000, 42", "Monte Carlo settings"),
+            Option("--save FILE", "none", "Write the scenario (also F9 in the TUI)"),
+            Option("--with-defaults", "off", "With --save: write every resolved value"),
+            Option("--export FILE", "none", "Write the report as Markdown"),
+            Option(
+                "--pdf FILE", "none", "Write a printable PDF report (also p in the TUI)"
+            ),
+            Option("--paper SIZE", "a4", "PDF page size: a4 or letter"),
+            Option("--presets FILE", "bundled", "Alternative sector presets"),
+            Option(
+                "--list", "off", "With --no-tui: list the priced IPO with pm-new-symbol"
+            ),
+            Option(
+                "--config PATH",
+                "deployed source",
+                "With --list: the engine YAML pm-new-symbol edits",
+            ),
+        ),
+        related=("pm-new-symbol", "pm-index-admin-cli", "pm-opctl-cli"),
+        doc_page="046-valuation.md",
+        examples=(
+            "pm-valuation --case kestrel                   # interview a classroom case",
+            "pm-valuation --load my.yaml --no-tui --list   # price and list in one go",
+            "pm-valuation --case kestrel --no-tui --pdf kestrel.pdf   # print it",
+        ),
     ),
     CommandInfo(
         name="pm-config-show",

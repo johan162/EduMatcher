@@ -98,6 +98,7 @@ nav:
     - Configuration GUI: user-guide/030-config-GUI.md
     - Running the Exchange: user-guide/040-running-the-exchange.md
     - Listing a New Symbol (IPO): user-guide/045-new-symbol.md
+    - IPO Valuation (pm-valuation): user-guide/046-valuation.md
     - Gateway Concepts: user-guide/051-gateway-intro.md
     - ALF Console (pm-alf-console): user-guide/055-alf-console.md
     - Order Types: user-guide/060-order-types.md
@@ -171,6 +172,7 @@ nav:
       - "19 — Market Index (pm-index)": training/250-index.md
       - "20 — Persistence & Recovery": training/160-persistence-recovery.md
       - "21 — Capstone Scenario": training/170-capstone-scenario.md
+      - "28 — IPO Valuation (pm-valuation)": training/280-ipo-valuation.md
     - Part 5 — External connectivity:
       - "22 — Market Data & Drop Copy": training/130-market-data-drop-copy.md
       - "23 — Drop-Copy Replay & Recovery": training/200-drop-copy-replay-recovery.md

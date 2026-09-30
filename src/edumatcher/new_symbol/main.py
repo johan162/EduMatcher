@@ -91,9 +91,9 @@ def _report(findings: list[CheckResult]) -> None:
         print(f"  {finding.code}{location}: {finding.message}", file=sys.stderr)
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     try:
         result = add_symbol(args)
     except CompileError as exc:

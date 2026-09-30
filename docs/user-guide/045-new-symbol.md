@@ -227,7 +227,8 @@ Every refusal leaves the YAML and the deployed artifact unchanged.
 The command handles the configuration. These steps are yours:
 
 1. **Before**: agree the offer price, shares outstanding, tick size, and which
-   market maker will support the stock. Decide on day-one risk settings. A
+   market maker will support the stock. `pm-valuation` works out the first two
+   for a fictive company (see [IPO Valuation](046-valuation.md)). Decide on day-one risk settings. A
    tighter collar and an `order_limits` cap are common for a new listing.
 2. **Stop the exchange**: all of it, not just `pm-engine`. Every process reads
    the configuration only when it starts. A gateway restarted on its own
@@ -282,6 +283,7 @@ The command handles the configuration. These steps are yours:
 
 ## Where to go next
 
+- [IPO Valuation](046-valuation.md) - finding the offer price with `pm-valuation`
 - [Configuration](010-configuration.md) - authored YAML, the compiled artifact and `pm-config-deploy`
 - [Config Verifier](020-config-verifier.md) - what the validation codes mean
 - [Running the Exchange](040-running-the-exchange.md) - stopping and starting with `pm-opctl-cli`

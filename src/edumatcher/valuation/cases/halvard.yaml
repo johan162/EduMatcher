@@ -1,0 +1,8 @@
+# Classroom case (docs/training/280-ipo-valuation.md): a deal that is postponed.
+pm_valuation: 1
+company: {name: Halvard Robotics Inc., ticker: HALV, sector: deep_tech_hardware}
+customers: {last_fy_revenue: 50m, now: 230}
+capital: {cash: 20m, debt: 40m}
+offering: {shares_pre: 20m}
+investors: {inst_interest: low, retail_interest: low, hype: 1}
+management: {last_round: 240m}
