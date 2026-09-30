@@ -126,6 +126,26 @@ def test_typing_picking_paging_and_calculating() -> None:
     assert interview.page == 3 and interview.show_advanced
 
 
+def test_the_form_says_whether_f3_has_advanced_fields() -> None:
+    interview = Interview({}, PRESETS)
+    assert [interview.advanced_on(page) for page in (1, 2, 4)] == [0, 1, 4]
+    with (
+        create_pipe_input() as pipe,
+        create_app_session(input=pipe, output=DummyOutput()),
+    ):
+        app = InterviewApp(interview)
+        assert app._advanced_line()[0][1] == " No advanced fields on this page"
+        interview.turn(1)
+        assert app._advanced_line()[0][1] == (
+            " ▸ 1 advanced field hidden · F3 shows them"
+        )
+        interview.turn(2)
+        interview.show_advanced = True
+        assert app._advanced_line()[0][1] == (
+            " ▾ 4 advanced fields shown · F3 hides them"
+        )
+
+
 def test_calculate_is_refused_while_a_field_is_invalid() -> None:
     interview = Interview({}, PRESETS)
     keys = [PGDN, PGDN, "\t", "\t", "\t", "\t", "lots", F5, CTRL_D, F5]

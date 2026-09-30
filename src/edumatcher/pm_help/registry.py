@@ -1911,7 +1911,7 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
             "find the offer price that pm-new-symbol lists."
         ),
         synopsis=(
-            "pm-valuation [--load FILE | --case NAME] [--quick]",
+            "pm-valuation [--market se|us] [--load FILE | --case NAME] [--quick]",
             "pm-valuation [--load FILE | --case NAME] --no-tui [--list [--config PATH]]",
         ),
         description=(
@@ -1923,6 +1923,12 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
         options=(
             Option("--load FILE", "none", "Scenario file to start from"),
             Option("--case NAME", "none", "Classroom case to start from"),
+            Option(
+                "--market MARKET",
+                "se",
+                "se: Swedish IPO (SEK, prospectus, Nasdaq Stockholm); us: US IPO "
+                "(USD, S-1)",
+            ),
             Option("--no-tui", "off", "Print the report instead of interviewing"),
             Option("--quick", "off", "Interview pages 1 and 11 only"),
             Option(
@@ -1951,9 +1957,10 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
         related=("pm-new-symbol", "pm-index-admin-cli", "pm-opctl-cli"),
         doc_page="046-valuation.md",
         examples=(
-            "pm-valuation --case kestrel                   # interview a classroom case",
+            "pm-valuation --case tornfalk                  # interview a classroom case",
+            "pm-valuation --market us                      # a US IPO, in USD",
             "pm-valuation --load my.yaml --no-tui --list   # price and list in one go",
-            "pm-valuation --case kestrel --no-tui --pdf kestrel.pdf   # print it",
+            "pm-valuation --case tornfalk --no-tui --pdf tornfalk.pdf   # print it",
         ),
     ),
     CommandInfo(

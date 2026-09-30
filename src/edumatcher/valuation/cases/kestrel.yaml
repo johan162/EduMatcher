@@ -1,7 +1,0 @@
-# Classroom case (docs/training/280-ipo-valuation.md): a hot deal.
-pm_valuation: 1
-company: {name: Kestrel Security Inc., ticker: KSEC, sector: b2b_saas}
-customers: {last_fy_revenue: 140m, now: 2600}
-capital: {cash: 90m}
-offering: {shares_pre: 60m}
-investors: {inst_interest: very_high, retail_interest: high, hype: 5, n_institutions: 60}

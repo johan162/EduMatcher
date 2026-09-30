@@ -7,7 +7,10 @@ gives ``v`` back to the precision shown.
 * Percentages are typed in points: ``12`` and ``12%`` both mean 12%, and
   ``0.5`` means 0.5%, never 50%.
 * Money and counts take ``k``, ``m`` and ``bn`` suffixes, commas and
-  underscores: ``40bn``, ``300m``, ``2.5k``, ``90,000,000``, ``1_000``.
+  underscores: ``40bn``, ``300m``, ``2.5k``, ``90,000,000``, ``1_000``. The
+  Swedish ``mkr`` (miljoner) and ``md`` / ``mdr`` (miljard, 1,000 million: an
+  English billion, not a Swedish biljon) are accepted too. Decimals use a
+  point, as in the rest of the interview.
 * Ratios take an optional ``x`` or ``×``: ``10x``.
 * Empty text means "not answered" (the automatic value is used); ``none``
   explicitly empties an optional field.
@@ -28,8 +31,10 @@ class ParseError(ValueError):
 #: Sentinel for empty text: the student has not answered, so the default applies.
 NOT_ANSWERED = object()
 
-_SUFFIX = {"k": 1e3, "m": 1e6, "bn": 1e9}
-_NUMBER = re.compile(r"([-+]?\d+(?:\.\d*)?|[-+]?\.\d+)\s*(k|m|bn)?", re.IGNORECASE)
+_SUFFIX = {"k": 1e3, "m": 1e6, "mkr": 1e6, "bn": 1e9, "md": 1e9, "mdr": 1e9}
+_NUMBER = re.compile(
+    r"([-+]?\d+(?:\.\d*)?|[-+]?\.\d+)\s*(mdr|md|mkr|bn|k|m)?", re.IGNORECASE
+)
 _WHOLE = (Unit.COUNT, Unit.YEARS, Unit.DAYS)
 
 

@@ -1,5 +1,6 @@
 """WP1: presets, the field catalogue and default resolution (design §5, §19)."""
 
+from importlib.resources import files
 from pathlib import Path
 
 import pytest
@@ -12,7 +13,9 @@ from edumatcher.valuation.resolve import InvalidAnswers, Source, resolve
 PRESETS = load_presets()
 
 #: The ✎ answers of the worked example, design §18.1.
+#: The design's worked example (§18): a US company in the US framing.
 AURORA = {
+    "company.market": "us",
     "company.name": "Aurora Metrics Inc.",
     "customers.last_fy_revenue": 90e6,
     "customers.now": 1800,
@@ -33,10 +36,11 @@ def test_every_field_is_documented() -> None:
         assert 1 <= spec.page <= len(PAGES), spec.key
 
 
+@pytest.mark.parametrize("market", sorted(PRESETS.markets))
 @pytest.mark.parametrize("sector", sorted(PRESETS.sectors))
-def test_all_defaults_resolve_to_a_coherent_company(sector: str) -> None:
+def test_all_defaults_resolve_to_a_coherent_company(sector: str, market: str) -> None:
     """Pressing Enter through the interview gives a sensible company (§5)."""
-    resolved = resolve({"company.sector": sector}, PRESETS)
+    resolved = resolve({"company.sector": sector, "company.market": market}, PRESETS)
     assert set(resolved.values) == {spec.key for spec in FIELDS}
 
     v = value(resolved.values)
@@ -72,11 +76,12 @@ def test_worked_example_defaults() -> None:
 
 def test_revenue_and_customers_derive_in_either_direction() -> None:
     arpu = PRESETS.sectors["b2b_saas"].arpu
-    from_revenue = resolve({"customers.last_fy_revenue": 85e6}, PRESETS)
+    us = {"company.market": "us"}  # the preset's ARPU is in US dollars
+    from_revenue = resolve({**us, "customers.last_fy_revenue": 85e6}, PRESETS)
     assert from_revenue["customers.now"] == round(85e6 / (0.85 * arpu))
     assert from_revenue.sources["customers.last_fy_revenue"] is Source.USER
 
-    from_customers = resolve({"customers.now": 2000}, PRESETS)
+    from_customers = resolve({**us, "customers.now": 2000}, PRESETS)
     assert from_customers["customers.last_fy_revenue"] == pytest.approx(
         0.85 * 2000 * arpu
     )
@@ -149,8 +154,14 @@ def test_forecast_keys_are_exactly_what_the_forecast_reads() -> None:
 def test_bad_preset_file_is_rejected(tmp_path: Path) -> None:
     path = tmp_path / "presets.yaml"
     path.write_text(
-        "filer_thresholds: {egc_revenue: 1, src_public_float: 1, src_revenue: 1, src_public_float_alt: 1}\nmarket_structures: {competitive: 0.08}\nsectors:\n  x: {arpu: 1}\n",
+        "filer_thresholds: {egc_revenue: 1, src_public_float: 1, src_revenue: 1, src_public_float_alt: 1}\nmarket_structures: {competitive: 0.08}\nmarkets: {}\nsectors:\n  x: {arpu: 1}\n",
         encoding="utf-8",
     )
-    with pytest.raises(ValueError, match="missing"):
+    with pytest.raises(ValueError, match="preset 'x': missing"):
+        load_presets(path)
+    good = files("edumatcher.valuation").joinpath("presets.yaml").read_text("utf-8")
+    path.write_text(good.replace("    fx: 10 ", "    fxx: 10 "), encoding="utf-8")
+    with pytest.raises(
+        ValueError, match=r"market 'se': missing \['fx'\], unknown \['fxx'\]"
+    ):
         load_presets(path)

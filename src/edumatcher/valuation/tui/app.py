@@ -7,6 +7,7 @@ viewer; its "back" returns here with every answer kept.
 
 from __future__ import annotations
 
+import textwrap
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -73,11 +74,20 @@ class InterviewApp:
                     VSplit(
                         [
                             Window(FormattedTextControl(self._pages), width=32),
-                            DynamicContainer(self._body),
+                            HSplit(
+                                [
+                                    DynamicContainer(self._body),
+                                    Window(
+                                        FormattedTextControl(self._advanced_line),
+                                        height=1,
+                                    ),
+                                ]
+                            ),
                             Window(FormattedTextControl(self._preview), width=22),
                         ]
                     ),
-                    Window(FormattedTextControl(self._help), height=3, wrap_lines=True),
+                    # 5 lines of field help, plus one for a status message.
+                    Window(FormattedTextControl(self._help), height=6, wrap_lines=True),
                     Window(FormattedTextControl(_KEYS), height=1, style="class:keys"),
                 ]
             ),
@@ -199,6 +209,20 @@ class InterviewApp:
             out.append((style, f"{marker}{number:>2} {PAGES[number - 1]:<21}{count}\n"))
         return out
 
+    def _advanced_line(self) -> StyleAndTextTuples:
+        """Whether F3 has advanced fields to show or hide on this page."""
+        if self.review is not None:
+            return []
+        count = self.iv.advanced_on(self.iv.page)
+        fields = f"{count} advanced field{'s' * (count != 1)}"
+        if count == 0:
+            text = " No advanced fields on this page"
+        elif self.iv.show_advanced:
+            text = f" ▾ {fields} shown · F3 hides them"
+        else:
+            text = f" ▸ {fields} hidden · F3 shows them"
+        return [("class:hint", text)]
+
     def _preview(self) -> StyleAndTextTuples:
         ev = self.iv.evaluation
         out: StyleAndTextTuples = [("bold", " LIVE PREVIEW\n\n")]
@@ -239,10 +263,16 @@ class InterviewApp:
         spec = self._focused()
         if spec is None:
             return out
+        # Wrapped here at word boundaries; the window would break mid-word.
+        width = self.app.output.get_size().columns - 1
         problem = self.iv.evaluation.problems.get(spec.key)
         if problem:
-            return out + [("class:error", f" {problem}")]
-        return out + [("class:help", f" {spec.label} — {spec.help}")]
+            return out + [("class:error", self._wrap(f" {problem}", width))]
+        return out + [("class:help", self._wrap(f" {spec.label} — {spec.help}", width))]
+
+    @staticmethod
+    def _wrap(text: str, width: int) -> str:
+        return textwrap.fill(text, width, subsequent_indent=" ", break_on_hyphens=False)
 
     # -- keys ------------------------------------------------------------------------
 

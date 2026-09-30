@@ -127,6 +127,7 @@ formula here.
 | D7 | **Stock-based compensation is a real cost** and is not added back | Adding it back overstates value; the dilution happens either way |
 | D8 | **The index rulebook is fictive and lives in this tool.** `pm-index` has no eligibility rules (`EduMatcher-Index.md` §2) | Keeps the exchange unchanged; the rules are for teaching |
 | D9 | **Behavioural parts are labelled as heuristics** (demand multipliers, first-day pop) | Honesty: these are calibrated stories, not finance theory |
+| D10 | **Two IPO frameworks, Swedish by default.** `company.market` is `se` (prospectus approved by Finansinspektionen, Nasdaq Stockholm, SEK) or `us` (Form S-1, SEC, USD); `--market` overrides the file (§5.1) | Requested: "Support both Full Swedish IPO framing as well as American … Make it Swedish framing by default" |
 
 ## 3. The IPO process being simulated
 
@@ -144,7 +145,7 @@ flowchart TD
     H -- yes --> I
     G -- ok --> I[Roadshow and book-building\ninstitutional, retail, cornerstone demand]
     I --> J{Coverage ≥ target\nat some price?}
-    J -- yes --> K["Price at the highest such price\nwithin −20%/+20% of the range"]
+    J -- yes --> K["Price at the highest such price\nfrom 20% below the range to the maximum price"]
     J -- only ≥ 1× --> L[Price at the floor, thin book]
     J -- < 1× --> X
     K --> M[Allocation, lock-ups, free float]
@@ -157,11 +158,13 @@ flowchart TD
 Each box maps to a real step:
 
 - **Profile and forecast**: the business section and financial statements in
-  the registration statement (the S-1 in the US).
+  the prospectus (approved by Finansinspektionen in Sweden; in the US, part
+  of the registration statement, Form S-1).
 - **DCF and comparables**: the underwriters' valuation work, and the
   "comparable companies" analysis in their pitch.
-- **Testing the waters and the price range**: the range printed on the cover
-  of the preliminary prospectus ("red herring").
+- **Testing the waters and the price range**: the range in the prospectus,
+  whose top is the maximum price in Sweden, or on the cover of the US
+  preliminary prospectus ("red herring").
 - **Roadshow and book-building**: investors submit indications of interest.
   The book's coverage decides where in the range, or outside it, the deal
   prices.
@@ -174,24 +177,27 @@ Each box maps to a real step:
 ## 4. Company profile (S-1 data)
 
 The first interview page (§19.3) collects the "cover page" of the
-registration statement. None of it changes the valuation, except the sector
-(which selects the preset, §5) and dual-class shares (§15.2, §17). All of it
-appears in the report's S-1 block (§20).
+offering document. None of it changes the valuation, except the sector
+(which selects the preset, §5), the market (which selects the country
+defaults, §5.1) and dual-class shares (§15.2, §17). All of it appears in the
+report's cover section (§20): "Prospectus cover" for `se`, "S-1 cover" for
+`us`.
 
 | Field | Default | Notes |
 |---|---|---|
-| Company name | `Newco Inc.` | Free text |
+| Company name | Market: `Newco AB` / `Newco Inc.` | Free text |
 | Proposed ticker | Derived from the name: first letters of words, else the first 4 letters, upper-cased | Validated like `pm-new-symbol`: 1–8 characters of `A-Z 0-9 . _` |
 | Sector preset | `b2b_saas` | Selects §5's defaults |
-| SIC code | From the preset | Editable; shown on the cover block |
-| State / country of incorporation | `Delaware` | Display only |
-| Currency | `USD` | Display only; the model is currency-agnostic |
+| SIC code | From the preset | Editable; shown on the S-1 cover only |
+| State / country of incorporation | Market: `Sweden` / `Delaware` | Display only |
+| Currency | Market: `SEK` / `USD` | Display only; the market's `fx` converts the money defaults (§5.1) |
 | Fiscal year end | `December 31` | Display only |
 | Dual-class shares | No | Governance discount on institutional demand (§15.2); index rule (§17) |
-| Lead underwriter | `Fictive & Co.` | Display only |
+| Lead underwriter | Market: `Fiktiva Banken AB` / `Fictive & Co.` | Display only |
 | Use of proceeds | "General corporate purposes, including working capital, R&D and sales expansion" | Display only |
+| Market | `se` | `se` or `us`: the IPO framework and country defaults (§5.1). Last field on page 1 |
 
-**Filer status is derived, never asked:**
+**Filer status is derived, never asked, and shown for `us` only:**
 
 | Status | Rule used | Source of the rule |
 |---|---|---|
@@ -207,7 +213,8 @@ over time and the student should know they are assumptions too.
 
 A preset is a coherent set of defaults for one business model. The presets
 live in a YAML data file (`valuation/presets.yaml`), not in code, so an
-instructor can edit or add them. The values are **illustrative and
+instructor can edit or add them. Money values are written in USD and
+converted to the market's currency (§5.1). The values are **illustrative and
 plausible, not researched benchmarks**. The report says which preset was
 used.
 
@@ -232,13 +239,14 @@ used.
 | Capex (% revenue) | 3% | 2% | 2% | 3% | 8% |
 | Net working capital (% revenue) | −5% | −3% | −8% | 5% | 15% |
 | Beta, stage 1 / stage 2 | 1.5 / 1.1 | 1.6 / 1.2 | 1.5 / 1.15 | 1.6 / 1.2 | 1.8 / 1.3 |
-| Comparable EV / NTM revenue | 10× | 5× | 6× | 6× | 3× |
+| Comparable EV / NTM revenue | 10× | 5× | 6× | 7× | 3× |
 | Plausible mature EBIT margin (warning band) | 20–35% | 15–30% | 15–30% | 15–30% | 12–25% |
 
 The values are tuned so that each preset's all-defaults company is
 coherent. Its year-10 EBIT margin sits inside its band, its growth has
 faded by the horizon, and its DCF lands within about 25% of its
-comparables value. A unit test holds every preset to that.
+comparables value. A unit test holds every preset to that, in both markets.
+(`fintech_payments` moved from 6× to 7× so that it also holds under `se`.)
 
 Notes that the help text teaches:
 
@@ -254,6 +262,37 @@ Notes that the help text teaches:
   dominant 30%. The student is asked for the structure, not for `p_max`
   itself.
 
+### 5.1 Markets: Sweden and the United States
+
+The `markets:` section of `presets.yaml` holds one entry per IPO framework.
+`company.market` selects it (default `se`); `--market` on the command line
+overrides the scenario file.
+
+| Key | `se` | `us` | Used for |
+|---|---|---|---|
+| `currency` | SEK | USD | Display; chart axis |
+| `fx` | 10 | 1 | Units of the currency per USD: every money default is multiplied by it |
+| `salary_level` | 0.7 | 1.0 | Also multiplies the per-person money values: loaded cost and revenue per employee |
+| `company_name`, `incorporation`, `lead_underwriter` | Newco AB, Sweden, Fiktiva Banken AB | Newco Inc., Delaware, Fictive & Co. | Cover defaults (§4) |
+| `document`, `regulator`, `listing_venue` | Prospectus; Finansinspektionen (EU Prospectus Regulation); Nasdaq Stockholm, Main Market | S-1; SEC (Securities Act of 1933); Nasdaq or NYSE | Report cover section and prose |
+| `risk_free`, `erp` | 3.0%, 5.6% | 4.25%, 5.0% | §7 |
+| `tax_rate` | 20.6% | 25% | §6.9 |
+| `inflation`, `terminal_growth` | 2%, 2% | 2.5%, 2.5% | §6.1, §8.3 |
+| `gross_spread` | 3% | 7% | §13.1 |
+| `target_price` | 100 | 20 | Default pre-IPO share count (§13.1) |
+| `max_above_range` | 0% | 20% | Top of the pricing band (§15.5) |
+
+Fields whose default comes from the market carry the `FromMarket(attr)`
+default kind and have `company.market` as a dependency, so changing the
+market recomputes them. Their source is **default**. Scaling revenue per
+employee with the salary level keeps staff cost the same share of revenue, so
+margins, and the preset coherence of §5, hold in both markets. The V020 band
+(§24) is scaled by `fx · salary_level`.
+
+The amounts in a scenario file are in its market's currency: `--market us`
+on a Swedish case reads its kronor as dollars. Amounts accept Swedish
+suffixes too: `mkr` (miljoner kronor, 10⁶) and `md` / `mdr` (miljarder, 10⁹).
+
 ## 6. The operating forecast
 
 ### 6.1 Conventions
@@ -264,7 +303,7 @@ Notes that the help text teaches:
   mid-year convention (§8.4), off by default so tables can be checked by
   hand.
 - **All amounts are nominal**, in the profile's currency. General inflation
-  `π` (default 2.5%) escalates fixed costs.
+  `π` (market default: 2% `se`, 2.5% `us`) escalates fixed costs.
 - **"Fade" means linear interpolation** from the year-1 value to the year-N
   value:
 
@@ -451,8 +490,8 @@ r_2 = WACC_2      applies to years S+1 … ∞
 
 | Input | Default | Help text in brief |
 |---|---:|---|
-| Risk-free rate `r_f` | 4.25% | The long government bond yield. **Edit to today's value**, because the default is a round number, not a quote |
-| Equity risk premium `ERP` | 5.0% | Extra return investors demand for equities over bonds |
+| Risk-free rate `r_f` | Market: 3.0% / 4.25% | The long government bond yield. **Edit to today's value**, because the default is a round number, not a quote |
+| Equity risk premium `ERP` | Market: 5.6% / 5.0% | Extra return investors demand for equities over bonds |
 | β stage 1 / stage 2 | Preset (1.5 / 1.1) | Sensitivity to the market. Young companies are more cyclical, and mature beta drifts toward 1 |
 | Size premium stage 1 / stage 2 | 1.5% / 0.5% | Small, illiquid companies demand more |
 | Execution premium (stage 1 only) | 3.0% | The risk that the plan simply does not happen. It is the reason stage 1 has its own rate |
@@ -722,13 +761,14 @@ function of the company's execution. `ρ = 0` gives independent draws, and
 
 | Input | Default | Notes |
 |---|---|---|
-| Fully diluted pre-IPO shares `S_pre` | Comps pre-money equity / 20, rounded to 1 m | A real IPO "splits the stock" before listing so the price lands in a conventional range. The default mimics that by targeting about 20 |
-| Gross primary raise `R` | 20% of comps pre-money equity, rounded to 25 m | Enough to fund the plan without heavy dilution |
+| Fully diluted pre-IPO shares `S_pre` | Comps pre-money equity / the market's target price, rounded to 1 m | A real IPO "splits the stock" before listing so the price lands in a conventional range. The default mimics that by targeting about 100 SEK or 20 USD |
+| Gross primary raise `R` | 20% of comps pre-money equity, rounded to 25 m × `fx` | Enough to fund the plan without heavy dilution |
 | Secondary shares `S_sec` | 0 | Existing holders selling |
-| Gross spread `f` | 7% | The customary spread for mid-sized US IPOs; larger deals pay less |
-| Other offering expenses `X` | 2 m + 1% of `R` | Legal, audit, printing, listing fees |
+| Gross spread `f` | Market: 3% / 7% | 7% is the customary spread for mid-sized US IPOs; European fees are lower; larger deals pay less |
+| Other offering expenses `X` | 2 m × `fx` + 1% of `R` | Legal, audit, printing, listing fees |
 | IPO discount `d` | 15% | The deliberate discount to fair value that makes the deal attractive and leaves room for a first-day rise |
 | Minimum IPO discount | 5% | Below this, bankers will not launch (§14) |
+| Maximum price above the range | Market: 0% / 20% | The top of the pricing band (§15.5) |
 | Lock-up days / coverage | 180 days / 100% of pre-IPO shares | |
 | Cornerstone commitment | 0 | A fixed amount pre-committed before launch (common in Hong Kong and the Nordics) |
 | Cornerstone lock-in | 180 days | "Lock-in rules for primary market buyers": their shares are excluded from the free float until it expires |
@@ -858,7 +898,7 @@ coverage(P)    = (D_I(P) + D_R(P) + cornerstone) / offer value(P)
 ```
 
 The report tabulates every price step from `max(low · 0.8, P_floor)` to
-`high · 1.2`.
+the maximum price `top = round_down(high · (1 + max_above_range))`.
 
 ### 15.5 The pricing rule
 
@@ -872,9 +912,12 @@ The report tabulates every price step from `max(low · 0.8, P_floor)` to
    risk of trading below its offer price.
 3. **Below 1× everywhere**: **POSTPONE**.
 
-The band `[0.8 · low, 1.2 · high]` mirrors practice. In the US, SEC Rule 430A
-lets a deal price roughly 20% outside the filed range without re-filing; the
-tool uses ±20% as a hard band. The report states whether the price is below,
+The band `[0.8 · low, top]` mirrors practice. In Sweden, as elsewhere in the
+EU, the prospectus states the top of the range as the maximum price; pricing
+above it needs a supplement that gives investors withdrawal rights, so `se`
+uses `max_above_range` 0 and `top = high`. In the US, SEC Rule 430A lets a
+deal price roughly 20% outside the filed range without re-filing, so `us`
+uses 20% and `top = high · 1.2`. Both are hard limits. The report states whether the price is below,
 within or above the range, because the press will.
 
 ### 15.6 Allocation
@@ -958,7 +1001,8 @@ A B2B SaaS company. The student entered **only** the values marked ✎. Every
 other value is a `b2b_saas` preset default or derived by a rule, exactly as
 the tool would do. Figures for §6–§10 come from `edumatcher.valuation` itself, and are
 asserted by its golden test (§25); the rest come from a prototype of
-§11–§16. All are rounded for display. Amounts are in USD millions unless stated.
+§11–§16. All are rounded for display. Aurora is a US case (`market: us`), so
+amounts are in USD millions unless stated.
 
 ### 18.1 Inputs
 
@@ -1396,14 +1440,14 @@ Defaults are in parentheses; `←` marks a value derived from other answers;
 
 | Page | Fields (default rule) |
 |---|---|
-| 1 Company | Name; ticker (← name); sector preset; SIC (← preset); incorporation; currency; FY end; dual-class (no); lead underwriter; use of proceeds |
+| 1 Company | Name (market); ticker (← name); sector preset; SIC (← preset); incorporation (market); currency (market); FY end; dual-class (no); lead underwriter (market); use of proceeds; market (`se`) |
 | 2 Market | TAM (preset); TAM growth (preset); SAM share (preset); market structure (competitive → `p_max`); *adv.* `p_max` directly |
 | 3 Customers & pricing | Last FY revenue (preset; ← 0.85 · C₀ · ARPU when you give C₀); customers now (← revenue / (0.85 · ARPU)); ARPU (preset); ARPU growth (5%); churn (preset); year-1 customer growth (preset) |
 | 4 People | Headcount (← revenue / preset revenue per employee); loaded cost (preset); wage inflation (3.5%); headcount mode (follow revenue); elasticity (0.6) *or* year-1 / year-N growth; floor (4%); *adv.* department split (preset) |
-| 5 Costs | Infrastructure fixed and per customer (preset); other COGS % (preset); paid CAC (← preset × ARPU); CAC growth (3%); R&D non-staff % (4%); G&A non-staff % (3%); public-company cost (3 m); SBC % (12%); inflation (2.5%) |
-| 6 Capital & tax | Capex % (preset); useful life (4); opening PP&E (← §6.7); NWC % (preset); tax rate (25%); opening NOL (0); cash (0); debt (0) |
-| 7 Discount rates | `r_f`; ERP; β1 / β2 (preset); size premia; execution premium; *adv.* D/V, `k_d`; stage-1 years (5); horizon N (10); `g` (2.5%); RONIC spread (2%); override `r_1` / `r_2`; mid-year (off) |
-| 8 Offering | `S_pre` (← comps pre-money / 20); raise `R` (← 20% of comps pre-money); secondary shares (0); gross spread (7%); other expenses (← 2 m + 1% R); IPO discount (15%); *adv.* minimum discount (5%); lock-up days (180) and coverage (100%); cornerstone amount (0) and lock-in (180); retail tranche (10%) |
+| 5 Costs | Infrastructure fixed and per customer (preset); other COGS % (preset); paid CAC (← preset × ARPU); CAC growth (3%); R&D non-staff % (4%); G&A non-staff % (3%); public-company cost (3 m); SBC % (12%); inflation (market) |
+| 6 Capital & tax | Capex % (preset); useful life (4); opening PP&E (← §6.7); NWC % (preset); tax rate (market); opening NOL (0); cash (0); debt (0) |
+| 7 Discount rates | `r_f` (market); ERP (market); β1 / β2 (preset); size premia; execution premium; *adv.* D/V, `k_d`; stage-1 years (5); horizon N (10); `g` (market); RONIC spread (2%); override `r_1` / `r_2`; mid-year (off) |
+| 8 Offering | `S_pre` (← comps pre-money / target price); raise `R` (← 20% of comps pre-money); secondary shares (0); gross spread (market); other expenses (← 2 m × fx + 1% R); IPO discount (15%); *adv.* minimum discount (5%); maximum price above the range (market); lock-up days (180) and coverage (100%); cornerstone amount (0) and lock-in (180); retail tranche (10%) |
 | 9 Investors & sentiment | Institutional interest (medium); number of institutions (40); average ticket (← 5% R); retail interest (medium); retail applicants (20,000); average application (2,500); hype (3); target coverage (3×); comps multiple (preset); DCF weight (70%); *adv.* elasticities |
 | 10 Index | Rulebook values (§17.1); exchange may relax (none); passive AUM and index free-float cap (optional) |
 | 11 Management | Last private round post-money (optional); minimum market cap (← last round, else none); maximum dilution (25%); minimum net proceeds (optional) |
@@ -1452,7 +1496,7 @@ printed as a PDF. The views cannot disagree.
 | # | Section | Content |
 |---|---|---|
 | 1 | Verdict | PROCEED / PROCEED (thin book) / POSTPONE; offer price; range; market cap; raise; coverage; pop; a 5–8 bullet justification generated from the numbers |
-| 2 | S-1 cover | Name, ticker, SIC, filer status, offering table (§18.12), use of proceeds, underwriter |
+| 2 | Prospectus cover (`se`) / S-1 cover (`us`) | Issuer, ticker, incorporation, FY end, underwriter, approving authority and listing venue; for `us` also SIC and filer status; offering table (§18.12), use of proceeds |
 | 3 | Assumptions | Every input with its source (✎ / preset / derived / default) |
 | 4 | Market and customers | §18.2 |
 | 5 | Unit economics | §18.6 |
@@ -1467,7 +1511,7 @@ printed as a PDF. The views cannot disagree.
 | 14 | Pricing | Range, management floor, book, pricing rule, allocation, pop (§18.11) |
 | 15 | Capitalisation and dilution | §18.12 |
 | 16 | Lock-ups, float and index | §18.13 |
-| 17 | Risk factors | Generated from fired warnings, phrased as S-1 risk factors, e.g. V004 → "A majority of our valuation depends on cash flows more than ten years away" |
+| 17 | Risk factors | Generated from fired warnings, phrased as prospectus risk factors, e.g. V004 → "A majority of our valuation depends on cash flows more than ten years away" |
 | 18 | Next step | The `pm-new-symbol` command (§22) |
 | 19 | What this model leaves out | Fixed text: §2.2 and the heuristics of D9 |
 
@@ -1520,9 +1564,10 @@ column. The font is Vera (shipped with ReportLab, embedded); it lacks β, ρ,
 pm-valuation                                   interactive interview
 pm-valuation --load aurora.yaml                interview pre-filled from a file
 pm-valuation --load aurora.yaml --no-tui       straight to the report, printed to stdout
-pm-valuation --case kestrel                    interview pre-filled from a classroom case
+pm-valuation --case tornfalk                   interview pre-filled from a classroom case
 pm-valuation --quick                           pages 1 and 11 only
 options:
+  --market se|us                               IPO framework; overrides the file (default: the file's, else se)
   --mode deterministic|montecarlo|both         default both
   --draws N --seed S                           Monte Carlo settings
   --save PATH [--with-defaults]                write the scenario (also F9); see below
@@ -1546,7 +1591,7 @@ case:
 
 ```yaml
 pm_valuation: 1
-company:   {name: Aurora Metrics Inc., ticker: AURM, sector: b2b_saas}
+company:   {name: Aurora Metrics Inc., ticker: AURM, sector: b2b_saas, market: us}
 customers: {last_fy_revenue: 90m, now: 1800}
 capital:   {ppe_start: 12m, nol: 150m, cash: 60m}
 offering:  {shares_pre: 80m, secondary_shares: 5m}
@@ -1559,8 +1604,9 @@ Each key is the field key split at its first dot (`customers.now` →
 
 The classroom cases (WP8) are scenario files shipped in the package,
 `src/edumatcher/valuation/cases/NAME.yaml`, loaded with `--case NAME`:
-`kestrel`, a hot deal priced at the top of the ±20% band, and `halvard`, a
-deal postponed by management's floor. The training chapter
+`tornfalk` (Tornfalk Security AB), a hot deal priced at the maximum price,
+and `halvard` (Halvard Robotics AB), a deal postponed by management's floor.
+Both are Swedish (`market: se`, amounts in SEK). The training chapter
 `docs/training/280-ipo-valuation.md` is built on them, and
 `tests/test_valuation_report.py::test_classroom_cases` pins the numbers it
 quotes.
@@ -1643,7 +1689,7 @@ src/edumatcher/valuation/
     widgets.py         field row, pick-list, preview panel, help line
     viewer.py          report viewer, compare view
   scenario_io.py       YAML load/save (§21)
-  cases/               classroom cases for --case (kestrel.yaml, halvard.yaml)
+  cases/               classroom cases for --case (tornfalk.yaml, halvard.yaml)
 ```
 
 ```mermaid
@@ -1698,7 +1744,7 @@ flowchart LR
 | V017 | warn | DCF and comps differ by > 50% | Explain the gap |
 | V018 | warn | MC rejections > 1% | Rate ranges too close to `g`, or draws describing no valid company |
 | V019 | info | NOL never fully used within the horizon | |
-| V020 | warn | Revenue per employee in year N outside 150k–800k | Headcount plan implausible |
+| V020 | warn | Revenue per employee in year N outside 150k–800k USD (× `fx · salary_level`) | Headcount plan implausible |
 | V021 | warn | Net proceeds below management's minimum | The raise does not fund the plan |
 
 Warnings with a risk-factor phrasing feed report section 17.
@@ -1747,9 +1793,11 @@ All eight work packages are implemented. The user-guide chapter is
    replace the illustrative values in §5? One known symptom: the
    `fintech_payments` defaults alone fire V020 (year-10 revenue per employee
    about 1.25 m, above the 0.8 m plausibility limit).
-2. **Default currency and thresholds.** The S-1 framing is US (USD, EGC and
-   SRC thresholds), while EduMatcher's default country is Sweden. Should
-   there be an "EU prospectus" profile with local labels?
+2. ~~**Default currency and thresholds.**~~ Resolved by D10 and §5.1: a
+   Swedish framework (prospectus, Finansinspektionen, SEK) is the default,
+   and the US one (S-1, EGC and SRC) is `--market us`. Open: the EU Growth
+   prospectus for smaller issuers is mentioned in the user guide but not
+   modelled.
 
 **Extensions (deliberately left out to keep the model small)**
 
@@ -1813,6 +1861,9 @@ Pop        clamp(0.08·ln cov + 0.02·h, −20%, 100%)
 | Fast entry | An index rule admitting very large IPOs early |
 | EGC / SRC | Emerging growth company / smaller reporting company (SEC filer categories) |
 | S-1 | The US registration statement for an IPO |
+| Prospectus | The offering document investors read; in Sweden approved by Finansinspektionen under the EU Prospectus Regulation |
+| AB (publ) | Swedish public limited company (*aktiebolag*); only a public AB may offer shares to the public |
+| Maximum price | The top of the price range in an EU prospectus; the deal cannot price above it without a supplement |
 | Red herring | The preliminary prospectus, carrying the price range |
 | First-day pop | The first-day return over the offer price |
 | Money left on the table | Pop × offer price × shares sold: what the issuer could have raised |

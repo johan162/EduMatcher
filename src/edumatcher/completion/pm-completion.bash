@@ -7747,11 +7747,12 @@ complete -F _shtab_pm_ticker pm-ticker
 
 
 
-_shtab_pm_valuation_option_strings=(-h --help --version --load --case --no-tui --quick --mode --draws --seed --save --with-defaults --export --pdf --paper --presets --list --config)
+_shtab_pm_valuation_option_strings=(-h --help --version --load --case --no-tui --quick --market --mode --draws --seed --save --with-defaults --export --pdf --paper --presets --list --config)
 
 
 
-_shtab_pm_valuation___case_choices=(halvard kestrel)
+_shtab_pm_valuation___case_choices=(halvard tornfalk)
+_shtab_pm_valuation___market_choices=(se us)
 _shtab_pm_valuation___mode_choices=(deterministic montecarlo both)
 _shtab_pm_valuation___paper_choices=(a4 letter)
 

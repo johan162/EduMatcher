@@ -2,11 +2,56 @@
 #
 # Each preset is a coherent set of defaults for one business model. The values
 # are illustrative and plausible, not researched benchmarks: edit them freely,
-# or pass another file with --presets. Money is in the profile's currency,
-# percentages are fractions (0.08 = 8%).
+# or pass another file with --presets. Money in the sector presets, and in the
+# money defaults of the interview, is in US dollars; each market converts it
+# with its fx. Percentages are fractions (0.08 = 8%).
 
-# SEC filer-status thresholds used on the S-1 cover (design §4). They change
-# over time: EGC revenue as inflation-adjusted in 2022, SRC as defined in 2018.
+# Where the company lists (--market). The defaults that follow from the
+# market: currency, legal form, regulator, rates, tax, fees and how far above
+# its range an IPO may price.
+markets:
+  se:
+    description: Swedish IPO, prospectus approved by Finansinspektionen, Nasdaq Stockholm
+    currency: SEK
+    fx: 10                  # SEK per USD, rounded
+    salary_level: 0.7       # Swedish loaded cost and revenue per employee relative to the US presets
+    company_name: Newco AB
+    incorporation: Sweden
+    lead_underwriter: Fiktiva Banken AB
+    document: Prospectus
+    regulator: Finansinspektionen (EU Prospectus Regulation)
+    listing_venue: Nasdaq Stockholm, Main Market
+    risk_free: 0.030        # Swedish 10-year government bond, Aug 2026
+    erp: 0.056              # PwC Riskpremiestudien 2026, median
+    tax_rate: 0.206         # Swedish corporate income tax
+    inflation: 0.02         # the Riksbank's target
+    terminal_growth: 0.02
+    gross_spread: 0.03      # European IPO fees are about half the US level
+    target_price: 100       # the stock split aims the price at about this
+    max_above_range: 0.0    # the prospectus states the top of the range as maximum price
+  us:
+    description: US IPO, S-1 registration with the SEC
+    currency: USD
+    fx: 1
+    salary_level: 1.0
+    company_name: Newco Inc.
+    incorporation: Delaware
+    lead_underwriter: Fictive & Co.
+    document: S-1
+    regulator: SEC (Securities Act of 1933)
+    listing_venue: Nasdaq or NYSE
+    risk_free: 0.0425
+    erp: 0.05
+    tax_rate: 0.25          # federal 21% plus state
+    inflation: 0.025
+    terminal_growth: 0.025
+    gross_spread: 0.07      # the customary spread for mid-sized US IPOs
+    target_price: 20
+    max_above_range: 0.20   # about 20% outside the filed range without re-filing
+
+# SEC filer-status thresholds used on the S-1 cover of a US IPO (design §4),
+# in US dollars. They change over time: EGC revenue as inflation-adjusted in
+# 2022, SRC as defined in 2018.
 filer_thresholds:
   egc_revenue: 1_235_000_000     # emerging growth company: revenue below this
   src_public_float: 250_000_000  # smaller reporting company: float below this,
@@ -118,7 +163,7 @@ sectors:
     nwc_pct: 0.05
     beta_stage1: 1.6
     beta_stage2: 1.2
-    comps_ev_revenue: 6.0
+    comps_ev_revenue: 7.0
     ebit_margin_band: [0.15, 0.30]
 
   deep_tech_hardware:

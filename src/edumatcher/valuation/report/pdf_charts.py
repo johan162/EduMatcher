@@ -94,8 +94,8 @@ def _value_axis(d: Drawing, left: float, right: float, bottom: float, top: float
     return ticks, scale
 
 
-def cash_flows(years: Sequence[YearRow], width: float) -> Drawing:
-    """Revenue and free cash flow per forecast year, USD m."""
+def cash_flows(years: Sequence[YearRow], currency: str, width: float) -> Drawing:
+    """Revenue and free cash flow per forecast year, in millions."""
     height = 180.0
     d = Drawing(width, height)
     left, right, bottom, top = 40.0, width - 4, 16.0, height - 22
@@ -112,7 +112,7 @@ def cash_flows(years: Sequence[YearRow], width: float) -> Drawing:
             y0, y1 = sorted((zero, zero + value * scale))
             d.add(_box(x + dx, y0, bar, max(y1 - y0, 0.3), colour))
         _text(d, x, bottom - 10, f"Y{i + 1}", anchor="middle")
-    _text(d, left - 36, top + 12, "USD m", 7, colour=MUTED)
+    _text(d, left - 36, top + 12, f"{currency} m", 7, colour=MUTED)
     _legend(d, left + 20, top + 12,
             (("Revenue", BLUE), ("Free cash flow to the firm", ORANGE)))  # fmt: skip
     return d

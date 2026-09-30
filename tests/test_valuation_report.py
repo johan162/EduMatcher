@@ -23,7 +23,7 @@ from edumatcher.valuation.report.build import (
 from edumatcher.valuation.report.render_md import render_markdown
 from edumatcher.valuation.report.render_pdf import CHAPTERS, PROSE, write_pdf
 from edumatcher.valuation.report.render_rich import print_report
-from edumatcher.valuation.resolve import InvalidAnswers, resolve
+from edumatcher.valuation.resolve import InvalidAnswers, Source, resolve
 from edumatcher.valuation.scenario_io import dump, load
 from edumatcher.valuation.units import NOT_ANSWERED, ParseError, format_value, parse
 from tests.test_valuation_resolve import AURORA
@@ -45,6 +45,9 @@ def aurora_run():
     [
         ("market.tam", "40bn", 40e9),
         ("market.tam", "300m", 300e6),
+        ("market.tam", "1.4md", 1.4e9),  # Swedish: miljard
+        ("market.tam", "2 mdr", 2e9),
+        ("market.tam", "300mkr", 300e6),  # miljoner kronor
         ("market.tam", "2.5k", 2500.0),
         ("market.tam", "90,000,000", 90e6),
         ("market.tam", "1_000", 1000.0),
@@ -355,7 +358,8 @@ def test_no_tui_reports_invalid_input(capsys: pytest.CaptureFixture[str]) -> Non
         ["--paper", "a3"],
         ["--list"],
         ["--no-tui", "--config", "engine.yaml"],
-        ["--load", "a.yaml", "--case", "kestrel"],
+        ["--load", "a.yaml", "--case", "tornfalk"],
+        ["--market", "uk"],
         ["--case", "no-such-case"],
     ],
 )
@@ -377,11 +381,11 @@ def test_list_hands_the_listing_to_pm_new_symbol(
 ) -> None:
     calls: list[list[str]] = []
     monkeypatch.setattr("edumatcher.new_symbol.main.main", calls.append)
-    main(["--case", "kestrel", "--no-tui", "--mode", "deterministic",
+    main(["--case", "tornfalk", "--no-tui", "--mode", "deterministic",
           "--list", "--config", "engine.yaml"])  # fmt: skip
     assert calls == [
-        ["--symbol", "KSEC", "--ipo-price", "24.00",
-         "--outstanding-shares", "77708333", "--tick-decimals", "2",
+        ["--symbol", "TORN", "--ipo-price", "105.00",
+         "--outstanding-shares", "158095238", "--tick-decimals", "2",
          "--config", "engine.yaml"]
     ]  # fmt: skip
 
@@ -403,31 +407,73 @@ def _case(name: str) -> dict[str, object]:
 
 
 def test_classroom_cases() -> None:
-    """The numbers docs/training/280-ipo-valuation.md quotes (WP8)."""
-    assert case_names() == ["halvard", "kestrel"]
+    """The numbers docs/training/280-ipo-valuation.md and the user guide quote."""
+    assert case_names() == ["halvard", "tornfalk"]
 
-    hot = run(_case("kestrel"), PRESETS).pricing
-    assert hot.price_range == (18.0, 20.0) and hot.position == "above"
-    assert hot.listing is not None and hot.listing.price == 24.0
-    assert hot.coverage is not None and hot.coverage == pytest.approx(7.04, abs=0.01)
-    assert hot.pop == pytest.approx(0.256, abs=0.001)
+    tornfalk = run(_case("tornfalk"), PRESETS)
+    hot = tornfalk.pricing
+    assert tornfalk.valuation.fair_value == pytest.approx(117.45, abs=0.005)
+    assert hot.price_range == (94.5, 105.0) and hot.position == "within"
+    assert hot.listing is not None and hot.listing.price == 105.0  # the maximum price
+    assert hot.coverage is not None and hot.coverage == pytest.approx(11.92, abs=0.01)
+    assert hot.pop == pytest.approx(0.298, abs=0.001)
+    assert hot.money_left == pytest.approx(1193.1e6, rel=1e-4)
 
-    mc = run({**_case("kestrel"), "simulation.mode": "montecarlo"}, PRESETS).mc
+    mc = run({**_case("tornfalk"), "simulation.mode": "montecarlo"}, PRESETS).mc
     assert mc is not None
     fair = [s.fair_value for s in mc.samples]
-    assert share_below(fair, 24.0) == pytest.approx(0.665, abs=0.001)
+    assert share_below(fair, 105.0) == pytest.approx(0.438, abs=0.001)
 
     halvard = _case("halvard")
     assert run(halvard, PRESETS).pricing.listing is None
     floors = {m: run({**halvard, "management.min_market_cap": m}, PRESETS).pricing
-              for m in (230e6, 220e6)}  # fmt: skip
-    assert floors[230e6].outcome is Outcome.POSTPONED
-    assert floors[220e6].outcome is Outcome.THIN_BOOK
-    assert floors[220e6].listing is not None and floors[220e6].listing.price == 8.5
+              for m in (2.6e9, 2.5e9, 2.4e9)}  # fmt: skip
+    assert floors[2.6e9].outcome is Outcome.POSTPONED
+    assert floors[2.5e9].outcome is Outcome.THIN_BOOK
+    assert floors[2.4e9].listing is not None and floors[2.4e9].listing.price == 95.0
     del halvard["management.last_round"]  # the exercise: accept the down round
     down = run(halvard, PRESETS).pricing
-    assert down.listing is not None and down.listing.price == 8.3
-    assert down.listing.market_cap == pytest.approx(216e6, rel=1e-3)
+    assert down.listing is not None and down.listing.price == 94.5
+    assert down.listing.market_cap == pytest.approx(2390e6, rel=1e-3)
+
+
+def test_swedish_and_us_framing() -> None:
+    """--market se prices at most at the top of the range, in SEK, on a
+    prospectus; --market us may price 20% above it, in USD, on an S-1."""
+    se = run(_case("tornfalk"), PRESETS)
+    # The same company in US dollars: a file's amounts are in its market's
+    # currency, so switching the market means converting them too.
+    in_usd = {"customers.last_fy_revenue": 140e6, "capital.cash": 90e6,
+              "offering.shares_pre": 60e6}  # fmt: skip
+    us = run({**_case("tornfalk"), **in_usd, "company.market": "us"}, PRESETS)
+    assert se.resolved["company.currency"] == "SEK"
+    assert se.resolved.sources["rates.risk_free"] is Source.DEFAULT
+    assert (se.resolved["rates.risk_free"], se.resolved["capital.tax_rate"]) == (
+        0.03,
+        0.206,
+    )
+    assert se.pricing.listing is not None
+    assert se.pricing.listing.price <= se.pricing.price_range[1]
+    assert us.pricing.listing is not None
+    assert us.pricing.listing.price > us.pricing.price_range[1]
+    se_cover = build_report(se, PRESETS).sections[1]
+    us_cover = build_report(us, PRESETS).sections[1]
+    assert se_cover.title == "2. Prospectus cover" and us_cover.title == "2. S-1 cover"
+    assert "Emerging growth company" not in render_markdown(build_report(se, PRESETS))
+    assert "Finansinspektionen" in render_markdown(build_report(se, PRESETS))
+
+
+def test_money_defaults_follow_the_market() -> None:
+    se = resolve({"company.market": "se"}, PRESETS)
+    us = resolve({"company.market": "us"}, PRESETS)
+    assert se["customers.arpu"] == 10 * us["customers.arpu"]  # SEK per USD
+    assert se["people.loaded_cost"] == pytest.approx(
+        0.7 * 10 * us["people.loaded_cost"]
+    )
+    assert se["costs.public_company"] == 10 * us["costs.public_company"]
+    # Pay and productivity both follow the salary level: same staff-cost share.
+    assert se["people.headcount"] == round(us["people.headcount"] / 0.7)
+    assert se["company.name"] == "Newco AB" and us["company.name"] == "Newco Inc."
 
 
 def test_random_companies_fail_only_with_explanations() -> None:

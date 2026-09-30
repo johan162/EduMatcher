@@ -19,10 +19,13 @@ from edumatcher.valuation.fields import (
     DRIVER_KEYS,
     FIELDS,
     MARKET_STRUCTURES,
+    MARKETS,
     SECTORS,
     Const,
     Ctx,
+    Default,
     FieldSpec,
+    FromMarket,
     FromPreset,
     Rule,
     Unit,
@@ -64,6 +67,8 @@ def choices(spec: FieldSpec, presets: Presets) -> tuple[str, ...] | None:
         return tuple(presets.sectors)
     if spec.choices == MARKET_STRUCTURES:
         return tuple(presets.market_structures)
+    if spec.choices == MARKETS:
+        return tuple(presets.markets)
     return spec.choices if isinstance(spec.choices, tuple) else None
 
 
@@ -94,23 +99,23 @@ def _problem(spec: FieldSpec, value: Any, presets: Presets) -> str | None:
     return None
 
 
-def _default(
-    spec: FieldSpec, user: Mapping[str, Any]
-) -> tuple[Const | FromPreset | Rule, Source]:
+def _default(spec: FieldSpec, user: Mapping[str, Any]) -> tuple[Default, Source]:
     if spec.inverse is not None and spec.inverse_when in user:
         return spec.inverse, Source.DERIVED
-    if isinstance(spec.default, Const):
+    if isinstance(spec.default, (Const, FromMarket)):
         return spec.default, Source.DEFAULT
     if isinstance(spec.default, FromPreset):
         return spec.default, Source.PRESET
     return spec.default, Source.DERIVED
 
 
-def _depends(default: Const | FromPreset | Rule) -> tuple[str, ...]:
+def _depends(spec: FieldSpec, default: Default) -> tuple[str, ...]:
     if isinstance(default, Rule):
         return default.depends
     if isinstance(default, FromPreset):
-        return ("company.sector",)
+        return ("company.sector", "company.market")
+    if isinstance(default, FromMarket) or spec.unit is Unit.MONEY:
+        return ("company.market",)  # money defaults are in US dollars
     return ()
 
 
@@ -140,7 +145,7 @@ def resolve(answers: Mapping[str, Any], presets: Presets) -> Resolved:
         waiting = []
         for spec in pending:
             default, source = _default(spec, answers)
-            depends = _depends(default)
+            depends = _depends(spec, default)
             if any(dep in broken for dep in depends):
                 broken.add(spec.key)
                 continue
@@ -151,8 +156,15 @@ def resolve(answers: Mapping[str, Any], presets: Presets) -> Resolved:
             try:
                 if isinstance(default, Const):
                     value = default.value
+                    if spec.unit is Unit.MONEY and value:
+                        value *= ctx.market.fx
                 elif isinstance(default, FromPreset):
-                    value = getattr(ctx.preset, default.attr)
+                    if spec.unit is Unit.MONEY:
+                        value = ctx.money(default.attr)
+                    else:
+                        value = getattr(ctx.preset, default.attr)
+                elif isinstance(default, FromMarket):
+                    value = getattr(ctx.market, default.attr)
                 else:
                     value = default.fn(ctx)
             except ValueError as exc:  # e.g. the forecast behind the comps rule

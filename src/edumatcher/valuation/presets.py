@@ -55,10 +55,53 @@ class FilerThresholds:
 
 
 @dataclass(frozen=True)
+class Market:
+    """Where the company lists: currency, legal and regulatory framing, and
+    the defaults that follow from it (--market)."""
+
+    name: str
+    description: str
+    currency: str
+    fx: float  # local currency per US dollar; presets are in US dollars
+    salary_level: float  # loaded cost relative to the (US) presets
+    company_name: str
+    incorporation: str
+    lead_underwriter: str
+    document: str  # the offering document: "S-1" or "Prospectus"
+    regulator: str
+    listing_venue: str
+    risk_free: float
+    erp: float
+    tax_rate: float
+    inflation: float
+    terminal_growth: float
+    gross_spread: float
+    target_price: float
+    max_above_range: float
+
+
+@dataclass(frozen=True)
 class Presets:
+    markets: dict[str, Market]
     market_structures: dict[str, float]
     sectors: dict[str, Preset]
     filer_thresholds: FilerThresholds
+
+
+def _market(name: str, raw: Any) -> Market:
+    if not isinstance(raw, dict):
+        raise ValueError(f"market {name!r} must be a mapping")
+    expected = {f.name for f in dataclasses.fields(Market)} - {"name"}
+    if set(raw) != expected:
+        missing = sorted(expected - set(raw))
+        unknown = sorted(set(raw) - expected)
+        raise ValueError(f"market {name!r}: missing {missing}, unknown {unknown}")
+    text = {"description", "currency", "company_name", "incorporation",
+            "lead_underwriter", "document", "regulator", "listing_venue"}  # fmt: skip
+    values: dict[str, Any] = {
+        k: str(v) if k in text else float(v) for k, v in raw.items()
+    }
+    return Market(name=name, **values)
 
 
 def _preset(name: str, raw: Any) -> Preset:
@@ -97,11 +140,12 @@ def load_presets(path: Path | None = None) -> Presets:
     else:
         text = path.read_text(encoding="utf-8")
     raw = yaml.safe_load(text)
-    sections = {"filer_thresholds", "market_structures", "sectors"}
+    sections = {"filer_thresholds", "market_structures", "markets", "sectors"}
     if not isinstance(raw, dict) or set(raw) != sections:
         raise ValueError(f"presets need exactly {', '.join(sorted(sections))}")
     structures = {str(k): float(v) for k, v in raw["market_structures"].items()}
     sectors = {str(k): _preset(str(k), v) for k, v in raw["sectors"].items()}
+    markets = {str(k): _market(str(k), v) for k, v in raw["markets"].items()}
     if not sectors:
         raise ValueError("presets define no sectors")
     thresholds = raw["filer_thresholds"]
@@ -109,6 +153,7 @@ def load_presets(path: Path | None = None) -> Presets:
     if not isinstance(thresholds, dict) or set(thresholds) != expected:
         raise ValueError(f"filer_thresholds need exactly {', '.join(sorted(expected))}")
     return Presets(
+        markets=markets,
         market_structures=structures,
         sectors=sectors,
         filer_thresholds=FilerThresholds(

@@ -242,34 +242,42 @@ def _index_text(verdict: IndexVerdict) -> str:
 
 
 def _s1_section(run: Run, presets: Presets) -> Section:
+    """The cover of the offering document: an S-1 in the US, a prospectus in
+    Sweden. EGC and SRC are US filer categories and appear only there."""
     v, listing = run.resolved.values, run.pricing.listing
-    t = presets.filer_thresholds
-    revenue = v["customers.last_fy_revenue"]
-    egc = "yes" if revenue < t.egc_revenue else "no"
+    market = presets.markets[v["company.market"]]
+    us = market.name == "us"
     rows = [
-        ("Registrant", v["company.name"]),
+        ("Registrant" if us else "Issuer", v["company.name"]),
         ("Proposed ticker", v["company.ticker"]),
-        ("SIC code", v["company.sic_code"]),
+        *([("SIC code", v["company.sic_code"])] if us else []),
         ("Incorporated in", v["company.incorporation"]),
         ("Fiscal year end", v["company.fiscal_year_end"]),
         ("Lead underwriter", v["company.lead_underwriter"]),
-        (
-            "Emerging growth company",
-            f"{egc} (revenue {_m(revenue)} m vs {_m(t.egc_revenue)} m)",
-        ),
+        ("Registered with" if us else "Prospectus approved by", market.regulator),
+        ("Listing venue", market.listing_venue),
     ]
     blocks: list[Block] = []
-    if listing is None:
-        rows.append(("Smaller reporting company", "not determined: no offer price"))
-    else:
-        public_float = listing.free_float_cap
-        src = public_float < t.src_public_float or (
-            revenue < t.src_revenue and public_float < t.src_public_float_alt
-        )
+    if us:
+        t = presets.filer_thresholds
+        revenue = v["customers.last_fy_revenue"]
+        egc = "yes" if revenue < t.egc_revenue else "no"
         rows.append(
-            ("Smaller reporting company",
-             f"{'yes' if src else 'no'} (public float {_m(public_float)} m)")
+            ("Emerging growth company",
+             f"{egc} (revenue {_m(revenue)} m vs {_m(t.egc_revenue)} m)")
         )  # fmt: skip
+        if listing is None:
+            rows.append(("Smaller reporting company", "not determined: no offer price"))
+        else:
+            public_float = listing.free_float_cap
+            src = public_float < t.src_public_float or (
+                revenue < t.src_revenue and public_float < t.src_public_float_alt
+            )
+            rows.append(
+                ("Smaller reporting company",
+                 f"{'yes' if src else 'no'} (public float {_m(public_float)} m)")
+            )  # fmt: skip
+    if listing is not None:
         price, spread = listing.price, v["offering.gross_spread"]
         secondary = v["offering.secondary_shares"]
         primary = listing.primary_shares * price
@@ -279,11 +287,12 @@ def _s1_section(run: Run, presets: Presets) -> Section:
                 [
                     ("Initial public offering price", _ps(price),
                      f"{_m(primary)} m primary + {_m(secondary * price)} m secondary"),
-                    (f"Underwriting discount ({_pct(spread, 1)})", f"{price * spread:,.3f}",
+                    (f"Underwriting {'discount' if us else 'commission'} ({_pct(spread, 1)})",
+                     f"{price * spread:,.3f}",
                      f"{_m(primary * spread)} m + {_m(secondary * price * spread)} m"),
                     ("Proceeds to the company, before expenses",
                      f"{price * (1 - spread):,.3f}", f"{_m(primary * (1 - spread))} m"),
-                    ("Proceeds to selling stockholders, before expenses",
+                    ("Proceeds to selling shareholders, before expenses",
                      f"{price * (1 - spread):,.3f}",
                      f"{_m(secondary * price * (1 - spread))} m"),
                 ],
@@ -291,7 +300,8 @@ def _s1_section(run: Run, presets: Presets) -> Section:
             )
         )  # fmt: skip
     rows.append(("Use of proceeds", v["company.use_of_proceeds"]))
-    return Section("S-1 cover", (_table(("", ""), rows, "ll"), *blocks))
+    title = "S-1 cover" if us else "Prospectus cover"
+    return Section(title, (_table(("", ""), rows, "ll"), *blocks))
 
 
 def _assumptions_section(run: Run) -> Section:

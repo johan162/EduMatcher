@@ -3,6 +3,14 @@
 from __future__ import annotations
 
 GLOSSARY: tuple[tuple[str, str], ...] = (
+    ("AB / AB (publ)", "Aktiebolag, a Swedish limited company ('share company', "
+     "like Inc.); '(publ)' marks a public one, which may offer shares to the public"),
+    ("Prospectus", "The offering document of an EU IPO, approved by the "
+     "national regulator before the offer opens"),
+    ("Finansinspektionen (FI)", "The Swedish financial supervisory authority; "
+     "it approves Swedish prospectuses"),
+    ("Billion / miljard", "1,000 million; 'md' or 'mdr' in Swedish. A Swedish "
+     "biljon is a million million"),
     ("TAM / SAM", "Total / serviceable addressable market: all spending on the "
      "category / the part the company's product can serve"),
     ("ARPU", "Average revenue per user (customer) per year"),

@@ -50,6 +50,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--quick", action="store_true", help="Interview pages 1 and 11 only"
     )
     parser.add_argument(
+        "--market",
+        choices=("se", "us"),
+        help="Where the company lists: se, Sweden (default), or us; "
+        "overrides the scenario's",
+    )
+    parser.add_argument(
         "--mode",
         choices=("deterministic", "montecarlo", "both"),
         help="Scenarios, Monte Carlo, or both (default: the scenario's, else both)",
@@ -105,6 +111,7 @@ def main(argv: list[str] | None = None) -> None:
     except (OSError, ValueError) as exc:
         parser.exit(1, f"[ERROR] {exc}\n")
     for key, value in (
+        ("company.market", args.market),
         ("simulation.mode", args.mode),
         ("simulation.draws", args.draws),
         ("simulation.seed", args.seed),

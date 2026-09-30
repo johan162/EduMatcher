@@ -69,6 +69,9 @@ class Interview:
             if spec.page == page and (self.show_advanced or not spec.advanced)
         ]
 
+    def advanced_on(self, page: int) -> int:
+        return sum(1 for spec in FIELDS if spec.page == page and spec.advanced)
+
     def answered_on(self, page: int) -> int:
         return sum(
             1 for spec in FIELDS if spec.page == page and self.texts.get(spec.key)

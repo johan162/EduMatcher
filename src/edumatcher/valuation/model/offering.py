@@ -24,7 +24,9 @@ from edumatcher.valuation.model.valuation import Valuation, offering
 INTEREST = {"very_low": 0.3, "low": 0.6, "medium": 1.0, "high": 1.5, "very_high": 2.2}
 #: The book is tabulated, and may be priced, from 80% of the low end of the
 #: range to 120% of the high end (the Rule 430A analogue, §15.5).
-BAND_LOW, BAND_HIGH = 0.8, 1.2
+#: The book runs from this fraction of the range's low end up to the most the
+#: market allows above its high end (``offering.max_above_range``).
+BAND_LOW = 0.8
 
 
 class Outcome(Enum):
@@ -242,7 +244,7 @@ def price_ipo(v: Mapping[str, Any], valuation: Valuation) -> Pricing:
     bottom = max(step, _down(low * BAND_LOW, step))
     if floor is not None:
         bottom = max(bottom, _up(floor, step))
-    top = _down(high * BAND_HIGH, step)
+    top = _down(high * (1 + v["offering.max_above_range"]), step)
     count = int(round((top - bottom) / step)) + 1
     book = tuple(
         book_line(round(bottom + i * step, 2), v, fair_value, prospects)

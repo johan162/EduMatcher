@@ -150,12 +150,14 @@ NOTE = _style("note", fontSize=8, leading=11, textColor=MUTED)
 #: Chapters: title, introduction, and the report sections they hold.
 CHAPTERS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("The company and its offering",
-     "The registration statement (the S-1 in the United States) is the "
-     "document an issuer files before it may sell shares to the public. Its "
-     "cover page states who is selling, how many shares, at what indicative "
-     "price, and what the underwriters are paid. This chapter reproduces "
-     "that page for the simulated company.",
-     ("S-1 cover",)),
+     "Before it may sell shares to the public, an issuer publishes an "
+     "offering document: in Sweden a prospectus approved by "
+     "Finansinspektionen, the financial regulator; in the United States the "
+     "S-1 registration statement filed with the SEC. Its cover states who is "
+     "selling, how many shares, at what indicative price, and what the "
+     "underwriters are paid. This chapter reproduces it for the simulated "
+     "company.",
+     ("Prospectus cover", "S-1 cover")),
     ("Operating forecast",
      "A valuation is only as good as the forecast beneath it. The model "
      "builds the company from the bottom up: the market it sells into, the "
@@ -193,12 +195,20 @@ CHAPTERS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
 )  # fmt: skip
 
 PROSE: dict[str, tuple[str, ...]] = {
+    "Prospectus cover": (
+        "A Swedish company going public is an aktiebolag (AB, a limited "
+        "company; the name gains '(publ)' as a public one). Its prospectus "
+        "follows the EU Prospectus Regulation and is approved by "
+        "Finansinspektionen before the offer opens. The offering table splits "
+        "the gross proceeds between the underwriters' commission, the company "
+        "and any selling shareholders.",
+    ),
     "S-1 cover": (
         "Emerging growth company (EGC) and smaller reporting company (SRC) "
-        "status reduce what the issuer must disclose; both depend on revenue "
+        "status reduce what a US issuer must disclose; both depend on revenue "
         "and, for the SRC test, on the public float at the offer price. The "
         "offering table splits the gross proceeds between the underwriters' "
-        "discount, the company and any selling stockholders.",
+        "discount, the company and any selling shareholders.",
     ),
     "Market and customers": (
         "The customer base follows a logistic path. Each year the company "
@@ -295,7 +305,9 @@ PROSE: dict[str, tuple[str, ...]] = {
         "Management may insist on a minimum valuation, which moves the range "
         "up. The book then records how much institutions, retail investors "
         "and any cornerstone investor would buy at every price from 20% "
-        "below the range to 20% above it.",
+        "below the range up to the highest price the market allows: the top "
+        "of the range in Sweden, where the prospectus states it as the "
+        "maximum price, and about 20% above it in the United States.",
         "Coverage is demand divided by the value of the shares offered. The "
         "deal is priced at the highest price that is still covered at least "
         "at the target. Oversubscription means most investors receive less "
@@ -504,7 +516,9 @@ class _Doc(BaseDocTemplate):
         canvas.setFont("Vera", 11)
         v = self.run.resolved.values
         canvas.drawString(MARGIN_X, height - 70 * mm,
-                          f"SIC {v['company.sic_code']}  ·  Incorporated in "
+                          (f"SIC {v['company.sic_code']}  ·  "
+                           if v["company.market"] == "us" else "")
+                          + f"Incorporated in "
                           f"{v['company.incorporation']}  ·  Lead underwriter: "
                           f"{v['company.lead_underwriter']}")  # fmt: skip
         y = height - band - 22 * mm
@@ -737,9 +751,10 @@ def _section(number: str, section: Section, run: Run, avail: float,
     out += [f for piece in pieces for f in piece]
     if key == "Taxes, reinvestment and FCFF":
         horizon = int(run.resolved["rates.horizon"])
-        out.append(figure(pdf_charts.cash_flows(run.valuation.years[:horizon], avail),
-                          "Revenue and free cash flow to the firm over the "
-                          "forecast horizon, USD m."))  # fmt: skip
+        currency = run.resolved["company.currency"]
+        chart = pdf_charts.cash_flows(run.valuation.years[:horizon], currency, avail)
+        out.append(figure(chart, "Revenue and free cash flow to the firm over the "
+                          f"forecast horizon, {currency} m."))  # fmt: skip
     return out
 
 

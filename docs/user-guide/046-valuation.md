@@ -8,7 +8,8 @@
     - How a company is valued from its future cash flows (a DCF) and from what investors pay for similar companies (comparables)
     - How a young company's forecast is built from its market (TAM, SAM), its customers and its costs
     - How scenarios and a Monte Carlo simulation show what the company might be worth, not just one number
-    - What a registration statement (the S-1) is, and how book-building turns a valuation into an offer price
+    - What the offering document is (a prospectus in Sweden, an S-1 in the US), and how book-building turns a valuation into an offer price
+    - How a Swedish IPO and a US IPO differ, and how to switch `pm-valuation` between them
     - Why the final price is part calculation and part judgement, and what goes wrong when it is too high or too low
     - How to use `pm-valuation`: the interview, the report, the PDF, scenario files and the hand-off to `pm-new-symbol`
 
@@ -21,9 +22,15 @@
     and a book-build are, skip to Part II.
 
     The numbers in the worked examples are chosen to be easy to follow. Where
-    a section says *"in the Kestrel case"*, the numbers come from the
-    classroom case `pm-valuation --case kestrel`, so you can find them in the
+    a section says *"in the Tornfalk case"*, the numbers come from the
+    classroom case `pm-valuation --case tornfalk`, so you can find them in the
     tool's own report.
+
+    `pm-valuation` works in two **frameworks**: a Swedish IPO (the default:
+    amounts in SEK, a prospectus approved by Finansinspektionen, a listing on
+    Nasdaq Stockholm) and a US IPO (`--market us`: USD, an S-1 filed with the
+    SEC). Part I explains both; its examples are Swedish. A *billion* is
+    1,000 million, a Swedish *miljard* (not a *biljon*), written "bn".
 
 ## Going public: what an IPO is
 
@@ -55,10 +62,11 @@ cost of the offering itself, and the loss of some control.
 |---|---|
 | **Issuer** | The company selling shares. Its management and board decide to go public and must agree the price. |
 | **Existing shareholders** | Founders, employees and venture investors. Every new share sold dilutes them; a secondary offering lets some of them sell. |
-| **Underwriters** | Investment banks that organise the offering, write the prospectus with the lawyers, market the shares and, in a *firm commitment* underwriting, buy the shares from the company and resell them. They are paid a fee, the **gross spread**, typically around 7% of the money raised in a mid-sized US IPO. |
+| **Underwriters** | Investment banks that organise the offering, write the prospectus with the lawyers, market the shares and, in a *firm commitment* underwriting, buy the shares from the company and resell them. They are paid a fee, the **gross spread** or commission: typically around 7% of the money raised in a mid-sized US IPO, and roughly half that in Europe. |
 | **Institutional investors** | Pension funds, mutual funds, hedge funds and insurers. They buy most of an IPO and their orders decide the price. |
-| **Retail investors** | Private individuals, usually offered a smaller tranche. |
-| **The regulator** | In the United States the Securities and Exchange Commission (SEC), which must declare the registration statement effective before shares can be sold. |
+| **Retail investors** | Private individuals, usually offered a smaller tranche. In Sweden they apply through their bank or an online broker. |
+| **Cornerstone investors** | Large investors who commit to buy a fixed amount before the offer opens. Common in Swedish IPOs, rare in US ones. |
+| **The regulator** | In Sweden **Finansinspektionen** (FI), which must approve the prospectus; in the United States the Securities and Exchange Commission (SEC), which must declare the registration statement effective. No shares can be offered before that. |
 | **The exchange** | Lists the shares and runs the first trading. On EduMatcher the opening auction finds the first price. |
 
 ### Primary and secondary markets
@@ -72,7 +80,7 @@ the first day is the **first-day return**, or **pop**.
 
 ```mermaid
 flowchart LR
-    A[Decide to go public\npick the banks] --> B[Due diligence\nand the S-1]
+    A[Decide to go public\npick the banks] --> B[Due diligence and\nthe prospectus]
     B --> C[Price range\nred herring]
     C --> D[Roadshow and\nbook-building]
     D --> E[Pricing and\nallocation]
@@ -178,10 +186,12 @@ future cash flow at once, and hardest on the distant ones.
 
 Which rate should you discount at? Start with the return you can get with
 **no risk** at all: lending to a government that can always repay in its own
-currency. The yield on a long-dated government bond (for a US company, the
-10-year US Treasury) is used as the **risk-free rate**, $r_f$. It pays for
-time and expected inflation, but not for risk. `pm-valuation` defaults to
-4.25%.
+currency. The yield on a long-dated government bond (for a Swedish company the
+10-year Swedish government bond, for a US company the 10-year US Treasury) is
+used as the **risk-free rate**, $r_f$. It pays for time and expected
+inflation, but not for risk. `pm-valuation` defaults to 3.0% in the Swedish
+framework (about the Swedish 10-year yield in August 2026) and 4.25% in the
+US one. Check today's value before you rely on it.
 
 ### Risk and the required return
 
@@ -198,19 +208,20 @@ r_e = r_f + \beta \times ERP
 $$
 
 - The **equity risk premium** (ERP) is the extra return investors expect from
-  the stock market as a whole over the risk-free rate, historically around
-  4–6% a year. `pm-valuation` defaults to 5%.
+  the stock market as a whole over the risk-free rate, usually estimated at
+  4–6% a year. `pm-valuation` defaults to 5.6% in the Swedish framework (the
+  median in PwC's 2026 survey of Swedish practitioners) and 5% in the US one.
 - **Beta** ($\beta$) measures how strongly a stock moves with the market. A
   beta of 1 moves with the market; 1.5 moves 50% more, up and down. Young
   technology companies have high betas.
 
-For a company with a beta of 1.5:
-$r_e = 4.25\% + 1.5 \times 5\% = 11.75\%$. Practitioners add further premia
+For a Swedish company with a beta of 1.5:
+$r_e = 3.0\% + 1.5 \times 5.6\% = 11.4\%$. Practitioners add further premia
 that CAPM leaves out, for small size and for the risk that a young company
-fails to deliver its plan. In the Kestrel case the first five years are
-discounted at 16.25%: 11.75% plus a 1.5% size premium plus a 3% execution
+fails to deliver its plan. In the Tornfalk case the first five years are
+discounted at 15.9%: 11.4% plus a 1.5% size premium plus a 3% execution
 premium. From year 6, when the company is expected to be established, the rate
-falls to 10.25% ($4.25\% + 1.1 \times 5\% + 0.5\%$).
+falls to 9.66% ($3.0\% + 1.1 \times 5.6\% + 0.5\%$).
 
 When a company also borrows, the lenders require a return too (the interest
 rate, reduced by the tax it saves). The average of the two required returns,
@@ -322,10 +333,10 @@ $$
 FCFF = EBIT - \text{taxes} + D\&A - \text{capex} - \Delta\text{working capital}
 $$
 
-**Example — Kestrel, year 5 (USD m):**
-EBIT 111.0 − taxes 15.0 + D&A 10.0 − capex 24.9 − change in working capital
-(−9.6) = **90.7**. The change in working capital is negative because Kestrel's
-customers pay in advance, so growth adds cash rather than using it.
+**Example — Tornfalk, year 5 (SEK m):**
+EBIT 1,101.9 − taxes 122.7 + D&A 100.2 − capex 248.1 − change in working
+capital (−94.4) = **925.7**. The change in working capital is negative because
+Tornfalk's customers pay in advance, so growth adds cash rather than using it.
 
 ### Enterprise value and equity value
 
@@ -343,9 +354,9 @@ $$
 $$
 
 Dividing by the number of shares gives the **value per share**, the number the
-offer price is compared with. In the Kestrel case: EV 964.5 m, plus 90.0 m net
-cash, minus 36.0 m in offering fees, divided by 60 million pre-IPO shares, is
-a DCF value of 16.98 per share.
+offer price is compared with. In the Tornfalk case: EV 10,330.4 m SEK, plus
+900.0 m net cash, minus 180.0 m in offering fees, divided by 120 million
+pre-IPO shares, is a DCF value of 92.09 SEK per share.
 
 !!! note "Why the money raised does not change the value per share"
     Selling new shares at a *fair* price brings in exactly as much cash as the
@@ -379,10 +390,10 @@ flowchart TB
   competitors. It depends on the market structure: a fragmented, competitive
   market allows a smaller share than one where a few firms dominate.
 
-In the Kestrel case in year 1: a 44.8 bn TAM, of which 25% is serviceable
-(11.2 bn), of which Kestrel can reach at most 8%, about 0.9 bn of revenue, or
-14,222 customers at 63,000 a year each. It has 2,600 today: plenty of room to
-grow, but not unlimited room.
+In the Tornfalk case in year 1: a 448 bn SEK TAM, of which 25% is serviceable
+(112 bn), of which Tornfalk can reach at most 8%, about 9 bn SEK of revenue, or
+14,222 customers at 630,000 SEK a year each. It has 2,600 today: plenty of
+room to grow, but not unlimited room.
 
 ### Customers, churn and price
 
@@ -395,9 +406,9 @@ Revenue is built from customers:
 - Each customer pays the **average revenue per user** (ARPU), which grows with
   price rises and upselling.
 
-Kestrel, year 1: 2,600 customers at the start, 1,508 won, 208 lost (8% churn),
-3,900 at the end. Revenue is ARPU times the average number of customers during
-the year: 204.8 m.
+Tornfalk, year 1: 2,600 customers at the start, 1,508 won, 208 lost (8%
+churn), 3,900 at the end. Revenue is ARPU times the average number of customers
+during the year: 2,047.5 m SEK.
 
 **Unit economics** ask whether a customer is worth what it costs to win. The
 *lifetime value* (LTV) is the gross profit a customer brings before leaving:
@@ -483,8 +494,8 @@ TV_N = \frac{NOPAT_{N+1} \times \left(1 - \dfrac{g}{RONIC}\right)}{r_2 - g}
 $$
 
 NOPAT is operating profit after tax. If new investment earns only the cost of
-capital, growth adds no value at all. In the Kestrel case, the terminal value
-is 66.6% of an enterprise value of 964.5 m.
+capital, growth adds no value at all. In the Tornfalk case, the terminal value
+is 66.6% of an enterprise value of 10,330.4 m SEK.
 
 ## Comparables: what the market pays
 
@@ -493,11 +504,11 @@ companies, expressed as a **multiple**: enterprise value divided by revenue,
 by EBITDA, or by profit. Young companies without profits are compared on
 **EV / revenue**, usually next year's revenue.
 
-In the Kestrel case, listed business-software companies trade at 10 times
-next year's revenue. Kestrel's next-year revenue of 204.8 m therefore implies
-an enterprise value of 2,047.5 m, and 35.02 per share: more than double the
-DCF's 16.98. The blend, 70% DCF and 30% comparables, is the **fair value** of
-22.39 per share.
+In the Tornfalk case, listed business-software companies trade at 10 times
+next year's revenue. Tornfalk's next-year revenue of 2,047.5 m SEK therefore
+implies an enterprise value of 20,475 m SEK, and 176.62 SEK per share: almost
+double the DCF's 92.09. The blend, 70% DCF and 30% comparables, is the
+**fair value** of 117.45 SEK per share.
 
 Multiples are quick and they are what investors in the book will look at. But
 they import the market's mood wholesale: when a sector is in fashion, every
@@ -509,14 +520,14 @@ Every input to the forecast is a guess. A single fair value hides how good or
 bad the guess might be. Three tools show the range.
 
 **Scenarios.** Set every driver to a pessimistic value at once (the *bear*
-case) and then to an optimistic value (the *bull* case). In the Kestrel case
-fair value ranges from 3.41 (bear) through 22.39 (base) to 56.49 (bull): a
-reminder of how much is unknown.
+case) and then to an optimistic value (the *bull* case). In the Tornfalk case
+fair value ranges from 16.94 (bear) through 117.45 (base) to 307.41 SEK
+(bull): a reminder of how much is unknown.
 
 **Sensitivity and the tornado.** Move one driver at a time to its bear and bull
 values, keeping everything else at base, and rank the drivers by how far they
 move fair value. The ranked bars look like a tornado. The drivers at the top
-are the ones worth arguing about; for Kestrel it is how fast headcount grows
+are the ones worth arguing about; for Tornfalk it is how fast headcount grows
 with revenue, then how much of its market it can reach.
 
 **Monte Carlo simulation.** Scenarios move all drivers together to their
@@ -533,51 +544,76 @@ fair values:
 - The most useful single number is the share of simulated companies worth
   **less than the offer price**: the probability that IPO buyers overpay.
 
-In the Kestrel case (10,000 companies): P5 11.53, median 21.10, P95 32.75; and
-in 66.5% of them fair value is below the 24.00 offer price. The book was hot;
-the fundamentals were more cautious.
+In the Tornfalk case (10,000 companies): P5 58.53, median 110.48, P95 174.18
+SEK; and in 43.8% of them fair value is below the 105.00 SEK offer price. The
+book was twelve times covered, yet for the fundamentals the price is close to
+a coin flip.
 
 ## The IPO process
 
 With the finance in place, here is how a valuation becomes an offer price.
-The process below is the US one, which `pm-valuation`'s vocabulary follows;
-European IPOs differ in names and legal detail, not in substance.
+`pm-valuation` follows the Swedish process by default: a prospectus approved
+by Finansinspektionen, and a listing on Nasdaq Stockholm. With `--market us`
+it follows the American one: a Form S-1 filed with the SEC, and a listing on
+Nasdaq or NYSE. The two differ in names, legal detail and a few conventions,
+not in substance:
 
-### Preparing: the banks and the S-1
+| | Sweden (`--market se`, the default) | United States (`--market us`) |
+|---|---|---|
+| Company form | Public limited company, **AB (publ)** | Corporation, **Inc.**, usually incorporated in Delaware |
+| Offering document | **Prospectus**, under the EU Prospectus Regulation | Registration statement, **Form S-1**, which contains the prospectus |
+| Who checks it | **Finansinspektionen** (FI) approves it | The **SEC** reviews it and declares it effective |
+| Exchange | Nasdaq Stockholm, Main Market | Nasdaq or NYSE |
+| Price range | Stated in the prospectus; its top is the **maximum price** | Filed in an amended S-1; the final price may be up to about 20% outside it |
+| Bank fees (model default) | 3% of the money raised | 7% of the money raised |
+| Buyers | Institutions, often **cornerstone investors**, and an offer to the public | Mainly institutions |
+| Currency | SEK | USD |
+
+### Preparing: the banks and the prospectus
 
 The company chooses its **underwriters**, one or more investment banks led by
-a *bookrunner*. Months of **due diligence** follow: bankers, lawyers and
-auditors check everything the company will say about itself, because
-everyone who signs the offering documents is liable if they are misleading.
+a *bookrunner*, in Swedish deals often called the *global coordinator*. Months
+of **due diligence** follow: bankers, lawyers and auditors check everything the
+company will say about itself, because everyone responsible for the offering
+document is liable if it is misleading. Only a public company may offer its
+shares to the public, so a Swedish private company (AB) first becomes a public
+one, **AB (publ)**. A few weeks before the offer, it usually announces its
+**intention to float**, which starts the public conversation about the IPO.
 
-The result is the **registration statement**, in the United States **Form
-S-1**, filed with the SEC. Its main part is the **prospectus**, the document
-investors read. It contains, among much else:
+The result is the **prospectus**, the document investors read. In Sweden,
+Finansinspektionen must approve it before the offer opens. In the United
+States it is the main part of the **registration statement, Form S-1**, filed
+with the SEC. The headings differ; the content is much the same:
 
-| Part of the S-1 | What it tells an investor |
+| Part of the prospectus | What it tells an investor |
 |---|---|
-| Cover page | Who is selling, how many shares, the price (or range), the underwriters and their fee |
-| Prospectus summary | The business and the offering in a few pages |
+| Summary | The business and the offering in a few pages; the S-1 also has a cover page with the price, the shares and the banks' fee |
 | **Risk factors** | Everything that could go wrong, from competition to key people leaving |
-| Use of proceeds | What the company will do with the money |
+| Reasons for the offer and use of proceeds | Why the company lists, and what it will do with the money |
 | Capitalisation and **dilution** | How the share count changes, and how much new investors pay over the book value per share |
-| Management's discussion and analysis (MD&A) | Management's explanation of the numbers |
-| Business | The company, its market and its strategy |
+| Operating and financial review (MD&A in an S-1) | Management's explanation of the numbers |
+| Business and market | The company, its market and its strategy |
 | Financial statements | Audited accounts |
-| Underwriting | The banks, their fees, the lock-up agreements |
+| Terms of the offer, or Underwriting | The price range, how shares are allocated, the banks, their fees and the lock-up agreements |
 
-Smaller and newer issuers are allowed lighter disclosure. An **emerging growth
-company** (EGC, annual revenue below about 1.235 bn dollars) may, for example,
-present fewer years of audited accounts. A **smaller reporting company** (SRC)
-qualifies by its public float or revenue. `pm-valuation` works out both from
-your answers and shows them on its S-1 cover page.
+Smaller companies may publish lighter documents. In the EU, small and
+medium-sized companies, and companies listing on a growth market such as
+Nasdaq First North, may use the shorter **EU Growth prospectus**. In the
+United States, an **emerging growth company** (EGC, annual revenue below about
+1.235 billion dollars) may, for example, present fewer years of audited
+accounts, and a **smaller reporting company** (SRC) qualifies by its public
+float or revenue. The report's first section is the document's cover in
+brief: the **Prospectus cover** with the issuer, Finansinspektionen and the
+listing venue, or, with `--market us`, the **S-1 cover** with the SIC code
+and the EGC and SRC status, which `pm-valuation` works out from your answers.
 
 ### The price range and the IPO discount
 
-When the SEC's comments are resolved, the company files an amended S-1 with a
-**price range**, for example 18–20 dollars per share, and prints the
-**preliminary prospectus**. It is nicknamed the *red herring* for the red
-warning on its cover that the registration is not yet effective.
+When the offer opens, the prospectus is published with a **price range**, for
+example 94.50–105.00 SEK per share. In the United States, the company files an
+amended S-1 with the range and prints the **preliminary prospectus**,
+nicknamed the *red herring* for the red warning on its cover that the
+registration is not yet effective.
 
 The range is deliberately set **below** fair value. The gap is the **IPO
 discount**, typically 10–15%, and there are good reasons for it:
@@ -589,58 +625,73 @@ discount**, typically 10–15%, and there are good reasons for it:
 - Bankers want a book of orders several times larger than the offering, so
   that the price holds when trading starts (see below).
 
-In the Kestrel case, fair value is 22.39, a 15% discount gives a midpoint of
-19.03, and the range is rounded to 18.00–20.00. If management insists on a
-minimum valuation, for example no lower than the last private funding round,
-the range moves up to meet it, and the discount shrinks. When it shrinks too
-far, the IPO cannot be sold (the Halvard case).
+In the Tornfalk case, fair value is 117.45 SEK, a 15% discount gives a
+midpoint of 99.83, and the range is rounded to 94.50–105.00 SEK. If management
+insists on a minimum valuation, for example no lower than the last private
+funding round, the range moves up to meet it, and the discount shrinks. When
+it shrinks too far, the IPO cannot be sold (the Halvard case).
 
 ### The roadshow and book-building
 
-For one to two weeks, management and the bankers present the company to
+Often before the offer is even launched, a few large investors commit to buy
+a fixed amount of money's worth of shares at whatever price is set. These
+**cornerstone investors** are common in Sweden. Their names in the prospectus
+tell other investors that professionals have already checked the company.
+
+Then, for one to two weeks, management and the bankers present the company to
 institutional investors in meetings and presentations: the **roadshow**. The
 investors respond with **indications of interest**: how many shares they
 would buy, and at what maximum price. These orders are not binding, but
-reputations depend on them.
+reputations depend on them. In Sweden the offer is usually also open to the
+public: private investors apply for shares through their bank or online
+broker during the same period.
 
 The bookrunner collects all indications in **the book**, and so learns how
 much demand there is at every price. The key number is **coverage**, or
 oversubscription: demand divided by the value of the shares offered.
 
-| Price | Coverage (Kestrel's book) |
+| Price (SEK) | Coverage (Tornfalk's book) |
 |---:|---:|
-| 18.00 (bottom of the range) | 16.23× |
-| 20.00 (top of the range) | 11.93× |
-| 24.00 (20% above the top) | 7.04× |
+| 75.50 (20% below the range) | 31.41× |
+| 94.50 (bottom of the range) | 16.22× |
+| 105.00 (top of the range, the maximum price) | 11.92× |
 
-Demand falls as the price rises, as it should. A book covered 7 times means
-investors asked for seven times the shares on offer. Such a deal is called
+Demand falls as the price rises, as it should. A book covered 12 times means
+investors asked for twelve times the shares on offer. Such a deal is called
 **hot**.
 
 ### Pricing and allocation
 
-On the evening before trading starts, the company and the bookrunner set the
-**offer price**. The usual rule: the highest price at which the book is still
-comfortably oversubscribed, typically at least three times. If demand is
-strong, the price can be raised above the range. US practice lets a deal
-price about 20% outside the filed range without re-filing, and `pm-valuation`
-uses that as a hard limit. Kestrel prices at exactly that limit, 24.00, and
-is still 7.04 times covered: it could probably have sold at a higher price.
+When the book closes, the company and the bookrunner set the **offer price**.
+The usual rule: the highest price at which the book is still comfortably
+oversubscribed, typically at least three times.
 
-At 7 times coverage most investors get only a fraction of what they asked for:
-Kestrel's institutions receive about 14% of their orders. **Allocation** is at
-the bookrunner's discretion. Long-term investors are favoured, and so, it is
-often said, are the bank's best clients. Unfilled investors who still want the
-stock must buy it on the exchange on the first day. That unfilled demand
-drives the first-day price up.
+How high that can go depends on the market. In Sweden, the prospectus states
+the top of the range as the **maximum price**. Private investors applied on
+that promise, so a higher price would need a supplement to the prospectus that
+lets everyone withdraw, and in practice the maximum price is a hard limit.
+`pm-valuation` uses it as one. In the United States a deal may price about 20%
+outside the filed range without re-filing, and with `--market us` that is the
+limit instead. Tornfalk prices at the maximum price, 105.00 SEK, and is still
+11.92 times covered: an American deal would have raised the price above the
+range.
+
+At 12 times coverage most investors get only a fraction of what they asked
+for. **Allocation** is at the bookrunner's discretion: cornerstones receive
+their shares first, then long-term investors are favoured, and so, it is often
+said, are the bank's best clients. Tornfalk's institutions receive about 8% of
+their orders, its private investors about 22%. Unfilled investors who still
+want the stock must buy it on the exchange on the first day. That unfilled
+demand drives the first-day price up.
 
 If the book is covered less than the target, the deal can still price at the
 bottom of the range on a **thin book**, with a real risk of trading below the
 offer price. If it is not covered even once, the IPO is **postponed**.
 
-Real IPOs usually also include a **greenshoe**: an option for the banks to
-sell up to 15% more shares and buy them back in the market if the price
-falls, which supports the price. `pm-valuation` leaves it out.
+Real IPOs usually also include an **over-allotment option**, called the
+**greenshoe** in the United States: the banks may sell up to 15% more shares
+and buy them back in the market if the price falls, which supports the price.
+`pm-valuation` leaves it out.
 
 ### The first day and after
 
@@ -649,25 +700,27 @@ before the open are matched at the single price that trades the most shares
 (see [Auctions & Scheduling](080-session-scheduling.md)). That price, not the
 offer price, is the market's first verdict.
 
-The first-day return is the **pop**. US IPOs have on average closed their
-first day somewhere in the high teens of percent above the offer price over
-the past four decades, with enormous variation: some double, some fall. The
-pop is a gain for the investors who were allocated shares, and a cost to the
+The first-day return is the **pop**. IPOs in Sweden, the United States and
+most other countries have on average closed their first day above the offer
+price, in the United States somewhere in the high teens of percent over the
+past four decades, with enormous variation: some double, some fall. The pop
+is a gain for the investors who were allocated shares, and a cost to the
 company:
 
 $$
 \text{Money left on the table} = \text{pop} \times \text{offer price} \times \text{shares sold}
 $$
 
-Kestrel's expected pop is 25.6%. On 17.7 million shares sold at 24.00, that is
-108.8 m that the company could have raised but did not.
+Tornfalk's expected pop is 29.8%. On 38.1 million shares sold at 105.00 SEK,
+that is 1,193.1 million SEK, about 1.2 miljarder kronor, that the company
+could have raised but did not.
 
 Two dates matter after the IPO:
 
-- **Lock-up expiry.** Existing owners usually agree not to sell for 180 days.
-  When the lock-up ends, many more shares can be sold, and the price often
-  weakens in anticipation. For Kestrel, 60 million pre-IPO shares, 3.4 times
-  the free float, are released.
+- **Lock-up expiry.** Existing owners usually agree not to sell for 180 days,
+  sometimes longer. When the lock-up ends, many more shares can be sold, and
+  the price often weakens in anticipation. For Tornfalk, 120 million pre-IPO
+  shares, 3.2 times the free float, are released.
 - **Index inclusion.** Stock-market indices require a minimum size, a minimum
   free float (shares available to trade) and usually a *seasoning* period of
   trading before a new stock can join. Inclusion brings buying from index
@@ -708,10 +761,12 @@ compared with the others. They do not forecast the first day. On EduMatcher
 the opening auction does that, with real orders from real people.
 
 !!! tip "Try it"
-    Run `pm-valuation --case kestrel`, press F5, then `b` to go back. Change
-    only the investor interest and hype on page 9, press F5 again and `c` to
-    compare. The valuation does not move at all; the offer price barely
-    moves; the pop halves. That is the black magic, isolated.
+    Run `pm-valuation --case tornfalk`, press F5, then `b` to go back.
+    Change only the investor interest and hype on page 9, press F5 again and
+    `c` to compare. The valuation does not move at all, and the offer price
+    stays at the maximum price, 105.00 SEK. But coverage falls from 11.92 to
+    5.01 times, and the expected pop from 29.8% to 16.9%. That is the black
+    magic, isolated.
 
 ## Using pm-valuation
 
@@ -745,36 +800,70 @@ right. The formulas, presets and worked example are in the design document,
 Start from a classroom case, change what you like, and press F5:
 
 ```bash
-pm-valuation --case kestrel
+pm-valuation --case tornfalk
 ```
 
 Or print the report without the interview:
 
 ```bash
-pm-valuation --case kestrel --no-tui --mode deterministic
+pm-valuation --case tornfalk --no-tui --mode deterministic
 ```
 
 ```text
-Kestrel Security Inc. (KSEC) — IPO valuation  PROCEED
+Tornfalk Security AB (TORN) — IPO valuation  PROCEED
 
 1. Verdict
   PROCEED
 
-   Fair value per share           22.39
-   Price range              18.00–20.00
-   Offer price                    24.00
-   Market capitalisation      1,865.0 m
-   Primary raise                425.0 m
-   Coverage                       7.04×
-   Expected first-day pop         25.6%
+   Fair value per share           117.45
+   Price range              94.50–105.00
+   Offer price                    105.00
+   Market capitalisation      16,600.0 m
+   Primary raise               4,000.0 m
+   Coverage                       11.92×
+   Expected first-day pop          29.8%
 ...
 17. Next step
-  pm-new-symbol --symbol KSEC --ipo-price 24.00 --outstanding-shares 77708333 --tick-decimals 2
+  pm-new-symbol --symbol TORN --ipo-price 105.00 --outstanding-shares 158095238 --tick-decimals 2
 ```
 
 Without `--load` or `--case`, the interview starts empty: every answer has an
-automatic value, so pressing F5 straight away values an average B2B software
-company.
+automatic value, so pressing F5 straight away values an average Swedish B2B
+software company, in SEK.
+
+## Sweden or the United States
+
+The market, page 1's last question, decides the IPO framework and every
+country-specific default. Sweden (`se`) is the default; `--market us` on the
+command line selects the United States and overrides the scenario file.
+
+| | `se` | `us` |
+|---|---|---|
+| Currency | SEK | USD |
+| Offering document and report section 2 | Prospectus, approved by Finansinspektionen; **Prospectus cover** | Form S-1, filed with the SEC; **S-1 cover** with SIC code, EGC and SRC status |
+| Default company name, incorporation, lead bank | Newco AB, Sweden, Fiktiva Banken AB | Newco Inc., Delaware, Fictive & Co. |
+| Risk-free rate, equity risk premium | 3.0%, 5.6% | 4.25%, 5% |
+| Tax rate, inflation, long-run growth | 20.6%, 2%, 2% | 25%, 2.5%, 2.5% |
+| Bank fee (gross spread) | 3% | 7% |
+| Maximum price above the range | 0%: the top of the range is the maximum price | 20% |
+| Typical share price at the IPO | About 100 SEK | About 20 dollars |
+
+Money defaults, such as a sector's cost per employee or the index rulebook's
+minimum size, are converted into the market's currency at a fixed 10 SEK per
+dollar. Swedish salaries are set lower than American ones, and revenue per
+employee is scaled with them, so staff costs keep the same share of revenue in
+both markets.
+
+The market is saved in the scenario file, and **the file's amounts are in
+that market's currency**. `--market us` on a Swedish case therefore reads
+1.4bn of revenue as 1.4 billion dollars, not kronor, and values a company ten
+times larger. To compare the frameworks fairly, convert the amounts too.
+
+Swedish and English count large numbers differently. A Swedish *miljard* is
+a thousand million, the English **billion**; a Swedish *biljon* is a million
+million. `pm-valuation` accepts both spellings for amounts (see
+[Typing values](#typing-values)), and its reports write large amounts in
+millions, `m`, which read the same in both languages.
 
 ## The interview
 
@@ -784,7 +873,7 @@ you type.
 
 | Page | What it asks |
 |---|---|
-| 1 Company | Name, ticker, **sector preset**, S-1 cover details |
+| 1 Company | Name, ticker, **sector preset**, cover details, **market** (`se` or `us`) |
 | 2 Market | Addressable market, its growth, your reachable share |
 | 3 Customers & pricing | Last year's revenue, customers, price per customer, churn, growth |
 | 4 People | Headcount, cost per employee, how hiring follows revenue |
@@ -809,7 +898,7 @@ will use instead, and where it comes from:
 | **you** | Your answer. It always wins |
 | **preset** | The sector preset chosen on page 1 |
 | **derived** | Computed from other answers, e.g. customers from revenue ÷ price |
-| **default** | A fixed default, e.g. a 25% tax rate |
+| **default** | A fixed default, or the market's, e.g. the Swedish 20.6% tax rate |
 
 F2 opens the review page: every value in one table with its source, which is
 also section 3 of the report.
@@ -818,7 +907,7 @@ also section 3 of the report.
 
 | Field | Accepts | Notes |
 |---|---|---|
-| Money and counts | `90m`, `1.4bn`, `2.5k`, `1_000`, `60,000` | |
+| Money and counts | `90m`, `1.4bn`, `2.5k`, `1_000`, `60,000` | Swedish suffixes too: `90mkr` (miljoner kronor), `1.4md` or `1.4mdr` (miljarder) |
 | Percentages | `12`, `12%`, `0.5` | A plain number is **percentage points**: `0.5` is 0.5%, never 50% |
 | Ratios | `10`, `10x` | |
 | Yes / no | `yes`, `no` | |
@@ -839,7 +928,7 @@ F5 refuses to calculate while any field has a problem, and lists them.
 | Ctrl-D | Clear the field back to its automatic value |
 | F1 | Glossary, with a filter |
 | F2 | Review every value and its source |
-| F3 | Show or hide the advanced fields |
+| F3 | Show or hide the advanced fields. The line under the fields says how many the page has, or that it has none |
 | F5 | Calculate and open the report |
 | F9 | Save the scenario |
 | Esc / Ctrl-Q | Quit; asks first if there are unsaved changes |
@@ -865,7 +954,7 @@ The sections, in order:
 | Section | Content |
 |---|---|
 | Verdict | PROCEED, PROCEED (THIN BOOK) or POSTPONE, the headline numbers and why |
-| S-1 cover | Registrant, ticker, SIC code, emerging-growth and smaller-reporting status |
+| Prospectus cover, or S-1 cover | Issuer, ticker, the authority and the listing venue; for the US also SIC code, emerging-growth and smaller-reporting status |
 | Assumptions | Every input with its source |
 | Market and customers; Unit economics; Headcount | The ten-year operating forecast |
 | Income statement; Taxes, reinvestment and FCFF | From revenue to free cash flow |
@@ -876,7 +965,7 @@ The sections, in order:
 | Pricing | Range, management floor, the book at every price, the chosen price, allocation, first-day pop |
 | Capitalisation and dilution | Shares before and after, dilution to new investors |
 | Lock-ups, free float and index | The index rulebook at the offer price, and the lock-up overhang |
-| Risk factors | The model's warnings, phrased as an S-1 would |
+| Risk factors | The model's warnings, phrased as a prospectus would |
 | Next step | The `pm-new-symbol` command, and the index command for later |
 | What this model leaves out | Its limits |
 
@@ -887,7 +976,8 @@ Scenarios appear with `--mode deterministic` or `both`, Monte Carlo with
 
 The range is fair value less the IPO discount (15% by default), rounded to
 "nice" prices. Management's minimum market cap can move it up. The book is
-then built at every price from 20% below the range to 20% above it, and the
+then built at every price from 20% below the range up to the **maximum
+price**: the top of the range in Sweden, 20% above it with `--market us`. The
 deal is priced at the **highest price that is covered at least 3×**. If no
 price reaches 3×, it is priced at the bottom of the band on a thin book. If
 even that is less than 1× covered, or the management floor leaves the bankers
@@ -899,7 +989,7 @@ less than the minimum discount to fair value, the IPO is **postponed**.
 for print: A4 by default, `--paper letter` for US Letter.
 
 ```bash
-pm-valuation --case kestrel --no-tui --pdf kestrel.pdf
+pm-valuation --case tornfalk --no-tui --pdf tornfalk.pdf
 ```
 
 It holds the same numbers as the terminal report, arranged as a document:
@@ -930,12 +1020,14 @@ loaded, so a change to a sector preset shows up.
 
 ```yaml
 pm_valuation: 1
-company:   {name: Aurora Metrics Inc., ticker: AURM, sector: b2b_saas}
-customers: {last_fy_revenue: 90m, now: 1800}
-capital:   {ppe_start: 12m, nol: 150m, cash: 60m}
-offering:  {shares_pre: 80m, secondary_shares: 5m}
-management: {last_round: 1.4bn}
+company:   {name: Tornfalk Security AB, ticker: TORN, sector: b2b_saas, market: se}
+customers: {last_fy_revenue: 1.4bn, now: 2600}
+capital:   {cash: 900m}
+offering:  {shares_pre: 120m, raise: 4bn}
+investors: {inst_interest: very_high, retail_interest: high, hype: 5, n_institutions: 60}
 ```
+
+Amounts are in the currency of the file's market: here SEK.
 
 Values are written the way you type them in the interview. Loading is strict:
 an unknown field or format version is an error, so a typo cannot silently
@@ -948,7 +1040,8 @@ fall back to a default.
 | `--load FILE` | Start from a file |
 | `--case NAME` | Start from a classroom case shipped with the tool |
 
-The classroom cases are `kestrel` and `halvard`. The
+The classroom cases are `tornfalk` (Tornfalk Security AB, a hot deal) and
+`halvard` (Halvard Robotics AB, a hard one), both Swedish. The
 [IPO Valuation training chapter](../training/280-ipo-valuation.md) uses them.
 
 ## Listing the result
@@ -958,7 +1051,7 @@ with the same arguments the Next step section prints:
 
 ```bash
 pm-opctl-cli stop
-pm-valuation --load aurora.yaml --no-tui --list
+pm-valuation --load tornfalk.yaml --no-tui --list
 pm-opctl-cli start
 ```
 
@@ -993,7 +1086,8 @@ join the index. That is a later step, not part of listing.
 | Option | Default | Meaning |
 |---|---|---|
 | `--load FILE` | none | Scenario file to start from |
-| `--case NAME` | none | Classroom case to start from (`kestrel`, `halvard`) |
+| `--case NAME` | none | Classroom case to start from (`tornfalk`, `halvard`) |
+| `--market M` | the scenario's, else `se` | IPO framework and defaults: `se` (Sweden) or `us` (United States) |
 | `--no-tui` | off | Print the report instead of interviewing |
 | `--quick` | off | Interview pages 1 and 11 only |
 | `--mode MODE` | the scenario's, else `both` | `deterministic`, `montecarlo` or `both` |
