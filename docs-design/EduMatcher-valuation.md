@@ -129,6 +129,7 @@ formula here.
 | D9 | **Behavioural parts are labelled as heuristics** (demand multipliers, first-day pop) | Honesty: these are calibrated stories, not finance theory |
 | D10 | **Two IPO frameworks, Swedish by default.** `company.market` is `se` (prospectus approved by Finansinspektionen, Nasdaq Stockholm, SEK) or `us` (Form S-1, SEC, USD); `--market` overrides the file (§5.1) | Requested: "Support both Full Swedish IPO framing as well as American … Make it Swedish framing by default" |
 | D11 | **Four interview levels** (Beginner, Intermediate, Advanced, Expert) replace the advanced-field toggle and `--quick`; `--level`, F3 cycles (§19.3) | Requested: a persona division "to make it more beginner friendly" |
+| D12 | **18 sector presets, grouped by ICB industry**, each with ICB and SIC codes, its own execution premium, asset life and plausible revenue per employee; the cover shows ICB (`se`) or SIC (`us`) (§5.2) | Requested: "add at least around 12-15 to even have a chance to cover a larger portion of the possible new companies" |
 
 ## 3. The IPO process being simulated
 
@@ -189,7 +190,7 @@ report's cover section (§20): "Prospectus cover" for `se`, "S-1 cover" for
 | Company name | Market: `Newco AB` / `Newco Inc.` | Free text |
 | Proposed ticker | Derived from the name: first letters of words, else the first 4 letters, upper-cased | Validated like `pm-new-symbol`: 1–8 characters of `A-Z 0-9 . _` |
 | Sector preset | `b2b_saas` | Selects §5's defaults |
-| SIC code | From the preset | Editable; shown on the S-1 cover only |
+| Industry code | From the preset and market: `ICB 10101015 Software` (`se`) or `SIC 7372` (`us`) | Display only; shown on the report's cover section (§5.2) |
 | State / country of incorporation | Market: `Sweden` / `Delaware` | Display only |
 | Currency | Market: `SEK` / `USD` | Display only; the market's `fx` converts the money defaults (§5.1) |
 | Fiscal year end | `December 31` | Display only |
@@ -222,6 +223,7 @@ used.
 | Driver | `b2b_saas` | `consumer_subscription` | `online_marketplace` | `fintech_payments` | `deep_tech_hardware` |
 |---|---:|---:|---:|---:|---:|
 | Suggested SIC | 7372 | 7374 | 7389 | 6199 | 3674 |
+| ICB subsector | 10101015 Software | 10101020 Consumer Digital Services | 10101020 Consumer Digital Services | 50205015 Transaction Processing Services | 10102010 Semiconductors |
 | "Customer" means | business account | paying subscriber | active buyer | merchant | enterprise account |
 | Last FY revenue | 90 m | 60 m | 80 m | 70 m | 50 m |
 | ARPU (year 0, per year) | 60,000 | 120 | 90 (take-rate revenue) | 5,000 | 250,000 |
@@ -241,12 +243,17 @@ used.
 | Net working capital (% revenue) | −5% | −3% | −8% | 5% | 15% |
 | Beta, stage 1 / stage 2 | 1.5 / 1.1 | 1.6 / 1.2 | 1.5 / 1.15 | 1.6 / 1.2 | 1.8 / 1.3 |
 | Comparable EV / NTM revenue | 10× | 5× | 6× | 7× | 3× |
+| Execution premium | 3% | 3% | 3% | 3% | 3% |
+| Useful life of capex | 4 years | 4 years | 4 years | 4 years | 4 years |
 | Plausible mature EBIT margin (warning band) | 20–35% | 15–30% | 15–30% | 15–30% | 12–25% |
+| Plausible year-N revenue per employee (V020) | 150k–800k | 150k–1.2 m | 150k–1.5 m | 150k–1.5 m | 150k–800k |
 
 The values are tuned so that each preset's all-defaults company is
 coherent. Its year-10 EBIT margin sits inside its band, its growth has
 faded by the horizon, and its DCF lands within about 25% of its
 comparables value. A unit test holds every preset to that, in both markets.
+Beyond the test, no default company fires a warning other than V004 (most of
+the value beyond the horizon), which is real for young growth companies.
 (`fintech_payments` moved from 6× to 7× so that it also holds under `se`.)
 
 Notes that the help text teaches:
@@ -293,6 +300,60 @@ margins, and the preset coherence of §5, hold in both markets. The V020 band
 The amounts in a scenario file are in its market's currency: `--market us`
 on a Swedish case reads its kronor as dollars. Amounts accept Swedish
 suffixes too: `mkr` (miljoner kronor, 10⁶) and `md` / `mdr` (miljarder, 10⁹).
+In `se`, field values are also shown with them (`400mdr`, `900mkr`) in the
+interview, scenario files and the report's Assumptions and comparison; `us`
+shows `bn` and `m`. The report's own tables stay in millions.
+
+### 5.2 More sectors and the industry classification
+
+Thirteen more presets (D12) cover businesses beyond technology, so that most
+companies a class invents have a sensible starting point. The presets are
+grouped by the industry of the **Industry Classification Benchmark** (ICB,
+FTSE Russell), which Nasdaq's Nordic exchanges have used since 2011: 11
+industries down to about 170 subsectors with 8-digit codes. The first two
+digits of `icb_code` give the industry, the pick-list heading
+(`presets.ICB_INDUSTRIES`). The SEC files US companies under 4-digit SIC
+codes; each preset carries both, and the field `company.industry_code` shows
+the one the market's `classification` names.
+
+Money in US dollars at US pay, as in §5:
+
+| Preset | ICB / SIC | Customer | Revenue | ARPU | Churn | Growth y1 | TAM | Other COGS | Rev./employee | Loaded cost | Capex | NWC | β1 / β2 | Exec. | Life | Comps | EBIT band |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `consulting` | 10101010 / 7371 | client account | 300 m | 400,000 | 15% | 20% | 93 bn | 5% | 160,000 | 120,000 | 1% | 12% | 1.1 / 1 | 2% | 4 | 1.6× | 8%–16% |
+| `telecom_operator` | 15102015 / 4813 | subscriber | 400 m | 400 | 15% | 15% | 42 bn | 19% | 600,000 | 110,000 | 18% | -3% | 0.8 / 0.7 | 2% | 12 | 2.6× | 15%–28% |
+| `medtech` | 20102010 / 3841 | hospital or clinic account | 60 m | 150,000 | 6% | 40% | 29 bn | 5% | 300,000 | 150,000 | 4% | 20% | 1.2 / 1 | 5% | 6 | 3.9× | 18%–30% |
+| `healthcare_services` | 20101010 / 8000 | care contract or clinic | 400 m | 3 m | 5% | 12% | 82 bn | 12% | 150,000 | 80,000 | 3% | 2% | 0.8 / 0.8 | 2% | 8 | 1.2× | 6%–12% |
+| `retail_stores` | 40401030 / 5940 | store | 500 m | 2 m | 3% | 12% | 54 bn | 47% | 200,000 | 45,000 | 4% | 12% | 1.1 / 1 | 2% | 8 | 0.6× | 4%–10% |
+| `ecommerce_retail` | 40401010 / 5961 | active buyer | 400 m | 250 | 40% | 35% | 190 bn | 55% | 500,000 | 70,000 | 2% | 8% | 1.4 / 1.1 | 3% | 5 | 0.4× | 3%–8% |
+| `video_games` | 40203040 / 7372 | paying player | 100 m | 60 | 55% | 40% | 135 bn | 17% | 450,000 | 130,000 | 2% | 0% | 1.4 / 1.2 | 6% | 4 | 4× | 15%–30% |
+| `media_publishing` | 40301030 / 2731 | subscriber or reader | 300 m | 150 | 20% | 5% | 97 bn | 22% | 300,000 | 90,000 | 2% | 5% | 0.9 / 0.8 | 2% | 5 | 1.4× | 8%–15% |
+| `consumer_brands` | 45102020 / 2000 | retail or distribution account | 300 m | 500,000 | 8% | 20% | 90 bn | 53% | 350,000 | 80,000 | 4% | 15% | 0.9 / 0.8 | 2% | 10 | 1.6× | 8%–15% |
+| `industrial_machinery` | 50204000 / 3560 | industrial customer | 400 m | 1.5 m | 5% | 15% | 140 bn | 39% | 300,000 | 100,000 | 6% | 20% | 1.1 / 1 | 2% | 10 | 1.2× | 8%–16% |
+| `construction_services` | 50101015 / 1600 | project client | 800 m | 2 m | 30% | 15% | 490 bn | 55% | 350,000 | 95,000 | 2% | 8% | 1.1 / 1 | 2% | 6 | 0.8× | 4%–9% |
+| `logistics_transport` | 50206060 / 4731 | shipper account | 500 m | 200,000 | 12% | 18% | 220 bn | 39% | 250,000 | 75,000 | 8% | 5% | 1.2 / 1 | 2% | 8 | 0.8× | 5%–12% |
+| `renewable_energy` | 65101010 / 4911 | power-purchase contract | 100 m | 3 m | 3% | 25% | 21 bn | 16% | 1.5 m | 120,000 | 35% | 2% | 0.8 / 0.7 | 3% | 25 | 6× | 30%–50% |
+
+Customer means what the model counts: for `retail_stores` a store (churn is
+closures, growth is openings), for `renewable_energy` a power-purchase
+contract. Three things that used to be fixed defaults are now per preset:
+the **execution premium** (§7; 5% for medtech, 6% for games), the **useful
+life** (§6.7; 25 years for wind and solar parks) and the **revenue per employee
+band** of V020.
+
+The new presets were calibrated by bisection: the TAM so that growth has
+faded by year 10, the other cost of revenue so that the year-10 margin is
+mid-band, and the comparables multiple so that the DCF and comparables
+values agree across both markets. The other values were set by judgement
+and are illustrative. Mature presets start closer to their ceiling (higher
+penetration), so their growth fades quickly. Year-1 revenue growth still
+includes the run-rate effect of §6.3 (revenue last year is 0.85 × year-end
+customers × ARPU), about 18 points, which suits fast growers better than
+mature companies.
+
+No preset exists for banks and insurers (valued on equity), property
+companies (net asset value), pre-revenue biotech (risk-adjusted pipeline
+NPV) or exploration companies (reserves); the user guide says why.
 
 ## 6. The operating forecast
 
@@ -495,7 +556,7 @@ r_2 = WACC_2      applies to years S+1 … ∞
 | Equity risk premium `ERP` | Market: 5.6% / 5.0% | Extra return investors demand for equities over bonds |
 | β stage 1 / stage 2 | Preset (1.5 / 1.1) | Sensitivity to the market. Young companies are more cyclical, and mature beta drifts toward 1 |
 | Size premium stage 1 / stage 2 | 1.5% / 0.5% | Small, illiquid companies demand more |
-| Execution premium (stage 1 only) | 3.0% | The risk that the plan simply does not happen. It is the reason stage 1 has its own rate |
+| Execution premium (stage 1 only) | Preset (3% for most) | The risk that the plan simply does not happen. It is the reason stage 1 has its own rate |
 | Target debt ratio `D/V` | 0% | Most growth IPOs are equity-financed |
 | Cost of debt `k_d` | `r_f` + 3% | Only used when `D/V` > 0 |
 | Stage-1 length `S` | 5 years | As requested: "one discount rate for the first five years" |
@@ -1441,13 +1502,13 @@ Which fields a page shows depends on the interview level (below).
 
 | Page | Fields (default rule) |
 |---|---|
-| 1 Company | Name (market); ticker (← name); sector preset; SIC (← preset); incorporation (market); currency (market); FY end; dual-class (no); lead underwriter (market); use of proceeds; market (`se`) |
+| 1 Company | Name (market); ticker (← name); sector preset; industry code (← preset, market); incorporation (market); currency (market); FY end; dual-class (no); lead underwriter (market); use of proceeds; market (`se`) |
 | 2 Market | TAM (preset); TAM growth (preset); SAM share (preset); market structure (competitive → `p_max`); `p_max` directly |
 | 3 Customers & pricing | Last FY revenue (preset; ← 0.85 · C₀ · ARPU when you give C₀); customers now (← revenue / (0.85 · ARPU)); ARPU (preset); ARPU growth (5%); churn (preset); year-1 customer growth (preset) |
 | 4 People | Headcount (← revenue / preset revenue per employee); loaded cost (preset); wage inflation (3.5%); headcount mode (follow revenue); elasticity (0.6) *or* year-1 / year-N growth; floor (4%); department split (preset) |
 | 5 Costs | Infrastructure fixed and per customer (preset); other COGS % (preset); paid CAC (← preset × ARPU); CAC growth (3%); R&D non-staff % (4%); G&A non-staff % (3%); public-company cost (3 m); SBC % (12%); inflation (market) |
-| 6 Capital & tax | Capex % (preset); useful life (4); opening PP&E (← §6.7); NWC % (preset); tax rate (market); opening NOL (0); cash (0); debt (0) |
-| 7 Discount rates | `r_f` (market); ERP (market); β1 / β2 (preset); size premia; execution premium; D/V, `k_d`; stage-1 years (5); horizon N (10); `g` (market); RONIC spread (2%); override `r_1` / `r_2`; mid-year (off) |
+| 6 Capital & tax | Capex % (preset); useful life (preset); opening PP&E (← §6.7); NWC % (preset); tax rate (market); opening NOL (0); cash (0); debt (0) |
+| 7 Discount rates | `r_f` (market); ERP (market); β1 / β2 (preset); size premia; execution premium (preset); D/V, `k_d`; stage-1 years (5); horizon N (10); `g` (market); RONIC spread (2%); override `r_1` / `r_2`; mid-year (off) |
 | 8 Offering | `S_pre` (← comps pre-money / target price); raise `R` (← 20% of comps pre-money); secondary shares (0); gross spread (market); other expenses (← 2 m × fx + 1% R); IPO discount (15%); minimum discount (5%); maximum price above the range (market); lock-up days (180) and coverage (100%); cornerstone amount (0) and lock-in (180); retail tranche (10%) |
 | 9 Investors & sentiment | Institutional interest (medium); number of institutions (40); average ticket (← 5% R); retail interest (medium); retail applicants (20,000); average application (2,500); hype (3); target coverage (3×); comps multiple (preset); DCF weight (70%); elasticities |
 | 10 Index | Rulebook values (§17.1); exchange may relax (none); passive AUM and index free-float cap (optional) |
@@ -1513,7 +1574,7 @@ printed as a PDF. The views cannot disagree.
 | # | Section | Content |
 |---|---|---|
 | 1 | Verdict | PROCEED / PROCEED (thin book) / POSTPONE; offer price; range; market cap; raise; coverage; pop; a 5–8 bullet justification generated from the numbers |
-| 2 | Prospectus cover (`se`) / S-1 cover (`us`) | Issuer, ticker, incorporation, FY end, underwriter, approving authority and listing venue; for `us` also SIC and filer status; offering table (§18.12), use of proceeds |
+| 2 | Prospectus cover (`se`) / S-1 cover (`us`) | Issuer, ticker, industry code (ICB for `se`, SIC for `us`), incorporation, FY end, underwriter, approving authority and listing venue; for `us` also filer status; offering table (§18.12), use of proceeds |
 | 3 | Assumptions | Every input with its source (✎ / preset / derived / default) |
 | 4 | Market and customers | §18.2 |
 | 5 | Unit economics | §18.6 |
@@ -1761,7 +1822,7 @@ flowchart LR
 | V017 | warn | DCF and comps differ by > 50% | Explain the gap |
 | V018 | warn | MC rejections > 1% | Rate ranges too close to `g`, or draws describing no valid company |
 | V019 | info | NOL never fully used within the horizon | |
-| V020 | warn | Revenue per employee in year N outside 150k–800k USD (× `fx · salary_level`) | Headcount plan implausible |
+| V020 | warn | Revenue per employee in year N outside the preset's `revenue_per_employee_band` (USD, × `fx · salary_level`) | Headcount plan implausible |
 | V021 | warn | Net proceeds below management's minimum | The raise does not fund the plan |
 
 Warnings with a risk-factor phrasing feed report section 17.
@@ -1807,9 +1868,9 @@ All eight work packages are implemented. The user-guide chapter is
 **Open questions**
 
 1. **Preset calibration.** Should an instructor-reviewed set of presets
-   replace the illustrative values in §5? One known symptom: the
-   `fintech_payments` defaults alone fire V020 (year-10 revenue per employee
-   about 1.25 m, above the 0.8 m plausibility limit).
+   replace the illustrative values in §5 and §5.2? (The earlier symptom,
+   `fintech_payments` firing V020, is gone: each preset now has its own
+   revenue per employee band.)
 2. ~~**Default currency and thresholds.**~~ Resolved by D10 and §5.1: a
    Swedish framework (prospectus, Finansinspektionen, SEK) is the default,
    and the US one (S-1, EGC and SRC) is `--market us`. Open: the EU Growth

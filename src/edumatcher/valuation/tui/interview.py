@@ -16,7 +16,13 @@ from edumatcher.valuation.fields import BY_KEY, FIELDS, PAGES, FieldSpec, Level
 from edumatcher.valuation.pipeline import CannotValue, Run, run
 from edumatcher.valuation.presets import Presets
 from edumatcher.valuation.resolve import InvalidAnswers, Resolved, resolve
-from edumatcher.valuation.units import NOT_ANSWERED, ParseError, format_value, parse
+from edumatcher.valuation.units import (
+    NOT_ANSWERED,
+    ParseError,
+    format_value,
+    market_of,
+    parse,
+)
 
 
 @dataclass(frozen=True)
@@ -40,8 +46,10 @@ class Interview:
     ) -> None:
         by_key = {spec.key: spec for spec in FIELDS}
         self.presets = presets
+        market = market_of(answers)
         self.texts: dict[str, str] = {
-            key: format_value(by_key[key], value) for key, value in answers.items()
+            key: format_value(by_key[key], value, market)
+            for key, value in answers.items()
         }
         self.level = level
         self.page_index = 0
@@ -111,7 +119,9 @@ class Interview:
     def hint(self, spec: FieldSpec) -> str:
         """The automatic value an empty field takes, and where it comes from."""
         resolved = self.evaluation.resolved
-        value = format_value(spec, resolved.values[spec.key])
+        value = format_value(
+            spec, resolved.values[spec.key], resolved.values["company.market"]
+        )
         return f"auto {value} · {resolved.sources[spec.key].value}"
 
     # -- evaluation ---------------------------------------------------------------

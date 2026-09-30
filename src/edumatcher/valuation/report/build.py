@@ -250,7 +250,7 @@ def _s1_section(run: Run, presets: Presets) -> Section:
     rows = [
         ("Registrant" if us else "Issuer", v["company.name"]),
         ("Proposed ticker", v["company.ticker"]),
-        *([("SIC code", v["company.sic_code"])] if us else []),
+        ("Industry", v["company.industry_code"]),
         ("Incorporated in", v["company.incorporation"]),
         ("Fiscal year end", v["company.fiscal_year_end"]),
         ("Lead underwriter", v["company.lead_underwriter"]),
@@ -306,8 +306,9 @@ def _s1_section(run: Run, presets: Presets) -> Section:
 
 def _assumptions_section(run: Run) -> Section:
     v, sources = run.resolved.values, run.resolved.sources
+    market = v["company.market"]
     rows = [
-        (PAGES[spec.page - 1], spec.label, format_value(spec, v[spec.key]),
+        (PAGES[spec.page - 1], spec.label, format_value(spec, v[spec.key], market),
          sources[spec.key].value)
         for spec in FIELDS
     ]  # fmt: skip
@@ -799,10 +800,11 @@ def compare(previous: Run, current: Run) -> Section:
         b, a = before.get(name), after[name]
         delta = "" if a is None or b is None else _minus(f"{a - b:+,.2f}")
         rows.append((name, cell(b), cell(a), delta))
+    was, now = previous.resolved["company.market"], current.resolved["company.market"]
     changed = [
         (spec.label,
-         format_value(spec, previous.resolved[spec.key]),
-         format_value(spec, current.resolved[spec.key]))
+         format_value(spec, previous.resolved[spec.key], was),
+         format_value(spec, current.resolved[spec.key], now))
         for spec in FIELDS
         if previous.resolved[spec.key] != current.resolved[spec.key]
     ]  # fmt: skip

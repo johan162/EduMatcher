@@ -19,6 +19,7 @@ markets:
     incorporation: Sweden
     lead_underwriter: Fiktiva Banken AB
     document: Prospectus
+    classification: ICB     # the industry code on the cover: Nasdaq uses ICB
     regulator: Finansinspektionen (EU Prospectus Regulation)
     listing_venue: Nasdaq Stockholm, Main Market
     risk_free: 0.030        # Swedish 10-year government bond, Aug 2026
@@ -38,6 +39,7 @@ markets:
     incorporation: Delaware
     lead_underwriter: Fictive & Co.
     document: S-1
+    classification: SIC     # the SEC's Standard Industrial Classification
     regulator: SEC (Securities Act of 1933)
     listing_venue: Nasdaq or NYSE
     risk_free: 0.0425
@@ -65,10 +67,21 @@ market_structures:
   oligopoly: 0.15
   dominant: 0.30
 
+# The sector presets, in the order of the interview's pick-list: grouped by
+# ICB industry (the first two digits of icb_code). sic_code is shown on a US
+# S-1 cover, icb_code / icb_name on a Swedish prospectus cover. Each preset is
+# tuned so that its all-defaults company is coherent in both markets (the
+# test in tests/test_valuation_resolve.py). revenue_per_employee_band is the
+# plausible year-N range for warning V020, in US dollars at US pay. Banks,
+# insurers, property companies, pre-revenue biotech and exploration companies
+# are valued in other ways (on equity, net asset value or reserves) and have
+# no preset.
 sectors:
   b2b_saas:
     description: Business software sold as annual subscriptions
     sic_code: "7372"
+    icb_code: "10101015"
+    icb_name: Software
     customer_means: business account
     revenue_last_fy: 90_000_000
     arpu: 60_000
@@ -89,11 +102,16 @@ sectors:
     beta_stage1: 1.5
     beta_stage2: 1.1
     comps_ev_revenue: 10.0
+    execution_premium: 0.03
+    useful_life: 4
     ebit_margin_band: [0.20, 0.35]
+    revenue_per_employee_band: [150_000, 800_000]
 
   consumer_subscription:
     description: A paid consumer app or media subscription
     sic_code: "7374"
+    icb_code: "10101020"
+    icb_name: Consumer Digital Services
     customer_means: paying subscriber
     revenue_last_fy: 60_000_000
     arpu: 120
@@ -114,11 +132,16 @@ sectors:
     beta_stage1: 1.6
     beta_stage2: 1.2
     comps_ev_revenue: 5.0
+    execution_premium: 0.03
+    useful_life: 4
     ebit_margin_band: [0.15, 0.30]
+    revenue_per_employee_band: [150_000, 1_200_000]
 
   online_marketplace:
     description: A platform earning a take rate on buyer-seller transactions
     sic_code: "7389"
+    icb_code: "10101020"
+    icb_name: Consumer Digital Services
     customer_means: active buyer
     revenue_last_fy: 80_000_000
     arpu: 90
@@ -139,36 +162,16 @@ sectors:
     beta_stage1: 1.5
     beta_stage2: 1.15
     comps_ev_revenue: 6.0
+    execution_premium: 0.03
+    useful_life: 4
     ebit_margin_band: [0.15, 0.30]
-
-  fintech_payments:
-    description: Payment processing for merchants
-    sic_code: "6199"
-    customer_means: merchant
-    revenue_last_fy: 70_000_000
-    arpu: 5_000
-    churn: 0.12
-    customer_growth_y1: 0.60
-    tam: 50_000_000_000
-    tam_growth: 0.11
-    sam_share: 0.20
-    infra_fixed: 10_000_000
-    infra_per_customer: 300
-    other_cogs_pct: 0.25
-    revenue_per_employee: 450_000
-    loaded_cost: 160_000
-    staff_split: {rnd: 0.32, snm: 0.28, gna: 0.18, ops: 0.22}
-    cac_arpu_multiple: 1.0
-    capex_pct: 0.03
-    nwc_pct: 0.05
-    beta_stage1: 1.6
-    beta_stage2: 1.2
-    comps_ev_revenue: 7.0
-    ebit_margin_band: [0.15, 0.30]
+    revenue_per_employee_band: [150_000, 1_500_000]
 
   deep_tech_hardware:
     description: Hardware plus service sold to enterprises (fits the customer model least well)
     sic_code: "3674"
+    icb_code: "10102010"
+    icb_name: Semiconductors
     customer_means: enterprise account
     revenue_last_fy: 50_000_000
     arpu: 250_000
@@ -189,4 +192,427 @@ sectors:
     beta_stage1: 1.8
     beta_stage2: 1.3
     comps_ev_revenue: 3.0
+    execution_premium: 0.03
+    useful_life: 4
     ebit_margin_band: [0.12, 0.25]
+    revenue_per_employee_band: [150_000, 800_000]
+
+  consulting:
+    description: IT and management consultancy selling its consultants' time
+    sic_code: "7371"
+    icb_code: "10101010"
+    icb_name: Computer Services
+    customer_means: client account
+    revenue_last_fy: 300_000_000
+    arpu: 400_000
+    churn: 0.15
+    customer_growth_y1: 0.20
+    tam: 93_000_000_000
+    tam_growth: 0.06
+    sam_share: 0.15
+    infra_fixed: 1_000_000
+    infra_per_customer: 2_000
+    other_cogs_pct: 0.05
+    revenue_per_employee: 160_000
+    loaded_cost: 120_000
+    staff_split: {rnd: 0.02, snm: 0.08, gna: 0.10, ops: 0.80}
+    cac_arpu_multiple: 0.1
+    capex_pct: 0.01
+    nwc_pct: 0.12
+    beta_stage1: 1.1
+    beta_stage2: 1.0
+    comps_ev_revenue: 1.6
+    execution_premium: 0.02
+    useful_life: 4
+    ebit_margin_band: [0.08, 0.16]
+    revenue_per_employee_band: [100_000, 400_000]
+
+  telecom_operator:
+    description: Mobile and broadband network operator
+    sic_code: "4813"
+    icb_code: "15102015"
+    icb_name: Telecommunications Services
+    customer_means: subscriber
+    revenue_last_fy: 400_000_000
+    arpu: 400
+    churn: 0.15
+    customer_growth_y1: 0.15
+    tam: 42_000_000_000
+    tam_growth: 0.02
+    sam_share: 0.50
+    infra_fixed: 40_000_000
+    infra_per_customer: 60
+    other_cogs_pct: 0.19
+    revenue_per_employee: 600_000
+    loaded_cost: 110_000
+    staff_split: {rnd: 0.08, snm: 0.25, gna: 0.12, ops: 0.55}
+    cac_arpu_multiple: 0.5
+    capex_pct: 0.18
+    nwc_pct: -0.03
+    beta_stage1: 0.8
+    beta_stage2: 0.7
+    comps_ev_revenue: 2.6
+    execution_premium: 0.02
+    useful_life: 12
+    ebit_margin_band: [0.15, 0.28]
+    revenue_per_employee_band: [300_000, 1_500_000]
+
+  medtech:
+    description: Medical devices sold to hospitals and clinics
+    sic_code: "3841"
+    icb_code: "20102010"
+    icb_name: Medical Equipment
+    customer_means: hospital or clinic account
+    revenue_last_fy: 60_000_000
+    arpu: 150_000
+    churn: 0.06
+    customer_growth_y1: 0.40
+    tam: 29_000_000_000
+    tam_growth: 0.08
+    sam_share: 0.15
+    infra_fixed: 6_000_000
+    infra_per_customer: 30_000
+    other_cogs_pct: 0.05
+    revenue_per_employee: 300_000
+    loaded_cost: 150_000
+    staff_split: {rnd: 0.35, snm: 0.30, gna: 0.15, ops: 0.20}
+    cac_arpu_multiple: 0.8
+    capex_pct: 0.04
+    nwc_pct: 0.20
+    beta_stage1: 1.2
+    beta_stage2: 1.0
+    comps_ev_revenue: 3.9
+    execution_premium: 0.05
+    useful_life: 6
+    ebit_margin_band: [0.18, 0.30]
+    revenue_per_employee_band: [150_000, 900_000]
+
+  healthcare_services:
+    description: Clinics and care services paid by regions, insurers or patients
+    sic_code: "8000"
+    icb_code: "20101010"
+    icb_name: Health Care Facilities
+    customer_means: care contract or clinic
+    revenue_last_fy: 400_000_000
+    arpu: 3_000_000
+    churn: 0.05
+    customer_growth_y1: 0.12
+    tam: 82_000_000_000
+    tam_growth: 0.05
+    sam_share: 0.15
+    infra_fixed: 3_000_000
+    infra_per_customer: 400_000
+    other_cogs_pct: 0.12
+    revenue_per_employee: 150_000
+    loaded_cost: 80_000
+    staff_split: {rnd: 0.01, snm: 0.03, gna: 0.08, ops: 0.88}
+    cac_arpu_multiple: 0.02
+    capex_pct: 0.03
+    nwc_pct: 0.02
+    beta_stage1: 0.8
+    beta_stage2: 0.8
+    comps_ev_revenue: 1.2
+    execution_premium: 0.02
+    useful_life: 8
+    ebit_margin_band: [0.06, 0.12]
+    revenue_per_employee_band: [80_000, 300_000]
+
+  retail_stores:
+    description: A chain of shops, such as book or sports stores; a 'customer' is a store
+    sic_code: "5940"
+    icb_code: "40401030"
+    icb_name: Specialty Retailers
+    customer_means: store
+    revenue_last_fy: 500_000_000
+    arpu: 2_000_000
+    churn: 0.03
+    customer_growth_y1: 0.12
+    tam: 54_000_000_000
+    tam_growth: 0.03
+    sam_share: 0.30
+    infra_fixed: 3_000_000
+    infra_per_customer: 250_000
+    other_cogs_pct: 0.47
+    revenue_per_employee: 200_000
+    loaded_cost: 45_000
+    staff_split: {rnd: 0.01, snm: 0.06, gna: 0.08, ops: 0.85}
+    cac_arpu_multiple: 0.15
+    capex_pct: 0.04
+    nwc_pct: 0.12
+    beta_stage1: 1.1
+    beta_stage2: 1.0
+    comps_ev_revenue: 0.6
+    execution_premium: 0.02
+    useful_life: 8
+    ebit_margin_band: [0.04, 0.10]
+    revenue_per_employee_band: [100_000, 400_000]
+
+  ecommerce_retail:
+    description: Online shop selling goods it buys in and ships from its own warehouse
+    sic_code: "5961"
+    icb_code: "40401010"
+    icb_name: Diversified Retailers
+    customer_means: active buyer
+    revenue_last_fy: 400_000_000
+    arpu: 250
+    churn: 0.40
+    customer_growth_y1: 0.35
+    tam: 190_000_000_000
+    tam_growth: 0.08
+    sam_share: 0.20
+    infra_fixed: 4_000_000
+    infra_per_customer: 25
+    other_cogs_pct: 0.55
+    revenue_per_employee: 500_000
+    loaded_cost: 70_000
+    staff_split: {rnd: 0.15, snm: 0.20, gna: 0.10, ops: 0.55}
+    cac_arpu_multiple: 0.3
+    capex_pct: 0.02
+    nwc_pct: 0.08
+    beta_stage1: 1.4
+    beta_stage2: 1.1
+    comps_ev_revenue: 0.4
+    execution_premium: 0.03
+    useful_life: 5
+    ebit_margin_band: [0.03, 0.08]
+    revenue_per_employee_band: [200_000, 1_500_000]
+
+  video_games:
+    description: A game studio earning from players' purchases in its games
+    sic_code: "7372"
+    icb_code: "40203040"
+    icb_name: Electronic Entertainment
+    customer_means: paying player
+    revenue_last_fy: 100_000_000
+    arpu: 60
+    churn: 0.55
+    customer_growth_y1: 0.40
+    tam: 135_000_000_000
+    tam_growth: 0.08
+    sam_share: 0.10
+    infra_fixed: 4_000_000
+    infra_per_customer: 3
+    other_cogs_pct: 0.17
+    revenue_per_employee: 450_000
+    loaded_cost: 130_000
+    staff_split: {rnd: 0.60, snm: 0.15, gna: 0.10, ops: 0.15}
+    cac_arpu_multiple: 0.5
+    capex_pct: 0.02
+    nwc_pct: 0.00
+    beta_stage1: 1.4
+    beta_stage2: 1.2
+    comps_ev_revenue: 4.0
+    execution_premium: 0.06
+    useful_life: 4
+    ebit_margin_band: [0.15, 0.30]
+    revenue_per_employee_band: [150_000, 1_500_000]
+
+  media_publishing:
+    description: Book, magazine and news publishing, in print and digital
+    sic_code: "2731"
+    icb_code: "40301030"
+    icb_name: Publishing
+    customer_means: subscriber or reader
+    revenue_last_fy: 300_000_000
+    arpu: 150
+    churn: 0.20
+    customer_growth_y1: 0.05
+    tam: 97_000_000_000
+    tam_growth: -0.01
+    sam_share: 0.25
+    infra_fixed: 5_000_000
+    infra_per_customer: 20
+    other_cogs_pct: 0.22
+    revenue_per_employee: 300_000
+    loaded_cost: 90_000
+    staff_split: {rnd: 0.10, snm: 0.25, gna: 0.15, ops: 0.50}
+    cac_arpu_multiple: 0.4
+    capex_pct: 0.02
+    nwc_pct: 0.05
+    beta_stage1: 0.9
+    beta_stage2: 0.8
+    comps_ev_revenue: 1.4
+    execution_premium: 0.02
+    useful_life: 5
+    ebit_margin_band: [0.08, 0.15]
+    revenue_per_employee_band: [150_000, 600_000]
+
+  consumer_brands:
+    description: Branded food, drink or fashion sold through shops and online
+    sic_code: "2000"
+    icb_code: "45102020"
+    icb_name: Food Products
+    customer_means: retail or distribution account
+    revenue_last_fy: 300_000_000
+    arpu: 500_000
+    churn: 0.08
+    customer_growth_y1: 0.20
+    tam: 90_000_000_000
+    tam_growth: 0.04
+    sam_share: 0.15
+    infra_fixed: 4_000_000
+    infra_per_customer: 10_000
+    other_cogs_pct: 0.53
+    revenue_per_employee: 350_000
+    loaded_cost: 80_000
+    staff_split: {rnd: 0.05, snm: 0.30, gna: 0.12, ops: 0.53}
+    cac_arpu_multiple: 0.2
+    capex_pct: 0.04
+    nwc_pct: 0.15
+    beta_stage1: 0.9
+    beta_stage2: 0.8
+    comps_ev_revenue: 1.6
+    execution_premium: 0.02
+    useful_life: 10
+    ebit_margin_band: [0.08, 0.15]
+    revenue_per_employee_band: [150_000, 900_000]
+
+  fintech_payments:
+    description: Payment processing for merchants
+    sic_code: "6199"
+    icb_code: "50205015"
+    icb_name: Transaction Processing Services
+    customer_means: merchant
+    revenue_last_fy: 70_000_000
+    arpu: 5_000
+    churn: 0.12
+    customer_growth_y1: 0.60
+    tam: 50_000_000_000
+    tam_growth: 0.11
+    sam_share: 0.20
+    infra_fixed: 10_000_000
+    infra_per_customer: 300
+    other_cogs_pct: 0.25
+    revenue_per_employee: 450_000
+    loaded_cost: 160_000
+    staff_split: {rnd: 0.32, snm: 0.28, gna: 0.18, ops: 0.22}
+    cac_arpu_multiple: 1.0
+    capex_pct: 0.03
+    nwc_pct: 0.05
+    beta_stage1: 1.6
+    beta_stage2: 1.2
+    comps_ev_revenue: 7.0
+    execution_premium: 0.03
+    useful_life: 4
+    ebit_margin_band: [0.15, 0.30]
+    revenue_per_employee_band: [150_000, 1_500_000]
+
+  industrial_machinery:
+    description: "Heavy industry: machinery and equipment built in its own factories"
+    sic_code: "3560"
+    icb_code: "50204000"
+    icb_name: "Machinery: Industrial"
+    customer_means: industrial customer
+    revenue_last_fy: 400_000_000
+    arpu: 1_500_000
+    churn: 0.05
+    customer_growth_y1: 0.15
+    tam: 140_000_000_000
+    tam_growth: 0.04
+    sam_share: 0.10
+    infra_fixed: 8_000_000
+    infra_per_customer: 50_000
+    other_cogs_pct: 0.39
+    revenue_per_employee: 300_000
+    loaded_cost: 100_000
+    staff_split: {rnd: 0.10, snm: 0.12, gna: 0.10, ops: 0.68}
+    cac_arpu_multiple: 0.05
+    capex_pct: 0.06
+    nwc_pct: 0.20
+    beta_stage1: 1.1
+    beta_stage2: 1.0
+    comps_ev_revenue: 1.2
+    execution_premium: 0.02
+    useful_life: 10
+    ebit_margin_band: [0.08, 0.16]
+    revenue_per_employee_band: [150_000, 600_000]
+
+  construction_services:
+    description: Construction and installation projects for companies and the public sector
+    sic_code: "1600"
+    icb_code: "50101015"
+    icb_name: Engineering and Contracting Services
+    customer_means: project client
+    revenue_last_fy: 800_000_000
+    arpu: 2_000_000
+    churn: 0.30
+    customer_growth_y1: 0.15
+    tam: 490_000_000_000
+    tam_growth: 0.04
+    sam_share: 0.10
+    infra_fixed: 3_000_000
+    infra_per_customer: 20_000
+    other_cogs_pct: 0.55
+    revenue_per_employee: 350_000
+    loaded_cost: 95_000
+    staff_split: {rnd: 0.02, snm: 0.06, gna: 0.10, ops: 0.82}
+    cac_arpu_multiple: 0.03
+    capex_pct: 0.02
+    nwc_pct: 0.08
+    beta_stage1: 1.1
+    beta_stage2: 1.0
+    comps_ev_revenue: 0.8
+    execution_premium: 0.02
+    useful_life: 6
+    ebit_margin_band: [0.04, 0.09]
+    revenue_per_employee_band: [200_000, 700_000]
+
+  logistics_transport:
+    description: Freight forwarding, trucking and warehousing for shippers
+    sic_code: "4731"
+    icb_code: "50206060"
+    icb_name: Transportation Services
+    customer_means: shipper account
+    revenue_last_fy: 500_000_000
+    arpu: 200_000
+    churn: 0.12
+    customer_growth_y1: 0.18
+    tam: 220_000_000_000
+    tam_growth: 0.05
+    sam_share: 0.10
+    infra_fixed: 5_000_000
+    infra_per_customer: 20_000
+    other_cogs_pct: 0.39
+    revenue_per_employee: 250_000
+    loaded_cost: 75_000
+    staff_split: {rnd: 0.03, snm: 0.07, gna: 0.10, ops: 0.80}
+    cac_arpu_multiple: 0.1
+    capex_pct: 0.08
+    nwc_pct: 0.05
+    beta_stage1: 1.2
+    beta_stage2: 1.0
+    comps_ev_revenue: 0.8
+    execution_premium: 0.02
+    useful_life: 8
+    ebit_margin_band: [0.05, 0.12]
+    revenue_per_employee_band: [150_000, 600_000]
+
+  renewable_energy:
+    description: Wind and solar parks selling power on long contracts
+    sic_code: "4911"
+    icb_code: "65101010"
+    icb_name: Alternative Electricity
+    customer_means: power-purchase contract
+    revenue_last_fy: 100_000_000
+    arpu: 3_000_000
+    churn: 0.03
+    customer_growth_y1: 0.25
+    tam: 21_000_000_000
+    tam_growth: 0.06
+    sam_share: 0.20
+    infra_fixed: 4_000_000
+    infra_per_customer: 600_000
+    other_cogs_pct: 0.16
+    revenue_per_employee: 1_500_000
+    loaded_cost: 120_000
+    staff_split: {rnd: 0.05, snm: 0.05, gna: 0.20, ops: 0.70}
+    cac_arpu_multiple: 0.05
+    capex_pct: 0.35
+    nwc_pct: 0.02
+    beta_stage1: 0.8
+    beta_stage2: 0.7
+    comps_ev_revenue: 6.0
+    execution_premium: 0.03
+    useful_life: 25
+    ebit_margin_band: [0.30, 0.50]
+    revenue_per_employee_band: [700_000, 4_000_000]

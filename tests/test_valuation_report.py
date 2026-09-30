@@ -85,14 +85,33 @@ def test_parse_errors(key: str, text: str) -> None:
         parse(BY_KEY[key], text)
 
 
-def test_every_resolved_value_round_trips(aurora_run) -> None:
+@pytest.mark.parametrize("market", ["se", "us"])
+def test_every_resolved_value_round_trips(aurora_run, market: str) -> None:
     for spec in FIELDS:
         value = aurora_run.resolved[spec.key]
-        again = parse(spec, format_value(spec, value))
+        again = parse(spec, format_value(spec, value, market))
         if isinstance(value, float):
             assert again == pytest.approx(value, rel=1e-5), spec.key
         else:
             assert again == value, spec.key
+
+
+@pytest.mark.parametrize(
+    ("value", "se", "us"),
+    [
+        (400e9, "400mdr", "400bn"),
+        (1.05e6, "1.05mkr", "1.05m"),
+        (600_000, "600,000", "600,000"),
+    ],
+)
+def test_amounts_are_shown_in_the_market_s_words(
+    value: float, se: str, us: str
+) -> None:
+    spec = BY_KEY["market.tam"]
+    assert (format_value(spec, value, "se"), format_value(spec, value, "us")) == (
+        se,
+        us,
+    )
 
 
 # -- scenario files ----------------------------------------------------------------

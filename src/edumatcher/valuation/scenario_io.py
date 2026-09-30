@@ -25,7 +25,13 @@ import yaml
 
 from edumatcher.valuation.fields import BY_KEY, FIELDS
 from edumatcher.valuation.resolve import Resolved
-from edumatcher.valuation.units import NOT_ANSWERED, ParseError, format_value, parse
+from edumatcher.valuation.units import (
+    NOT_ANSWERED,
+    ParseError,
+    format_value,
+    market_of,
+    parse,
+)
 
 FORMAT = 1
 
@@ -38,6 +44,7 @@ def _scalar(text: str) -> str:
 
 def dump(answers: Mapping[str, Any], resolved: Resolved | None = None) -> str:
     values = answers if resolved is None else resolved.values
+    market = market_of(values)
     lines = [f"pm_valuation: {FORMAT}"]
     section = None
     for spec in FIELDS:  # catalogue order, so the file reads like the interview
@@ -47,7 +54,7 @@ def dump(answers: Mapping[str, Any], resolved: Resolved | None = None) -> str:
         if head != section:
             lines.append(f"{head}:")
             section = head
-        line = f"  {rest}: {_scalar(format_value(spec, values[spec.key]))}"
+        line = f"  {rest}: {_scalar(format_value(spec, values[spec.key], market))}"
         if resolved is not None:
             line += f"  # {resolved.sources[spec.key].value}"
         lines.append(line)

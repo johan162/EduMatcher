@@ -33,7 +33,7 @@ from prompt_toolkit.layout import (
 )
 from prompt_toolkit.widgets import TextArea
 
-from edumatcher.valuation.fields import FIELDS, PAGES, FieldSpec, Level, Unit
+from edumatcher.valuation.fields import FIELDS, PAGES, SECTORS, FieldSpec, Level, Unit
 from edumatcher.valuation.model.offering import Outcome
 from edumatcher.valuation.pipeline import Run, run
 from edumatcher.valuation.presets import Presets
@@ -182,10 +182,18 @@ class InterviewApp:
                 area.text = "" if value == _AUTO else value
             self.app.layout.focus(area)
 
-        pick = PickList(spec.label, (_AUTO, *options), area.text or _AUTO, done)
+        describe = self._describe_sector if spec.choices == SECTORS else None
+        pick = PickList(
+            spec.label, (_AUTO, *options), area.text or _AUTO, done, describe
+        )
         self.floats.floats.append(Float(pick.container))
         self.app.layout.focus(pick.control)
         return True
+
+    def _describe_sector(self, key: str) -> tuple[str, str]:
+        """A sector's ICB industry and description, for its pick-list line."""
+        preset = self.iv.presets.sectors.get(key)
+        return ("", "") if preset is None else (preset.industry, preset.description)
 
     # -- the side panes -------------------------------------------------------------
 
@@ -400,10 +408,11 @@ class InterviewApp:
     def _review_text(self) -> str:
         ev = self.iv.evaluation
         lines: list[str] = []
+        market = ev.resolved.values["company.market"]
         for number, title in enumerate(PAGES, 1):
             lines.append(f"── {number} {title} " + "─" * 40)
             for spec in (spec for spec in FIELDS if spec.page == number):
-                value = format_value(spec, ev.resolved.values[spec.key])
+                value = format_value(spec, ev.resolved.values[spec.key], market)
                 source = ev.resolved.sources[spec.key].value
                 lines.append(f"  {spec.label:<40} {value:>22}   {source}")
         if ev.problems:

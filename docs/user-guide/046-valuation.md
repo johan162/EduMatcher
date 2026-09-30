@@ -390,8 +390,8 @@ flowchart TB
   competitors. It depends on the market structure: a fragmented, competitive
   market allows a smaller share than one where a few firms dominate.
 
-In the Tornfalk case in year 1: a 448 bn SEK TAM, of which 25% is serviceable
-(112 bn), of which Tornfalk can reach at most 8%, about 9 bn SEK of revenue, or
+In the Tornfalk case in year 1: a TAM of 448 mdr (miljarder kronor), of which 25% is serviceable
+(112 mdr), of which Tornfalk can reach at most 8%, about 9 mdr of revenue, or
 14,222 customers at 630,000 SEK a year each. It has 2,600 today: plenty of
 room to grow, but not unlimited room.
 
@@ -603,9 +603,10 @@ United States, an **emerging growth company** (EGC, annual revenue below about
 1.235 billion dollars) may, for example, present fewer years of audited
 accounts, and a **smaller reporting company** (SRC) qualifies by its public
 float or revenue. The report's first section is the document's cover in
-brief: the **Prospectus cover** with the issuer, Finansinspektionen and the
-listing venue, or, with `--market us`, the **S-1 cover** with the SIC code
-and the EGC and SRC status, which `pm-valuation` works out from your answers.
+brief: the **Prospectus cover** with the issuer, its ICB industry code,
+Finansinspektionen and the listing venue, or, with `--market us`, the **S-1
+cover** with the SIC code and the EGC and SRC status, which `pm-valuation`
+works out from your answers.
 
 ### The price range and the IPO discount
 
@@ -840,7 +841,7 @@ command line selects the United States and overrides the scenario file.
 | | `se` | `us` |
 |---|---|---|
 | Currency | SEK | USD |
-| Offering document and report section 2 | Prospectus, approved by Finansinspektionen; **Prospectus cover** | Form S-1, filed with the SEC; **S-1 cover** with SIC code, EGC and SRC status |
+| Offering document and report section 2 | Prospectus, approved by Finansinspektionen; **Prospectus cover** with the ICB industry code | Form S-1, filed with the SEC; **S-1 cover** with SIC code, EGC and SRC status |
 | Default company name, incorporation, lead bank | Newco AB, Sweden, Fiktiva Banken AB | Newco Inc., Delaware, Fictive & Co. |
 | Risk-free rate, equity risk premium | 3.0%, 5.6% | 4.25%, 5% |
 | Tax rate, inflation, long-run growth | 20.6%, 2%, 2% | 25%, 2.5%, 2.5% |
@@ -862,8 +863,81 @@ times larger. To compare the frameworks fairly, convert the amounts too.
 Swedish and English count large numbers differently. A Swedish *miljard* is
 a thousand million, the English **billion**; a Swedish *biljon* is a million
 million. `pm-valuation` accepts both spellings for amounts (see
-[Typing values](#typing-values)), and its reports write large amounts in
-millions, `m`, which read the same in both languages.
+[Typing values](#typing-values)). Field values are shown in the market's
+words: `400mdr` and `900mkr` in Sweden, `40bn` and `90m` in the United States,
+in the interview, in scenario files and in the report's list of
+assumptions. The report's own tables are in millions, `m`, which read the same
+in both languages.
+
+## Sector presets
+
+The sector preset on page 1 is the most important single choice in the
+interview: it fills in most of the other answers with values that fit
+together for one kind of business. There are 18, grouped by industry the way
+Nasdaq Stockholm classifies listed companies. Nasdaq's Nordic exchanges have
+used FTSE Russell's **Industry Classification Benchmark** (ICB) since 2011:
+11 industries, divided into about 170 subsectors, each with an eight-digit
+code. The US SEC files companies under four-digit **SIC codes** (Standard
+Industrial Classification). A preset carries both, and the cover of the
+report shows the one its market uses: *ICB 10101015 Software* on a Swedish
+prospectus, *SIC 7372* on an S-1.
+
+| Preset | ICB subsector | A customer is | Comparables multiple | Year-10 margin | What sets it apart |
+|---|---|---|---:|---:|---|
+| **Technology** | | | | | |
+| `b2b_saas` | 10101015 Software | business account | 10× | 20%–35% | Fast growth, few customers leave, high gross margin; losses now, wide margins later |
+| `consumer_subscription` | 10101020 Consumer Digital Services | paying subscriber | 5× | 15%–30% | Millions of small customers, a third of them leave each year |
+| `online_marketplace` | 10101020 Consumer Digital Services | active buyer | 6× | 15%–30% | Keeps a fee on each sale; heavy marketing to win buyers |
+| `deep_tech_hardware` | 10102010 Semiconductors | enterprise account | 3× | 12%–25% | Hardware plus service; high capex, cash tied up in stock |
+| `consulting` | 10101010 Computer Services | client account | 1.6× | 8%–16% | Staff are nearly all the cost, so margins barely widen with size; little capex |
+| **Telecommunications** | | | | | |
+| `telecom_operator` | 15102015 Telecommunications Services | subscriber | 2.6× | 15%–28% | Heavy network capex and fixed costs; stable subscribers; low beta |
+| **Health Care** | | | | | |
+| `medtech` | 20102010 Medical Equipment | hospital or clinic account | 3.9× | 18%–30% | High gross margin and heavy R&D; approval risk raises the execution premium |
+| `healthcare_services` | 20101010 Health Care Facilities | care contract or clinic | 1.2× | 6%–12% | Staff-heavy and stable; paid by regions, insurers or patients; low beta |
+| **Consumer Discretionary** | | | | | |
+| `retail_stores` | 40401030 Specialty Retailers | store | 0.6× | 4%–10% | Growth by opening stores; goods bought in and rent eat most of revenue; stock ties up cash |
+| `ecommerce_retail` | 40401010 Diversified Retailers | active buyer | 0.4× | 3%–8% | Thin margins on goods bought in; 40% of buyers stop each year |
+| `video_games` | 40203040 Electronic Entertainment | paying player | 4× | 15%–30% | Hit-driven: more than half of paying players leave each year; high execution premium |
+| `media_publishing` | 40301030 Publishing | subscriber or reader | 1.4× | 8%–15% | A slowly shrinking market; print, distribution and royalty costs |
+| **Consumer Staples** | | | | | |
+| `consumer_brands` | 45102020 Food Products | retail or distribution account | 1.6× | 8%–15% | Ingredients and production are half of revenue; brand marketing; low beta |
+| **Industrials** | | | | | |
+| `fintech_payments` | 50205015 Transaction Processing Services | merchant | 7× | 15%–30% | Grows with merchants' sales; card-network fees; cash tied up in settlement |
+| `industrial_machinery` | 50204000 Machinery: Industrial | industrial customer | 1.2× | 8%–16% | Materials are the largest cost; factories need capex; stock and invoices tie up cash |
+| `construction_services` | 50101015 Engineering and Contracting Services | project client | 0.8× | 4%–9% | Low margins on large projects; subcontractors and materials |
+| `logistics_transport` | 50206060 Transportation Services | shipper account | 0.8× | 5%–12% | Vehicles and warehouses need capex; fuel and hired haulage; low margins |
+| **Utilities** | | | | | |
+| `renewable_energy` | 65101010 Alternative Electricity | power-purchase contract | 6× | 30%–50% | Capital-heavy: parks are built up front (capex 35% of revenue) and depreciated over 25 years |
+
+The comparables multiple is the enterprise value investors pay per unit of
+next year's revenue, and the year-10 margin is the range of EBIT margins the
+model considers plausible for the sector (warning V008 outside it). Software
+is valued at many times its revenue because most of each extra sale is profit;
+a construction company earns a few percent on each sale and is valued at less
+than its revenue. Every preset's default company is tuned to be coherent in
+both markets, but the values are illustrative, not researched benchmarks.
+
+**Choosing a preset.** Pick the business model that is closest, not the
+product: a company selling software to hospitals is `b2b_saas`, not `medtech`.
+Then change the answers that do not fit; the preset only supplies starting
+values. Look at what "a customer is" for the preset: for `retail_stores` the
+model counts stores, so "customers" grow as the chain opens shops and "churn"
+means closing them.
+
+**Companies without a preset.** Some businesses are valued in other ways, and
+the model would teach them wrongly:
+
+- **Banks and insurers** borrow and lend as their business, so the cash flow
+  to the whole firm means little. They are valued on their equity and its
+  return, for example price to book value.
+- **Property companies** are valued on the market value of their buildings
+  less their debt, the *net asset value*.
+- **Pre-revenue biotech** has no customers yet. Its drugs in development are
+  valued one by one, weighted by the chance each passes its trials
+  (*risk-adjusted NPV*).
+- **Mining and oil exploration** companies are valued on the resources in the
+  ground and the cost of extracting them.
 
 ## The interview
 
@@ -928,7 +1002,7 @@ also section 3 of the report.
 
 | Field | Accepts | Notes |
 |---|---|---|
-| Money and counts | `90m`, `1.4bn`, `2.5k`, `1_000`, `60,000` | Swedish suffixes too: `90mkr` (miljoner kronor), `1.4md` or `1.4mdr` (miljarder) |
+| Money and counts | `90m`, `1.4bn`, `2.5k`, `1_000`, `60,000` | Swedish suffixes too: `90mkr` (miljoner kronor), `1.4md` or `1.4mdr` (miljarder). In the Swedish market, amounts are shown with `mkr` and `mdr` |
 | Percentages | `12`, `12%`, `0.5` | A plain number is **percentage points**: `0.5` is 0.5%, never 50% |
 | Ratios | `10`, `10x` | |
 | Yes / no | `yes`, `no` | |
@@ -975,7 +1049,7 @@ The sections, in order:
 | Section | Content |
 |---|---|
 | Verdict | PROCEED, PROCEED (THIN BOOK) or POSTPONE, the headline numbers and why |
-| Prospectus cover, or S-1 cover | Issuer, ticker, the authority and the listing venue; for the US also SIC code, emerging-growth and smaller-reporting status |
+| Prospectus cover, or S-1 cover | Issuer, ticker, industry code (ICB in Sweden, SIC in the US), the authority and the listing venue; for the US also emerging-growth and smaller-reporting status |
 | Assumptions | Every input with its source |
 | Market and customers; Unit economics; Headcount | The ten-year operating forecast |
 | Income statement; Taxes, reinvestment and FCFF | From revenue to free cash flow |
@@ -1148,7 +1222,9 @@ matters to the valuation, followed by a table of all its fields.
 - **Explanation** says what the field means, how the model uses it, and what
   happens when you change it.
 
-Money amounts are in the market's currency: SEK for `se`, USD for `us`. The
+Money amounts are in the market's currency: SEK for `se`, USD for `us`.
+Swedish amounts are written as the interview shows them: `mkr` for millions
+of kronor and `mdr` for *miljarder*, thousands of millions. The
 sector presets are written in dollars and converted at 10 SEK per dollar;
 salaries and revenue per employee are then set 30% lower for Sweden.
 
@@ -1166,8 +1242,8 @@ the market and the sector first, because the other pages fill in from them.
 |---|---|---|---|
 | Company name | Beginner | Market: Newco AB / Newco Inc. | The legal name of the company going public, as it will stand on the cover of the prospectus (or the S-1). A Swedish limited company ends in **AB**, *aktiebolag* ("share company"), the counterpart of *Inc.*; a listed one is an **AB (publ)**, a public company that may offer shares to anyone. The name is used in the report's title and headers and in the proposed ticker. It does not affect the value. |
 | Proposed ticker | Intermediate | Derived from the name: NEWC | The short symbol the stock will trade under on the exchange, and the name `pm-new-symbol` lists it with. It must be 1–8 characters of A–Z, 0–9, `.` or `_`. The default drops suffixes such as AB or Inc., then takes the first four letters of a one-word name, or three letters of the first word and one of the second. Traders see only this symbol all day, so real companies choose it with care. |
-| Sector preset | Beginner | `b2b_saas` | The company's business model. A **preset** is a coherent set of starting values for one kind of business: market size, price per customer, how many customers leave each year, costs, capital needs, risk (beta) and how the stock market values similar companies. The choices are `b2b_saas` (business software sold as yearly subscriptions), `consumer_subscription` (a paid app or media service), `online_marketplace` (a platform that keeps a fee on each sale), `fintech_payments` (payment processing for shops) and `deep_tech_hardware` (hardware plus service sold to companies). Every value marked "preset" changes when you change the sector, unless you typed it yourself. |
-| SIC code | Advanced | Preset: 7372 | The US *Standard Industrial Classification*, a four-digit number that tells US regulators and investors which industry the company is in (7372 is prepackaged software). It appears only on the S-1 cover with `--market us`, and changes nothing else. |
+| Sector preset | Beginner | `b2b_saas` | The company's business model. A **preset** is a coherent set of starting values for one kind of business: market size, price per customer, how many customers leave each year, costs, capital needs, risk (beta and the execution premium) and how the stock market values similar companies. There are 18, from software and consulting to retail, heavy industry and power production; Enter opens the list, grouped by industry with a line on each. See [Sector presets](#sector-presets) for what each one is and which companies have none. Every value marked "preset" changes when you change the sector, unless you typed it yourself. |
+| Industry code | Advanced | Derived from the sector and market: ICB 10101015 Software / SIC 7372 | The official industry classification on the cover of the offering document. In Sweden it is the **ICB** subsector (Industry Classification Benchmark), the classification Nasdaq Stockholm uses: an eight-digit code whose first two digits are the industry (10 is Technology). In the US it is the four-digit **SIC** code (Standard Industrial Classification) the SEC files companies under (7372 is prepackaged software). Display only. |
 | Incorporated in | Advanced | Market: Sweden / Delaware | The country (or US state) where the company is registered as a legal person, and whose company law governs it. Swedish IPOs are usually of Swedish ABs; most US companies are incorporated in Delaware for its well-tested company law. Display only. |
 | Currency | Advanced | Market: SEK / USD | The currency of every amount you type and every amount in the report. It follows the market. Large numbers can be typed with suffixes: `m` for million, `bn` for billion, and the Swedish `mkr` (miljoner kronor), `md` or `mdr` (miljarder). A billion is a thousand million: a Swedish *miljard*, not a *biljon*. The model's arithmetic does not depend on the currency. |
 | Fiscal year end | Advanced | December 31 | The last day of the company's financial year, on which its annual accounts are closed. "Year 0" in the forecast is the last completed financial year; year 1 is the next. Most Swedish and US companies use the calendar year. Display only. |
@@ -1189,10 +1265,10 @@ effect on the value: they decide how big the company can ever get.
 
 | Field | Level | Default | Explanation |
 |---|---|---|---|
-| Total addressable market | Beginner | Preset: 400 bn SEK / 40 bn USD | The total yearly spending on this kind of product by every possible customer, worldwide, today. It is the size of the whole industry, not the company's revenue. It can be estimated *top-down*, from industry reports, or *bottom-up*, as the number of possible customers × the yearly price. Start-ups are tempted to quote a huge TAM; it matters only through the SAM and the share below. |
+| Total addressable market | Beginner | Preset: 400 mdr / 40 bn USD | The total yearly spending on this kind of product by every possible customer, worldwide, today. It is the size of the whole industry, not the company's revenue. It can be estimated *top-down*, from industry reports, or *bottom-up*, as the number of possible customers × the yearly price. Start-ups are tempted to quote a huge TAM; it matters only through the SAM and the share below. |
 | TAM growth, year 1 | Intermediate | Preset: 12% | How fast the whole market grows next year. The rate then falls in a straight line to the terminal growth rate (page 7, the growth assumed for ever after the forecast) by the last forecast year, because no market can outgrow the economy for ever. A fast-growing market lifts the ceiling on the company's size year by year. |
-| SAM share of TAM | Intermediate | Preset: 25% | The share of the total market that this product can actually serve, given its countries, languages, customer segments and price. A product sold only in Europe to mid-sized companies might serve 20–30% of its TAM. With the defaults, the SAM is 25% of 400 bn = 100 bn SEK. |
-| Market structure | Beginner | competitive | How contested the market is, which sets the largest share of the SAM the company can realistically win: `fragmented` 5% (many small rivals), `competitive` 8%, `oligopoly` 15% (a few large players) or `dominant` 30% (close to a monopoly). With the defaults, the most revenue the company can reach today is 8% of 100 bn = 8 bn SEK, against 900 m of revenue last year. |
+| SAM share of TAM | Intermediate | Preset: 25% | The share of the total market that this product can actually serve, given its countries, languages, customer segments and price. A product sold only in Europe to mid-sized companies might serve 20–30% of its TAM. With the defaults, the SAM is 25% of 400 mdr = 100 mdr. |
+| Market structure | Beginner | competitive | How contested the market is, which sets the largest share of the SAM the company can realistically win: `fragmented` 5% (many small rivals), `competitive` 8%, `oligopoly` 15% (a few large players) or `dominant` 30% (close to a monopoly). With the defaults, the most revenue the company can reach today is 8% of 100 mdr = 8 mdr, against 900 mkr of revenue last year. |
 | Maximum share of SAM | Expert | Derived from the market structure: 8% | The same ceiling, typed directly instead of through the market structure. Customer growth follows an **S-curve**: fast while the company is small compared with its ceiling, then slowing as it gets closer, like a new product spreading through a population. It is one of the ten scenario drivers (page 12), and usually one of the inputs with the largest effect on value. |
 
 ### Page 3 — Customers & pricing
@@ -1207,8 +1283,8 @@ the price per customer.
 
 | Field | Level | Default | Explanation |
 |---|---|---|---|
-| Last FY revenue | Beginner | Preset: 900 m SEK / 90 m USD | Revenue (sales) in the last completed financial year, *year 0*: the starting point of the forecast. It is the most important fact about a young company, and the one investors check first. If you give customers but not revenue, it is derived as 0.85 × customers × ARPU (see the next field for why 0.85). |
-| Customers now | Intermediate | Derived: 1,765 | Paying customers at the end of year 0. What a "customer" is depends on the sector: a business account, a subscriber, a buyer, a shop. The default is revenue ÷ (0.85 × ARPU): 900 m ÷ (0.85 × 600,000) ≈ 1,765. The 0.85 allows for growth during the year: customers who joined during the year paid for only part of it, so the year earned less than the year-end customer count × a full year's price. Compared with the ceiling from page 2, the customer count shows how far along its S-curve the company already is. |
+| Last FY revenue | Beginner | Preset: 900 mkr / 90 m USD | Revenue (sales) in the last completed financial year, *year 0*: the starting point of the forecast. It is the most important fact about a young company, and the one investors check first. If you give customers but not revenue, it is derived as 0.85 × customers × ARPU (see the next field for why 0.85). |
+| Customers now | Intermediate | Derived: 1,765 | Paying customers at the end of year 0. What a "customer" is depends on the sector: a business account, a subscriber, a buyer, a shop. The default is revenue ÷ (0.85 × ARPU): 900 mkr ÷ (0.85 × 600,000) ≈ 1,765. The 0.85 allows for growth during the year: customers who joined during the year paid for only part of it, so the year earned less than the year-end customer count × a full year's price. Compared with the ceiling from page 2, the customer count shows how far along its S-curve the company already is. |
 | ARPU per year | Intermediate | Preset: 600,000 SEK / 60,000 USD | **Average revenue per user**: what one customer pays per year on average. For business software it is the yearly contract value; for a marketplace it is only the fee the platform keeps (the *take rate*), not the value of what was bought. Revenue = customers × ARPU. A high ARPU with few customers (enterprise software) and a low ARPU with millions of customers (a consumer app) can give the same revenue with very different costs. |
 | ARPU growth, year 1 | Advanced | 5% | How much the average customer pays more next year, from price increases and from selling more to existing customers (*upselling*). It fades to general inflation (page 5) by the end of the forecast. Because the market (page 2) is measured in money, a faster-rising price also means the market holds fewer customers. A scenario driver: bear 3%, bull 7%. |
 | Annual churn | Intermediate | Preset: 8% | The share of customers lost each year. At 8% the average customer stays 1 ÷ 0.08 = 12.5 years; at 35%, typical for consumer apps, less than three. Churn decides a customer's **lifetime value**, the gross profit it brings before it leaves: ARPU × gross margin ÷ churn (the gross margin is the share of revenue left after the direct cost of serving customers). Halving churn roughly doubles what each customer is worth. Business software often loses 5–15% of customers a year. A scenario driver. |
@@ -1225,8 +1301,8 @@ and how hiring follows growth.
 
 | Field | Level | Default | Explanation |
 |---|---|---|---|
-| Headcount | Intermediate | Derived: 643 / 450 | The number of employees today. The default divides last year's revenue by the sector's typical revenue per employee: 900 m ÷ 1.4 m SEK = 643. A company with many more staff than that for its revenue is investing heavily ahead of growth, or is inefficient. |
-| Loaded cost per employee | Intermediate | Preset: 1.05 m SEK / 150,000 USD | The full yearly cost of one employee: salary plus social charges and pension (in Sweden, employer contributions of about a third of the salary), benefits, office space and equipment. It is often 1.3–1.5 times the salary itself. Headcount × loaded cost is the staff cost, which the model splits into the four departments below. |
+| Headcount | Intermediate | Derived: 643 / 450 | The number of employees today. The default divides last year's revenue by the sector's typical revenue per employee: 900 mkr ÷ 1.4 mkr = 643. A company with many more staff than that for its revenue is investing heavily ahead of growth, or is inefficient. |
+| Loaded cost per employee | Intermediate | Preset: 1.05 mkr / 150,000 USD | The full yearly cost of one employee: salary plus social charges and pension (in Sweden, employer contributions of about a third of the salary), benefits, office space and equipment. It is often 1.3–1.5 times the salary itself. Headcount × loaded cost is the staff cost, which the model splits into the four departments below. |
 | Wage inflation | Advanced | 3.5% | How much the loaded cost per employee rises each year. It is usually a little above general inflation, because wages also rise with productivity and because technology staff are in demand. |
 | Headcount growth | Advanced | `follow_revenue` | How the number of employees grows. `follow_revenue` ties hiring to revenue growth through the elasticity below, never slower than the floor: when revenue grows 50%, staff grow 30% at the default elasticity. `explicit` ignores revenue and moves in a straight line from the year-1 hiring rate to the floor in the last forecast year; use it when you have a hiring plan. |
 | Headcount elasticity | Intermediate | 0.6 | In `follow_revenue` mode: the percentage growth in staff for each percentage of revenue growth. At 0.6, revenue up 50% needs 30% more staff. Below 1, revenue per employee rises as the company grows, which is operating leverage; at 1, margins stay where they are; above 1, the company gets less efficient as it grows. Because staff are most of the cost, this input often has the largest single effect on value in the report's **tornado** chart, which ranks inputs by how far changing each one alone moves the value. A scenario driver: bear 0.7, bull 0.5. |
@@ -1248,14 +1324,14 @@ into operating profit: **EBIT**, earnings before interest and taxes.
 
 | Field | Level | Default | Explanation |
 |---|---|---|---|
-| Infrastructure, fixed | Advanced | Preset: 60 m SEK / 6 m USD | Yearly hosting and platform costs that do not depend on the number of customers: the base cost of running the service at all. It rises with inflation. It is part of the cost of revenue. Because it is fixed, it weighs heavily while the company is small and becomes a small share of revenue as it grows. |
+| Infrastructure, fixed | Advanced | Preset: 60 mkr / 6 m USD | Yearly hosting and platform costs that do not depend on the number of customers: the base cost of running the service at all. It rises with inflation. It is part of the cost of revenue. Because it is fixed, it weighs heavily while the company is small and becomes a small share of revenue as it grows. |
 | Infrastructure per customer | Advanced | Preset: 40,000 SEK / 4,000 USD | The yearly cost of serving one more customer: computing, storage, support tools, and for hardware the cost of the delivered equipment. It rises with inflation. Compared with the ARPU (600,000 SEK) it shows how much of each customer's payment is left as gross profit. |
 | Other cost of revenue | Advanced | Preset: 6% | Other direct costs that grow with revenue, as a share of it: card and payment fees, licences for third-party software built into the product, app-store fees. Revenue minus all costs of revenue is the **gross profit**; as a share of revenue, the gross margin. Software companies often have gross margins of 70–80%. |
 | Paid acquisition cost per customer | Intermediate | Derived from the preset: 300,000 SEK / 30,000 USD | The marketing money spent to win one new customer: advertising, campaigns, events, referral fees. Sales staff are counted in headcount, not here. The default is the sector's multiple of the ARPU (0.5 × 600,000 for `b2b_saas`). A customer is worth winning only if its lifetime value (page 3) is several times what it cost to win; a common rule of thumb is at least 3 times. A scenario driver: bear 390,000, bull 240,000. |
 | Acquisition cost growth | Advanced | 3% | How fast the cost of winning a customer rises each year. The easiest customers are won first; later ones need more persuasion, and rivals bid up advertising prices. This is one reason growth becomes more expensive as a company matures. |
 | R&D, non-staff | Advanced | 4% | Development spending other than salaries, as a share of revenue: developer tools, software licences, test equipment, cloud capacity for development. |
 | G&A, non-staff | Advanced | 3% | Administrative spending other than salaries, as a share of revenue: rent, insurance, accountants and lawyers. |
-| Public-company cost | Advanced | 30 m SEK / 3 m USD | What it costs each year to be listed: the audit, insurance for directors, investor relations, exchange fees, quarterly reports and compliance with market rules. A private company does not pay these, so they are a real cost of going public. They grow with inflation and are part of G&A. |
+| Public-company cost | Advanced | 30 mkr / 3 m USD | What it costs each year to be listed: the audit, insurance for directors, investor relations, exchange fees, quarterly reports and compliance with market rules. A private company does not pay these, so they are a real cost of going public. They grow with inflation and are part of G&A. |
 | Stock-based compensation | Intermediate | 12% | Shares and share options given to employees as pay, as a share of staff cost. An **option** is the right to buy a share later at a fixed price, which is valuable if the share price rises. No cash is paid, but it is a real cost: new shares **dilute** the existing owners, who then own a smaller slice of the company. The model counts it as an expense, like salaries, and does not add it back. |
 | General inflation | Advanced | Market: 2% / 2.5% | The general rise in prices each year. Fixed costs rise with it, and ARPU growth fades to it by the end of the forecast. The Riksbank (Sweden's central bank) and the US Federal Reserve both aim for inflation of about 2% a year. |
 
@@ -1270,8 +1346,8 @@ subtracted from the value of the business to find the value of its shares.
 | Field | Level | Default | Explanation |
 |---|---|---|---|
 | Capex | Advanced | Preset: 3% | **Capital expenditure**: cash spent on long-lived equipment such as servers, hardware and office fit-outs, as a share of revenue. The income statement spreads this cost over the equipment's life as depreciation, but the cash leaves the company at once, so capex lowers free cash flow in the year it is spent. Hardware companies need much more capex than software companies. |
-| Useful life | Advanced | 4 years | The number of years over which capex is depreciated, in equal amounts (*straight line*): equipment bought for 4 m with a four-year life costs 1 m a year in the income statement. Depreciation is not a payment; it spreads cash already spent. A longer life raises reported profit in the early years but does not change the cash, so it hardly changes the value. |
-| Opening PP&E | Advanced | Derived: 54 m SEK / 5.4 m USD | **Property, plant and equipment**: the book value of the company's equipment today, what it cost less the depreciation so far. Each year capex adds to it and depreciation (PP&E ÷ useful life) reduces it. The default is the level the equipment settles at: capex × useful life ÷ 2 = 3% × 900 m × 4 ÷ 2 = 54 m. |
+| Useful life | Advanced | Preset: 4 years | The number of years over which capex is depreciated, in equal amounts (*straight line*): equipment bought for 4 m with a four-year life costs 1 m a year in the income statement. The preset's life fits its assets: 4 years for servers and computers, 10 for factory machinery, 25 for wind turbines. Depreciation is not a payment; it spreads cash already spent. A longer life raises reported profit in the early years but does not change the cash, so it hardly changes the value. |
+| Opening PP&E | Advanced | Derived: 54 mkr / 5.4 m USD | **Property, plant and equipment**: the book value of the company's equipment today, what it cost less the depreciation so far. Each year capex adds to it and depreciation (PP&E ÷ useful life) reduces it. The default is the level the equipment settles at: capex × useful life ÷ 2 = 3% × 900 mkr × 4 ÷ 2 = 54 mkr. |
 | Net working capital | Advanced | Preset: −5% | The money tied up in day-to-day business, as a share of revenue: what customers owe plus inventory, minus what the company owes suppliers and what customers have paid in advance. When it is positive, as for a hardware maker with stock and slow-paying customers, growth absorbs cash. When it is negative, as for software paid a year in advance, growth releases cash, because customers pay before the company delivers. |
 | Tax rate | Intermediate | Market: 20.6% / 25% | Corporate income tax on operating profit (EBIT). Sweden's rate is 20.6%; the US rate of about 25% combines federal and state taxes. A young company pays no tax while it makes losses, and its losses then shelter its first profits (next field). After the forecast the company pays the full rate, which matters most for the terminal value. |
 | Tax losses carried forward | Intermediate | 0 | Losses from past years that can be set against future profits, so that no tax is paid until they are used up. Young companies often have large ones, and ignoring them undervalues the company. The forecast's own early losses are added to this amount automatically. |
@@ -1302,7 +1378,7 @@ the ideas behind them.
 | Beta, year 6 on | Intermediate | Preset: 1.1 | The beta once the company is established. Mature companies behave more like the market as a whole, so their beta drifts toward 1. It also applies to the terminal value, the value of every year after the forecast, so small changes here move the value a lot. A scenario driver: bear 1.4, bull 0.9. |
 | Size premium, years 1-5 | Advanced | 1.5% | Extra yearly return investors demand from small companies, on top of the CAPM. Small companies fail more often, and their shares are harder to sell quickly without moving the price, so investors want to be paid more for holding them. 1–3% is a common range. Added to the stage-1 rate. |
 | Size premium, year 6 on | Advanced | 0.5% | The size premium from year 6 onwards. By then the company is larger and its shares easier to trade, so the premium is smaller. It is part of the stage-2 rate, which also discounts the terminal value, so small changes here move value noticeably. |
-| Execution premium | Advanced | 3.0% | Extra yearly return in stage 1 only, for the risk that the plan simply does not happen: products are late, customers do not come, key people leave. It is the main reason the first five years have their own, higher rate. Once the company is established, it falls away. A scenario driver: bear 6%, bull 1%. |
+| Execution premium | Advanced | Preset: 3.0% | Extra yearly return in stage 1 only, for the risk that the plan simply does not happen: products are late, customers do not come, key people leave. It is the main reason the first five years have their own, higher rate. Once the company is established, it falls away. The preset sets it: 2% for established businesses such as construction or retail, 5% for medical devices awaiting approval, 6% for a game studio living on hits. A scenario driver: bear + 3 points, bull − 2 points (6% and 1% at 3%). |
 | Target debt ratio D/V | Expert | 0% | The share of the company's capital (debt plus equity, *D* + *E* = *V*) that it plans to finance with debt. With debt, the discount rate becomes a **weighted average cost of capital** (WACC): the cost of equity and the after-tax cost of debt, weighted by their shares. Debt is cheaper than equity, so some debt lowers the rate. Most growth companies have none. |
 | Cost of debt | Expert | Derived: risk-free + 3% = 6.0% / 7.25% | The interest rate the company pays on its debt, before tax. Interest is deducted before tax is charged, so the model uses it after tax: cost × (1 − tax rate). Used only when the target debt ratio is above 0. |
 | Stage-1 years | Expert | 5 | How many years are discounted at the higher stage-1 rate; the following years use the stage-2 rate. Each year's discount factor multiplies all the earlier years' rates together, so later years still carry the stage-1 discount of the early years. |
@@ -1326,10 +1402,10 @@ the money.
 | Field | Level | Default | Explanation |
 |---|---|---|---|
 | Pre-IPO shares (fully diluted) | Intermediate | Derived: 139,000,000 / 69,000,000 | The number of shares before the IPO, **fully diluted**: employee options and convertible securities are counted as if they had already become shares, because they will. Before listing, companies *split* their shares (turn each one into several) so that the price per share lands at a usual level; the default does the same, aiming at about 100 SEK (20 USD) per share. The share count changes the price of each share, not the value of the company: a pizza cut into more slices is not a bigger pizza. |
-| Primary raise (gross) | Beginner | Derived: 2.75 bn SEK / 275 m USD | The new money the company raises by issuing new shares, before fees. At a fair price, raising money neither creates nor destroys value for the existing owners: the company gets cash worth exactly what the new shares are worth. Only the fees cost them something. The default is 20% of the company's value at the comparables' multiple, rounded to 250 m SEK (25 m USD). The money raised, divided by the price, gives the number of new shares, and so the dilution (page 11). |
+| Primary raise (gross) | Beginner | Derived: 2.75 mdr / 275 m USD | The new money the company raises by issuing new shares, before fees. At a fair price, raising money neither creates nor destroys value for the existing owners: the company gets cash worth exactly what the new shares are worth. Only the fees cost them something. The default is 20% of the company's value at the comparables' multiple, rounded to 250 mkr (25 m USD). The money raised, divided by the price, gives the number of new shares, and so the dilution (page 11). |
 | Secondary shares | Intermediate | 0 | Existing shares sold in the offering by current owners, such as founders or venture funds. The money goes to them, not to the company. They make the offering larger, so more demand is needed to cover it, and they add to the free float (the shares anyone can trade), but they change neither the company's value nor the number of shares. Investors watch them: owners selling heavily at the IPO can be a warning sign. |
 | Gross spread | Intermediate | Market: 3% / 7% | The banks' fee, as a share of the money raised. The banks (**underwriters**) organise the offering, market it and guarantee that the shares are sold. About 7% is customary for mid-sized US IPOs; European IPOs, Swedish ones included, typically pay roughly half. It is a cost to the company and lowers the value per share. |
-| Other offering expenses | Advanced | Derived: 47.5 m SEK / 4.75 m USD | Lawyers, auditors, printing, the regulator's and the exchange's fees: paid whatever the price. The default is 20 m SEK (2 m USD) plus 1% of the raise. Like the gross spread, they reduce the value per share. |
+| Other offering expenses | Advanced | Derived: 47.5 mkr / 4.75 m USD | Lawyers, auditors, printing, the regulator's and the exchange's fees: paid whatever the price. The default is 20 mkr (2 m USD) plus 1% of the raise. Like the gross spread, they reduce the value per share. |
 | IPO discount | Beginner | 15% | How far below fair value the **price range** is set, the range of prices published in the prospectus before investors place their orders. The discount rewards investors for buying a stock with no trading history, and leaves room for the price to rise on the first day. 10–15% is typical. The final **offer price** is then chosen from the orders (page 9). |
 | Minimum IPO discount | Expert | 5% | The smallest discount to fair value at which the banks will still launch the offering. Below it, investors get no reward for the risk of an untested stock, and the book would not fill. If management's minimum valuation (page 11) pushes the price range that high, the IPO is **postponed**. |
 | Maximum price above the range | Expert | Market: 0% / 20% | How far above the top of the price range the deal may be priced. In Sweden and the rest of the EU, the top of the range is the **maximum price** stated in the prospectus; pricing above it would need a supplement that lets investors withdraw, so the default is 0%. In the US a deal may be priced about 20% above the filed range without filing again (SEC Rule 430A). |
@@ -1347,18 +1423,18 @@ shares they would buy at each price. The fields on this page describe who
 those investors are and how keen they are. They move the order book, and so
 the offer price and the expected first-day rise, but not the fair value.
 The exceptions are the comparable multiple and the DCF weight, which say how
-fair value itself is calculated. With the defaults, 40 institutions each ordering 137.5 m SEK
-bring 5.5 bn SEK of orders at fair value, twice the 2.75 bn on offer, before
+fair value itself is calculated. With the defaults, 40 institutions each ordering 137.5 mkr
+bring 5.5 mdr of orders at fair value, twice the 2.75 mdr on offer, before
 interest, hype and index prospects are applied.
 
 | Field | Level | Default | Explanation |
 |---|---|---|---|
 | Institutional interest | Beginner | medium | How warm the professional investors are: pension, insurance and investment funds. Before launching, the banks sound them out in meetings (*testing the waters*). The five levels scale institutional demand: `very_low` 0.3×, `low` 0.6×, `medium` 1×, `high` 1.5×, `very_high` 2.2×. It is the biggest single lever on the book, and it is judgement, not calculation. |
 | Institutions in the book | Advanced | 40 | How many institutions place orders. Together with the average order, it sets the size of the institutional book at fair value. |
-| Average institutional order | Advanced | Derived: 5% of the raise = 137.5 m SEK | The typical institutional order, in money, at a price equal to fair value. At higher prices institutions order less (see the elasticity below). |
+| Average institutional order | Advanced | Derived: 5% of the raise = 137.5 mkr | The typical institutional order, in money, at a price equal to fair value. At higher prices institutions order less (see the elasticity below). |
 | Retail interest | Beginner | medium | How keen private investors are, on the same five levels as institutional interest (0.3× to 2.2×). In Sweden, private investors apply for IPO shares through their bank or online broker. Retail money is a small part of most books, but it reacts strongly to hype. |
 | Retail applicants | Advanced | 20,000 | How many private investors apply for shares. |
-| Average retail application | Advanced | 25,000 SEK / 2,500 USD | The typical private investor's order. With the defaults, retail demand at fair value is 20,000 × 25,000 = 500 m SEK before interest and hype. |
+| Average retail application | Advanced | 25,000 SEK / 2,500 USD | The typical private investor's order. With the defaults, retail demand at fair value is 20,000 × 25,000 = 500 mkr before interest and hype. |
 | Hype factor | Beginner | 3 | Press and social-media excitement around the listing, on a scale of 0 to 10. It swells retail demand (3.5 times at 10), nudges institutions a little, and makes private investors less sensitive to the price. It also adds to the expected **first-day pop**, the rise from the offer price during the first day of trading. Hype is not value: it moves the book, not the fair value. |
 | Target coverage | Intermediate | 3× | How many times over the banks want the offering to be ordered: 3× means orders for three times the shares on offer. The deal is priced at the highest price that still meets this target. An oversubscribed book leaves investors with less than they asked for, and their buying on the first day supports the price. |
 | Comparable EV / NTM revenue | Intermediate | Preset: 10× | How the stock market values similar listed companies: their **enterprise value** (the value of the whole business) divided by their revenue over the **next twelve months** (NTM). Companies without profits are usually valued on revenue. The model multiplies the company's own next-year revenue by this number to get the *comparables valuation*. It moves with market fashion: the same software company may be worth 10 times revenue one year and 5 times the next. A scenario driver: bear 7×, bull 13×. |
@@ -1379,11 +1455,11 @@ raises institutional demand in the book by up to 10%. See
 
 | Field | Level | Default | Explanation |
 |---|---|---|---|
-| Minimum market cap | Intermediate | 5 bn SEK / 500 m USD | Index rule: the company's **market capitalisation**, the price per share × all shares, must be at least this. Indices want companies large enough to matter to the funds that track them. Checked at the offer price; size rules are never relaxed. |
+| Minimum market cap | Intermediate | 5 mdr / 500 m USD | Index rule: the company's **market capitalisation**, the price per share × all shares, must be at least this. Indices want companies large enough to matter to the funds that track them. Checked at the offer price; size rules are never relaxed. |
 | Minimum free float | Advanced | 15% | Index rule: the share of all shares that is freely tradable, the **free float**. Shares that are locked up, or held by cornerstone investors, do not count. Index funds must be able to buy the stock without pushing its price up. The exchange may relax this rule to 10%. |
-| Minimum free-float cap | Advanced | 1.5 bn SEK / 150 m USD | Index rule: the value of the freely tradable shares (free-float shares × price) must be at least this. Index funds weight each member by its free-float value, so a company with a small float would have too small a weight to matter. Never relaxed. |
+| Minimum free-float cap | Advanced | 1.5 mdr / 150 m USD | Index rule: the value of the freely tradable shares (free-float shares × price) must be at least this. Index funds weight each member by its free-float value, so a company with a small float would have too small a weight to matter. Never relaxed. |
 | Seasoning | Advanced | 63 trading days | Index rule: how long a new stock must have traded before it can join, so that it has a price history and the swings of its first days have settled. 63 trading days is about three months. The exchange may waive most of it, bringing inclusion forward to day 10. |
-| Fast-entry market cap | Expert | 50 bn SEK / 5 bn USD | Index rule: an IPO at least this large skips the seasoning period and joins after a short delay, because an index that left out such a large company would no longer represent the market. Fast entry gives the strongest boost to demand in the book. |
+| Fast-entry market cap | Expert | 50 mdr / 5 bn USD | Index rule: an IPO at least this large skips the seasoning period and joins after a short delay, because an index that left out such a large company would no longer represent the market. Fast entry gives the strongest boost to demand in the book. |
 | Fast-entry delay | Expert | 5 trading days | How many trading days after listing a fast-entry company joins the index. |
 | Multiple share classes allowed | Advanced | no | Index rule: whether companies with several share classes (dual-class shares, page 1) may join. Some indices exclude them because outside shareholders cannot outvote the founders. The exchange may agree to admit them. |
 | Exchange may relax | Advanced | none | Which index rules the exchange is willing to loosen for this listing: `seasoning`, `float`, `multi_class`, `all`, or `none`. The report shows the index verdict both with and without the relaxation, so you can see what it is worth. |

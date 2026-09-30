@@ -22,6 +22,7 @@ from edumatcher.valuation.report.build import build_report, compare
 from edumatcher.valuation.tui.app import InterviewApp
 from edumatcher.valuation.tui.interview import Interview
 from edumatcher.valuation.tui.viewer import ReportViewer
+from edumatcher.valuation.tui.widgets import PickList
 from tests.test_valuation_resolve import AURORA
 
 PRESETS = load_presets()
@@ -159,6 +160,28 @@ def test_the_form_says_what_f3_adds_and_what_it_hides() -> None:
         )
         interview.level = Level.EXPERT
         assert app._level_line()[0][1] == " Level Expert: every field · F3 → Beginner"
+
+
+def test_the_sector_pick_list_is_grouped_by_industry() -> None:
+    sectors = PRESETS.sectors
+    pick = PickList(
+        "Sector preset",
+        ("(automatic)", *sectors),
+        "consulting",
+        lambda value: None,
+        lambda key: ("", "") if key not in sectors else
+        (sectors[key].industry, sectors[key].description),
+    )  # fmt: skip
+    lines, rows = pick._lines()
+    texts = [text.strip() for _, text in lines]
+    assert texts[:3] == [
+        "(automatic)",
+        "Technology",
+        "b2b_saas               Business software sold as annual subscriptions",
+    ]
+    assert len(lines) == 1 + 18 + 7  # automatic, the presets, 7 industry headings
+    assert lines[rows[pick.index]][0] == "class:pick.current"
+    assert texts[rows[pick.index]].startswith("consulting")
 
 
 def test_calculate_is_refused_while_a_field_is_invalid() -> None:

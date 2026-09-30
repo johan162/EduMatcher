@@ -223,28 +223,28 @@ Halvard Robotics AB (HALV) — IPO valuation  POSTPONE
 2. Management's minimum market cap is derived from the last private round.
    Start the interview
    (`pm-valuation --case halvard --mode deterministic --level intermediate`)
-   and, on page 11, lower *Minimum market cap* step by step: `2.6bn`,
-   `2.5bn`, `2.4bn`, `2.3bn`. Watch the preview after each one. What is the highest minimum
-   that lists the stock, and on what kind of book?
+   and, on page 11, lower *Minimum market cap* step by step: `2.6mdr`,
+   `2.5mdr`, `2.4mdr`, `2.3mdr`. Watch the preview after each one. What is
+   the highest minimum that lists the stock, and on what kind of book?
 
 !!! tip "Answers"
     1. The last private round valued Halvard at 2.7 miljarder SEK
        post-money, and management will not list below that. The market cap
-       after the IPO includes the 500 m raised, so the floor price is
-       (2,700 m − 500 m) / 20 m pre-IPO shares = 110.00, which moves the
+       after the IPO includes the 500 mkr raised, so the floor price is
+       (2,700 mkr − 500 mkr) / 20 m pre-IPO shares = 110.00, which moves the
        range to 110.00–120.50. Its midpoint (115.25) is above fair value
        (112.68): the bankers need at least a 5% discount to sell the deal,
        and there is none left.
-    2. 2.5 bn lists the stock, but on a thin book (2.63×, below the 3×
-       target). At 2.3 bn or less the book is covered 3×:
+    2. 2.5 mdr lists the stock, but on a thin book (2.63×, below the 3×
+       target). At 2.3 mdr or less the book is covered 3×:
 
     | Minimum market cap | Result |
     |---|---|
-    | 2.7 bn (the last round) | POSTPONE |
-    | 2.6 bn | POSTPONE: the discount is 2.2%, still under 5% |
-    | 2.5 bn | PROCEED (THIN BOOK) at 100.00, 2.63× covered |
-    | 2.4 bn | PROCEED (THIN BOOK) at 95.00, 2.98× covered |
-    | 2.3 bn or less | PROCEED at 94.50, 3.01× covered, market cap 2,390 m |
+    | 2.7 mdr (the last round) | POSTPONE |
+    | 2.6 mdr | POSTPONE: the discount is 2.2%, still under 5% |
+    | 2.5 mdr | PROCEED (THIN BOOK) at 100.00, 2.63× covered |
+    | 2.4 mdr | PROCEED (THIN BOOK) at 95.00, 2.98× covered |
+    | 2.3 mdr or less | PROCEED at 94.50, 3.01× covered, market cap 2,390 mkr |
 
     Listing means accepting a **down round**: a public valuation of 2,390 m
     SEK against 2.7 miljarder in the last private round. Raising institutional interest

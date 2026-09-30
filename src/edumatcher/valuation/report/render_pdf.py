@@ -515,12 +515,10 @@ class _Doc(BaseDocTemplate):
         canvas.drawString(MARGIN_X, height - 58 * mm, company)
         canvas.setFont("Vera", 11)
         v = self.run.resolved.values
-        canvas.drawString(MARGIN_X, height - 70 * mm,
-                          (f"SIC {v['company.sic_code']}  ·  "
-                           if v["company.market"] == "us" else "")
-                          + f"Incorporated in "
-                          f"{v['company.incorporation']}  ·  Lead underwriter: "
-                          f"{v['company.lead_underwriter']}")  # fmt: skip
+        canvas.drawString(MARGIN_X, height - 70 * mm, v["company.industry_code"])
+        canvas.drawString(MARGIN_X, height - 76 * mm,
+                          f"Incorporated in {v['company.incorporation']}  ·  "
+                          f"Lead underwriter: {v['company.lead_underwriter']}")  # fmt: skip
         y = height - band - 22 * mm
         canvas.setFillColor(VERDICT_COLOUR.get(verdict, INK))
         canvas.roundRect(

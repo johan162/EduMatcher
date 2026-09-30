@@ -165,3 +165,26 @@ def test_bad_preset_file_is_rejected(tmp_path: Path) -> None:
         ValueError, match=r"market 'se': missing \['fx'\], unknown \['fxx'\]"
     ):
         load_presets(path)
+    path.write_text(good.replace('icb_code: "10101015"', 'icb_code: "99101015"'))
+    with pytest.raises(ValueError, match="icb_code must be an 8-digit ICB code"):
+        load_presets(path)
+    path.write_text(good.replace("classification: SIC", "classification: NACE"))
+    with pytest.raises(ValueError, match="classification must be ICB or SIC"):
+        load_presets(path)
+
+
+def test_sectors_are_grouped_by_icb_industry() -> None:
+    industries = [preset.industry for preset in PRESETS.sectors.values()]
+    assert len(industries) == 18
+    # the pick-list shows each industry once, as a heading over its presets
+    groups = [x for i, x in enumerate(industries) if i == 0 or x != industries[i - 1]]
+    assert len(groups) == len(set(groups)) == 7
+
+
+@pytest.mark.parametrize(
+    ("market", "code"),
+    [("se", "ICB 50204000 Machinery: Industrial"), ("us", "SIC 3560")],
+)
+def test_the_industry_code_follows_the_market(market: str, code: str) -> None:
+    answers = {"company.sector": "industrial_machinery", "company.market": market}
+    assert resolve(answers, PRESETS)["company.industry_code"] == code

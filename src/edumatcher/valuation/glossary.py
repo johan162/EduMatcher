@@ -36,6 +36,12 @@ GLOSSARY: tuple[tuple[str, str], ...] = (
     ("EGC / SRC", "Emerging growth company / smaller reporting company (SEC "
      "filer categories)"),
     ("S-1", "The US registration statement for an IPO"),
+    ("ICB", "Industry Classification Benchmark: FTSE Russell's classification "
+     "of listed companies, used by Nasdaq Stockholm; 11 industries, 8-digit "
+     "subsector codes"),
+    ("SIC", "Standard Industrial Classification: the four-digit industry codes "
+     "the US SEC files companies under"),
+    ("Sector preset", "A coherent set of default values for one business model"),
     ("Red herring", "The preliminary prospectus, carrying the price range"),
     ("First-day pop", "The first-day return over the offer price"),
     ("Money left on the table", "Pop × offer price × shares sold: what the "

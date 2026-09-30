@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 
+from prompt_toolkit.data_structures import Point
 from prompt_toolkit.formatted_text import StyleAndTextTuples
 from prompt_toolkit.key_binding import KeyBindings, KeyPressEvent
 from prompt_toolkit.layout import (
@@ -42,7 +43,12 @@ STYLE = Style.from_dict(
 
 
 class PickList:
-    """A focusable list: ↑/↓ to move, Enter to pick, Esc to cancel."""
+    """A focusable list: ↑/↓ to move, Enter to pick, Esc to cancel.
+
+    *describe*, when given, maps an option to (heading, description): options
+    are listed under a heading line whenever it changes, each followed by its
+    description. Headings cannot be picked.
+    """
 
     def __init__(
         self,
@@ -50,8 +56,10 @@ class PickList:
         options: Sequence[str],
         current: str,
         on_done: Callable[[str | None], None],
+        describe: Callable[[str], tuple[str, str]] | None = None,
     ) -> None:
         self.options = list(options)
+        self.describe = describe
         self.index = self.options.index(current) if current in self.options else 0
         kb = KeyBindings()
 
@@ -72,19 +80,44 @@ class PickList:
             on_done(None)
 
         self.control = FormattedTextControl(
-            self._fragments, focusable=True, key_bindings=kb, show_cursor=False
+            self._fragments,
+            focusable=True,
+            key_bindings=kb,
+            show_cursor=False,
+            get_cursor_position=lambda: Point(0, self._lines()[1][self.index]),
         )
+        lines = len(self._lines()[0])
         self.container: AnyContainer = Frame(
-            Window(self.control, width=Dimension(min=24), height=len(self.options)),
+            Window(
+                self.control,
+                width=Dimension(min=24),
+                height=Dimension(max=lines, preferred=lines),
+            ),
             title=title,
         )
 
-    def _fragments(self) -> StyleAndTextTuples:
-        out: StyleAndTextTuples = []
+    def _lines(self) -> tuple[list[tuple[str, str]], list[int]]:
+        """(style, text) per line, and the line each option is on."""
+        lines: list[tuple[str, str]] = []
+        rows: list[int] = []
+        width = max(len(option) for option in self.options)
+        heading = ""
         for i, option in enumerate(self.options):
             style = "class:pick.current" if i == self.index else ""
-            out.append((style, f" {option} \n"))
-        return out
+            if self.describe is None:
+                rows.append(len(lines))
+                lines.append((style, f" {option} "))
+                continue
+            group, description = self.describe(option)
+            if group and group != heading:
+                heading = group
+                lines.append(("bold", f" {group}"))
+            rows.append(len(lines))
+            lines.append((style, f"   {option:<{width}}  {description} "))
+        return lines, rows
+
+    def _fragments(self) -> StyleAndTextTuples:
+        return [(style, text + "\n") for style, text in self._lines()[0]]
 
 
 class TextPrompt:

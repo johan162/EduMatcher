@@ -13,6 +13,24 @@ import yaml
 #: Order of the staff split everywhere in the model.
 STAFF_SPLIT_KEYS = ("rnd", "snm", "gna", "ops")
 
+#: The eleven industries of FTSE Russell's Industry Classification Benchmark,
+#: by the first two digits of an ICB code. Nasdaq's Nordic exchanges use ICB.
+ICB_INDUSTRIES = {
+    "10": "Technology",
+    "15": "Telecommunications",
+    "20": "Health Care",
+    "30": "Financials",
+    "35": "Real Estate",
+    "40": "Consumer Discretionary",
+    "45": "Consumer Staples",
+    "50": "Industrials",
+    "55": "Basic Materials",
+    "60": "Energy",
+    "65": "Utilities",
+}
+#: The industry classifications a market's offering document may use.
+CLASSIFICATIONS = ("ICB", "SIC")
+
 
 @dataclass(frozen=True)
 class Preset:
@@ -20,7 +38,9 @@ class Preset:
 
     name: str
     description: str
-    sic_code: str
+    sic_code: str  # US Standard Industrial Classification (the S-1)
+    icb_code: str  # ICB subsector, 8 digits (Nasdaq Stockholm)
+    icb_name: str
     customer_means: str
     revenue_last_fy: float
     arpu: float
@@ -41,7 +61,15 @@ class Preset:
     beta_stage1: float
     beta_stage2: float
     comps_ev_revenue: float
+    execution_premium: float
+    useful_life: float
     ebit_margin_band: tuple[float, float]
+    revenue_per_employee_band: tuple[float, float]  # year N, US dollars at US pay
+
+    @property
+    def industry(self) -> str:
+        """The ICB industry the preset belongs to, e.g. Technology."""
+        return ICB_INDUSTRIES[self.icb_code[:2]]
 
 
 @dataclass(frozen=True)
@@ -68,6 +96,7 @@ class Market:
     incorporation: str
     lead_underwriter: str
     document: str  # the offering document: "S-1" or "Prospectus"
+    classification: str  # the industry code its cover shows: ICB or SIC
     regulator: str
     listing_venue: str
     risk_free: float
@@ -97,10 +126,13 @@ def _market(name: str, raw: Any) -> Market:
         unknown = sorted(set(raw) - expected)
         raise ValueError(f"market {name!r}: missing {missing}, unknown {unknown}")
     text = {"description", "currency", "company_name", "incorporation",
-            "lead_underwriter", "document", "regulator", "listing_venue"}  # fmt: skip
+            "lead_underwriter", "document", "classification", "regulator",
+            "listing_venue"}  # fmt: skip
     values: dict[str, Any] = {
         k: str(v) if k in text else float(v) for k, v in raw.items()
     }
+    if values["classification"] not in CLASSIFICATIONS:
+        raise ValueError(f"market {name!r}: classification must be ICB or SIC")
     return Market(name=name, **values)
 
 
@@ -119,16 +151,21 @@ def _preset(name: str, raw: Any) -> Preset:
     if abs(sum(shares) - 1) > 1e-9:
         raise ValueError(f"preset {name!r}: staff_split must sum to 1")
     low, high = (float(x) for x in raw["ebit_margin_band"])
-    text = {"description", "sic_code", "customer_means"}
+    fewest, most = (float(x) for x in raw["revenue_per_employee_band"])
+    text = {"description", "sic_code", "icb_code", "icb_name", "customer_means"}
     values: dict[str, Any] = {
         key: str(value) if key in text else float(value)
         for key, value in raw.items()
-        if key not in ("staff_split", "ebit_margin_band")
+        if key not in ("staff_split", "ebit_margin_band", "revenue_per_employee_band")
     }
+    code = values["icb_code"]
+    if len(code) != 8 or not code.isdigit() or code[:2] not in ICB_INDUSTRIES:
+        raise ValueError(f"preset {name!r}: icb_code must be an 8-digit ICB code")
     return Preset(
         name=name,
         staff_split=(shares[0], shares[1], shares[2], shares[3]),
         ebit_margin_band=(low, high),
+        revenue_per_employee_band=(fewest, most),
         **values,
     )
 

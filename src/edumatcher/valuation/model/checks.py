@@ -17,10 +17,6 @@ from edumatcher.valuation.model.rates import stage_rates
 from edumatcher.valuation.model.valuation import Valuation, rate_inputs
 from edumatcher.valuation.presets import Presets
 
-#: Plausible revenue per employee in year N (V020), in US dollars at US pay;
-#: converted like the presets (fx × salary level) for other markets.
-REVENUE_PER_EMPLOYEE = (150_000, 800_000)
-
 
 class Severity(Enum):
     ERROR = "error"  # the valuation cannot be computed
@@ -179,7 +175,8 @@ def findings(
         add("V019", Severity.INFO, "tax losses are still unused at the horizon")
     per_employee = years[horizon - 1].revenue_per_employee
     market = presets.markets[v["company.market"]]
-    low, high = (x * market.fx * market.salary_level for x in REVENUE_PER_EMPLOYEE)
+    band = presets.sectors[v["company.sector"]].revenue_per_employee_band
+    low, high = (x * market.fx * market.salary_level for x in band)
     if not low <= per_employee <= high:
         add(
             "V020",

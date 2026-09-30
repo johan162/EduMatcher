@@ -162,6 +162,13 @@ def _ticker(ctx: Ctx) -> str:
     return words[0][:3] + words[1][0]
 
 
+def _industry_code(ctx: Ctx) -> str:
+    preset = ctx.preset
+    if ctx.market.classification == "ICB":
+        return f"ICB {preset.icb_code} {preset.icb_name}"
+    return f"SIC {preset.sic_code}"
+
+
 def _round_to(value: float, step: float) -> float:
     return max(step, round(value / step) * step)
 
@@ -243,24 +250,27 @@ _CATALOGUE: list[FieldSpec] = [
         Unit.CHOICE,
         Const("b2b_saas"),
         "The business model. The preset supplies every value marked 'preset' "
-        "(market size, price per customer, customer losses, costs, risk "
-        "measures and how similar companies are valued), chosen to fit "
-        "together. b2b_saas: business software on annual subscriptions; "
-        "consumer_subscription: a paid app or media service; "
-        "online_marketplace: a platform taking a cut of each sale; "
-        "fintech_payments: payment processing for merchants; "
-        "deep_tech_hardware: hardware plus service for enterprises.",
+        "(market size, price per customer, customer losses, costs, capital "
+        "needs, risk measures and how similar companies are valued), chosen "
+        "to fit together. Enter opens the list: 18 presets, from software to "
+        "heavy industry, retail and power production, grouped by industry as "
+        "Nasdaq Stockholm classifies them (ICB), each with a line on what it "
+        "is. Banks, insurers, property companies and pre-revenue biotech are "
+        "valued in other ways and have no preset.",
         choices=SECTORS,
         level=Level.BEGINNER,
     ),
     _F(
-        "company.sic_code",
+        "company.industry_code",
         1,
-        "SIC code",
+        "Industry code",
         Unit.TEXT,
-        FromPreset("sic_code"),
-        "The US Standard Industrial Classification code, shown on the S-1 "
-        "cover in the US market only. Display only.",
+        Rule(_industry_code, ("company.sector", "company.market")),
+        "The official industry classification on the cover of the offering "
+        "document, from the sector preset. Sweden: the ICB subsector (Industry"
+        " Classification Benchmark, used by Nasdaq Stockholm), e.g. ICB "
+        "10101015 Software. US: the SEC's four-digit SIC code (Standard "
+        "Industrial Classification), e.g. SIC 7372. Display only.",
         level=Level.ADVANCED,
     ),
     _F(
@@ -778,7 +788,7 @@ _CATALOGUE: list[FieldSpec] = [
         "insurance, investor relations, listing fees, compliance and "
         "quarterly reporting. It is a cost the company did not have while "
         "private, part of general and administrative expenses. The default is"
-        " 3 m USD (30 m SEK) a year, growing with inflation.",
+        " 3 m USD (30 mkr) a year, growing with inflation.",
         lo=0,
         hi=1e10,
         level=Level.ADVANCED,
@@ -833,12 +843,13 @@ _CATALOGUE: list[FieldSpec] = [
         6,
         "Useful life",
         Unit.YEARS,
-        Const(4),
+        FromPreset("useful_life"),
         "Years over which capex is depreciated, straight line: equipment "
         "bought for 4 m with a 4-year life costs 1 m a year in the income "
-        "statement. Depreciation is not a cash payment; it spreads the cash "
-        "already spent. A longer life raises reported profit early on, but "
-        "does not change the cash spent or the free cash flow.",
+        "statement. The preset's life fits its assets: 4 years for servers, "
+        "20 or more for wind turbines and networks. Depreciation is not a "
+        "cash payment; it spreads the cash already spent, so the life does "
+        "not change the cash spent or the free cash flow.",
         lo=1,
         hi=50,
         level=Level.ADVANCED,
@@ -1038,12 +1049,13 @@ _CATALOGUE: list[FieldSpec] = [
         7,
         "Execution premium",
         P,
-        Const(0.03),
+        FromPreset("execution_premium"),
         "Stage 1 only: the extra return demanded for the risk that the plan "
         "simply does not happen. Products slip, customers do not come, key "
         "people leave. It is why the first five years get their own, higher "
-        "rate; once the company is mature (stage 2) it falls away. A scenario"
-        " driver.",
+        "rate; once the company is mature (stage 2) it falls away. The preset"
+        " sets it higher where plans often fail, as for games or medical "
+        "devices awaiting approval. A scenario driver.",
         lo=0.0,
         hi=0.5,
         level=Level.ADVANCED,
@@ -1258,7 +1270,7 @@ _CATALOGUE: list[FieldSpec] = [
         ),
         "Legal, audit, printing, registration and listing fees for the "
         "offering, paid by the company whatever the price. The default is 2 m"
-        " USD (20 m SEK) plus 1% of the raise. Like the underwriters' spread,"
+        " USD (20 mkr) plus 1% of the raise. Like the underwriters' spread,"
         " these costs reduce the value per share: they are the only way "
         "raising money at a fair price costs existing owners anything.",
         lo=0,

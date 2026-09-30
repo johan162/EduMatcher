@@ -1,7 +1,7 @@
 """Typed values ↔ the text the student types (design §19.2).
 
 One parser and one formatter serve the interview, the scenario files and the
-report, so a value always round-trips: ``parse(spec, format_value(spec, v))``
+report, so a value always round-trips: ``parse(spec, format_value(spec, v, m))``
 gives ``v`` back to the precision shown.
 
 * Percentages are typed in points: ``12`` and ``12%`` both mean 12%, and
@@ -9,8 +9,9 @@ gives ``v`` back to the precision shown.
 * Money and counts take ``k``, ``m`` and ``bn`` suffixes, commas and
   underscores: ``40bn``, ``300m``, ``2.5k``, ``90,000,000``, ``1_000``. The
   Swedish ``mkr`` (miljoner) and ``md`` / ``mdr`` (miljard, 1,000 million: an
-  English billion, not a Swedish biljon) are accepted too. Decimals use a
-  point, as in the rest of the interview.
+  English billion, not a Swedish biljon) are accepted too, and are how
+  amounts are shown in the Swedish market. Decimals use a point, as in the
+  rest of the interview.
 * Ratios take an optional ``x`` or ``×``: ``10x``.
 * Empty text means "not answered" (the automatic value is used); ``none``
   explicitly empties an optional field.
@@ -19,9 +20,10 @@ gives ``v`` back to the precision shown.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from typing import Any
 
-from edumatcher.valuation.fields import FieldSpec, Unit
+from edumatcher.valuation.fields import BY_KEY, Const, FieldSpec, Unit
 
 
 class ParseError(ValueError):
@@ -79,15 +81,28 @@ def parse(spec: FieldSpec, text: str) -> Any:
     return value
 
 
-def _compact(value: float) -> str:
-    for suffix, scale in (("bn", 1e9), ("m", 1e6)):
+#: The suffixes amounts are shown with: Swedish in the Swedish market.
+_SHOWN = {"se": (("mdr", 1e9), ("mkr", 1e6))}
+_ENGLISH = (("bn", 1e9), ("m", 1e6))
+_market_default = BY_KEY["company.market"].default
+assert isinstance(_market_default, Const)
+_DEFAULT_MARKET: str = _market_default.value
+
+
+def market_of(values: Mapping[str, Any]) -> str:
+    """The market of these answers or values: their own, else the default."""
+    return str(values.get("company.market", _DEFAULT_MARKET))
+
+
+def _compact(value: float, market: str) -> str:
+    for suffix, scale in _SHOWN.get(market, _ENGLISH):
         if abs(value) >= scale:
             return f"{value / scale:.6g}{suffix}"
     return f"{value:,.6g}" if value != int(value) else f"{int(value):,}"
 
 
-def format_value(spec: FieldSpec, value: Any) -> str:
-    """How *value* is shown, and how it would be typed."""
+def format_value(spec: FieldSpec, value: Any, market: str) -> str:
+    """How *value* is shown in *market*, and how it would be typed."""
     if value is None:
         return "none"
     if spec.unit is Unit.BOOL:
@@ -99,7 +114,7 @@ def format_value(spec: FieldSpec, value: Any) -> str:
     if spec.unit is Unit.RATIO:
         return f"{value:.6g}x"
     if spec.unit is Unit.MONEY:
-        return _compact(value)
+        return _compact(value, market)
     if spec.unit in _WHOLE:
         return f"{int(value):,}"
     return f"{value:.6g}"
