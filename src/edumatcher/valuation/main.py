@@ -7,6 +7,7 @@ import sys
 from importlib.resources import files
 from pathlib import Path
 
+from edumatcher.valuation.fields import Level
 from edumatcher.valuation.pipeline import CannotValue, run
 from edumatcher.valuation.presets import load_presets
 from edumatcher.valuation.report.build import build_report, listing_args
@@ -47,7 +48,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-tui", action="store_true", help="Print the report instead of interviewing"
     )
     parser.add_argument(
-        "--quick", action="store_true", help="Interview pages 1 and 11 only"
+        "--level",
+        choices=[level.name.lower() for level in Level],
+        help="Interview detail: beginner (default), intermediate, advanced "
+        "or expert; F3 changes it",
     )
     parser.add_argument(
         "--market",
@@ -92,8 +96,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
-    if args.quick and args.no_tui:
-        parser.error("--quick chooses interview pages; it has no effect with --no-tui")
+    if args.level is not None and args.no_tui:
+        parser.error("--level chooses interview fields; it has no effect with --no-tui")
     if args.with_defaults and args.save is None:
         parser.error("--with-defaults needs --save")
     if args.list and not args.no_tui:
@@ -122,7 +126,8 @@ def main(argv: list[str] | None = None) -> None:
     if not args.no_tui:
         from edumatcher.valuation.tui.app import interview
 
-        interview(answers, presets, quick=args.quick, save=args.save,
+        level = Level[(args.level or "beginner").upper()]
+        interview(answers, presets, level=level, save=args.save,
                   export=args.export, pdf=args.pdf, paper=args.paper)  # fmt: skip
         return
 

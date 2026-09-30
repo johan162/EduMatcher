@@ -4415,7 +4415,7 @@ _shtab_pm_valuation_options=(
   "--load[Scenario file to start from]:load:"
   "--case[Classroom case to start from]:case:(halvard tornfalk)"
   "--no-tui[Print the report instead of interviewing]"
-  "--quick[Interview pages 1 and 11 only]"
+  "--level[Interview detail\: beginner (default), intermediate, advanced or expert\; F3 changes it]:level:(beginner intermediate advanced expert)"
   "--market[Where the company lists\: se, Sweden (default), or us\; overrides the scenario\'s]:market:(se us)"
   "--mode[Scenarios, Monte Carlo, or both (default\: the scenario\'s, else both)]:mode:(deterministic montecarlo both)"
   "--draws[Monte Carlo draws]:draws:"

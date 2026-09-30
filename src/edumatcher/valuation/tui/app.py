@@ -1,7 +1,7 @@
 """The interview application and the interview ↔ report loop (design §19).
 
 Twelve pages of forms, a live preview, F-keys for the glossary, the review
-page, advanced fields, calculation and saving. F5 hands over to the report
+page, the level of detail (F3), calculation and saving. F5 hands over to the report
 viewer; its "back" returns here with every answer kept.
 """
 
@@ -33,7 +33,7 @@ from prompt_toolkit.layout import (
 )
 from prompt_toolkit.widgets import TextArea
 
-from edumatcher.valuation.fields import PAGES, FieldSpec, Unit
+from edumatcher.valuation.fields import FIELDS, PAGES, FieldSpec, Level, Unit
 from edumatcher.valuation.model.offering import Outcome
 from edumatcher.valuation.pipeline import Run, run
 from edumatcher.valuation.presets import Presets
@@ -52,7 +52,7 @@ from edumatcher.valuation.units import format_value
 
 _KEYS = (
     " Tab next · PgDn page · Enter pick · Ctrl-D clear · F1 glossary · "
-    "F2 review · F3 advanced · F5 calculate · F9 save · Esc quit"
+    "F2 review · F3 level · F5 calculate · F9 save · Esc quit"
 )
 _AUTO = "(automatic)"
 
@@ -64,7 +64,7 @@ class InterviewApp:
         self.message = ""
         self.review: TextArea | None = None
         self.inputs: dict[str, TextArea] = {}
-        self._forms: dict[tuple[int, bool], Container] = {}
+        self._forms: dict[tuple[int, Level], Container] = {}
         self.floats = FloatContainer(
             HSplit(
                 [
@@ -78,7 +78,7 @@ class InterviewApp:
                                 [
                                     DynamicContainer(self._body),
                                     Window(
-                                        FormattedTextControl(self._advanced_line),
+                                        FormattedTextControl(self._level_line),
                                         height=1,
                                     ),
                                 ]
@@ -146,7 +146,7 @@ class InterviewApp:
         )
 
     def _form(self) -> Container:
-        key = (self.iv.page, self.iv.show_advanced)
+        key = (self.iv.page, self.iv.level)
         if key not in self._forms:
             rows = [self._row(spec) for spec in self.iv.fields()]
             self._forms[key] = ScrollablePane(HSplit(rows))
@@ -194,7 +194,7 @@ class InterviewApp:
         page = self.iv.page_index + 1
         text = (
             f" pm-valuation ─ {v['company.name']} ({v['company.ticker']}) ─ "
-            f"page {page} / {len(self.iv.pages)}"
+            f"page {page} / {len(self.iv.pages)} ─ {self.iv.level.name.capitalize()}"
             + (" ─ review" if self.review is not None else "")
         )
         return [("", text)]
@@ -209,18 +209,21 @@ class InterviewApp:
             out.append((style, f"{marker}{number:>2} {PAGES[number - 1]:<21}{count}\n"))
         return out
 
-    def _advanced_line(self) -> StyleAndTextTuples:
-        """Whether F3 has advanced fields to show or hide on this page."""
+    def _level_line(self) -> StyleAndTextTuples:
+        """The level, what F3 changes on this page, and answers it hides."""
         if self.review is not None:
             return []
-        count = self.iv.advanced_on(self.iv.page)
-        fields = f"{count} advanced field{'s' * (count != 1)}"
-        if count == 0:
-            text = " No advanced fields on this page"
-        elif self.iv.show_advanced:
-            text = f" ▾ {fields} shown · F3 hides them"
+        level = self.iv.level.name.capitalize()
+        after = self.iv.next_level().name.capitalize()
+        if self.iv.level is Level.EXPERT:
+            text = f" Level {level}: every field · F3 → {after}"
         else:
-            text = f" ▸ {fields} hidden · F3 shows them"
+            count = self.iv.added_on(self.iv.page)
+            more = f"{count} more field{'s' * (count != 1)}" if count else "no more"
+            text = f" Level {level} · F3 → {after}: {more} on this page"
+        hidden = self.iv.hidden_answers()
+        if hidden:
+            text += f" · {hidden} answer{'s' * (hidden != 1)} hidden at this level"
         return [("class:hint", text)]
 
     def _preview(self) -> StyleAndTextTuples:
@@ -324,8 +327,8 @@ class InterviewApp:
                 self.app.layout.focus(self._first_input())
 
         @kb.add("f3", filter=in_form)
-        def _advanced(event: KeyPressEvent) -> None:
-            self.iv.show_advanced = not self.iv.show_advanced
+        def _level(event: KeyPressEvent) -> None:
+            self.iv.cycle_level()
             self.app.layout.focus(self._first_input())
 
         @kb.add("f5", filter=no_float)
@@ -397,9 +400,9 @@ class InterviewApp:
     def _review_text(self) -> str:
         ev = self.iv.evaluation
         lines: list[str] = []
-        for number in self.iv.pages:
-            lines.append(f"── {number} {PAGES[number - 1]} " + "─" * 40)
-            for spec in self.iv.fields(number):
+        for number, title in enumerate(PAGES, 1):
+            lines.append(f"── {number} {title} " + "─" * 40)
+            for spec in (spec for spec in FIELDS if spec.page == number):
                 value = format_value(spec, ev.resolved.values[spec.key])
                 source = ev.resolved.sources[spec.key].value
                 lines.append(f"  {spec.label:<40} {value:>22}   {source}")
@@ -415,14 +418,14 @@ class InterviewApp:
 def interview(
     answers: Mapping[str, Any],
     presets: Presets,
-    quick: bool = False,
+    level: Level = Level.BEGINNER,
     save: Path | None = None,
     export: Path | None = None,
     pdf: Path | None = None,
     paper: str = "a4",
 ) -> None:
     """Interview, calculate, show the report; repeat until the student quits."""
-    state = Interview(answers, presets, quick)
+    state = Interview(answers, presets, level)
     previous: Run | None = None
     while True:
         app = InterviewApp(state, save)

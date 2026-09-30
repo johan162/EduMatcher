@@ -128,6 +128,7 @@ formula here.
 | D8 | **The index rulebook is fictive and lives in this tool.** `pm-index` has no eligibility rules (`EduMatcher-Index.md` §2) | Keeps the exchange unchanged; the rules are for teaching |
 | D9 | **Behavioural parts are labelled as heuristics** (demand multipliers, first-day pop) | Honesty: these are calibrated stories, not finance theory |
 | D10 | **Two IPO frameworks, Swedish by default.** `company.market` is `se` (prospectus approved by Finansinspektionen, Nasdaq Stockholm, SEK) or `us` (Form S-1, SEC, USD); `--market` overrides the file (§5.1) | Requested: "Support both Full Swedish IPO framing as well as American … Make it Swedish framing by default" |
+| D11 | **Four interview levels** (Beginner, Intermediate, Advanced, Expert) replace the advanced-field toggle and `--quick`; `--level`, F3 cycles (§19.3) | Requested: a persona division "to make it more beginner friendly" |
 
 ## 3. The IPO process being simulated
 
@@ -682,7 +683,7 @@ relative to the base value:
 
 The ranges are deliberately **asymmetric**. Plans tend to disappoint more
 than they surprise, which has a visible consequence in §12.4. All values are
-editable on the Simulation page (advanced fields, §19.3).
+editable on the Simulation page (Expert fields, §19.3).
 
 ### 11.2 Outputs
 
@@ -1412,7 +1413,7 @@ pm-new-symbol --symbol AURM --ipo-price 14.50 --outstanding-shares 100689655 --t
 | Ctrl-D | Clear the field back to its automatic value |
 | F1 | Glossary (Appendix B), searchable |
 | F2 | Review page: every value with its source (✎ you / preset / derived / default) |
-| F3 | Show / hide advanced fields (on every page) |
+| F3 | Next interview level: Beginner → Intermediate → Advanced → Expert → Beginner (§19.3) |
 | F5 | Calculate and open the report |
 | F9 | Save the scenario to YAML |
 | Esc / Ctrl-Q | Quit; with unsaved changes a pick-list asks “No, keep working” / “Yes, quit without saving” |
@@ -1435,26 +1436,42 @@ blocks because the result is mathematically undefined.
 
 ### 19.3 Pages and fields
 
-Defaults are in parentheses; `←` marks a value derived from other answers;
-*adv.* marks fields shown only with F3.
+Defaults are in parentheses; `←` marks a value derived from other answers.
+Which fields a page shows depends on the interview level (below).
 
 | Page | Fields (default rule) |
 |---|---|
 | 1 Company | Name (market); ticker (← name); sector preset; SIC (← preset); incorporation (market); currency (market); FY end; dual-class (no); lead underwriter (market); use of proceeds; market (`se`) |
-| 2 Market | TAM (preset); TAM growth (preset); SAM share (preset); market structure (competitive → `p_max`); *adv.* `p_max` directly |
+| 2 Market | TAM (preset); TAM growth (preset); SAM share (preset); market structure (competitive → `p_max`); `p_max` directly |
 | 3 Customers & pricing | Last FY revenue (preset; ← 0.85 · C₀ · ARPU when you give C₀); customers now (← revenue / (0.85 · ARPU)); ARPU (preset); ARPU growth (5%); churn (preset); year-1 customer growth (preset) |
-| 4 People | Headcount (← revenue / preset revenue per employee); loaded cost (preset); wage inflation (3.5%); headcount mode (follow revenue); elasticity (0.6) *or* year-1 / year-N growth; floor (4%); *adv.* department split (preset) |
+| 4 People | Headcount (← revenue / preset revenue per employee); loaded cost (preset); wage inflation (3.5%); headcount mode (follow revenue); elasticity (0.6) *or* year-1 / year-N growth; floor (4%); department split (preset) |
 | 5 Costs | Infrastructure fixed and per customer (preset); other COGS % (preset); paid CAC (← preset × ARPU); CAC growth (3%); R&D non-staff % (4%); G&A non-staff % (3%); public-company cost (3 m); SBC % (12%); inflation (market) |
 | 6 Capital & tax | Capex % (preset); useful life (4); opening PP&E (← §6.7); NWC % (preset); tax rate (market); opening NOL (0); cash (0); debt (0) |
-| 7 Discount rates | `r_f` (market); ERP (market); β1 / β2 (preset); size premia; execution premium; *adv.* D/V, `k_d`; stage-1 years (5); horizon N (10); `g` (market); RONIC spread (2%); override `r_1` / `r_2`; mid-year (off) |
-| 8 Offering | `S_pre` (← comps pre-money / target price); raise `R` (← 20% of comps pre-money); secondary shares (0); gross spread (market); other expenses (← 2 m × fx + 1% R); IPO discount (15%); *adv.* minimum discount (5%); maximum price above the range (market); lock-up days (180) and coverage (100%); cornerstone amount (0) and lock-in (180); retail tranche (10%) |
-| 9 Investors & sentiment | Institutional interest (medium); number of institutions (40); average ticket (← 5% R); retail interest (medium); retail applicants (20,000); average application (2,500); hype (3); target coverage (3×); comps multiple (preset); DCF weight (70%); *adv.* elasticities |
+| 7 Discount rates | `r_f` (market); ERP (market); β1 / β2 (preset); size premia; execution premium; D/V, `k_d`; stage-1 years (5); horizon N (10); `g` (market); RONIC spread (2%); override `r_1` / `r_2`; mid-year (off) |
+| 8 Offering | `S_pre` (← comps pre-money / target price); raise `R` (← 20% of comps pre-money); secondary shares (0); gross spread (market); other expenses (← 2 m × fx + 1% R); IPO discount (15%); minimum discount (5%); maximum price above the range (market); lock-up days (180) and coverage (100%); cornerstone amount (0) and lock-in (180); retail tranche (10%) |
+| 9 Investors & sentiment | Institutional interest (medium); number of institutions (40); average ticket (← 5% R); retail interest (medium); retail applicants (20,000); average application (2,500); hype (3); target coverage (3×); comps multiple (preset); DCF weight (70%); elasticities |
 | 10 Index | Rulebook values (§17.1); exchange may relax (none); passive AUM and index free-float cap (optional) |
 | 11 Management | Last private round post-money (optional); minimum market cap (← last round, else none); maximum dilution (25%); minimum net proceeds (optional) |
-| 12 Simulation | Mode (both); draws (10,000); seed (42); ρ (0.5); *adv.* bear / bull per driver (§11.1) |
+| 12 Simulation | Mode (both); draws (10,000); seed (42); ρ (0.5); bear / bull per driver (§11.1) |
 | Review | Every value in one table, grouped by page, with its source and any warnings |
 
-A `--quick` flag shows only page 1 and page 11, then calculates.
+**Interview levels.** Each field has a `level`, the first of four at which
+the interview shows it; every higher level shows it too. Hidden fields keep
+their automatic value (or a loaded answer, which is still used), so the
+valuation is always complete.
+
+| Level | Fields | Adds |
+|---|---:|---|
+| Beginner (default) | 16 | Name, sector, market; TAM, market structure; last FY revenue, year-1 customer growth; cash, debt; `r_f`; raise, IPO discount; institutional and retail interest, hype; last private round |
+| Intermediate | 43 | Ticker, dual-class; SAM share, TAM growth; customers, ARPU, churn; headcount, loaded cost, elasticity; paid CAC, SBC; tax rate, NOL; ERP, β1, β2, `g`; `S_pre`, secondary shares, gross spread; comps multiple, DCF weight, target coverage; minimum market cap, maximum dilution; mode |
+| Advanced | 88 | The other cover fields; ARPU growth; wage inflation, headcount mode and growth; the other costs and inflation; capex, useful life, opening PP&E, NWC; size and execution premia; other expenses, lock-up, cornerstone, retail tranche; book size (institutions, ticket, applicants, application); the index size, float and seasoning rules, relax, multi-class; minimum net proceeds; draws, seed, ρ |
+| Expert | 129 | `p_max`; staff splits; D/V, `k_d`, stage-1 years, horizon, RONIC spread, `r_1` / `r_2` overrides, mid-year; minimum discount, maximum above range, cornerstone lock-in; institutional elasticity; fast entry, passive AUM, index free-float cap; the 20 bear / bull values |
+
+`--level` chooses the starting level (default `beginner`); F3 steps to the
+next and wraps from Expert to Beginner. Pages with no field at the current
+level are skipped (at Beginner: 4, 5, 10, 12). A line under the form names
+the level, how many fields the next level adds on this page, and how many
+answers the current level hides. F2 always reviews every field.
 
 ### 19.4 Default resolution
 
@@ -1474,7 +1491,7 @@ class FieldSpec:
     choices: tuple[str, ...] | str | None = None   # or the presets' sectors / market structures
     pattern: str | None = None    # full-match regex for text (the ticker)
     optional: bool = False        # "not given" (None) is a valid value
-    advanced: bool = False
+    level: Level = Level.EXPERT   # the first interview level that shows it
     inverse: Rule | None = None   # the other direction of a two-way rule …
     inverse_when: str | None = None   # … used when the student answered this key
 ```
@@ -1565,7 +1582,7 @@ pm-valuation                                   interactive interview
 pm-valuation --load aurora.yaml                interview pre-filled from a file
 pm-valuation --load aurora.yaml --no-tui       straight to the report, printed to stdout
 pm-valuation --case tornfalk                   interview pre-filled from a classroom case
-pm-valuation --quick                           pages 1 and 11 only
+pm-valuation --level intermediate              interview with more fields (§19.3; also F3)
 options:
   --market se|us                               IPO framework; overrides the file (default: the file's, else se)
   --mode deterministic|montecarlo|both         default both

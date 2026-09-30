@@ -15,11 +15,12 @@ from prompt_toolkit.application import create_app_session
 from prompt_toolkit.input import create_pipe_input
 from prompt_toolkit.output import DummyOutput
 
+from edumatcher.valuation.fields import Level
 from edumatcher.valuation.pipeline import run
 from edumatcher.valuation.presets import load_presets
 from edumatcher.valuation.report.build import build_report, compare
 from edumatcher.valuation.tui.app import InterviewApp
-from edumatcher.valuation.tui.interview import QUICK_PAGES, Interview
+from edumatcher.valuation.tui.interview import Interview
 from edumatcher.valuation.tui.viewer import ReportViewer
 from tests.test_valuation_resolve import AURORA
 
@@ -79,23 +80,36 @@ def test_problems_are_keyed_to_their_field() -> None:
 
 
 def test_hints_show_the_automatic_value() -> None:
-    interview = Interview({}, PRESETS)
+    interview = Interview({}, PRESETS, Level.EXPERT)
     churn = next(s for s in interview.fields(3) if s.key == "customers.churn")
     assert interview.hint(churn) == "auto 8% · preset"
     interview.set_text("customers.churn", "abc")  # hints keep the last valid company
     assert interview.hint(churn) == "auto 8% · preset"
 
 
-def test_pages_advanced_and_quick() -> None:
+def test_levels_add_fields_and_pages() -> None:
     interview = Interview({}, PRESETS)
+    assert interview.level is Level.BEGINNER
+    counts = []
+    for level in Level:
+        interview.level = level
+        counts.append(sum(len(interview.fields(n)) for n in interview.pages))
+    assert counts == [16, 43, 88, 129]
+    interview.level = Level.BEGINNER
+    assert interview.pages == (1, 2, 3, 6, 7, 8, 9, 11)
     interview.turn(-1)
-    assert interview.page == 12
-    basic = len(interview.fields(12))
-    interview.show_advanced = True
-    assert len(interview.fields(12)) == basic + 20  # the bear and bull values
-    quick = Interview({}, PRESETS, quick=True)
-    assert quick.pages == QUICK_PAGES
-    assert quick.answered_on(1) == 0
+    assert interview.page == 11
+
+
+def test_f3_cycles_the_level_and_keeps_the_page() -> None:
+    interview = Interview({}, PRESETS, Level.EXPERT)
+    interview.turn(3)
+    assert interview.page == 4  # People: no beginner fields
+    interview.cycle_level()
+    assert interview.level is Level.BEGINNER
+    assert interview.page == 6  # the next page shown at beginner
+    interview.cycle_level()
+    assert (interview.level, interview.page) == (Level.INTERMEDIATE, 6)
 
 
 def test_cannot_value_is_a_company_problem() -> None:
@@ -109,7 +123,7 @@ def test_cannot_value_is_a_company_problem() -> None:
 
 
 def test_typing_picking_paging_and_calculating() -> None:
-    interview = Interview({}, PRESETS)
+    interview = Interview({}, PRESETS, Level.EXPERT)
     keys = [
         "Aurora Metrics Inc.", "\t", "\t", "\r", DOWN, DOWN, "\r",  # sector pick-list
         PGDN, PGDN, "90m", "\t", "1800", "\t",
@@ -123,31 +137,32 @@ def test_typing_picking_paging_and_calculating() -> None:
         "customers.last_fy_revenue": "90m",
         "customers.now": "1800",
     }
-    assert interview.page == 3 and interview.show_advanced
+    assert interview.page == 3 and interview.level is Level.BEGINNER
 
 
-def test_the_form_says_whether_f3_has_advanced_fields() -> None:
-    interview = Interview({}, PRESETS)
-    assert [interview.advanced_on(page) for page in (1, 2, 4)] == [0, 1, 4]
+def test_the_form_says_what_f3_adds_and_what_it_hides() -> None:
+    interview = Interview({"offering.min_discount": 0.08}, PRESETS)
+    assert [interview.added_on(page) for page in (1, 2, 4)] == [2, 2, 3]
     with (
         create_pipe_input() as pipe,
         create_app_session(input=pipe, output=DummyOutput()),
     ):
         app = InterviewApp(interview)
-        assert app._advanced_line()[0][1] == " No advanced fields on this page"
-        interview.turn(1)
-        assert app._advanced_line()[0][1] == (
-            " ▸ 1 advanced field hidden · F3 shows them"
+        assert app._level_line()[0][1] == (
+            " Level Beginner · F3 → Intermediate: 2 more fields on this page"
+            " · 1 answer hidden at this level"
         )
-        interview.turn(2)
-        interview.show_advanced = True
-        assert app._advanced_line()[0][1] == (
-            " ▾ 4 advanced fields shown · F3 hides them"
+        interview.level = Level.ADVANCED
+        assert app._level_line()[0][1] == (
+            " Level Advanced · F3 → Expert: no more on this page"
+            " · 1 answer hidden at this level"
         )
+        interview.level = Level.EXPERT
+        assert app._level_line()[0][1] == " Level Expert: every field · F3 → Beginner"
 
 
 def test_calculate_is_refused_while_a_field_is_invalid() -> None:
-    interview = Interview({}, PRESETS)
+    interview = Interview({}, PRESETS, Level.EXPERT)
     keys = [PGDN, PGDN, "\t", "\t", "\t", "\t", "lots", F5, CTRL_D, F5]
     app, result = drive(lambda: InterviewApp(interview), keys)
     assert result == "calculate"  # after Ctrl-D cleared the bad churn

@@ -12,14 +12,11 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from edumatcher.valuation.fields import FIELDS, PAGES, FieldSpec
+from edumatcher.valuation.fields import BY_KEY, FIELDS, PAGES, FieldSpec, Level
 from edumatcher.valuation.pipeline import CannotValue, Run, run
 from edumatcher.valuation.presets import Presets
 from edumatcher.valuation.resolve import InvalidAnswers, Resolved, resolve
 from edumatcher.valuation.units import NOT_ANSWERED, ParseError, format_value, parse
-
-#: The pages --quick shows: the company and management's constraints.
-QUICK_PAGES = (1, 11)
 
 
 @dataclass(frozen=True)
@@ -36,23 +33,28 @@ class Evaluation:
 
 class Interview:
     def __init__(
-        self, answers: Mapping[str, Any], presets: Presets, quick: bool = False
+        self,
+        answers: Mapping[str, Any],
+        presets: Presets,
+        level: Level = Level.BEGINNER,
     ) -> None:
         by_key = {spec.key: spec for spec in FIELDS}
         self.presets = presets
         self.texts: dict[str, str] = {
             key: format_value(by_key[key], value) for key, value in answers.items()
         }
-        self.pages: tuple[int, ...] = (
-            QUICK_PAGES if quick else tuple(range(1, len(PAGES) + 1))
-        )
+        self.level = level
         self.page_index = 0
-        self.show_advanced = False
         self.dirty = False
         self._last_resolved = resolve({}, presets)
         self.evaluation = self.evaluate()
 
     # -- navigation -----------------------------------------------------------
+
+    @property
+    def pages(self) -> tuple[int, ...]:
+        """The pages with at least one field at the current level."""
+        return tuple(n for n in range(1, len(PAGES) + 1) if self.fields(n))
 
     @property
     def page(self) -> int:
@@ -64,13 +66,30 @@ class Interview:
     def fields(self, page: int | None = None) -> list[FieldSpec]:
         page = self.page if page is None else page
         return [
-            spec
-            for spec in FIELDS
-            if spec.page == page and (self.show_advanced or not spec.advanced)
+            spec for spec in FIELDS if spec.page == page and spec.level <= self.level
         ]
 
-    def advanced_on(self, page: int) -> int:
-        return sum(1 for spec in FIELDS if spec.page == page and spec.advanced)
+    def next_level(self) -> Level:
+        return Level(self.level % len(Level) + 1)
+
+    def cycle_level(self) -> None:
+        """F3: the next level, staying on this page or the next one shown."""
+        page = self.page
+        self.level = self.next_level()
+        pages = self.pages
+        self.page_index = next(
+            (i for i, n in enumerate(pages) if n >= page), len(pages) - 1
+        )
+
+    def added_on(self, page: int) -> int:
+        """Fields on *page* that the next level would add."""
+        return sum(
+            1 for spec in FIELDS if spec.page == page and spec.level == self.level + 1
+        )
+
+    def hidden_answers(self) -> int:
+        """Answers typed (or loaded) in fields the current level hides."""
+        return sum(1 for key in self.texts if BY_KEY[key].level > self.level)
 
     def answered_on(self, page: int) -> int:
         return sum(

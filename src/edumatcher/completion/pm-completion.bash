@@ -7747,11 +7747,12 @@ complete -F _shtab_pm_ticker pm-ticker
 
 
 
-_shtab_pm_valuation_option_strings=(-h --help --version --load --case --no-tui --quick --market --mode --draws --seed --save --with-defaults --export --pdf --paper --presets --list --config)
+_shtab_pm_valuation_option_strings=(-h --help --version --load --case --no-tui --level --market --mode --draws --seed --save --with-defaults --export --pdf --paper --presets --list --config)
 
 
 
 _shtab_pm_valuation___case_choices=(halvard tornfalk)
+_shtab_pm_valuation___level_choices=(beginner intermediate advanced expert)
 _shtab_pm_valuation___market_choices=(se us)
 _shtab_pm_valuation___mode_choices=(deterministic montecarlo both)
 _shtab_pm_valuation___paper_choices=(a4 letter)
@@ -7760,7 +7761,6 @@ _shtab_pm_valuation__h_nargs=0
 _shtab_pm_valuation___help_nargs=0
 _shtab_pm_valuation___version_nargs=0
 _shtab_pm_valuation___no_tui_nargs=0
-_shtab_pm_valuation___quick_nargs=0
 _shtab_pm_valuation___with_defaults_nargs=0
 _shtab_pm_valuation___list_nargs=0
 

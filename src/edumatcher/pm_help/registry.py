@@ -1911,7 +1911,7 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
             "find the offer price that pm-new-symbol lists."
         ),
         synopsis=(
-            "pm-valuation [--market se|us] [--load FILE | --case NAME] [--quick]",
+            "pm-valuation [--market se|us] [--load FILE | --case NAME] [--level LEVEL]",
             "pm-valuation [--load FILE | --case NAME] --no-tui [--list [--config PATH]]",
         ),
         description=(
@@ -1930,7 +1930,11 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
                 "(USD, S-1)",
             ),
             Option("--no-tui", "off", "Print the report instead of interviewing"),
-            Option("--quick", "off", "Interview pages 1 and 11 only"),
+            Option(
+                "--level LEVEL",
+                "beginner",
+                "Interview detail: beginner, intermediate, advanced or expert (F3)",
+            ),
             Option(
                 "--mode MODE",
                 "both",
@@ -1959,6 +1963,7 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
         examples=(
             "pm-valuation --case tornfalk                  # interview a classroom case",
             "pm-valuation --market us                      # a US IPO, in USD",
+            "pm-valuation --case halvard --level expert    # show every field",
             "pm-valuation --load my.yaml --no-tui --list   # price and list in one go",
             "pm-valuation --case tornfalk --no-tui --pdf tornfalk.pdf   # print it",
         ),

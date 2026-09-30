@@ -16,7 +16,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from enum import Enum
+from enum import Enum, IntEnum
 from typing import Any
 
 from edumatcher.valuation.model.valuation import FORECAST_KEYS, comps_pre_money
@@ -109,6 +109,15 @@ MARKETS = "markets"
 INTEREST_LEVELS = ("very_low", "low", "medium", "high", "very_high")
 
 
+class Level(IntEnum):
+    """How much of the interview is shown (F3, --level); each level adds fields."""
+
+    BEGINNER = 1
+    INTERMEDIATE = 2
+    ADVANCED = 3
+    EXPERT = 4
+
+
 @dataclass(frozen=True)
 class FieldSpec:
     key: str
@@ -122,7 +131,7 @@ class FieldSpec:
     choices: tuple[str, ...] | str | None = None  # or SECTORS / MARKETS / …
     pattern: str | None = None  # full-match regex for text
     optional: bool = False  # None ("not given") is a valid value
-    advanced: bool = False  # shown only with F3
+    level: Level = Level.EXPERT  # the lowest level that shows the field
     # Used instead of the default when the student answered inverse_when:
     # the other direction of a two-way rule such as revenue ↔ customers.
     inverse: Rule | None = None
@@ -214,6 +223,7 @@ _CATALOGUE: list[FieldSpec] = [
         "prospectus, and the name ends in AB (aktiebolag, 'share company', "
         "like Inc.). In the US it is the S-1, the registration statement "
         "filed with the SEC before an IPO.",
+        level=Level.BEGINNER,
     ),
     _F(
         "company.ticker",
@@ -224,6 +234,7 @@ _CATALOGUE: list[FieldSpec] = [
         "The symbol it will trade under: 1-8 characters of A-Z, 0-9, '.' or "
         "'_', the same rule pm-new-symbol enforces.",
         pattern=_SYMBOL,
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "company.sector",
@@ -240,6 +251,7 @@ _CATALOGUE: list[FieldSpec] = [
         "fintech_payments: payment processing for merchants; "
         "deep_tech_hardware: hardware plus service for enterprises.",
         choices=SECTORS,
+        level=Level.BEGINNER,
     ),
     _F(
         "company.sic_code",
@@ -249,6 +261,7 @@ _CATALOGUE: list[FieldSpec] = [
         FromPreset("sic_code"),
         "The US Standard Industrial Classification code, shown on the S-1 "
         "cover in the US market only. Display only.",
+        level=Level.ADVANCED,
     ),
     _F(
         "company.incorporation",
@@ -258,6 +271,7 @@ _CATALOGUE: list[FieldSpec] = [
         FromMarket("incorporation"),
         "Where the company is incorporated (registered as a legal person): "
         "Sweden for an AB, often Delaware for a US company. Display only.",
+        level=Level.ADVANCED,
     ),
     _F(
         "company.currency",
@@ -269,6 +283,7 @@ _CATALOGUE: list[FieldSpec] = [
         "billion ('bn') is 1,000 million: a miljard, not a biljon. You may "
         "also type 'md' or 'mdr' for miljard and 'mkr' for miljoner. The "
         "model itself works in any currency.",
+        level=Level.ADVANCED,
     ),
     _F(
         "company.fiscal_year_end",
@@ -277,6 +292,7 @@ _CATALOGUE: list[FieldSpec] = [
         Unit.TEXT,
         Const("December 31"),
         "Display only.",
+        level=Level.ADVANCED,
     ),
     _F(
         "company.dual_class",
@@ -290,6 +306,7 @@ _CATALOGUE: list[FieldSpec] = [
         " (the orders the banks collect before setting the price) fall by 5%."
         " Many stock-market indices, lists of shares that index funds must "
         "buy, exclude such companies (page 10).",
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "company.lead_underwriter",
@@ -299,6 +316,7 @@ _CATALOGUE: list[FieldSpec] = [
         FromMarket("lead_underwriter"),
         "The investment bank that organises the IPO, markets the shares and "
         "runs the book (collects investors' orders). Display only.",
+        level=Level.ADVANCED,
     ),
     _F(
         "company.use_of_proceeds",
@@ -310,6 +328,7 @@ _CATALOGUE: list[FieldSpec] = [
             "sales expansion"
         ),
         "What the money raised will be spent on, as the offering document " "must say.",
+        level=Level.ADVANCED,
     ),
     _F(
         "company.market",
@@ -325,6 +344,7 @@ _CATALOGUE: list[FieldSpec] = [
         "It is best chosen at the start with --market: every money default "
         "follows its currency.",
         choices=MARKETS,
+        level=Level.BEGINNER,
     ),
     # -- 2 Market ----------------------------------------------------------
     _F(
@@ -341,6 +361,7 @@ _CATALOGUE: list[FieldSpec] = [
         "share of that it can win.",
         lo=1e6,
         hi=1e14,
+        level=Level.BEGINNER,
     ),
     _F(
         "market.tam_growth",
@@ -355,6 +376,7 @@ _CATALOGUE: list[FieldSpec] = [
         "market can outgrow the economy for ever.",
         lo=-0.5,
         hi=1.0,
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "market.sam_share",
@@ -369,6 +391,7 @@ _CATALOGUE: list[FieldSpec] = [
         "of SAM is the most revenue the company can ever reach.",
         lo=0.001,
         hi=1.0,
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "market.structure",
@@ -382,6 +405,7 @@ _CATALOGUE: list[FieldSpec] = [
         "dominant 30% (close to a monopoly). That ceiling decides how long "
         "fast growth can last before it flattens.",
         choices=MARKET_STRUCTURES,
+        level=Level.BEGINNER,
     ),
     _F(
         "market.p_max",
@@ -399,7 +423,7 @@ _CATALOGUE: list[FieldSpec] = [
         "how big the company can ever get.",
         lo=0.001,
         hi=1.0,
-        advanced=True,
+        level=Level.EXPERT,
     ),
     # -- 3 Customers & pricing ---------------------------------------------
     _F(
@@ -419,6 +443,7 @@ _CATALOGUE: list[FieldSpec] = [
             ("customers.now", "customers.arpu"),
         ),
         inverse_when="customers.now",
+        level=Level.BEGINNER,
     ),
     _F(
         "customers.now",
@@ -438,6 +463,7 @@ _CATALOGUE: list[FieldSpec] = [
         " along its S-curve the company already is.",
         lo=1,
         hi=1e10,
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "customers.arpu",
@@ -452,6 +478,7 @@ _CATALOGUE: list[FieldSpec] = [
         "× ARPU.",
         lo=0.01,
         hi=1e9,
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "customers.arpu_growth",
@@ -466,6 +493,7 @@ _CATALOGUE: list[FieldSpec] = [
         "the market can hold.",
         lo=-0.5,
         hi=1.0,
+        level=Level.ADVANCED,
     ),
     _F(
         "customers.churn",
@@ -481,6 +509,7 @@ _CATALOGUE: list[FieldSpec] = [
         "software often churns 5-15% a year.",
         lo=0.001,
         hi=0.99,
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "customers.growth_y1",
@@ -496,6 +525,7 @@ _CATALOGUE: list[FieldSpec] = [
         "valuation is.",
         lo=-0.5,
         hi=5.0,
+        level=Level.BEGINNER,
     ),
     # -- 4 People ------------------------------------------------------------
     _F(
@@ -514,6 +544,7 @@ _CATALOGUE: list[FieldSpec] = [
         "employee. Staff are the largest cost of a young technology company.",
         lo=1,
         hi=1e7,
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "people.loaded_cost",
@@ -529,6 +560,7 @@ _CATALOGUE: list[FieldSpec] = [
         "management) and operations.",
         lo=1,
         hi=1e7,
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "people.wage_inflation",
@@ -539,6 +571,7 @@ _CATALOGUE: list[FieldSpec] = [
         "Yearly rise of the loaded cost.",
         lo=-0.1,
         hi=0.5,
+        level=Level.ADVANCED,
     ),
     _F(
         "people.headcount_mode",
@@ -553,6 +586,7 @@ _CATALOGUE: list[FieldSpec] = [
         "ignores revenue and moves in a straight line from a year-1 hiring "
         "rate to the floor rate in the last forecast year.",
         choices=("follow_revenue", "explicit"),
+        level=Level.ADVANCED,
     ),
     _F(
         "people.elasticity",
@@ -568,6 +602,7 @@ _CATALOGUE: list[FieldSpec] = [
         " changing each one alone moves the value.",
         lo=0.0,
         hi=3.0,
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "people.growth_y1",
@@ -578,6 +613,7 @@ _CATALOGUE: list[FieldSpec] = [
         "Only in 'explicit' mode: next year's hiring rate.",
         lo=-0.5,
         hi=3.0,
+        level=Level.ADVANCED,
     ),
     _F(
         "people.growth_floor",
@@ -589,6 +625,7 @@ _CATALOGUE: list[FieldSpec] = [
         "rate ('explicit').",
         lo=-0.5,
         hi=1.0,
+        level=Level.ADVANCED,
     ),
     _F(
         "people.split_rnd",
@@ -599,7 +636,7 @@ _CATALOGUE: list[FieldSpec] = [
         "Engineers and product people. The four shares must sum to 100%.",
         lo=0.0,
         hi=1.0,
-        advanced=True,
+        level=Level.EXPERT,
     ),
     _F(
         "people.split_snm",
@@ -610,7 +647,7 @@ _CATALOGUE: list[FieldSpec] = [
         "Sales and marketing staff.",
         lo=0.0,
         hi=1.0,
-        advanced=True,
+        level=Level.EXPERT,
     ),
     _F(
         "people.split_gna",
@@ -621,7 +658,7 @@ _CATALOGUE: list[FieldSpec] = [
         "Finance, legal, HR and management.",
         lo=0.0,
         hi=1.0,
-        advanced=True,
+        level=Level.EXPERT,
     ),
     _F(
         "people.split_ops",
@@ -633,7 +670,7 @@ _CATALOGUE: list[FieldSpec] = [
         " of revenue: the direct cost of delivering the product to customers.",
         lo=0.0,
         hi=1.0,
-        advanced=True,
+        level=Level.EXPERT,
     ),
     # -- 5 Costs -------------------------------------------------------------
     _F(
@@ -647,6 +684,7 @@ _CATALOGUE: list[FieldSpec] = [
         "delivering the product), and it rises with inflation.",
         lo=0,
         hi=1e12,
+        level=Level.ADVANCED,
     ),
     _F(
         "costs.infra_per_customer",
@@ -660,6 +698,7 @@ _CATALOGUE: list[FieldSpec] = [
         "rises with inflation.",
         lo=0,
         hi=1e9,
+        level=Level.ADVANCED,
     ),
     _F(
         "costs.other_cogs_pct",
@@ -672,6 +711,7 @@ _CATALOGUE: list[FieldSpec] = [
         "margin.",
         lo=0.0,
         hi=0.95,
+        level=Level.ADVANCED,
     ),
     _F(
         "costs.cac_paid",
@@ -689,6 +729,7 @@ _CATALOGUE: list[FieldSpec] = [
         " the full acquisition cost is a common rule). A scenario driver.",
         lo=0,
         hi=1e9,
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "costs.cac_growth",
@@ -703,6 +744,7 @@ _CATALOGUE: list[FieldSpec] = [
         "value of fast growth.",
         lo=-0.5,
         hi=1.0,
+        level=Level.ADVANCED,
     ),
     _F(
         "costs.rnd_nonstaff_pct",
@@ -713,6 +755,7 @@ _CATALOGUE: list[FieldSpec] = [
         "Tools, licences and cloud for development, as a share of revenue.",
         lo=0.0,
         hi=1.0,
+        level=Level.ADVANCED,
     ),
     _F(
         "costs.gna_nonstaff_pct",
@@ -723,6 +766,7 @@ _CATALOGUE: list[FieldSpec] = [
         "Rent, insurance and advisers, as a share of revenue.",
         lo=0.0,
         hi=1.0,
+        level=Level.ADVANCED,
     ),
     _F(
         "costs.public_company",
@@ -737,6 +781,7 @@ _CATALOGUE: list[FieldSpec] = [
         " 3 m USD (30 m SEK) a year, growing with inflation.",
         lo=0,
         hi=1e10,
+        level=Level.ADVANCED,
     ),
     _F(
         "costs.sbc_pct",
@@ -751,6 +796,7 @@ _CATALOGUE: list[FieldSpec] = [
         " of the company. This model counts it as an expense.",
         lo=0.0,
         hi=1.0,
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "costs.inflation",
@@ -763,6 +809,7 @@ _CATALOGUE: list[FieldSpec] = [
         "about 2% a year.",
         lo=-0.05,
         hi=0.5,
+        level=Level.ADVANCED,
     ),
     # -- 6 Capital & tax -----------------------------------------------------
     _F(
@@ -779,6 +826,7 @@ _CATALOGUE: list[FieldSpec] = [
         " the valuation is built on) now.",
         lo=0.0,
         hi=1.0,
+        level=Level.ADVANCED,
     ),
     _F(
         "capital.useful_life",
@@ -793,6 +841,7 @@ _CATALOGUE: list[FieldSpec] = [
         "does not change the cash spent or the free cash flow.",
         lo=1,
         hi=50,
+        level=Level.ADVANCED,
     ),
     _F(
         "capital.ppe_start",
@@ -814,6 +863,7 @@ _CATALOGUE: list[FieldSpec] = [
         "life ÷ 2.",
         lo=0,
         hi=1e13,
+        level=Level.ADVANCED,
     ),
     _F(
         "capital.nwc_pct",
@@ -829,6 +879,7 @@ _CATALOGUE: list[FieldSpec] = [
         "around -5%.",
         lo=-1.0,
         hi=1.0,
+        level=Level.ADVANCED,
     ),
     _F(
         "capital.tax_rate",
@@ -844,6 +895,7 @@ _CATALOGUE: list[FieldSpec] = [
         "value of all years after the forecast.",
         lo=0.0,
         hi=0.9,
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "capital.nol",
@@ -857,6 +909,7 @@ _CATALOGUE: list[FieldSpec] = [
         " The forecast's own early losses are added to this balance.",
         lo=0,
         hi=1e13,
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "capital.cash",
@@ -871,6 +924,7 @@ _CATALOGUE: list[FieldSpec] = [
         " shares: equity value = enterprise value + cash − debt.",
         lo=0,
         hi=1e13,
+        level=Level.BEGINNER,
     ),
     _F(
         "capital.debt",
@@ -884,6 +938,7 @@ _CATALOGUE: list[FieldSpec] = [
         " enterprise value + cash − debt).",
         lo=0,
         hi=1e13,
+        level=Level.BEGINNER,
     ),
     # -- 7 Discount rates ----------------------------------------------------
     _F(
@@ -900,6 +955,7 @@ _CATALOGUE: list[FieldSpec] = [
         "lowers every value.",
         lo=-0.05,
         hi=0.3,
+        level=Level.BEGINNER,
     ),
     _F(
         "rates.erp",
@@ -915,6 +971,7 @@ _CATALOGUE: list[FieldSpec] = [
         "companies.",
         lo=0.0,
         hi=0.3,
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "rates.beta_stage1",
@@ -930,6 +987,7 @@ _CATALOGUE: list[FieldSpec] = [
         "risky) and year 6 on (established).",
         lo=0.0,
         hi=5.0,
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "rates.beta_stage2",
@@ -943,6 +1001,7 @@ _CATALOGUE: list[FieldSpec] = [
         "large effect on value. A scenario driver.",
         lo=0.0,
         hi=5.0,
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "rates.size_premium_1",
@@ -957,6 +1016,7 @@ _CATALOGUE: list[FieldSpec] = [
         "is a common range.",
         lo=0.0,
         hi=0.2,
+        level=Level.ADVANCED,
     ),
     _F(
         "rates.size_premium_2",
@@ -971,6 +1031,7 @@ _CATALOGUE: list[FieldSpec] = [
         "noticeably.",
         lo=0.0,
         hi=0.2,
+        level=Level.ADVANCED,
     ),
     _F(
         "rates.execution_premium",
@@ -985,6 +1046,7 @@ _CATALOGUE: list[FieldSpec] = [
         " driver.",
         lo=0.0,
         hi=0.5,
+        level=Level.ADVANCED,
     ),
     _F(
         "rates.debt_ratio",
@@ -998,7 +1060,7 @@ _CATALOGUE: list[FieldSpec] = [
         "of debt. Most growth IPOs have no debt, so the default is 0%.",
         lo=0.0,
         hi=0.9,
-        advanced=True,
+        level=Level.EXPERT,
     ),
     _F(
         "rates.cost_of_debt",
@@ -1013,7 +1075,7 @@ _CATALOGUE: list[FieldSpec] = [
         "default is the risk-free rate plus 3%.",
         lo=0.0,
         hi=0.5,
-        advanced=True,
+        level=Level.EXPERT,
     ),
     _F(
         "rates.stage1_years",
@@ -1028,7 +1090,7 @@ _CATALOGUE: list[FieldSpec] = [
         "still carry the stage-1 discount.",
         lo=1,
         hi=20,
-        advanced=True,
+        level=Level.EXPERT,
     ),
     _F(
         "rates.horizon",
@@ -1042,7 +1104,7 @@ _CATALOGUE: list[FieldSpec] = [
         "much faster than that at the end.",
         lo=2,
         hi=50,
-        advanced=True,
+        level=Level.EXPERT,
     ),
     _F(
         "rates.terminal_growth",
@@ -1057,6 +1119,7 @@ _CATALOGUE: list[FieldSpec] = [
         " plus inflation is about 2-3%.",
         lo=-0.05,
         hi=0.1,
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "rates.ronic_spread",
@@ -1072,7 +1135,7 @@ _CATALOGUE: list[FieldSpec] = [
         "higher.",
         lo=-0.1,
         hi=0.5,
-        advanced=True,
+        level=Level.EXPERT,
     ),
     _F(
         "rates.r1_override",
@@ -1089,7 +1152,7 @@ _CATALOGUE: list[FieldSpec] = [
         lo=0.001,
         hi=1.0,
         optional=True,
-        advanced=True,
+        level=Level.EXPERT,
     ),
     _F(
         "rates.r2_override",
@@ -1106,7 +1169,7 @@ _CATALOGUE: list[FieldSpec] = [
         lo=0.001,
         hi=1.0,
         optional=True,
-        advanced=True,
+        level=Level.EXPERT,
     ),
     _F(
         "rates.mid_year",
@@ -1118,7 +1181,7 @@ _CATALOGUE: list[FieldSpec] = [
         " year, not at the end, since cash comes in all year round. It raises"
         " value by about half a year of discounting. Off by default, so the "
         "tables match hand calculations.",
-        advanced=True,
+        level=Level.EXPERT,
     ),
     # -- 8 Offering ----------------------------------------------------------
     _F(
@@ -1135,6 +1198,7 @@ _CATALOGUE: list[FieldSpec] = [
         "share, not the company's value.",
         lo=1,
         hi=1e12,
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "offering.raise",
@@ -1150,6 +1214,7 @@ _CATALOGUE: list[FieldSpec] = [
         "Default: 20% of the comparables valuation.",
         lo=1,
         hi=1e13,
+        level=Level.BEGINNER,
     ),
     _F(
         "offering.secondary_shares",
@@ -1164,6 +1229,7 @@ _CATALOGUE: list[FieldSpec] = [
         "company's value or its share count.",
         lo=0,
         hi=1e12,
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "offering.gross_spread",
@@ -1179,6 +1245,7 @@ _CATALOGUE: list[FieldSpec] = [
         "share.",
         lo=0.0,
         hi=0.2,
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "offering.other_expenses",
@@ -1196,6 +1263,7 @@ _CATALOGUE: list[FieldSpec] = [
         "raising money at a fair price costs existing owners anything.",
         lo=0,
         hi=1e11,
+        level=Level.ADVANCED,
     ),
     _F(
         "offering.ipo_discount",
@@ -1210,6 +1278,7 @@ _CATALOGUE: list[FieldSpec] = [
         " to rise on the first day. 10-15% is typical.",
         lo=0.0,
         hi=0.6,
+        level=Level.BEGINNER,
     ),
     _F(
         "offering.min_discount",
@@ -1224,7 +1293,7 @@ _CATALOGUE: list[FieldSpec] = [
         " IPO is postponed.",
         lo=0.0,
         hi=0.6,
-        advanced=True,
+        level=Level.EXPERT,
     ),
     _F(
         "offering.max_above_range",
@@ -1240,7 +1309,7 @@ _CATALOGUE: list[FieldSpec] = [
         "without re-filing (SEC Rule 430A).",
         lo=0.0,
         hi=1.0,
-        advanced=True,
+        level=Level.EXPERT,
     ),
     _F(
         "offering.lockup_days",
@@ -1254,7 +1323,7 @@ _CATALOGUE: list[FieldSpec] = [
         "when it ends, many shares may come to market at once (the overhang).",
         lo=0,
         hi=1095,
-        advanced=True,
+        level=Level.ADVANCED,
     ),
     _F(
         "offering.lockup_coverage",
@@ -1269,7 +1338,7 @@ _CATALOGUE: list[FieldSpec] = [
         "be sold into the first day's market.",
         lo=0.0,
         hi=1.0,
-        advanced=True,
+        level=Level.ADVANCED,
     ),
     _F(
         "offering.cornerstone",
@@ -1283,7 +1352,7 @@ _CATALOGUE: list[FieldSpec] = [
         "Cornerstone investors receive their shares first.",
         lo=0,
         hi=1e12,
-        advanced=True,
+        level=Level.ADVANCED,
     ),
     _F(
         "offering.cornerstone_lockin_days",
@@ -1295,7 +1364,7 @@ _CATALOGUE: list[FieldSpec] = [
         "until then.",
         lo=0,
         hi=1095,
-        advanced=True,
+        level=Level.EXPERT,
     ),
     _F(
         "offering.retail_tranche",
@@ -1310,7 +1379,7 @@ _CATALOGUE: list[FieldSpec] = [
         "seen as more stable long-term holders.",
         lo=0.0,
         hi=1.0,
-        advanced=True,
+        level=Level.ADVANCED,
     ),
     # -- 9 Investors & sentiment ---------------------------------------------
     _F(
@@ -1325,6 +1394,7 @@ _CATALOGUE: list[FieldSpec] = [
         "biggest single lever on the book, and it is judgement, not "
         "calculation.",
         choices=INTEREST_LEVELS,
+        level=Level.BEGINNER,
     ),
     _F(
         "investors.n_institutions",
@@ -1336,6 +1406,7 @@ _CATALOGUE: list[FieldSpec] = [
         " it sets the size of the institutional book at fair value.",
         lo=0,
         hi=10_000,
+        level=Level.ADVANCED,
     ),
     _F(
         "investors.avg_ticket",
@@ -1347,6 +1418,7 @@ _CATALOGUE: list[FieldSpec] = [
         " the raise.",
         lo=0,
         hi=1e12,
+        level=Level.ADVANCED,
     ),
     _F(
         "investors.retail_interest",
@@ -1358,6 +1430,7 @@ _CATALOGUE: list[FieldSpec] = [
         "2.2 times retail demand). Retail money is a small part of most "
         "books, but it reacts strongly to hype.",
         choices=INTEREST_LEVELS,
+        level=Level.BEGINNER,
     ),
     _F(
         "investors.n_retail",
@@ -1368,6 +1441,7 @@ _CATALOGUE: list[FieldSpec] = [
         "Private investors applying for shares.",
         lo=0,
         hi=1e8,
+        level=Level.ADVANCED,
     ),
     _F(
         "investors.retail_application",
@@ -1378,6 +1452,7 @@ _CATALOGUE: list[FieldSpec] = [
         "The typical retail order.",
         lo=0,
         hi=1e9,
+        level=Level.ADVANCED,
     ),
     _F(
         "investors.hype",
@@ -1393,6 +1468,7 @@ _CATALOGUE: list[FieldSpec] = [
         "fair value.",
         lo=0,
         hi=10,
+        level=Level.BEGINNER,
     ),
     _F(
         "investors.target_coverage",
@@ -1407,6 +1483,7 @@ _CATALOGUE: list[FieldSpec] = [
         "first day supports the price.",
         lo=1,
         hi=50,
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "investors.comps_multiple",
@@ -1421,6 +1498,7 @@ _CATALOGUE: list[FieldSpec] = [
         "market fashion. A scenario driver.",
         lo=0,
         hi=200,
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "investors.dcf_weight",
@@ -1436,6 +1514,7 @@ _CATALOGUE: list[FieldSpec] = [
         "alone), or 0% to price like the market.",
         lo=0.0,
         hi=1.0,
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "investors.inst_elasticity",
@@ -1450,7 +1529,7 @@ _CATALOGUE: list[FieldSpec] = [
         "book supports a lower offer price.",
         lo=0,
         hi=20,
-        advanced=True,
+        level=Level.EXPERT,
     ),
     # -- 10 Index --------------------------------------------------------------
     _F(
@@ -1465,6 +1544,7 @@ _CATALOGUE: list[FieldSpec] = [
         "price; size rules are never relaxed.",
         lo=0,
         hi=1e13,
+        level=Level.ADVANCED,
     ),
     _F(
         "index.min_free_float",
@@ -1478,6 +1558,7 @@ _CATALOGUE: list[FieldSpec] = [
         "price. The exchange may relax this rule to 10%.",
         lo=0.0,
         hi=1.0,
+        level=Level.ADVANCED,
     ),
     _F(
         "index.min_ff_cap",
@@ -1492,6 +1573,7 @@ _CATALOGUE: list[FieldSpec] = [
         "relaxed.",
         lo=0,
         hi=1e13,
+        level=Level.ADVANCED,
     ),
     _F(
         "index.seasoning_days",
@@ -1505,6 +1587,7 @@ _CATALOGUE: list[FieldSpec] = [
         "waive it, bringing inclusion forward to 10 days.",
         lo=0,
         hi=1000,
+        level=Level.ADVANCED,
     ),
     _F(
         "index.fast_entry_cap",
@@ -1518,6 +1601,7 @@ _CATALOGUE: list[FieldSpec] = [
         " Fast entry gives the strongest index boost to demand in the book.",
         lo=0,
         hi=1e14,
+        level=Level.EXPERT,
     ),
     _F(
         "index.fast_entry_days",
@@ -1528,6 +1612,7 @@ _CATALOGUE: list[FieldSpec] = [
         "Trading days before a fast entry.",
         lo=0,
         hi=1000,
+        level=Level.EXPERT,
     ),
     _F(
         "index.allow_multi_class",
@@ -1537,6 +1622,7 @@ _CATALOGUE: list[FieldSpec] = [
         Const(False),
         "Index rule: whether companies with several share classes (dual-"
         "class) are eligible. The exchange may agree to admit them.",
+        level=Level.ADVANCED,
     ),
     _F(
         "index.relax",
@@ -1549,6 +1635,7 @@ _CATALOGUE: list[FieldSpec] = [
         " verdict with and without it. Inclusion brings buying from index "
         "funds, so better prospects raise institutional demand in the book.",
         choices=("none", "seasoning", "float", "multi_class", "all"),
+        level=Level.ADVANCED,
     ),
     _F(
         "index.passive_aum",
@@ -1563,6 +1650,7 @@ _CATALOGUE: list[FieldSpec] = [
         lo=0,
         hi=1e14,
         optional=True,
+        level=Level.EXPERT,
     ),
     _F(
         "index.index_ff_cap",
@@ -1577,6 +1665,7 @@ _CATALOGUE: list[FieldSpec] = [
         lo=0,
         hi=1e15,
         optional=True,
+        level=Level.EXPERT,
     ),
     # -- 11 Management -----------------------------------------------------------
     _F(
@@ -1592,6 +1681,7 @@ _CATALOGUE: list[FieldSpec] = [
         lo=0,
         hi=1e14,
         optional=True,
+        level=Level.BEGINNER,
     ),
     _F(
         "management.min_market_cap",
@@ -1606,6 +1696,7 @@ _CATALOGUE: list[FieldSpec] = [
         lo=0,
         hi=1e14,
         optional=True,
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "management.max_dilution",
@@ -1620,6 +1711,7 @@ _CATALOGUE: list[FieldSpec] = [
         "exceeds it.",
         lo=0.0,
         hi=1.0,
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "management.min_net_proceeds",
@@ -1634,6 +1726,7 @@ _CATALOGUE: list[FieldSpec] = [
         lo=0,
         hi=1e13,
         optional=True,
+        level=Level.ADVANCED,
     ),
     # -- 12 Simulation -----------------------------------------------------------
     _F(
@@ -1649,6 +1742,7 @@ _CATALOGUE: list[FieldSpec] = [
         "drawn at random, and shows the spread of fair values. 'both' shows "
         "the two side by side.",
         choices=("deterministic", "montecarlo", "both"),
+        level=Level.INTERMEDIATE,
     ),
     _F(
         "simulation.draws",
@@ -1661,6 +1755,7 @@ _CATALOGUE: list[FieldSpec] = [
         "seconds.",
         lo=100,
         hi=1e6,
+        level=Level.ADVANCED,
     ),
     _F(
         "simulation.seed",
@@ -1672,6 +1767,7 @@ _CATALOGUE: list[FieldSpec] = [
         "the results move by chance alone.",
         lo=0,
         hi=2**31 - 1,
+        level=Level.ADVANCED,
     ),
     _F(
         "simulation.rho",
@@ -1687,6 +1783,7 @@ _CATALOGUE: list[FieldSpec] = [
         "are always drawn independently.",
         lo=0.0,
         hi=1.0,
+        level=Level.ADVANCED,
     ),
 ]
 
@@ -1696,7 +1793,7 @@ def _relative(fn: Callable[[float], float], key: str) -> Rule:
 
 
 def _driver_fields() -> list[FieldSpec]:
-    """Bear and bull values of each scenario driver (§11.1), all advanced."""
+    """Bear and bull values of each scenario driver (§11.1), all expert."""
     by_key = {spec.key: spec for spec in _CATALOGUE}
     out: list[FieldSpec] = []
     for key, bear, bull in _DRIVERS:
@@ -1717,7 +1814,7 @@ def _driver_fields() -> list[FieldSpec]:
                     "bull values, with your base answer as the most likely value.",
                     lo=base.lo,
                     hi=base.hi,
-                    advanced=True,
+                    level=Level.EXPERT,
                 )
             )
     return out

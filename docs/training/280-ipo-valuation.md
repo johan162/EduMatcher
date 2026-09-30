@@ -141,7 +141,7 @@ Read sections 10 (DCF) and 11 (Bridge and fair value) in `tornfalk.md`.
    DCF weight to 100% and press F5:
 
     ```bash
-    pm-valuation --case tornfalk --mode deterministic
+    pm-valuation --case tornfalk --mode deterministic --level intermediate
     ```
 
     Page 9, *DCF weight*: type `100`. (A plain number in a percentage field is
@@ -221,7 +221,8 @@ Halvard Robotics AB (HALV) — IPO valuation  POSTPONE
 
 1. Why? Read the Verdict and section 13 (Pricing).
 2. Management's minimum market cap is derived from the last private round.
-   Start the interview (`pm-valuation --case halvard --mode deterministic`)
+   Start the interview
+   (`pm-valuation --case halvard --mode deterministic --level intermediate`)
    and, on page 11, lower *Minimum market cap* step by step: `2.6bn`,
    `2.5bn`, `2.4bn`, `2.3bn`. Watch the preview after each one. What is the highest minimum
    that lists the stock, and on what kind of book?
@@ -313,6 +314,7 @@ out of two?
 | Task | Command |
 |---|---|
 | Interview a classroom case | `pm-valuation --case tornfalk` |
+| Show more fields | `… --level intermediate` (or `advanced`, `expert`), or F3 |
 | Print a report | `pm-valuation --case tornfalk --no-tui` |
 | Scenarios only, no Monte Carlo | `… --mode deterministic` |
 | Export the report | `… --export report.md` |

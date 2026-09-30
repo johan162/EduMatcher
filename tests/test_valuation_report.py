@@ -352,7 +352,7 @@ def test_no_tui_reports_invalid_input(capsys: pytest.CaptureFixture[str]) -> Non
 @pytest.mark.parametrize(
     "argv",
     [
-        ["--no-tui", "--quick"],
+        ["--no-tui", "--level", "expert"],
         ["--no-tui", "--with-defaults"],
         ["--mode", "fast"],
         ["--paper", "a3"],
