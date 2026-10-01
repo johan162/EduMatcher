@@ -1,8 +1,9 @@
-Version: 0.2.0
+Version: 0.3.0
 
 Date: 2026-10-01
 
 Status: Design proposal — not implemented. Replaces the v0.1 draft (REST-based) in full.
+v0.3: second interview round. Adds dedicated SIMULATOR traders, MM clock sync, auction flow, scripted events and a news pane; open items O1–O9 resolved.
 
 # EduMatcher — Exchange History Generator (`pm-populate`)
 
@@ -15,8 +16,9 @@ been running for months: price history with trends, shocks and rumours, daily
 stats, audit trail, clearing positions and P&L per trader, and resting GTC
 orders in the book. `pm-populate` produces this by starting the existing
 exchange (in `DATA_PATH`) in **sim-clock mode**, then replaying N past business
-days at accelerated pace. Each order goes through `pm-alf-gwy` under a real
-trader identity at a backdated timestamp.
+days at accelerated pace. Each order goes through `pm-alf-gwy` under a dedicated
+**simulation trader** (role `SIMULATOR`) at a backdated timestamp. Student desks
+are never used: students start class with clean positions.
 
 Secondary purpose: a long, heavy, end-to-end **stress test** of the whole stack.
 
@@ -33,7 +35,7 @@ Secondary purpose: a long, heavy, end-to-end **stress test** of the whole stack.
 
 | # | Topic | Decision |
 |---|---|---|
-| D1 | Order entry | Through `pm-alf-gwy`: one TCP session per trader. `pm-populate` is also on the ZMQ bus for clock control, market data and the news feed. |
+| D1 | Order entry | Through `pm-alf-gwy`: one TCP session per `SIMULATOR` gateway. `pm-populate` is also on the ZMQ bus for clock control, market data and the news feed. |
 | D2 | Fake time | Bus-driven **sim clock**. Every process reads business time through one `Clock` abstraction; in sim mode `pm-populate` sets it. |
 | D3 | Period | `--from/--to` date range, or `--days N`, which ends yesterday. Business days only (Mon–Fri minus the engine's holiday calendar). |
 | D4 | Volume | Target is **average orders per business day** (`--avg-orders`, default 5000). The trade count is whatever the flow produces. |
@@ -42,13 +44,21 @@ Secondary purpose: a long, heavy, end-to-end **stress test** of the whole stack.
 | D7 | Market model | fair value = market factor × beta + idiosyncratic random walk + jump events (news, rumours). |
 | D8 | News | Written to a news log file in `DATA_PATH` **and** published on the bus as a new `news.*` topic. |
 | D9 | Personalities | Archetypes are assigned by seed with weights. An optional populate YAML can pin individual traders. |
-| D10 | Market makers | The profile's `pm-mm-bot`s run alongside as usual. `pm-populate` drives only non-MM traders. |
+| D10 | Market makers | The profile's `pm-mm-bot`s run alongside. In sim mode they refresh on `clock.tick` by sim time, and `pm-populate` waits for their sync acks (§4.5). |
 | D11 | Order types | `--order-types`, default `MARKET,LIMIT,ICEBERG`. Optional: `IOC`, `FOK`, `STOP`, `STOP_LIMIT`, `OCO`, `GTC`, `GTD`. |
 | D12 | Lifecycle | Traders cancel and amend their resting orders. Cancels and amends are *extra* messages on top of `--avg-orders`. DAY orders expire at EOD. |
 | D13 | Existing data | Refuse to run unless `DATA_PATH` has no trading state (`pm-opctl-cli clear --state` first). |
 | D14 | Pacing | Strictly sequential: set clock → send → await ack → next. `--max-rate` is an optional cap. |
 | D15 | Intraday shape | U-shaped intensity plus activity bursts after news on a symbol. |
 | D16 | End state | After yesterday's EOD, stop the stack via opctl. The next normal start runs on the real clock. |
+| D17 | Who trades | Only dedicated simulation traders. Student desks (TRADER) and MM gateways are never driven by `pm-populate`. Students start with clean positions. |
+| D18 | Sim trader identity | New gateway role **`SIMULATOR`**. config-gen adds `SIM01..SIMnn`. The engine accepts a `SIMULATOR` login **only in sim-clock mode**. GUIs filter these gateways out of student-facing desk lists. |
+| D19 | Sim trader count | Default `max(20, n_symbols // 3)` (50 for s150, 20 for s10). Overridden with config-gen `--sim-traders N`. |
+| D20 | Carry-over | `SIMULATOR` gateways use `disconnect_behaviour: LEAVE_ALL`, so their GTC orders survive the last EOD and shutdown. Students meet real depth on day 1. |
+| D21 | Class day | Sim traders are dormant: gateways and history are kept, but they can't connect in real-clock mode. Their resting GTC orders can still be filled by students, and clearing books those fills against them. |
+| D22 | Auctions | Phase 1 plans dedicated auction-call flow for the opening and closing auctions on every day. |
+| D23 | Scheduler | `pm-scheduler` is excluded from the sim profile. `pm-populate` sends transitions using the scheduler's functions. |
+| D24 | v1 scope | In: scripted instructor events in the scenario YAML, and a news pane in trader-gui and terminal-gui (separate design). Out: corporate actions. |
 
 ---
 
@@ -60,7 +70,7 @@ Secondary purpose: a long, heavy, end-to-end **stress test** of the whole stack.
                        │ Sequencer (Phase 2) ── clock ctl ── ALF session pool       │
                        └───────┬──────────────────┬───────────────────┬─────────────┘
               ALF/TCP (1 per   │      ZMQ PUSH:   │ CLOCK_SET,        │ ZMQ SUB: book.*,
-              non-MM trader)   │      SESSION transitions, NEWS       │ trade.*, clock.*
+              SIMxx gateway)   │      SESSION transitions, NEWS       │ trade.*, clock.*
                                ▼                  ▼                   │
                          pm-alf-gwy ──────▶   pm-engine  ─── PUB ─────┴──▶ clearing, stats,
                                                  ▲                           audit, index,
@@ -131,6 +141,27 @@ appended to this doc. Known hot spots include `engine/main.py` `datetime.now().d
 (schedule resolution), `stats/main.py` `time.time()` (trading date), and
 `stats` snapshot timestamps.
 
+### 4.5 MM bots under the sim clock
+
+In real mode, `pm-mm-bot` refreshes quotes on a monotonic interval. A sim day
+can last only seconds of real time, so unchanged bots would quote a handful of
+times per sim day, and same-seed runs would not be trade-identical. In sim
+mode:
+
+- The bot subscribes to `clock.tick`. On each tick it runs its normal refresh
+  decision with **sim time** as "now": refresh if the sim time since its last
+  refresh is at least its interval, or if its normal triggers fire (fill,
+  book move).
+- After handling a tick, including any quote it sent and the engine's ack, the
+  bot publishes `mm.sync {gateway_id, tick_ts_ns}`.
+- `pm-populate` knows the MM gateways in the profile. After each `CLOCK_SET`
+  ack it waits for one `mm.sync` per MM bot before sending the next order.
+  A missing sync after a timeout (default 2 s real time) aborts the run with
+  the bot named. Silently continuing would make the run non-deterministic.
+- Cost: one sync message per bot per tick. It is measured in the Phase-A
+  spike. If it dominates, `pm-populate` can batch: one `CLOCK_SET` covers
+  several slots in the same millisecond.
+
 ---
 
 ## 5. Run flow
@@ -149,15 +180,20 @@ preflight → start stack (sim profile) → set clock to day 1 PRE_OPEN
 3. Load the compiled config: symbols (tick grid, collars, `order_limits`,
    reference prices), gateways with roles and ALF credentials, the engine
    schedule, the holiday country and the CB config.
-4. Resolve the business-day list. Fail if empty or if `--to` ≥ today.
-5. Build personalities and the market model from `--seed` (+ YAML).
+4. There is at least one `SIMULATOR` gateway. Otherwise exit and say to
+   regenerate the config with config-gen, which adds them by default (D19).
+5. Resolve the business-day list. Fail if empty or if `--to` ≥ today.
+6. Validate the scenario YAML: unknown symbols or gateways, and scripted
+   events outside the period, are errors.
+7. Build personalities and the market model from `--seed` (+ YAML).
 
 ### 5.2 Start
 
 `pm-opctl-cli start <profile>` with the sim profile (`EDU_CLOCK=sim`, no
 `pm-scheduler`, ALF `max_commands_per_second` raised, see §11). Wait until
 `health` is green, then send `CLOCK_SET` to day 1 at PRE_OPEN − 1 min. Then
-open one ALF session per non-MM trader.
+open one ALF session per `SIMULATOR` gateway. The engine accepts these
+logins because it runs in sim mode (D18).
 
 ### 5.3 Per business day
 
@@ -175,14 +211,21 @@ halted symbols and traders whose personality sits this day out.
    trader (weighted by each personality's activity on that symbol), then side,
    order type and **intent** from that personality (§7). Price and qty stay
    open.
-4. Add the day's scheduled news events (§6.3) and each trader's planned
-   cancel/amend sweeps as extra slots in the same timeline.
+4. Add the day's news events, both random and scripted (§6.3), and each
+   trader's planned cancel/amend sweeps as extra slots in the same timeline.
+5. **Auction flow** (D22): plan `a_open·N_d` orders inside the opening-auction
+   call and `a_close·N_d` inside the closing-auction call (defaults 3 % and
+   5 %). These are LIMIT and MARKET orders for the auction, priced at send time
+   around the overnight-gapped fair value (open) or the current fair value
+   (close). Every symbol with any activity that day gets at least one buy and
+   one sell, so every active symbol prints at the open and close. Auction
+   orders count toward `N_d`.
 
 **Phase 2: drive**
 
-1. Send PRE_OPEN, then the opening-auction transition at their schedule times.
-   During the auction, opening-auction-only flow (LIMIT/MARKET for the open)
-   comes from the plan.
+1. Send PRE_OPEN and the opening-auction transition at their schedule times.
+   The planned opening-auction slots are sent between them, with the same
+   clock→send→ack loop as below.
 2. CONTINUOUS. For each slot in order:
    1. `CLOCK_SET(slot.ts)`, await ack.
    2. If it's a news slot: update fair value, publish `news.*`, append to the
@@ -191,14 +234,15 @@ halted symbols and traders whose personality sits this day out.
       current fair value and the latest book snapshot, then send it via that
       trader's ALF session and await the ack. Rejects are logged with their
       reason and counted, and the run continues.
-3. Closing auction, CLOSED, then EOD: DAY orders expire, clearing and stats
+3. Closing auction (with its planned slots), CLOSED, then EOD: DAY orders expire, clearing and stats
    roll up for real because the clock crossed the boundary.
 4. `CLOCK_SET` to the next business day's PRE_OPEN, skipping weekends and
    holidays.
 
 ### 5.4 Finish
 
-After the last day's EOD, close the ALF sessions, run `pm-opctl-cli stop`, and
+After the last day's EOD, close the ALF sessions. `LEAVE_ALL` keeps the GTC
+orders (D20). Then run `pm-opctl-cli stop`, and
 write the report (§10). A normal `pm-opctl-cli start` afterwards runs on the
 real clock, and today is the first live day after the history.
 
@@ -260,6 +304,13 @@ Each business day, each symbol draws events from a Poisson with a low rate
 - Each event raises that symbol's order intensity and widens passive offsets
   for a decaying period (§8.2).
 
+**Scripted events (D24).** The scenario YAML can pin events by date, time,
+symbol, kind and magnitude. For a rumour, it can also pin the resolution and
+its date. Scripted events are added to the random ones. `news: {random:
+false}` turns the random ones off, for a fully authored storyline. A scripted
+event does not consume the seed, so adding one doesn't reshuffle the rest of
+the history.
+
 ### 6.4 News output
 
 - **Bus**: new `news.{SYMBOL}` and `news.MARKET` topics with `{ts_ns, kind,
@@ -268,6 +319,11 @@ Each business day, each symbol draws events from a Poisson with a low rate
 - **File**: `DATA_PATH/populate/news.yaml`, a chronological list with the
   same fields plus the *true* jump size. This is for the instructor and is
   not shown to students.
+- **Student view (D24)**: a news pane in trader-gui and terminal-gui shows
+  `news.*` live, plus the history back to the first populated day. History
+  comes from `pm-api-gwy` (backed by the audit store). The bus message carries
+  only `magnitude_hint` (e.g. "large"), never the true jump size. The pane
+  has its own design doc (`EduMatcher-News-Pane.md`, to be written).
 - Headlines come from templates (`"{name} issues profit warning; sees FY
   revenue down {pct}%"`), so no free text is needed.
 
@@ -302,8 +358,8 @@ weights), `size_range`, `aggressiveness` (P(cross)), `passive_offset_ticks`,
 it is repriced or cancelled), `gtc_share`.
 
 Assignment: archetype weights come from the YAML (default noise 30 %, momentum
-15 %, value 15 %, informed 5 %, institutional 10 %, day trader 25 %). Traders
-are shuffled by seed and filled to the weights. YAML `traders:` can pin an
+15 %, value 15 %, informed 5 %, institutional 10 %, day trader 25 %). The
+`SIMULATOR` gateways are shuffled by seed and filled to the weights. YAML `traders:` can pin an
 archetype and any parameter for a named gateway.
 
 ### 7.3 Intent → order (Phase 2)
@@ -335,10 +391,12 @@ depending on the mix. The report shows the exact figure.
 
 ### 7.5 End-of-history state
 
-A share of value and institutional orders are GTC (when allowed). They
-survive the last EOD, so the students' first live day opens on a populated
-book with real depth from "old" orders.
-This is blocked by `disconnect_behaviour: CANCEL_ALL` in today's configs (see O8).
+A share of value and institutional orders are GTC (when `GTC` is in
+`--order-types`). Because `SIMULATOR` gateways use `LEAVE_ALL` (D20), these
+orders survive the last EOD and the shutdown. The students' first live day
+therefore opens on a book with real depth from "old" orders. When students
+fill against them, the sim traders' positions move in clearing like any
+counterparty's. Student desks start flat.
 
 ---
 
@@ -377,10 +435,11 @@ symbol's weight for the burst duration.
 - **Seeds**: one `--seed` feeds separate substreams for the market model,
   planner, each trader and the news. Changing `--order-types` does not change
   the fair-value paths.
-- **Determinism limit**: with MM bots running in real time, their quote
-  refresh timing is not tied to the sim clock. Runs with the same seed
-  therefore give the **same fair-value paths, news and order intents**, but
-  not bit-identical trades. See open item O1.
+- **Determinism**: with MM bots synchronised to the clock (§4.5) and every
+  message acked before the next, the same seed and the same config produce
+  identical fair-value paths, news, orders, trades, positions and book
+  contents. Only engine order IDs differ (`os.urandom`). A Phase-F test runs
+  the same seed twice and compares trades.
 
 ### 9.1 Runtime estimate (to be measured)
 
@@ -416,6 +475,23 @@ messages/s and ETA.
 |---|---|
 | `models/clock.py` | real/sim source, `today()`, `now_dt()`, tick application |
 | all processes | Business-time call sites go through `clock` (§4.4). Follow `clock.tick` in sim mode. |
+| `models/participant.py`, cverifier layer 2/3 | New role `SIMULATOR`. cverifier requires `SIMULATOR` gateways to have `disconnect_behaviour: LEAVE_ALL`. |
+| `pm-config-gen` | Adds `SIM01..SIMnn` (`max(20, n_symbols//3)`, `--sim-traders N`) to every generated config, with ALF credentials. Example configs in `docs/examples/ref_data` regenerated. |
+| `pm-engine` | `CLOCK_SET` admin command, timer evaluation on clock advance, `clock.tick` publish. Schedule resolution uses `clock.today()`. **`SIMULATOR` logins are rejected in real-clock mode.** |
+| `pm-mm-bot` | Sim mode: refresh driven by `clock.tick` in sim time, `mm.sync` after each tick (§4.5) |
+| `pm-stats`, `pm-clearing`, `pm-index`, `pm-audit`, `log_srv` | Trading date from the event timestamp. Retention and pruning ages use the sim clock. |
+| `msgen` specs | New `clock.tick`, `CLOCK_SET`, `mm.sync` and `news.*` messages |
+| `pm-api-gwy` | News history endpoint (for the news pane) |
+| trader-gui, terminal-gui, config-gui | News pane (separate design). `SIMULATOR` gateways hidden from desk pickers and student lists, but visible as counterparties where those are shown. |
+| `pm-opctl-cli` | Sim profile: `EDU_CLOCK=sim`, no scheduler, ALF rate limit and `max_connections` sized for the sim traders. `pm-populate` drives it through `start/stop/health`. |
+| `pm-alf-gwy` | No protocol change |
+| `pm-scheduler` | Transition-sending functions exposed for reuse. The process itself is unchanged. |
+| lint/test | A check that forbids raw wall-clock calls outside `clock.py` |
+| docs | A user-guide chapter on preparing a class with `pm-populate`. `pm-help` entry. Config chapter covers the `SIMULATOR` role. |
+
+---|---|
+| `models/clock.py` | real/sim source, `today()`, `now_dt()`, tick application |
+| all processes | Business-time call sites go through `clock` (§4.4). Follow `clock.tick` in sim mode. |
 | `pm-engine` | `CLOCK_SET` admin command, timer evaluation on clock advance, `clock.tick` publish. Schedule resolution uses `clock.today()`. |
 | `pm-stats`, `pm-clearing`, `pm-index`, `pm-audit`, `log_srv` | Trading date from the event timestamp. Retention and pruning ages use the sim clock. |
 | `msgen` specs | New `clock.tick`, `CLOCK_SET` and `news.*` messages |
@@ -447,11 +523,16 @@ pm-populate [--config NAME] (--days N | --from YYYY-MM-DD --to YYYY-MM-DD)
 market:     {mu_annual: 0.06, sigma_annual: 0.15, regime_switch_days: 25}
 symbols:
   ACME:     {beta: 1.3, sigma_annual: 0.40, tier: 1}
-news:       {rate_per_symbol_day: 0.05, rumour_confirm_prob: 0.5}
+news:       {random: true, rate_per_symbol_day: 0.05, rumour_confirm_prob: 0.5}
+auctions:   {open_share: 0.03, close_share: 0.05}
 archetypes: {noise: 0.30, momentum: 0.15, value: 0.15,
              informed: 0.05, institutional: 0.10, day_trader: 0.25}
 traders:
-  T007:     {archetype: institutional, symbol_focus: [ACME]}
+  SIM07:    {archetype: institutional, symbol_focus: [ACME]}
+events:                                   # scripted, in addition to random ones
+  - {date: 2026-06-12, time: "08:30", symbol: ACME, kind: PROFIT_WARNING, jump_pct: -15}
+  - {date: 2026-07-03, time: "11:00", symbol: BETA, kind: RUMOUR, jump_pct: 10,
+     resolve: {date: 2026-07-07, outcome: denied}}
 ```
 
 ---
@@ -460,48 +541,37 @@ traders:
 
 | Phase | Content | Exit criterion |
 |---|---|---|
-| A | Step-0 spike: call-site inventory and a latency probe (1 k clock+order round trips) | Table in §4.4. Measured ms per round trip. |
+| A | Step-0 spike: call-site inventory and a latency probe (1 k clock+order round trips, with and without MM sync) | Table in §4.4. Measured ms per round trip. |
 | B | Sim clock across all processes, `CLOCK_SET`/`clock.tick`, the lint rule | Existing tests pass in real mode. A sim-mode test runs 2 days with hand-sent orders and gives correct trading dates in stats, clearing and audit. |
-| C | `pm-populate` skeleton: preflight, opctl start/stop, ALF pool, day loop with session transitions, uniform noise flow | 5 days × 500 orders end to end on s10 |
-| D | Market model and news (bus + file), `--dry-run` | fair-value plots look right. News is visible in audit. |
-| E | Personalities, intent resolution, cancel/amend, risk limits | Reject rate < 2 %. Books stay bounded over 120 days. |
-| F | Report, stress figures, docs, `pm-help` | Full default run on s150 |
+| C | `SIMULATOR` role: config-gen, cverifier, engine login gate, GUI filtering | Real mode rejects a `SIMULATOR` login. Sim mode accepts it. Example configs regenerated. |
+| D | `pm-populate` skeleton: preflight, opctl start/stop, ALF pool, day loop with session transitions and auction flow, uniform noise flow | 5 days × 500 orders end to end on s10. Every day prints at the open and close. |
+| E | MM bot clock sync (§4.5) | Same-seed runs give identical trades |
+| F | Market model, random and scripted news (bus + file), `--dry-run` | fair-value plots look right. News is visible in audit. |
+| G | Personalities, intent resolution, cancel/amend, risk limits, GTC carry-over | Reject rate < 2 %. Books stay bounded over 120 days. GTC orders present after restart. |
+| H | Report, stress figures, docs, `pm-help` | Full default run on s150 |
+| — | News pane (trader-gui, terminal-gui, api-gwy) | Separate design doc |
 
 ---
 
-## 14. Open items
+## 14. Resolved items (v0.3 interview)
 
-- **O1. MM bots and determinism.** MM bots run on real-time loops, so
-  same-seed runs differ at trade level. Options: accept it (the current
-  proposal); have `pm-populate` pause after each clock step until MM bots ack
-  a refresh; or replace MM bots with `pm-populate`-driven quoting via ZMQ.
-- **O2. MM bots under compressed time.** A sim day may last a few real
-  seconds, so MM bots refresh only a few times per sim day. We need to check
-  that their spreads and refresh logic don't leave the book quote-less for
-  long stretches of sim time.
-- **O3. Auctions.** Should Phase 1 plan explicit auction-call flow, so opens
-  and closes always print, or rely on MM quotes and the GTC carry-over?
-- **O4. `pm-scheduler` vs sim clock.** This doc keeps the scheduler out of the
-  sim profile. The alternative is to make it follow `clock.tick`, which is more
-  general but means rewriting its sleep logic.
-- **O5. Corporate actions.** Should the history include dividends or splits
-  (`EduMatcher-Engine-Corp-Actions.md`), or is that out of scope for v1?
-- **O6. Student-facing news.** `news.*` exists on the bus, but no GUI shows it
-  yet. Is a news pane in trader-gui and terminal-gui wanted (separate design)?
-- **O7. Trader count vs symbols.** `s150-nominal-setup` has 150 symbols but
-  only 12 ALF gateways (`TRADER01..12`, all role `TRADER`). Twelve personalities
-  across 150 symbols gives thin coverage per name. Options: accept it (Zipf
-  focus keeps a few names busy); or add dedicated `SIMxx` populate gateways to
-  the configs (see O9).
-- **O8. `disconnect_behaviour: CANCEL_ALL` wipes the GTC carry-over.** All
-  s150 gateways cancel every resting order on disconnect. When `pm-populate`
-  closes its ALF sessions, or the stack stops, the GTC book from §7.5 is
-  lost. Options: give populate traders `disconnect_behaviour` that keeps
-  orders; or give up on carry-over and let MM quotes provide the opening
-  book.
-- **O9. Whose history is it?** The ALF gateways are the *student desks*
-  ("Student desk 1"…). Populating through them means every student starts
-  class with months of positions, P&L and order history on their own desk.
-  Is that the intent (each desk "inherits" a book), or should the history
-  come from separate non-student gateways, leaving the student desks clean?
-  The answer also decides O7 and O8.
+| Item | Resolution |
+|---|---|
+| O1 MM bots and determinism | MM bots sync to the sim clock (§4.5, D10). Runs are fully deterministic. |
+| O2 MM quoting under compressed time | Resolved by O1: refresh cadence is in sim time |
+| O3 Auctions | Planned auction flow (D22) |
+| O4 Scheduler | Excluded from the sim profile. `pm-populate` drives transitions (D23). |
+| O5 Corporate actions | Out of v1 (D24) |
+| O6 Student-facing news | News pane in v1, separate design (D24) |
+| O7 Trader count | Dedicated sim traders, `max(20, n_symbols//3)` (D19) |
+| O8 CANCEL_ALL wipes carry-over | `SIMULATOR` gateways use `LEAVE_ALL` (D20) |
+| O9 Whose history | Separate `SIMULATOR` traders. Students start clean (D17). |
+
+## 15. Open items
+
+- **O10. MM sync overhead.** Phase A measures the cost of one `mm.sync` per
+  bot per tick. If it is too slow, batch slots per `CLOCK_SET` (§4.5).
+- **O11. MM obligations and history.** MM bots quote through the whole
+  history, so their positions and P&L carry into class too. Should MM gateways
+  also be reset, or kept? Students don't trade on them, so keeping them is
+  harmless.
