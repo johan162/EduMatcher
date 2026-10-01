@@ -40,10 +40,12 @@ from edumatcher.valuation.presets import Presets
 from edumatcher.valuation.report.build import build_report, compare
 from edumatcher.valuation.resolve import choices
 from edumatcher.valuation.scenario_io import dump
+from edumatcher.valuation.tui.explain import explain_preview
 from edumatcher.valuation.tui.interview import Interview
 from edumatcher.valuation.tui.viewer import ReportViewer
 from edumatcher.valuation.tui.widgets import (
     Box,
+    ExplainPanel,
     STYLE,
     GlossaryPanel,
     PickList,
@@ -86,6 +88,7 @@ class InterviewApp:
                             Box(
                                 Window(FormattedTextControl(self._preview)),
                                 "Live preview",
+                                lambda: [("class:hint", " F4 explain ")],
                                 width=24,
                             ),
                         ]
@@ -352,6 +355,23 @@ class InterviewApp:
             panel = GlossaryPanel(close)
             self.floats.floats.append(Float(panel.container))
             self.app.layout.focus(panel.search)
+
+        @kb.add("f4", filter=no_float)
+        def _explain(event: KeyPressEvent) -> None:
+            back = self.app.layout.current_window
+
+            def close() -> None:
+                self.floats.floats.clear()
+                self.app.layout.focus(back)
+
+            panel = ExplainPanel(
+                "Live preview explained",
+                explain_preview(self.iv.evaluation),
+                close,
+                "f4",
+            )
+            self.floats.floats.append(Float(panel.container))
+            self.app.layout.focus(panel.control)
 
         @kb.add("f2", filter=no_float)
         def _review(event: KeyPressEvent) -> None:

@@ -22,13 +22,21 @@ from edumatcher.valuation.pipeline import run
 from edumatcher.valuation.presets import load_presets
 from edumatcher.valuation.report.build import build_report, compare
 from edumatcher.valuation.tui.app import InterviewApp
+from edumatcher.valuation.tui.explain import explain_preview
 from edumatcher.valuation.tui.interview import Interview
 from edumatcher.valuation.tui.viewer import ReportViewer
 from edumatcher.valuation.tui.widgets import PickList
 from tests.test_valuation_resolve import AURORA
 
 PRESETS = load_presets()
-F1, F2, F3, F5, F9 = "\x1bOP", "\x1b[12~", "\x1b[13~", "\x1b[15~", "\x1b[20~"
+F1, F2, F3, F4, F5, F9 = (
+    "\x1bOP",
+    "\x1b[12~",
+    "\x1b[13~",
+    "\x1bOS",
+    "\x1b[15~",
+    "\x1b[20~",
+)
 PGDN, DOWN, ESC, CTRL_D = "\x1b[6~", "\x1b[B", "\x1b", "\x04"
 
 
@@ -198,6 +206,33 @@ def test_the_title_bar_carries_the_edumatcher_brand() -> None:
         assert title.startswith(f" EduMatcher   pm-valuation {package_version()}")
         assert "Newco AB (NEWC)" in title and "Level Beginner" in title
         assert app._body_title() == "1 Company"
+
+
+def test_f4_explains_the_live_preview_with_its_numbers() -> None:
+    from edumatcher.valuation.main import CASES
+    from edumatcher.valuation.scenario_io import load
+
+    interview = Interview(load(CASES.joinpath("tornfalk.yaml").read_text()), PRESETS)
+    entries = dict(explain_preview(interview.evaluation))
+    assert list(entries) == [
+        "Fair value  117.45",
+        "DCF  92.09",
+        "Comps  176.62",
+        "Range  94.50–105.00",
+        "Offer 105.00 at 11.9×",
+        "PROCEED",
+    ]
+    assert "70% × DCF 92.09 + 30% × comparables 176.62" in entries["Fair value  117.45"]
+    assert "the top of the range, the maximum price" in entries["Offer 105.00 at 11.9×"]
+    interview.set_text("customers.churn", "lots")
+    [(heading, _)] = explain_preview(interview.evaluation)
+    assert heading == "1 problem to fix"
+
+
+def test_f4_opens_and_closes_the_explanation() -> None:
+    interview = Interview({}, PRESETS)
+    app, result = drive(lambda: InterviewApp(interview), [F4, DOWN, PGDN, ESC, F5])
+    assert result == "calculate"
 
 
 def test_calculate_is_refused_while_a_field_is_invalid() -> None:

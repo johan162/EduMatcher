@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import textwrap
 from collections.abc import Callable, Sequence
 
 from prompt_toolkit.data_structures import Point
@@ -13,6 +14,7 @@ from prompt_toolkit.layout import (
     Dimension,
     FormattedTextControl,
     HSplit,
+    ScrollablePane,
     VSplit,
     Window,
 )
@@ -195,6 +197,61 @@ class TextPrompt:
 
         self.area.control.key_bindings = kb
         self.container: AnyContainer = Box(self.area, title)
+
+
+class ExplainPanel:
+    """A read-only panel of (heading, text) entries: ↑/↓ and PgUp/PgDn
+    scroll it, Esc or *key* closes it."""
+
+    WIDTH = 76  # text columns inside the box
+
+    def __init__(
+        self,
+        title: str,
+        entries: Sequence[tuple[str, str]],
+        on_close: Callable[[], None],
+        key: str,
+    ) -> None:
+        self.lines: StyleAndTextTuples = []
+        for heading, text in entries:
+            if self.lines:
+                self.lines.append(("", "\n"))
+            self.lines.append(("bold", f" {heading}\n"))
+            wrapped = textwrap.fill(text, self.WIDTH, break_on_hyphens=False)
+            self.lines += [("class:help", f" {line}\n") for line in wrapped.split("\n")]
+        kb = KeyBindings()
+
+        def scroll(by: int) -> None:
+            last = max(0, len(self.lines) - 1)
+            self.pane.vertical_scroll = min(
+                last, max(0, self.pane.vertical_scroll + by)
+            )
+
+        kb.add("up")(lambda event: scroll(-1))
+        kb.add("down")(lambda event: scroll(1))
+        kb.add("pageup")(lambda event: scroll(-10))
+        kb.add("pagedown")(lambda event: scroll(10))
+
+        @kb.add("escape", eager=True)
+        @kb.add(key)
+        def _close(event: KeyPressEvent) -> None:
+            on_close()
+
+        self.control = FormattedTextControl(
+            self.lines, focusable=True, key_bindings=kb, show_cursor=False
+        )
+        self.pane = ScrollablePane(
+            Window(self.control, height=len(self.lines)),
+            keep_cursor_visible=False,
+            keep_focused_window_visible=False,
+            height=Dimension(min=3, preferred=min(len(self.lines), 24), max=24),
+        )
+        self.container: AnyContainer = Box(
+            self.pane,
+            f"{title} (Esc to close)",
+            lambda: [("class:hint", " ↑↓ PgUp PgDn scroll ")],
+            width=self.WIDTH + 4,
+        )
 
 
 class GlossaryPanel:

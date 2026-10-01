@@ -961,7 +961,7 @@ around each area.
 │ 11 Management                  ││                                                            ││                      │
 │ 12 Simulation                  ││                                                            ││                      │
 │                                ││                                                           v││                      │
-╰────────────────────────────────╯╰─ F3 → Advanced: 1 more field here · 1 answer hidden ───────╯╰──────────────────────╯
+╰────────────────────────────────╯╰─ F3 → Advanced: 1 more field here · 1 answer hidden ───────╯╰─ F4 explain ─────────╯
 ╭─ Field description ──────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Annual churn — The share of customers lost each year. At 8% the average customer stays 1 / 0.08 = 12.5 years; at 35% │
 │ (typical for consumer apps) less than 3. Churn sets a customer's lifetime value, the profit it brings before         │
@@ -978,7 +978,9 @@ around each area.
 - **The form**, titled with the page: one field per row, your answer or the
   automatic value beside it. Its bottom border says what F3 adds on this page.
 - **Live preview:** fair value, the price range and the verdict, recalculated
-  as you type.
+  as you type. F4 explains each number with its current value: for example
+  that fair value is 70% of the DCF value plus 30% of the comparables value,
+  and why the offer price stopped where it did.
 - **Field description:** what the field in focus means, or what is wrong with
   its value.
 
@@ -1061,6 +1063,7 @@ F5 refuses to calculate while any field has a problem, and lists them.
 | F1 | Glossary, with a filter |
 | F2 | Review every value and its source |
 | F3 | Next level: Beginner → Intermediate → Advanced → Expert → Beginner. The form's bottom border says what it adds on this page |
+| F4 | Explain the live preview: what each number means and how it was reached, with today's values (↑ / ↓ scroll, Esc closes) |
 | F5 | Calculate and open the report |
 | F9 | Save the scenario |
 | Esc / Ctrl-Q | Quit; asks first if there are unsaved changes |

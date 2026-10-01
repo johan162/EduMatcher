@@ -1466,7 +1466,7 @@ At 120 columns (rows in between left out):
 │ 11 Management                  ││                                                            ││                      │
 │ 12 Simulation                  ││                                                            ││                      │
 │                                ││                                                           v││                      │
-╰────────────────────────────────╯╰─ F3 → Advanced: 1 more field here · 1 answer hidden ───────╯╰──────────────────────╯
+╰────────────────────────────────╯╰─ F3 → Advanced: 1 more field here · 1 answer hidden ───────╯╰─ F4 explain ─────────╯
 ╭─ Field description ──────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Annual churn — The share of customers lost each year. At 8% the average customer stays 1 / 0.08 = 12.5 years; at 35% │
 │ (typical for consumer apps) less than 3. Churn sets a customer's lifetime value, the profit it brings before         │
@@ -1486,6 +1486,7 @@ At 120 columns (rows in between left out):
 | F1 | Glossary (Appendix B), searchable |
 | F2 | Review page: every value with its source (✎ you / preset / derived / default) |
 | F3 | Next interview level: Beginner → Intermediate → Advanced → Expert → Beginner (§19.3) |
+| F4 | The live preview explained: each line with its current value and how it was reached (`tui/explain.py`); a scrollable panel, Esc closes. The preview box's bottom border says "F4 explain" |
 | F5 | Calculate and open the report |
 | F9 | Save the scenario to YAML |
 | Esc / Ctrl-Q | Quit; with unsaved changes a pick-list asks “No, keep working” / “Yes, quit without saving” |
