@@ -1016,6 +1016,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/045-new-symbol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Listing a New Symbol (IPO)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/046-valuation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IPO Valuation (pm-valuation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/051-gateway-intro/" class="md-nav__link">
         
   
@@ -3547,6 +3603,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../280-ipo-valuation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    28 — IPO Valuation (pm-valuation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -4502,7 +4586,7 @@ is compiled on your machine.</p>
 </tbody>
 </table>
 <p>Open the trading terminal. You should see order books with live quotes: the
-bundled <code>s3-basic</code> configuration seeds each symbol with a resting
+bundled <code>s10-basic</code> configuration seeds each symbol with a resting
 market-maker bid and ask the moment <code>pm-engine</code> starts, so there is a two-sided
 book before anyone has traded.</p>
 <div class="admonition note">
@@ -4628,14 +4712,14 @@ again before suspecting anything else.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pm-setup
 </code></pre></div>
 <p><code>pm-setup</code> creates the data directory, compiles a bundled example
-configuration (<code>s3-basic</code> unless you say otherwise) and installs it as the
+configuration (<code>s10-basic</code> unless you say otherwise) and installs it as the
 deployed artifact, then prints the one environment variable you need. The
 output looks like this — yours will show your own home directory and shell:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-setup — EduMatcher session initialisation
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>==================================================
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>  ✓ Created data directory:          /Users/you/.local/share/edumatcher
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    ✓ Example config 's3-basic' compiled to: /Users/you/.local/share/edumatcher/ref_data/engine_config.json
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    3 symbol(s) ready to trade.
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    ✓ Example config 's10-basic' compiled to: /Users/you/.local/share/edumatcher/ref_data/engine_config.json
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    10 symbol(s) ready to trade.
 <a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
 <a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>  Shell environment snippet — add to your shell profile:
 <a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>  (~/.zshrc)
@@ -4668,7 +4752,7 @@ host. Install Multipass from <a href="https://multipass.run/install">multipass.r
 verify it, then bootstrap:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>multipass<span class="w"> </span>version
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.43.1
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.44.0
 </code></pre></div>
 <p>If <code>multipass version</code> fails with <code>command not found</code>, the install did not
 complete or your shell has not picked up its PATH change yet — open a new
@@ -4851,7 +4935,7 @@ so updating does not discard your edits.</p>
 </tr>
 <tr>
 <td><code>EM_CONFIG</code></td>
-<td><code>s3-basic</code></td>
+<td><code>s10-basic</code></td>
 <td>Which bundled example the exchange deploys</td>
 </tr>
 <tr>

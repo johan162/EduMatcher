@@ -1016,6 +1016,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/045-new-symbol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Listing a New Symbol (IPO)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/046-valuation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IPO Valuation (pm-valuation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/051-gateway-intro/" class="md-nav__link">
         
   
@@ -3214,6 +3270,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/280-ipo-valuation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    28 — IPO Valuation (pm-valuation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -4990,7 +5074,7 @@ on this project, from a path in the <code>RUN</code> step that did not match the
 <tr>
 <td><code>PROFILE=&lt;name&gt;</code></td>
 <td><code>up</code>, <code>up-all</code></td>
-<td><code>default</code>, <code>mini</code> or <code>micro</code></td>
+<td><code>default</code>, <code>mini</code>, <code>micro</code> or <code>mm-demo</code></td>
 </tr>
 <tr>
 <td><code>ZMQ=1</code></td>
@@ -5049,7 +5133,7 @@ same extraction snippet — that logic lives in <code>edumatcher.sh</code> rathe
 continues and warns. The live CALF feed needs no key; only history does.</p>
 <h2 id="part-5-the-release-process">Part 5 — The release process<a class="headerlink" href="#part-5-the-release-process" title="Permanent link">&para;</a></h2>
 <p>One git tag produces a wheel and five multi-architecture images, all carrying
-the same version. That coupling is what lets <code>install.sh --version 0.43.1</code>
+the same version. That coupling is what lets <code>install.sh --version 0.44.0</code>
 pin an entire system with one number.</p>
 <pre class="mermaid"><code>flowchart TD
     MK["scripts/mkrelease.sh\nbump, build docs, commit, tag"]

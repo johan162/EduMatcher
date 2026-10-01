@@ -1019,6 +1019,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../045-new-symbol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Listing a New Symbol (IPO)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../046-valuation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IPO Valuation (pm-valuation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../051-gateway-intro/" class="md-nav__link">
         
   
@@ -4060,6 +4116,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/280-ipo-valuation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    28 — IPO Valuation (pm-valuation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -5036,6 +5120,10 @@ with underscores, unless <code>--label</code> overrides that segment directly:</
 </tr>
 </tbody>
 </table>
+<p><code>--all-symbols</code> defaults the label to <code>ALL</code>, giving <code>MM_ALL_01</code>, so the
+gateway entry in <code>engine_config.yaml</code> does not change when symbols are added
+to or removed from the configuration. <code>--label</code> and <code>--gateway-id</code> still
+override it.</p>
 <p><code>--label</code> exists because <code>MM_&lt;SYMBOL&gt;_&lt;nn&gt;</code> has no natural multi-symbol form
 once the symbol list grows — a five-symbol gateway ID built by joining every
 symbol is legal but unwieldy in logs and <code>pm-admin</code>. Pick a short label (e.g.
@@ -5290,6 +5378,10 @@ symbol:</p>
 <td><code>gateway.id_suffix</code></td>
 </tr>
 <tr>
+<td><code>--gateway-id</code></td>
+<td><code>gateway.gateway_id</code></td>
+</tr>
+<tr>
 <td><code>--engine-pull</code></td>
 <td><code>gateway.engine_pull</code></td>
 </tr>
@@ -5427,6 +5519,12 @@ version-control as a <a href="#config-file">config file</a>.</p>
 <td>Comma-separated symbols sharing one set of settings — mutually exclusive with <code>--symbol</code></td>
 </tr>
 <tr>
+<td><code>--all-symbols</code></td>
+<td><em>required¹</em></td>
+<td>off</td>
+<td>Quote every symbol in the currently deployed configuration, all with the same settings; gateway ID defaults to <code>MM_ALL_&lt;nn&gt;</code>. Mutually exclusive with <code>--symbol</code>, <code>--symbols</code> and a config-file <code>symbols:</code> block</td>
+</tr>
+<tr>
 <td><code>--label NAME</code></td>
 <td>gateway</td>
 <td><em>derived</em></td>
@@ -5437,6 +5535,12 @@ version-control as a <a href="#config-file">config file</a>.</p>
 <td>gateway</td>
 <td><code>01</code></td>
 <td>Running number for gateway ID (<code>MM_AAPL_01</code>)</td>
+</tr>
+<tr>
+<td><code>--gateway-id ID</code></td>
+<td>gateway</td>
+<td><em>derived</em></td>
+<td>Use this exact gateway ID (e.g. <code>MM01</code>) instead of <code>MM_&lt;label&gt;_&lt;id-suffix&gt;</code>; it must be a <code>MARKET_MAKER</code> gateway in the engine config</td>
 </tr>
 <tr>
 <td><code>--engine-pull ADDR</code></td>
@@ -5593,6 +5697,12 @@ version-control as a <a href="#config-file">config file</a>.</p>
 <p>¹ At least one symbol is required, from <code>--symbol</code>, <code>--symbols</code>, or the
 config file's <code>symbols:</code> block. Giving both <code>--symbol</code> and <code>--symbols</code>, or
 neither, is a startup usage error.</p>
+<p><code>--all-symbols</code> reads the symbol list from the deployed compiled configuration
+(the one <code>pm-config-deploy</code> installs) when the bot starts, so the bot must run
+with the same data directory as the exchange. It exits with a usage error if
+nothing is deployed. Tuning flags and a config file's <code>gateway:</code>/<code>defaults:</code>
+blocks apply to every symbol; a config file used with <code>--all-symbols</code> may omit
+<code>symbols:</code> but must not name any.</p>
 <hr />
 <h2 id="config-file">Config file<a class="headerlink" href="#config-file" title="Permanent link">&para;</a></h2>
 <p><code>--config &lt;path&gt;</code> reads a YAML file. It is the recommended way to configure
@@ -5721,6 +5831,12 @@ a mapping of empty blocks:</p>
 <td>string</td>
 <td><code>"01"</code></td>
 <td><strong>Quote it</strong> — unquoted <code>01</code> is the number <code>1</code> to YAML, and is rejected</td>
+</tr>
+<tr>
+<td><code>gateway_id</code></td>
+<td>string</td>
+<td>derived</td>
+<td>Exact gateway ID; when set, <code>label</code> and <code>id_suffix</code> are ignored</td>
 </tr>
 <tr>
 <td><code>engine_pull</code></td>

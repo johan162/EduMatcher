@@ -1365,6 +1365,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../045-new-symbol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Listing a New Symbol (IPO)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../046-valuation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IPO Valuation (pm-valuation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../051-gateway-intro/" class="md-nav__link">
         
   
@@ -3563,6 +3619,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/280-ipo-valuation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    28 — IPO Valuation (pm-valuation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -4590,7 +4674,7 @@ Use regular Docker/Podman command to open a shell in the conainer or use the sho
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>mkdir<span class="w"> </span>edumatcher-session<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>edumatcher-session
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>pm-setup
 </code></pre></div>
-<p>The <code>pm-setup</code> command will create a new data-directory and install a default example engine-config file with three symbols.</p>
+<p>The <code>pm-setup</code> command will create a new data-directory and install a default example engine-config file with ten symbols.</p>
 <p>Here you start each process yourself. That is slower, but it is the better way
 to <em>learn</em> the system: you see what each process does, and what breaks when one
 is missing. Starting the system should be done in a particular order for a smooth experience. For example, the engine
@@ -4797,8 +4881,8 @@ the container instead of two on your host:</p>
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w">        </span><span class="c1"># in each of two terminals</span>
 </code></pre></div>
 <p>Then run the <code>pm-alf-console</code> commands below in those. The container's
-default configuration is <code>s3-basic</code>, which has the same symbols
-(<code>AAPL</code>, <code>MSFT</code>, <code>TSLA</code>) and the same gateways (<code>TRADER01</code>, <code>TRADER02</code>,
+default configuration is <code>s10-basic</code>, which includes the same symbols
+(<code>AAPL</code>, <code>MSFT</code>, <code>TSLA</code>, and seven more) and the same gateways (<code>TRADER01</code>, <code>TRADER02</code>,
 <code>OPS01</code>, <code>MM01</code>) as the <code>pm-setup</code> sample, so every command below works
 unchanged. <code>pm-config-show</code> prints what is actually deployed if you want to
 confirm. You can also watch the trade land in the browser terminal on
@@ -4945,7 +5029,7 @@ the trading terminal you will also need to authenticate with an API key that was
 when you want exact command-line flags and startup dependencies.</p>
 <p>Once you know which processes you want, you do not have to start them one at a
 time forever. <code>pm-opctl-cli start</code> brings up a whole named profile — <code>micro</code>,
-<code>mini</code> or <code>default</code> — writes each process's log to a file, and reports the lot
+<code>mini</code>, <code>default</code> or <code>mm-demo</code> — writes each process's log to a file, and reports the lot
 with <code>pm-opctl-cli list</code>. It is what the container runs internally, and it works
 the same on the host. See
 <a href="../040-running-the-exchange/#starting-the-stack-with-pm-opctl-cli">Running the Exchange</a>.</p>

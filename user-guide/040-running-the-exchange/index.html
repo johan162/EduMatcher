@@ -18,7 +18,7 @@
         <link rel="prev" href="../030-config-GUI/">
       
       
-        <link rel="next" href="../051-gateway-intro/">
+        <link rel="next" href="../045-new-symbol/">
       
       
         
@@ -1196,10 +1196,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#the-three-built-in-profiles" class="md-nav__link">
+  <a href="#the-four-built-in-profiles" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The three built-in profiles
+        The four built-in profiles
       
     </span>
   </a>
@@ -1768,6 +1768,62 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../045-new-symbol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Listing a New Symbol (IPO)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../046-valuation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IPO Valuation (pm-valuation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -3978,6 +4034,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/280-ipo-valuation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    28 — IPO Valuation (pm-valuation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -5168,7 +5252,7 @@ on the host — and it is what the container itself runs internally.</p>
 </code></pre></div>
 <p><code>start</code> is idempotent: a process it finds already running is left alone and
 reported as such, so it is safe to re-run after adding one by hand.</p>
-<h3 id="the-three-built-in-profiles">The three built-in profiles<a class="headerlink" href="#the-three-built-in-profiles" title="Permanent link">&para;</a></h3>
+<h3 id="the-four-built-in-profiles">The four built-in profiles<a class="headerlink" href="#the-four-built-in-profiles" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -5193,10 +5277,15 @@ reported as such, so it is safe to re-run after adding one by hand.</p>
 <td><code>mini</code> plus <code>pm-audit</code>, <code>pm-clearing</code>, <code>pm-index</code>, <code>pm-balf-gwy</code> and the second <code>pm-api-gwy</code> instance (<code>dashboards</code>)</td>
 <td>Everything — the operational baseline below</td>
 </tr>
+<tr>
+<td><code>mm-demo</code></td>
+<td><code>default</code> plus one <code>pm-mm-bot</code> (<code>passive</code> strategy, gateway <code>MM01</code>, every symbol of the deployed configuration)</td>
+<td>Showing students a market maker at work; the default of the <code>deployment/curl</code> installer</td>
+</tr>
 </tbody>
 </table>
 <p>The built-ins are used as they are when no configuration file exists.
-<code>pm-opctl-cli init</code> writes all three to <code>&lt;DATA_DIR&gt;/emo-config.yaml</code>, and once
+<code>pm-opctl-cli init</code> writes all four to <code>&lt;DATA_DIR&gt;/emo-config.yaml</code>, and once
 that file exists <strong>its profiles replace the built-ins entirely</strong>. That is the
 supported way to add a process, change a flag or define a profile of your own.</p>
 <p>Each entry in a profile is a <code>name</code>, a <code>command</code>, and optionally a

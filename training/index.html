@@ -1016,6 +1016,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../user-guide/045-new-symbol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Listing a New Symbol (IPO)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/046-valuation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IPO Valuation (pm-valuation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../user-guide/051-gateway-intro/" class="md-nav__link">
         
   
@@ -3420,6 +3476,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="280-ipo-valuation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    28 — IPO Valuation (pm-valuation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -4209,9 +4293,9 @@ reading <a href="../how-exchange-works/">How an Exchange Works</a>, a non-techni
 introduction to the core components and data flows in an exchange. It will
 make the training exercises more intuitive and meaningful.</p>
 <h2 id="how-to-use-this-guide">How to Use This Guide<a class="headerlink" href="#how-to-use-this-guide" title="Permanent link">&para;</a></h2>
-<p>The 28 chapters (00–27) are <strong>one continuous sequence, not independent
+<p>The 29 chapters (00–28) are <strong>one continuous sequence, not independent
 modules</strong>. Every chapter's own "Prerequisites" section names the chapters it
-needs, and in every case but one that is simply "everything before it." There
+needs, and in every case but two that is simply "everything before it." There
 is no reordering the sequence — if you only need part of what the exchange
 does, the right move is to work through it from chapter 00 and stop when
 you've covered what you need, not to skip ahead. <a href="#choose-your-path">Choose Your Path</a>
@@ -4276,7 +4360,7 @@ a <code>BOOK</code> typed into a trader console just answers <code>Unknown comma
   if it fails, the next exercise will not behave as described.</li>
 </ul>
 <h2 id="choose-your-path">Choose Your Path<a class="headerlink" href="#choose-your-path" title="Permanent link">&para;</a></h2>
-<p>You do not have to complete all 28 chapters in one sitting. Because each
+<p>You do not have to complete all 29 chapters in one sitting. Because each
 chapter only assumes the ones before it, picking a goal below just means
 working through the sequence from chapter 00 and stopping where shown —
 everything up to that point is genuine prerequisite for what follows, so
@@ -4292,7 +4376,7 @@ skipping ahead is not a shortcut, it just means an exercise stops working.</p>
     Operator --&gt; O1["Chapters 00 → 19"]
     O1 --&gt; ODone(["Liquidity, risk\ncontrols, P&amp;L, a full\nsession, admin tools"])
 
-    Everything --&gt; E1["Chapters 00 → 27\nin order"]
+    Everything --&gt; E1["Chapters 00 → 28\nin order"]
     E1 --&gt; EDone(["Everything above, plus\nALF, BALF, CALF, RALF,\nREST/WebSocket, and\nthe market index"])
 
     style Start fill:#4a5568,stroke:#2d3748,color:#fff
@@ -4320,15 +4404,17 @@ skipping ahead is not a shortcut, it just means an exercise stops working.</p>
 </tr>
 <tr>
 <td><strong>Cover everything, including external protocols</strong> — bots and systems that talk to the exchange over ALF, BALF, CALF, RALF, REST, or WebSocket</td>
-<td>00–27</td>
+<td>00–28</td>
 <td>The full training programme</td>
 </tr>
 </tbody>
 </table>
-<p>There is one shortcut worth knowing about: <a href="#part-5-external-connectivity-integration-track">chapter 25</a>
+<p>There are two shortcuts worth knowing about: <a href="#part-5-external-connectivity-integration-track">chapter 25</a>
 (the market index) only needs chapters 00–03, so if all you want is
 <code>pm-index</code>, you can jump to it early instead of working through the whole
-sequence — see the note at the end of Part 5.</p>
+sequence — see the note at the end of Part 5. And
+<a href="#part-4-operating-the-exchange">chapter 28</a> (IPO valuation) needs only
+chapter 00 for its first six exercises; the last one also needs 00–03 and 07.</p>
 <h2 id="training-plan">Training Plan<a class="headerlink" href="#training-plan" title="Permanent link">&para;</a></h2>
 <p>The chapter numbers below are the order to work through them in — they are
 grouped into five parts purely so you can find a topic quickly by browsing,
@@ -4345,6 +4431,7 @@ across the real sequence, interleaved with other parts.</p>
         g4c --&gt; g5a["20\nExternal"]
         g5a --&gt; g3b["21\nLiquidity"]
         g3b --&gt; g5b["22–27\nExternal"]
+        g5b --&gt; g4d["28\nOperating"]
     end</code></pre>
 <p>Each row links to the lesson. The last column is the user-guide reading that
 backs it — skim it before the chapter, or use it afterwards as the reference.</p>
@@ -4518,6 +4605,12 @@ backs it — skim it before the chapter, or use it afterwards as the reference.<
 <td>Use <code>KICK</code>, <code>QCANCEL</code>, <code>CANCEL_SYM</code> and manual session overrides</td>
 <td><a href="../user-guide/160-exchange-commands/">Exchange Commands</a></td>
 </tr>
+<tr>
+<td>28</td>
+<td><a href="280-ipo-valuation/">IPO Valuation</a></td>
+<td>Price an IPO, then list it and let the opening auction judge the price</td>
+<td><a href="../user-guide/046-valuation/">IPO Valuation</a>, <a href="../user-guide/045-new-symbol/">Listing a New Symbol</a></td>
+</tr>
 </tbody>
 </table>
 <h3 id="part-5-external-connectivity-integration-track">Part 5 — External connectivity (integration track)<a class="headerlink" href="#part-5-external-connectivity-integration-track" title="Permanent link">&para;</a></h3>
@@ -4584,14 +4677,16 @@ wire protocols and APIs.</p>
 </tbody>
 </table>
 <div class="admonition note">
-<p class="admonition-title">Chapter 25 is the one chapter you can take out of order</p>
+<p class="admonition-title">Chapter 25 can be taken out of order</p>
 <p>Every chapter above requires all chapters before it — except chapter 25
 (Market Index), which only needs chapters 00–03. Its natural reading
 partner is <a href="150-statistics-reporting/">Statistics &amp; Reporting</a>
 (chapter 15) — <code>pm-index</code> history is queried the same way. It is
 numbered 25 because that is where it was written, between the API
 Gateway and ALF Gateway chapters; treat the number as an ordering
-convenience, not a dependency on chapters 04–24.</p>
+convenience, not a dependency on chapters 04–24.
+Chapter 28 (IPO Valuation) is the other exception: see its
+Prerequisites.</p>
 </div>
 <h2 id="quick-reference">Quick Reference<a class="headerlink" href="#quick-reference" title="Permanent link">&para;</a></h2>
 <p>After completing the training, use the <a href="../user-guide/000-getting-started/">User Guide</a>

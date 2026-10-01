@@ -12,27 +12,31 @@
         <meta name="author" content="Johan Persson <johan162@gmail.com>">
       
       
-        <link rel="canonical" href="https://github.com/johan162/EduMatcher/examples/ref_data/s150-basic-setup/">
+        <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/045-new-symbol/">
       
       
+        <link rel="prev" href="../040-running-the-exchange/">
+      
+      
+        <link rel="next" href="../046-valuation/">
       
       
         
       
       
-      <link rel="icon" href="../../../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
-        <title>150-Symbol Basic Setup - EduMatcher — Educational Trading System</title>
+        <title>Listing a New Symbol (IPO) - EduMatcher — Educational Trading System</title>
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
-        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -51,9 +55,9 @@
       
     
     
-      <link rel="stylesheet" href="../../../stylesheets/tables.css">
+      <link rel="stylesheet" href="../../stylesheets/tables.css">
     
-    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -78,7 +82,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#150-symbol-basic-setup" class="md-skip">
+        <a href="#listing-a-new-symbol-pm-new-symbol" class="md-skip">
           Skip to content
         </a>
       
@@ -92,7 +96,7 @@
 
 <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../../.." title="EduMatcher — Educational Trading System" class="md-header__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-header__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -112,7 +116,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              150-Symbol Basic Setup
+              Listing a New Symbol (IPO)
             
           </span>
         </div>
@@ -225,7 +229,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../../.." class="md-tabs__link">
+      <a href="../.." class="md-tabs__link">
         
   
   
@@ -244,7 +248,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../../../how-exchange-works/" class="md-tabs__link">
+      <a href="../../how-exchange-works/" class="md-tabs__link">
         
   
   
@@ -265,7 +269,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../concepts/01-concepts-order-book/" class="md-tabs__link">
+        <a href="../../concepts/01-concepts-order-book/" class="md-tabs__link">
           
   
   
@@ -281,11 +285,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../../user-guide/000-getting-started/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../000-getting-started/" class="md-tabs__link">
           
   
   
@@ -305,7 +311,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../training/" class="md-tabs__link">
+        <a href="../../training/" class="md-tabs__link">
           
   
   
@@ -325,7 +331,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../architecture/01-architecture/" class="md-tabs__link">
+        <a href="../../architecture/01-architecture/" class="md-tabs__link">
           
   
   
@@ -345,7 +351,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../developer/01-dev-practice/" class="md-tabs__link">
+        <a href="../../developer/01-dev-practice/" class="md-tabs__link">
           
   
   
@@ -363,7 +369,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../../../glossary/" class="md-tabs__link">
+      <a href="../../glossary/" class="md-tabs__link">
         
   
   
@@ -382,7 +388,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../../../faq/" class="md-tabs__link">
+      <a href="../../faq/" class="md-tabs__link">
         
   
   
@@ -419,7 +425,7 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../../.." title="EduMatcher — Educational Trading System" class="md-nav__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-nav__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -449,7 +455,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../.." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -476,7 +482,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../how-exchange-works/" class="md-nav__link">
+      <a href="../../how-exchange-works/" class="md-nav__link">
         
   
   
@@ -557,7 +563,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../concepts/01-concepts-order-book/" class="md-nav__link">
+      <a href="../../concepts/01-concepts-order-book/" class="md-nav__link">
         
   
   
@@ -585,7 +591,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../concepts/02-concepts-order-book-deep-dive/" class="md-nav__link">
+      <a href="../../concepts/02-concepts-order-book-deep-dive/" class="md-nav__link">
         
   
   
@@ -613,7 +619,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../concepts/03-concepts-mm-quotes/" class="md-nav__link">
+      <a href="../../concepts/03-concepts-mm-quotes/" class="md-nav__link">
         
   
   
@@ -641,7 +647,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../concepts/04-concepts-first-trade/" class="md-nav__link">
+      <a href="../../concepts/04-concepts-first-trade/" class="md-nav__link">
         
   
   
@@ -669,7 +675,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../concepts/05-concepts-trading-day/" class="md-nav__link">
+      <a href="../../concepts/05-concepts-trading-day/" class="md-nav__link">
         
   
   
@@ -697,7 +703,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../concepts/06-concepts-market-data-feed/" class="md-nav__link">
+      <a href="../../concepts/06-concepts-market-data-feed/" class="md-nav__link">
         
   
   
@@ -725,7 +731,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../concepts/07-concepts-implied-orders/" class="md-nav__link">
+      <a href="../../concepts/07-concepts-implied-orders/" class="md-nav__link">
         
   
   
@@ -757,28 +763,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
-        
-          
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
             
   
   
@@ -796,7 +805,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -814,7 +823,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/000-getting-started/" class="md-nav__link">
+      <a href="../000-getting-started/" class="md-nav__link">
         
   
   
@@ -842,7 +851,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/001-learning-path/" class="md-nav__link">
+      <a href="../001-learning-path/" class="md-nav__link">
         
   
   
@@ -870,7 +879,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/005-installation/" class="md-nav__link">
+      <a href="../005-installation/" class="md-nav__link">
         
   
   
@@ -898,7 +907,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/010-configuration/" class="md-nav__link">
+      <a href="../010-configuration/" class="md-nav__link">
         
   
   
@@ -926,7 +935,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/020-config-verifier/" class="md-nav__link">
+      <a href="../020-config-verifier/" class="md-nav__link">
         
   
   
@@ -954,7 +963,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/030-config-GUI/" class="md-nav__link">
+      <a href="../030-config-GUI/" class="md-nav__link">
         
   
   
@@ -982,7 +991,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/040-running-the-exchange/" class="md-nav__link">
+      <a href="../040-running-the-exchange/" class="md-nav__link">
         
   
   
@@ -1007,10 +1016,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../../user-guide/045-new-symbol/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Listing a New Symbol (IPO)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1026,6 +1062,186 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-an-ipo-is-and-what-the-exchange-does" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What an IPO is, and what the exchange does
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick start
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-command-does" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the command does
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#which-file-is-edited" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which file is edited
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-ipo-price" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The IPO price
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-seed-quote" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The seed quote
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The seed quote">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#when-one-is-written" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When one is written
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-it-is-priced" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it is priced
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#optional-sections-field" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Optional sections: --field
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#symbol-names" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Symbol names
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-it-refused" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why it refused
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-ipo-day-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The IPO-day checklist
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-to-go-next" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where to go next
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1038,7 +1254,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/046-valuation/" class="md-nav__link">
+      <a href="../046-valuation/" class="md-nav__link">
         
   
   
@@ -1066,7 +1282,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/051-gateway-intro/" class="md-nav__link">
+      <a href="../051-gateway-intro/" class="md-nav__link">
         
   
   
@@ -1094,7 +1310,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/055-alf-console/" class="md-nav__link">
+      <a href="../055-alf-console/" class="md-nav__link">
         
   
   
@@ -1122,7 +1338,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/060-order-types/" class="md-nav__link">
+      <a href="../060-order-types/" class="md-nav__link">
         
   
   
@@ -1150,7 +1366,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/070-combo-orders/" class="md-nav__link">
+      <a href="../070-combo-orders/" class="md-nav__link">
         
   
   
@@ -1178,7 +1394,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/080-session-scheduling/" class="md-nav__link">
+      <a href="../080-session-scheduling/" class="md-nav__link">
         
   
   
@@ -1206,7 +1422,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/090-market-maker/" class="md-nav__link">
+      <a href="../090-market-maker/" class="md-nav__link">
         
   
   
@@ -1234,7 +1450,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/100-mm-bot/" class="md-nav__link">
+      <a href="../100-mm-bot/" class="md-nav__link">
         
   
   
@@ -1262,7 +1478,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/110-ai-traders/" class="md-nav__link">
+      <a href="../110-ai-traders/" class="md-nav__link">
         
   
   
@@ -1290,7 +1506,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/120-risk-controls/" class="md-nav__link">
+      <a href="../120-risk-controls/" class="md-nav__link">
         
   
   
@@ -1318,7 +1534,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/130-pnl-clearing/" class="md-nav__link">
+      <a href="../130-pnl-clearing/" class="md-nav__link">
         
   
   
@@ -1346,7 +1562,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/140-statistics-and-reporting/" class="md-nav__link">
+      <a href="../140-statistics-and-reporting/" class="md-nav__link">
         
   
   
@@ -1374,7 +1590,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/150-market-index/" class="md-nav__link">
+      <a href="../150-market-index/" class="md-nav__link">
         
   
   
@@ -1402,7 +1618,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/152-index-admin-cli/" class="md-nav__link">
+      <a href="../152-index-admin-cli/" class="md-nav__link">
         
   
   
@@ -1430,7 +1646,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/160-exchange-commands/" class="md-nav__link">
+      <a href="../160-exchange-commands/" class="md-nav__link">
         
   
   
@@ -1458,7 +1674,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/170-processes/" class="md-nav__link">
+      <a href="../170-processes/" class="md-nav__link">
         
   
   
@@ -1486,7 +1702,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/180-persistence/" class="md-nav__link">
+      <a href="../180-persistence/" class="md-nav__link">
         
   
   
@@ -1514,7 +1730,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/190-audit/" class="md-nav__link">
+      <a href="../190-audit/" class="md-nav__link">
         
   
   
@@ -1542,7 +1758,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/200-drop-copy/" class="md-nav__link">
+      <a href="../200-drop-copy/" class="md-nav__link">
         
   
   
@@ -1570,7 +1786,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/201-dc-gateway/" class="md-nav__link">
+      <a href="../201-dc-gateway/" class="md-nav__link">
         
   
   
@@ -1598,7 +1814,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/202-dc-spy-cli/" class="md-nav__link">
+      <a href="../202-dc-spy-cli/" class="md-nav__link">
         
   
   
@@ -1626,7 +1842,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/210-protocols-overview/" class="md-nav__link">
+      <a href="../210-protocols-overview/" class="md-nav__link">
         
   
   
@@ -1654,7 +1870,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/220-alf-gateway/" class="md-nav__link">
+      <a href="../220-alf-gateway/" class="md-nav__link">
         
   
   
@@ -1682,7 +1898,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/230-balf-gateway/" class="md-nav__link">
+      <a href="../230-balf-gateway/" class="md-nav__link">
         
   
   
@@ -1710,7 +1926,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/240-calf-gateway/" class="md-nav__link">
+      <a href="../240-calf-gateway/" class="md-nav__link">
         
   
   
@@ -1738,7 +1954,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/241-calf-spy-cli/" class="md-nav__link">
+      <a href="../241-calf-spy-cli/" class="md-nav__link">
         
   
   
@@ -1766,7 +1982,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/250-ralf-gateway/" class="md-nav__link">
+      <a href="../250-ralf-gateway/" class="md-nav__link">
         
   
   
@@ -1794,7 +2010,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/251-ralf-spy-cli/" class="md-nav__link">
+      <a href="../251-ralf-spy-cli/" class="md-nav__link">
         
   
   
@@ -1822,7 +2038,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/260-api-gateway/" class="md-nav__link">
+      <a href="../260-api-gateway/" class="md-nav__link">
         
   
   
@@ -1850,7 +2066,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/270-message-reference/" class="md-nav__link">
+      <a href="../270-message-reference/" class="md-nav__link">
         
   
   
@@ -1878,7 +2094,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/280-log-srv/" class="md-nav__link">
+      <a href="../280-log-srv/" class="md-nav__link">
         
   
   
@@ -1906,7 +2122,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/285-log-srv-gui/" class="md-nav__link">
+      <a href="../285-log-srv-gui/" class="md-nav__link">
         
   
   
@@ -1934,7 +2150,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/290-trader-info-terminal/" class="md-nav__link">
+      <a href="../290-trader-info-terminal/" class="md-nav__link">
         
   
   
@@ -1962,7 +2178,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/300-trader-gui/" class="md-nav__link">
+      <a href="../300-trader-gui/" class="md-nav__link">
         
   
   
@@ -1990,7 +2206,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/310-book-gui/" class="md-nav__link">
+      <a href="../310-book-gui/" class="md-nav__link">
         
   
   
@@ -2018,7 +2234,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/800-examples/" class="md-nav__link">
+      <a href="../800-examples/" class="md-nav__link">
         
   
   
@@ -2046,7 +2262,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/810-example-configs/" class="md-nav__link">
+      <a href="../810-example-configs/" class="md-nav__link">
         
   
   
@@ -2074,7 +2290,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/820-audit-replay/" class="md-nav__link">
+      <a href="../820-audit-replay/" class="md-nav__link">
         
   
   
@@ -2102,7 +2318,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/890-known-limitations-bugs/" class="md-nav__link">
+      <a href="../890-known-limitations-bugs/" class="md-nav__link">
         
   
   
@@ -2130,7 +2346,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/900-app-alf-protocol/" class="md-nav__link">
+      <a href="../900-app-alf-protocol/" class="md-nav__link">
         
   
   
@@ -2158,7 +2374,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/910-app-balf-protocol/" class="md-nav__link">
+      <a href="../910-app-balf-protocol/" class="md-nav__link">
         
   
   
@@ -2186,7 +2402,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/920-app-calf-protocol/" class="md-nav__link">
+      <a href="../920-app-calf-protocol/" class="md-nav__link">
         
   
   
@@ -2214,7 +2430,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/930-app-ralf-protocol/" class="md-nav__link">
+      <a href="../930-app-ralf-protocol/" class="md-nav__link">
         
   
   
@@ -2242,7 +2458,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/940-app-lalf-protocol/" class="md-nav__link">
+      <a href="../940-app-lalf-protocol/" class="md-nav__link">
         
   
   
@@ -2270,7 +2486,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/950-app-REST-API-reference/" class="md-nav__link">
+      <a href="../950-app-REST-API-reference/" class="md-nav__link">
         
   
   
@@ -2298,7 +2514,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/990-app-config-spec/" class="md-nav__link">
+      <a href="../990-app-config-spec/" class="md-nav__link">
         
   
   
@@ -2387,7 +2603,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/" class="md-nav__link">
+      <a href="../../training/" class="md-nav__link">
         
   
   
@@ -2469,7 +2685,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/000-installation/" class="md-nav__link">
+      <a href="../../training/000-installation/" class="md-nav__link">
         
   
   
@@ -2497,7 +2713,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/010-configuring-startup/" class="md-nav__link">
+      <a href="../../training/010-configuring-startup/" class="md-nav__link">
         
   
   
@@ -2525,7 +2741,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/020-setting-up-MM-bots/" class="md-nav__link">
+      <a href="../../training/020-setting-up-MM-bots/" class="md-nav__link">
         
   
   
@@ -2553,7 +2769,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/030-the-first-trade/" class="md-nav__link">
+      <a href="../../training/030-the-first-trade/" class="md-nav__link">
         
   
   
@@ -2581,7 +2797,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/180-exchange-observer-processes/" class="md-nav__link">
+      <a href="../../training/180-exchange-observer-processes/" class="md-nav__link">
         
   
   
@@ -2671,7 +2887,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/040-amending-orders/" class="md-nav__link">
+      <a href="../../training/040-amending-orders/" class="md-nav__link">
         
   
   
@@ -2699,7 +2915,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/080-cancelling-orders/" class="md-nav__link">
+      <a href="../../training/080-cancelling-orders/" class="md-nav__link">
         
   
   
@@ -2727,7 +2943,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/050-order-types/" class="md-nav__link">
+      <a href="../../training/050-order-types/" class="md-nav__link">
         
   
   
@@ -2755,7 +2971,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/060-time-in-force-sessions/" class="md-nav__link">
+      <a href="../../training/060-time-in-force-sessions/" class="md-nav__link">
         
   
   
@@ -2783,7 +2999,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/070-auctions/" class="md-nav__link">
+      <a href="../../training/070-auctions/" class="md-nav__link">
         
   
   
@@ -2811,7 +3027,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/100-combo-orders/" class="md-nav__link">
+      <a href="../../training/100-combo-orders/" class="md-nav__link">
         
   
   
@@ -2839,7 +3055,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/250-index/" class="md-nav__link">
+      <a href="../../training/250-index/" class="md-nav__link">
         
   
   
@@ -2929,7 +3145,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/090-market-making/" class="md-nav__link">
+      <a href="../../training/090-market-making/" class="md-nav__link">
         
   
   
@@ -2957,7 +3173,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/140-ai-traders/" class="md-nav__link">
+      <a href="../../training/140-ai-traders/" class="md-nav__link">
         
   
   
@@ -2985,7 +3201,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/210-automation-commandclient-mm-bot/" class="md-nav__link">
+      <a href="../../training/210-automation-commandclient-mm-bot/" class="md-nav__link">
         
   
   
@@ -3075,7 +3291,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/110-risk-controls/" class="md-nav__link">
+      <a href="../../training/110-risk-controls/" class="md-nav__link">
         
   
   
@@ -3103,7 +3319,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/190-advanced-admin-operations/" class="md-nav__link">
+      <a href="../../training/190-advanced-admin-operations/" class="md-nav__link">
         
   
   
@@ -3131,7 +3347,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/120-pnl-clearing/" class="md-nav__link">
+      <a href="../../training/120-pnl-clearing/" class="md-nav__link">
         
   
   
@@ -3159,7 +3375,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/150-statistics-reporting/" class="md-nav__link">
+      <a href="../../training/150-statistics-reporting/" class="md-nav__link">
         
   
   
@@ -3187,7 +3403,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/250-index/" class="md-nav__link">
+      <a href="../../training/250-index/" class="md-nav__link">
         
   
   
@@ -3215,7 +3431,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/160-persistence-recovery/" class="md-nav__link">
+      <a href="../../training/160-persistence-recovery/" class="md-nav__link">
         
   
   
@@ -3243,7 +3459,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/170-capstone-scenario/" class="md-nav__link">
+      <a href="../../training/170-capstone-scenario/" class="md-nav__link">
         
   
   
@@ -3271,7 +3487,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/280-ipo-valuation/" class="md-nav__link">
+      <a href="../../training/280-ipo-valuation/" class="md-nav__link">
         
   
   
@@ -3361,7 +3577,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/130-market-data-drop-copy/" class="md-nav__link">
+      <a href="../../training/130-market-data-drop-copy/" class="md-nav__link">
         
   
   
@@ -3389,7 +3605,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/200-drop-copy-replay-recovery/" class="md-nav__link">
+      <a href="../../training/200-drop-copy-replay-recovery/" class="md-nav__link">
         
   
   
@@ -3417,7 +3633,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/260-alf-gwy/" class="md-nav__link">
+      <a href="../../training/260-alf-gwy/" class="md-nav__link">
         
   
   
@@ -3445,7 +3661,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/270-balf-gwy/" class="md-nav__link">
+      <a href="../../training/270-balf-gwy/" class="md-nav__link">
         
   
   
@@ -3473,7 +3689,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/230-calf/" class="md-nav__link">
+      <a href="../../training/230-calf/" class="md-nav__link">
         
   
   
@@ -3501,7 +3717,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/220-ralf/" class="md-nav__link">
+      <a href="../../training/220-ralf/" class="md-nav__link">
         
   
   
@@ -3529,7 +3745,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../training/240-api-gwy/" class="md-nav__link">
+      <a href="../../training/240-api-gwy/" class="md-nav__link">
         
   
   
@@ -3626,7 +3842,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../architecture/01-architecture/" class="md-nav__link">
+      <a href="../../architecture/01-architecture/" class="md-nav__link">
         
   
   
@@ -3654,7 +3870,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../architecture/02-architecture-guide/" class="md-nav__link">
+      <a href="../../architecture/02-architecture-guide/" class="md-nav__link">
         
   
   
@@ -3743,7 +3959,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../developer/01-dev-practice/" class="md-nav__link">
+      <a href="../../developer/01-dev-practice/" class="md-nav__link">
         
   
   
@@ -3771,7 +3987,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../developer/02-ai-bot/" class="md-nav__link">
+      <a href="../../developer/02-ai-bot/" class="md-nav__link">
         
   
   
@@ -3799,7 +4015,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../developer/03-experiments/" class="md-nav__link">
+      <a href="../../developer/03-experiments/" class="md-nav__link">
         
   
   
@@ -3827,7 +4043,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../developer/04-verification/" class="md-nav__link">
+      <a href="../../developer/04-verification/" class="md-nav__link">
         
   
   
@@ -3855,7 +4071,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../developer/05-vm-runtime-image/" class="md-nav__link">
+      <a href="../../developer/05-vm-runtime-image/" class="md-nav__link">
         
   
   
@@ -3883,7 +4099,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../developer/06-msgen/" class="md-nav__link">
+      <a href="../../developer/06-msgen/" class="md-nav__link">
         
   
   
@@ -3911,7 +4127,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../developer/07-container-and-networks/" class="md-nav__link">
+      <a href="../../developer/07-container-and-networks/" class="md-nav__link">
         
   
   
@@ -3939,7 +4155,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../developer/08-dev-workflow/" class="md-nav__link">
+      <a href="../../developer/08-dev-workflow/" class="md-nav__link">
         
   
   
@@ -3967,7 +4183,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../developer/09-order-flow-engine/" class="md-nav__link">
+      <a href="../../developer/09-order-flow-engine/" class="md-nav__link">
         
   
   
@@ -4002,7 +4218,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../glossary/" class="md-nav__link">
+      <a href="../../glossary/" class="md-nav__link">
         
   
   
@@ -4029,7 +4245,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../faq/" class="md-nav__link">
+      <a href="../../faq/" class="md-nav__link">
         
   
   
@@ -4069,12 +4285,441 @@
   
 
 
-<h1 id="150-symbol-basic-setup">150-Symbol Basic Setup<a class="headerlink" href="#150-symbol-basic-setup" title="Permanent link">&para;</a></h1>
-<p>This folder contains a generated reference configuration for a 150-symbol <strong>basic</strong> environment with seeded market-maker quotes.</p>
+<h1 id="listing-a-new-symbol-pm-new-symbol">Listing a New Symbol (<code>pm-new-symbol</code>)<a class="headerlink" href="#listing-a-new-symbol-pm-new-symbol" title="Permanent link">&para;</a></h1>
+<div class="admonition note">
+<p class="admonition-title">Learning objectives</p>
+<p>After reading this page you will understand:</p>
 <ul>
-<li>Sessions: disabled</li>
-<li>Risk, market-maker, and circuit-breaker tuning: defaults</li>
-<li>Regenerate: <code>./mkrefdata.sh [--seed INTEGER]</code></li>
+<li>What an IPO means on EduMatcher, and which part of it the exchange owns</li>
+<li>How <code>pm-new-symbol</code> (alias <code>pm-ipo</code>) chooses the file it edits, and when it redeploys</li>
+<li>Why the IPO price becomes the book's reference price</li>
+<li>How the opening seed quote is sized and priced against the market maker's obligation</li>
+<li>Every check that makes the command refuse, and what to do about each one</li>
+<li>The IPO-day steps the command deliberately leaves to you</li>
+</ul>
+</div>
+<h2 id="what-an-ipo-is-and-what-the-exchange-does">What an IPO is, and what the exchange does<a class="headerlink" href="#what-an-ipo-is-and-what-the-exchange-does" title="Permanent link">&para;</a></h2>
+<p>An initial public offering has two halves. In the <strong>primary market</strong>, the
+issuer sells new shares to investors at an agreed <strong>offer price</strong>. That
+happens before listing day, and no exchange order book is involved. In the
+<strong>secondary market</strong>, the shares start trading on an exchange. The listing is
+that exchange's part of the IPO:</p>
+<ul>
+<li>a new order book exists for the symbol,</li>
+<li>the offer price becomes the <strong>reference price</strong> that the price collar and the
+  circuit breaker measure moves against (there is no previous close yet), and</li>
+<li>a designated market maker usually posts an opening quote, so the first
+  investor who wants to sell has somebody to sell to.</li>
+</ul>
+<p><code>pm-new-symbol</code> does exactly this to an existing configuration. It does not
+touch any participant's position. EduMatcher has no primary-market allocation,
+so the shares investors "bought in the offering" only appear once they are
+traded.</p>
+<h2 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
+<p>With the exchange stopped:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-opctl-cli<span class="w"> </span>stop
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pm-new-symbol<span class="w"> </span>--symbol<span class="w"> </span>NEWCO<span class="w"> </span>--ipo-price<span class="w"> </span><span class="m">20</span>.00<span class="w"> </span>--outstanding-shares<span class="w"> </span><span class="m">50000000</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>pm-opctl-cli<span class="w"> </span>start
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>Listed NEWCO in /home/me/course/engine_config.yaml: IPO price 20.00, 50000000 shares outstanding
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  seed quote MM01: 1000 @ 19.90 / 1000 @ 20.10 (DAY)
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>Deployed to /home/me/.local/share/edumatcher/ref_data/engine_config.json. Start the exchange to open trading.
+</code></pre></div>
+<p><code>pm-ipo</code> is the same command under another name. Use whichever reads better
+in your course material.</p>
+<h2 id="what-the-command-does">What the command does<a class="headerlink" href="#what-the-command-does" title="Permanent link">&para;</a></h2>
+<pre class="mermaid"><code>flowchart TD
+    A[Resolve the file to edit] --&gt; B{Is it the deployed\nconfiguration's source?}
+    B -- yes --&gt; C[Refuse if pm-engine runs\nor the file has undeployed edits]
+    B -- no --&gt; D[Edit only]
+    C --&gt; E[Build the listing:\nprice, seed quote, sections]
+    D --&gt; E
+    E --&gt; F[Refuse if saved engine state\nexists for the symbol]
+    F --&gt; G[Append it to 'symbols:'\nand check nothing else changed]
+    G --&gt; H[Validate and compile\nthe whole edited file]
+    H --&gt; I[Replace the file,\nkeeping its permissions]
+    I --&gt; J{Deployed source?}
+    J -- yes --&gt; K[pm-config-deploy it]
+    J -- no --&gt; L[Print: run pm-config-deploy]</code></pre>
+<p>Nothing is written until the edited file has passed the same four
+verification layers as <code>pm-config-deploy</code> (see
+<a href="../020-config-verifier/">Config Verifier</a>). A refusal at any step leaves both
+the YAML and the deployed artifact exactly as they were.</p>
+<h2 id="which-file-is-edited">Which file is edited<a class="headerlink" href="#which-file-is-edited" title="Permanent link">&para;</a></h2>
+<p><a href="../010-configuration/">Configuration</a> separates the YAML you <strong>author</strong> from
+the compiled artifact the exchange <strong>runs</strong>. Every artifact records the file
+it was compiled from in <code>meta.source_path</code>. <code>pm-new-symbol</code> edits that
+source, never the artifact.</p>
+<table>
+<thead>
+<tr>
+<th>Situation</th>
+<th>What happens</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>No <code>--config</code></td>
+<td>Edits the deployed artifact's source and redeploys it</td>
+</tr>
+<tr>
+<td><code>--config</code> names the deployed source</td>
+<td>Same as no <code>--config</code></td>
+</tr>
+<tr>
+<td><code>--config</code> names any other file</td>
+<td>Edits that file only. Run <code>pm-config-deploy</code> on it yourself</td>
+</tr>
+<tr>
+<td><code>--config</code> names <code>ref_data/engine_config.yaml</code>, which was copied from somewhere else</td>
+<td>Refused: that file is only a copy, and the next deploy of the real source would drop the symbol</td>
+</tr>
+<tr>
+<td>The source is a bundled example (<code>pm-config-deploy --example …</code>)</td>
+<td>Refused: shipped examples are never edited. Copy it, deploy the copy, then list</td>
+</tr>
+<tr>
+<td>Nothing deployed and no <code>--config</code></td>
+<td>Refused: there is nothing to list into</td>
+</tr>
+</tbody>
+</table>
+<p>If you set up with <code>pm-setup</code>, the deployed source <em>is</em>
+<code>&lt;DATA_DIR&gt;/ref_data/engine_config.yaml</code>, so the default works without
+<code>--config</code>.</p>
+<div class="admonition warning">
+<p class="admonition-title">Undeployed edits block the listing</p>
+<p>The deployed source must be byte-for-byte what was last deployed (its
+SHA-256 must match <code>meta.source_sha256</code>). Otherwise the IPO deploy would
+also ship whatever else had been edited, without review. Deploy or revert
+those edits first.</p>
+</div>
+<h2 id="the-ipo-price">The IPO price<a class="headerlink" href="#the-ipo-price" title="Permanent link">&para;</a></h2>
+<p><code>--ipo-price</code> is written as both <code>last_buy_price</code> and <code>last_sell_price</code> of the
+new symbol. When the engine starts, it uses them as:</p>
+<ul>
+<li>the book's last buy and last sell prices,</li>
+<li>the <strong>collar reference</strong>, so orders far from the offer price are rejected
+  when collars are enforced (see <a href="../120-risk-controls/">Risk Controls</a>), and</li>
+<li>the <strong>circuit-breaker reference</strong>, so the first minutes of trading are
+  protected from the very first order.</li>
+</ul>
+<p>The price must be positive and a whole number of ticks: with the default
+<code>--tick-decimals 2</code>, <code>20.005</code> is refused. There is no separate bid and ask
+because nothing has traded yet. The offer price is the only price the market
+knows.</p>
+<h2 id="the-seed-quote">The seed quote<a class="headerlink" href="#the-seed-quote" title="Permanent link">&para;</a></h2>
+<h3 id="when-one-is-written">When one is written<a class="headerlink" href="#when-one-is-written" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Configuration</th>
+<th>Seed quote</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>At least one <code>MARKET_MAKER</code> gateway and <code>require_mm_seed_quotes: true</code> (the default)</td>
+<td>Always. The engine would refuse to start without one</td>
+</tr>
+<tr>
+<td>No <code>MARKET_MAKER</code> gateway, or <code>require_mm_seed_quotes: false</code> (the <code>-nomm</code> examples)</td>
+<td>None, so the book opens empty. <code>--mm-gateway-id</code> asks for one anyway</td>
+</tr>
+</tbody>
+</table>
+<p>With exactly one market-maker gateway, it posts the seed. With several, you
+must choose one with <code>--mm-gateway-id</code>. The command will not pick one for
+you.</p>
+<h3 id="how-it-is-priced">How it is priced<a class="headerlink" href="#how-it-is-priced" title="Permanent link">&para;</a></h3>
+<p>The quote must meet the market maker's own obligation. The engine resolves
+that obligation with this precedence, and <code>pm-new-symbol</code> resolves it the same
+way:</p>
+<ol>
+<li><code>gateways.alf[…].mm_obligations.&lt;SYMBOL&gt;</code> for that gateway and symbol</li>
+<li>the gateway's own <code>mm_max_spread_ticks</code> / <code>mm_min_qty</code> /
+   <code>enforce_mm_obligation</code></li>
+<li><code>mm_obligation_defaults</code>, which the gateway fields default to</li>
+</ol>
+<p>(A global per-symbol entry under <code>mm_obligation_defaults.symbols</code> cannot name
+a symbol that is not listed yet, so it plays no part here.)</p>
+<p>By default the quote is exactly the widest spread allowed, placed around the
+IPO price:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>bid = ipo_price - (max_spread_ticks // 2) × tick
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>ask = bid + max_spread_ticks × tick
+</code></pre></div>
+<p>With <code>mm_max_spread_ticks: 20</code> and an IPO price of <code>20.00</code>, that gives
+<code>19.90 / 20.10</code>. With an odd width such as 7, the extra tick goes on the ask:
+<code>19.97 / 20.04</code>.</p>
+<p>To quote tighter, pass both <code>--mm-bid-price</code> and <code>--mm-ask-price</code>. Explicit
+prices must be on the tick grid, must be ordered, and must <strong>straddle the IPO
+price</strong> (<code>bid ≤ ipo_price ≤ ask</code>). When the obligation is enforced, they must
+also not be wider than the maximum spread. The quantities
+(<code>--mm-bid-qty</code>, <code>--mm-ask-qty</code>, default 1000 each) must not be below
+<code>mm_min_qty</code> when the obligation is enforced.</p>
+<p><code>--mm-tif</code> is <code>DAY</code> (the default) or <code>GTC</code>. Auction-only TIFs make no sense
+for a resting opening quote. <code>--no-mm-seed-once</code> makes the engine re-inject
+the seed on every start, even when a quote from that market maker survived
+the restart. The default is to inject it only once. See
+<a href="../090-market-maker/">Market Making</a> for how seed quotes behave afterwards.</p>
+<h2 id="optional-sections-field">Optional sections: <code>--field</code><a class="headerlink" href="#optional-sections-field" title="Permanent link">&para;</a></h2>
+<p><code>--field KEY=YAML_VALUE</code> sets one of the symbol's optional sections. The value
+is parsed as YAML, so nested mappings work. Only these keys are accepted:</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Example</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>level</code></td>
+<td><code>--field level=L2</code></td>
+<td>Risk-control level from <code>risk_controls.levels</code></td>
+</tr>
+<tr>
+<td><code>collar</code></td>
+<td><code>--field 'collar={static_band_pct: 0.15}'</code></td>
+<td>Per-symbol collar bands</td>
+</tr>
+<tr>
+<td><code>order_limits</code></td>
+<td><code>--field 'order_limits={max_order_qty: 10000}'</code></td>
+<td>Maximum order quantity / value</td>
+</tr>
+<tr>
+<td><code>circuit_breaker</code></td>
+<td><code>--field 'circuit_breaker={reference_window_ns: 60000000000}'</code></td>
+<td>Per-symbol breaker overrides</td>
+</tr>
+</tbody>
+</table>
+<p>Any other key is refused. The configuration loader ignores keys it does not
+know, so a misspelt <code>colar=</code> would otherwise vanish silently.</p>
+<h2 id="symbol-names">Symbol names<a class="headerlink" href="#symbol-names" title="Permanent link">&para;</a></h2>
+<p>A symbol is 1–8 characters of <code>A-Z</code>, <code>0-9</code>, <code>.</code> and <code>_</code>. Lower case is
+upper-cased (<code>newco</code> becomes <code>NEWCO</code>). The limit comes from the wire: the BALF
+execution report carries the symbol as <code>char[8]</code>
+(<a href="../270-message-reference/">Message Reference</a>). A longer name would pass
+configuration validation and then fail at the first fill.</p>
+<h2 id="why-it-refused">Why it refused<a class="headerlink" href="#why-it-refused" title="Permanent link">&para;</a></h2>
+<p>Every refusal leaves the YAML and the deployed artifact unchanged.</p>
+<table>
+<thead>
+<tr>
+<th>Message (abridged)</th>
+<th>Cause</th>
+<th>What to do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>something is listening on tcp://…:5556</code> / <code>pm-engine is running (pid …)</code></td>
+<td>The exchange is running</td>
+<td><code>pm-opctl-cli stop</code>, then run again</td>
+</tr>
+<tr>
+<td><code>pgrep is unavailable …</code></td>
+<td>The running check cannot be done</td>
+<td>Install <code>procps</code>. The command errs on the side of refusing</td>
+</tr>
+<tr>
+<td><code>has edits that were never deployed</code></td>
+<td>The deployed source differs from what was deployed</td>
+<td>Deploy or revert those edits first</td>
+</tr>
+<tr>
+<td><code>is only the deployed copy of …</code></td>
+<td><code>--config</code> points at <code>ref_data/</code> while the source lives elsewhere</td>
+<td>Pass the real source with <code>--config</code></td>
+</tr>
+<tr>
+<td><code>is a bundled example</code></td>
+<td>The exchange runs a shipped example</td>
+<td>Copy it, <code>pm-config-deploy</code> the copy, then list</td>
+</tr>
+<tr>
+<td><code>already listed</code></td>
+<td>The symbol exists (in any letter case)</td>
+<td>Choose another symbol</td>
+</tr>
+<tr>
+<td><code>must be 1-8 characters …</code></td>
+<td>Invalid symbol name</td>
+<td>See <em>Symbol names</em></td>
+</tr>
+<tr>
+<td><code>not on the … tick grid</code></td>
+<td>Price has too many decimals</td>
+<td>Round it, or raise <code>--tick-decimals</code></td>
+</tr>
+<tr>
+<td><code>several MARKET_MAKER gateways</code></td>
+<td>More than one market maker could seed it</td>
+<td>Pass <code>--mm-gateway-id</code></td>
+</tr>
+<tr>
+<td><code>exceeds …'s obligation</code> / <code>below …'s obligation</code></td>
+<td>The explicit quote breaks the market maker's obligation</td>
+<td>Tighten the spread or raise the quantities</td>
+</tr>
+<tr>
+<td><code>… has a bid of …</code></td>
+<td>The default spread would push the bid to zero or below (penny stocks)</td>
+<td>Give <code>--mm-bid-price</code> / <code>--mm-ask-price</code>, or more <code>--tick-decimals</code></td>
+</tr>
+<tr>
+<td><code>holds saved state for …</code></td>
+<td><code>book_stats.json</code>, <code>gtc_orders.json</code> or <code>gtc_combos.json</code> still holds data for this symbol name</td>
+<td>See below</td>
+</tr>
+<tr>
+<td><code>would make … invalid</code>, followed by check codes</td>
+<td>The edited file fails validation (for example a bad <code>--field</code> value)</td>
+<td>Fix what the listed codes describe (see <a href="../020-config-verifier/">Config Verifier</a>)</td>
+</tr>
+<tr>
+<td><code>rewrite 'symbols' in block style</code> / <code>cannot be appended …</code></td>
+<td>The YAML layout cannot be edited safely</td>
+<td>Add the symbol by hand</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition warning">
+<p class="admonition-title">Saved state wins over the listing</p>
+<p>When the engine starts, a symbol's entry in <code>book_stats.json</code> takes
+precedence over its configured last prices, and resting orders in
+<code>gtc_orders.json</code> go back into its book. So a symbol name that traded
+before would open at the old price, with the old orders, not at the offer
+price. The same happens if you list a symbol, start the exchange, then
+remove it to correct a mistake before the engine has run again.
+<code>pm-new-symbol</code> refuses in all of these cases. Remove the symbol's
+entries from the files it names, or clear all engine state with
+<code>pm-opctl-cli clear</code>. Note that the second option discards the resting
+orders of <em>every</em> symbol. See <a href="../180-persistence/">Persistence</a>.</p>
+</div>
+<h2 id="the-ipo-day-checklist">The IPO-day checklist<a class="headerlink" href="#the-ipo-day-checklist" title="Permanent link">&para;</a></h2>
+<p>The command handles the configuration. These steps are yours:</p>
+<ol>
+<li><strong>Before</strong>: agree the offer price, shares outstanding, tick size, and which
+   market maker will support the stock. <code>pm-valuation</code> works out the first two
+   for a fictive company (see <a href="../046-valuation/">IPO Valuation</a>). Decide on day-one risk settings. A
+   tighter collar and an <code>order_limits</code> cap are common for a new listing.</li>
+<li><strong>Stop the exchange</strong>: all of it, not just <code>pm-engine</code>. Every process reads
+   the configuration only when it starts. A gateway restarted on its own
+   would know a symbol the engine does not, or the other way round.</li>
+<li><strong>List</strong>: run <code>pm-new-symbol</code>. Read any <code>[WARN]</code> advice it prints about
+   the new symbol.</li>
+<li><strong>Check</strong>: <code>pm-config-show</code> shows the deployed configuration, including the
+   new symbol and its seed quote.</li>
+<li><strong>Commit</strong> the authored YAML to version control. The artifact is rebuilt
+   from it, so the YAML is your record of the listing.</li>
+<li><strong>Market-maker bot</strong>: a <code>pm-mm-bot</code> started with <code>--all-symbols</code> (as the
+   <code>mm-demo</code> profile does) quotes the new symbol automatically. A bot with an
+   explicit <code>--symbols</code> list or a config-file <code>symbols:</code> block does not. Add
+   the symbol there (see <a href="../100-mm-bot/">MM Bot</a>).</li>
+<li><strong>Obligations</strong>: if the market maker needs obligations specific to this
+   symbol, add <code>mm_obligations.&lt;SYMBOL&gt;</code> to its gateway <em>before</em> listing. The
+   seed quote is then sized against it.</li>
+<li><strong>Index membership</strong> is a separate decision. The symbol does not join any
+   index. Add it later as a constituent (see
+   <a href="../150-market-index/">Market Index</a> and
+   <a href="../152-index-admin-cli/">Index Admin CLI</a>).</li>
+<li><strong>Start</strong> the exchange. With <code>sessions_enabled: true</code>, the new symbol takes
+   part in the opening auction like every other symbol. That is where a real
+   IPO's opening price is discovered (see
+   <a href="../080-session-scheduling/">Auctions &amp; Scheduling</a>). Without sessions,
+   continuous trading starts at once against the seed quote.</li>
+<li><strong>Watch the first trades</strong>. The circuit breaker is already armed at the
+    offer price.</li>
+</ol>
+<div class="admonition tip">
+<p class="admonition-title">Remote and container deployments</p>
+<p>Run the command against the exchange's own data directory (the same
+<code>EDUMATCHER_DATA_DIR</code>). The running-engine check looks at the local
+machine only: the engine's publish port and the local process table. It
+cannot prove that an engine on another host, or in a container that does
+not publish port 5556, is stopped. Check that yourself.</p>
+</div>
+<h2 id="options">Options<a class="headerlink" href="#options" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--config PATH</code></td>
+<td>the deployed source</td>
+<td>Authored YAML to edit</td>
+</tr>
+<tr>
+<td><code>--symbol NAME</code></td>
+<td>required</td>
+<td>New symbol</td>
+</tr>
+<tr>
+<td><code>--ipo-price PRICE</code></td>
+<td>required</td>
+<td>Offer price, and the reference price</td>
+</tr>
+<tr>
+<td><code>--outstanding-shares N</code></td>
+<td>required</td>
+<td>Shares outstanding (used for index market caps)</td>
+</tr>
+<tr>
+<td><code>--tick-decimals N</code></td>
+<td><code>2</code></td>
+<td>Price grid, 0..8</td>
+</tr>
+<tr>
+<td><code>--mm-gateway-id ID</code></td>
+<td>the only MM gateway</td>
+<td>Who posts the seed quote</td>
+</tr>
+<tr>
+<td><code>--mm-bid-price</code>, <code>--mm-ask-price</code></td>
+<td>max spread around the price</td>
+<td>Explicit seed prices; both or neither</td>
+</tr>
+<tr>
+<td><code>--mm-bid-qty</code>, <code>--mm-ask-qty</code></td>
+<td><code>1000</code></td>
+<td>Seed sizes</td>
+</tr>
+<tr>
+<td><code>--mm-tif</code></td>
+<td><code>DAY</code></td>
+<td><code>DAY</code> or <code>GTC</code></td>
+</tr>
+<tr>
+<td><code>--[no-]mm-seed-once</code></td>
+<td>on</td>
+<td>Skip the seed when a restored quote exists</td>
+</tr>
+<tr>
+<td><code>--field KEY=YAML_VALUE</code></td>
+<td>none</td>
+<td><code>level</code>, <code>collar</code>, <code>order_limits</code>, <code>circuit_breaker</code>; repeatable</td>
+</tr>
+</tbody>
+</table>
+<h2 id="where-to-go-next">Where to go next<a class="headerlink" href="#where-to-go-next" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../046-valuation/">IPO Valuation</a> - finding the offer price with <code>pm-valuation</code></li>
+<li><a href="../010-configuration/">Configuration</a> - authored YAML, the compiled artifact and <code>pm-config-deploy</code></li>
+<li><a href="../020-config-verifier/">Config Verifier</a> - what the validation codes mean</li>
+<li><a href="../040-running-the-exchange/">Running the Exchange</a> - stopping and starting with <code>pm-opctl-cli</code></li>
+<li><a href="../090-market-maker/">Market Making</a> - seed quotes and obligations</li>
+<li><a href="../120-risk-controls/">Risk Controls</a> - collars and circuit breakers around the IPO price</li>
+<li><a href="../150-market-index/">Market Index</a> - adding the new symbol to an index</li>
+<li><a href="../180-persistence/">Persistence</a> - the saved state that can override a listing</li>
 </ul>
 
 
@@ -4131,12 +4776,12 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["toc.integrate", "navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["toc.integrate", "navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
-        <script src="../../../javascripts/mathjax.js"></script>
+        <script src="../../javascripts/mathjax.js"></script>
       
         <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
       

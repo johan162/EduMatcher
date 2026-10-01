@@ -1415,6 +1415,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../045-new-symbol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Listing a New Symbol (IPO)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../046-valuation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IPO Valuation (pm-valuation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../051-gateway-intro/" class="md-nav__link">
         
   
@@ -3613,6 +3669,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/280-ipo-valuation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    28 — IPO Valuation (pm-valuation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -4582,7 +4666,7 @@ describe different systems.</p>
 </tr>
 <tr>
 <td><code>--config NAME</code></td>
-<td><code>s3-basic</code></td>
+<td><code>s10-basic</code></td>
 <td>Deploy a bundled example configuration</td>
 </tr>
 <tr>
@@ -4609,7 +4693,7 @@ describe different systems.</p>
 </table>
 <p>Because the script is read from a pipe, options need <code>bash -s --</code> so that the
 shell hands them to the script rather than consuming them itself:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>.../install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--config<span class="w"> </span>s10-nominal<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.43.1
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>.../install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--config<span class="w"> </span>s10-nominal<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.44.0
 </code></pre></div>
 <p>Two environment variables are also honoured: <code>REPO_OWNER</code> (which GitHub
 account and GHCR namespace to use) and <code>REPO_REF</code> (fetch the support files
@@ -4644,7 +4728,7 @@ into this file.</p>
 </tr>
 <tr>
 <td><code>EM_CONFIG</code></td>
-<td><code>s3-basic</code></td>
+<td><code>s10-basic</code></td>
 <td>Which bundled example configuration the exchange deploys</td>
 </tr>
 <tr>
@@ -4654,8 +4738,8 @@ into this file.</p>
 </tr>
 <tr>
 <td><code>EM_PROFILE</code></td>
-<td><code>default</code></td>
-<td>Which processes start: <code>default</code>, <code>mini</code> or <code>micro</code>. See <a href="../170-processes/">Processes</a></td>
+<td><code>mm-demo</code></td>
+<td>Which processes start: <code>mm-demo</code> (the full stack plus a slow, passive market-maker bot quoting as <code>MM01</code>), <code>default</code>, <code>mini</code> or <code>micro</code>. See <a href="../170-processes/">Processes</a></td>
 </tr>
 <tr>
 <td><code>TZ</code></td>
@@ -4773,7 +4857,7 @@ contains.</p>
 <p>The file is copied into <code>~/.edumatcher/config/</code>, mounted read-only into the
 container, and deployed on every start — so editing it and restarting is the
 whole edit-test loop. Switching back to a bundled example is
-<code>./edumatcher.sh config s3-basic</code>. The configuration builder at
+<code>./edumatcher.sh config s10-basic</code>. The configuration builder at
 <a href="http://localhost:8092">http://localhost:8092</a> is the easy way to author one; see
 <a href="../030-config-GUI/">Configuration GUI</a>.</p>
 <h2 id="containers-from-the-source-checkout">Containers from the source checkout<a class="headerlink" href="#containers-from-the-source-checkout" title="Permanent link">&para;</a></h2>
@@ -4840,7 +4924,7 @@ appear not to take effect.</p>
 <tbody>
 <tr>
 <td><code>CONFIG=&lt;name&gt;</code></td>
-<td><code>s3-basic</code></td>
+<td><code>s10-basic</code></td>
 <td>Deploy a bundled example</td>
 </tr>
 <tr>
@@ -4851,7 +4935,7 @@ appear not to take effect.</p>
 <tr>
 <td><code>PROFILE=&lt;name&gt;</code></td>
 <td><code>default</code></td>
-<td>Which processes <code>pm-opctl-cli</code> starts: <code>default</code>, <code>mini</code> or <code>micro</code>. See <a href="../170-processes/">Processes</a></td>
+<td>Which processes <code>pm-opctl-cli</code> starts: <code>default</code>, <code>mini</code>, <code>micro</code> or <code>mm-demo</code>. See <a href="../170-processes/">Processes</a></td>
 </tr>
 <tr>
 <td><code>ZMQ=1</code></td>
@@ -4907,7 +4991,7 @@ plain <code>make up-all</code> afterwards goes back to whatever <code>.env</code
 </tr>
 <tr>
 <td><code>EM_CONFIG</code></td>
-<td><code>s3-basic</code></td>
+<td><code>s10-basic</code></td>
 <td>Bundled example to deploy</td>
 </tr>
 <tr>
@@ -5433,7 +5517,7 @@ VM. This mode installs the backend only — the web GUIs are part of the
 container deployment. Provisioning runs <code>pm-setup</code>, so the VM comes up with a
 deployed configuration and <code>pm-opctl-cli</code> ready to start the stack.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.43.1<span class="w"> </span>--snapshot
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.44.0<span class="w"> </span>--snapshot
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
 <a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>multipass<span class="w"> </span>shell<span class="w"> </span>ems
 <a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="nb">cd</span><span class="w"> </span>/home/ubuntu/session
@@ -5493,7 +5577,7 @@ deployed configuration and <code>pm-opctl-cli</code> ready to start the stack.</
 <p>To read the script before running it:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span>-o<span class="w"> </span>curl_setup_vm.sh
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>less<span class="w"> </span>curl_setup_vm.sh
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.43.1<span class="w"> </span>--snapshot
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.44.0<span class="w"> </span>--snapshot
 </code></pre></div>
 <h2 id="pipx-commands-on-your-own-machine">pipx — commands on your own machine<a class="headerlink" href="#pipx-commands-on-your-own-machine" title="Permanent link">&para;</a></h2>
 <p>Use this when you want to run the processes yourself, one per terminal, which

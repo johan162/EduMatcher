@@ -1365,6 +1365,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../045-new-symbol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Listing a New Symbol (IPO)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../046-valuation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IPO Valuation (pm-valuation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../051-gateway-intro/" class="md-nav__link">
         
   
@@ -3563,6 +3619,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/280-ipo-valuation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    28 — IPO Valuation (pm-valuation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -4503,9 +4587,9 @@ watching them match.</p>
 explains the domain without assuming you know any of it. Twenty minutes, and
 the rest of the guide gets much easier.</p>
 <h3 id="the-configuration-you-are-running">The configuration you are running<a class="headerlink" href="#the-configuration-you-are-running" title="Permanent link">&para;</a></h3>
-<p>The default bundled configuration is called <code>s3-basic</code>. It gives you:</p>
+<p>The default bundled configuration is called <code>s10-basic</code>. It gives you:</p>
 <ul>
-<li><strong>Symbols:</strong> <code>AAPL</code>, <code>MSFT</code>, <code>TSLA</code></li>
+<li><strong>Symbols:</strong> ten, including <code>AAPL</code>, <code>MSFT</code> and <code>TSLA</code> (the ones used in the examples below)</li>
 <li><strong>Gateways:</strong> <code>TRADER01</code> and <code>TRADER02</code> (traders), <code>MM01</code> (market maker),
   <code>OPS01</code> (operator)</li>
 <li><strong>Session scheduling: off</strong> — matching is available immediately, with no
@@ -4545,7 +4629,7 @@ nothing.</p>
 <p class="admonition-title">It filled immediately, before I sent the second order</p>
 <p>Then the book already had liquidity — some configurations seed
 market-maker quotes at startup. Not a bug: your order traded against a
-resting quote instead of waiting. <code>s3-basic</code> does seed <code>MM01</code> quotes on
+resting quote instead of waiting. <code>s10-basic</code> does seed <code>MM01</code> quotes on
 some symbols. Try a price far from the market (say <code>PRICE=10.00</code> on a buy)
 to see an order rest instead.</p>
 </div>
