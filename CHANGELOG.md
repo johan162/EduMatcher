@@ -1,3 +1,28 @@
+## [v0.44.0] - 2026-10-01
+
+Release Type: major
+
+### 📋 Summary
+This major release adds an IPO valuation workflow and safer symbol listing, alongside expanded market-maker tooling and an improved quick-start deployment.
+
+### ⚠️ Breaking Changes
+- Changed the default setup and deployment configuration to `s10-basic`, and made curl deployments start the `mm-demo` profile by default
+
+### 🚀 Improvements
+- Add new process-profile to `pm-opctl-cli` that also starts the mm-bot
+- The default deployment now starts the mm-bot by defalt and uses the s10-basic profile
+
+### ✨ Additions
+- Added `pm-valuation` for guided company forecasting, IPO valuation, offering scenarios and report generation, with sector presets and beginner personas
+- Added `pm-new-symbol` and its `pm-ipo` alias to validate and add symbols to the deployed configuration
+- Added `--all-symbols` and explicit `--gateway-id` options to `pm-mm-bot`
+- Added Bash and Zsh tab completion for all `pm-*` commands
+
+### 📚 Documentation
+- Added user and training guides for IPO valuation and the new-symbol listing workflow
+- Updated deployment and getting-started guides for the new defaults
+
+
 ## [v0.43.1] - 2026-09-29
 
 Release Type: minor
