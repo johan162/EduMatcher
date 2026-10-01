@@ -980,7 +980,8 @@ around each area.
 - **Live preview:** fair value, the price range and the verdict, recalculated
   as you type. F4 explains each number with its current value: for example
   that fair value is 70% of the DCF value plus 30% of the comparables value,
-  and why the offer price stopped where it did.
+  and why the offer price stopped where it did. See
+  [The live preview](#the-live-preview) for every line in full.
 - **Field description:** what the field in focus means, or what is wrong with
   its value.
 
@@ -1067,6 +1068,238 @@ F5 refuses to calculate while any field has a problem, and lists them.
 | F5 | Calculate and open the report |
 | F9 | Save the scenario |
 | Esc / Ctrl-Q | Quit; asks first if there are unsaved changes |
+
+## The live preview
+
+The box on the right of the interview is the **live preview**. It values the
+company again after every keystroke, so you see at once what an answer does.
+It shows the deterministic base case: one forecast with every answer at its
+value, without the bear and bull scenarios or the Monte Carlo simulation
+(those need F5). Every number is per share, in the market's currency, and is
+the same number the report shows after F5. F4 opens the same explanations as
+below, with the values on your screen.
+
+| Line | What it is | Computed from |
+|---|---|---|
+| Fair value | What one share is worth after the IPO | DCF and Comps, blended |
+| DCF | The value of the company's own forecast cash flows, per share | The whole forecast and the discount rates |
+| Comps | The value at the price the market pays for similar companies, per share | Next year's revenue and the comparable multiple |
+| Range | The price range published before investors order | Fair value and the IPO discount |
+| Offer … at …× | The price IPO buyers pay, and how many times the offer is covered by orders | The book of orders at every price in the band |
+| Verdict | PROCEED, THIN BOOK or POSTPONE | The book, and management's limits |
+| ⚠ notes | How many plausibility warnings the model raised | The checks behind the report's warnings |
+
+The numbers form a chain: the two methods give fair value, fair value gives
+the range, and the range is where the book is tested. An answer that moves
+fair value therefore moves everything below it; an answer about investors
+moves only the offer price, the coverage and the verdict. The examples below
+use the Tornfalk case (`pm-valuation --case tornfalk`): fair value 117.45,
+DCF 92.09, comparables 176.62, range 94.50–105.00, offer 105.00 at 11.9×,
+PROCEED.
+
+### Fair value
+
+**Meaning.** The model's best estimate of what one share is worth once the
+IPO has settled: after the new money has come in and the fees have gone out.
+It is the anchor for everything else in the preview and in the IPO.
+
+**Calculation.** A weighted average of the two valuation methods, with the
+*DCF weight* $w$ on page 9 (70% by default):
+
+$$
+\text{Fair value} = w \times \text{DCF} + (1 - w) \times \text{Comps}
+$$
+
+Tornfalk: $0.7 \times 92.09 + 0.3 \times 176.62 = 64.46 + 52.99 = 117.45$.
+
+**Weight and importance.** Fair value decides the price range, and with it
+where the offer price can land, so it is the most important number on the
+screen. Because the DCF counts 70%, the forecast and the discount rates
+dominate it. The report's tornado chart ranks the answers that move it most.
+For Tornfalk, moving each scenario driver alone from its pessimistic to its
+optimistic value changes fair value by:
+
+| Driver | Fair value, bear → bull | Swing |
+|---|---:|---:|
+| Headcount elasticity | 73.27 → 154.48 | 81.22 |
+| Maximum share of SAM | 83.13 → 152.09 | 68.96 |
+| Customer growth, year 1 | 93.02 → 123.84 | 30.82 |
+| Comparable EV / NTM revenue | 102.09 → 132.80 | 30.71 |
+| Annual churn | 104.47 → 125.99 | 21.52 |
+| Beta, year 6 on | 107.68 → 126.37 | 18.70 |
+
+Setting the DCF weight to 50% instead of 70% moves fair value from 117.45 to
+134.36 without changing the company at all: the weight is a judgement about
+which method to trust, and it matters as much as many forecast inputs.
+
+### DCF
+
+**Meaning.** The value per share of the cash the company itself is expected to
+generate, turned into today's money: the intrinsic value. It does not care
+what the stock market pays for similar companies today.
+
+**Calculation.** In four steps (see
+[The discounted cash flow, step by step](#the-discounted-cash-flow-step-by-step)):
+
+1. Forecast the free cash flow to the firm (FCFF) for each of the ten years.
+2. Add a terminal value for all the years after the forecast.
+3. Discount each year at the stage-1 rate (years 1–5) and the stage-2 rate
+   (year 6 on) and add them up: the enterprise value (EV).
+4. Bridge to one share. The IPO money cancels out, because new investors pay
+   for their shares exactly what they add; only the fees remain:
+
+$$
+\text{DCF} = \frac{\text{EV} + \text{cash} - \text{debt} - f \times R - X}{S_\text{pre}}
+$$
+
+where $R$ is the primary raise, $f$ the gross spread (the banks' fee), $X$
+the other offering expenses and $S_\text{pre}$ the shares before the IPO.
+Tornfalk: EV 10,330.4 mkr at rates of 15.90% and 9.66%, plus 900 mkr of cash,
+minus 120 mkr of spread (3% of 4 mdr) and 60 mkr of other expenses, is
+11,050.4 mkr; divided by 120 million shares, 92.09.
+
+**Weight and importance.** 70% of fair value by default, and the most
+sensitive of the three values: 66.6% of Tornfalk's EV is terminal value, so
+anything that changes the long run changes it a lot. For Tornfalk:
+
+| Change | DCF | Fair value |
+|---|---:|---:|
+| None | 92.09 | 117.45 |
+| Risk-free rate 3% → 4% | 79.78 | 108.83 |
+| Terminal growth 2% → 2.5% | 97.14 | 120.99 |
+| Annual churn 8% → 10% | 82.56 | 110.78 |
+
+### Comps
+
+**Meaning.** The value per share if the company were priced like comparable
+listed companies: the relative value, and what investors in the book will
+check first. It moves with market mood; the DCF does not.
+
+**Calculation.** The comparable multiple (page 9; 10× for business software)
+times next year's revenue gives the enterprise value, which then crosses the
+same bridge as the DCF:
+
+$$
+\text{Comps} = \frac{\text{multiple} \times \text{revenue}_1 + \text{cash} - \text{debt} - f \times R - X}{S_\text{pre}}
+$$
+
+Tornfalk: $10 \times 2{,}047.5 = 20{,}475$ mkr, plus 900 cash, minus 180 of
+fees, is 21,195 mkr; divided by 120 million shares, 176.62.
+
+**Weight and importance.** 30% of fair value by default. It depends on only
+two things: the multiple and next year's revenue. Each extra turn of the
+multiple adds next year's revenue divided by the shares, 17.06 per share for
+Tornfalk (11× gives 193.69), and 30% of that, 5.12, to fair value. Costs,
+margins and discount rates do not enter it at all, so a company with heavy
+costs can look much better on comparables than on its own cash flows. When
+the two methods differ by more than 50%, the report warns (V017). Tornfalk's
+DCF is 48% below its comparables value, just inside the limit, and the gap is
+itself worth explaining.
+
+### Range
+
+**Meaning.** The price range printed in the prospectus before investors
+place their orders. It is set below fair value on purpose: the **IPO
+discount** pays investors for buying an untested stock and leaves room for
+the price to rise on the first day.
+
+**Calculation.** The midpoint is fair value less the IPO discount $d$ (page
+8, 15% by default); the range is 5% either side, rounded outwards to "nice"
+prices:
+
+$$
+\text{mid} = \text{Fair value} \times (1 - d), \qquad
+\text{low} = \lfloor 0.95 \times \text{mid} \rfloor_{\text{step}}, \qquad
+\text{high} = \lceil 1.05 \times \text{mid} \rceil_{\text{step}}
+$$
+
+The step depends on the price: 0.01 below 2, 0.10 below 10, 0.50 below 100,
+5.00 below 1,000, and so on. Tornfalk: $117.45 \times 0.85 = 99.83$;
+$0.95 \times 99.83 = 94.84$ rounds down to 94.50, and $1.05 \times 99.83 =
+104.83$ rounds up to 105.00.
+
+If management has a **minimum market cap** (page 11), its price, the floor,
+is $(\text{minimum market cap} - R) / S_\text{pre}$. A range below the floor
+is moved up to start there, keeping its width, and the preview adds "(moved
+by the floor)". If the moved range leaves the banks less than the minimum
+IPO discount (5%) below fair value, the IPO is postponed: the Halvard case.
+
+**Weight and importance.** The range is fixed by fair value and the
+discount; nothing about investors enters it. It matters because it limits
+the offer price: in Sweden the top of the range is the maximum price. Note
+how the step widens at 100: a 10% discount gives Tornfalk a midpoint of
+105.71 and a range of 100.00–115.00, 15 wide instead of 10.50.
+
+### Offer price and coverage
+
+**Meaning.** "Offer 105.00 at 11.9×" is the price IPO buyers pay, and the
+**coverage** at that price: orders for 11.9 times the value of the shares on
+offer. Coverage above 1 means investors receive less than they asked for,
+and the unfilled ones buy on the first day.
+
+**Calculation.** The model builds the book: the demand at every price on the
+step grid, from the bottom of the band, 80% of the range's low (or the
+management floor, if higher), to the maximum price (the top of the range in
+Sweden, 20% above it in the US). At each price $P$:
+
+$$
+\text{coverage}(P) = \frac{\text{institutional}(P) + \text{retail}(P) + \text{cornerstone}}{R + \text{secondary shares} \times P}
+$$
+
+Institutional demand is the number of institutions × their average order ×
+the interest level (0.3× to 2.2×) × small factors for the lock-up, the index
+prospects, dual-class shares and hype, all × $(\text{fair value}/P)^{3}$, so
+it falls quickly as the price rises above fair value. Retail demand is the
+applicants × their average application × their interest × $(1 + 0.25 \times
+\text{hype})$, and falls more slowly with the price. The deal is priced at
+the **highest price whose coverage is at least the target** (3× by default,
+page 9).
+
+Tornfalk at 105.00: 60 institutions × 200 mkr × 2.2 (very high interest) ×
+1.08 (index prospects) × 1.15 (hype 5) × $(117.45/105)^3 = 1.40$ gives
+45,888 mkr; 20,000 retail applicants × 25,000 SEK × 1.5 × 2.25 ×
+$(117.45/105)^{0.6}$ gives 1,805 mkr. Together 47,693 mkr against a 4 mdr
+offer: 11.92×. Every price in the band is covered more than 3 times, so the
+deal is priced at the highest, the maximum price 105.00.
+
+**Weight and importance.** The offer price is what the company actually
+receives per share, so it decides the money raised, the dilution and the
+market capitalisation at listing. It depends on fair value through the
+range, and on the investor answers through the book. Investor interest and
+hype move coverage a lot but the offer price little, because the price
+cannot leave the band. Coverage is not value: a hot book (12×) says that
+demand would have supported a higher price, and the money left on the table
+is the cost of the discount.
+
+### Verdict
+
+**Meaning and calculation.**
+
+- **PROCEED**: some price in the band is covered at least the target number
+  of times; the deal is priced as above.
+- **THIN BOOK**: no price reaches the target, but the bottom of the band is
+  covered at least once; the deal is priced there, with a real risk of
+  trading below its offer price.
+- **POSTPONE**: the book is not covered even once at the bottom of the band,
+  or management's floor leaves the banks less than the minimum discount. The
+  preview shows the reason under F4.
+
+**Weight and importance.** The only line about *whether* the IPO happens;
+every other line is about *how much*. A POSTPONE has no offer price, and
+`--list` refuses to list it.
+
+### Notes
+
+**Meaning and calculation.** "⚠ 2 notes" counts the warnings and
+observations from the model's plausibility checks (V001–V021): for example a
+year-10 EBIT margin outside the sector's range, most of the value lying
+beyond the horizon, or the DCF and comparables differing by more than 50%.
+F2 lists them under the values; the report explains each one. The line is
+absent when there are none.
+
+**Weight and importance.** Notes do not change any number. They tell you
+which numbers to trust less, and they make good questions for a write-up:
+why is the margin so high, why do the two methods disagree?
 
 ## The report
 
