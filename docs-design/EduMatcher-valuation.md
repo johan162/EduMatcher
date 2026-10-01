@@ -1442,29 +1442,40 @@ pm-new-symbol --symbol AURM --ipo-price 14.50 --outstanding-shares 100689655 --t
 
 ### 19.2 Layout (prompt_toolkit full-screen application)
 
+The look follows the other EduMatcher terminal programs (`pm-viewer`,
+`pm-board`): a top bar with the white-on-blue EduMatcher badge, the program
+and its version (`cli_version.package_version`), grey labels and cyan
+values; rounded blue boxes (`tui.widgets.Box`) around the pages, the form,
+the live preview and the field description, and around the pick-lists and
+the glossary. The form box is titled with the page and carries the level
+line (§19.3) in its bottom border. The key line at the bottom is unchanged.
+At 120 columns (rows in between left out):
+
 ```text
-┌ pm-valuation ─ Aurora Metrics Inc. (AURM) ───────────────── page 3 / 12 ┐
-│ PAGES             │ CUSTOMERS & PRICING                  │ LIVE PREVIEW  │
-│  1 Company     ✎3 │                                      │               │
-│  2 Market         │ Last FY revenue    [90,000,000    ]  │ Fair value    │
-│▶ 3 Customers   ✎2 │ Customers now      [1800          ]  │      16.92    │
-│  4 People         │ ARPU per year      [              ]  │ DCF    16.38  │
-│  5 Costs          │                    auto 60,000 · preset              │
-│  6 Capital & tax✎2│ ARPU growth        [              ]  │ Comps  18.18  │
-│  7 Rates          │                    auto 5.0% · preset│               │
-│  8 Offering    ✎2 │ Annual churn       [              ]  │ Range         │
-│  9 Investors      │                    auto 8.0% · preset│ 14.00–16.00   │
-│ 10 Index          │ Year-1 cust. growth[              ]  │ (moved up by  │
-│ 11 Management  ✎1 │                    auto 50% · preset │  mgmt floor)  │
-│ 12 Simulation     │                                      │               │
-│    Review         │                                      │ ⚠ 1 warning   │
-├───────────────────┴──────────────────────────────────────┴───────────────┤
-│ ARPU — average revenue per customer per year. For SaaS, the annual       │
-│ contract value. It grows with price rises and upsell; the growth fades   │
-│ to inflation over the horizon (§6.3).                                     │
-├──────────────────────────────────────────────────────────────────────────┤
-│ Tab next · PgDn page · F1 glossary · F2 review · F5 calculate · F9 save  │
-└──────────────────────────────────────────────────────────────────────────┘
+ EduMatcher   pm-valuation x.yy.z   │   Tornfalk Security AB (TORN)   │   Page 3/11   │   Level Intermediate
+╭─ Pages ────────────────────────╮╭─ 3 Customers & pricing ────────────────────────────────────╮╭─ Live preview ───────╮
+│  1 Company               ✎4    ││ Last FY revenue        1.4mdr        ✎ you                ^││ Fair value           │
+│  2 Market                      ││ Customers now          2,600         ✎ you                 ││       117.45         │
+│▶ 3 Customers & pricing   ✎2    ││ ARPU per year                        auto 600,000 · preset ││ DCF        92.09     │
+│  4 People                      ││ Annual churn                         auto 8% · preset      ││ Comps     176.62     │
+│  5 Costs                       ││ Customer growth, year 1              auto 50% · preset     ││                      │
+│  6 Capital & tax         ✎1    ││                                                            ││ Range 94.50–105.00   │
+│  7 Discount rates              ││                                                            ││ Offer 105.00 at 11.9×│
+│  8 Offering              ✎2    ││                                                            ││                      │
+│  9 Investors & sentiment ✎4    ││                                                            ││ PROCEED              │
+│ 11 Management                  ││                                                            ││                      │
+│ 12 Simulation                  ││                                                            ││                      │
+│                                ││                                                           v││                      │
+╰────────────────────────────────╯╰─ F3 → Advanced: 1 more field here · 1 answer hidden ───────╯╰──────────────────────╯
+╭─ Field description ──────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Annual churn — The share of customers lost each year. At 8% the average customer stays 1 / 0.08 = 12.5 years; at 35% │
+│ (typical for consumer apps) less than 3. Churn sets a customer's lifetime value, the profit it brings before         │
+│ leaving: ARPU × gross margin (the share of revenue left after the direct cost of serving customers) / churn.         │
+│ Business software often churns 5-15% a year.                                                                         │
+│                                                                                                                      │
+│                                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ Tab next · PgDn page · Enter pick · Ctrl-D clear · F1 glossary · F2 review · F3 level · F5 calculate · F9 save · Esc qu
 ```
 
 | Key | Action |
@@ -1530,9 +1541,9 @@ valuation is always complete.
 
 `--level` chooses the starting level (default `beginner`); F3 steps to the
 next and wraps from Expert to Beginner. Pages with no field at the current
-level are skipped (at Beginner: 4, 5, 10, 12). A line under the form names
-the level, how many fields the next level adds on this page, and how many
-answers the current level hides. F2 always reviews every field.
+level are skipped (at Beginner: 4, 5, 10, 12). The top bar names the level;
+the form box's bottom border says how many fields the next level adds on this
+page, and how many answers the current level hides. F2 always reviews every field.
 
 ### 19.4 Default resolution
 
@@ -1764,7 +1775,7 @@ src/edumatcher/valuation/
   tui/
     interview.py       interview state: pages, texts, live evaluation (no prompt_toolkit)
     app.py             prompt_toolkit Application: page navigation, key bindings
-    widgets.py         field row, pick-list, preview panel, help line
+    widgets.py         rounded Box, pick-list, text prompt, glossary panel, style
     viewer.py          report viewer, compare view
   scenario_io.py       YAML load/save (§21)
   cases/               classroom cases for --case (tornfalk.yaml, halvard.yaml)

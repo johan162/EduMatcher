@@ -941,9 +941,46 @@ the model would teach them wrongly:
 
 ## The interview
 
-The interview is a full-screen terminal form with twelve pages. A preview on
-the right shows fair value, the price range and the verdict, recalculated as
-you type.
+The interview is a full-screen terminal form with twelve pages, laid out like
+the other EduMatcher terminal programs (`pm-viewer`, `pm-board`): the
+EduMatcher badge, program and version in the top bar, and a rounded box
+around each area.
+
+```text
+ EduMatcher   pm-valuation x.yy.z   │   Tornfalk Security AB (TORN)   │   Page 3/11   │   Level Intermediate
+╭─ Pages ────────────────────────╮╭─ 3 Customers & pricing ────────────────────────────────────╮╭─ Live preview ───────╮
+│  1 Company               ✎4    ││ Last FY revenue        1.4mdr        ✎ you                ^││ Fair value           │
+│  2 Market                      ││ Customers now          2,600         ✎ you                 ││       117.45         │
+│▶ 3 Customers & pricing   ✎2    ││ ARPU per year                        auto 600,000 · preset ││ DCF        92.09     │
+│  4 People                      ││ Annual churn                         auto 8% · preset      ││ Comps     176.62     │
+│  5 Costs                       ││ Customer growth, year 1              auto 50% · preset     ││                      │
+│  6 Capital & tax         ✎1    ││                                                            ││ Range 94.50–105.00   │
+│  7 Discount rates              ││                                                            ││ Offer 105.00 at 11.9×│
+│  8 Offering              ✎2    ││                                                            ││                      │
+│  9 Investors & sentiment ✎4    ││                                                            ││ PROCEED              │
+│ 11 Management                  ││                                                            ││                      │
+│ 12 Simulation                  ││                                                            ││                      │
+│                                ││                                                           v││                      │
+╰────────────────────────────────╯╰─ F3 → Advanced: 1 more field here · 1 answer hidden ───────╯╰──────────────────────╯
+╭─ Field description ──────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Annual churn — The share of customers lost each year. At 8% the average customer stays 1 / 0.08 = 12.5 years; at 35% │
+│ (typical for consumer apps) less than 3. Churn sets a customer's lifetime value, the profit it brings before         │
+│ leaving: ARPU × gross margin (the share of revenue left after the direct cost of serving customers) / churn.         │
+│ Business software often churns 5-15% a year.                                                                         │
+│                                                                                                                      │
+│                                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ Tab next · PgDn page · Enter pick · Ctrl-D clear · F1 glossary · F2 review · F3 level · F5 calculate · F9 save · Esc qu
+```
+
+- **Top bar:** the company, the page and the [level](#levels-how-much-the-interview-asks).
+- **Pages:** the pages at the current level; ✎ counts your answers on each.
+- **The form**, titled with the page: one field per row, your answer or the
+  automatic value beside it. Its bottom border says what F3 adds on this page.
+- **Live preview:** fair value, the price range and the verdict, recalculated
+  as you type.
+- **Field description:** what the field in focus means, or what is wrong with
+  its value.
 
 | Page | What it asks |
 |---|---|
@@ -976,7 +1013,7 @@ value, so the valuation is always complete.
 
 Start at a level with `--level`, and change it at any time with F3, which
 steps Beginner → Intermediate → Advanced → Expert and back. The title bar
-shows the level. The line under the fields says how many fields the next
+shows the level. The bottom border of the form says how many fields the next
 level adds on this page, and warns when answers you typed or loaded sit in
 fields the current level hides: they are still used. Pages with no fields at
 the current level are left out of the page list; at Beginner, pages 4, 5, 10
@@ -1010,7 +1047,7 @@ also section 3 of the report.
 | Optional fields | `none` | "Not given", e.g. no last private round |
 
 An empty field goes back to its automatic value (Ctrl-D does the same). A
-value out of range turns the field red and the error replaces the help line.
+value out of range turns the field red and the error replaces the field description.
 F5 refuses to calculate while any field has a problem, and lists them.
 
 ### Keys
@@ -1023,7 +1060,7 @@ F5 refuses to calculate while any field has a problem, and lists them.
 | Ctrl-D | Clear the field back to its automatic value |
 | F1 | Glossary, with a filter |
 | F2 | Review every value and its source |
-| F3 | Next level: Beginner → Intermediate → Advanced → Expert → Beginner. The line under the fields says what it adds on this page |
+| F3 | Next level: Beginner → Intermediate → Advanced → Expert → Beginner. The form's bottom border says what it adds on this page |
 | F5 | Calculate and open the report |
 | F9 | Save the scenario |
 | Esc / Ctrl-Q | Quit; asks first if there are unsaved changes |

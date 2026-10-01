@@ -1,7 +1,7 @@
 """WP6: the interview state, the form application and the report viewer.
 
-The applications are driven through a pipe with prompt_toolkit's DummyOutput
-(80 × 40). Each chunk of keys is sent only after the previous one has been
+The applications are driven through a pipe with prompt_toolkit's DummyOutput,
+sized 120 × 40 as the interview is laid out for. Each chunk of keys is sent only after the previous one has been
 drawn, as a person typing would, so focus moves between rendered fields.
 """
 
@@ -12,9 +12,11 @@ from typing import Any
 
 import pytest
 from prompt_toolkit.application import create_app_session
+from prompt_toolkit.data_structures import Size
 from prompt_toolkit.input import create_pipe_input
 from prompt_toolkit.output import DummyOutput
 
+from edumatcher.cli_version import package_version
 from edumatcher.valuation.fields import Level
 from edumatcher.valuation.pipeline import run
 from edumatcher.valuation.presets import load_presets
@@ -32,9 +34,11 @@ PGDN, DOWN, ESC, CTRL_D = "\x1b[6~", "\x1b[B", "\x1b", "\x04"
 
 def drive(make: Callable[[], Any], chunks: Sequence[str]) -> tuple[Any, str]:
     """Run make().app, typing *chunks* one per redraw; return (object, result)."""
+    output = DummyOutput()
+    output.get_size = lambda: Size(rows=40, columns=120)
     with (
         create_pipe_input() as pipe,
-        create_app_session(input=pipe, output=DummyOutput()),
+        create_app_session(input=pipe, output=output),
     ):
         obj = make()
         queue = list(chunks)
@@ -150,16 +154,14 @@ def test_the_form_says_what_f3_adds_and_what_it_hides() -> None:
     ):
         app = InterviewApp(interview)
         assert app._level_line()[0][1] == (
-            " Level Beginner · F3 → Intermediate: 2 more fields on this page"
-            " · 1 answer hidden at this level"
+            " F3 → Intermediate: 2 more fields here · 1 answer hidden "
         )
         interview.level = Level.ADVANCED
-        assert app._level_line()[0][1] == (
-            " Level Advanced · F3 → Expert: no more on this page"
-            " · 1 answer hidden at this level"
+        assert (
+            app._level_line()[0][1] == " F3 → Expert: no more here · 1 answer hidden "
         )
         interview.level = Level.EXPERT
-        assert app._level_line()[0][1] == " Level Expert: every field · F3 → Beginner"
+        assert app._level_line()[0][1] == " Every field shown · F3 → Beginner "
 
 
 def test_the_sector_pick_list_is_grouped_by_industry() -> None:
@@ -182,6 +184,20 @@ def test_the_sector_pick_list_is_grouped_by_industry() -> None:
     assert len(lines) == 1 + 18 + 7  # automatic, the presets, 7 industry headings
     assert lines[rows[pick.index]][0] == "class:pick.current"
     assert texts[rows[pick.index]].startswith("consulting")
+
+
+def test_the_title_bar_carries_the_edumatcher_brand() -> None:
+    interview = Interview({}, PRESETS)
+    with (
+        create_pipe_input() as pipe,
+        create_app_session(input=pipe, output=DummyOutput()),
+    ):
+        app = InterviewApp(interview)
+        title = "".join(fragment[1] for fragment in app._title())
+        assert app._title()[0] == ("class:brand", " EduMatcher ")
+        assert title.startswith(f" EduMatcher   pm-valuation {package_version()}")
+        assert "Newco AB (NEWC)" in title and "Level Beginner" in title
+        assert app._body_title() == "1 Company"
 
 
 def test_calculate_is_refused_while_a_field_is_invalid() -> None:

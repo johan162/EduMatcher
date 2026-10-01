@@ -20,7 +20,6 @@ from prompt_toolkit.key_binding.bindings.focus import focus_next, focus_previous
 from prompt_toolkit.layout import (
     AnyContainer,
     Container,
-    Dimension,
     DynamicContainer,
     Float,
     FloatContainer,
@@ -33,6 +32,7 @@ from prompt_toolkit.layout import (
 )
 from prompt_toolkit.widgets import TextArea
 
+from edumatcher.cli_version import package_version
 from edumatcher.valuation.fields import FIELDS, PAGES, SECTORS, FieldSpec, Level, Unit
 from edumatcher.valuation.model.offering import Outcome
 from edumatcher.valuation.pipeline import Run, run
@@ -43,6 +43,7 @@ from edumatcher.valuation.scenario_io import dump
 from edumatcher.valuation.tui.interview import Interview
 from edumatcher.valuation.tui.viewer import ReportViewer
 from edumatcher.valuation.tui.widgets import (
+    Box,
     STYLE,
     GlossaryPanel,
     PickList,
@@ -55,6 +56,7 @@ _KEYS = (
     "F2 review · F3 level · F5 calculate · F9 save · Esc quit"
 )
 _AUTO = "(automatic)"
+_VERSION = package_version()
 
 
 class InterviewApp:
@@ -68,26 +70,32 @@ class InterviewApp:
         self.floats = FloatContainer(
             HSplit(
                 [
-                    Window(
-                        FormattedTextControl(self._title), height=1, style="class:title"
-                    ),
+                    Window(FormattedTextControl(self._title), height=1),
                     VSplit(
                         [
-                            Window(FormattedTextControl(self._pages), width=32),
-                            HSplit(
-                                [
-                                    DynamicContainer(self._body),
-                                    Window(
-                                        FormattedTextControl(self._level_line),
-                                        height=1,
-                                    ),
-                                ]
+                            Box(
+                                Window(FormattedTextControl(self._pages)),
+                                "Pages",
+                                width=34,
                             ),
-                            Window(FormattedTextControl(self._preview), width=22),
+                            Box(
+                                DynamicContainer(self._body),
+                                self._body_title,
+                                self._level_line,
+                            ),
+                            Box(
+                                Window(FormattedTextControl(self._preview)),
+                                "Live preview",
+                                width=24,
+                            ),
                         ]
                     ),
                     # 5 lines of field help, plus one for a status message.
-                    Window(FormattedTextControl(self._help), height=6, wrap_lines=True),
+                    Box(
+                        Window(FormattedTextControl(self._help), wrap_lines=True),
+                        "Field description",
+                        height=8,
+                    ),
                     Window(FormattedTextControl(_KEYS), height=1, style="class:keys"),
                 ]
             ),
@@ -127,7 +135,7 @@ class InterviewApp:
         self.inputs[spec.key] = area
         return area
 
-    def _row(self, spec: FieldSpec) -> Container:
+    def _row(self, spec: FieldSpec, label_width: int) -> Container:
         def hint() -> StyleAndTextTuples:
             if self.iv.texts.get(spec.key):
                 return [("class:mine", " ✎ you")]
@@ -137,7 +145,7 @@ class InterviewApp:
             [
                 Window(
                     FormattedTextControl(" " + spec.label),
-                    width=Dimension(min=12, preferred=30, max=30),
+                    width=label_width,
                 ),
                 self._input(spec),
                 Window(FormattedTextControl(hint), wrap_lines=False),
@@ -148,7 +156,11 @@ class InterviewApp:
     def _form(self) -> Container:
         key = (self.iv.page, self.iv.level)
         if key not in self._forms:
-            rows = [self._row(spec) for spec in self.iv.fields()]
+            specs = self.iv.fields()
+            # As wide as the page's longest label, at most 28: what is left
+            # goes to the automatic-value hints.
+            width = min(28, 1 + max(len(spec.label) for spec in specs))
+            rows = [self._row(spec, width) for spec in specs]
             self._forms[key] = ScrollablePane(HSplit(rows))
         return self._forms[key]
 
@@ -198,17 +210,34 @@ class InterviewApp:
     # -- the side panes -------------------------------------------------------------
 
     def _title(self) -> StyleAndTextTuples:
+        """Brand and status, styled like pm-viewer's and pm-board's header."""
         v = self.iv.evaluation.resolved.values
-        page = self.iv.page_index + 1
-        text = (
-            f" pm-valuation ─ {v['company.name']} ({v['company.ticker']}) ─ "
-            f"page {page} / {len(self.iv.pages)} ─ {self.iv.level.name.capitalize()}"
-            + (" ─ review" if self.review is not None else "")
-        )
-        return [("", text)]
+        sep = ("class:title.sep", "   │   ")
+        out: StyleAndTextTuples = [
+            ("class:brand", " EduMatcher "),
+            ("", "  "),
+            ("bold", "pm-valuation"),
+            ("class:title.label", f" {_VERSION}"),
+            sep,
+            ("class:title.value", f"{v['company.name']} ({v['company.ticker']})"),
+            sep,
+            ("class:title.label", "Page "),
+            ("class:title.value", f"{self.iv.page_index + 1}/{len(self.iv.pages)}"),
+            sep,
+            ("class:title.label", "Level "),
+            ("class:title.value", self.iv.level.name.capitalize()),
+        ]
+        if self.review is not None:
+            out += [sep, ("bold", "Review")]
+        return out
+
+    def _body_title(self) -> str:
+        if self.review is not None:
+            return "Review: every value and its source"
+        return f"{self.iv.page} {PAGES[self.iv.page - 1]}"
 
     def _pages(self) -> StyleAndTextTuples:
-        out: StyleAndTextTuples = [("bold", " PAGES\n")]
+        out: StyleAndTextTuples = []
         for number in self.iv.pages:
             mine = self.iv.answered_on(number)
             style = "class:page.current" if number == self.iv.page else "class:page"
@@ -218,25 +247,26 @@ class InterviewApp:
         return out
 
     def _level_line(self) -> StyleAndTextTuples:
-        """The level, what F3 changes on this page, and answers it hides."""
+        """What F3 changes on this page, and the answers the level hides; in
+        the form box's bottom border, so it is kept short (the title bar
+        shows the level itself)."""
         if self.review is not None:
             return []
-        level = self.iv.level.name.capitalize()
         after = self.iv.next_level().name.capitalize()
         if self.iv.level is Level.EXPERT:
-            text = f" Level {level}: every field · F3 → {after}"
+            text = f" Every field shown · F3 → {after} "
         else:
             count = self.iv.added_on(self.iv.page)
             more = f"{count} more field{'s' * (count != 1)}" if count else "no more"
-            text = f" Level {level} · F3 → {after}: {more} on this page"
+            text = f" F3 → {after}: {more} here "
         hidden = self.iv.hidden_answers()
         if hidden:
-            text += f" · {hidden} answer{'s' * (hidden != 1)} hidden at this level"
+            text += f"· {hidden} answer{'s' * (hidden != 1)} hidden "
         return [("class:hint", text)]
 
     def _preview(self) -> StyleAndTextTuples:
         ev = self.iv.evaluation
-        out: StyleAndTextTuples = [("bold", " LIVE PREVIEW\n\n")]
+        out: StyleAndTextTuples = []
         if ev.preview is None:
             count = len(ev.problems)
             out.append(("class:bad", f" {count} problem{'s' * (count != 1)} to fix\n"))
@@ -275,7 +305,7 @@ class InterviewApp:
         if spec is None:
             return out
         # Wrapped here at word boundaries; the window would break mid-word.
-        width = self.app.output.get_size().columns - 1
+        width = self.app.output.get_size().columns - 3  # inside the box
         problem = self.iv.evaluation.problems.get(spec.key)
         if problem:
             return out + [("class:error", self._wrap(f" {problem}", width))]

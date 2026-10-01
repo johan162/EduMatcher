@@ -9,19 +9,28 @@ from prompt_toolkit.formatted_text import StyleAndTextTuples
 from prompt_toolkit.key_binding import KeyBindings, KeyPressEvent
 from prompt_toolkit.layout import (
     AnyContainer,
+    AnyDimension,
     Dimension,
     FormattedTextControl,
     HSplit,
+    VSplit,
     Window,
 )
 from prompt_toolkit.styles import Style
-from prompt_toolkit.widgets import Frame, TextArea
+from prompt_toolkit.widgets import TextArea
 
 from edumatcher.valuation.glossary import GLOSSARY
 
 STYLE = Style.from_dict(
     {
-        "title": "reverse bold",
+        # The EduMatcher terminal look (pm-viewer, pm-board): a white-on-blue
+        # brand badge, grey labels, cyan values and rounded blue frames.
+        "brand": "bold #ffffff bg:ansiblue",
+        "title.label": "#9e9e9e",
+        "title.value": "ansicyan",
+        "title.sep": "#585858",
+        "box.border": "ansiblue",
+        "box.title": "bold",
         "keys": "reverse",
         "page": "",
         "page.current": "bold reverse",
@@ -40,6 +49,46 @@ STYLE = Style.from_dict(
         "pick.current": "reverse",
     }
 )
+
+
+TitleText = Callable[[], StyleAndTextTuples]
+
+
+def Box(
+    body: AnyContainer,
+    title: str | Callable[[], str],
+    bottom: TitleText | None = None,
+    width: AnyDimension = None,
+    height: AnyDimension = None,
+) -> HSplit:
+    """A rounded blue frame with a title in its top border and, optionally,
+    a line of text in its bottom border, like pm-viewer's panels."""
+
+    def edge(char: str, width: int | None = None, height: int | None = None) -> Window:
+        return Window(char=char, style="class:box.border", width=width, height=height)
+
+    def text(get: TitleText) -> Window:
+        return Window(FormattedTextControl(get), height=1, dont_extend_width=True)
+
+    def heading() -> StyleAndTextTuples:
+        name = title if isinstance(title, str) else title()
+        return [("class:box.title", f" {name} ")]
+
+    top = [edge("╭", width=1, height=1), edge("─", width=1, height=1), text(heading)]
+    end = [edge("─", height=1), edge("╮", width=1, height=1)]
+    low = [edge("╰", width=1, height=1), edge("─", width=1, height=1)]
+    if bottom is not None:
+        low.append(text(bottom))
+    low += [edge("─", height=1), edge("╯", width=1, height=1)]
+    return HSplit(
+        [
+            VSplit([*top, *end], height=1),
+            VSplit([edge("│", width=1), body, edge("│", width=1)]),
+            VSplit(low, height=1),
+        ],
+        width=width,
+        height=height,
+    )
 
 
 class PickList:
@@ -87,13 +136,13 @@ class PickList:
             get_cursor_position=lambda: Point(0, self._lines()[1][self.index]),
         )
         lines = len(self._lines()[0])
-        self.container: AnyContainer = Frame(
+        self.container: AnyContainer = Box(
             Window(
                 self.control,
                 width=Dimension(min=24),
                 height=Dimension(max=lines, preferred=lines),
             ),
-            title=title,
+            title,
         )
 
     def _lines(self) -> tuple[list[tuple[str, str]], list[int]]:
@@ -145,7 +194,7 @@ class TextPrompt:
             on_done(None)
 
         self.area.control.key_bindings = kb
-        self.container: AnyContainer = Frame(self.area, title=title)
+        self.container: AnyContainer = Box(self.area, title)
 
 
 class GlossaryPanel:
@@ -161,7 +210,7 @@ class GlossaryPanel:
             on_close()
 
         self.search.control.key_bindings = kb
-        self.container: AnyContainer = Frame(
+        self.container: AnyContainer = Box(
             HSplit(
                 [
                     self.search,
@@ -172,7 +221,7 @@ class GlossaryPanel:
                     ),
                 ]
             ),
-            title="Glossary (Esc to close)",
+            "Glossary (Esc to close)",
             width=Dimension(preferred=76),
         )
 

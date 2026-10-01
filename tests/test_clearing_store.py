@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 from collections.abc import Generator
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -351,8 +352,11 @@ class TestFlushBatch:
 
 class TestPrune:
     def test_prune_removes_old_rows(self, conn: sqlite3.Connection) -> None:
+        recent_date = (
+            (datetime.now(timezone.utc) - timedelta(days=1)).date().isoformat()
+        )
         old_trade = _trade_row("OLD", trade_date="2020-01-01")
-        new_trade = _trade_row("NEW", trade_date="2026-07-01")
+        new_trade = _trade_row("NEW", trade_date=recent_date)
         flush_batch(conn, [old_trade, new_trade], [], [])
 
         deleted = prune_old_events(conn, retention_days=90)
@@ -363,7 +367,10 @@ class TestPrune:
         assert remaining[0]["id"] == "NEW"
 
     def test_prune_keeps_recent_rows(self, conn: sqlite3.Connection) -> None:
-        new_trade = _trade_row("RECENT", trade_date="2026-07-01")
+        recent_date = (
+            (datetime.now(timezone.utc) - timedelta(days=1)).date().isoformat()
+        )
+        new_trade = _trade_row("RECENT", trade_date=recent_date)
         flush_batch(conn, [new_trade], [], [])
         deleted = prune_old_events(conn, retention_days=90)
         assert deleted == 0
