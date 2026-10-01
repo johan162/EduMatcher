@@ -949,11 +949,11 @@ around each area.
 ```text
  EduMatcher   pm-valuation x.yy.z   │   Tornfalk Security AB (TORN)   │   Page 3/11   │   Level Intermediate
 ╭─ Pages ────────────────────────╮╭─ 3 Customers & pricing ────────────────────────────────────╮╭─ Live preview ───────╮
-│  1 Company               ✎4    ││ Last FY revenue        1.4mdr        ✎ you                ^││ Fair value           │
-│  2 Market                      ││ Customers now          2,600         ✎ you                 ││       117.45         │
-│▶ 3 Customers & pricing   ✎2    ││ ARPU per year                        auto 600,000 · preset ││ DCF        92.09     │
-│  4 People                      ││ Annual churn                         auto 8% · preset      ││ Comps     176.62     │
-│  5 Costs                       ││ Customer growth, year 1              auto 50% · preset     ││                      │
+│  1 Company               ✎4    ││ Last FY revenue             1.4mdr        ✎ you           ^││ Fair value           │
+│  2 Market                      ││ Customers now               2,600         ✎ you            ││       117.45         │
+│▶ 3 Customers & pricing   ✎2    ││ ARPU per year                             600,000 · preset ││ DCF        92.09     │
+│  4 People                      ││ Annual churn                              8% · preset      ││ Comps     176.62     │
+│  5 Costs                       ││ Customer growth, year 1                   50% · preset     ││                      │
 │  6 Capital & tax         ✎1    ││                                                            ││ Range 94.50–105.00   │
 │  7 Discount rates              ││                                                            ││ Offer 105.00 at 11.9×│
 │  8 Offering              ✎2    ││                                                            ││                      │

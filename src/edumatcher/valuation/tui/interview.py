@@ -122,7 +122,7 @@ class Interview:
         value = format_value(
             spec, resolved.values[spec.key], resolved.values["company.market"]
         )
-        return f"auto {value} · {resolved.sources[spec.key].value}"
+        return f"{value} · {resolved.sources[spec.key].value}"
 
     # -- evaluation ---------------------------------------------------------------
 

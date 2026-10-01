@@ -157,9 +157,9 @@ class InterviewApp:
         key = (self.iv.page, self.iv.level)
         if key not in self._forms:
             specs = self.iv.fields()
-            # As wide as the page's longest label, at most 28: what is left
-            # goes to the automatic-value hints.
-            width = min(28, 1 + max(len(spec.label) for spec in specs))
+            # The page's longest label plus 5 columns of space, at most 33:
+            # what is left goes to the automatic-value hints.
+            width = min(33, 6 + max(len(spec.label) for spec in specs))
             rows = [self._row(spec, width) for spec in specs]
             self._forms[key] = ScrollablePane(HSplit(rows))
         return self._forms[key]

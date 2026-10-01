@@ -1431,7 +1431,7 @@ pm-new-symbol --symbol AURM --ipo-price 14.50 --outstanding-shares 100689655 --t
 
 - **Every field is optional**, except that the student must press F5 to
   calculate. An empty field shows the value it will take, dimmed, with its
-  source: `auto 8.0% · preset b2b_saas`.
+  source: `8% · preset`.
 - **Each field carries a short explanation**, shown under the form when the
   field is focused. The interview is also the textbook.
 - **A live preview.** A side panel recomputes the deterministic fair value
@@ -1454,11 +1454,11 @@ At 120 columns (rows in between left out):
 ```text
  EduMatcher   pm-valuation x.yy.z   │   Tornfalk Security AB (TORN)   │   Page 3/11   │   Level Intermediate
 ╭─ Pages ────────────────────────╮╭─ 3 Customers & pricing ────────────────────────────────────╮╭─ Live preview ───────╮
-│  1 Company               ✎4    ││ Last FY revenue        1.4mdr        ✎ you                ^││ Fair value           │
-│  2 Market                      ││ Customers now          2,600         ✎ you                 ││       117.45         │
-│▶ 3 Customers & pricing   ✎2    ││ ARPU per year                        auto 600,000 · preset ││ DCF        92.09     │
-│  4 People                      ││ Annual churn                         auto 8% · preset      ││ Comps     176.62     │
-│  5 Costs                       ││ Customer growth, year 1              auto 50% · preset     ││                      │
+│  1 Company               ✎4    ││ Last FY revenue             1.4mdr        ✎ you           ^││ Fair value           │
+│  2 Market                      ││ Customers now               2,600         ✎ you            ││       117.45         │
+│▶ 3 Customers & pricing   ✎2    ││ ARPU per year                             600,000 · preset ││ DCF        92.09     │
+│  4 People                      ││ Annual churn                              8% · preset      ││ Comps     176.62     │
+│  5 Costs                       ││ Customer growth, year 1                   50% · preset     ││                      │
 │  6 Capital & tax         ✎1    ││                                                            ││ Range 94.50–105.00   │
 │  7 Discount rates              ││                                                            ││ Offer 105.00 at 11.9×│
 │  8 Offering              ✎2    ││                                                            ││                      │

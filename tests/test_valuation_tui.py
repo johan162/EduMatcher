@@ -87,9 +87,9 @@ def test_problems_are_keyed_to_their_field() -> None:
 def test_hints_show_the_automatic_value() -> None:
     interview = Interview({}, PRESETS, Level.EXPERT)
     churn = next(s for s in interview.fields(3) if s.key == "customers.churn")
-    assert interview.hint(churn) == "auto 8% · preset"
+    assert interview.hint(churn) == "8% · preset"
     interview.set_text("customers.churn", "abc")  # hints keep the last valid company
-    assert interview.hint(churn) == "auto 8% · preset"
+    assert interview.hint(churn) == "8% · preset"
 
 
 def test_levels_add_fields_and_pages() -> None:
