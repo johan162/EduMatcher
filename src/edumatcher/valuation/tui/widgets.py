@@ -14,7 +14,6 @@ from prompt_toolkit.layout import (
     Dimension,
     FormattedTextControl,
     HSplit,
-    ScrollablePane,
     VSplit,
     Window,
 )
@@ -219,18 +218,12 @@ class ExplainPanel:
             self.lines.append(("bold", f" {heading}\n"))
             wrapped = textwrap.fill(text, self.WIDTH, break_on_hyphens=False)
             self.lines += [("class:help", f" {line}\n") for line in wrapped.split("\n")]
+        self.top = 0  # the first line shown
         kb = KeyBindings()
-
-        def scroll(by: int) -> None:
-            last = max(0, len(self.lines) - 1)
-            self.pane.vertical_scroll = min(
-                last, max(0, self.pane.vertical_scroll + by)
-            )
-
-        kb.add("up")(lambda event: scroll(-1))
-        kb.add("down")(lambda event: scroll(1))
-        kb.add("pageup")(lambda event: scroll(-10))
-        kb.add("pagedown")(lambda event: scroll(10))
+        kb.add("up")(lambda event: self._scroll(-1))
+        kb.add("down")(lambda event: self._scroll(1))
+        kb.add("pageup")(lambda event: self._scroll(-10))
+        kb.add("pagedown")(lambda event: self._scroll(10))
 
         @kb.add("escape", eager=True)
         @kb.add(key)
@@ -238,28 +231,45 @@ class ExplainPanel:
             on_close()
 
         self.control = FormattedTextControl(
-            self.lines, focusable=True, key_bindings=kb, show_cursor=False
+            lambda: self.lines[self.top :],
+            focusable=True,
+            key_bindings=kb,
+            show_cursor=False,
         )
-        self.pane = ScrollablePane(
-            Window(self.control, height=len(self.lines)),
-            keep_cursor_visible=False,
-            keep_focused_window_visible=False,
-            height=Dimension(min=3, preferred=min(len(self.lines), 24), max=24),
+        height = min(len(self.lines), 24)
+        self.window = Window(
+            self.control, height=Dimension(min=3, preferred=height, max=height)
         )
         self.container: AnyContainer = Box(
-            self.pane,
+            self.window,
             f"{title} (Esc to close)",
             lambda: [("class:hint", " ↑↓ PgUp PgDn scroll ")],
             width=self.WIDTH + 4,
         )
 
+    def _scroll(self, by: int) -> None:
+        """Move by *by* lines, stopping when the last line is in view."""
+        info = self.window.render_info
+        shown = min(len(self.lines), 24) if info is None else info.window_height
+        self.top = min(max(0, len(self.lines) - shown), max(0, self.top + by))
+
 
 class GlossaryPanel:
-    """F1: the glossary, filtered by what is typed in its search line."""
+    """F1: the glossary, filtered by what is typed in its search line;
+    ↑/↓ and PgUp/PgDn scroll the entries."""
+
+    WIDTH = 72  # text columns inside the box
+    HEIGHT = 21  # the borders, the search line and up to 18 entry lines
 
     def __init__(self, on_close: Callable[[], None]) -> None:
         self.search = TextArea(multiline=False, prompt="search: ")
+        self.top = 0  # the first entry line shown
+        self.search.buffer.on_text_changed += lambda buffer: self._scroll(-self.top)
         kb = KeyBindings()
+        kb.add("up")(lambda event: self._scroll(-1))
+        kb.add("down")(lambda event: self._scroll(1))
+        kb.add("pageup")(lambda event: self._scroll(-10))
+        kb.add("pagedown")(lambda event: self._scroll(10))
 
         @kb.add("escape", eager=True)
         @kb.add("f1")
@@ -267,25 +277,43 @@ class GlossaryPanel:
             on_close()
 
         self.search.control.key_bindings = kb
+        # A fixed height: the box keeps its size while scrolling or searching.
+        self.window = Window(
+            FormattedTextControl(self._entries), height=self.HEIGHT - 3
+        )
         self.container: AnyContainer = Box(
-            HSplit(
-                [
-                    self.search,
-                    Window(
-                        FormattedTextControl(self._entries),
-                        height=Dimension(max=18),
-                        wrap_lines=True,
-                    ),
-                ]
-            ),
+            HSplit([self.search, self.window]),
             "Glossary (Esc to close)",
-            width=Dimension(preferred=76),
+            lambda: [("class:hint", " ↑↓ PgUp PgDn scroll ")],
+            width=self.WIDTH + 4,
         )
 
-    def _entries(self) -> StyleAndTextTuples:
+    def _scroll(self, by: int) -> None:
+        """Move by *by* lines, stopping when the last line is in view."""
+        info = self.window.render_info
+        shown = self.HEIGHT - 3 if info is None else info.window_height
+        last = max(0, len(self._lines()) - shown)
+        self.top = min(last, max(0, self.top + by))
+
+    def _lines(self) -> list[StyleAndTextTuples]:
+        """The matching entries, wrapped, one list of fragments per line."""
         needle = self.search.text.strip().lower()
-        out: StyleAndTextTuples = []
+        lines: list[StyleAndTextTuples] = []
         for term, meaning in GLOSSARY:
             if needle in term.lower() or needle in meaning.lower():
-                out += [("bold", term), ("", f": {meaning}\n")]
-        return out or [("class:hint", "No entry matches.")]
+                wrapped = textwrap.wrap(
+                    f"{term}: {meaning}", self.WIDTH, subsequent_indent="  "
+                )
+                lines.append([("bold", f" {term}"), ("", wrapped[0][len(term) :])])
+                for line in wrapped[1:]:
+                    lines.append([("", f" {line}")])
+        return lines
+
+    def _entries(self) -> StyleAndTextTuples:
+        lines = self._lines()
+        if not lines:
+            return [("class:hint", " No entry matches.")]
+        out: StyleAndTextTuples = []
+        for line in lines[self.top :]:
+            out += [*line, ("", "\n")]
+        return out

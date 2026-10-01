@@ -25,7 +25,7 @@ from edumatcher.valuation.tui.app import InterviewApp
 from edumatcher.valuation.tui.explain import explain_preview
 from edumatcher.valuation.tui.interview import Interview
 from edumatcher.valuation.tui.viewer import ReportViewer
-from edumatcher.valuation.tui.widgets import PickList
+from edumatcher.valuation.tui.widgets import ExplainPanel, GlossaryPanel, PickList
 from tests.test_valuation_resolve import AURORA
 
 PRESETS = load_presets()
@@ -224,6 +224,15 @@ def test_f4_explains_the_live_preview_with_its_numbers() -> None:
     ]
     assert "70% × DCF 92.09 + 30% × comparables 176.62" in entries["Fair value  117.45"]
     assert "the top of the range, the maximum price" in entries["Offer 105.00 at 11.9×"]
+    with (
+        create_pipe_input() as pipe,
+        create_app_session(input=pipe, output=DummyOutput()),
+    ):
+        panel = ExplainPanel("x", list(entries.items()), lambda: None, "f4")
+        panel._scroll(10_000)
+        assert panel.top == len(panel.lines) - 24  # stops with the last line shown
+        panel._scroll(-10_000)
+        assert panel.top == 0
     interview.set_text("customers.churn", "lots")
     [(heading, _)] = explain_preview(interview.evaluation)
     assert heading == "1 problem to fix"
@@ -232,6 +241,32 @@ def test_f4_explains_the_live_preview_with_its_numbers() -> None:
 def test_f4_opens_and_closes_the_explanation() -> None:
     interview = Interview({}, PRESETS)
     app, result = drive(lambda: InterviewApp(interview), [F4, DOWN, PGDN, ESC, F5])
+    assert result == "calculate"
+
+
+def test_the_glossary_scrolls_and_a_search_starts_at_the_top() -> None:
+    with (
+        create_pipe_input() as pipe,
+        create_app_session(input=pipe, output=DummyOutput()),
+    ):
+        panel = GlossaryPanel(lambda: None)
+        first = "".join(fragment[1] for fragment in panel._entries()).split("\n")[0]
+        panel._scroll(3)
+        assert panel.top == 3
+        assert (
+            "".join(fragment[1] for fragment in panel._entries()).split("\n")[0]
+            != first
+        )
+        panel._scroll(10_000)
+        assert panel.top == len(panel._lines()) - 18  # the last line at the bottom
+        panel.search.text = "churn"
+        assert panel.top == 0
+        assert panel._entries()[0] == ("bold", " Churn")
+
+
+def test_f1_glossary_scrolls_with_the_arrow_keys() -> None:
+    interview = Interview({}, PRESETS)
+    app, result = drive(lambda: InterviewApp(interview), [F1, DOWN, DOWN, ESC, F5])
     assert result == "calculate"
 
 

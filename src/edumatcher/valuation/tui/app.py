@@ -353,7 +353,11 @@ class InterviewApp:
                 self.app.layout.focus(back)
 
             panel = GlossaryPanel(close)
-            self.floats.floats.append(Float(panel.container))
+            # Three rows above centre, so its bottom border clears the
+            # form's; it stays there as a search shortens the list.
+            rows = self.app.output.get_size().rows
+            top = max(0, (rows - GlossaryPanel.HEIGHT) // 2 - 3)
+            self.floats.floats.append(Float(panel.container, top=top))
             self.app.layout.focus(panel.search)
 
         @kb.add("f4", filter=no_float)

@@ -1483,7 +1483,7 @@ At 120 columns (rows in between left out):
 | Tab / Shift-Tab, ↑ / ↓ | Next / previous field |
 | PgDn / PgUp | Next / previous page |
 | Ctrl-D | Clear the field back to its automatic value |
-| F1 | Glossary (Appendix B), searchable |
+| F1 | Glossary (Appendix B): searchable, scrolled with ↑ / ↓ and PgUp / PgDn |
 | F2 | Review page: every value with its source (✎ you / preset / derived / default) |
 | F3 | Next interview level: Beginner → Intermediate → Advanced → Expert → Beginner (§19.3) |
 | F4 | The live preview explained: each line with its current value and how it was reached (`tui/explain.py`); a scrollable panel, Esc closes. The preview box's bottom border says "F4 explain" |

@@ -1060,7 +1060,7 @@ F5 refuses to calculate while any field has a problem, and lists them.
 | PgDn / PgUp | Next / previous page |
 | Enter | Open a pick-list |
 | Ctrl-D | Clear the field back to its automatic value |
-| F1 | Glossary, with a filter |
+| F1 | Glossary: type to filter it, ↑ / ↓ and PgUp / PgDn to scroll |
 | F2 | Review every value and its source |
 | F3 | Next level: Beginner → Intermediate → Advanced → Expert → Beginner. The form's bottom border says what it adds on this page |
 | F4 | Explain the live preview: what each number means and how it was reached, with today's values (↑ / ↓ scroll, Esc closes) |
