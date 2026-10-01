@@ -171,6 +171,24 @@ def _rest_limit(
 
 
 class TestC1BookStatsRoundTrip:
+    def test_new_symbol_starts_without_prior_stats(self, monkeypatch, tmp_path) -> None:
+        engine, _ = _make_engine(
+            monkeypatch,
+            tmp_path,
+            symbols=(SYMBOL, "IPO1"),
+            book_stats={SYMBOL: {"last_buy_price": 150.0}},
+        )
+        assert engine._engine_config is not None
+        engine._engine_config.symbols["IPO1"].last_buy_price = 20.01
+        engine._engine_config.symbols["IPO1"].last_sell_price = 20.02
+
+        engine._load_config()
+
+        assert engine.books[SYMBOL].last_buy_price == 15000
+        assert engine.books["IPO1"].last_buy_price == 2001
+        assert engine.books["IPO1"].last_sell_price == 2002
+        assert not engine.books["IPO1"].recent_trades
+
     def test_last_prices_survive_save_load_cycle(self, monkeypatch, tmp_path) -> None:
         # --- session 1: trade at 150.00 (== 15000 ticks) ---
         engine1, _ = _make_engine(monkeypatch, tmp_path)

@@ -93,7 +93,7 @@ class FileConfig:
 EMPTY_FILE_CONFIG = FileConfig()
 
 
-def load_bot_config(path: Path) -> FileConfig:
+def load_bot_config(path: Path, symbols_required: bool = True) -> FileConfig:
     """Load a config file in either supported shape.
 
     The discriminator is structural as well as declared: ``version:``, a
@@ -105,7 +105,7 @@ def load_bot_config(path: Path) -> FileConfig:
     if raw is None:
         return EMPTY_FILE_CONFIG
     if _looks_like_v1(raw):
-        return _load_v1(raw, path)
+        return _load_v1(raw, path, symbols_required)
     return _from_legacy_flat(load_config_file(path))
 
 
@@ -170,7 +170,9 @@ def _from_legacy_flat(values: dict[str, Any]) -> FileConfig:
     )
 
 
-def _load_v1(raw: dict[str, Any], path: Path) -> FileConfig:
+def _load_v1(
+    raw: dict[str, Any], path: Path, symbols_required: bool = True
+) -> FileConfig:
     _reject_unknown(raw, _V1_TOP_LEVEL_KEYS, path, "")
 
     version = raw.get("version", SCHEMA_VERSION)
@@ -191,7 +193,11 @@ def _load_v1(raw: dict[str, Any], path: Path) -> FileConfig:
         gateway=gateway,
         logging=_load_block(raw.get("logging"), set(LOGGING_KEYS), path, "logging"),
         defaults=_load_block(raw.get("defaults"), set(TIER2_KEYS), path, "defaults"),
-        symbols=_load_symbols(raw.get("symbols"), path),
+        symbols=(
+            _load_symbols(raw.get("symbols"), path)
+            if symbols_required or raw.get("symbols") is not None
+            else {}
+        ),
     )
 
 

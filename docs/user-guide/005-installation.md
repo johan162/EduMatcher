@@ -101,7 +101,7 @@ describe different systems.
 | Option | Default | Effect |
 |---|---|---|
 | `--version X.Y.Z` | newest release | Install one specific release. All six images carry this tag, so it pins the whole system |
-| `--config NAME` | `s3-basic` | Deploy a bundled example configuration |
+| `--config NAME` | `s10-basic` | Deploy a bundled example configuration |
 | `--config FILE` | — | ...or a path to an `engine_config.yaml` of your own |
 | `--dir PATH` | `~/.edumatcher` | Where to install |
 | `--no-start` | — | Fetch and configure, but do not start anything |
@@ -111,7 +111,7 @@ Because the script is read from a pipe, options need `bash -s --` so that the
 shell hands them to the script rather than consuming them itself:
 
 ```bash
-curl -fsSL .../install.sh | bash -s -- --config s10-nominal --version 0.43.1
+curl -fsSL .../install.sh | bash -s -- --config s10-nominal --version 0.44.0
 ```
 
 Two environment variables are also honoured: `REPO_OWNER` (which GitHub
@@ -134,9 +134,9 @@ into this file.
 |---|---|---|
 | `EM_VERSION` | *(the installed release)* | Which release to run. All six images carry this tag, so one value pins the whole system. `latest` follows the newest release |
 | `GHCR_OWNER` | `johan162` | The GHCR namespace the images are pulled from. Change it only for a fork |
-| `EM_CONFIG` | `s3-basic` | Which bundled example configuration the exchange deploys |
+| `EM_CONFIG` | `s10-basic` | Which bundled example configuration the exchange deploys |
 | `EM_CONFIG_FILE` | *(empty)* | Set to `/config/engine_config.yaml` when you run a configuration of your own. Non-empty wins over `EM_CONFIG` |
-| `EM_PROFILE` | `default` | Which processes start: `default`, `mini` or `micro`. See [Processes](170-processes.md) |
+| `EM_PROFILE` | `mm-demo` | Which processes start: `mm-demo` (the full stack plus a slow, passive market-maker bot quoting as `MM01`), `default`, `mini` or `micro`. See [Processes](170-processes.md) |
 | `TZ` | `UTC` | Container timezone. Set it to match the trading calendar in your configuration, e.g. `Europe/Stockholm` |
 | `BIND_ADDR` | `127.0.0.1` | Which host interface the published ports listen on. See the warning below |
 | `EDUMATCHER_GATEWAY_BIND_HOST` | `0.0.0.0` | Bind host for the service-layer listeners *inside* the container — the four protocol gateways, `pm-log-srv` and `pm-api-gwy`. It is what makes them reachable from the GUI containers, and it wins over any `bind_address:` in the deployed configuration. Not a host-exposure setting; that is `BIND_ADDR` |
@@ -232,7 +232,7 @@ To run a configuration of your own, give the same command a path instead:
 The file is copied into `~/.edumatcher/config/`, mounted read-only into the
 container, and deployed on every start — so editing it and restarting is the
 whole edit-test loop. Switching back to a bundled example is
-`./edumatcher.sh config s3-basic`. The configuration builder at
+`./edumatcher.sh config s10-basic`. The configuration builder at
 <http://localhost:8092> is the easy way to author one; see
 [Configuration GUI](030-config-GUI.md).
 
@@ -277,9 +277,9 @@ alone) and `up-all` (the exchange plus the GUIs).
 
 | Flag | Default | Effect |
 |---|---|---|
-| `CONFIG=<name>` | `s3-basic` | Deploy a bundled example |
+| `CONFIG=<name>` | `s10-basic` | Deploy a bundled example |
 | `CONFIG=<file>` | — | Deploy an `engine_config.yaml` of your own; the file is copied to `deployment/docker/config/` and mounted read-only |
-| `PROFILE=<name>` | `default` | Which processes `pm-opctl-cli` starts: `default`, `mini` or `micro`. See [Processes](170-processes.md) |
+| `PROFILE=<name>` | `default` | Which processes `pm-opctl-cli` starts: `default`, `mini`, `micro` or `mm-demo`. See [Processes](170-processes.md) |
 | `ZMQ=1` | off | Also publish the raw ZeroMQ bus (5555-5559, 5601-5602) to the host, and set the engine and index sockets to bind `0.0.0.0` inside the container |
 | `SSH=1` | off | Run `sshd` in the container on `SSH_PORT`, authorised by your `~/.ssh/*.pub` |
 | `CONFIG_GUI=1` | off | Include the configuration builder in `up-all`. It is opt-in because it talks to nothing — it is a standalone authoring tool |
@@ -307,7 +307,7 @@ plain `make up-all` afterwards goes back to whatever `.env` says.
 | `COMPOSE_PROJECT_NAME` | `edumatcher` | Compose project name; decides container and network naming |
 | `EDUMATCHER_VERSION` | *(empty)* | PyPI version for `PYPI=1` builds; empty means newest |
 | `WITH_SSH` | `1` | Install `openssh-server` into the image at build time |
-| `EM_CONFIG` | `s3-basic` | Bundled example to deploy |
+| `EM_CONFIG` | `s10-basic` | Bundled example to deploy |
 | `EM_CONFIG_FILE` | *(empty)* | Path **inside the container** to a configuration of your own; set for you by `CONFIG=<file>` |
 | `EM_PROFILE` | `default` | Process profile to start |
 | `TZ` | `Europe/Stockholm` | Container timezone — match the trading calendar in your configuration |
@@ -615,7 +615,7 @@ deployed configuration and `pm-opctl-cli` ready to start the stack.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | \
-    bash -s -- --version 0.43.1 --snapshot
+    bash -s -- --version 0.44.0 --snapshot
 
 multipass shell ems
 cd /home/ubuntu/session
@@ -638,7 +638,7 @@ To read the script before running it:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh -o curl_setup_vm.sh
 less curl_setup_vm.sh
-bash curl_setup_vm.sh --version 0.43.1 --snapshot
+bash curl_setup_vm.sh --version 0.44.0 --snapshot
 ```
 
 

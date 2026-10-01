@@ -11,9 +11,9 @@ make the training exercises more intuitive and meaningful.
 
 ## How to Use This Guide
 
-The 28 chapters (00–27) are **one continuous sequence, not independent
+The 29 chapters (00–28) are **one continuous sequence, not independent
 modules**. Every chapter's own "Prerequisites" section names the chapters it
-needs, and in every case but one that is simply "everything before it." There
+needs, and in every case but two that is simply "everything before it." There
 is no reordering the sequence — if you only need part of what the exchange
 does, the right move is to work through it from chapter 00 and stop when
 you've covered what you need, not to skip ahead. [Choose Your Path](#choose-your-path)
@@ -62,7 +62,7 @@ a `BOOK` typed into a trader console just answers `Unknown command`.
 
 ## Choose Your Path
 
-You do not have to complete all 28 chapters in one sitting. Because each
+You do not have to complete all 29 chapters in one sitting. Because each
 chapter only assumes the ones before it, picking a goal below just means
 working through the sequence from chapter 00 and stopping where shown —
 everything up to that point is genuine prerequisite for what follows, so
@@ -80,7 +80,7 @@ flowchart LR
     Operator --> O1["Chapters 00 → 19"]
     O1 --> ODone(["Liquidity, risk\ncontrols, P&L, a full\nsession, admin tools"])
 
-    Everything --> E1["Chapters 00 → 27\nin order"]
+    Everything --> E1["Chapters 00 → 28\nin order"]
     E1 --> EDone(["Everything above, plus\nALF, BALF, CALF, RALF,\nREST/WebSocket, and\nthe market index"])
 
     style Start fill:#4a5568,stroke:#2d3748,color:#fff
@@ -93,12 +93,14 @@ flowchart LR
 |---|---|---|
 | **Learn to trade** — place, amend, and cancel orders; understand fills, TIFs, order types, and auctions | 00–08 | Everything a working trader needs day to day |
 | **Run or operate a classroom exchange** — liquidity, risk controls, P&L, a full session, admin tools | 00–19 | Everything above, plus the operator's toolkit |
-| **Cover everything, including external protocols** — bots and systems that talk to the exchange over ALF, BALF, CALF, RALF, REST, or WebSocket | 00–27 | The full training programme |
+| **Cover everything, including external protocols** — bots and systems that talk to the exchange over ALF, BALF, CALF, RALF, REST, or WebSocket | 00–28 | The full training programme |
 
-There is one shortcut worth knowing about: [chapter 25](#part-5-external-connectivity-integration-track)
+There are two shortcuts worth knowing about: [chapter 25](#part-5-external-connectivity-integration-track)
 (the market index) only needs chapters 00–03, so if all you want is
 `pm-index`, you can jump to it early instead of working through the whole
-sequence — see the note at the end of Part 5.
+sequence — see the note at the end of Part 5. And
+[chapter 28](#part-4-operating-the-exchange) (IPO valuation) needs only
+chapter 00 for its first six exercises; the last one also needs 00–03 and 07.
 
  
 
@@ -121,6 +123,7 @@ flowchart LR
         g4c --> g5a["20\nExternal"]
         g5a --> g3b["21\nLiquidity"]
         g3b --> g5b["22–27\nExternal"]
+        g5b --> g4d["28\nOperating"]
     end
 ```
 
@@ -166,6 +169,7 @@ backs it — skim it before the chapter, or use it afterwards as the reference.
 | 17 | [Capstone Scenario](170-capstone-scenario.md) | Run a full session end to end, combining everything above | [Running the Exchange](../user-guide/040-running-the-exchange.md) |
 | 18 | [Exchange Observer Processes](180-exchange-observer-processes.md) | Compare the book, tape, order monitor, audit trail, stats and clearing views side by side | [Processes](../user-guide/170-processes.md) |
 | 19 | [Advanced Admin Operations](190-advanced-admin-operations.md) | Use `KICK`, `QCANCEL`, `CANCEL_SYM` and manual session overrides | [Exchange Commands](../user-guide/160-exchange-commands.md) |
+| 28 | [IPO Valuation](280-ipo-valuation.md) | Price an IPO, then list it and let the opening auction judge the price | [IPO Valuation](../user-guide/046-valuation.md), [Listing a New Symbol](../user-guide/045-new-symbol.md) |
 
 ### Part 5 — External connectivity (integration track)
 
@@ -183,7 +187,7 @@ wire protocols and APIs.
 | 26 | [ALF TCP Gateway](260-alf-gwy.md) | Speak ALF over a raw socket | [ALF Gateway](../user-guide/220-alf-gateway.md), [ALF Protocol](../user-guide/900-app-alf-protocol.md) |
 | 27 | [BALF TCP Gateway](270-balf-gwy.md) | Speak the binary order-entry protocol | [BALF Gateway](../user-guide/230-balf-gateway.md), [BALF Protocol](../user-guide/910-app-balf-protocol.md) |
 
-!!! note "Chapter 25 is the one chapter you can take out of order"
+!!! note "Chapter 25 can be taken out of order"
     Every chapter above requires all chapters before it — except chapter 25
     (Market Index), which only needs chapters 00–03. Its natural reading
     partner is [Statistics & Reporting](150-statistics-reporting.md)
@@ -191,6 +195,8 @@ wire protocols and APIs.
     numbered 25 because that is where it was written, between the API
     Gateway and ALF Gateway chapters; treat the number as an ordering
     convenience, not a dependency on chapters 04–24.
+    Chapter 28 (IPO Valuation) is the other exception: see its
+    Prerequisites.
 
  
 

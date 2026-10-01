@@ -222,7 +222,7 @@ mkdir edumatcher-session && cd edumatcher-session
 pm-setup
 ```
 
-The `pm-setup` command will create a new data-directory and install a default example engine-config file with three symbols.
+The `pm-setup` command will create a new data-directory and install a default example engine-config file with ten symbols.
 
 Here you start each process yourself. That is slower, but it is the better way
 to *learn* the system: you see what each process does, and what breaks when one
@@ -410,8 +410,8 @@ Open three terminals in the same session environment.
     ```
 
     Then run the `pm-alf-console` commands below in those. The container's
-    default configuration is `s3-basic`, which has the same symbols
-    (`AAPL`, `MSFT`, `TSLA`) and the same gateways (`TRADER01`, `TRADER02`,
+    default configuration is `s10-basic`, which includes the same symbols
+    (`AAPL`, `MSFT`, `TSLA`, and seven more) and the same gateways (`TRADER01`, `TRADER02`,
     `OPS01`, `MM01`) as the `pm-setup` sample, so every command below works
     unchanged. `pm-config-show` prints what is actually deployed if you want to
     confirm. You can also watch the trade land in the browser terminal on
@@ -527,7 +527,7 @@ when you want exact command-line flags and startup dependencies.
 
 Once you know which processes you want, you do not have to start them one at a
 time forever. `pm-opctl-cli start` brings up a whole named profile — `micro`,
-`mini` or `default` — writes each process's log to a file, and reports the lot
+`mini`, `default` or `mm-demo` — writes each process's log to a file, and reports the lot
 with `pm-opctl-cli list`. It is what the container runs internally, and it works
 the same on the host. See
 [Running the Exchange](040-running-the-exchange.md#starting-the-stack-with-pm-opctl-cli).

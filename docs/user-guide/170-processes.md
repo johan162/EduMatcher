@@ -1589,6 +1589,7 @@ pm-mm-bot --symbol AAPL [options]
 | `--gap`                          | `0.10`                 | Total spread in price units (bid at mid−gap/2, ask at mid+gap/2) |
 | `--qty`                          | `500`                  | Quote size on each leg                                           |
 | `--id-suffix`                    | `01`                   | Running number for gateway ID (`MM_AAPL_01`)                     |
+| `--gateway-id`                   | *derived*              | Exact gateway ID (e.g. `MM01`); overrides `MM_<symbols>_<id-suffix>` |
 | `--drift-ticks`                  | `3`                    | Reprice when mid moves by this many ticks                        |
 | `--reissue-delay-ms`             | `200`                  | Milliseconds to wait after fill before re-issuing                |
 | `--tif`                          | `DAY`                  | Time-in-force for quote legs (`DAY` or `GTC`)                    |
@@ -2637,7 +2638,7 @@ pm-opctl-cli clear (--state | --all) [--yes]
 **Profiles:**
 
 A *profile* is a named list of processes to run together, defined in
-`<DATA_DIR>/emo-config.yaml`. Three profiles are built in and used as-is until
+`<DATA_DIR>/emo-config.yaml`. Four profiles are built in and used as-is until
 that file exists:
 
 | Profile   | Contents                                                                                       |
@@ -2645,6 +2646,7 @@ that file exists:
 | `micro`   | Centralized logging plus the matching engine only                                                |
 | `mini`    | A trading-capable subset: logging, stats, engine, scheduler, market data, the desk API gateway, and the ALF/post-trade/drop-copy gateways |
 | `default` | The full nominal exchange stack, including audit, clearing, both API gateway instances, and the BALF gateway |
+| `mm-demo` | `default` plus one `pm-mm-bot`: `passive` strategy, quoting as gateway `MM01` on every symbol of the deployed configuration (`--all-symbols`), deliberately slow (`--gap 0.20 --qty 200 --reissue-delay-ms 5000 --fade-ticks 3 --fade-sec 20 --drift-ticks 15`) so students can follow what a market maker does. All settings are command-line arguments; no bot config file is used. Needs a config that registers `MM01` and those symbols, such as `s10-basic` |
 
 Run `pm-opctl-cli init` to write the built-ins to `emo-config.yaml` for editing;
 once that file exists its profiles replace the built-ins entirely (a missing

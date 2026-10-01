@@ -36,7 +36,7 @@ usage() {
     cat <<'USAGE'
 Options:
   --version X.Y.Z   Release to install (default: the latest release)
-    --config NAME     Bundled example to deploy (default: s3-basic)
+    --config NAME     Bundled example to deploy (default: s10-basic)
   --config FILE     ...or a path to an engine_config.yaml of your own
   --dir PATH        Install location (default: ~/.edumatcher)
   --no-start        Install the files but do not start anything

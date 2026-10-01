@@ -284,6 +284,16 @@ class TestOnBook:
         assert acc.open_bid == 14950  # 149.50 in ticks
         assert acc.open_ask == 15050  # 150.50 in ticks
 
+    def test_new_book_needs_no_prior_symbol_history(self, sp: StatsProcess) -> None:
+        sp._on_book("AAPL", self._book_payload())
+        new_book = self._book_payload(bid=19.99, ask=20.02, last=20.01)
+        new_book["symbol"] = "IPO1"
+
+        sp._on_book("IPO1", new_book)
+
+        assert sp._accum["IPO1"].open_bid == 1999
+        assert sp._accum["IPO1"].open_ask == 2002
+
     def test_does_not_overwrite_opening_bid(self, sp: StatsProcess) -> None:
         sp._on_book("AAPL", self._book_payload(bid=149.5, ask=150.5))
         sp._on_book("AAPL", self._book_payload(bid=148.0, ask=151.0))

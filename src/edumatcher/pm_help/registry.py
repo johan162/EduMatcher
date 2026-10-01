@@ -976,6 +976,11 @@ _AI_AND_BOTS: tuple[CommandInfo, ...] = (
             Option(
                 "--id-suffix STR", "01", "Running number for gateway ID (MM_AAPL_01)"
             ),
+            Option(
+                "--gateway-id STR",
+                "MM_<symbols>_<id-suffix>",
+                "Use this exact gateway ID (e.g. MM01) instead of deriving one",
+            ),
             Option("--drift-ticks N", "3", "Reprice when mid moves by this many ticks"),
             Option(
                 "--reissue-delay-ms MS",
@@ -1847,6 +1852,120 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
         doc_page="010-configuration.md",
         notes=(
             "Local bootstrap logic; does not participate in the ZeroMQ runtime message bus.",
+        ),
+    ),
+    CommandInfo(
+        name="pm-new-symbol",
+        aliases=("pm-ipo",),
+        category="Setup & Configuration",
+        title="List a New Symbol (IPO)",
+        summary="Add a symbol at its IPO price to the deployed configuration's source and redeploy it.",
+        synopsis=(
+            "pm-new-symbol --symbol NAME --ipo-price PRICE --outstanding-shares N",
+            "pm-ipo --config PATH --symbol NAME --ipo-price PRICE --outstanding-shares N",
+        ),
+        options=(
+            Option(
+                "--config PATH",
+                "deployed source",
+                "Authored YAML to edit; redeployed only when it is the deployed source",
+            ),
+            Option("--symbol NAME", "required", "1-8 characters of A-Z 0-9 . _"),
+            Option(
+                "--ipo-price PRICE",
+                "required",
+                "Offer price; becomes both last prices and the collar/breaker reference",
+            ),
+            Option("--outstanding-shares N", "required", "Positive number of shares"),
+            Option("--tick-decimals N", "2", "Price grid precision, 0..8"),
+            Option(
+                "--mm-gateway-id ID",
+                "the only MM gateway",
+                "MARKET_MAKER gateway that posts the seed quote",
+            ),
+            Option(
+                "--mm-bid-price PRICE, --mm-ask-price PRICE",
+                "max spread around the IPO price",
+                "Explicit seed quote; must straddle the IPO price",
+            ),
+            Option("--mm-bid-qty N, --mm-ask-qty N", "1000", "Seed quote sizes"),
+            Option("--mm-tif DAY|GTC", "DAY", "Seed quote time in force"),
+            Option(
+                "--[no-]mm-seed-once", "on", "Skip the seed when a quote was restored"
+            ),
+            Option(
+                "--field KEY=YAML_VALUE",
+                "none",
+                "level, collar, order_limits or circuit_breaker; repeatable",
+            ),
+        ),
+        related=("pm-config-deploy", "pm-cverifier", "pm-opctl-cli", "pm-valuation"),
+        doc_page="045-new-symbol.md",
+    ),
+    CommandInfo(
+        name="pm-valuation",
+        category="Setup & Configuration",
+        title="IPO Valuation Simulator",
+        summary=(
+            "Value a fictive company with a DCF, simulate its IPO book-build and "
+            "find the offer price that pm-new-symbol lists."
+        ),
+        synopsis=(
+            "pm-valuation [--market se|us] [--load FILE | --case NAME] [--level LEVEL]",
+            "pm-valuation [--load FILE | --case NAME] --no-tui [--list [--config PATH]]",
+        ),
+        description=(
+            "A terminal interview (twelve pages, every answer optional) feeds a "
+            "two-stage DCF, comparables, a book-building model and an index "
+            "rulebook. The report ends with the pm-new-symbol command for the "
+            "priced IPO, or explains why the IPO is postponed.",
+        ),
+        options=(
+            Option("--load FILE", "none", "Scenario file to start from"),
+            Option("--case NAME", "none", "Classroom case to start from"),
+            Option(
+                "--market MARKET",
+                "se",
+                "se: Swedish IPO (SEK, prospectus, Nasdaq Stockholm); us: US IPO "
+                "(USD, S-1)",
+            ),
+            Option("--no-tui", "off", "Print the report instead of interviewing"),
+            Option(
+                "--level LEVEL",
+                "beginner",
+                "Interview detail: beginner, intermediate, advanced or expert (F3)",
+            ),
+            Option(
+                "--mode MODE",
+                "both",
+                "deterministic, montecarlo or both (overrides the scenario)",
+            ),
+            Option("--draws N, --seed S", "10000, 42", "Monte Carlo settings"),
+            Option("--save FILE", "none", "Write the scenario (also F9 in the TUI)"),
+            Option("--with-defaults", "off", "With --save: write every resolved value"),
+            Option("--export FILE", "none", "Write the report as Markdown"),
+            Option(
+                "--pdf FILE", "none", "Write a printable PDF report (also p in the TUI)"
+            ),
+            Option("--paper SIZE", "a4", "PDF page size: a4 or letter"),
+            Option("--presets FILE", "bundled", "Alternative sector presets"),
+            Option(
+                "--list", "off", "With --no-tui: list the priced IPO with pm-new-symbol"
+            ),
+            Option(
+                "--config PATH",
+                "deployed source",
+                "With --list: the engine YAML pm-new-symbol edits",
+            ),
+        ),
+        related=("pm-new-symbol", "pm-index-admin-cli", "pm-opctl-cli"),
+        doc_page="046-valuation.md",
+        examples=(
+            "pm-valuation --case tornfalk                  # interview a classroom case",
+            "pm-valuation --market us                      # a US IPO, in USD",
+            "pm-valuation --case halvard --level expert    # show every field",
+            "pm-valuation --load my.yaml --no-tui --list   # price and list in one go",
+            "pm-valuation --case tornfalk --no-tui --pdf tornfalk.pdf   # print it",
         ),
     ),
     CommandInfo(

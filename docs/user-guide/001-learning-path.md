@@ -129,9 +129,9 @@ the rest of the guide gets much easier.
 
 ### The configuration you are running
 
-The default bundled configuration is called `s3-basic`. It gives you:
+The default bundled configuration is called `s10-basic`. It gives you:
 
-- **Symbols:** `AAPL`, `MSFT`, `TSLA`
+- **Symbols:** ten, including `AAPL`, `MSFT` and `TSLA` (the ones used in the examples below)
 - **Gateways:** `TRADER01` and `TRADER02` (traders), `MM01` (market maker),
   `OPS01` (operator)
 - **Session scheduling: off** — matching is available immediately, with no
@@ -188,7 +188,7 @@ You have just caused a trade on a real matching engine.
 !!! question "It filled immediately, before I sent the second order"
     Then the book already had liquidity — some configurations seed
     market-maker quotes at startup. Not a bug: your order traded against a
-    resting quote instead of waiting. `s3-basic` does seed `MM01` quotes on
+    resting quote instead of waiting. `s10-basic` does seed `MM01` quotes on
     some symbols. Try a price far from the market (say `PRICE=10.00` on a buy)
     to see an order rest instead.
 

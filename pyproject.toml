@@ -8,7 +8,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "edumatcher"
-version = "0.43.1"
+version = "0.44.0"
 description = "Educational multi-process trading system with order matching"
 authors = ["Johan Persson <johan162@gmail.com>"]
 readme = "README.md"
@@ -94,6 +94,9 @@ pm-api-gwy = "edumatcher.api_gateway.main:main"
 pm-setup    = "edumatcher.setup_cmd:main"
 pm-config-gen = "edumatcher.config_gen.cli:main"
 pm-config-deploy = "edumatcher.config_deploy:main"
+pm-new-symbol = "edumatcher.new_symbol.main:main"
+pm-ipo = "edumatcher.new_symbol.main:main"
+pm-valuation = "edumatcher.valuation.main:main"
 pm-cverifier  = "edumatcher.cverifier.cli:main"
 pm-config-show = "edumatcher.config_show.cli:main"
 pm-msgen      = "edumatcher.msgen.cli:main"
@@ -173,10 +176,10 @@ ignore_missing_imports = true
 module = "reportlab.*"
 ignore_missing_imports = true
 
-# ...which makes BaseDocTemplate an implicit Any, so the one class that
-# subclasses it needs the allowance here rather than on reportlab itself.
+# ...which makes BaseDocTemplate and Canvas implicit Any, so the modules that
+# subclass them need the allowance here rather than on reportlab itself.
 [[tool.mypy.overrides]]
-module = "edumatcher.config_show.render_pdf"
+module = ["edumatcher.config_show.render_pdf", "edumatcher.valuation.report.render_pdf"]
 disallow_subclassing_any = false
 
 [[tool.mypy.overrides]]

@@ -147,6 +147,11 @@ with underscores, unless `--label` overrides that segment directly:
 | `AAPL,MSFT` | *unset* | `MM_AAPL_MSFT_01` |
 | `AAPL,MSFT,TSLA` | `TECH` | `MM_TECH_01` |
 
+`--all-symbols` defaults the label to `ALL`, giving `MM_ALL_01`, so the
+gateway entry in `engine_config.yaml` does not change when symbols are added
+to or removed from the configuration. `--label` and `--gateway-id` still
+override it.
+
 `--label` exists because `MM_<SYMBOL>_<nn>` has no natural multi-symbol form
 once the symbol list grows — a five-symbol gateway ID built by joining every
 symbol is legal but unwieldy in logs and `pm-admin`. Pick a short label (e.g.
@@ -393,6 +398,7 @@ symbol:
 |---|---|
 | `--label` | `gateway.label` |
 | `--id-suffix` | `gateway.id_suffix` |
+| `--gateway-id` | `gateway.gateway_id` |
 | `--engine-pull` | `gateway.engine_pull` |
 | `--engine-pub` | `gateway.engine_pub` |
 | `--startup-session-timeout-sec` | `gateway.startup_session_timeout_sec` |
@@ -457,8 +463,10 @@ Rules:
 | `--config PATH`                    | gateway      | *unset*                | YAML config file (see [Config file](#config-file))                 |
 | `--symbol SYM`                     | *required¹*  | —                      | Instrument to make a market in; repeatable, and opens a scope for the per-symbol flags that follow it |
 | `--symbols SYM1,SYM2,...`          | *required¹*  | —                      | Comma-separated symbols sharing one set of settings — mutually exclusive with `--symbol` |
+| `--all-symbols`                    | *required¹*  | off                    | Quote every symbol in the currently deployed configuration, all with the same settings; gateway ID defaults to `MM_ALL_<nn>`. Mutually exclusive with `--symbol`, `--symbols` and a config-file `symbols:` block |
 | `--label NAME`                     | gateway      | *derived*              | Override the gateway-ID symbol segment (default: the single symbol, or every symbol joined with `_`) |
 | `--id-suffix NN`                   | gateway      | `01`                   | Running number for gateway ID (`MM_AAPL_01`)                       |
+| `--gateway-id ID`                  | gateway      | *derived*              | Use this exact gateway ID (e.g. `MM01`) instead of `MM_<label>_<id-suffix>`; it must be a `MARKET_MAKER` gateway in the engine config |
 | `--engine-pull ADDR`               | gateway      | `tcp://127.0.0.1:5555` | Engine PUSH/PULL address                                           |
 | `--engine-pub ADDR`                | gateway      | `tcp://127.0.0.1:5556` | Engine PUB address                                                 |
 | `--startup-session-timeout-sec F`  | gateway      | `5.0`                  | Max wait for first `session.state`                                 |
@@ -488,6 +496,13 @@ Rules:
 ¹ At least one symbol is required, from `--symbol`, `--symbols`, or the
 config file's `symbols:` block. Giving both `--symbol` and `--symbols`, or
 neither, is a startup usage error.
+
+`--all-symbols` reads the symbol list from the deployed compiled configuration
+(the one `pm-config-deploy` installs) when the bot starts, so the bot must run
+with the same data directory as the exchange. It exits with a usage error if
+nothing is deployed. Tuning flags and a config file's `gateway:`/`defaults:`
+blocks apply to every symbol; a config file used with `--all-symbols` may omit
+`symbols:` but must not name any.
 
 ---
 
@@ -623,6 +638,7 @@ symbols: [AAPL, MSFT, TSLA]
 |---|---|---|---|
 | `label` | string | derived from the symbols | Gateway ID becomes `MM_<label>_<id_suffix>` |
 | `id_suffix` | string | `"01"` | **Quote it** — unquoted `01` is the number `1` to YAML, and is rejected |
+| `gateway_id` | string | derived | Exact gateway ID; when set, `label` and `id_suffix` are ignored |
 | `engine_pull` | string | `tcp://127.0.0.1:5555` | Engine PUSH/PULL address |
 | `engine_pub` | string | `tcp://127.0.0.1:5556` | Engine PUB address |
 | `startup_session_timeout_sec` | number | `5.0` | Must be > 0 |

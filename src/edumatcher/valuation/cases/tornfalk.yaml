@@ -1,0 +1,7 @@
+# Classroom case (docs/training/280-ipo-valuation.md): a hot deal.
+pm_valuation: 1
+company: {name: Tornfalk Security AB, ticker: TORN, sector: b2b_saas, market: se}
+customers: {last_fy_revenue: 1.4bn, now: 2600}
+capital: {cash: 900m}
+offering: {shares_pre: 120m, raise: 4bn}
+investors: {inst_interest: very_high, retail_interest: high, hype: 5, n_institutions: 60}

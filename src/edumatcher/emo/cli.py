@@ -7,7 +7,7 @@ and shuts them down again.
 
 Profiles
 --------
-A *profile* is a named list of processes to run together. Three profiles are
+A *profile* is a named list of processes to run together. Four profiles are
 built in:
 
 ``micro``
@@ -18,6 +18,11 @@ built in:
 ``default``
     The full nominal exchange stack, including audit, clearing, both API
     gateway instances, and the BALF gateway.
+``mm-demo``
+    ``default`` plus one ``pm-mm-bot`` running the ``passive`` strategy at a
+    deliberately slow pace, so a student can watch a market maker work. It
+    quotes as gateway ``MM01``, which the bundled example configs register, on
+    every symbol of the deployed configuration.
 
 The built-ins are used as-is when no configuration file exists. Running
 ``init`` writes them to ``<DATA_DIR>/emo-config.yaml`` so they can be edited.
@@ -247,12 +252,46 @@ MINI_PROCESSES: list[dict[str, Any]] = [
 ]
 
 
+# The default stack plus a slow, passive market-maker bot for classroom demos.
+# Every bot setting is a command-line argument, so no bot config file is needed.
+# The bot quotes as MM01 (the MARKET_MAKER gateway of the bundled example
+# configs) on every symbol of the deployed configuration (--all-symbols), so
+# the profile works with whatever config it is run against; --gap stays within
+# the examples' mm_max_spread_ticks of 20 (0.20 at two-decimal ticks).
+MM_DEMO_PROCESSES: list[dict[str, Any]] = [
+    *DEFAULT_PROCESSES,
+    {
+        "name": "mm-bot",
+        "command": [
+            "pm-mm-bot",
+            "--gateway-id",
+            "MM01",
+            "--all-symbols",
+            "--strategy",
+            "passive",
+            "--gap",
+            "0.20",
+            "--qty",
+            "200",
+            "--reissue-delay-ms",
+            "5000",
+            "--fade-ticks",
+            "3",
+            "--fade-sec",
+            "20",
+            "--drift-ticks",
+            "15",
+        ],
+    },
+]
+
 # {"name": "trader", "command": ["pm-alf-console", "--id", "TRADER01", "--verbose"]},
 
 BUILTIN_PROFILES = {
     "default": DEFAULT_PROCESSES,
     "micro": MICRO_PROCESSES,
     "mini": MINI_PROCESSES,
+    "mm-demo": MM_DEMO_PROCESSES,
 }
 
 

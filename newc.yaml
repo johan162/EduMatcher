@@ -1,0 +1,6 @@
+pm_valuation: 1
+market:
+  tam: 60bn
+  tam_growth: 20%
+  sam_share: 50%
+  structure: fragmented

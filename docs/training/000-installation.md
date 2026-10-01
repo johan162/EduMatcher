@@ -109,7 +109,7 @@ When it finishes you have a complete exchange **and** five web applications:
 | REST API docs | <http://localhost:8080/docs> | Swagger UI for the `desk` API gateway |
 
 Open the trading terminal. You should see order books with live quotes: the
-bundled `s3-basic` configuration seeds each symbol with a resting
+bundled `s10-basic` configuration seeds each symbol with a resting
 market-maker bid and ask the moment `pm-engine` starts, so there is a two-sided
 book before anyone has traded.
 
@@ -248,7 +248,7 @@ pm-setup
 ```
 
 `pm-setup` creates the data directory, compiles a bundled example
-configuration (`s3-basic` unless you say otherwise) and installs it as the
+configuration (`s10-basic` unless you say otherwise) and installs it as the
 deployed artifact, then prints the one environment variable you need. The
 output looks like this — yours will show your own home directory and shell:
 
@@ -256,8 +256,8 @@ output looks like this — yours will show your own home directory and shell:
 pm-setup — EduMatcher session initialisation
 ==================================================
   ✓ Created data directory:          /Users/you/.local/share/edumatcher
-    ✓ Example config 's3-basic' compiled to: /Users/you/.local/share/edumatcher/ref_data/engine_config.json
-    3 symbol(s) ready to trade.
+    ✓ Example config 's10-basic' compiled to: /Users/you/.local/share/edumatcher/ref_data/engine_config.json
+    10 symbol(s) ready to trade.
 
   Shell environment snippet — add to your shell profile:
   (~/.zshrc)
@@ -297,7 +297,7 @@ verify it, then bootstrap:
 ```bash
 multipass version
 
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | bash -s -- --version 0.43.1
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | bash -s -- --version 0.44.0
 ```
 
 If `multipass version` fails with `command not found`, the install did not
@@ -492,7 +492,7 @@ so updating does not discard your edits.
 |---|---|---|
 | `EM_VERSION` | *(the installed release)* | Which release to run. All six images carry this tag, so one value pins the whole system |
 | `GHCR_OWNER` | `johan162` | The registry namespace images come from. Change only for a fork |
-| `EM_CONFIG` | `s3-basic` | Which bundled example the exchange deploys |
+| `EM_CONFIG` | `s10-basic` | Which bundled example the exchange deploys |
 | `EM_CONFIG_FILE` | *(empty)* | Set when you run a configuration of your own; non-empty wins over `EM_CONFIG` |
 | `EM_PROFILE` | `default` | Which processes start: `default`, `mini` or `micro` |
 | `TZ` | `UTC` | Container timezone — match the trading calendar in your configuration |
