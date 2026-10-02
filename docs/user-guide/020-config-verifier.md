@@ -202,7 +202,7 @@ reporting scripts.
 | `Y003` | YAML parse error                    |
 | `Y004` | Top-level document is not a mapping |
 
-### Layer 2 — Schema (`S001`–`S120`)
+### Layer 2 — Schema (`S001`–`S121`)
 
 **Top-level structure**
 
@@ -271,6 +271,7 @@ the key if it appears on a risk level.
 | `S118` | `gateway_defaults` is not a mapping, or has a key other than `smp_action` / `disconnect_behaviour` |
 | `S119` | `gateway_defaults.disconnect_behaviour` is not a recognised value |
 | `S120` | `gateway_defaults.smp_action` is not a recognised value |
+| `S121` | A key in `alf_gateway`, `balf_gateway`, `market_data_gateway`, `post_trade_gateway`, `dc_gateway`, `log_server` (or `log_server.client`), or an `api_gateways.<name>` instance (or its `rate_limit`, `timeouts` or `credentials[]`) that no loader reads. The loaders ignore such a key, so the setting silently has no effect; the verifier reports the closest accepted name |
 
 **Circuit breaker fields**
 
@@ -318,7 +319,7 @@ the key if it appears on a risk level.
 | Code   | Condition                                                   |
 |--------|-------------------------------------------------------------|
 | `S060` | `sessions_enabled` present but not a boolean                |
-| `S061` | `snapshot_interval_sec` present but not a positive number   |
+| `S061` | `engine_tuning.snapshot_interval_sec` present but not a positive number |
 | `S062` | `enforce_collars` present but not a boolean                 |
 | `S063` | `enforce_circuit_breakers` present but not a boolean        |
 | `S064` | `schedule` present but not a mapping                        |
@@ -522,7 +523,7 @@ family because it is an operational-completeness warning.
 | `C004` | INFO     | `enforce_circuit_breakers: true` but no CB levels                   |
 | `C005` | WARN     | MM gateway present but `mm_obligation_defaults` absent              |
 | `C006` | WARN     | `enforce_mm_obligation: false`                                      |
-| `C007` | INFO     | `snapshot_interval_sec` is at the default `0.5`                     |
+| `C007` | INFO     | `engine_tuning.snapshot_interval_sec` is at the default `0.5`                   |
 | `C008` | WARN     | Index constituent has no reference price                            |
 | `C009` | INFO     | `sessions_enabled: false` and no schedule (always-on)               |
 | `C010` | WARN     | `disconnect_behaviour: LEAVE_ALL` on a non-ADMIN gateway            |

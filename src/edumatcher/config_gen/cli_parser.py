@@ -662,6 +662,102 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    # ── ALF gateway ───────────────────────────────────────────────────────────
+    parser.add_argument(
+        "--alf-gateway",
+        action="store_true",
+        help="Emit a top-level alf_gateway section for pm-alf-gwy.",
+    )
+    parser.add_argument(
+        "--alf-enabled",
+        dest="alf_enabled",
+        action="store_true",
+        default=None,
+        help="Set alf_gateway.enabled: true.",
+    )
+    parser.add_argument(
+        "--alf-disabled",
+        dest="alf_enabled",
+        action="store_false",
+        default=None,
+        help="Set alf_gateway.enabled: false.",
+    )
+    parser.add_argument(
+        "--alf-name",
+        default=None,
+        metavar="NAME",
+        help="alf_gateway.name override.",
+    )
+    parser.add_argument(
+        "--alf-bind-address",
+        default=None,
+        metavar="ADDR",
+        help="alf_gateway.bind_address override.",
+    )
+    parser.add_argument(
+        "--alf-port",
+        type=int,
+        default=None,
+        metavar="N",
+        help="alf_gateway.port override (1-65535).",
+    )
+    parser.add_argument(
+        "--alf-heartbeat-interval-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help="alf_gateway.heartbeat_interval_sec override (> 0).",
+    )
+    parser.add_argument(
+        "--alf-handshake-timeout-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help="alf_gateway.handshake_timeout_sec override (> 0).",
+    )
+    parser.add_argument(
+        "--alf-idle-timeout-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help="alf_gateway.idle_timeout_sec override (> 0).",
+    )
+    parser.add_argument(
+        "--alf-max-connections",
+        type=int,
+        default=None,
+        metavar="N",
+        help="alf_gateway.max_connections override (> 0).",
+    )
+    parser.add_argument(
+        "--alf-max-client-queue",
+        type=int,
+        default=None,
+        metavar="N",
+        help="alf_gateway.max_client_queue override (> 0).",
+    )
+    parser.add_argument(
+        "--alf-max-commands-per-second",
+        type=int,
+        default=None,
+        metavar="N",
+        help="alf_gateway.max_commands_per_second override (> 0).",
+    )
+    parser.add_argument(
+        "--alf-max-errors-before-disconnect",
+        type=int,
+        default=None,
+        metavar="N",
+        help="alf_gateway.max_errors_before_disconnect override (> 0).",
+    )
+    parser.add_argument(
+        "--alf-error-window-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help="alf_gateway.error_window_sec override (> 0).",
+    )
+
     # ── BALF gateway ──────────────────────────────────────────────────────────
     parser.add_argument(
         "--balf-gateway",

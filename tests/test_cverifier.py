@@ -479,7 +479,7 @@ class TestLayer2RuntimeAndMMDefaults:
         raw = _raw(
             "symbols:\n  AAPL: {}\n"
             "gateways:\n  alf:\n    - id: GW01\n"
-            "snapshot_interval_sec: 0\n"
+            "engine_tuning:\n  snapshot_interval_sec: 0\n"
         )
         results = layer2_schema.check(raw, Path("x.yaml"))
         assert "S061" in _codes(results)
@@ -861,6 +861,97 @@ class TestLayer2ApiGatewaySchema:
         )
         codes = _codes(layer2_schema.check(raw, Path("x.yaml")))
         assert "S080" not in codes
+
+
+class TestLayer2UnknownProcessKeys:
+    _BASE = "symbols:\n  AAPL: {}\ngateways:\n  alf:\n    - id: GW01\n"
+
+    def _s121(self, extra: str) -> list[str]:
+        results = layer2_schema.check(_raw(self._BASE + extra), Path("x.yaml"))
+        return [r.path for r in results if r.code == "S121"]
+
+    @pytest.mark.parametrize(
+        ("block", "typo"),
+        [
+            ("alf_gateway", "idle_timout_sec"),
+            ("balf_gateway", "max_conections"),
+            ("market_data_gateway", "replay_windw_sec"),
+            ("post_trade_gateway", "enabled"),
+            ("dc_gateway", "prot"),
+            ("log_server", "retention_day"),
+        ],
+    )
+    def test_unknown_key_in_each_process_block(self, block: str, typo: str) -> None:
+        assert self._s121(f"{block}:\n  {typo}: 1\n") == [f"{block}.{typo}"]
+
+    def test_suggests_the_closest_accepted_key(self) -> None:
+        results = layer2_schema.check(
+            _raw(self._BASE + "alf_gateway:\n  idle_timout_sec: 5\n"), Path("x.yaml")
+        )
+        (hit,) = [r for r in results if r.code == "S121"]
+        assert "Did you mean 'idle_timeout_sec'?" in hit.suggestion
+
+    def test_log_client_and_api_nested_keys(self) -> None:
+        paths = self._s121(
+            "log_server:\n  client:\n    connect_timout_sec: 1\n"
+            "api_gateways:\n  desk:\n    prt: 1\n    rate_limit:\n      burts: 1\n"
+            "    timeouts:\n      wait_ack: 1\n"
+            "    credentials:\n      - api_key: k\n        gateway: GW01\n"
+        )
+        assert paths == [
+            "log_server.client.connect_timout_sec",
+            "api_gateways.desk.prt",
+            "api_gateways.desk.rate_limit.burts",
+            "api_gateways.desk.timeouts.wait_ack",
+            "api_gateways.desk.credentials[0].gateway",
+        ]
+
+    def test_valid_blocks_report_nothing(self) -> None:
+        assert not self._s121(
+            "alf_gateway:\n  port: 5565\n  enabled: true\n"
+            "log_server:\n  client:\n    failover_dir: logs\n"
+            "api_gateways:\n  desk:\n    host: 127.0.0.1\n    rate_limit: {burst: 5}\n"
+        )
+
+    def test_non_mapping_block_is_left_to_its_own_check(self) -> None:
+        assert not self._s121("alf_gateway: bad\n")
+
+    def test_accepted_keys_match_the_loader_dataclasses(self) -> None:
+        import dataclasses
+
+        from edumatcher.alf_gwy.config import AlfGatewayConfig
+        from edumatcher.api_gateway.config import (
+            ApiGatewayConfig,
+            RateLimitConfig,
+            TimeoutConfig,
+        )
+        from edumatcher.balf_gwy.config import BalfGatewayConfig
+        from edumatcher.log_srv.config import LogClientConfig, LogServerConfig
+        from edumatcher.md_gateway.config import MarketDataGatewayConfig
+        from edumatcher.ralf_gateway.config import RalfGatewayConfig
+        from edumatcher.dc_gateway.config import DcGatewayConfig
+
+        def keys(cls: type, *not_in_yaml: str) -> frozenset[str]:
+            return frozenset(f.name for f in dataclasses.fields(cls)) - set(not_in_yaml)
+
+        addrs = ("engine_pull_addr", "engine_pub_addr")
+        expected = {
+            "alf_gateway": keys(
+                AlfGatewayConfig, *addrs, "drop_copy_pub_addr", "gateway_roles"
+            ),
+            "balf_gateway": keys(BalfGatewayConfig, *addrs, "gateway_roles"),
+            "market_data_gateway": keys(
+                MarketDataGatewayConfig, *addrs, "index_pub_addr"
+            ),
+            "post_trade_gateway": keys(RalfGatewayConfig, *addrs),
+            "dc_gateway": keys(DcGatewayConfig, "drop_copy_pub_addr"),
+            "log_server": keys(LogServerConfig) | {"client"},
+        }
+        assert layer2_schema._PROCESS_BLOCK_KEYS == expected
+        assert layer2_schema._LOG_CLIENT_KEYS == keys(LogClientConfig)
+        assert layer2_schema._API_INSTANCE_KEYS == keys(ApiGatewayConfig, "name")
+        assert layer2_schema._API_RATE_LIMIT_KEYS == keys(RateLimitConfig)
+        assert layer2_schema._API_TIMEOUT_KEYS == keys(TimeoutConfig)
 
 
 class TestLayer2CBDefaults:
@@ -1653,7 +1744,7 @@ class TestLayer4:
         raw = _raw(
             "symbols:\n  AAPL:\n    tick_decimals: 2\n"
             "gateways:\n  alf:\n    - id: GW01\n"
-            "snapshot_interval_sec: 1.0\n"
+            "engine_tuning:\n  snapshot_interval_sec: 1.0\n"
         )
         results = layer4_complete.check(raw, Path("x.yaml"))
         assert "C007" not in _codes(results)
@@ -1689,7 +1780,7 @@ class TestLayer4:
         syms = "\n".join(f"  SYM{i}:\n    tick_decimals: 2" for i in range(25))
         raw = _raw(
             f"symbols:\n{syms}\ngateways:\n  alf:\n    - id: GW01\n"
-            "snapshot_interval_sec: 0.1\n"
+            "engine_tuning:\n  snapshot_interval_sec: 0.1\n"
         )
         results = layer4_complete.check(raw, Path("x.yaml"))
         assert "C012" in _codes(results)
@@ -2641,7 +2732,7 @@ class TestLayer4InternalGuards:
         assert results == []
 
     def test_snapshot_interval_invalid_type_returns(self) -> None:
-        raw = _raw("snapshot_interval_sec: bad\n")
+        raw = _raw("engine_tuning:\n  snapshot_interval_sec: bad\n")
         results: list[CheckResult] = []
         layer4_complete._check_snapshot_interval(raw, results)
         assert results == []

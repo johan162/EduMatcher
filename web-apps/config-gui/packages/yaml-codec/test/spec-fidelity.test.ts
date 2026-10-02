@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import yaml from "js-yaml";
 import {
   buildConfigDocument,
+  buildDefaultEngineFieldCommentLines,
   generateYaml,
   parseYamlToDraft,
 } from "../src/index.js";
@@ -342,5 +343,24 @@ describe("prices are written on each symbol's own tick grid", () => {
       bid_price: 100.2499,
       ask_price: 100.2501,
     });
+  });
+});
+
+describe("commented defaults block", () => {
+  it("shows and explains every process block", () => {
+    const lines = buildDefaultEngineFieldCommentLines();
+    for (const block of [
+      "alf_gateway",
+      "balf_gateway",
+      "market_data_gateway",
+      "post_trade_gateway",
+      "dc_gateway",
+      "log_server",
+      "api_gateways",
+    ]) {
+      expect(lines, `${block} shape`).toContain(`${block}:`);
+      expect(lines, `${block} notes`).toContain(`${block} entries`);
+    }
+    expect(lines).toContain("auction_indicative_interval_sec: 1.0");
   });
 });

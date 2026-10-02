@@ -332,6 +332,24 @@ Market-data gateway options:
 | `--market-data-max-client-queue`                   | int (`> 0`) | `10000`                     | `market_data_gateway.max_client_queue`                     |
 | `--market-data-depth-levels`                       | int (`> 0`) | `10`                        | `market_data_gateway.depth_levels`                          |
 
+ALF gateway options:
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--alf-gateway` | Flag | off | Emit top-level `alf_gateway` block for `pm-alf-gwy`; any other `--alf-*` option also emits it |
+| `--alf-enabled` / `--alf-disabled` | Flag pair | enabled | `alf_gateway.enabled` |
+| `--alf-name` | string | `alf-gwy01` | `alf_gateway.name` |
+| `--alf-bind-address` | string | `0.0.0.0` | `alf_gateway.bind_address` |
+| `--alf-port` | int (`1..65535`) | `5565` | `alf_gateway.port` |
+| `--alf-heartbeat-interval-sec` | int (`> 0`) | `5` | `alf_gateway.heartbeat_interval_sec` |
+| `--alf-handshake-timeout-sec` | int (`> 0`) | `10` | `alf_gateway.handshake_timeout_sec` |
+| `--alf-idle-timeout-sec` | int (`> 0`) | `30` | `alf_gateway.idle_timeout_sec` |
+| `--alf-max-connections` | int (`> 0`) | `64` | `alf_gateway.max_connections` |
+| `--alf-max-client-queue` | int (`> 0`) | `10000` | `alf_gateway.max_client_queue` |
+| `--alf-max-commands-per-second` | int (`> 0`) | `100` | `alf_gateway.max_commands_per_second` |
+| `--alf-max-errors-before-disconnect` | int (`> 0`) | `50` | `alf_gateway.max_errors_before_disconnect` |
+| `--alf-error-window-sec` | int (`> 0`) | `60` | `alf_gateway.error_window_sec` |
+
 BALF gateway options:
 
 | Option | Type | Default | Description |

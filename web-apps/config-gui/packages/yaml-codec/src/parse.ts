@@ -43,7 +43,6 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
   "enforce_collars",
   "enforce_circuit_breakers",
   "engine_tuning",
-  "snapshot_interval_sec",
   "mm_obligation_defaults",
   "risk_controls",
   "circuit_breaker_defaults",
@@ -132,9 +131,7 @@ export function parseYamlToDraft(text: string): ImportResult {
     ? raw.engine_tuning
     : undefined;
   draft.snapshotIntervalSec =
-    asNumber(engineTuning?.snapshot_interval_sec) ??
-    asNumber(raw.snapshot_interval_sec) ??
-    draft.snapshotIntervalSec;
+    asNumber(engineTuning?.snapshot_interval_sec) ?? draft.snapshotIntervalSec;
   draft.quoteHistoryMaxlen =
     asNumber(engineTuning?.quote_history_maxlen) ?? draft.quoteHistoryMaxlen;
   draft.dropCopyBufferSize =

@@ -354,9 +354,7 @@ class TestConfigLoaderHappyPath:
         assert cfg.recent_trades_maxlen == 50
         assert cfg.depth_snapshot_tolerance_ticks == 250
 
-    def test_snapshot_interval_legacy_top_level_still_supported(
-        self, tmp_path: Path
-    ) -> None:
+    def test_top_level_snapshot_interval_is_not_read(self, tmp_path: Path) -> None:
         yaml = """
         symbols:
           AAPL: {}
@@ -366,7 +364,7 @@ class TestConfigLoaderHappyPath:
         snapshot_interval_sec: 1.25
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
-        assert cfg.snapshot_interval_sec == pytest.approx(1.25)
+        assert cfg.snapshot_interval_sec == pytest.approx(0.5)
 
     def test_market_maker_combo(self, tmp_path: Path) -> None:
         yaml = """

@@ -24,6 +24,7 @@ from edumatcher.models.price import TickViolation, to_ticks_exact_at
 
 from edumatcher.config_gen.builder import ConfigBuilder, ConfigSpec
 from edumatcher.config_gen.builder import ApiCredentialSpec, ApiGatewaySpec
+from edumatcher.config_gen.builder import AlfGatewaySpec
 from edumatcher.config_gen.builder import BalfGatewaySpec
 from edumatcher.config_gen.builder import ComboLegSpec, ComboSpec
 from edumatcher.config_gen.builder import DcGatewaySpec
@@ -33,6 +34,17 @@ from edumatcher.config_gen.builder import MarketDataGatewaySpec
 from edumatcher.config_gen.builder import PostTradeGatewaySpec
 from edumatcher.config_gen.cb_spec import CbSpec, parse_cb_spec
 from edumatcher.config_gen.defaults import (
+    DEFAULT_ALF_GATEWAY_BIND_ADDRESS,
+    DEFAULT_ALF_GATEWAY_ERROR_WINDOW_SEC,
+    DEFAULT_ALF_GATEWAY_HANDSHAKE_TIMEOUT_SEC,
+    DEFAULT_ALF_GATEWAY_HEARTBEAT_INTERVAL_SEC,
+    DEFAULT_ALF_GATEWAY_IDLE_TIMEOUT_SEC,
+    DEFAULT_ALF_GATEWAY_MAX_CLIENT_QUEUE,
+    DEFAULT_ALF_GATEWAY_MAX_COMMANDS_PER_SECOND,
+    DEFAULT_ALF_GATEWAY_MAX_CONNECTIONS,
+    DEFAULT_ALF_GATEWAY_MAX_ERRORS_BEFORE_DISCONNECT,
+    DEFAULT_ALF_GATEWAY_NAME,
+    DEFAULT_ALF_GATEWAY_PORT,
     DEFAULT_ACE_EXPANSIONS,
     DEFAULT_API_GATEWAY_ENGINE_AUTH_SEC,
     DEFAULT_API_GATEWAY_ENGINE_REPLY_SEC,
@@ -222,6 +234,21 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
         raise ValueError("--api-gateway-order-retention-sec must be >= 0")
     if args.api_gateway_wait_ack_sec is not None and args.api_gateway_wait_ack_sec <= 0:
         raise ValueError("--api-gateway-wait-ack-sec must be > 0")
+
+    if args.alf_port is not None and not 0 < args.alf_port <= 65535:
+        raise ValueError("--alf-port must be in 1-65535")
+    for flag, value in (
+        ("--alf-heartbeat-interval-sec", args.alf_heartbeat_interval_sec),
+        ("--alf-handshake-timeout-sec", args.alf_handshake_timeout_sec),
+        ("--alf-idle-timeout-sec", args.alf_idle_timeout_sec),
+        ("--alf-max-connections", args.alf_max_connections),
+        ("--alf-max-client-queue", args.alf_max_client_queue),
+        ("--alf-max-commands-per-second", args.alf_max_commands_per_second),
+        ("--alf-max-errors-before-disconnect", args.alf_max_errors_before_disconnect),
+        ("--alf-error-window-sec", args.alf_error_window_sec),
+    ):
+        if value is not None and value <= 0:
+            raise ValueError(f"{flag} must be > 0")
 
     if args.balf_port is not None and args.balf_port <= 0:
         raise ValueError("--balf-port must be > 0")
@@ -989,6 +1016,65 @@ def _build_market_data_gateway_spec(
         ),
         depth_levels=int(
             args.market_data_depth_levels or DEFAULT_MARKET_DATA_GATEWAY_DEPTH_LEVELS
+        ),
+    )
+
+
+def _build_alf_gateway_spec(
+    args: argparse.Namespace,
+) -> AlfGatewaySpec | None:
+    emit = any(
+        value is not None
+        for value in (
+            args.alf_enabled,
+            args.alf_name,
+            args.alf_bind_address,
+            args.alf_port,
+            args.alf_heartbeat_interval_sec,
+            args.alf_handshake_timeout_sec,
+            args.alf_idle_timeout_sec,
+            args.alf_max_connections,
+            args.alf_max_client_queue,
+            args.alf_max_commands_per_second,
+            args.alf_max_errors_before_disconnect,
+            args.alf_error_window_sec,
+        )
+    ) or bool(args.alf_gateway)
+
+    if not emit:
+        return None
+
+    return AlfGatewaySpec(
+        enabled=bool(args.alf_enabled) if args.alf_enabled is not None else True,
+        name=str(args.alf_name or DEFAULT_ALF_GATEWAY_NAME),
+        bind_address=str(args.alf_bind_address or DEFAULT_ALF_GATEWAY_BIND_ADDRESS),
+        port=int(args.alf_port or DEFAULT_ALF_GATEWAY_PORT),
+        heartbeat_interval_sec=int(
+            args.alf_heartbeat_interval_sec
+            or DEFAULT_ALF_GATEWAY_HEARTBEAT_INTERVAL_SEC
+        ),
+        handshake_timeout_sec=int(
+            args.alf_handshake_timeout_sec or DEFAULT_ALF_GATEWAY_HANDSHAKE_TIMEOUT_SEC
+        ),
+        idle_timeout_sec=int(
+            args.alf_idle_timeout_sec or DEFAULT_ALF_GATEWAY_IDLE_TIMEOUT_SEC
+        ),
+        max_connections=int(
+            args.alf_max_connections or DEFAULT_ALF_GATEWAY_MAX_CONNECTIONS
+        ),
+        max_client_queue=int(
+            args.alf_max_client_queue or DEFAULT_ALF_GATEWAY_MAX_CLIENT_QUEUE
+        ),
+        max_commands_per_second=int(
+            args.alf_max_commands_per_second
+            or DEFAULT_ALF_GATEWAY_MAX_COMMANDS_PER_SECOND
+        ),
+        max_errors_before_disconnect=int(
+            args.alf_max_errors_before_disconnect
+            or DEFAULT_ALF_GATEWAY_MAX_ERRORS_BEFORE_DISCONNECT
+        ),
+        error_window_sec=int(
+            args.alf_error_window_sec or DEFAULT_ALF_GATEWAY_ERROR_WINDOW_SEC
         ),
     )
 
@@ -1904,6 +1990,7 @@ def main() -> None:
             post_trade_gateway=_build_post_trade_gateway_spec(args),
             market_data_gateway=_build_market_data_gateway_spec(args),
             balf_gateway=_build_balf_gateway_spec(args),
+            alf_gateway=_build_alf_gateway_spec(args),
             dc_gateway=_build_dc_gateway_spec(args),
             log_server=_build_log_server_spec(args),
             api_gateways=_build_api_gateway_specs(args, gateways),

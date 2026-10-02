@@ -1457,3 +1457,121 @@ def test_schedule_bad_time_format_fails(
         )
     assert exc_info.value.code == 2
     assert "HH:MM format" in capsys.readouterr().err
+
+
+def test_alf_flags_emit_alf_gateway_block_and_parse(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "TRADER01",
+            "--alf-port",
+            "6565",
+            "--alf-idle-timeout-sec",
+            "45",
+            "--alf-max-commands-per-second",
+            "250",
+            "--alf-disabled",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    block = yaml.safe_load(out_file.read_text(encoding="utf-8"))["alf_gateway"]
+    assert block["enabled"] is False
+    assert block["port"] == 6565
+    assert block["idle_timeout_sec"] == 45
+    assert block["max_commands_per_second"] == 250
+    assert block["name"] == "alf-gwy01"
+    from edumatcher.alf_gwy.config import load_alf_gateway_config
+
+    cfg = load_alf_gateway_config(out_file)
+    assert (cfg.port, cfg.idle_timeout_sec, cfg.enabled) == (6565, 45, False)
+
+
+def test_alf_gateway_omitted_without_alf_flags(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        ["--symbols", "AAPL", "--gateways", "TRADER01", "--output", str(out_file)],
+    )
+
+    assert "alf_gateway" not in yaml.safe_load(out_file.read_text(encoding="utf-8"))
+
+
+def test_alf_gateway_flag_alone_emits_defaults(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "TRADER01",
+            "--alf-gateway",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    block = yaml.safe_load(out_file.read_text(encoding="utf-8"))["alf_gateway"]
+    assert block["port"] == 5565
+    assert block["handshake_timeout_sec"] == 10
+
+
+def test_alf_port_out_of_range_is_rejected(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as exc:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "--gateways",
+                "TRADER01",
+                "--alf-port",
+                "70000",
+                "--output",
+                str(tmp_path / "x.yaml"),
+            ],
+        )
+    assert exc.value.code == 2
+    assert "--alf-port must be in 1-65535" in capsys.readouterr().err
+
+
+def test_alf_port_collision_is_warned(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "TRADER01",
+            "--alf-port",
+            "5570",
+            "--market-data-gateway",
+            "--output",
+            str(tmp_path / "x.yaml"),
+        ],
+    )
+    err = capsys.readouterr().err
+    assert "Port collision: alf_gateway" in err and "market_data_gateway" in err

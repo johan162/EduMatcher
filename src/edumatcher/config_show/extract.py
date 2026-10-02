@@ -51,9 +51,8 @@ KNOWN_TOP_LEVEL: frozenset[str] = frozenset(
         "sessions_enabled",
         "enforce_collars",
         "enforce_circuit_breakers",
-        "enforce_mm_obligation",
         "country",
-        "snapshot_interval_sec",
+        "auction_indicative_interval_sec",
         "engine_tuning",
         "mm_obligation_defaults",
         "require_mm_seed_quotes",
@@ -68,7 +67,6 @@ KNOWN_TOP_LEVEL: frozenset[str] = frozenset(
         "dc_gateway",
         "log_server",
         "api_gateways",
-        "api_gateway",
         "symbols",
         "market_maker_combos",
         "indices",
@@ -254,8 +252,6 @@ def _participants(raw: dict[str, Any]) -> tuple[Participant, ...]:
 
 def _api_gateways(raw: dict[str, Any], roles: dict[str, str]) -> tuple[ApiGateway, ...]:
     sections = _as_dict(raw.get("api_gateways"))
-    if not sections and isinstance(raw.get("api_gateway"), dict):
-        sections = {"default": raw["api_gateway"]}  # legacy single-instance form
 
     out: list[ApiGateway] = []
     for name, section in sections.items():
@@ -440,11 +436,7 @@ def build_view(raw: Any, source: Source) -> ConfigView:
             "sessions_enabled": raw.get("sessions_enabled"),
             "enforce_collars": raw.get("enforce_collars"),
             "enforce_circuit_breakers": raw.get("enforce_circuit_breakers"),
-            # The per-section flag wins; the bare top-level key is the legacy
-            # spelling and only applies when the section omits it.
-            "enforce_mm_obligation": mm_defaults.get(
-                "enforce_mm_obligation", raw.get("enforce_mm_obligation")
-            ),
+            "enforce_mm_obligation": mm_defaults.get("enforce_mm_obligation"),
             "require_mm_seed_quotes": raw.get("require_mm_seed_quotes"),
             "country": raw.get("country"),
         },

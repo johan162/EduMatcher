@@ -199,14 +199,12 @@ def _check_mm_obligation_completeness(
 
 def _check_snapshot_interval(raw: dict[str, Any], results: list[CheckResult]) -> None:
     engine_tuning = raw.get("engine_tuning")
-    path = "snapshot_interval_sec"
-    if isinstance(engine_tuning, dict) and "snapshot_interval_sec" in engine_tuning:
-        snap = engine_tuning.get(
-            "snapshot_interval_sec", _DEFAULT_SNAPSHOT_INTERVAL_SEC
-        )
-        path = "engine_tuning.snapshot_interval_sec"
-    else:
-        snap = raw.get("snapshot_interval_sec", _DEFAULT_SNAPSHOT_INTERVAL_SEC)
+    path = "engine_tuning.snapshot_interval_sec"
+    snap = (
+        engine_tuning.get("snapshot_interval_sec", _DEFAULT_SNAPSHOT_INTERVAL_SEC)
+        if isinstance(engine_tuning, dict)
+        else _DEFAULT_SNAPSHOT_INTERVAL_SEC
+    )
     try:
         snap_f = float(snap)
     except (TypeError, ValueError):

@@ -25,6 +25,17 @@ from .defaults import (
     DEFAULT_API_GATEWAY_SWAGGER_ENABLED,
     DEFAULT_API_GATEWAY_ORDER_RETENTION_SEC,
     DEFAULT_API_GATEWAY_WAIT_ACK_SEC,
+    DEFAULT_ALF_GATEWAY_BIND_ADDRESS,
+    DEFAULT_ALF_GATEWAY_ERROR_WINDOW_SEC,
+    DEFAULT_ALF_GATEWAY_HANDSHAKE_TIMEOUT_SEC,
+    DEFAULT_ALF_GATEWAY_HEARTBEAT_INTERVAL_SEC,
+    DEFAULT_ALF_GATEWAY_IDLE_TIMEOUT_SEC,
+    DEFAULT_ALF_GATEWAY_MAX_CLIENT_QUEUE,
+    DEFAULT_ALF_GATEWAY_MAX_COMMANDS_PER_SECOND,
+    DEFAULT_ALF_GATEWAY_MAX_CONNECTIONS,
+    DEFAULT_ALF_GATEWAY_MAX_ERRORS_BEFORE_DISCONNECT,
+    DEFAULT_ALF_GATEWAY_NAME,
+    DEFAULT_ALF_GATEWAY_PORT,
     DEFAULT_BALF_GATEWAY_AUTH_TIMEOUT_SEC,
     DEFAULT_BALF_GATEWAY_BIND_ADDRESS,
     DEFAULT_BALF_GATEWAY_DUPLICATE_SESSION_POLICY,
@@ -172,6 +183,7 @@ class ConfigSpec:
     post_trade_gateway: PostTradeGatewaySpec | None = None
     market_data_gateway: MarketDataGatewaySpec | None = None
     balf_gateway: BalfGatewaySpec | None = None
+    alf_gateway: AlfGatewaySpec | None = None
     dc_gateway: DcGatewaySpec | None = None
     log_server: LogServerSpec | None = None
     api_gateways: tuple[ApiGatewaySpec, ...] = ()
@@ -203,6 +215,22 @@ class MarketDataGatewaySpec:
     max_symbols_per_client: int = DEFAULT_MARKET_DATA_GATEWAY_MAX_SYMBOLS_PER_CLIENT
     max_client_queue: int = DEFAULT_MARKET_DATA_GATEWAY_MAX_CLIENT_QUEUE
     depth_levels: int = DEFAULT_MARKET_DATA_GATEWAY_DEPTH_LEVELS
+
+
+@dataclass(frozen=True)
+class AlfGatewaySpec:
+    enabled: bool = True
+    name: str = DEFAULT_ALF_GATEWAY_NAME
+    bind_address: str = DEFAULT_ALF_GATEWAY_BIND_ADDRESS
+    port: int = DEFAULT_ALF_GATEWAY_PORT
+    heartbeat_interval_sec: int = DEFAULT_ALF_GATEWAY_HEARTBEAT_INTERVAL_SEC
+    handshake_timeout_sec: int = DEFAULT_ALF_GATEWAY_HANDSHAKE_TIMEOUT_SEC
+    idle_timeout_sec: int = DEFAULT_ALF_GATEWAY_IDLE_TIMEOUT_SEC
+    max_connections: int = DEFAULT_ALF_GATEWAY_MAX_CONNECTIONS
+    max_client_queue: int = DEFAULT_ALF_GATEWAY_MAX_CLIENT_QUEUE
+    max_commands_per_second: int = DEFAULT_ALF_GATEWAY_MAX_COMMANDS_PER_SECOND
+    max_errors_before_disconnect: int = DEFAULT_ALF_GATEWAY_MAX_ERRORS_BEFORE_DISCONNECT
+    error_window_sec: int = DEFAULT_ALF_GATEWAY_ERROR_WINDOW_SEC
 
 
 @dataclass(frozen=True)
@@ -361,6 +389,8 @@ class ConfigBuilder:
         if gateway_defaults:
             cfg["gateway_defaults"] = gateway_defaults
         cfg["gateways"] = {"alf": self._build_gateways()}
+        if self.spec.alf_gateway is not None:
+            cfg["alf_gateway"] = self._build_alf_gateway()
         if self.spec.post_trade_gateway is not None:
             cfg["post_trade_gateway"] = self._build_post_trade_gateway()
         if self.spec.market_data_gateway is not None:
@@ -416,6 +446,26 @@ class ConfigBuilder:
             cfg["schedule"] = schedule
 
         return cfg
+
+    def _build_alf_gateway(self) -> dict[str, Any]:
+        spec = self.spec.alf_gateway
+        if spec is None:
+            return {}
+
+        return {
+            "enabled": spec.enabled,
+            "name": spec.name,
+            "bind_address": spec.bind_address,
+            "port": spec.port,
+            "heartbeat_interval_sec": spec.heartbeat_interval_sec,
+            "handshake_timeout_sec": spec.handshake_timeout_sec,
+            "idle_timeout_sec": spec.idle_timeout_sec,
+            "max_connections": spec.max_connections,
+            "max_client_queue": spec.max_client_queue,
+            "max_commands_per_second": spec.max_commands_per_second,
+            "max_errors_before_disconnect": spec.max_errors_before_disconnect,
+            "error_window_sec": spec.error_window_sec,
+        }
 
     def _build_post_trade_gateway(self) -> dict[str, Any]:
         spec = self.spec.post_trade_gateway

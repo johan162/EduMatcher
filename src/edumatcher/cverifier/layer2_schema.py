@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import difflib
 from pathlib import Path
 from typing import Any, cast
 
@@ -69,6 +70,7 @@ def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
     _check_dc_gateway(raw, results)
     _check_log_server(raw, results)
     _check_api_gateway_sections(raw, results)
+    _check_unknown_process_keys(raw, results)
     return results
 
 
@@ -1896,12 +1898,12 @@ def _check_runtime_flags(raw: dict[str, Any], results: list[CheckResult]) -> Non
         )
 
     engine_tuning = raw.get("engine_tuning")
-    snapshot_path = "snapshot_interval_sec"
-    if isinstance(engine_tuning, dict) and "snapshot_interval_sec" in engine_tuning:
-        snapshot_interval = engine_tuning.get("snapshot_interval_sec")
-        snapshot_path = "engine_tuning.snapshot_interval_sec"
-    else:
-        snapshot_interval = raw.get("snapshot_interval_sec")
+    snapshot_path = "engine_tuning.snapshot_interval_sec"
+    snapshot_interval = (
+        engine_tuning.get("snapshot_interval_sec")
+        if isinstance(engine_tuning, dict)
+        else None
+    )
     if snapshot_interval is not None:
         try:
             snap = float(snapshot_interval)
@@ -2718,3 +2720,209 @@ def _check_log_server_lease_bounds(
                 path="log_server.max_lease_sec",
             )
         )
+
+
+# ---------------------------------------------------------------------------
+# Unknown keys in process blocks (S121)
+# ---------------------------------------------------------------------------
+# The runtime loaders ignore a key they do not read, so a misspelled option
+# silently falls back to its default. These sets are the keys each loader reads;
+# tests/test_cverifier.py pins them to the loaders' config dataclasses.
+
+_PROCESS_BLOCK_KEYS: dict[str, frozenset[str]] = {
+    "alf_gateway": frozenset(
+        {
+            "enabled",
+            "name",
+            "bind_address",
+            "port",
+            "heartbeat_interval_sec",
+            "handshake_timeout_sec",
+            "idle_timeout_sec",
+            "max_connections",
+            "max_client_queue",
+            "max_commands_per_second",
+            "max_errors_before_disconnect",
+            "error_window_sec",
+        }
+    ),
+    "balf_gateway": frozenset(
+        {
+            "enabled",
+            "name",
+            "bind_address",
+            "port",
+            "heartbeat_interval_sec",
+            "heartbeat_timeout_sec",
+            "idle_timeout_sec",
+            "auth_timeout_sec",
+            "max_connections",
+            "max_client_queue",
+            "max_messages_per_second",
+            "max_errors_before_disconnect",
+            "error_window_sec",
+            "duplicate_session_policy",
+        }
+    ),
+    "market_data_gateway": frozenset(
+        {
+            "enabled",
+            "name",
+            "bind_address",
+            "port",
+            "heartbeat_interval_sec",
+            "idle_timeout_sec",
+            "replay_window_sec",
+            "max_connections",
+            "max_messages_per_second",
+            "max_symbols_per_client",
+            "max_client_queue",
+            "depth_levels",
+        }
+    ),
+    "post_trade_gateway": frozenset(
+        {
+            "name",
+            "bind_address",
+            "port",
+            "replay_retention_sec",
+            "heartbeat_interval_sec",
+            "idle_timeout_sec",
+            "max_client_queue",
+            "allowed_roles",
+        }
+    ),
+    "dc_gateway": frozenset(
+        {
+            "name",
+            "bind_address",
+            "port",
+            "heartbeat_interval_sec",
+            "idle_timeout_sec",
+            "max_client_queue",
+        }
+    ),
+    "log_server": frozenset(
+        {
+            "enabled",
+            "name",
+            "bind_address",
+            "port",
+            "db_path",
+            "retention_days",
+            "max_message_bytes",
+            "max_client_queue",
+            "write_batch_size",
+            "write_batch_interval_ms",
+            "heartbeat_interval_sec",
+            "pubsub_enabled",
+            "pub_port",
+            "pull_port",
+            "lease_sec",
+            "max_lease_sec",
+            "max_subscribers",
+            "notify_interval_ms",
+            "backfill_chunk_rows",
+            "max_backfill_minutes",
+            "max_backfill_rows",
+            "max_pending_rows",
+            "pub_sndhwm",
+            "client",
+        }
+    ),
+}
+_LOG_CLIENT_KEYS = frozenset(
+    {"connect_timeout_sec", "failover_timeout_sec", "failover_dir"}
+)
+_API_INSTANCE_KEYS = frozenset(
+    {
+        "enabled",
+        "host",
+        "port",
+        "log_level",
+        "swagger_enabled",
+        "stats_db",
+        "audit_db",
+        "order_retention_sec",
+        "market_data_cache_sec",
+        "session_timezone",
+        "engine_pull_addr",
+        "engine_pub_addr",
+        "index_pull_addr",
+        "index_pub_addr",
+        "credentials",
+        "rate_limit",
+        "timeouts",
+    }
+)
+_API_RATE_LIMIT_KEYS = frozenset({"writes_per_second", "burst"})
+_API_TIMEOUT_KEYS = frozenset({"engine_auth_sec", "engine_reply_sec", "wait_ack_sec"})
+_API_CREDENTIAL_KEYS = frozenset({"api_key", "gateway_id", "description"})
+
+
+def _report_unknown_keys(
+    section: object,
+    allowed: frozenset[str],
+    path: str,
+    results: list[CheckResult],
+) -> None:
+    if not isinstance(section, dict):
+        return  # a non-mapping is reported by the section's own checks
+    for key in sorted(section, key=str):
+        if key in allowed:
+            continue
+        close = difflib.get_close_matches(str(key), sorted(allowed), n=1)
+        hint = f" Did you mean '{close[0]}'?" if close else ""
+        results.append(
+            CheckResult(
+                code="S121",
+                severity=Severity.ERROR,
+                message=f"'{path}.{key}' is not a recognised field.",
+                suggestion=(
+                    f"The loader ignores unknown keys, so this setting has no "
+                    f"effect.{hint} Accepted: {', '.join(sorted(allowed))}."
+                ),
+                path=f"{path}.{key}",
+            )
+        )
+
+
+def _check_unknown_process_keys(
+    raw: dict[str, Any], results: list[CheckResult]
+) -> None:
+    """S121 — a key that no process loader reads, in a gateway/service block."""
+    for block, allowed in _PROCESS_BLOCK_KEYS.items():
+        _report_unknown_keys(raw.get(block), allowed, block, results)
+
+    log_server = raw.get("log_server")
+    if isinstance(log_server, dict):
+        _report_unknown_keys(
+            log_server.get("client"), _LOG_CLIENT_KEYS, "log_server.client", results
+        )
+
+    instances = raw.get("api_gateways")
+    if not isinstance(instances, dict):
+        return
+    for name, instance in instances.items():
+        base = f"api_gateways.{name}"
+        _report_unknown_keys(instance, _API_INSTANCE_KEYS, base, results)
+        if not isinstance(instance, dict):
+            continue
+        _report_unknown_keys(
+            instance.get("rate_limit"),
+            _API_RATE_LIMIT_KEYS,
+            f"{base}.rate_limit",
+            results,
+        )
+        _report_unknown_keys(
+            instance.get("timeouts"), _API_TIMEOUT_KEYS, f"{base}.timeouts", results
+        )
+        credentials = instance.get("credentials")
+        if isinstance(credentials, list):
+            for index, credential in enumerate(credentials):
+                _report_unknown_keys(
+                    credential,
+                    _API_CREDENTIAL_KEYS,
+                    f"{base}.credentials[{index}]",
+                    results,
+                )

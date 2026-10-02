@@ -1440,8 +1440,7 @@ def load_engine_config(path: Path) -> EngineConfig:
         raise ValueError("Engine config 'engine_tuning' must be a mapping")
 
     snapshot_interval_raw = engine_tuning_raw.get(
-        "snapshot_interval_sec",
-        raw.get("snapshot_interval_sec", _DEFAULT_SNAPSHOT_INTERVAL_SEC),
+        "snapshot_interval_sec", _DEFAULT_SNAPSHOT_INTERVAL_SEC
     )
     if snapshot_interval_raw is None:
         raise ValueError("Engine config 'snapshot_interval_sec' must be numeric")

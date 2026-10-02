@@ -24,6 +24,11 @@ _WILDCARD_BIND_ADDRESSES = frozenset({"0.0.0.0", "::"})
 def _network_endpoints(spec: ConfigSpec) -> list[tuple[str, str, int]]:
     """Return (label, bind_address, port) for every network service the spec emits."""
     endpoints: list[tuple[str, str, int]] = []
+    if spec.alf_gateway is not None and spec.alf_gateway.enabled:
+        alf_gw = spec.alf_gateway
+        endpoints.append(
+            (f"alf_gateway '{alf_gw.name}'", alf_gw.bind_address, alf_gw.port)
+        )
     if spec.post_trade_gateway is not None:
         pt_gw = spec.post_trade_gateway
         endpoints.append(
