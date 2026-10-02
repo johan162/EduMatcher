@@ -4,6 +4,7 @@ Tests for engine/config_loader.py — full coverage of validation paths.
 
 from __future__ import annotations
 
+import re
 import textwrap
 from pathlib import Path
 
@@ -166,6 +167,78 @@ class TestConfigLoaderHappyPath:
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
         assert cfg.fix_gateways["GW01"].smp_action == SmpAction.CANCEL_BOTH
+
+    def test_gateway_default_applies_to_gateways_that_omit_fields(
+        self, tmp_path: Path
+    ) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateway_defaults:
+          smp_action: CANCEL_AGGRESSOR
+          disconnect_behaviour: cancel_all
+        gateways:
+          alf:
+            - id: GW01
+            - id: GW02
+              smp_action: NONE
+              disconnect_behaviour: LEAVE_ALL
+        """
+        cfg = load_engine_config(_write_yaml(tmp_path, yaml))
+        inherits = cfg.fix_gateways["GW01"]
+        assert inherits.smp_action == SmpAction.CANCEL_AGGRESSOR
+        assert inherits.disconnect_behaviour == DisconnectBehaviour.CANCEL_ALL
+        overrides = cfg.fix_gateways["GW02"]
+        assert overrides.smp_action == SmpAction.NONE
+        assert overrides.disconnect_behaviour == DisconnectBehaviour.LEAVE_ALL
+
+    def test_gateway_default_with_one_key_keeps_builtin_for_the_other(
+        self, tmp_path: Path
+    ) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateway_defaults:
+          smp_action: CANCEL_BOTH
+        gateways:
+          alf:
+            - id: GW01
+        """
+        gw = load_engine_config(_write_yaml(tmp_path, yaml)).fix_gateways["GW01"]
+        assert gw.smp_action == SmpAction.CANCEL_BOTH
+        assert gw.disconnect_behaviour == DisconnectBehaviour.CANCEL_QUOTES_ONLY
+
+    @pytest.mark.parametrize(
+        ("block", "message"),
+        [
+            ("gateway_defaults: [1]", "'gateway_defaults' must be a mapping"),
+            (
+                "gateway_defaults:\n          smp_action: SOMETIMES",
+                "gateway_defaults.smp_action' is invalid",
+            ),
+            (
+                "gateway_defaults:\n          disconnect_behaviour: NUKE",
+                "gateway_defaults.disconnect_behaviour' is invalid",
+            ),
+            (
+                "gateway_defaults:\n          smp_actoin: NONE",
+                "unknown field(s): smp_actoin",
+            ),
+        ],
+    )
+    def test_gateway_default_rejects_bad_input(
+        self, tmp_path: Path, block: str, message: str
+    ) -> None:
+        yaml = f"""
+        symbols:
+          AAPL: {{}}
+        {block}
+        gateways:
+          alf:
+            - id: GW01
+        """
+        with pytest.raises(ValueError, match=re.escape(message)):
+            load_engine_config(_write_yaml(tmp_path, yaml))
 
     def test_gateway_id_uppercased(self, tmp_path: Path) -> None:
         yaml = """

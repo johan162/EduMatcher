@@ -61,6 +61,28 @@ def build_parser() -> argparse.ArgumentParser:
         "default at NONE. Can be repeated.",
     )
     parser.add_argument(
+        "--gateway-default-smp",
+        choices=["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"],
+        type=str.upper,
+        default=None,
+        metavar="SMP_ACTION",
+        help="Write gateway_defaults.smp_action: the self-match-prevention default "
+        "every gateway inherits unless it has its own smp_action "
+        "(--gateway-smp GW_ID:SMP_ACTION overrides it per gateway, "
+        "including GW_ID:NONE). Choices: %(choices)s.",
+    )
+    parser.add_argument(
+        "--gateway-default-disconnect",
+        choices=["CANCEL_ALL", "CANCEL_QUOTES_ONLY", "LEAVE_ALL"],
+        type=str.upper,
+        default=None,
+        metavar="DISCONNECT",
+        help="Write gateway_defaults.disconnect_behaviour: the disconnect behaviour "
+        "inherited by every gateway whose --gateways spec does not name one "
+        "(replacing the per-role default for those gateways). "
+        "Choices: %(choices)s.",
+    )
+    parser.add_argument(
         "--symbol-opts",
         action="append",
         default=[],

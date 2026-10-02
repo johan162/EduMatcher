@@ -9,7 +9,7 @@ import string
 from typing import Any
 
 from edumatcher.models.order import SmpAction
-from edumatcher.models.participant import ParticipantRole
+from edumatcher.models.participant import DisconnectBehaviour, ParticipantRole
 
 from .cb_spec import CbSpec
 from .defaults import (
@@ -112,6 +112,9 @@ from .symbol_spec import SymbolOverride
 class ConfigSpec:
     symbols: list[str]
     gateways: list[GatewaySpec]
+    #: Written as the top-level ``gateway_defaults`` block when either is set.
+    gateway_default_smp: SmpAction | None = None
+    gateway_default_disconnect: DisconnectBehaviour | None = None
     sessions_enabled: bool = False
     country: str | None = None
     snapshot_interval_sec: float = DEFAULT_SNAPSHOT_INTERVAL_SEC
@@ -354,6 +357,9 @@ class ConfigBuilder:
         if self.spec.cb_levels:
             cfg["circuit_breaker_defaults"] = self._build_cb_defaults()
 
+        gateway_defaults = self._build_gateway_default()
+        if gateway_defaults:
+            cfg["gateway_defaults"] = gateway_defaults
         cfg["gateways"] = {"alf": self._build_gateways()}
         if self.spec.post_trade_gateway is not None:
             cfg["post_trade_gateway"] = self._build_post_trade_gateway()
@@ -728,19 +734,34 @@ class ConfigBuilder:
             "reopening": reopening,
         }
 
+    def _build_gateway_default(self) -> dict[str, Any]:
+        default: dict[str, Any] = {}
+        if self.spec.gateway_default_smp is not None:
+            default["smp_action"] = self.spec.gateway_default_smp.value
+        if self.spec.gateway_default_disconnect is not None:
+            default["disconnect_behaviour"] = self.spec.gateway_default_disconnect.value
+        return default
+
     def _build_gateways(self) -> list[dict[str, Any]]:
+        inherited_smp = self.spec.gateway_default_smp or SmpAction.NONE
+        inherits_disconnect = self.spec.gateway_default_disconnect is not None
         gateways: list[dict[str, Any]] = []
         for gw in self.spec.gateways:
             payload: dict[str, Any] = {
                 "id": gw.gateway_id,
                 "role": gw.role.value,
-                "disconnect_behaviour": gw.disconnect_behaviour.value,
             }
+            # A gateway that took the role default rather than naming a
+            # value inherits gateway_defaults.disconnect_behaviour instead.
+            if gw.disconnect_explicit or not inherits_disconnect:
+                payload["disconnect_behaviour"] = gw.disconnect_behaviour.value
             if gw.description:
                 payload["description"] = gw.description
             if gw.role == ParticipantRole.MARKET_MAKER:
                 payload["quote_refresh_policy"] = "INACTIVATE_ON_ANY_FILL"
-            if gw.smp_action != SmpAction.NONE:
+            if (
+                gw.smp_explicit or gw.smp_action != SmpAction.NONE
+            ) and gw.smp_action != inherited_smp:
                 payload["smp_action"] = gw.smp_action.value
             gateways.append(payload)
         return gateways

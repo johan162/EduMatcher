@@ -218,21 +218,38 @@ function buildCbDefaults(draft: EngineConfigDraft): PlainConfig {
   return payload;
 }
 
+function buildGatewayDefault(draft: EngineConfigDraft): PlainConfig | null {
+  const d = draft.gatewayDefault;
+  const payload: PlainConfig = {};
+  if (d.smpAction !== undefined) payload.smp_action = d.smpAction;
+  if (d.disconnectBehaviour !== undefined) {
+    payload.disconnect_behaviour = d.disconnectBehaviour;
+  }
+  return Object.keys(payload).length > 0 ? payload : null;
+}
+
 function buildGateways(draft: EngineConfigDraft): PlainConfig[] {
+  const inheritedSmp = draft.gatewayDefault.smpAction ?? "NONE";
   return draft.gateways.map((gw) => {
     const payload: PlainConfig = {
       id: gw.id,
       role: gw.role,
-      disconnect_behaviour: gw.disconnectBehaviour,
     };
+    // Undefined inherits gateway_defaults.disconnect_behaviour.
+    if (gw.disconnectBehaviour !== undefined) {
+      payload.disconnect_behaviour = gw.disconnectBehaviour;
+    }
     if (gw.description) payload.description = gw.description;
     // quote_refresh_policy only applies to market makers; default preserved.
     if (gw.role === "MARKET_MAKER") {
       payload.quote_refresh_policy =
         gw.quoteRefreshPolicy ?? "INACTIVATE_ON_ANY_FILL";
     }
-    // NONE is the engine default; builder.py omits it too.
-    if (gw.smpAction !== "NONE") payload.smp_action = gw.smpAction;
+    // Omitted when it equals what the gateway would inherit anyway (NONE
+    // without a gateway_defaults); builder.py does the same.
+    if (gw.smpAction !== undefined && gw.smpAction !== inheritedSmp) {
+      payload.smp_action = gw.smpAction;
+    }
     // Per-gateway flat MM obligation overrides — emitted only when explicitly set.
     if (gw.enforceMmObligation !== undefined) {
       payload.enforce_mm_obligation = gw.enforceMmObligation;
@@ -478,6 +495,9 @@ export function buildConfigDocument(draft: EngineConfigDraft): PlainConfig {
   if (draft.circuitBreakerDefaults.include) {
     cfg.circuit_breaker_defaults = buildCbDefaults(draft);
   }
+
+  const gatewayDefault = buildGatewayDefault(draft);
+  if (gatewayDefault !== null) cfg.gateway_defaults = gatewayDefault;
 
   cfg.gateways = { alf: buildGateways(draft) };
 

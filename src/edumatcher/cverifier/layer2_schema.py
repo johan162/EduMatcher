@@ -57,6 +57,7 @@ def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
     _check_mm_obligation_defaults_schema(raw, results)
     _check_symbols(raw, results)
     _check_gateways(raw, results)
+    _check_gateway_default(raw, results)
     _check_market_maker_combos(raw, results)
     _check_indices(raw, results)
     _check_cb_defaults(raw, results)
@@ -785,6 +786,67 @@ def _get_cb_default_levels(raw: dict[str, Any]) -> dict[str, dict[str, Any]]:
         for name, level in levels.items()
         if isinstance(level, dict)
     }
+
+
+def _check_gateway_default(raw: dict[str, Any], results: list[CheckResult]) -> None:
+    """S118–S120 — the top-level ``gateway_defaults`` block."""
+    section = raw.get("gateway_defaults")
+    if section is None:
+        return
+    if not isinstance(section, dict):
+        results.append(
+            CheckResult(
+                code="S118",
+                severity=Severity.ERROR,
+                message=f"'gateway_defaults' must be a mapping. Got '{section}'.",
+                suggestion=(
+                    "Set gateway_defaults to a mapping with smp_action and/or "
+                    "disconnect_behaviour."
+                ),
+                path="gateway_defaults",
+            )
+        )
+        return
+
+    for key in sorted(set(section) - {"smp_action", "disconnect_behaviour"}, key=str):
+        results.append(
+            CheckResult(
+                code="S118",
+                severity=Severity.ERROR,
+                message=f"'gateway_defaults.{key}' is not a recognised field.",
+                suggestion="Supported fields: smp_action, disconnect_behaviour.",
+                path=f"gateway_defaults.{key}",
+            )
+        )
+
+    disconnect = section.get("disconnect_behaviour")
+    if "disconnect_behaviour" in section and (
+        str(disconnect).upper() not in _VALID_DISCONNECT
+    ):
+        results.append(
+            CheckResult(
+                code="S119",
+                severity=Severity.ERROR,
+                message=(
+                    f"'gateway_defaults.disconnect_behaviour' '{disconnect}' "
+                    "is not valid."
+                ),
+                suggestion=f"Accepted values: {', '.join(sorted(_VALID_DISCONNECT))}.",
+                path="gateway_defaults.disconnect_behaviour",
+            )
+        )
+
+    smp_action = section.get("smp_action")
+    if "smp_action" in section and str(smp_action).upper() not in _VALID_SMP_ACTIONS:
+        results.append(
+            CheckResult(
+                code="S120",
+                severity=Severity.ERROR,
+                message=f"'gateway_defaults.smp_action' '{smp_action}' is not valid.",
+                suggestion=f"Accepted values: {', '.join(sorted(_VALID_SMP_ACTIONS))}.",
+                path="gateway_defaults.smp_action",
+            )
+        )
 
 
 def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:

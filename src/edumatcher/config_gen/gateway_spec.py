@@ -21,6 +21,10 @@ class GatewaySpec:
     # with the free-text DESCRIPTION slot) -- set via the separate,
     # repeatable --gateway-smp GW_ID:SMP_ACTION flag instead.
     smp_action: SmpAction = SmpAction.NONE
+    # True when the spec named the value itself (rather than taking the role
+    # default), so it must be written even when a ``gateway_defaults`` exists.
+    disconnect_explicit: bool = False
+    smp_explicit: bool = False
 
 
 _ROLE_DEFAULT_DISCONNECT: dict[ParticipantRole, DisconnectBehaviour] = {
@@ -49,7 +53,8 @@ def parse_gateway_spec(raw: str) -> GatewaySpec:
             raise ValueError(f"Invalid role in gateway spec '{raw}'") from exc
 
     disconnect = _ROLE_DEFAULT_DISCONNECT[role]
-    if len(parts) >= 3 and parts[2]:
+    disconnect_explicit = len(parts) >= 3 and bool(parts[2])
+    if disconnect_explicit:
         try:
             disconnect = DisconnectBehaviour(parts[2].upper())
         except ValueError as exc:
@@ -64,4 +69,5 @@ def parse_gateway_spec(raw: str) -> GatewaySpec:
         role=role,
         disconnect_behaviour=disconnect,
         description=description,
+        disconnect_explicit=disconnect_explicit,
     )

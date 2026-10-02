@@ -88,13 +88,13 @@ load. Producers MAY write any case; consumers compare upper-case.
 | Enum | Members | Used by |
 |------|---------|---------|
 | `Role` | `TRADER`, `MARKET_MAKER`, `ADMIN` | `gateways.alf[].role` |
-| `DisconnectBehaviour` | `CANCEL_QUOTES_ONLY`, `CANCEL_ALL`, `LEAVE_ALL` | `gateways.alf[].disconnect_behaviour` |
+| `DisconnectBehaviour` | `CANCEL_QUOTES_ONLY`, `CANCEL_ALL`, `LEAVE_ALL` | `gateways.alf[].disconnect_behaviour`, `gateway_defaults.disconnect_behaviour` |
 | `QuoteRefreshPolicy` | `INACTIVATE_ON_ANY_FILL`, `INACTIVATE_ON_FULL_FILL`, `NEVER_INACTIVATE` | `gateways.alf[].quote_refresh_policy` |
 | `TIF` | `DAY`, `GTC`, `ATO`, `ATC` | quote/combo seeds |
 | `ComboType` | `AON` | `market_maker_combos[].combo_type` |
 | `Side` | `BUY`, `SELL` | combo legs |
 | `OrderType` | `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP` | combo legs |
-| `SmpAction` | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | combo legs, `gateways.alf[].smp_action` |
+| `SmpAction` | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | combo legs, `gateways.alf[].smp_action`, `gateway_defaults.smp_action` |
 | `DuplicateSessionPolicy` | `REJECT_NEW`, `EVICT_OLD` | `balf_gateway.duplicate_session_policy` |
 
 An `Enum<E>` value outside its member set MUST be rejected.
@@ -112,6 +112,7 @@ This tree is normative for *shape*; §4–§6 are normative for *field law*.
 symbols:                    ! Map<Symbol, SymbolSpec>          # ≥0 entries; key required
 gateways:                   ! Map
   alf:                      ! List<AlfGatewaySpec>             # ≥1 entry
+gateway_defaults:           ? GatewayDefaultSpec               # values a gateways.alf entry inherits when it omits them
 sessions_enabled:           ? Bool = true
 enforce_collars:            ? Bool = true
 enforce_circuit_breakers:   ? Bool = true
@@ -151,13 +152,17 @@ AlfGatewaySpec:                              # one entry of gateways.alf
   id:                       ! GatewayId
   description:              ? Str = ""
   role:                    ? Enum<Role> = TRADER
-  disconnect_behaviour:    ? Enum<DisconnectBehaviour> = CANCEL_QUOTES_ONLY
+  disconnect_behaviour:    ? Enum<DisconnectBehaviour> = <gateway_defaults.disconnect_behaviour | CANCEL_QUOTES_ONLY>
   quote_refresh_policy:    ? Enum<QuoteRefreshPolicy> = INACTIVATE_ON_ANY_FILL
   enforce_mm_obligation:   ? Bool  = <mm_obligation_defaults.enforce_mm_obligation | false>
   mm_max_spread_ticks:     ? Ticks = <mm_obligation_defaults.mm_max_spread_ticks | 10>
   mm_min_qty:              ? Qty   = <mm_obligation_defaults.mm_min_qty | 100>
   mm_obligations:          ? Map<Symbol, MMObligationSpec>
-  smp_action:              ? Enum<SmpAction> = NONE
+  smp_action:              ? Enum<SmpAction> = <gateway_defaults.smp_action | NONE>
+
+GatewayDefaultSpec:                          # top-level gateway_defaults
+  disconnect_behaviour:    ? Enum<DisconnectBehaviour>
+  smp_action:              ? Enum<SmpAction>
 ```
 
 ---
@@ -315,6 +320,27 @@ gateway's orders **when the order itself doesn't specify one**:
   (§4.5, `ComboLegSpec.smp_action`; ALF protocol `NEW|SMP=`). An explicit
   `SMP=` from the client — including `SMP=NONE` — always takes precedence
   over this gateway default; only an *omitted* `SMP=` falls back to it.
+
+### 5.2a `gateway_defaults` (OPTIONAL) — `GatewayDefaultSpec`
+
+A mapping of values that every `gateways.alf` entry **inherits when it omits the
+key**. It exists so a uniform policy (for example, `CANCEL_AGGRESSOR` on every
+gateway) is written once instead of on each entry.
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `smp_action` | `Enum<SmpAction>` | – | `NONE` | inherited by an entry that omits `smp_action` |
+| `disconnect_behaviour` | `Enum<DisconnectBehaviour>` | – | `CANCEL_QUOTES_ONLY` | inherited by an entry that omits `disconnect_behaviour` |
+
+Resolution order for a gateway's effective value is: the entry's own key, then
+`gateway_defaults`, then the built-in default. An explicit entry value always
+wins, including `smp_action: NONE` when the default is something else. The block
+applies to **every** role: a `gateway_defaults.disconnect_behaviour` of
+`CANCEL_ALL` also reaches `ADMIN` and `MARKET_MAKER` entries that omit the key,
+so entries that need a different behaviour MUST set it explicitly.
+
+Unlike most sections, an unrecognised key under `gateway_defaults` is **rejected**
+(CV22) rather than ignored, so that a mistyped name is not silently dropped.
 
 ### 5.3 Engine behaviour flags
 
@@ -649,6 +675,7 @@ rejected at load.
 | CV19 | `symbols.<S>.tick_decimals` ∈ 0..8; `outstanding_shares`, when present, `> 0`. |
 | CV20 | `schedule.weekend` and an individual `schedule.sat`/`schedule.sun` key MUST NOT both be present. |
 | CV21 | Every `DayScheduleSpec` present anywhere under `schedule` (`weekdays`, `weekend`, `holidays`, or an individual `mon`..`sun` key) MUST define all five of `pre_open`, `opening_auction_start`, `continuous_start`, `closing_auction_start`, `closing_auction_end`; a partial block is rejected, not filled from a default. |
+| CV22 | `gateway_defaults`, when present, is a mapping whose only keys are `smp_action` and `disconnect_behaviour`, each a valid member of its enumeration. |
 
 ---
 

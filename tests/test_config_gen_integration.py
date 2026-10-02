@@ -140,6 +140,43 @@ def test_gateway_smp_emitted_and_parses(
     assert out_file.read_text(encoding="utf-8").count("smp_action") == 1
 
 
+def test_gateway_default_flags_emitted_and_inherited(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "TRADER01",
+            "TRADER02",
+            "OPS01:ADMIN:LEAVE_ALL",
+            "--gateway-default-smp",
+            "cancel_aggressor",
+            "--gateway-default-disconnect",
+            "CANCEL_ALL",
+            "--gateway-smp",
+            "TRADER02:NONE",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    raw = yaml.safe_load(out_file.read_text(encoding="utf-8"))
+    assert raw["gateway_defaults"] == {
+        "smp_action": "CANCEL_AGGRESSOR",
+        "disconnect_behaviour": "CANCEL_ALL",
+    }
+    cfg = load_engine_config(out_file)
+    assert cfg.fix_gateways["TRADER01"].smp_action.value == "CANCEL_AGGRESSOR"
+    assert cfg.fix_gateways["TRADER01"].disconnect_behaviour.value == "CANCEL_ALL"
+    assert cfg.fix_gateways["TRADER02"].smp_action.value == "NONE"
+    assert cfg.fix_gateways["OPS01"].disconnect_behaviour.value == "LEAVE_ALL"
+
+
 def test_country_emitted_and_parses(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -202,7 +202,7 @@ reporting scripts.
 | `Y003` | YAML parse error                    |
 | `Y004` | Top-level document is not a mapping |
 
-### Layer 2 — Schema (`S001`–`S117`)
+### Layer 2 — Schema (`S001`–`S120`)
 
 **Top-level structure**
 
@@ -268,6 +268,9 @@ the key if it appears on a risk level.
 | `S028` | `mm_obligations.<symbol>` entry is invalid        |
 | `S029` | `gateways.alf[n]` is not a mapping                |
 | `S084` | Two `gateways.alf` IDs are prefixes of each other |
+| `S118` | `gateway_defaults` is not a mapping, or has a key other than `smp_action` / `disconnect_behaviour` |
+| `S119` | `gateway_defaults.disconnect_behaviour` is not a recognised value |
+| `S120` | `gateway_defaults.smp_action` is not a recognised value |
 
 **Circuit breaker fields**
 

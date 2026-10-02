@@ -1903,6 +1903,8 @@ _shtab_pm_config_gen_options=(
   "--symbols[One or more symbols.]:SYM:"
   "--gateways[One or more gateway specs (ID\[\:ROLE\[\:DISCONNECT\]\]).]:GW_SPEC:"
   "*--gateway-smp[Gateway-level self-match-prevention default (NONE, CANCEL_AGGRESSOR, CANCEL_RESTING, CANCEL_BOTH), applied by the engine to any order, combo leg, or quote from GW_ID that doesn\'t specify its own SMP\=. GW_ID must be one of the IDs given to --gateways. Omit for a gateway to leave its default at NONE. Can be repeated.]:GW_ID:SMP_ACTION:"
+  "--gateway-default-smp[Write gateway_defaults.smp_action\: the self-match-prevention default every gateway inherits unless it has its own smp_action (--gateway-smp GW_ID\:SMP_ACTION overrides it per gateway, including GW_ID\:NONE). Choices\: NONE, CANCEL_AGGRESSOR, CANCEL_RESTING, CANCEL_BOTH.]:SMP_ACTION:(NONE CANCEL_AGGRESSOR CANCEL_RESTING CANCEL_BOTH)"
+  "--gateway-default-disconnect[Write gateway_defaults.disconnect_behaviour\: the disconnect behaviour inherited by every gateway whose --gateways spec does not name one (replacing the per-role default for those gateways). Choices\: CANCEL_ALL, CANCEL_QUOTES_ONLY, LEAVE_ALL.]:DISCONNECT:(CANCEL_ALL CANCEL_QUOTES_ONLY LEAVE_ALL)"
   "*--symbol-opts[Per-symbol overrides. Can be repeated.]:SYMBOL:KEY=VALUE[,KEY=VALUE]:"
   "*--symbol-static-band[Per-symbol collar static band pct in (0,1). Can be repeated.]:SYM:PCT:"
   "*--symbol-dynamic-band[Per-symbol collar dynamic band pct in (0,1). Can be repeated.]:SYM:PCT:"

@@ -30,6 +30,7 @@ from edumatcher.config_gen.gateway_spec import parse_gateway_spec
 from edumatcher.config_gen.renderer import render_yaml
 from edumatcher.config_gen.symbol_spec import SymbolOverride
 from edumatcher.index.config_loader import index_runtime_configs
+from edumatcher.models.order import SmpAction
 
 # Where each generated top-level key lands in the artifact. A key with no entry
 # fails the test below: either wire it into the compiled config, or record here
@@ -50,6 +51,8 @@ KEY_LANDINGS: dict[str, object] = {
         (s.circuit_breaker for s in c.engine.symbols.values()), None
     ),
     "gateways": lambda c: c.engine.fix_gateways or None,
+    # Resolved into each FixGatewayConfig at compile time; no field of its own.
+    "gateway_defaults": lambda c: c.engine.fix_gateways or None,
     "post_trade_gateway": lambda c: c.post_trade_gateway,
     "market_data_gateway": lambda c: c.market_data_gateway,
     "dc_gateway": lambda c: c.dc_gateway,
@@ -72,6 +75,7 @@ def _maximal_spec() -> ConfigSpec:
             parse_gateway_spec("OPS01:ADMIN"),
         ],
         sessions_enabled=True,
+        gateway_default_smp=SmpAction.CANCEL_AGGRESSOR,
         country="Germany",
         static_band_pct=0.20,
         dynamic_band_pct=0.02,

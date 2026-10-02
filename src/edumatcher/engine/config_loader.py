@@ -439,6 +439,43 @@ class EngineConfig:
         return frozenset(self.fix_gateways)
 
 
+def _parse_gateway_default(
+    node: object,
+) -> tuple[DisconnectBehaviour, SmpAction]:
+    """Resolve the top-level ``gateway_defaults`` block.
+
+    Returns the (disconnect_behaviour, smp_action) a ``gateways.alf`` entry
+    inherits when it omits the key; absent keys fall back to the built-ins.
+    """
+    disconnect = DisconnectBehaviour.CANCEL_QUOTES_ONLY
+    smp = SmpAction.NONE
+    if node is None:
+        return disconnect, smp
+    if not isinstance(node, dict):
+        raise ValueError("Engine config 'gateway_defaults' must be a mapping")
+    unknown = set(node) - {"disconnect_behaviour", "smp_action"}
+    if unknown:
+        raise ValueError(
+            "Engine config 'gateway_defaults' has unknown field(s): "
+            f"{', '.join(sorted(str(k) for k in unknown))}"
+        )
+    if "disconnect_behaviour" in node:
+        try:
+            disconnect = DisconnectBehaviour(str(node["disconnect_behaviour"]).upper())
+        except ValueError as exc:
+            raise ValueError(
+                "Engine config 'gateway_defaults.disconnect_behaviour' is invalid"
+            ) from exc
+    if "smp_action" in node:
+        try:
+            smp = SmpAction(str(node["smp_action"]).upper())
+        except ValueError as exc:
+            raise ValueError(
+                "Engine config 'gateway_defaults.smp_action' is invalid"
+            ) from exc
+    return disconnect, smp
+
+
 def load_engine_config(path: Path) -> EngineConfig:
     """
     Parse *path* as YAML and return an EngineConfig.
@@ -471,6 +508,10 @@ def load_engine_config(path: Path) -> EngineConfig:
     cb_defaults_raw = raw.get("circuit_breaker_defaults")
     if cb_defaults_raw is not None and not isinstance(cb_defaults_raw, dict):
         raise ValueError("Engine config 'circuit_breaker_defaults' must be a mapping")
+
+    default_disconnect, default_smp = _parse_gateway_default(
+        raw.get("gateway_defaults")
+    )
 
     mm_global_raw = raw.get("mm_obligation_defaults")
     mm_global_policy = MMObligationPolicy()
@@ -1235,10 +1276,7 @@ def load_engine_config(path: Path) -> EngineConfig:
 
         role_raw = str(item.get("role", ParticipantRole.TRADER.value)).upper()
         disconnect_raw = str(
-            item.get(
-                "disconnect_behaviour",
-                DisconnectBehaviour.CANCEL_QUOTES_ONLY.value,
-            )
+            item.get("disconnect_behaviour", default_disconnect.value)
         ).upper()
         refresh_raw = str(
             item.get(
@@ -1246,7 +1284,7 @@ def load_engine_config(path: Path) -> EngineConfig:
                 QuoteRefreshPolicy.INACTIVATE_ON_ANY_FILL.value,
             )
         ).upper()
-        smp_action_raw = str(item.get("smp_action", SmpAction.NONE.value)).upper()
+        smp_action_raw = str(item.get("smp_action", default_smp.value)).upper()
         enforce_mm_obligation = item.get(
             "enforce_mm_obligation", mm_global_policy.enforce_mm_obligation
         )

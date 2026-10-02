@@ -804,11 +804,17 @@ def _check_admin_gateway(raw: dict[str, Any], results: list[CheckResult]) -> Non
     alf = gateways.get("alf", [])
     if not isinstance(alf, list):
         return
+    gateway_defaults = raw.get("gateway_defaults")
+    default_disconnect = (
+        gateway_defaults.get("disconnect_behaviour", "")
+        if isinstance(gateway_defaults, dict)
+        else ""
+    )
     for n, gw in enumerate(alf):
         if not isinstance(gw, dict):
             continue
         role = str(gw.get("role", "TRADER")).upper()
-        disconnect = str(gw.get("disconnect_behaviour", "")).upper()
+        disconnect = str(gw.get("disconnect_behaviour", default_disconnect)).upper()
         gw_id = str(gw.get("id", "?"))
         if disconnect == "LEAVE_ALL" and role != "ADMIN":
             results.append(

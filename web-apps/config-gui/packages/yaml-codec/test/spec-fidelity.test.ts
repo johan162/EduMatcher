@@ -68,6 +68,28 @@ describe("nothing is dropped or invented", () => {
     expect(doc.gateways.alf[0].smp_action).toBe("CANCEL_BOTH");
   });
 
+  it("keeps gateway_defaults and the gateways that inherit from it", () => {
+    const doc = roundTrip(
+      "gateway_defaults:\n  smp_action: CANCEL_AGGRESSOR\n  disconnect_behaviour: CANCEL_ALL\n" +
+        "gateways:\n  alf:\n    - id: TRADER01\n    - id: TRADER02\n      smp_action: NONE\n" +
+        "      disconnect_behaviour: LEAVE_ALL\n" +
+        "symbols:\n  AAPL:\n    tick_decimals: 2\n",
+    );
+    expect(doc.gateway_defaults).toEqual({
+      smp_action: "CANCEL_AGGRESSOR",
+      disconnect_behaviour: "CANCEL_ALL",
+    });
+    // Inherited: nothing is invented on the gateway.
+    expect(doc.gateways.alf[0]).toEqual({ id: "TRADER01", role: "TRADER" });
+    // An explicit NONE must survive because the default is not NONE.
+    expect(doc.gateways.alf[1].smp_action).toBe("NONE");
+    expect(doc.gateways.alf[1].disconnect_behaviour).toBe("LEAVE_ALL");
+  });
+
+  it("writes no gateway_defaults block when none is set", () => {
+    expect(roundTrip(MINIMAL)).not.toHaveProperty("gateway_defaults");
+  });
+
   it("keeps an omitted combo-leg smp_action omitted (gateway default), and an explicit NONE", () => {
     const text =
       MINIMAL +

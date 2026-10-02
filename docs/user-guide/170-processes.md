@@ -2405,6 +2405,8 @@ pm-config-gen --symbols AAPL MSFT --gateways TRADER01 TRADER02 OPS01:ADMIN --ses
 | Flag | Description |
 |---|---|
 | `--gateway-smp GW_ID:SMP_ACTION` | Per-gateway self-match-prevention default (`NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`); repeatable |
+| `--gateway-default-smp SMP_ACTION` | Writes `gateway_defaults.smp_action`, inherited by gateways without their own |
+| `--gateway-default-disconnect DISCONNECT` | Writes `gateway_defaults.disconnect_behaviour`, inherited by gateways whose spec names no disconnect behaviour |
 | `--symbol-opts SYMBOL:KEY=VALUE[,...]` | Per-symbol overrides; repeatable |
 | `--symbol-static-band SYM:PCT` | Per-symbol collar static band in (0,1); repeatable |
 | `--symbol-dynamic-band SYM:PCT` | Per-symbol collar dynamic band in (0,1); repeatable |

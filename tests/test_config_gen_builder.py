@@ -18,6 +18,7 @@ from edumatcher.config_gen.defaults import DEFAULT_MM_SEED_SPREAD_TICKS
 from edumatcher.config_gen.gateway_spec import parse_gateway_spec
 from edumatcher.config_gen.symbol_spec import SymbolOverride
 from edumatcher.models.order import SmpAction
+from edumatcher.models.participant import DisconnectBehaviour
 
 
 def test_builder_minimal() -> None:
@@ -71,6 +72,42 @@ def test_builder_gateway_smp_action_is_per_gateway() -> None:
     assert alf[0]["smp_action"] == "CANCEL_BOTH"
     assert alf[1]["id"] == "TRADER02"
     assert "smp_action" not in alf[1]
+
+
+def test_builder_omits_gateway_default_block_by_default() -> None:
+    spec = ConfigSpec(symbols=["AAPL"], gateways=[parse_gateway_spec("TRADER01")])
+
+    assert "gateway_defaults" not in ConfigBuilder(spec).build()
+
+
+def test_builder_gateway_default_block_and_inheritance() -> None:
+    explicit_none = replace(
+        parse_gateway_spec("TRADER02"), smp_action=SmpAction.NONE, smp_explicit=True
+    )
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[
+            parse_gateway_spec("TRADER01"),
+            explicit_none,
+            parse_gateway_spec("OPS01:ADMIN:LEAVE_ALL"),
+        ],
+        gateway_default_smp=SmpAction.CANCEL_AGGRESSOR,
+        gateway_default_disconnect=DisconnectBehaviour.CANCEL_ALL,
+    )
+    payload = ConfigBuilder(spec).build()
+
+    assert payload["gateway_defaults"] == {
+        "smp_action": "CANCEL_AGGRESSOR",
+        "disconnect_behaviour": "CANCEL_ALL",
+    }
+    trader01, trader02, ops01 = payload["gateways"]["alf"]
+    # Unspecified fields are inherited, so they are not repeated.
+    assert "smp_action" not in trader01
+    assert "disconnect_behaviour" not in trader01
+    # An explicit NONE must survive: it overrides the non-NONE default.
+    assert trader02["smp_action"] == "NONE"
+    # A disconnect named in the gateway spec is always written.
+    assert ops01["disconnect_behaviour"] == "LEAVE_ALL"
 
 
 def test_builder_with_risk_level_and_symbol_level_reference() -> None:

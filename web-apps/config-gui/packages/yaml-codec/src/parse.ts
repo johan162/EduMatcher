@@ -18,6 +18,7 @@ import {
   type BalfGatewayConfig,
   type CbLevel,
   type ComboConfig,
+  type DisconnectBehaviour,
   type EngineConfigDraft,
   type GatewayConfig,
   type GatewayMmObligationOverride,
@@ -46,6 +47,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
   "mm_obligation_defaults",
   "risk_controls",
   "circuit_breaker_defaults",
+  "gateway_defaults",
   "gateways",
   "alf_gateway",
   "post_trade_gateway",
@@ -143,6 +145,7 @@ export function parseYamlToDraft(text: string): ImportResult {
     asNumber(engineTuning?.depth_snapshot_tolerance_ticks) ??
     draft.depthSnapshotToleranceTicks;
 
+  parseGatewayDefault(raw.gateway_defaults, draft);
   parseGateways(raw.gateways, draft);
   parseSymbols(raw.symbols, draft);
   parseMmDefaults(raw.mm_obligation_defaults, draft);
@@ -164,6 +167,16 @@ export function parseYamlToDraft(text: string): ImportResult {
   return { draft, unmapped };
 }
 
+function parseGatewayDefault(node: unknown, draft: EngineConfigDraft): void {
+  if (!isDict(node)) return;
+  const smp = asUpper(node.smp_action);
+  if (smp) draft.gatewayDefault.smpAction = smp as SmpAction;
+  const disconnect = asUpper(node.disconnect_behaviour);
+  if (disconnect) {
+    draft.gatewayDefault.disconnectBehaviour = disconnect as DisconnectBehaviour;
+  }
+}
+
 function parseGateways(node: unknown, draft: EngineConfigDraft): void {
   if (!isDict(node) || !Array.isArray(node.alf)) return;
   const gateways: GatewayConfig[] = [];
@@ -177,11 +190,16 @@ function parseGateways(node: unknown, draft: EngineConfigDraft): void {
     // real default (CANCEL_QUOTES_ONLY for every role) rather than the
     // role-derived value createGateway() uses for freshly authored gateways.
     // This keeps import -> re-export faithful to what the engine would have done
-    // with the original omitted field.
+    // with the original omitted field. With a gateway_defaults value the
+    // gateway keeps inheriting it instead.
     const disconnect = asUpper(entry.disconnect_behaviour);
-    base.disconnectBehaviour = disconnect
-      ? (disconnect as GatewayConfig["disconnectBehaviour"])
-      : "CANCEL_QUOTES_ONLY";
+    if (disconnect) {
+      base.disconnectBehaviour = disconnect as DisconnectBehaviour;
+    } else if (draft.gatewayDefault.disconnectBehaviour !== undefined) {
+      delete base.disconnectBehaviour;
+    } else {
+      base.disconnectBehaviour = "CANCEL_QUOTES_ONLY";
+    }
     const description = asString(entry.description);
     if (description) base.description = description;
     const refresh = asUpper(entry.quote_refresh_policy);

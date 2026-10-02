@@ -217,7 +217,6 @@ export function createGateway(
     id,
     role,
     disconnectBehaviour: defaultDisconnectBehaviour(role),
-    smpAction: "NONE",
   };
 }
 
@@ -319,6 +318,7 @@ export function createBlankDraft(): EngineConfigDraft {
     symbols: {},
     symbolOrder: [],
     gateways: [],
+    gatewayDefault: {},
     riskControls: {
       globalStaticBandPct: undefined,
       globalDynamicBandPct: undefined,

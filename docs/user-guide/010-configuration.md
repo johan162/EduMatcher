@@ -239,7 +239,9 @@ Required inputs:
 |------------------------------------|-------------------|-------------------------------------------|
 | `--symbols SYM [SYM ...]`          | Repeatable tokens | Symbol universe (uppercased on parse)     |
 | `--gateways GW_SPEC [GW_SPEC ...]` | Repeatable tokens | Gateway specs as `ID[:ROLE[:DISCONNECT[:DESCRIPTION]]]` |
-| `--gateway-smp GW_ID:SMP_ACTION`   | Repeatable        | Sets `gateways.alf[<GW_ID>].smp_action` (`NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`); `GW_ID` must be one of `--gateways`; omitted gateways stay at `NONE`. See [Risk Controls — Self-Match Prevention](120-risk-controls.md#self-match-prevention-smp) |
+| `--gateway-smp GW_ID:SMP_ACTION`   | Repeatable        | Sets `gateways.alf[<GW_ID>].smp_action` (`NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`); `GW_ID` must be one of `--gateways`; omitted gateways inherit `--gateway-default-smp`, else `NONE`. `GW_ID:NONE` is written when it overrides a non-`NONE` default. See [Risk Controls — Self-Match Prevention](120-risk-controls.md#self-match-prevention-smp) |
+| `--gateway-default-smp SMP_ACTION` | Choice            | Writes `gateway_defaults.smp_action`, inherited by every gateway without its own `smp_action`. See [Gateway Defaults](#gateway-defaults) |
+| `--gateway-default-disconnect DISCONNECT` | Choice     | Writes `gateway_defaults.disconnect_behaviour` (`CANCEL_ALL`, `CANCEL_QUOTES_ONLY`, `LEAVE_ALL`). Gateways whose `--gateways` spec does not name a disconnect behaviour inherit it instead of the per-role default; this includes `ADMIN` and `MARKET_MAKER` gateways. See [Gateway Defaults](#gateway-defaults) |
 
 Session and schedule options:
 
@@ -1318,6 +1320,7 @@ The current parser recognizes these top-level keys:
 | `symbols`                  |                        Yes | Engine                          | Accepted symbols and per-symbol settings                                  |
 | `gateways`                 |                        Yes | Engine                          | Gateway configuration container                                           |
 | `gateways.alf`             |                        Yes | Engine                          | Accepted ALF order-entry gateways                                         |
+| `gateway_defaults`          |                         No | Engine                          | Values a `gateways.alf` entry inherits when it omits them                 |
 | `alf_gateway`              |                         No | `pm-alf-gwy`                    | External ALF text TCP gateway settings                                    |
 | `sessions_enabled`         |                         No | Engine                          | Enable scheduler-driven session states                                    |
 | `enforce_collars`          |                         No | Engine                          | Global collar enforcement toggle                                          |
@@ -1354,7 +1357,7 @@ of the file — the gateway-specific blocks (`market_data_gateway`,
 
 | Process | Loader module | Top-level section(s) read | What it needs it for |
 |---|---|---|---|
-| `pm-engine` | `engine/config_loader.py` | `symbols`, `gateways.alf`, `sessions_enabled`, `enforce_collars`, `enforce_circuit_breakers`, `engine_tuning`, `mm_obligation_defaults`, `risk_controls`, `circuit_breaker_defaults`, `market_maker_combos`, `schedule`, `indices` | Symbol universe, allowed order-entry gateways, session/collar/order-limit/circuit-breaker policy, runtime tuning, MM obligations, startup combo seeds, session schedule, and index definitions |
+| `pm-engine` | `engine/config_loader.py` | `symbols`, `gateways.alf`, `gateway_defaults`, `sessions_enabled`, `enforce_collars`, `enforce_circuit_breakers`, `engine_tuning`, `mm_obligation_defaults`, `risk_controls`, `circuit_breaker_defaults`, `market_maker_combos`, `schedule`, `indices` | Symbol universe, allowed order-entry gateways, session/collar/order-limit/circuit-breaker policy, runtime tuning, MM obligations, startup combo seeds, session schedule, and index definitions |
 | `pm-alf-gwy` | `alf_gwy/config.py` | `alf_gateway`, `gateways.alf` | Own bind address/port/timeouts, plus the gateway ID allowlist and roles for ALF client sessions |
 | `pm-balf-gwy` | `balf_gwy/config.py` | `balf_gateway`, `gateways.alf` | Own bind address/port/timeouts, plus the gateway ID allowlist, roles, and `disconnect_behaviour` for BALF sessions |
 | `pm-ralf-gwy` | `ralf_gateway/config.py` | `post_trade_gateway` | Own bind address/port/timeouts and `allowed_roles` for RALF (post-trade) subscribers |
@@ -2218,6 +2221,50 @@ Rules:
 - defaults to `100` when omitted
 
 
+## Gateway Defaults
+
+The optional top-level `gateway_defaults` block holds values that every
+`gateways.alf` entry **inherits when it omits the key**. Use it to state a
+uniform policy once instead of repeating it on each gateway.
+
+```yaml
+gateway_defaults:
+  smp_action: CANCEL_AGGRESSOR
+  disconnect_behaviour: CANCEL_ALL
+
+gateways:
+  alf:
+    - id: TRADER01             # inherits both defaults
+    - id: TRADER02
+      smp_action: NONE         # explicit: allows self-trades on this gateway
+    - id: OPS01
+      role: ADMIN
+      disconnect_behaviour: LEAVE_ALL
+```
+
+| Field                  | Required | Accepted values                                  | Default when omitted |
+|------------------------|---------:|--------------------------------------------------|----------------------|
+| `smp_action`           |       No | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | `NONE`               |
+| `disconnect_behaviour` |       No | `CANCEL_QUOTES_ONLY`, `CANCEL_ALL`, `LEAVE_ALL`  | `CANCEL_QUOTES_ONLY` |
+
+Rules:
+
+- a gateway's effective value is its own key, then `gateway_defaults`, then the
+  built-in default shown above
+- an explicit gateway value always wins, including `smp_action: NONE` when the
+  default is something else
+- the block applies to every role; a `disconnect_behaviour` default of
+  `CANCEL_ALL` also reaches `ADMIN` and `MARKET_MAKER` entries that omit the key,
+  so give those entries their own value when they need a different behaviour
+- `gateway_defaults` must be a mapping, values are case-insensitive, and any key
+  other than the two above is rejected at load (a mistyped name is not
+  silently ignored)
+- per-order `SMP=` still outranks both (see the `smp_action` note below)
+
+`pm-config-gen` writes the block with `--gateway-default-smp` and
+`--gateway-default-disconnect`, `pm-cverifier` checks it (`S118`–`S120`), and the
+config GUI edits it under **Basics → Gateways**.
+
 ## ALF Gateway Allowlist
 
 Only gateway IDs listed under `gateways.alf` may connect and submit orders when
@@ -2239,13 +2286,13 @@ gateways:
 | `id`                    |      Yes | Non-empty string, uppercased by parser                                  | None                          |
 | `description`           |       No | String or null                                                          | Empty string                  |
 | `role`                  |       No | `TRADER`, `MARKET_MAKER`, `ADMIN`                                       | `TRADER`                      |
-| `disconnect_behaviour`  |       No | `CANCEL_QUOTES_ONLY`, `CANCEL_ALL`, `LEAVE_ALL`                         | `CANCEL_QUOTES_ONLY`          |
+| `disconnect_behaviour`  |       No | `CANCEL_QUOTES_ONLY`, `CANCEL_ALL`, `LEAVE_ALL`                         | `gateway_defaults`, then `CANCEL_QUOTES_ONLY` |
 | `quote_refresh_policy`  |       No | `INACTIVATE_ON_ANY_FILL`, `INACTIVATE_ON_FULL_FILL`, `NEVER_INACTIVATE` | `INACTIVATE_ON_ANY_FILL`      |
 | `enforce_mm_obligation` |       No | Boolean                                                                 | Global MM default             |
 | `mm_max_spread_ticks`   |       No | Positive integer                                                        | Global MM default, then `10`  |
 | `mm_min_qty`            |       No | Positive integer                                                        | Global MM default, then `100` |
 | `mm_obligations`        |       No | Per-symbol mapping                                                      | Empty mapping                 |
-| `smp_action`            |       No | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`             | `NONE`                        |
+| `smp_action`            |       No | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`             | `gateway_defaults`, then `NONE` |
 
 !!! note "`smp_action` is a fallback default, not an override"
     `gateways.alf[].smp_action` is the self-match-prevention action the
@@ -2262,8 +2309,8 @@ gateways:
       explicit `SMP=` — including `SMP=NONE`, a deliberate request to allow
       self-trades — that value is always honoured as-is. Only when the
       client omits `SMP=` entirely does the engine fall back to this
-      gateway's `smp_action`, and finally to `NONE` if the gateway has none
-      configured.
+      gateway's `smp_action` (or the inherited `gateway_defaults.smp_action`),
+      and finally to `NONE` if neither is configured.
 
     In short: an explicit per-order `SMP=` always wins; `gateways.alf[].smp_action`
     only fills the gap when the client didn't say anything.

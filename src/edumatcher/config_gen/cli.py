@@ -19,7 +19,7 @@ from edumatcher.cli_version import package_version
 
 from edumatcher.engine.config_loader import load_engine_config
 from edumatcher.models.order import SmpAction
-from edumatcher.models.participant import ParticipantRole
+from edumatcher.models.participant import DisconnectBehaviour, ParticipantRole
 from edumatcher.models.price import TickViolation, to_ticks_exact_at
 
 from edumatcher.config_gen.builder import ConfigBuilder, ConfigSpec
@@ -759,7 +759,7 @@ def _parse_specs(args: argparse.Namespace) -> tuple[
     if gateway_smp:
         gateways = [
             (
-                replace(gw, smp_action=gateway_smp[gw.gateway_id])
+                replace(gw, smp_action=gateway_smp[gw.gateway_id], smp_explicit=True)
                 if gw.gateway_id in gateway_smp
                 else gw
             )
@@ -1840,6 +1840,16 @@ def main() -> None:
         spec = ConfigSpec(
             symbols=symbols,
             gateways=gateways,
+            gateway_default_smp=(
+                SmpAction(args.gateway_default_smp)
+                if args.gateway_default_smp is not None
+                else None
+            ),
+            gateway_default_disconnect=(
+                DisconnectBehaviour(args.gateway_default_disconnect)
+                if args.gateway_default_disconnect is not None
+                else None
+            ),
             sessions_enabled=bool(args.sessions_enabled),
             country=str(args.country) if args.country is not None else None,
             snapshot_interval_sec=float(args.snapshot_interval),

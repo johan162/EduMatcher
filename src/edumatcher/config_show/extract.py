@@ -59,6 +59,7 @@ KNOWN_TOP_LEVEL: frozenset[str] = frozenset(
         "require_mm_seed_quotes",
         "risk_controls",
         "circuit_breaker_defaults",
+        "gateway_defaults",
         "gateways",
         "alf_gateway",
         "balf_gateway",
@@ -227,6 +228,9 @@ def _listeners(raw: dict[str, Any]) -> tuple[Listener, ...]:
 # ---------------------------------------------------------------------------
 def _participants(raw: dict[str, Any]) -> tuple[Participant, ...]:
     out: list[Participant] = []
+    default_disconnect = _as_dict(raw.get("gateway_defaults")).get(
+        "disconnect_behaviour"
+    )
     for entry in _as_list(_as_dict(raw.get("gateways")).get("alf")):
         if not isinstance(entry, dict):
             continue
@@ -234,7 +238,9 @@ def _participants(raw: dict[str, Any]) -> tuple[Participant, ...]:
             Participant(
                 gid=str(entry.get("id", "?")),
                 role=_as_str(entry.get("role"), "—"),
-                disconnect=_as_str(entry.get("disconnect_behaviour"), "—"),
+                disconnect=_as_str(
+                    entry.get("disconnect_behaviour", default_disconnect), "—"
+                ),
                 quote_policy=(
                     entry.get("quote_refresh_policy")
                     if isinstance(entry.get("quote_refresh_policy"), str)

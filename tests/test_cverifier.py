@@ -330,6 +330,41 @@ class TestLayer2Gateways:
         results = layer2_schema.check(raw, Path("x.yaml"))
         assert "S086" not in _codes(results)
 
+    @pytest.mark.parametrize(
+        ("block", "code"),
+        [
+            ("gateway_defaults: [1]\n", "S118"),
+            ("gateway_defaults:\n  smp_actoin: NONE\n", "S118"),
+            ("gateway_defaults:\n  disconnect_behaviour: NUKE\n", "S119"),
+            ("gateway_defaults:\n  smp_action: SOMETIMES\n", "S120"),
+        ],
+    )
+    def test_gateway_default_errors(self, block: str, code: str) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n" + block + "gateways:\n  alf:\n    - id: GW01\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert code in _codes(results)
+
+    def test_valid_gateway_default_has_no_errors(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateway_defaults:\n  smp_action: cancel_both\n"
+            "  disconnect_behaviour: CANCEL_ALL\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert not {"S118", "S119", "S120"} & set(_codes(results))
+
+    def test_c010_uses_inherited_disconnect_behaviour(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateway_defaults:\n  disconnect_behaviour: LEAVE_ALL\n"
+            "gateways:\n  alf:\n    - id: GW01\n      role: TRADER\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert "C010" in _codes(results)
+
     def test_s025_gateway_enforce_mm_not_bool(self) -> None:
         raw = _raw(
             "symbols:\n  AAPL: {}\n"

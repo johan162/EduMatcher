@@ -308,6 +308,7 @@ const seedFromMmWithoutRange: Rule = (draft) =>
 const SECTION_TABS: Record<string, string> = {
   symbols: "symbols",
   gateways: "basics",
+  gatewayDefault: "basics",
   country: "basics",
   tickDecimals: "symbols",
   riskControls: "risk",
